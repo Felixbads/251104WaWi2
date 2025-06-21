@@ -1,1644 +1,320 @@
-import { useEffect, useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import { useParams, useLocation } from 'wouter';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { 
-  getProduct, 
-  getProductSalesTimeSeries, 
-  getProductRefills, 
-  getProductMachines, 
-  updateProduct,
-  getSuppliers,
-  createSupplier,
-  getPurchaseConditionsByProduct,
-  Supplier,
-  Product,
-  PurchaseCondition
-} from '@/lib/api';
-import { 
-  Loader2, ArrowLeft, Truck, Package, Tag, Info, Clipboard, Clock, 
-  BarChart3, Calendar, ShoppingCart, Edit, Check, CheckCircle2, 
-  X, XCircle, Building2, User, AlertTriangle, PackageOpen, BarChart4, 
-  Settings, Store, FileText, Plus, FileDown, FileUp
-} from 'lucide-react';
-import { PurchaseConditionForm } from '@/components/PurchaseConditionForm';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { formatDateTime } from '@/lib/api';
+import { ArrowLeft, Edit, Package, Info, Image } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { 
-  Dialog, DialogContent, DialogDescription, DialogFooter, 
-  DialogHeader, DialogTitle, DialogTrigger 
-} from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
-import { 
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue 
-} from '@/components/ui/select';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Switch } from '@/components/ui/switch';
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, LineChart, Line } from 'recharts';
+import { Product } from '@shared/schema';
+import { ProductEditDialog } from '@/components/ProductEditDialog';
+import { apiRequest } from '@/lib/queryClient';
 
 export default function ProductDetail() {
   const { id } = useParams<{ id: string }>();
-  const [, setLocation] = useLocation();
-  const [activeTab, setActiveTab] = useState<string>('details');
+  const [_, navigate] = useLocation();
   const { toast } = useToast();
-  const [salesTimePeriod, setSalesTimePeriod] = useState<'day' | 'week' | 'month' | 'year'>('month');
-  const [showAddSupplierDialog, setShowAddSupplierDialog] = useState(false);
-  const [newSupplier, setNewSupplier] = useState<Partial<Supplier>>({
-    name: '',
-    country: 'DE',
-    status: 'active'
-  });
-  const [editMode, setEditMode] = useState(false);
-  const [editedProduct, setEditedProduct] = useState<Partial<Product>>({});
-  
-  // States für Einkaufsbedingungen
-  const [showAddConditionDialog, setShowAddConditionDialog] = useState(false);
-  const [selectedSupplier, setSelectedSupplier] = useState<number | null>(null);
-  const [selectedCondition, setSelectedCondition] = useState<PurchaseCondition | null>(null);
   const queryClient = useQueryClient();
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
-  // Hole Produktdaten
-  const { data: product, isLoading, error } = useQuery({
+  // Produktdaten abfragen
+  const { data: product, isLoading, error } = useQuery<Product>({
     queryKey: [`/api/products/${id}`],
-    queryFn: () => getProduct(id),
     staleTime: 1000 * 60, // 1 Minute
   });
 
-  // Hole Produktverkäufe
-  const { data: salesData, isLoading: isLoadingSales } = useQuery({
-    queryKey: [`/api/products/${id}/sales`, salesTimePeriod],
-    queryFn: () => getProductSalesTimeSeries(id, salesTimePeriod),
-    enabled: !!id,
-    staleTime: 1000 * 60 * 5, // 5 Minuten
-  });
-
-  // Hole Produktauffüllungen
-  const { data: refillData, isLoading: isLoadingRefills } = useQuery({
-    queryKey: [`/api/products/${id}/refills`],
-    queryFn: () => getProductRefills(id),
-    enabled: !!id,
-    staleTime: 1000 * 60 * 5, // 5 Minuten
-  });
-
-  // Hole Automatenplatzierungen
-  const { data: machineData, isLoading: isLoadingMachines } = useQuery({
-    queryKey: [`/api/products/${id}/machines`],
-    queryFn: () => getProductMachines(id),
-    enabled: !!id,
-    staleTime: 1000 * 60 * 5, // 5 Minuten
-  });
-
-  // Hole Lieferanten
-  const { data: suppliersData } = useQuery({
-    queryKey: ['/api/suppliers'],
-    queryFn: () => getSuppliers({ limit: 100 }),
-    enabled: activeTab === 'supplier' || activeTab === 'purchase-conditions',
-    staleTime: 1000 * 60 * 15, // 15 Minuten
-  });
-  
-  // Einkaufsbedingungen für dieses Produkt laden
-  const { data: purchaseConditions, isLoading: isLoadingPurchaseConditions } = useQuery({
-    queryKey: [`/api/products/${id}/purchase-conditions`],
-    queryFn: () => getPurchaseConditionsByProduct(Number(id)),
-    enabled: activeTab === 'purchase-conditions',
-    staleTime: 1000 * 60 * 5, // 5 Minuten
-  });
-  
-  // Einkaufsbedingungen nach Datum sortieren
-  const sortedConditions = useMemo(() => {
-    if (!purchaseConditions) return [];
-    return [...purchaseConditions].sort((a, b) => {
-      // Bevorzugte zuerst
-      if (a.isPreferred && !b.isPreferred) return -1;
-      if (!a.isPreferred && b.isPreferred) return 1;
-      
-      // Nach Gültigkeitsdatum
-      const dateA = a.validFrom ? new Date(a.validFrom) : new Date(0);
-      const dateB = b.validFrom ? new Date(b.validFrom) : new Date(0);
-      return dateB.getTime() - dateA.getTime();
-    });
-  }, [purchaseConditions]);
-  
-  // Berechne aktuell gültige Einkaufsbedingungen
-  const validConditions = useMemo(() => {
-    if (!purchaseConditions) return [];
-    const now = new Date();
-    
-    return purchaseConditions.filter(condition => {
-      const validFrom = condition.validFrom ? new Date(condition.validFrom) : null;
-      const validTo = condition.validTo ? new Date(condition.validTo) : null;
-      
-      // Prüfe, ob die Bedingung aktuell gültig ist
-      const isValid = 
-        (!validFrom || validFrom <= now) && 
-        (!validTo || validTo >= now);
-      
-      return isValid;
-    });
-  }, [purchaseConditions]);
-
   // Mutation zum Aktualisieren des Produkts
   const updateProductMutation = useMutation({
-    mutationFn: (data: Partial<Product>) => updateProduct(id, data),
+    mutationFn: async (updatedProduct: Partial<Product>) => {
+      return apiRequest(`/api/products/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(updatedProduct),
+      });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/products/${id}`] });
+      queryClient.invalidateQueries({ queryKey: ['/api/products'] });
       toast({
         title: "Produkt aktualisiert",
-        description: "Die Produktdaten wurden erfolgreich aktualisiert.",
-      });
-      setEditMode(false);
-    },
-    onError: (error) => {
-      toast({
-        title: "Fehler beim Aktualisieren",
-        description: error instanceof Error ? error.message : "Ein unbekannter Fehler ist aufgetreten.",
-        variant: "destructive",
-      });
-    }
-  });
-
-  // Mutation zum Erstellen eines Lieferanten
-  const createSupplierMutation = useMutation({
-    mutationFn: (data: Partial<Supplier>) => {
-      // Typumwandlung, um die API-Anforderungen zu erfüllen
-      return createSupplier(data as Omit<Supplier, 'id' | 'createdAt' | 'updatedAt'>);
-    },
-    onSuccess: (newSupplier) => {
-      queryClient.invalidateQueries({ queryKey: ['/api/suppliers'] });
-      
-      // Aktualisiere das Produkt mit dem neuen Lieferanten
-      if (product) {
-        updateProductMutation.mutate({ 
-          supplierId: newSupplier.id,
-          supplier: newSupplier.name
-        });
-      }
-      
-      setShowAddSupplierDialog(false);
-      setNewSupplier({
-        name: '',
-        country: 'DE',
-        status: 'active'
-      });
-      
-      toast({
-        title: "Lieferant hinzugefügt",
-        description: `Der Lieferant "${newSupplier.name}" wurde erfolgreich erstellt und dem Produkt zugewiesen.`,
+        description: "Das Produkt wurde erfolgreich aktualisiert.",
       });
     },
     onError: (error) => {
+      console.error('Update error:', error);
       toast({
-        title: "Fehler beim Erstellen des Lieferanten",
-        description: error instanceof Error ? error.message : "Ein unbekannter Fehler ist aufgetreten.",
+        title: "Fehler",
+        description: "Fehler beim Aktualisieren des Produkts.",
         variant: "destructive",
       });
-    }
+    },
   });
 
-  // Wenn sich das Produkt ändert, aktualisiere den Bearbeitungszustand
-  useEffect(() => {
-    if (product) {
-      setEditedProduct({
-        productName: product.productName,
-        description: product.description,
-        category: product.category,
-        price: product.price,
-        vat: product.vat,
-        costPrice: product.costPrice,
-        requiresAgeVerification: product.requiresAgeVerification,
-        packageSize: product.packageSize,
-        shelfLifeDays: product.shelfLifeDays,
-        supplierId: product.supplierId,
-        supplier: product.supplier,
-        articleSupplier: product.articleSupplier,
-        minOrderQuantity: product.minOrderQuantity
-      });
-    }
-  }, [product]);
+  if (isLoading) {
+    return (
+      <div className="container py-8">
+        <div className="animate-pulse space-y-4">
+          <div className="h-8 bg-gray-200 rounded w-1/3"></div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="h-64 bg-gray-200 rounded"></div>
+            <div className="h-64 bg-gray-200 rounded"></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
-  // Funktion zum Speichern der bearbeiteten Produktdaten
-  const handleSaveProduct = () => {
-    updateProductMutation.mutate(editedProduct);
+  if (error || !product) {
+    return (
+      <div className="container py-8">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-red-600">Produkt nicht gefunden</h1>
+          <p className="text-gray-600 mt-2">Das angeforderte Produkt konnte nicht geladen werden.</p>
+          <Button onClick={() => navigate('/produkte')} className="mt-4">
+            Zurück zur Produktliste
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  const handleUpdateProduct = (updatedData: Partial<Product>) => {
+    updateProductMutation.mutate(updatedData);
   };
-
-  // Funktion zum Hinzufügen eines neuen Lieferanten
-  const handleAddSupplier = () => {
-    if (!newSupplier.name) {
-      toast({
-        title: "Name erforderlich",
-        description: "Bitte geben Sie einen Namen für den Lieferanten ein.",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    createSupplierMutation.mutate(newSupplier);
-  };
-
-  // Berechne einige Statistiken
-  const totalRefillsRemoved = Array.isArray(refillData) 
-    ? refillData.reduce((total, refill) => total + (refill.removed || 0), 0) 
-    : 0;
-  const totalRefillsAdded = Array.isArray(refillData) 
-    ? refillData.reduce((total, refill) => total + (refill.added || 0), 0) 
-    : 0;
-  const activeInMachines = Array.isArray(machineData) 
-    ? machineData.filter(m => m.currentStock > 0).length 
-    : 0;
-
-  // Parst die Tags, wenn vorhanden
-  const tags = product?.tags ? JSON.parse(product.tags) : [];
-  const isAlcohol = tags.includes('alcohol') || product?.requiresAgeVerification;
 
   return (
-    <div className="container max-w-7xl mx-auto py-6 px-4 md:px-6">
-      {/* Back button and header */}
-      <div className="flex items-center mb-6">
-        <Button 
-          variant="ghost" 
-          size="sm" 
-          className="mr-2" 
-          onClick={() => setLocation('/produkte')}
-        >
-          <ArrowLeft className="h-4 w-4 mr-1" />
-          Zurück
+    <div className="container py-8">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center space-x-4">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => navigate('/produkte')}
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <div>
+            <h1 className="text-3xl font-bold">{product.productName}</h1>
+            <p className="text-gray-600">
+              {product.sku && `SKU: ${product.sku}`}
+              {product.supplierSku && ` • Lieferanten-Nr.: ${product.supplierSku}`}
+            </p>
+          </div>
+        </div>
+        <Button onClick={() => setIsEditDialogOpen(true)}>
+          <Edit className="h-4 w-4 mr-2" />
+          Bearbeiten
         </Button>
-        <h1 className="text-2xl font-bold">Produktdetails</h1>
       </div>
 
-      {isLoading && (
-        <div className="flex justify-center items-center h-64">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-          <span className="ml-2 text-muted-foreground">Lade Produktdaten...</span>
-        </div>
-      )}
+      <Tabs defaultValue="overview" className="w-full">
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="overview">Übersicht</TabsTrigger>
+          <TabsTrigger value="details">Details</TabsTrigger>
+          <TabsTrigger value="nutrition">Nährwerte</TabsTrigger>
+          <TabsTrigger value="photos">Fotos</TabsTrigger>
+        </TabsList>
 
-      {error && (
-        <Card className="bg-red-50 border-red-200">
-          <CardHeader>
-            <CardTitle className="text-red-800">Fehler beim Laden der Produktdaten</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-red-700">
-              {error instanceof Error ? error.message : 'Ein unbekannter Fehler ist aufgetreten.'}
-            </p>
-          </CardContent>
-          <CardFooter>
-            <Button variant="outline" onClick={() => setLocation('/produkte')}>
-              Zurück zur Produktübersicht
-            </Button>
-          </CardFooter>
-        </Card>
-      )}
-
-      {product && (
-        <div className="grid grid-cols-1 gap-6">
-          {/* Produktdetails */}
-          <div>
-            <Card className="mb-6">
-              <CardHeader className="pb-3">
-                <div className="flex items-start justify-between">
+        <TabsContent value="overview" className="space-y-6 mt-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Grundinformationen */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <Package className="h-5 w-5 mr-2" />
+                  Grundinformationen
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <CardTitle className="text-xl">{product.productName}</CardTitle>
-                    {product.sku && (
-                      <CardDescription className="flex items-center mt-1">
-                        <Tag className="h-3 w-3 mr-1" />
-                        {product.sku}
-                      </CardDescription>
-                    )}
+                    <span className="text-sm text-gray-500">Preis</span>
+                    <p className="font-medium">
+                      {product.price ? `${product.price.toFixed(2)} €` : 'k.A.'}
+                    </p>
                   </div>
-                  <div className="flex gap-2">
-                    {isAlcohol && (
-                      <span><Badge variant="outline" className="bg-amber-100 text-amber-800 border-amber-300">
-                        18+
-                      </Badge></span>
-                    )}
-                    {product.category && (
-                      <span><Badge variant="secondary">
-                        {product.category}
-                      </Badge></span>
-                    )}
+                  <div>
+                    <span className="text-sm text-gray-500">Kategorie</span>
+                    <p className="font-medium">{product.category || 'k.A.'}</p>
+                  </div>
+                  <div>
+                    <span className="text-sm text-gray-500">Status</span>
+                    <Badge variant={product.status === 'active' ? 'default' : 'secondary'}>
+                      {product.status || 'k.A.'}
+                    </Badge>
+                  </div>
+                  <div>
+                    <span className="text-sm text-gray-500">Barcode</span>
+                    <p className="font-medium">{product.barcode || 'k.A.'}</p>
                   </div>
                 </div>
-                <div className="flex items-center mt-3 justify-end">
-                  {editMode ? (
-                    <div className="flex gap-2">
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        onClick={() => setEditMode(false)}
-                      >
-                        Abbrechen
-                      </Button>
-                      <Button 
-                        size="sm" 
-                        onClick={handleSaveProduct}
-                      >
-                        Speichern
-                      </Button>
+
+                {product.shortDescription && (
+                  <div>
+                    <span className="text-sm text-gray-500">Kurzbeschreibung</span>
+                    <p className="font-medium whitespace-pre-line">{product.shortDescription}</p>
+                  </div>
+                )}
+
+                {product.description && (
+                  <div>
+                    <span className="text-sm text-gray-500">Beschreibung</span>
+                    <p className="font-medium whitespace-pre-line">{product.description}</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Lieferanteninformationen */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Lieferanteninformationen</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {product.supplierName && (
+                  <div>
+                    <span className="text-sm text-gray-500">Lieferant</span>
+                    <p className="font-medium">{product.supplierName}</p>
+                  </div>
+                )}
+                
+                <div className="grid grid-cols-2 gap-4">
+                  {product.packageSize && (
+                    <div>
+                      <span className="text-sm text-gray-500">Gebindegröße</span>
+                      <p className="font-medium">{product.packageSize}</p>
                     </div>
-                  ) : (
-                    <div className="flex gap-2">
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        onClick={() => setEditMode(true)}
-                      >
-                        <Edit className="h-4 w-4 mr-1" />
-                        Bearbeiten
-                      </Button>
-                      <Button 
-                        size="sm" 
-                        onClick={() => {
-                          toast({
-                            title: "Bestand anpassen",
-                            description: `Weiterleitung zur Bestandsanpassung für "${product?.productName || `Produkt #${id}`}"`,
-                          });
-                          setLocation(`/lager?adjust=product&id=${id}`);
-                        }}
-                      >
-                        <Package className="h-4 w-4 mr-2" />
-                        Bestand anpassen
-                      </Button>
+                  )}
+                  {product.minOrderQuantity && (
+                    <div>
+                      <span className="text-sm text-gray-500">Mindestbestellmenge</span>
+                      <p className="font-medium">{product.minOrderQuantity}</p>
                     </div>
                   )}
                 </div>
-              </CardHeader>
 
-              <CardContent>
-                <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                  <TabsList className="grid grid-cols-5 w-full mb-4">
-                    <TabsTrigger value="details">
-                      <Info className="h-4 w-4 mr-1" />
-                      Details
-                    </TabsTrigger>
-                    <TabsTrigger value="inventory">
-                      <Package className="h-4 w-4 mr-1" />
-                      Bestand
-                    </TabsTrigger>
-                    <TabsTrigger value="sales">
-                      <BarChart3 className="h-4 w-4 mr-1" />
-                      Verkäufe
-                    </TabsTrigger>
-                    <TabsTrigger value="supplier">
-                      <Truck className="h-4 w-4 mr-1" />
-                      Lieferant
-                    </TabsTrigger>
-                    <TabsTrigger value="purchase-conditions">
-                      <ShoppingCart className="h-4 w-4 mr-1" />
-                      Einkaufspreise
-                    </TabsTrigger>
-                  </TabsList>
-
-                  <TabsContent value="details">
-                    <div className="grid grid-cols-2 gap-y-6 gap-x-10">
-                      {/* Preis */}
-                      <div>
-                        <h3 className="text-sm font-medium text-gray-500 mb-1">Preis</h3>
-                        <p className="text-lg font-semibold">{product.price?.toFixed(2) || '–'} €</p>
-                        {product.vat && <p className="text-xs text-gray-500">zzgl. {product.vat}% MwSt.</p>}
-                      </div>
-
-                      {/* Kostpreis (falls vorhanden) */}
-                      {product.costPrice && (
-                        <div>
-                          <h3 className="text-sm font-medium text-gray-500 mb-1">Kostpreis</h3>
-                          <p className="text-lg font-semibold">{product.costPrice.toFixed(2)} €</p>
-                          {product.costPrice && product.price && (
-                            <p className="text-xs text-gray-500">
-                              Marge: {((product.price - product.costPrice) / product.price * 100).toFixed(1)}%
-                            </p>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Lieferant */}
-                      <div>
-                        <h3 className="text-sm font-medium text-gray-500 mb-1">Lieferant</h3>
-                        <p className="font-medium">{product.supplier || '–'}</p>
-                      </div>
-
-                      {/* Produkt-ID */}
-                      <div>
-                        <h3 className="text-sm font-medium text-gray-500 mb-1">Produkt-ID</h3>
-                        <p className="font-medium">
-                          {product.id}
-                          {product.vendonId && (
-                            <span className="text-xs text-gray-500 ml-2">
-                              (Vendon: {product.vendonId})
-                            </span>
-                          )}
-                        </p>
-                      </div>
-
-                      {/* Kategorie */}
-                      <div>
-                        <h3 className="text-sm font-medium text-gray-500 mb-1">Kategorie</h3>
-                        {editMode ? (
-                          <div className="flex gap-2">
-                            <Select 
-                              value={editedProduct.category || ''}
-                              onValueChange={(value) => setEditedProduct({...editedProduct, category: value})}
-                            >
-                              <SelectTrigger className="w-full">
-                                <SelectValue placeholder="Kategorie auswählen" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="Aufstrich">Aufstrich</SelectItem>
-                                <SelectItem value="Bier">Bier</SelectItem>
-                                <SelectItem value="Brot und Gebäck">Brot und Gebäck</SelectItem>
-                                <SelectItem value="Eier">Eier</SelectItem>
-                                <SelectItem value="Gerichte im Glas">Gerichte im Glas</SelectItem>
-                                <SelectItem value="Honig und Marmeladen">Honig und Marmeladen</SelectItem>
-                                <SelectItem value="Kaffee">Kaffee</SelectItem>
-                                <SelectItem value="Limonaden und Säfte">Limonaden und Säfte</SelectItem>
-                                <SelectItem value="Käse und Milchwaren">Käse und Milchwaren</SelectItem>
-                                <SelectItem value="Nudeln">Nudeln</SelectItem>
-                                <SelectItem value="Süßigkeiten">Süßigkeiten</SelectItem>
-                                <SelectItem value="Sekt und Wein">Sekt und Wein</SelectItem>
-                                <SelectItem value="Wasser">Wasser</SelectItem>
-                                <SelectItem value="Wurst und Fleisch">Wurst und Fleisch</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        ) : (
-                          <p className="font-medium">{product.category || '–'}</p>
-                        )}
-                      </div>
-
-                      {/* Beschreibung */}
-                      {product.description && (
-                        <div className="col-span-2">
-                          <h3 className="text-sm font-medium text-gray-500 mb-1">Beschreibung</h3>
-                          <p className="font-medium whitespace-pre-line">{product.description}</p>
-                        </div>
-                      )}
-
-                      {/* Tags */}
-                      {tags.length > 0 && (
-                        <div className="col-span-2">
-                          <h3 className="text-sm font-medium text-gray-500 mb-2">Tags</h3>
-                          <div className="flex flex-wrap gap-2">
-                            {tags.map((tag: string) => (
-                              <span key={tag}>
-                                <Badge variant="outline" className="bg-gray-50">
-                                  {tag}
-                                </Badge>
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Altersverifizierung */}
-                      <div className="col-span-2">
-                        <h3 className="text-sm font-medium text-gray-500 mb-1">Altersverifizierung</h3>
-                        {editMode ? (
-                          <div className="flex items-center space-x-2 pt-1">
-                            <Checkbox 
-                              id="requiresAgeVerification" 
-                              checked={editedProduct.requiresAgeVerification}
-                              onCheckedChange={(checked) => setEditedProduct({
-                                ...editedProduct,
-                                requiresAgeVerification: checked === true
-                              })}
-                            />
-                            <Label htmlFor="requiresAgeVerification">Altersprüfung erforderlich (18+)</Label>
-                          </div>
-                        ) : (
-                          <p className="font-medium">
-                            {product.requiresAgeVerification ? 
-                              <span className="flex items-center text-amber-600">
-                                <Check className="h-4 w-4 mr-1" /> Ja, Altersprüfung erforderlich (18+)
-                              </span> : 
-                              <span className="flex items-center text-gray-500">
-                                <X className="h-4 w-4 mr-1" /> Nein, keine Altersprüfung erforderlich
-                              </span>
-                            }
-                          </p>
-                        )}
-                      </div>
-
-                      {/* Artikel/Barcode */}
-                      <div>
-                        <h3 className="text-sm font-medium text-gray-500 mb-1">Artikelnummer</h3>
-                        <p className="font-medium">{product.article || '–'}</p>
-                      </div>
-
-                      <div>
-                        <h3 className="text-sm font-medium text-gray-500 mb-1">Barcode</h3>
-                        <p className="font-medium">{product.barcode || '–'}</p>
-                      </div>
-
-
-
-                      {/* Pfand */}
-                      <div>
-                        <h3 className="text-sm font-medium text-gray-500 mb-1">Pfand</h3>
-                        {editMode ? (
-                          <div className="flex gap-2">
-                            <Input 
-                              type="number" 
-                              step="0.01"
-                              placeholder="Pfand" 
-                              value={editedProduct.depositPrice?.toString() || ''} 
-                              onChange={(e) => setEditedProduct({...editedProduct, depositPrice: parseFloat(e.target.value) || 0})}
-                              className="w-2/3"
-                            />
-                            <span className="flex items-center text-gray-500">€</span>
-                          </div>
-                        ) : (
-                          <p className="font-medium">{product.depositPrice?.toFixed(2) || '0.00'} €</p>
-                        )}
-                      </div>
-
-                      {/* Einheiten */}
-                      {product.units && (
-                        <div>
-                          <h3 className="text-sm font-medium text-gray-500 mb-1">Einheiten</h3>
-                          <p className="font-medium">{product.units}</p>
-                        </div>
-                      )}
-                    </div>
-                  </TabsContent>
-
-                  <TabsContent value="inventory">
-                    <div className="grid grid-cols-2 gap-y-6 gap-x-10">
-                      {/* Aktueller Bestand */}
-                      <div>
-                        <h3 className="text-sm font-medium text-gray-500 mb-1">Aktueller Bestand</h3>
-                        <p className="text-lg font-semibold">{typeof product.inStock === 'number' ? product.inStock : '–'}</p>
-                      </div>
-
-                      {/* Nachfüllgröße */}
-                      <div>
-                        <h3 className="text-sm font-medium text-gray-500 mb-1">Standardnachfüllmenge</h3>
-                        <p className="font-medium">{product.refillUnitSize || '–'}</p>
-                      </div>
-
-                      {/* Lagerort */}
-                      <div>
-                        <h3 className="text-sm font-medium text-gray-500 mb-1">Lagerort</h3>
-                        <p className="font-medium">{product.warehouseLocation || '–'}</p>
-                      </div>
-
-                      {/* Kritisch */}
-                      <div>
-                        <h3 className="text-sm font-medium text-gray-500 mb-1">Status</h3>
-                        <div className="flex gap-2">
-                          {product.critical && (
-                            <span><Badge variant="destructive">Kritischer Bestand</Badge></span>
-                          )}
-                          {!product.critical && typeof product.inStock === 'number' && product.inStock > 0 && (
-                            <span><Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                              Auf Lager
-                            </Badge></span>
-                          )}
-                          {!product.critical && typeof product.inStock === 'number' && product.inStock <= 0 && (
-                            <span><Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
-                              Nicht auf Lager
-                            </Badge></span>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Lagerbestände */}
-                      <div className="col-span-2 mt-4">
-                        <div className="flex justify-between items-center mb-3">
-                          <h3 className="text-sm font-medium text-gray-500">Lagerbestände</h3>
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
-                            onClick={() => setLocation(`/lager?productId=${id}`)}
-                          >
-                            Alle anzeigen
-                          </Button>
-                        </div>
-                        {isLoadingMachines ? (
-                          <div className="py-6 flex justify-center">
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            <span>Lade Lagerdaten...</span>
-                          </div>
-                        ) : (
-                          <div className="border rounded-md overflow-hidden">
-                            <div className="grid grid-cols-12 py-2 px-4 bg-muted font-medium text-sm">
-                              <div className="col-span-5">Lager</div>
-                              <div className="col-span-3 text-center">Aktueller Bestand</div>
-                              <div className="col-span-4 text-center">Min/Max</div>
-                            </div>
-                            {/* Example warehouse data - replace with actual API data */}
-                            <div className="p-4 text-center text-muted-foreground text-sm">
-                              Keine Lagerdaten verfügbar. Verwenden Sie "Bestand anpassen", um das Produkt einem Lager zuzuweisen.
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Automaten mit diesem Produkt */}
-                      <div className="col-span-2 mt-6">
-                        <h3 className="text-sm font-medium text-gray-500 mb-3">Automaten mit diesem Produkt</h3>
-                        {isLoadingMachines ? (
-                          <div className="flex justify-center py-10">
-                            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                            <span className="ml-2 text-muted-foreground">Lade Automatendaten...</span>
-                          </div>
-                        ) : !machineData || machineData.length === 0 ? (
-                          <div className="bg-gray-50 border border-gray-100 rounded-md p-6 flex flex-col items-center justify-center">
-                            <Store className="h-12 w-12 text-gray-300 mb-3" />
-                            <p className="text-sm text-gray-500 text-center">
-                              Dieses Produkt ist aktuell in keinen Automaten eingefüllt.
-                            </p>
-                            <Button 
-                              variant="outline" 
-                              size="sm"
-                              className="mt-3"
-                              onClick={() => setLocation('/automaten')}
-                            >
-                              <Store className="h-4 w-4 mr-2" />
-                              Zu den Automaten
-                            </Button>
-                          </div>
-                        ) : (
-                          <div className="border rounded-md">
-                            <div className="grid grid-cols-12 py-2 px-4 bg-muted font-medium text-sm">
-                              <div className="col-span-5">Automat</div>
-                              <div className="col-span-3 text-center">Aktueller Bestand</div>
-                              <div className="col-span-4 text-right">Letzte Auffüllung</div>
-                            </div>
-                            {machineData.map((machine) => (
-                              <div 
-                                key={machine.machineId} 
-                                className="grid grid-cols-12 py-3 px-4 border-t hover:bg-gray-50 cursor-pointer"
-                                onClick={() => setLocation(`/automaten/${machine.machineId}`)}
-                              >
-                                <div className="col-span-5 font-medium">{machine.machineName}</div>
-                                <div className="col-span-3 text-center">
-                                  <span className={`font-semibold ${machine.currentStock <= 0 ? 'text-red-500' : 'text-green-600'}`}>
-                                    {machine.currentStock}
-                                  </span>
-                                </div>
-                                <div className="col-span-4 text-right text-gray-600 text-sm">
-                                  {machine.lastRefill ? formatDateTime(machine.lastRefill, 'date') : '–'}
-                                </div>
-                              </div>
-                            ))}
-                            <div className="bg-gray-50 py-2 px-4 border-t text-sm">
-                              <p className="text-gray-500">
-                                Aktiv in {activeInMachines} von {machineData.length} Automaten
-                              </p>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Auffüllungen und Entnahmen */}
-                      <div className="col-span-2 mt-6">
-                        <h3 className="text-sm font-medium text-gray-500 mb-3">Auffüllungen und Entnahmen</h3>
-                        {isLoadingRefills ? (
-                          <div className="flex justify-center py-10">
-                            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                            <span className="ml-2 text-muted-foreground">Lade Auffüllungsdaten...</span>
-                          </div>
-                        ) : !refillData || refillData.length === 0 ? (
-                          <div className="bg-gray-50 border border-gray-100 rounded-md p-6 flex flex-col items-center justify-center">
-                            <PackageOpen className="h-12 w-12 text-gray-300 mb-3" />
-                            <p className="text-sm text-gray-500 text-center">
-                              Keine Auffüllungen oder Entnahmen für dieses Produkt gefunden.
-                            </p>
-                          </div>
-                        ) : (
-                          <div className="border rounded-md">
-                            <div className="grid grid-cols-12 py-2 px-4 bg-muted font-medium text-sm">
-                              <div className="col-span-4">Datum</div>
-                              <div className="col-span-4">Auffüllung</div>
-                              <div className="col-span-4 text-right">Entnahme</div>
-                            </div>
-                            {refillData.slice(0, 10).map((refill) => (
-                              <div 
-                                key={refill.id} 
-                                className="grid grid-cols-12 py-3 px-4 border-t hover:bg-gray-50"
-                              >
-                                <div className="col-span-4 text-sm">
-                                  {refill.datetime ? formatDateTime(refill.datetime, 'date') : formatDateTime(refill.createdAt, 'date')}
-                                </div>
-                                <div className="col-span-4">
-                                  {(refill.added && refill.added > 0) && (
-                                    <span className="font-semibold text-green-600">+{refill.added}</span>
-                                  )}
-                                </div>
-                                <div className="col-span-4 text-right">
-                                  {(refill.removed && refill.removed > 0) && (
-                                    <span className="font-semibold text-amber-600">-{refill.removed}</span>
-                                  )}
-                                </div>
-                              </div>
-                            ))}
-                            <div className="bg-gray-50 py-2 px-4 border-t text-sm">
-                              <p className="text-gray-500">
-                                Gesamt: <span className="text-green-600 font-medium">+{totalRefillsAdded}</span> / <span className="text-amber-600 font-medium">-{totalRefillsRemoved}</span>
-                              </p>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Bestandsverlauf (visueller Hinweis) */}
-                      <div className="col-span-2 mt-6">
-                        <h3 className="text-sm font-medium text-gray-500 mb-3">Bestandsverlauf</h3>
-                        <div className="bg-gray-50 border border-gray-100 rounded-md p-6 flex flex-col items-center justify-center">
-                          <Clipboard className="h-12 w-12 text-gray-300 mb-3" />
-                          <p className="text-sm text-gray-500 text-center">
-                            Detaillierter Bestandsverlauf verfügbar unter
-                          </p>
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            className="mt-3"
-                            onClick={() => setLocation(`/lager?productId=${id}&view=history`)}
-                          >
-                            <Clipboard className="h-4 w-4 mr-2" />
-                            Bestandsverlauf anzeigen
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  </TabsContent>
-                  
-                  <TabsContent value="sales">
-                    <div className="grid grid-cols-2 gap-y-6 gap-x-10">
-                      {/* Verkäufe Übersicht */}
-                      <div>
-                        <h3 className="text-sm font-medium text-gray-500 mb-1">Verkäufe gesamt</h3>
-                        <p className="text-lg font-semibold">{product.salesCount || '0'}</p>
-                      </div>
-
-                      {/* Letzter Verkauf */}
-                      <div>
-                        <h3 className="text-sm font-medium text-gray-500 mb-1">Letzter Verkauf</h3>
-                        <p className="font-medium">
-                          {product.lastSale ? formatDateTime(product.lastSale, 'datetime') : '–'}
-                        </p>
-                      </div>
-
-                      {/* Verkaufsdiagramm */}
-                      <div className="col-span-2 mt-4">
-                        <div className="flex justify-between items-center mb-3">
-                          <h3 className="text-sm font-medium text-gray-500">Verkaufsentwicklung</h3>
-                          <div className="flex gap-2">
-                            <Button 
-                              size="sm"
-                              variant={salesTimePeriod === 'day' ? 'default' : 'outline'}
-                              onClick={() => setSalesTimePeriod('day')}
-                            >
-                              Tag
-                            </Button>
-                            <Button 
-                              size="sm"
-                              variant={salesTimePeriod === 'week' ? 'default' : 'outline'}
-                              onClick={() => setSalesTimePeriod('week')}
-                            >
-                              Woche
-                            </Button>
-                            <Button 
-                              size="sm"
-                              variant={salesTimePeriod === 'month' ? 'default' : 'outline'}
-                              onClick={() => setSalesTimePeriod('month')}
-                            >
-                              Monat
-                            </Button>
-                            <Button 
-                              size="sm"
-                              variant={salesTimePeriod === 'year' ? 'default' : 'outline'}
-                              onClick={() => setSalesTimePeriod('year')}
-                            >
-                              Jahr
-                            </Button>
-                          </div>
-                        </div>
-                        
-                        {isLoadingSales ? (
-                          <div className="h-80 flex items-center justify-center bg-gray-50 rounded-md border">
-                            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                            <span className="ml-2 text-muted-foreground">Lade Verkaufsdaten...</span>
-                          </div>
-                        ) : salesData && Array.isArray(salesData) && salesData.length > 0 ? (
-                          <ResponsiveContainer width="100%" height={350}>
-                            <BarChart data={salesData}>
-                              <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                              <XAxis 
-                                dataKey="date" 
-                                tickFormatter={(value) => {
-                                  const date = new Date(value);
-                                  if (salesTimePeriod === 'day') {
-                                    return `${date.getHours()}:00`;
-                                  } else if (salesTimePeriod === 'week') {
-                                    return ['So','Mo','Di','Mi','Do','Fr','Sa'][date.getDay()];
-                                  } else if (salesTimePeriod === 'month') {
-                                    return date.getDate().toString();
-                                  } else {
-                                    return ['Jan','Feb','Mär','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez'][date.getMonth()];
-                                  }
-                                }}
-                              />
-                              <YAxis yAxisId="left" orientation="left" stroke="#8884d8" />
-                              <YAxis yAxisId="right" orientation="right" stroke="#82ca9d" />
-                              <Tooltip 
-                                formatter={(value: number, name: string) => {
-                                  if (name === 'count') return [`${value} Stück`, 'Verkäufe'];
-                                  if (name === 'revenue') return [`${value.toFixed(2)} €`, 'Umsatz'];
-                                  return [value, name];
-                                }}
-                                labelFormatter={(label) => {
-                                  const date = new Date(label);
-                                  if (salesTimePeriod === 'day') {
-                                    return `${date.getHours()}:00 Uhr, ${date.toLocaleDateString('de-DE')}`;
-                                  } else if (salesTimePeriod === 'week') {
-                                    return `${date.toLocaleDateString('de-DE')}`;
-                                  } else if (salesTimePeriod === 'month') {
-                                    return `${date.toLocaleDateString('de-DE')}`;
-                                  } else {
-                                    return `${['Jan','Feb','Mär','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez'][date.getMonth()]} ${date.getFullYear()}`;
-                                  }
-                                }}
-                              />
-                              <Bar yAxisId="left" dataKey="count" fill="#8884d8" name="count" />
-                              <Bar yAxisId="right" dataKey="revenue" fill="#82ca9d" name="revenue" />
-                            </BarChart>
-                          </ResponsiveContainer>
-                        ) : (
-                          <div className="h-80 flex flex-col items-center justify-center bg-gray-50 rounded-md border">
-                            <BarChart3 className="h-12 w-12 text-gray-300 mb-3" />
-                            <p className="text-sm text-gray-500 text-center">
-                              Keine Verkaufsdaten für diesen Zeitraum verfügbar
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                      
-                      {/* Produktplatzierungen */}
-                      <div className="col-span-2 mt-6">
-                        <h3 className="text-sm font-medium text-gray-500 mb-3">Automaten mit diesem Produkt</h3>
-                        
-                        {isLoadingMachines ? (
-                          <div className="h-40 flex items-center justify-center bg-gray-50 rounded-md border">
-                            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                            <span className="ml-2 text-muted-foreground">Lade Automatendaten...</span>
-                          </div>
-                        ) : Array.isArray(machineData) && machineData.length > 0 ? (
-                          <div className="border rounded-md">
-                            <div className="grid grid-cols-12 gap-2 px-4 py-3 bg-gray-50 font-medium text-sm">
-                              <div className="col-span-4">Automat</div>
-                              <div className="col-span-3">Standort</div>
-                              <div className="col-span-2 text-center">Aktueller Bestand</div>
-                              <div className="col-span-3 text-right">Letzte Auffüllung</div>
-                            </div>
-                            <div className="divide-y">
-                              {machineData.map((machine, index) => (
-                                <div 
-                                  key={machine.machineId} 
-                                  className="grid grid-cols-12 gap-2 px-4 py-3 text-sm hover:bg-gray-50"
-                                >
-                                  <div className="col-span-4 font-medium">{machine.machineName}</div>
-                                  <div className="col-span-3 text-gray-600">
-                                    {/* Hier könnte ein Standort angezeigt werden, wenn verfügbar */}
-                                  </div>
-                                  <div className="col-span-2 text-center">
-                                    {machine.currentStock > 0 ? (
-                                      <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                                        {machine.currentStock}
-                                      </Badge>
-                                    ) : (
-                                      <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
-                                        Leer
-                                      </Badge>
-                                    )}
-                                  </div>
-                                  <div className="col-span-3 text-right text-gray-600">
-                                    {machine.lastRefill ? formatDateTime(machine.lastRefill, 'date') : '–'}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="h-40 flex flex-col items-center justify-center bg-gray-50 rounded-md border">
-                            <Store className="h-12 w-12 text-gray-300 mb-3" />
-                            <p className="text-sm text-gray-500 text-center">
-                              Dieses Produkt ist aktuell keinem Automaten zugeordnet
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                      
-                      {/* Refill-Statistiken */}
-                      <div className="col-span-2 mt-6">
-                        <h3 className="text-sm font-medium text-gray-500 mb-3">Auffüllungen und Entnahmen</h3>
-                        
-                        {isLoadingRefills ? (
-                          <div className="h-40 flex items-center justify-center bg-gray-50 rounded-md border">
-                            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                            <span className="ml-2 text-muted-foreground">Lade Auffülldaten...</span>
-                          </div>
-                        ) : Array.isArray(refillData) && refillData.length > 0 ? (
-                          <div className="grid grid-cols-2 gap-4">
-                            <Card>
-                              <CardContent className="pt-6">
-                                <div className="flex items-center justify-between">
-                                  <div>
-                                    <p className="text-sm font-medium text-gray-500">Hinzugefügt</p>
-                                    <p className="text-2xl font-bold">{totalRefillsAdded}</p>
-                                  </div>
-                                  <div className="p-2 bg-green-50 text-green-600 rounded-full">
-                                    <Plus className="h-6 w-6" />
-                                  </div>
-                                </div>
-                              </CardContent>
-                            </Card>
-                            
-                            <Card>
-                              <CardContent className="pt-6">
-                                <div className="flex items-center justify-between">
-                                  <div>
-                                    <p className="text-sm font-medium text-gray-500">Entfernt</p>
-                                    <p className="text-2xl font-bold">{totalRefillsRemoved}</p>
-                                  </div>
-                                  <div className="p-2 bg-red-50 text-red-600 rounded-full">
-                                    <PackageOpen className="h-6 w-6" />
-                                  </div>
-                                </div>
-                              </CardContent>
-                            </Card>
-                            
-                            <div className="col-span-2 mt-2">
-                              <div className="border rounded-md overflow-hidden">
-                                <div className="grid grid-cols-12 gap-2 px-4 py-2 bg-gray-50 font-medium text-sm">
-                                  <div className="col-span-4">Datum</div>
-                                  <div className="col-span-4">Automat</div>
-                                  <div className="col-span-2 text-center">+</div>
-                                  <div className="col-span-2 text-center">-</div>
-                                </div>
-                                <div className="divide-y max-h-64 overflow-y-auto">
-                                  {Array.isArray(refillData) && refillData.slice(0, 10).map((refill) => (
-                                    <div key={refill.id} className="grid grid-cols-12 gap-2 px-4 py-2 text-sm hover:bg-gray-50">
-                                      <div className="col-span-4">{formatDateTime(refill.datetime || refill.createdAt, 'date')}</div>
-                                      <div className="col-span-4 truncate">{refill.refillId}</div>
-                                      <div className="col-span-2 text-center text-green-600">{refill.added || 0}</div>
-                                      <div className="col-span-2 text-center text-red-600">{refill.removed || 0}</div>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                              
-                              {Array.isArray(refillData) && refillData.length > 10 && (
-                                <div className="mt-2 text-center">
-                                  <Button 
-                                    variant="link" 
-                                    size="sm"
-                                    onClick={() => setLocation(`/refills?productId=${id}`)}
-                                  >
-                                    Alle {Array.isArray(refillData) ? refillData.length : 0} Auffüllungen anzeigen
-                                  </Button>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="h-40 flex flex-col items-center justify-center bg-gray-50 rounded-md border">
-                            <PackageOpen className="h-12 w-12 text-gray-300 mb-3" />
-                            <p className="text-sm text-gray-500 text-center">
-                              Keine Auffüllungen für dieses Produkt gefunden
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </TabsContent>
-                  
-                  <TabsContent value="supplier">
-                    <div className="grid grid-cols-1 gap-6">
-                      <div className="flex justify-between items-center">
-                        <h3 className="text-sm font-medium text-gray-700">Lieferantendaten</h3>
-                        <div className="flex gap-2">
-                          {!editMode ? (
-                            <Button 
-                              size="sm" 
-                              variant="outline" 
-                              onClick={() => setEditMode(true)}
-                            >
-                              <Edit className="h-4 w-4 mr-1" />
-                              Bearbeiten
-                            </Button>
-                          ) : (
-                            <>
-                              <Button 
-                                size="sm" 
-                                variant="outline" 
-                                onClick={() => setEditMode(false)}
-                              >
-                                <XCircle className="h-4 w-4 mr-1" />
-                                Abbrechen
-                              </Button>
-                              <Button 
-                                size="sm" 
-                                variant="default" 
-                                onClick={handleSaveProduct}
-                                disabled={updateProductMutation.isPending}
-                              >
-                                {updateProductMutation.isPending ? (
-                                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                                ) : (
-                                  <Check className="h-4 w-4 mr-1" />
-                                )}
-                                Speichern
-                              </Button>
-                            </>
-                          )}
-                        </div>
-                      </div>
-
-                      {editMode ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 border rounded-md bg-gray-50">
-                          <div className="space-y-4">
-                            <div>
-                              <Label htmlFor="supplier">Lieferant</Label>
-                              <div className="flex gap-2 mt-1">
-                                <Select
-                                  value={editedProduct.supplierId?.toString() || "none"}
-                                  onValueChange={(value) => {
-                                    // Bei leerem Wert keinen Lieferanten auswählen
-                                    if (!value) {
-                                      setEditedProduct({
-                                        ...editedProduct,
-                                        supplierId: undefined,
-                                        supplier: undefined
-                                      });
-                                      return;
-                                    }
-
-                                    const selectedSupplier = suppliersData?.data && Array.isArray(suppliersData.data) 
-                                      ? suppliersData.data.find(s => s.id.toString() === value)
-                                      : undefined;
-                                    
-                                    setEditedProduct({
-                                      ...editedProduct,
-                                      supplierId: value === "none" ? undefined : parseInt(value),
-                                      supplier: selectedSupplier?.name
-                                    });
-                                  }}
-                                >
-                                  <SelectTrigger className="w-full">
-                                    <SelectValue placeholder="Lieferant auswählen" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="none">Kein Lieferant</SelectItem>
-                                    {suppliersData?.data && Array.isArray(suppliersData.data) ? 
-                                      suppliersData.data.map((supplier) => (
-                                        <SelectItem key={supplier.id} value={supplier.id.toString()}>
-                                          {supplier.name}
-                                        </SelectItem>
-                                      ))
-                                    : null}
-                                  </SelectContent>
-                                </Select>
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  className="shrink-0"
-                                  onClick={() => setShowAddSupplierDialog(true)}
-                                >
-                                  <Plus className="h-4 w-4 mr-1" />
-                                  Neu
-                                </Button>
-                              </div>
-                            </div>
-                            
-                            <div>
-                              <Label htmlFor="articleSupplier">Artikelnummer des Lieferanten</Label>
-                              <Input
-                                id="articleSupplier"
-                                value={editedProduct.articleSupplier || ''}
-                                onChange={(e) => setEditedProduct({
-                                  ...editedProduct,
-                                  articleSupplier: e.target.value
-                                })}
-                                placeholder="z.B. AB-12345"
-                              />
-                            </div>
-                            
-                            <div>
-                              <Label htmlFor="minOrderQuantity">Mindestbestellmenge</Label>
-                              <Input
-                                id="minOrderQuantity"
-                                type="number"
-                                value={editedProduct.minOrderQuantity?.toString() || ''}
-                                onChange={(e) => setEditedProduct({
-                                  ...editedProduct,
-                                  minOrderQuantity: e.target.value ? parseInt(e.target.value) : undefined
-                                })}
-                                placeholder="0"
-                              />
-                            </div>
-                          </div>
-                          
-                          <div className="space-y-4">
-                            <div>
-                              <Label htmlFor="packageSize">Gebindegröße</Label>
-                              <Input
-                                id="packageSize"
-                                value={editedProduct.packageSize || ''}
-                                onChange={(e) => setEditedProduct({
-                                  ...editedProduct,
-                                  packageSize: e.target.value
-                                })}
-                                placeholder="z.B. 6x0,5L oder 24x330ml"
-                              />
-                            </div>
-                            
-                            <div>
-                              <Label htmlFor="shelfLifeDays">MHD-Haltbarkeit (Tage)</Label>
-                              <Input
-                                id="shelfLifeDays"
-                                type="number"
-                                value={editedProduct.shelfLifeDays?.toString() || ''}
-                                onChange={(e) => setEditedProduct({
-                                  ...editedProduct,
-                                  shelfLifeDays: e.target.value ? parseInt(e.target.value) : undefined
-                                })}
-                                placeholder="0"
-                              />
-                            </div>
-                            
-                            <div className="flex items-center space-x-2 pt-4">
-                              <Checkbox 
-                                id="requiresAgeVerification" 
-                                checked={editedProduct.requiresAgeVerification}
-                                onCheckedChange={(checked) => setEditedProduct({
-                                  ...editedProduct,
-                                  requiresAgeVerification: checked === true
-                                })}
-                              />
-                              <Label htmlFor="requiresAgeVerification">Altersprüfung erforderlich (18+)</Label>
-                            </div>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                          <Card>
-                            <CardHeader className="pb-2">
-                              <CardTitle className="text-md flex items-center">
-                                <Building2 className="h-4 w-4 mr-2" />
-                                Lieferant
-                              </CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                              {product.supplierId ? (
-                                <div className="space-y-4">
-                                  <div>
-                                    <h4 className="text-sm font-medium text-gray-500">Name</h4>
-                                    <p className="font-medium">{product.supplier || '–'}</p>
-                                  </div>
-                                  {product.articleSupplier && (
-                                    <div>
-                                      <h4 className="text-sm font-medium text-gray-500">Artikelnummer</h4>
-                                      <p>{product.articleSupplier}</p>
-                                    </div>
-                                  )}
-                                  <div className="pt-2">
-                                    <Button 
-                                      variant="outline" 
-                                      size="sm"
-                                      onClick={() => product.supplierId && setLocation(`/lieferanten/${product.supplierId}`)}
-                                    >
-                                      <Truck className="h-4 w-4 mr-1" />
-                                      Lieferantenprofil öffnen
-                                    </Button>
-                                  </div>
-                                </div>
-                              ) : (
-                                <div className="flex flex-col items-center justify-center py-6 text-center">
-                                  <Building2 className="h-12 w-12 text-gray-300 mb-3" />
-                                  <p className="text-sm text-gray-500 mb-3">
-                                    Kein Lieferant zugewiesen
-                                  </p>
-                                  <Button 
-                                    size="sm" 
-                                    variant="outline"
-                                    onClick={() => setEditMode(true)}
-                                  >
-                                    <Plus className="h-4 w-4 mr-1" />
-                                    Lieferant hinzufügen
-                                  </Button>
-                                </div>
-                              )}
-                            </CardContent>
-                          </Card>
-                          
-                          <Card>
-                            <CardHeader className="pb-2">
-                              <CardTitle className="text-md flex items-center">
-                                <PackageOpen className="h-4 w-4 mr-2" />
-                                Bestelldaten
-                              </CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                              <div className="space-y-4">
-                                <div>
-                                  <h4 className="text-sm font-medium text-gray-500">Gebindegröße</h4>
-                                  <p>{product.packageSize || '–'}</p>
-                                </div>
-                                <div>
-                                  <h4 className="text-sm font-medium text-gray-500">Mindestbestellmenge</h4>
-                                  <p>{product.minOrderQuantity || '–'}</p>
-                                </div>
-                                <div>
-                                  <h4 className="text-sm font-medium text-gray-500">MHD-Haltbarkeit</h4>
-                                  <p>{product.shelfLifeDays ? `${product.shelfLifeDays} Tage` : '–'}</p>
-                                </div>
-                                {product.requiresAgeVerification && (
-                                  <div className="flex items-center pt-2">
-                                    <Badge variant="outline" className="bg-amber-100 text-amber-800 border-amber-300">
-                                      Altersprüfung erforderlich (18+)
-                                    </Badge>
-                                  </div>
-                                )}
-                              </div>
-                            </CardContent>
-                          </Card>
-                          
-                          <div className="md:col-span-2">
-                            <Card>
-                              <CardHeader className="pb-2">
-                                <div className="flex justify-between items-center">
-                                  <CardTitle className="text-md flex items-center">
-                                    <ShoppingCart className="h-4 w-4 mr-2" />
-                                    Bestellungen
-                                  </CardTitle>
-                                </div>
-                              </CardHeader>
-                              <CardContent>
-                                <div className="flex flex-col items-center justify-center py-6 text-center">
-                                  <FileText className="h-12 w-12 text-gray-300 mb-3" />
-                                  <p className="text-sm text-gray-500 mb-3">
-                                    Verwalten Sie Bestellungen für dieses Produkt unter "Bestellungen"
-                                  </p>
-                                  <Button 
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => setLocation(`/bestellungen?productId=${id}`)}
-                                  >
-                                    <ShoppingCart className="h-4 w-4 mr-1" />
-                                    Bestellungen anzeigen
-                                  </Button>
-                                </div>
-                              </CardContent>
-                            </Card>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </TabsContent>
-                  
-                  {/* Einkaufspreise */}
-                  <TabsContent value="purchase-conditions">
-                    <div className="space-y-6">
-                      <div className="flex items-center justify-between">
-                        <h3 className="text-lg font-medium">Einkaufspreise</h3>
-                        <Button 
-                          size="sm"
-                          onClick={() => {
-                            setSelectedCondition(null);
-                            setSelectedSupplier(null);
-                            setShowAddConditionDialog(true);
-                          }}
-                        >
-                          <Plus className="h-4 w-4 mr-2" />
-                          Neuer Einkaufspreis
-                        </Button>
-                      </div>
-                      
-                      {isLoadingPurchaseConditions ? (
-                        <div className="flex justify-center py-10">
-                          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                          <span className="ml-2 text-muted-foreground">Lade Einkaufspreise...</span>
-                        </div>
-                      ) : !sortedConditions || sortedConditions.length === 0 ? (
-                        <Card>
-                          <CardContent className="py-10 flex flex-col items-center justify-center text-center">
-                            <ShoppingCart className="h-16 w-16 text-gray-300 mb-4" />
-                            <h3 className="text-lg font-medium text-gray-500 mb-2">Keine Einkaufspreise vorhanden</h3>
-                            <p className="text-gray-500 mb-4 max-w-lg">
-                              Für dieses Produkt wurden noch keine Einkaufspreise hinterlegt. 
-                              Fügen Sie Einkaufspreise hinzu, um Bestellungen effizienter zu gestalten.
-                            </p>
-                            <Button 
-                              onClick={() => {
-                                setSelectedCondition(null);
-                                setSelectedSupplier(null);
-                                setShowAddConditionDialog(true);
-                              }}
-                            >
-                              <Plus className="h-4 w-4 mr-2" />
-                              Einkaufspreis hinzufügen
-                            </Button>
-                          </CardContent>
-                        </Card>
-                      ) : (
-                        <div className="space-y-4">
-                          {/* Aktuell gültige Bedingungen */}
-                          {validConditions.length > 0 && (
-                            <div>
-                              <h4 className="text-sm font-medium text-gray-500 mb-2">Aktuell gültige Einkaufspreise</h4>
-                              <div className="border rounded-md">
-                                <div className="grid grid-cols-12 py-2 px-4 bg-muted font-medium text-sm">
-                                  <div className="col-span-3">Lieferant</div>
-                                  <div className="col-span-2 text-right">Preis</div>
-                                  <div className="col-span-2 text-center">Mindestmenge</div>
-                                  <div className="col-span-3 text-center">Gültig ab</div>
-                                  <div className="col-span-2 text-right">Aktionen</div>
-                                </div>
-                                
-                                {validConditions.map((condition) => (
-                                  <div 
-                                    key={condition.id} 
-                                    className={`grid grid-cols-12 py-3 px-4 border-t ${condition.isPreferred ? 'bg-blue-50 hover:bg-blue-100' : 'hover:bg-gray-50'}`}
-                                  >
-                                    <div className="col-span-3 flex items-center">
-                                      {condition.isPreferred && (
-                                        <CheckCircle2 className="h-4 w-4 text-blue-500 mr-2" />
-                                      )}
-                                      <span>{condition.supplierName || `Lieferant #${condition.supplierId}`}</span>
-                                    </div>
-                                    <div className="col-span-2 text-right font-medium">
-                                      {condition.unitPrice.toFixed(2)} €
-                                    </div>
-                                    <div className="col-span-2 text-center">
-                                      {condition.minQuantity || 1}
-                                    </div>
-                                    <div className="col-span-3 text-center">
-                                      {condition.validFrom ? formatDateTime(condition.validFrom, 'date') : 'Immer'}
-                                      {condition.validTo && ` - ${formatDateTime(condition.validTo, 'date')}`}
-                                    </div>
-                                    <div className="col-span-2 text-right">
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => {
-                                          setSelectedCondition(condition);
-                                          setShowAddConditionDialog(true);
-                                        }}
-                                      >
-                                        <Edit className="h-4 w-4" />
-                                      </Button>
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                          
-                          {/* Alle Bedingungen */}
-                          <div className="mt-6">
-                            <h4 className="text-sm font-medium text-gray-500 mb-2">Alle Einkaufspreise</h4>
-                            <div className="border rounded-md">
-                              <div className="grid grid-cols-12 py-2 px-4 bg-muted font-medium text-sm">
-                                <div className="col-span-3">Lieferant</div>
-                                <div className="col-span-2 text-right">Preis</div>
-                                <div className="col-span-2 text-center">Mindestmenge</div>
-                                <div className="col-span-3 text-center">Gültigkeitszeitraum</div>
-                                <div className="col-span-2 text-right">Aktionen</div>
-                              </div>
-                              
-                              {sortedConditions.map((condition) => {
-                                // Prüfe, ob die Bedingung aktuell gültig ist
-                                const now = new Date();
-                                const validFrom = condition.validFrom ? new Date(condition.validFrom) : null;
-                                const validTo = condition.validTo ? new Date(condition.validTo) : null;
-                                const isValid = 
-                                  (!validFrom || validFrom <= now) && 
-                                  (!validTo || validTo >= now);
-                                  
-                                return (
-                                  <div 
-                                    key={condition.id} 
-                                    className={`grid grid-cols-12 py-3 px-4 border-t 
-                                      ${condition.isPreferred ? 'bg-blue-50 hover:bg-blue-100' : 'hover:bg-gray-50'}
-                                      ${!isValid ? 'opacity-70' : ''}
-                                    `}
-                                  >
-                                    <div className="col-span-3 flex items-center">
-                                      {condition.isPreferred && (
-                                        <CheckCircle2 className="h-4 w-4 text-blue-500 mr-2" />
-                                      )}
-                                      <span>{condition.supplierName || `Lieferant #${condition.supplierId}`}</span>
-                                    </div>
-                                    <div className="col-span-2 text-right font-medium">
-                                      {condition.unitPrice.toFixed(2)} €
-                                    </div>
-                                    <div className="col-span-2 text-center">
-                                      {condition.minQuantity || 1}
-                                    </div>
-                                    <div className="col-span-3 text-center">
-                                      {condition.validFrom ? formatDateTime(condition.validFrom, 'date') : 'Immer'}
-                                      {condition.validTo && ` - ${formatDateTime(condition.validTo, 'date')}`}
-                                      
-                                      {!isValid && (
-                                        <span className="block text-xs text-gray-500 mt-1">
-                                          {validFrom && validFrom > now ? 'Zukünftig' : 'Abgelaufen'}
-                                        </span>
-                                      )}
-                                    </div>
-                                    <div className="col-span-2 text-right">
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => {
-                                          setSelectedCondition(condition);
-                                          setShowAddConditionDialog(true);
-                                        }}
-                                      >
-                                        <Edit className="h-4 w-4" />
-                                      </Button>
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                      
-                      {/* Dialog zum Bearbeiten/Hinzufügen einer Einkaufsbedingung */}
-                      <Dialog open={showAddConditionDialog} onOpenChange={setShowAddConditionDialog}>
-                        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-                          <DialogHeader>
-                            <DialogTitle>
-                              {selectedCondition ? 'Einkaufsbedingung bearbeiten' : 'Neue Einkaufsbedingung'}
-                            </DialogTitle>
-                            <DialogDescription>
-                              {selectedCondition 
-                                ? 'Bearbeiten Sie die Einkaufsbedingung für dieses Produkt.'
-                                : 'Fügen Sie eine neue Einkaufsbedingung für dieses Produkt hinzu.'}
-                            </DialogDescription>
-                          </DialogHeader>
-                          
-                          {!selectedSupplier && !selectedCondition ? (
-                            <div className="space-y-4 py-4">
-                              <Label>Lieferant auswählen</Label>
-                              <Select 
-                                onValueChange={(value) => setSelectedSupplier(parseInt(value))}
-                              >
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Lieferant wählen" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {suppliersData?.data && Array.isArray(suppliersData.data) ? 
-                                    suppliersData.data.map((supplier) => (
-                                      <SelectItem key={supplier.id} value={supplier.id.toString()}>
-                                        {supplier.name}
-                                      </SelectItem>
-                                    ))
-                                  : null}
-                                </SelectContent>
-                              </Select>
-                              
-                              <DialogFooter className="mt-6">
-                                <Button 
-                                  variant="outline" 
-                                  onClick={() => setShowAddConditionDialog(false)}
-                                >
-                                  Abbrechen
-                                </Button>
-                                <Button 
-                                  disabled={!selectedSupplier}
-                                  onClick={() => {
-                                    // Der Code fährt automatisch mit dem Formular fort,
-                                    // wenn ein Lieferant ausgewählt wurde
-                                  }}
-                                >
-                                  Weiter
-                                </Button>
-                              </DialogFooter>
-                            </div>
-                          ) : (
-                            <div className="py-4">
-                              {selectedSupplier && product?.id && (
-                                <PurchaseConditionForm
-                                  productId={product.id}
-                                  supplierId={selectedCondition?.supplierId || selectedSupplier}
-                                  existingCondition={selectedCondition}
-                                  onSuccess={() => {
-                                    setShowAddConditionDialog(false);
-                                    setSelectedSupplier(null);
-                                    setSelectedCondition(null);
-                                    queryClient.invalidateQueries({ queryKey: [`/api/products/${id}/purchase-conditions`] });
-                                  }}
-                                  onCancel={() => {
-                                    setShowAddConditionDialog(false);
-                                    setSelectedSupplier(null);
-                                    setSelectedCondition(null);
-                                  }}
-                                />
-                              )}
-                            </div>
-                          )}
-                        </DialogContent>
-                      </Dialog>
-                    </div>
-                  </TabsContent>
-                </Tabs>
+                {product.shelfLifeDays && (
+                  <div>
+                    <span className="text-sm text-gray-500">Haltbarkeit</span>
+                    <p className="font-medium">{product.shelfLifeDays} Tage</p>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
 
-          {/* Rechte Spalte: Zusatzinfos */}
-          <div>
-          </div>
-        </div>
-      )}
+          {/* Inhaltsstoffe und Allergene */}
+          {(product.ingredients || product.allergens) && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <Info className="h-5 w-5 mr-2" />
+                  Inhaltsstoffe und Allergene
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {product.ingredients && (
+                  <div>
+                    <span className="text-sm text-gray-500">Inhaltsstoffe</span>
+                    <p className="font-medium whitespace-pre-line">{product.ingredients}</p>
+                  </div>
+                )}
+                {product.allergens && (
+                  <div>
+                    <span className="text-sm text-gray-500">Allergene</span>
+                    <p className="font-medium whitespace-pre-line">{product.allergens}</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
 
-      {/* Dialog zum Hinzufügen eines neuen Lieferanten */}
-      <Dialog open={showAddSupplierDialog} onOpenChange={setShowAddSupplierDialog}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Neuen Lieferanten anlegen</DialogTitle>
-            <DialogDescription>
-              Lege einen neuen Lieferanten an, der diesem Produkt zugeordnet wird.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="name" className="text-right">
-                Name <span className="text-red-500">*</span>
-              </Label>
-              <Input
-                id="name"
-                value={newSupplier.name}
-                onChange={(e) => setNewSupplier({...newSupplier, name: e.target.value})}
-                className="col-span-3"
-                required
-              />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="email" className="text-right">
-                E-Mail
-              </Label>
-              <Input
-                id="email"
-                type="email"
-                value={newSupplier.email || ''}
-                onChange={(e) => setNewSupplier({...newSupplier, email: e.target.value})}
-                className="col-span-3"
-              />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="phone" className="text-right">
-                Telefon
-              </Label>
-              <Input
-                id="phone"
-                value={newSupplier.phone || ''}
-                onChange={(e) => setNewSupplier({...newSupplier, phone: e.target.value})}
-                className="col-span-3"
-              />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="contactPerson" className="text-right">
-                Ansprechpartner
-              </Label>
-              <Input
-                id="contactPerson"
-                value={newSupplier.contactPerson || ''}
-                onChange={(e) => setNewSupplier({...newSupplier, contactPerson: e.target.value})}
-                className="col-span-3"
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setShowAddSupplierDialog(false)}>
-              Abbrechen
-            </Button>
-            <Button type="button" onClick={handleAddSupplier} disabled={createSupplierMutation.isPending}>
-              {createSupplierMutation.isPending ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Wird gespeichert...
-                </>
+        <TabsContent value="details" className="space-y-6 mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Detaillierte Produktinformationen</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                {Object.entries({
+                  'Vendon ID': product.vendonId,
+                  'Artikel': product.article,
+                  'Einheiten': product.units,
+                  'MwSt.': product.vat ? `${product.vat}%` : null,
+                  'Pfandpreis': product.depositPrice ? `${product.depositPrice.toFixed(2)} €` : null,
+                  'Einkaufspreis': product.costPrice ? `${product.costPrice.toFixed(2)} €` : null,
+                  'Kritisch': product.critical ? 'Ja' : 'Nein',
+                  'Bio': product.isOrganic ? 'Ja' : 'Nein',
+                  'Vegan': product.isVegan ? 'Ja' : 'Nein',
+                  'Vegetarisch': product.isVegetarian ? 'Ja' : 'Nein',
+                  'Lokal': product.isLocal ? 'Ja' : 'Nein',
+                  'Nachhaltigkeitsscore': product.sustainabilityScore ? `${product.sustainabilityScore}/100` : null,
+                }).filter(([_, value]) => value !== null && value !== undefined).map(([key, value]) => (
+                  <div key={key}>
+                    <span className="text-sm text-gray-500">{key}</span>
+                    <p className="font-medium">{value}</p>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="nutrition" className="space-y-6 mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Nährwertangaben</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {product.nutritionalInfo ? (
+                <div className="whitespace-pre-line">{product.nutritionalInfo}</div>
               ) : (
-                <>
-                  <Check className="mr-2 h-4 w-4" />
-                  Speichern
-                </>
+                <p className="text-gray-500">Keine Nährwertangaben verfügbar</p>
               )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="photos" className="space-y-6 mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center">
+                <Image className="h-5 w-5 mr-2" />
+                Produktfotos
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {product.photos && product.photos.length > 0 ? (
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {product.photos.map((photo, index) => (
+                    <div key={index} className="relative group">
+                      <img
+                        src={photo}
+                        alt={`${product.productName} Foto ${index + 1}`}
+                        className="w-full h-48 object-cover rounded border"
+                      />
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-gray-500">Keine Fotos verfügbar</p>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+
+      {/* Edit Dialog */}
+      {product && (
+        <ProductEditDialog
+          product={product}
+          isOpen={isEditDialogOpen}
+          onOpenChange={setIsEditDialogOpen}
+          onSave={handleUpdateProduct}
+        />
+      )}
     </div>
   );
 }

@@ -101,6 +101,32 @@ export default function SupplierDetail() {
   const [showProductAssignmentDialog, setShowProductAssignmentDialog] = useState(false);
   const [productSearchTerm, setProductSearchTerm] = useState("");
   
+  // Mutation zum Aktualisieren des Lieferanten
+  const updateSupplierMutation = useMutation({
+    mutationFn: async (updatedSupplier: Partial<Supplier>) => {
+      return apiRequest(`/api/suppliers/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(updatedSupplier),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/suppliers/${id}`] });
+      queryClient.invalidateQueries({ queryKey: ['/api/suppliers'] });
+      toast({
+        title: "Lieferant aktualisiert",
+        description: "Der Lieferant wurde erfolgreich aktualisiert.",
+      });
+    },
+    onError: (error) => {
+      console.error('Update error:', error);
+      toast({
+        title: "Fehler",
+        description: "Fehler beim Aktualisieren des Lieferanten.",
+        variant: "destructive",
+      });
+    },
+  });
+  
   // Lieferantendaten abfragen
   const { data: supplier, isLoading, error } = useQuery<Supplier>({
     queryKey: [`/api/suppliers/${id}`],
@@ -993,13 +1019,47 @@ export default function SupplierDetail() {
             </CardContent>
           </Card>
           
-          {supplier.notes && (
+          {/* Beschreibung */}
+          {(supplier.shortDescription || supplier.notes) && (
             <Card>
               <CardHeader>
-                <CardTitle>Anmerkungen</CardTitle>
+                <CardTitle>Beschreibung</CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="whitespace-pre-line">{supplier.notes}</p>
+                {supplier.shortDescription && (
+                  <div className="mb-4">
+                    <h4 className="font-medium mb-2">Kurzbeschreibung</h4>
+                    <p className="whitespace-pre-line">{supplier.shortDescription}</p>
+                  </div>
+                )}
+                {supplier.notes && (
+                  <div>
+                    <h4 className="font-medium mb-2">Anmerkungen</h4>
+                    <p className="whitespace-pre-line">{supplier.notes}</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+          
+          {/* Fotos */}
+          {supplier.photos && supplier.photos.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Fotos</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {supplier.photos.map((photo, index) => (
+                    <div key={index} className="relative group">
+                      <img
+                        src={photo}
+                        alt={`${supplier.name} Foto ${index + 1}`}
+                        className="w-full h-32 object-cover rounded border"
+                      />
+                    </div>
+                  ))}
+                </div>
               </CardContent>
             </Card>
           )}
@@ -1455,6 +1515,16 @@ export default function SupplierDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Supplier Edit Dialog */}
+      {supplier && (
+        <SupplierEditDialog
+          supplier={supplier}
+          isOpen={isEditDialogOpen}
+          onOpenChange={setIsEditDialogOpen}
+          onSave={handleUpdateSupplier}
+        />
+      )}
     </div>
   );
 }

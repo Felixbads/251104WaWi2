@@ -69,6 +69,7 @@ function withAuth(WrappedComponent: React.ComponentType<any>) {
 // Importiere fehlende Komponenten
 import Suppliers from "@/pages/Suppliers";
 import SupplierDetail from "@/pages/SupplierDetail";
+import ProductDetail from "@/pages/ProductDetail";
 import Reporting from "@/pages/Reporting";
 import Orders from "@/pages/Orders";
 import NewOrder from "@/pages/NewOrder";
