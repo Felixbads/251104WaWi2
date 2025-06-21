@@ -630,8 +630,8 @@ const OrdersOverview: React.FC<OrdersOverviewProps> = ({
                                       action
                                     });
                                   } else {
-                                    // Fallback zur alten Funktion
-                                    onSelectOrder(order.id);
+                                    // Navigation zur Bestelldetails
+                                    window.location.href = `/bestellungen/${order.id}`;
                                   }
                                 }}
                               >
@@ -710,8 +710,8 @@ const OrdersOverview: React.FC<OrdersOverviewProps> = ({
                                   className="cursor-pointer"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    onSelectOrder(order.id);
-                                    // Hier könnte man direkt zur E-Mail-Seite weiterleiten
+                                    // Navigation zur E-Mail-Seite
+                                    window.location.href = `/bestellungen/${order.id}`;
                                   }}
                                 >
                                   <Mail className="mr-2 h-4 w-4" />

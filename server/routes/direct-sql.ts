@@ -92,8 +92,8 @@ router.get('/orders-direct', async (req, res) => {
         o.created_at::text as created_at,
         o.order_date::text as order_date,
         COALESCE(o.supplier_name, s.name) as supplier_name, 
-        COALESCE(o.location_name, w.name) as warehouse_name,
-        o.total_amount,
+        COALESCE(w.name, o.location_name, 'Unbekanntes Lager') as warehouse_name,
+        COALESCE(o.total_amount, SUM(COALESCE(oi.total_price, oi.quantity * oi.unit_price, 0)), 0) as total_amount,
         o.expected_delivery_date::text as expected_delivery_date,
         COUNT(oi.id) as item_count
       FROM orders o
@@ -101,7 +101,7 @@ router.get('/orders-direct', async (req, res) => {
       LEFT JOIN warehouses w ON o.warehouse_id = w.id
       LEFT JOIN order_items oi ON o.id = oi.order_id
       GROUP BY o.id, o.order_number, o.status, o.created_at, o.order_date, 
-               o.supplier_name, s.name, o.location_name, w.name, o.total_amount, o.expected_delivery_date
+               o.supplier_name, s.name, w.name, o.location_name, o.total_amount, o.expected_delivery_date
       ORDER BY o.id DESC 
       LIMIT 50
     `);

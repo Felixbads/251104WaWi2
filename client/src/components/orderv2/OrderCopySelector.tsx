@@ -387,7 +387,7 @@ const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({
                 </div>
                 <div><span className="font-medium">Lieferant:</span> {orderDetails?.supplierName || orderDetails?.supplier_name || 'Unbekannt'}</div>
                 <div><span className="font-medium">Lager:</span> {orderDetails?.warehouseName || orderDetails?.warehouse_name || 'Unbekannt'}</div>
-                <div><span className="font-medium">Bestelldatum:</span> {formatDate(orderDetails?.orderDate || orderDetails?.order_date || orderDetails?.created_at)}</div>
+                <div><span className="font-medium">Bestelldatum:</span> {orderDetails?.orderDate || orderDetails?.order_date ? formatDate(orderDetails?.orderDate || orderDetails?.order_date || orderDetails?.created_at) : 'Unbekannt'}</div>
                 {orderDetails?.expectedDeliveryDate && (
                   <div><span className="font-medium">Liefertermin:</span> {formatDate(orderDetails.expectedDeliveryDate)}</div>
                 )}
