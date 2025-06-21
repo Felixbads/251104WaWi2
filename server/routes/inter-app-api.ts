@@ -438,4 +438,57 @@ router.get('/data-completeness', async (req: AuthenticatedRequest, res: Response
   }
 });
 
+/**
+ * GET /api/inter-app/config-check
+ * Prüft die Konfiguration der Umgebungsvariablen (ohne Authentifizierung)
+ */
+router.get('/config-check', async (req: Request, res: Response) => {
+  try {
+    const interAppSecret = process.env.INTER_APP_SECRET;
+    const apiSecretKey = process.env.API_SECRET_KEY;
+    
+    res.json({
+      success: true,
+      configuration: {
+        hasInterAppSecret: !!interAppSecret,
+        hasApiSecretKey: !!apiSecretKey,
+        interAppSecretLength: interAppSecret ? interAppSecret.length : 0,
+        apiSecretKeyLength: apiSecretKey ? apiSecretKey.length : 0
+      },
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('[INTER-APP-API] Config Check Fehler:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Konfigurationsprüfung fehlgeschlagen'
+    });
+  }
+});
+
+/**
+ * GET /api/inter-app/debug
+ * Einfache Debug-Route ohne Authentifizierung zum Testen der Erreichbarkeit
+ */
+router.get('/debug', async (req: Request, res: Response) => {
+  try {
+    res.json({
+      success: true,
+      message: 'Inter-App API ist erreichbar',
+      timestamp: new Date().toISOString(),
+      headers: {
+        'user-agent': req.headers['user-agent'],
+        'content-type': req.headers['content-type'],
+        'authorization': req.headers.authorization ? 'Present' : 'Missing'
+      }
+    });
+  } catch (error) {
+    console.error('[INTER-APP-API] Debug Fehler:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Debug-Route Fehler'
+    });
+  }
+});
+
 export default router;

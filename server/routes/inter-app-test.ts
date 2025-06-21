@@ -1,9 +1,9 @@
+
 import { Router, Request, Response } from 'express';
 import { InterAppClient, createInterAppClient, InterAppError } from '../utils/inter-app-client';
 
 const router = Router();
 
-// Temporärer Test-Client
 let testClient: InterAppClient | null = null;
 
 /**
@@ -69,28 +69,69 @@ router.get('/health', async (req: Request, res: Response) => {
       });
     }
 
-    const health = await testClient.healthCheck();
-    const testResult = await testClient.testConnection();
+    const isHealthy = await testClient.healthCheck();
     
     res.json({
       success: true,
-      health,
-      connectionDetails: testResult
+      healthy: isHealthy,
+      timestamp: new Date().toISOString()
     });
 
   } catch (error) {
     console.error('[INTER-APP-TEST] Health Check Fehler:', error);
-    res.status(500).json({
+    const interAppError = InterAppError.fromAxiosError(error);
+    res.status(interAppError.statusCode || 500).json({
       success: false,
       error: 'Health Check fehlgeschlagen',
-      details: error.message
+      code: interAppError.code,
+      details: interAppError.details
+    });
+  }
+});
+
+/**
+ * GET /api/inter-app-test/status
+ * Status der aktuellen Verbindung
+ */
+router.get('/status', async (req: Request, res: Response) => {
+  try {
+    if (!testClient) {
+      return res.json({
+        success: true,
+        connected: false,
+        configuration: null
+      });
+    }
+
+    const connectionTest = await testClient.testConnection();
+    
+    res.json({
+      success: true,
+      connected: connectionTest.success,
+      configuration: {
+        baseURL: (testClient as any).baseURL,
+        appSource: (testClient as any).appSource
+      },
+      connectionTest
+    });
+
+  } catch (error) {
+    console.error('[INTER-APP-TEST] Status Fehler:', error);
+    res.json({
+      success: true,
+      connected: false,
+      error: error.message,
+      configuration: testClient ? {
+        baseURL: (testClient as any).baseURL,
+        appSource: (testClient as any).appSource
+      } : null
     });
   }
 });
 
 /**
  * GET /api/inter-app-test/suppliers
- * Testet das Abrufen von Lieferanten
+ * Testet Lieferanten-Endpunkt
  */
 router.get('/suppliers', async (req: Request, res: Response) => {
   try {
@@ -106,8 +147,7 @@ router.get('/suppliers', async (req: Request, res: Response) => {
     res.json({
       success: true,
       data: suppliers,
-      count: suppliers.length,
-      sample: suppliers.slice(0, 3) // Erste 3 als Beispiel
+      count: suppliers.length
     });
 
   } catch (error) {
@@ -124,7 +164,7 @@ router.get('/suppliers', async (req: Request, res: Response) => {
 
 /**
  * GET /api/inter-app-test/products
- * Testet das Abrufen von Produkten
+ * Testet Produkte-Endpunkt
  */
 router.get('/products', async (req: Request, res: Response) => {
   try {
@@ -135,18 +175,16 @@ router.get('/products', async (req: Request, res: Response) => {
       });
     }
 
-    const { supplier_id, limit = 10 } = req.query;
-    
-    const result = await testClient.getProducts({
-      supplierId: supplier_id ? parseInt(supplier_id as string) : undefined,
-      limit: parseInt(limit as string)
-    });
+    const { supplierId, limit = 10 } = req.query;
+    const options: any = { limit: parseInt(limit as string) };
+    if (supplierId) options.supplierId = parseInt(supplierId as string);
+
+    const result = await testClient.getProducts(options);
     
     res.json({
       success: true,
       data: result.data,
-      pagination: result.pagination,
-      sample: result.data.slice(0, 3) // Erste 3 als Beispiel
+      pagination: result.pagination
     });
 
   } catch (error) {
@@ -163,7 +201,7 @@ router.get('/products', async (req: Request, res: Response) => {
 
 /**
  * GET /api/inter-app-test/data-completeness
- * Testet die Vollständigkeitsanalyse
+ * Testet Daten-Vollständigkeitsanalyse
  */
 router.get('/data-completeness', async (req: Request, res: Response) => {
   try {
@@ -182,7 +220,7 @@ router.get('/data-completeness', async (req: Request, res: Response) => {
     });
 
   } catch (error) {
-    console.error('[INTER-APP-TEST] Completeness Test Fehler:', error);
+    console.error('[INTER-APP-TEST] Data Completeness Test Fehler:', error);
     const interAppError = InterAppError.fromAxiosError(error);
     res.status(interAppError.statusCode || 500).json({
       success: false,
@@ -194,41 +232,8 @@ router.get('/data-completeness', async (req: Request, res: Response) => {
 });
 
 /**
- * GET /api/inter-app-test/warehouses
- * Testet das Abrufen von Lagern
- */
-router.get('/warehouses', async (req: Request, res: Response) => {
-  try {
-    if (!testClient) {
-      return res.status(400).json({
-        success: false,
-        error: 'Keine Verbindung konfiguriert'
-      });
-    }
-
-    const warehouses = await testClient.getWarehouses();
-    
-    res.json({
-      success: true,
-      data: warehouses,
-      count: warehouses.length
-    });
-
-  } catch (error) {
-    console.error('[INTER-APP-TEST] Warehouses Test Fehler:', error);
-    const interAppError = InterAppError.fromAxiosError(error);
-    res.status(interAppError.statusCode || 500).json({
-      success: false,
-      error: 'Fehler beim Abrufen der Lager',
-      code: interAppError.code,
-      details: interAppError.details
-    });
-  }
-});
-
-/**
  * POST /api/inter-app-test/custom-request
- * Ermöglicht benutzerdefinierte Anfragen
+ * Führt eine benutzerdefinierte API-Anfrage aus
  */
 router.post('/custom-request', async (req: Request, res: Response) => {
   try {
@@ -295,41 +300,6 @@ router.delete('/disconnect', async (req: Request, res: Response) => {
     res.status(500).json({
       success: false,
       error: 'Fehler beim Trennen der Verbindung'
-    });
-  }
-});
-
-/**
- * GET /api/inter-app-test/status
- * Zeigt den aktuellen Verbindungsstatus
- */
-router.get('/status', async (req: Request, res: Response) => {
-  try {
-    const isConnected = testClient !== null;
-    let connectionDetails = null;
-    
-    if (isConnected && testClient) {
-      try {
-        connectionDetails = await testClient.testConnection();
-      } catch (error) {
-        connectionDetails = {
-          success: false,
-          error: error.message
-        };
-      }
-    }
-    
-    res.json({
-      success: true,
-      connected: isConnected,
-      connectionDetails
-    });
-
-  } catch (error) {
-    console.error('[INTER-APP-TEST] Status Check Fehler:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Fehler beim Status Check'
     });
   }
 });
