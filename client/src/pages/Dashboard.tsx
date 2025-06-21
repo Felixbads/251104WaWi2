@@ -265,7 +265,7 @@ export default function Dashboard() {
     
     acc[key].cashlessPercentage = acc[key].total > 0 ? (acc[key].cashless / acc[key].total) * 100 : 0;
     return acc;
-
+  }, {}) || {};
 
   // Synchronisationsstatus
   const getLatestSyncTime = () => {
