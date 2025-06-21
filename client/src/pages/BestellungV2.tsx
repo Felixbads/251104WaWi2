@@ -168,15 +168,46 @@ const BestellungV2: React.FC = () => {
       }
       const itemsData = await itemsResponse.json();
       
-      // Daten vorausfüllen
-      if (orderData.warehouse_id || orderData.warehouseId) {
-        setWarehouseId(orderData.warehouse_id || orderData.warehouseId);
-        setWarehouseName(orderData.warehouse_name || orderData.warehouseName || '');
+      // Lager-Daten vorausfüllen
+      if (orderData.warehouseId || orderData.warehouse_id) {
+        const warehouseIdToSet = orderData.warehouseId || orderData.warehouse_id;
+        setWarehouseId(warehouseIdToSet);
+        
+        // Lade Lager-Name separat falls nicht vorhanden
+        if (!orderData.warehouseName && !orderData.warehouse_name) {
+          try {
+            const warehouseResponse = await fetch(`/api/warehouses/${warehouseIdToSet}`);
+            if (warehouseResponse.ok) {
+              const warehouseDetails = await warehouseResponse.json();
+              setWarehouseName(warehouseDetails.name || '');
+            }
+          } catch (e) {
+            console.warn('Konnte Lager-Name nicht laden:', e);
+          }
+        } else {
+          setWarehouseName(orderData.warehouseName || orderData.warehouse_name || '');
+        }
       }
       
-      if (orderData.supplier_id || orderData.supplierId) {
-        setSupplierId(orderData.supplier_id || orderData.supplierId);
-        setSupplierName(orderData.supplier_name || orderData.supplierName || '');
+      // Lieferanten-Daten vorausfüllen
+      if (orderData.supplierId || orderData.supplier_id) {
+        const supplierIdToSet = orderData.supplierId || orderData.supplier_id;
+        setSupplierId(supplierIdToSet);
+        
+        // Lade Lieferanten-Name separat falls nicht vorhanden
+        if (!orderData.supplierName && !orderData.supplier_name) {
+          try {
+            const supplierResponse = await fetch(`/api/suppliers/${supplierIdToSet}`);
+            if (supplierResponse.ok) {
+              const supplierDetails = await supplierResponse.json();
+              setSupplierName(supplierDetails.name || '');
+            }
+          } catch (e) {
+            console.warn('Konnte Lieferanten-Name nicht laden:', e);
+          }
+        } else {
+          setSupplierName(orderData.supplierName || orderData.supplier_name || '');
+        }
       }
       
       // Erwartetes Lieferdatum übernehmen falls vorhanden
