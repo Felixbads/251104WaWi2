@@ -1165,8 +1165,8 @@ const BestellungV2: React.FC = () => {
               setOrderId(null);
               setOrderNumber('');
               
-              // Zur Lager-Auswahl wechseln
-              setStep('warehouse');
+              // Zur Bestellmodus-Auswahl wechseln
+              setStep('mode');
             }}
           />
         );
