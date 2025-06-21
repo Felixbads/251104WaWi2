@@ -1748,10 +1748,32 @@ const BestellungV2: React.FC = () => {
         );
       case 'goodsReceipt':
         // Stelle sicher, dass das Order-Objekt die Items enthält
+        // Lade Order Items wenn noch nicht vorhanden
+        const orderItems = (existingOrderData && existingOrderData.orderItems) || 
+                          (existingOrderData && existingOrderData.items) ||
+                          selectedProducts || [];
+        
+        if (orderItems.length === 0 && orderId) {
+          // Lade Order Items über API
+          fetch(`/api/order-items-direct/${orderId}`)
+            .then(res => res.json())
+            .then(data => {
+              if (data.success && Array.isArray(data.data)) {
+                const updatedOrderData = {
+                  ...existingOrderData,
+                  orderItems: data.data,
+                  items: data.data
+                };
+                setExistingOrderData(updatedOrderData);
+              }
+            })
+            .catch(err => console.error('Error loading order items:', err));
+        }
+
         const orderWithItems = {
           ...(order || existingOrderData),
-          items: selectedProducts || (order && order.items) || (existingOrderData && existingOrderData.items) || [],
-          orderItems: selectedProducts || (order && order.orderItems) || (existingOrderData && existingOrderData.orderItems) || []
+          items: orderItems,
+          orderItems: orderItems
         };
         
         console.log("GoodsReceiptForm order data:", orderWithItems);

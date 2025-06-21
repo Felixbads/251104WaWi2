@@ -113,12 +113,18 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
     orderItems.map(item => ({
       ...item,
       // Wichtig: orderItemId für die API-Übertragung (aus der Datenbank-ID)
+      id: item.id || item.orderItemId || item.productId,
       orderItemId: item.id || item.orderItemId,
+      productId: item.product_id || item.productId,
       // Stellen sicher, dass der Name vorhanden ist (entweder name oder productName)
       name: item.name || item.product_name || item.productName || 'Artikel ohne Namen',
+      productName: item.name || item.product_name || item.productName || 'Artikel ohne Namen',
       // Stellen sicher, dass die orderedQuantity korrekt ist (kann orderQuantity, orderedQuantity oder quantity sein)
       orderedQuantity: item.orderQuantity || item.orderedQuantity || item.quantity || 0,
       receivedQuantity: item.orderQuantity || item.orderedQuantity || item.quantity || 0,
+      price: item.price || item.unit_price || item.unitPrice || 0,
+      unitPrice: item.price || item.unit_price || item.unitPrice || 0,
+      unit: item.unit || 'Stk.',
       damaged: false,
       comment: '',
       expiryDate: '' // Leeres Feld für MHD hinzufügen
