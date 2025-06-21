@@ -500,13 +500,8 @@ const BestellungV2: React.FC = () => {
           setExistingOrderData(enrichedOrderData);
         }
         
-        // Toast mit der tatsächlichen Bestellnummer anzeigen
-        toast({
-          title: 'Bestellung erfolgreich erstellt',
-          description: `Bestellungsnummer: ${orderData.order_number || 'erstellt'}`,
-        });
-        
-        // Direkt zum Workflow-Übersichtschritt wechseln
+        // KEINE Toast-Benachrichtigung mehr - unterbricht den Workflow!
+        // Direkt zum Workflow-Übersichtschritt wechseln ohne Unterbrechung
         setStep('viewOrder');
         
         // Entferne separaten Aufruf für Bestellpositionen, da sie jetzt direkt
@@ -534,13 +529,8 @@ const BestellungV2: React.FC = () => {
           setExistingOrderData(enrichedOrderData);
         }
         
-        // Toast mit der tatsächlichen Bestellnummer anzeigen
-        toast({
-          title: 'Bestellung erfolgreich erstellt',
-          description: `Bestellungsnummer: ${data.order.orderNumber || 'erstellt'}`,
-        });
-        
-        // Direkt zum Workflow-Übersichtschritt wechseln
+        // KEINE Toast-Benachrichtigung mehr - unterbricht den Workflow!
+        // Direkt zum Workflow-Übersichtschritt wechseln ohne Unterbrechung
         setStep('viewOrder');
         
         // Zusätzliche API-Anfrage um sicherzustellen, dass die Bestellungsdaten vollständig sind
@@ -566,33 +556,20 @@ const BestellungV2: React.FC = () => {
       } else if (data && data.success) {
         console.warn("Erfolgsmeldung, aber unvollständige Daten vom Server erhalten:", data);
         
-        // Bei Erfolg ohne ID Bestellungsliste neu laden und zurück zur Übersicht
-        toast({
-          title: 'Bestellung erfolgreich erstellt',
-          description: data.message || 'Die Bestellung wurde gespeichert.',
-        });
-        
         // Cache unbedingt invalidieren, damit neue Bestellungen angezeigt werden
         queryClient.invalidateQueries({queryKey: orderKeys.lists()});
         
-        // Zur Übersicht zurückkehren
-        setStep('overview');
+        // Direkt zum Workflow-Übersichtschritt wechseln ohne Toast-Unterbrechung
+        setStep('viewOrder');
       } else {
         console.warn("Unvollständige oder unbekannte Daten vom Server erhalten:", data);
-        
-        // Fallback-Toast mit einer allgemeinen Erfolgsmeldung
-        toast({
-          title: 'Bestellung möglicherweise erstellt',
-          description: 'Die Bestellung wurde möglicherweise gespeichert. Bitte prüfen Sie die Übersicht.',
-          variant: 'default'
-        });
         
         // Cache unbedingt invalidieren, damit neue Bestellungen angezeigt werden
         queryClient.invalidateQueries({queryKey: orderKeys.lists()});
         queryClient.invalidateQueries({queryKey: ['/api/orders-direct']});
         
-        // NICHT zur Übersicht zurückkehren - das war das Problem!
-        // setStep('overview'); // ENTFERNT
+        // Direkt zum Workflow-Übersichtschritt wechseln ohne Toast-Unterbrechung
+        setStep('viewOrder');
       }
       
       // Sicherstellen, dass selectedProducts zur Bestellung hinzugefügt wurden
@@ -618,8 +595,8 @@ const BestellungV2: React.FC = () => {
       queryClient.invalidateQueries({queryKey: orderKeys.lists()});
       queryClient.invalidateQueries({queryKey: ['/api/orders-direct']});
       
-      // Direkt zur neuen Bestellung wechseln (E-Mail-Versand)
-      setStep("sendOrder");
+      // Direkt zum Workflow-Übersichtschritt wechseln ohne Unterbrechung
+      setStep('viewOrder');
     },
     onError: (error: any) => {
       console.error('Bestellfehler:', error);
@@ -780,46 +757,84 @@ const BestellungV2: React.FC = () => {
     setStep('warehouseReceiptOfExistingOrder');
   };
   
-  // Status-abhängige Navigation für Bestellungen - DIREKTE NAVIGATION OHNE POP-UP
+  // Intelligente statusbasierte Navigation für Bestellungen
+  const handleOrderAction = async (options: {orderId: number, status: string, action: string}) => {
+    const { orderId, status, action } = options;
+    console.log(`Bestellung ${orderId} mit Status ${status} und Aktion ${action} ausgewählt`);
+    
+    try {
+      // Lade vollständige Bestelldaten
+      const orderDetailResponse = await fetch(`/api/orders-direct/${orderId}`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      
+      if (orderDetailResponse.ok) {
+        const orderDetailData = await orderDetailResponse.json();
+        console.log("Vollständige Bestelldaten geladen:", orderDetailData);
+        
+        // Setze Bestellungsdaten
+        setOrderId(orderId);
+        setOrderNumber(orderDetailData.order_number || '');
+        setSupplierName(orderDetailData.supplier_name || '');
+        setSupplierId(orderDetailData.supplier_id);
+        setWarehouseId(orderDetailData.warehouse_id);
+        setWarehouseName(orderDetailData.warehouse_name || orderDetailData.location_name || '');
+        setExistingOrderData(orderDetailData);
+        
+        // Lade Bestellpositionen
+        await loadOrderItems(orderId);
+        
+        // Navigiere basierend auf Status und Aktion
+        switch (action) {
+          case 'edit':
+            // Entwurf bearbeiten - zurück zum Workflow
+            setStep('viewOrder');
+            break;
+          case 'sent':
+            // Versendete Bestellung - E-Mail-Übersicht anzeigen
+            setStep('sendOrder');
+            break;
+          case 'goods-receipt':
+            // Wareneingang durchführen
+            setStep('goodsReceipt');
+            break;
+          default:
+            // Standard: Workflow-Übersicht
+            setStep('viewOrder');
+        }
+      }
+    } catch (error) {
+      console.error("Fehler beim Laden der Bestellung:", error);
+      toast({
+        title: "Fehler beim Laden der Bestellung",
+        description: "Die Bestellung konnte nicht geladen werden.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  // Fallback für alte onSelectOrder-Aufrufe
   const handleSelectOrder = async (orderId: number) => {
     console.log("Bestellung ausgewählt mit ID:", orderId);
     
     try {
       // Lade die Bestellungsdaten direkt aus der API
-      const response = await fetch('/orders-data');
+      const response = await fetch('/api/orders-direct');
       const ordersData = await response.json();
-      console.log("Geladene Bestellungen:", ordersData);
       
-      const selectedOrder = ordersData.find((order: any) => order.id === orderId);
+      const selectedOrder = Array.isArray(ordersData) 
+        ? ordersData.find((order: any) => order.id === orderId)
+        : null;
       
       if (selectedOrder) {
-        console.log("Gefundene Bestellung:", selectedOrder.id, "Status:", selectedOrder.status);
-        
-        // Setze die Bestellungsdaten für die Navigation
-        setOrderId(orderId);
-        
-        // Lade die vollständigen Bestelldaten inklusive Items
-        const orderDetailResponse = await fetch(`/api/orders-direct/${orderId}`, {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json'
-          }
+        // Nutze die neue statusbasierte Navigation
+        const action = selectedOrder.status === 'draft' ? 'edit' : 'details';
+        await handleOrderAction({
+          orderId,
+          status: selectedOrder.status,
+          action
         });
-        
-        if (orderDetailResponse.ok) {
-          const orderDetailData = await orderDetailResponse.json();
-          console.log("Vollständige Bestelldaten geladen:", orderDetailData);
-          setExistingOrderData(orderDetailData);
-        } else {
-          // Fallback auf die ursprünglichen Daten
-          setExistingOrderData(selectedOrder);
-        }
-        
-        // Lade auch die Bestellpositionen separat für maximale Kompatibilität
-        await loadOrderItems(orderId);
-        
-        // WORKFLOW-NAVIGATION - Alle Bestellungen zur Workflow-Übersicht
-        setStep('viewOrder');
       } else {
         console.log("Bestellung nicht gefunden - ID:", orderId);
       }
@@ -1248,6 +1263,7 @@ const BestellungV2: React.FC = () => {
         return (
           <OrdersOverview 
             onSelectOrder={handleSelectOrder}
+            onOrderAction={handleOrderAction}
             onCreateNew={() => {
               // Setze alle Werte zurück
               setWarehouseId(null);
