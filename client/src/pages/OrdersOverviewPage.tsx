@@ -323,7 +323,7 @@ const OrdersOverviewPage: React.FC = () => {
           </p>
         </div>
         <Button 
-          onClick={() => navigate('/bestellungen?step=mode')}
+          onClick={() => navigate('/bestellungen/workflow?step=mode')}
           className="flex items-center gap-2"
         >
           <Plus className="h-4 w-4" />
@@ -411,7 +411,7 @@ const OrdersOverviewPage: React.FC = () => {
                   ? 'Keine Bestellungen entsprechen den Filterkriterien.' 
                   : 'Es wurden noch keine Bestellungen erstellt.'}
               </p>
-              <Button onClick={() => navigate('/bestellungen?step=mode')}>
+              <Button onClick={() => navigate('/bestellungen/workflow?step=mode')}>
                 <Plus className="h-4 w-4 mr-2" />
                 Neue Bestellung erstellen
               </Button>

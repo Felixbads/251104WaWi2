@@ -240,14 +240,14 @@ function AuthenticatedRouter() {
         )} />
 
         {/* Bestellungen Overview - Main orders list page */}
-        <Route path="/bestellungen-uebersicht" component={props => (
+        <Route path="/bestellungen" component={props => (
           <ApprovedUserRoute>
             <OrdersOverviewPage {...props} />
           </ApprovedUserRoute>
         )} />
 
         {/* Bestellungen Workflow - Dynamic order workflow */}
-        <Route path="/bestellungen" component={props => (
+        <Route path="/bestellungen/workflow" component={props => (
           <ApprovedUserRoute>
             <BestellungV2 {...props} />
           </ApprovedUserRoute>
