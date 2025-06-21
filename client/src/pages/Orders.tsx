@@ -822,7 +822,7 @@ export default function Orders() {
               <TableHead>Status</TableHead>
               <TableHead>Datum</TableHead>
               <TableHead>Liefertermin</TableHead>
-              <TableHead>Priorität</TableHead>
+              <TableHead>Priorität / Aktionen</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -875,12 +875,20 @@ export default function Orders() {
                         : '-'}
                     </TableCell>
                     <TableCell>
-                      <Badge 
-                        variant={order.priority === 'high' || order.priority === 'urgent' ? 'destructive' : 'outline'} 
-                        className={order.priority === 'normal' ? 'bg-blue-100 text-blue-800 border-blue-300' : ''}
-                      >
-                        {priorityMap[order.priority as keyof typeof priorityMap]?.label || order.priority}
-                      </Badge>
+                      <div className="flex items-center gap-2">
+                        <Badge 
+                          variant={order.priority === 'high' || order.priority === 'urgent' ? 'destructive' : 'outline'} 
+                          className={order.priority === 'normal' ? 'bg-blue-100 text-blue-800 border-blue-300' : ''}
+                        >
+                          {priorityMap[order.priority as keyof typeof priorityMap]?.label || order.priority}
+                        </Badge>
+                        <CopyOrderButton 
+                          orderId={order.id} 
+                          orderNumber={order.orderNumber}
+                          size="sm"
+                          variant="ghost"
+                        />
+                      </div>
                     </TableCell>
                   </TableRow>
                 );

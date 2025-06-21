@@ -124,8 +124,6 @@ const ProductSelectionTable: React.FC<ProductSelectionTableProps> = ({
       }
     }));
   }, [supplierProductsResponse]);
-      ? purchaseConditionsResponse 
-      : (purchaseConditionsResponse as any)?.data || [];
     
     // Map purchase conditions to a product-like format
     return purchaseConditions.map((condition: PurchaseCondition) => ({

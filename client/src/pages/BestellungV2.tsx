@@ -82,7 +82,7 @@ import BulkOrderMode from '@/components/orderv2/BulkOrderMode';
 import { Badge } from '@/components/ui/badge';
 
 // Define the order steps
-type OrderStep = 'overview' | 'warehouse' | 'mode' | 'supplier' | 'products' | 'additionalInfo' | 'summary' | 'viewOrder' | 'orderDetail' | 'sendOrder' | 'goodsReceipt' | 'warehouseReceiptOfExistingOrder';
+type OrderStep = 'overview' | 'mode' | 'warehouse' | 'supplier' | 'products' | 'additionalInfo' | 'summary' | 'viewOrder' | 'orderDetail' | 'sendOrder' | 'goodsReceipt' | 'warehouseReceiptOfExistingOrder';
 
 const BestellungV2: React.FC = () => {
   const { toast } = useToast();
@@ -91,7 +91,7 @@ const BestellungV2: React.FC = () => {
   const queryClient = useQueryClient();
   
   // State for the order process
-  const [step, setStep] = useState<OrderStep>('overview'); // Starte mit der Übersicht
+  const [step, setStep] = useState<OrderStep>('mode'); // Starte mit der Bestellmodus-Auswahl
   
   // URL-Parameter verarbeiten beim Laden der Komponente
   useEffect(() => {
@@ -1225,6 +1225,31 @@ const BestellungV2: React.FC = () => {
               }}
               sourceOrderId={sourceOrderId}
               onSourceOrderChange={(id) => setSourceOrderId(id)}
+            />
+            />
+          </>
+        );
+      case 'warehouse':
+        return (
+          <>
+            <div className="mb-4">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setStep('mode')}
+                className="gap-2 text-muted-foreground"
+              >
+                <ArrowRight className="h-4 w-4 rotate-180" />
+                Zurück zur Bestellmodus-Auswahl
+              </Button>
+            </div>
+            <WarehouseSelector
+              selectedWarehouseId={warehouseId}
+              onSelectWarehouse={(id, name) => {
+                setWarehouseId(id);
+                setWarehouseName(name);
+                setStep('supplier');
+              }}
             />
           </>
         );
