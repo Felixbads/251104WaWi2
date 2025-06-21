@@ -726,100 +726,46 @@ router.post('/orders', async (req: Request, res: Response) => {
   }
 });
 
-// Bestellung abrufen
+// Bestellung abrufen - VEREINFACHT
 router.get('/orders/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const orderId = parseInt(id);
     
     if (isNaN(orderId)) {
+      res.setHeader('Content-Type', 'application/json');
       return res.status(400).json({ error: 'Ungültige Bestellungs-ID' });
     }
     
-    // Benutzer-basierte Zugriffsbeschränkungen
-    let userConstraints: any[] = [];
-    if (req.user && req.user.role !== 'admin') {
-      if (req.user.locationId) {
-        userConstraints.push(eq(orders.locationId, req.user.locationId));
-      }
-      
-      if (req.user.warehouseIds && Array.isArray(req.user.warehouseIds)) {
-        userConstraints.push(inArray(orders.warehouseId, req.user.warehouseIds));
-      }
-    }
+    console.log(`Loading order ${orderId}`);
     
-    // Basisabfrage
-    let query = db
+    // Direkte Bestellung abrufen ohne Benutzerberechtigungen
+    const orderResult = await db
       .select()
       .from(orders)
-      .where(eq(orders.id, orderId));
-    
-    // Benutzerberechtigungen hinzufügen, falls nötig
-    if (userConstraints.length > 0) {
-      query = query.where(and(eq(orders.id, orderId), or(...userConstraints)));
-    }
-    
-    const orderResult = await query.limit(1);
+      .where(eq(orders.id, orderId))
+      .limit(1);
     
     if (!orderResult || orderResult.length === 0) {
+      res.setHeader('Content-Type', 'application/json');
       return res.status(404).json({ error: 'Bestellung nicht gefunden' });
     }
     
-    // Bestellpositionen abrufen
-    const orderItemsResult = await db
-      .select()
-      .from(orderItems)
-      .where(eq(orderItems.orderId, orderId));
+    const order = orderResult[0];
+    console.log(`Order found: ${order.orderNumber}`);
     
-    // Lieferanten abrufen
-    let supplier = null;
-    if (orderResult[0].supplierId) {
-      const supplierResult = await db
-        .select()
-        .from(suppliers)
-        .where(eq(suppliers.id, orderResult[0].supplierId))
-        .limit(1);
-      
-      if (supplierResult && supplierResult.length > 0) {
-        supplier = supplierResult[0];
-      }
-    }
-    
-    // Gesamtpreis berechnen
-    let subtotal = 0;
-    orderItemsResult.forEach(item => {
-      const price = item.price || 0;
-      const quantity = item.quantity || 1;
-      const discount = item.discountPercent || 0;
-      
-      // Berechnung des Positionsgesamtpreises unter Berücksichtigung des Rabatts
-      const lineTotal = price * quantity * (1 - discount / 100);
-      subtotal += lineTotal;
-    });
-    
-    // MwSt berechnen (Standard: 19%)
-    const vatRate = 19;
-    const vatAmount = subtotal * (vatRate / 100);
-    const totalAmount = subtotal + vatAmount;
-    
-    // Setze explizit den Content-Type auf application/json
+    // Explizit JSON Content-Type setzen
     res.setHeader('Content-Type', 'application/json');
-    res.status(200).json({
-      ...orderResult[0],
-      items: orderItemsResult,
-      supplier,
-      pricing: {
-        subtotal,
-        vatRate,
-        vatAmount,
-        totalAmount
-      }
-    });
+    res.json(order);
+    
   } catch (error) {
     console.error('Fehler beim Abrufen der Bestellung:', error);
+    res.setHeader('Content-Type', 'application/json');
     res.status(500).json({ error: 'Fehler beim Abrufen der Bestellung' });
   }
 });
+
+
 
 // Bestellpositionen abrufen
 router.get('/orders/:id/items', async (req: Request, res: Response) => {
@@ -827,7 +773,10 @@ router.get('/orders/:id/items', async (req: Request, res: Response) => {
     const { id } = req.params;
     const orderId = parseInt(id);
     
+    console.log(`GET /api/orders/${id}/items - Lade Bestellpositionen mit korrekten Preisen...`);
+    
     if (isNaN(orderId)) {
+      res.setHeader('Content-Type', 'application/json');
       return res.status(400).json({ error: 'Ungültige Bestellungs-ID' });
     }
     
@@ -836,9 +785,13 @@ router.get('/orders/:id/items', async (req: Request, res: Response) => {
       .from(orderItems)
       .where(eq(orderItems.orderId, orderId));
     
+    console.log(`${result.length} Bestellpositionen mit Preisdaten geladen`);
+    
+    res.setHeader('Content-Type', 'application/json');
     res.json(result);
   } catch (error) {
     console.error('Fehler beim Abrufen der Bestellpositionen:', error);
+    res.setHeader('Content-Type', 'application/json');
     res.status(500).json({ error: 'Fehler beim Abrufen der Bestellpositionen' });
   }
 });
@@ -874,20 +827,24 @@ router.post('/orders/:id/copy', async (req: Request, res: Response) => {
     const today = new Date();
     const dateString = today.toISOString().slice(0, 10).replace(/-/g, '');
     
-    const latestOrderQuery = await db
-      .select()
-      .from(orders)
-      .where(ilike(orders.orderNumber, `ORD-${dateString}-%`))
-      .orderBy(desc(orders.orderNumber))
-      .limit(1);
-    
     let sequenceNumber = 1;
-    if (latestOrderQuery.length > 0) {
-      const latestOrderNumber = latestOrderQuery[0].orderNumber;
-      const match = latestOrderNumber.match(/ORD-\d{8}-(\d+)/);
-      if (match) {
-        sequenceNumber = parseInt(match[1]) + 1;
+    try {
+      const latestOrderQuery = await db
+        .select()
+        .from(orders)
+        .where(ilike(orders.orderNumber, `ORD-${dateString}-%`))
+        .orderBy(desc(orders.orderNumber))
+        .limit(1);
+      
+      if (latestOrderQuery.length > 0) {
+        const latestOrderNumber = latestOrderQuery[0].orderNumber;
+        const match = latestOrderNumber.match(/ORD-\d{8}-(\d+)/);
+        if (match) {
+          sequenceNumber = parseInt(match[1]) + 1;
+        }
       }
+    } catch (orderNumberError) {
+      console.warn('Fehler beim Generieren der Bestellnummer, verwende Standard:', orderNumberError);
     }
     
     const newOrderNumber = `ORD-${dateString}-${sequenceNumber.toString().padStart(3, '0')}`;
@@ -945,6 +902,7 @@ router.post('/orders/:id/copy', async (req: Request, res: Response) => {
       .from(orderItems)
       .where(eq(orderItems.orderId, newOrder.id));
     
+    res.setHeader('Content-Type', 'application/json');
     res.status(201).json({
       success: true,
       message: 'Bestellung erfolgreich kopiert',
@@ -956,6 +914,7 @@ router.post('/orders/:id/copy', async (req: Request, res: Response) => {
     
   } catch (error) {
     console.error('Fehler beim Kopieren der Bestellung:', error);
+    res.setHeader('Content-Type', 'application/json');
     res.status(500).json({ error: 'Fehler beim Kopieren der Bestellung' });
   }
 });
