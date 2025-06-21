@@ -3,6 +3,7 @@ import { rawDb } from '../db';
 import { ultraRobustVendonSync } from '../services/ultraRobustVendonSync';
 import { vendonSync } from '../services/vendonSync';
 import { vendonScheduler } from '../services/vendonScheduler';
+import { vendonGapCrawler } from '../services/vendonGapCrawler';
 
 const router = Router();
 
@@ -398,6 +399,79 @@ router.post('/scheduler/trigger', async (req: Request, res: Response) => {
     res.status(500).json({
       status: 'error',
       message: 'Failed to trigger immediate sync',
+      details: error instanceof Error ? error.message : String(error)
+    });
+  }
+});
+
+// Gap Crawler endpoints
+router.get('/gap-crawler/status', async (req: Request, res: Response) => {
+  try {
+    const status = vendonGapCrawler.getStatus();
+    res.json({
+      status: 'success',
+      data: status
+    });
+  } catch (error) {
+    console.error('Error fetching gap crawler status:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to fetch gap crawler status',
+      details: error instanceof Error ? error.message : String(error)
+    });
+  }
+});
+
+router.post('/gap-crawler/start', async (req: Request, res: Response) => {
+  try {
+    // Start the crawler asynchronously
+    vendonGapCrawler.startGapCrawling().catch(error => {
+      console.error('Gap crawler error:', error);
+    });
+    
+    res.json({
+      status: 'success',
+      message: 'Gap crawler started - will systematically fill all gaps back to 2024-01-01'
+    });
+  } catch (error) {
+    console.error('Error starting gap crawler:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to start gap crawler',
+      details: error instanceof Error ? error.message : String(error)
+    });
+  }
+});
+
+router.post('/gap-crawler/stop', async (req: Request, res: Response) => {
+  try {
+    vendonGapCrawler.stopCrawling();
+    res.json({
+      status: 'success',
+      message: 'Gap crawler stopped'
+    });
+  } catch (error) {
+    console.error('Error stopping gap crawler:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to stop gap crawler',
+      details: error instanceof Error ? error.message : String(error)
+    });
+  }
+});
+
+router.get('/gap-crawler/progress', async (req: Request, res: Response) => {
+  try {
+    const report = await vendonGapCrawler.generateProgressReport();
+    res.json({
+      status: 'success',
+      data: report
+    });
+  } catch (error) {
+    console.error('Error generating progress report:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to generate progress report',
       details: error instanceof Error ? error.message : String(error)
     });
   }

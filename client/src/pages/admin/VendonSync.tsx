@@ -6,7 +6,7 @@ import { Separator } from '@/components/ui/separator';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Play, RefreshCw, AlertTriangle, CheckCircle, Database, Zap } from 'lucide-react';
+import { Loader2, Play, RefreshCw, AlertTriangle, CheckCircle, Database, Zap, Bot, Search } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 
@@ -48,6 +48,18 @@ interface SyncResult {
   data?: any;
 }
 
+interface CrawlerStatus {
+  isRunning: boolean;
+  currentDate: string | null;
+  totalGapsFound: number;
+  gapsProcessed: number;
+  transactionsRecovered: number;
+  startDate: string;
+  targetDate: string;
+  lastUpdate: string;
+  errors: string[];
+}
+
 export const VendonSync = () => {
   const [isRunning, setIsRunning] = useState(false);
   const [lastResult, setLastResult] = useState<SyncResult | null>(null);
@@ -58,6 +70,12 @@ export const VendonSync = () => {
   const { data: syncStatus, isLoading, refetch } = useQuery<SyncStatus>({
     queryKey: ['/api/sync/status'],
     refetchInterval: 10000, // Refresh every 10 seconds
+  });
+
+  // Fetch gap crawler status
+  const { data: crawlerStatus, refetch: refetchCrawler } = useQuery<CrawlerStatus>({
+    queryKey: ['/api/sync/gap-crawler/status'],
+    refetchInterval: 5000, // Refresh every 5 seconds
   });
 
   // Ultra-robust sync mutation
@@ -280,8 +298,91 @@ export const VendonSync = () => {
         </Card>
       )}
 
+      {/* Gap Crawler Status */}
+      {crawlerStatus && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Bot className="w-5 h-5" />
+              Automatischer Gap Crawler
+              <Badge variant={crawlerStatus.isRunning ? 'default' : 'secondary'}>
+                {crawlerStatus.isRunning ? 'LÄUFT' : 'GESTOPPT'}
+              </Badge>
+            </CardTitle>
+            <CardDescription>
+              Systematische Lückenschließung bis 01.01.2024
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {crawlerStatus.isRunning && (
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span>Fortschritt</span>
+                    <span>{crawlerStatus.gapsProcessed} / {crawlerStatus.totalGapsFound}</span>
+                  </div>
+                  <Progress 
+                    value={crawlerStatus.totalGapsFound > 0 ? (crawlerStatus.gapsProcessed / crawlerStatus.totalGapsFound) * 100 : 0} 
+                    className="w-full" 
+                  />
+                  {crawlerStatus.currentDate && (
+                    <p className="text-sm text-muted-foreground">
+                      Aktuell: {new Date(crawlerStatus.currentDate).toLocaleDateString()}
+                    </p>
+                  )}
+                </div>
+              )}
+              
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <p className="font-semibold">Lücken gefunden</p>
+                  <p className="text-2xl font-bold text-orange-600">{crawlerStatus.totalGapsFound}</p>
+                </div>
+                <div>
+                  <p className="font-semibold">Transaktionen wiederhergestellt</p>
+                  <p className="text-2xl font-bold text-green-600">{crawlerStatus.transactionsRecovered}</p>
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                {!crawlerStatus.isRunning ? (
+                  <Button
+                    onClick={() => startCrawlerMutation.mutate()}
+                    disabled={isRunning}
+                    className="flex-1"
+                  >
+                    <Bot className="w-4 h-4 mr-2" />
+                    Crawler starten
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={() => stopCrawlerMutation.mutate()}
+                    variant="outline"
+                    className="flex-1"
+                  >
+                    <AlertTriangle className="w-4 h-4 mr-2" />
+                    Crawler stoppen
+                  </Button>
+                )}
+                <Button onClick={() => refetchCrawler()} variant="outline" size="sm">
+                  <RefreshCw className="w-4 h-4" />
+                </Button>
+              </div>
+
+              {crawlerStatus.errors.length > 0 && (
+                <Alert variant="destructive">
+                  <AlertDescription>
+                    {crawlerStatus.errors.length} Fehler aufgetreten. Letzter: {crawlerStatus.errors[crawlerStatus.errors.length - 1]}
+                  </AlertDescription>
+                </Alert>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Sync Actions */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         {/* Ultra-Robust Sync */}
         <Card>
           <CardHeader>
@@ -341,7 +442,7 @@ export const VendonSync = () => {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5" />
+              <Search className="w-5 h-5" />
               Gap Recovery
             </CardTitle>
             <CardDescription>
@@ -361,6 +462,29 @@ export const VendonSync = () => {
                 <Play className="w-4 h-4 mr-2" />
               )}
               Start Gap Recovery
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* Scheduler Control */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <RefreshCw className="w-5 h-5" />
+              Auto Scheduler
+            </CardTitle>
+            <CardDescription>
+              Automatic synchronization every 5 minutes
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button
+              variant="outline"
+              className="w-full"
+              disabled
+            >
+              <CheckCircle className="w-4 h-4 mr-2" />
+              Always Running
             </Button>
           </CardContent>
         </Card>
