@@ -169,7 +169,7 @@ const ProductSelectionTable: React.FC<ProductSelectionTableProps> = ({
     if (!enrichedProducts) return [];
     
     return enrichedProducts.filter((product: any) => 
-      product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      product.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       product.sku?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       product.category?.toLowerCase().includes(searchQuery.toLowerCase())
     );
