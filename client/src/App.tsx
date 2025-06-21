@@ -2,6 +2,7 @@ import React from 'react';
 import { Router, Route, Switch } from 'wouter';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from '@/components/ui/toaster';
+import { AuthProvider } from '@/lib/auth';
 
 // Import pages
 import Dashboard from '@/pages/Dashboard';
@@ -28,30 +29,32 @@ const queryClient = new QueryClient({
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <Router>
-        <div className="min-h-screen bg-background">
-          <Switch>
-            <Route path="/" component={Dashboard} />
-            <Route path="/dashboard" component={Dashboard} />
-            
-            {/* Order routes */}
-            <Route path="/bestellungen" component={Orders} />
-            <Route path="/bestellungen/neu-v2" component={BestellungV2} />
-            <Route path="/bestellungen/neu-enhanced" component={EnhancedOrderProcess} />
-            
-            {/* Other routes */}
-            <Route path="/produkte" component={Products} />
-            <Route path="/lieferanten" component={Suppliers} />
-            <Route path="/lager" component={Warehouses} />
-            <Route path="/automaten" component={Machines} />
-            <Route path="/transaktionen" component={Transactions} />
-            
-            {/* 404 fallback */}
-            <Route component={NotFound} />
-          </Switch>
-        </div>
-      </Router>
-      <Toaster />
+      <AuthProvider>
+        <Router>
+          <div className="min-h-screen bg-background">
+            <Switch>
+              <Route path="/" component={Dashboard} />
+              <Route path="/dashboard" component={Dashboard} />
+              
+              {/* Order routes */}
+              <Route path="/bestellungen" component={Orders} />
+              <Route path="/bestellungen/neu-v2" component={BestellungV2} />
+              <Route path="/bestellungen/neu-enhanced" component={EnhancedOrderProcess} />
+              
+              {/* Other routes */}
+              <Route path="/produkte" component={Products} />
+              <Route path="/lieferanten" component={Suppliers} />
+              <Route path="/lager" component={Warehouses} />
+              <Route path="/automaten" component={Machines} />
+              <Route path="/transaktionen" component={Transactions} />
+              
+              {/* 404 fallback */}
+              <Route component={NotFound} />
+            </Switch>
+          </div>
+        </Router>
+        <Toaster />
+      </AuthProvider>
     </QueryClientProvider>
   );
 }

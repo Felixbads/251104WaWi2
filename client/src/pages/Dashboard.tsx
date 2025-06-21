@@ -59,15 +59,12 @@ export default function Dashboard() {
   const queryClient = useQueryClient();
   const { isAuthenticated } = useAuth();
 
-  // Wenn nicht authentifiziert, zeigen wir stattdessen die Login-Komponente an
-  if (!isAuthenticated) {
-    return <Login />;
-  }
-
+  // ALL HOOKS MUST BE CALLED BEFORE ANY CONDITIONAL RETURNS
   // Fetch data for metrics
   const { data: transactions, isLoading: isLoadingTransactions } = useQuery({
     queryKey: ['/api/transactions'],
     queryFn: () => getTransactions(500),
+    enabled: isAuthenticated,
   });
 
   // Debug: Log transaction data structure
@@ -85,24 +82,28 @@ export default function Dashboard() {
   const { data: machines, isLoading: isLoadingMachines } = useQuery({
     queryKey: ['/api/machines'],
     queryFn: () => getMachines(),
+    enabled: isAuthenticated,
   });
 
   const { data: events, isLoading: isLoadingEvents } = useQuery({
     queryKey: ['/api/events'],
     queryFn: () => getEvents(10),
+    enabled: isAuthenticated,
   });
 
   const { data: syncStatus, isLoading: isLoadingSyncStatus } = useQuery({
     queryKey: ['/api/sync/status'],
     queryFn: () => getSyncStatus(),
-    refetchInterval: 30000 // Alle 30 Sekunden aktualisieren
+    refetchInterval: 30000, // Alle 30 Sekunden aktualisieren
+    enabled: isAuthenticated,
   });
 
   // Verschickte aber noch nicht gelieferte Bestellungen für die Dashboard-Ansicht
   const { data: openOrders, isLoading: isLoadingOpenOrders } = useQuery({
     queryKey: ['/api/orders/dashboard/open'],
     queryFn: () => getOpenOrders(),
-    refetchInterval: 60000 // Jede Minute aktualisieren
+    refetchInterval: 60000, // Jede Minute aktualisieren
+    enabled: isAuthenticated,
   });
 
   // Kritische Automaten mit Warnungen oder Fehlern vom Standort-Status
@@ -115,28 +116,32 @@ export default function Dashboard() {
       }
       return response.json();
     },
-    refetchInterval: 30000 // Alle 30 Sekunden aktualisieren für aktuelle Daten
+    refetchInterval: 30000, // Alle 30 Sekunden aktualisieren für aktuelle Daten
+    enabled: isAuthenticated,
   });
 
   // Prognosemodelle für das Dashboard
   const { data: forecastModels, isLoading: isLoadingForecastModels } = useQuery({
     queryKey: ['/api/forecast/models'],
     queryFn: () => getForecastModels(),
-    refetchInterval: 300000 // Alle 5 Minuten aktualisieren
+    refetchInterval: 300000, // Alle 5 Minuten aktualisieren
+    enabled: isAuthenticated,
   });
 
   // Dashboard-Prognosen für die nächsten 14 Tage
   const { data: dashboardForecasts, isLoading: isLoadingDashboardForecasts } = useQuery({
     queryKey: ['/api/forecast/dashboard'],
     queryFn: () => getDashboardForecasts(),
-    refetchInterval: 300000 // Alle 5 Minuten aktualisieren
+    refetchInterval: 300000, // Alle 5 Minuten aktualisieren
+    enabled: isAuthenticated,
   });
 
   // Datenbankstatistiken für das Dashboard
   const { data: databaseStats, isLoading: isLoadingDatabaseStats } = useQuery({
     queryKey: ['/api/statistics/database'],
     queryFn: () => getDatabaseStatistics(),
-    refetchInterval: 60000 // Jede Minute aktualisieren
+    refetchInterval: 60000, // Jede Minute aktualisieren
+    enabled: isAuthenticated,
   });
 
   // Refill-Daten für die letzten 7 Tage
@@ -147,6 +152,7 @@ export default function Dashboard() {
       endDate: new Date().toISOString().split('T')[0],
       limit: 100
     }),
+    enabled: isAuthenticated,
   });
 
   // Kritische Bestände für das Dashboard
@@ -157,8 +163,14 @@ export default function Dashboard() {
       if (!response.ok) throw new Error('Fehler beim Laden der kritischen Bestände');
       return response.json();
     },
-    refetchInterval: 300000 // Alle 5 Minuten aktualisieren
+    refetchInterval: 300000, // Alle 5 Minuten aktualisieren
+    enabled: isAuthenticated,
   });
+
+  // Wenn nicht authentifiziert, zeigen wir stattdessen die Login-Komponente an
+  if (!isAuthenticated) {
+    return <Login />;
+  }
 
   // Berechne aktuelle Metriken aus realen Daten
   const today = new Date();
