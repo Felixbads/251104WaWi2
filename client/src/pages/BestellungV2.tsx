@@ -1170,33 +1170,6 @@ const BestellungV2: React.FC = () => {
             }}
           />
         );
-      case 'warehouse':
-        return (
-          <>
-            <div className="mb-4">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  console.log('REDIRECT TRIGGERED HERE', { step, reason: 'onClick / zurück zur Übersicht Button' });
-                  navigate('/bestellungen');
-                }}
-                className="gap-2 text-muted-foreground"
-              >
-                <ArrowRight className="h-4 w-4 rotate-180" />
-                Zurück zur Übersicht
-              </Button>
-            </div>
-            <WarehouseSelector
-              selectedWarehouseId={warehouseId}
-              onSelectWarehouse={(id, name) => {
-                setWarehouseId(id);
-                setWarehouseName(name);
-                setStep('mode');
-              }}
-            />
-          </>
-        );
       case 'mode':
         return (
           <>
@@ -1225,7 +1198,6 @@ const BestellungV2: React.FC = () => {
               }}
               sourceOrderId={sourceOrderId}
               onSourceOrderChange={(id) => setSourceOrderId(id)}
-            />
             />
           </>
         );
