@@ -239,10 +239,17 @@ function AuthenticatedRouter() {
           </ApprovedUserRoute>
         )} />
 
-        {/* Bestellungen Overview - Separate page for order list */}
-        <Route path="/bestellungen" component={props => (
+        {/* Bestellungen Overview - Main orders list page */}
+        <Route path="/bestellungen-uebersicht" component={props => (
           <ApprovedUserRoute>
             <OrdersOverviewPage {...props} />
+          </ApprovedUserRoute>
+        )} />
+
+        {/* Bestellungen Workflow - Dynamic order workflow */}
+        <Route path="/bestellungen" component={props => (
+          <ApprovedUserRoute>
+            <BestellungV2 {...props} />
           </ApprovedUserRoute>
         )} />
 
