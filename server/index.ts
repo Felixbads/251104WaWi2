@@ -154,7 +154,7 @@ app.get('/api/inter-app/products', async (req, res) => {
         p.description,
         p.price,
         p.status,
-        p.ean,
+        p.barcode as ean,
         p.category,
         p.supplier_id as "supplierId",
         p.created_at as "createdAt",
@@ -173,7 +173,7 @@ app.get('/api/inter-app/products', async (req, res) => {
       params.push(parseInt(supplier_id as string));
     }
     
-    productsQuery += ` ORDER BY p.name LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+    productsQuery += ` ORDER BY p.product_name LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
     params.push(limitNum, offsetNum);
     
     const result = await pool.query(productsQuery, params);
