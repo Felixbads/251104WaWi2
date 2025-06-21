@@ -274,19 +274,19 @@ const OrdersOverviewPage: React.FC = () => {
       switch (statusInfo.nextAction) {
         case 'shipping':
           // Für nicht versendete Bestellungen: zum Versand
-          navigate(`/bestellungen?step=sendOrder&orderId=${order.id}`);
+          navigate(`/bestellungen/workflow?step=sendOrder&orderId=${order.id}`);
           break;
         case 'goods-receipt':
           // Für versendete Bestellungen: zum Wareneingang
-          navigate(`/bestellungen?step=goodsReceipt&orderId=${order.id}`);
+          navigate(`/bestellungen/workflow?step=goodsReceipt&orderId=${order.id}`);
           break;
         default:
           // Für abgeschlossene/stornierte Bestellungen: zur Übersicht
-          navigate(`/bestellungen?step=viewOrder&orderId=${order.id}`);
+          navigate(`/bestellungen/workflow?step=viewOrder&orderId=${order.id}`);
       }
     } else {
       // Fallback: zur allgemeinen Übersicht
-      navigate(`/bestellungen?step=viewOrder&orderId=${order.id}`);
+      navigate(`/bestellungen/workflow?step=viewOrder&orderId=${order.id}`);
     }
   };
   
