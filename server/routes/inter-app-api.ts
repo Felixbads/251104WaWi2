@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../db';
-import { suppliers, products, warehouses, inventoryItems } from '../../shared/schema';
+import { suppliers, products, warehouses, warehouseInventory } from '../../shared/schema';
 import { eq, and, isNotNull, ne } from 'drizzle-orm';
 import { interAppAuthMiddleware, interAppRateLimitMiddleware } from '../middleware/inter-app-auth';
 
@@ -318,9 +318,9 @@ router.get('/warehouses', async (req: AuthenticatedRequest, res: Response) => {
     const warehousesWithStats = await Promise.all(
       allWarehouses.map(async (warehouse) => {
         const inventoryCount = await db
-          .select({ count: inventoryItems.id })
-          .from(inventoryItems)
-          .where(eq(inventoryItems.warehouseId, warehouse.id));
+          .select({ count: warehouseInventory.id })
+          .from(warehouseInventory)
+          .where(eq(warehouseInventory.warehouseId, warehouse.id));
 
         return {
           ...warehouse,

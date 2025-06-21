@@ -124,6 +124,26 @@ const ProductSelectionTable: React.FC<ProductSelectionTableProps> = ({
       }
     }));
   }, [supplierProductsResponse]);
+    
+    // Map purchase conditions to a product-like format
+    return purchaseConditions.map((condition: PurchaseCondition) => ({
+      id: condition.productId,
+      name: condition.productName || `Produkt ID: ${condition.productId}`,
+      sku: condition.productSku,
+      price: condition.unitPrice,
+      packagingUnit: condition.packagingUnit,
+      minQuantity: condition.minQuantity || 1,
+      // Gebindegröße aus der Einkaufsbedingung
+      packageSize: condition.packageSize || condition.minQuantity || 1,
+      // Additional fields from purchase condition
+      purchaseConditionId: condition.id,
+      isPreferred: condition.isPreferred,
+      validFrom: condition.validFrom,
+      validTo: condition.validTo,
+      notes: condition.notes,
+      leadTime: condition.leadTime
+    }));
+  }, [purchaseConditionsResponse]);
   
   // Get supplier name if available
   const supplierName = React.useMemo(() => {
@@ -169,7 +189,7 @@ const ProductSelectionTable: React.FC<ProductSelectionTableProps> = ({
     if (!enrichedProducts) return [];
     
     return enrichedProducts.filter((product: any) => 
-      product.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       product.sku?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       product.category?.toLowerCase().includes(searchQuery.toLowerCase())
     );

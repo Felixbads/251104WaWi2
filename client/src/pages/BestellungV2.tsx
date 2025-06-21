@@ -1226,6 +1226,7 @@ const BestellungV2: React.FC = () => {
               sourceOrderId={sourceOrderId}
               onSourceOrderChange={(id) => setSourceOrderId(id)}
             />
+            />
           </>
         );
       case 'warehouse':
