@@ -944,7 +944,7 @@ export default function OrderDetail() {
             <CardHeader>
               <CardTitle>Bestellpositionen</CardTitle>
               <CardDescription>
-                {order.orderItems.length} {order.orderItems.length === 1 ? "Position" : "Positionen"} mit insgesamt {formatCurrency(order.totalAmount)}
+                {order.orderItems?.length || 0} {(order.orderItems?.length || 0) === 1 ? "Position" : "Positionen"} mit insgesamt {formatCurrency(order.totalAmount)}
               </CardDescription>
             </CardHeader>
             <CardContent>

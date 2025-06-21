@@ -311,13 +311,27 @@ const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({
   // Fetch order details
   const { data: orderDetails, isLoading: detailsLoading } = useQuery({
     queryKey: ['/api/orders', orderId],
-    enabled: !!orderId
+    enabled: !!orderId,
+    queryFn: async () => {
+      const response = await fetch(`/api/orders/${orderId}`);
+      if (!response.ok) {
+        throw new Error('Fehler beim Laden der Bestelldetails');
+      }
+      return response.json();
+    }
   });
 
   // Fetch order items
   const { data: orderItems = [], isLoading: itemsLoading } = useQuery({
     queryKey: ['/api/orders', orderId, 'items'],
-    enabled: !!orderId
+    enabled: !!orderId,
+    queryFn: async () => {
+      const response = await fetch(`/api/orders/${orderId}/items`);
+      if (!response.ok) {
+        throw new Error('Fehler beim Laden der Bestellpositionen');
+      }
+      return response.json();
+    }
   });
 
   const isLoading = detailsLoading || itemsLoading;
