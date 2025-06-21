@@ -2342,6 +2342,61 @@ export const productMovementRelations = relations(productMovements, ({ one }) =>
   }),
 }));
 
+// Support Tickets Tabelle
+export const supportTickets = pgTable("support_tickets", {
+  id: serial("id").primaryKey(),
+  ticketNumber: text("ticket_number").notNull().unique(),
+  
+  // Kundendaten
+  customerName: text("customer_name").notNull(),
+  customerEmail: text("customer_email").notNull(),
+  customerPhone: text("customer_phone"),
+  customerCompany: text("customer_company"),
+  
+  // Ticket-Details
+  priority: text("priority").notNull().default("medium"), // low, medium, high, urgent
+  category: text("category").notNull(), // technical, billing, general, etc.
+  subject: text("subject").notNull(),
+  description: text("description").notNull(),
+  
+  // System-Informationen
+  affectedSystem: text("affected_system"), // welches System betroffen ist
+  errorMessage: text("error_message"), // Fehlermeldung falls vorhanden
+  stepsToReproduce: text("steps_to_reproduce"), // Schritte zur Reproduktion
+  expectedBehavior: text("expected_behavior"), // erwartetes Verhalten
+  actualBehavior: text("actual_behavior"), // tatsächliches Verhalten
+  
+  // Zusätzliche Informationen
+  browserInfo: text("browser_info"), // Browser-Informationen
+  deviceInfo: text("device_info"), // Geräteinformationen
+  additionalNotes: text("additional_notes"), // zusätzliche Notizen
+  attachmentUrls: text("attachment_urls").array(), // URLs zu Anhängen
+  
+  // Status und Bearbeitung
+  status: text("status").notNull().default("open"), // open, in_progress, resolved, closed
+  assignedTo: text("assigned_to"), // zugewiesener Bearbeiter
+  adminNotes: text("admin_notes"), // interne Notizen
+  resolutionNotes: text("resolution_notes"), // Lösungsnotizen
+  
+  // Timestamps
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  resolvedAt: timestamp("resolved_at"),
+  closedAt: timestamp("closed_at"),
+});
+
+export const insertSupportTicketSchema = createInsertSchema(supportTickets).omit({
+  id: true,
+  ticketNumber: true,
+  createdAt: true,
+  updatedAt: true,
+  resolvedAt: true,
+  closedAt: true,
+});
+
+export type InsertSupportTicket = z.infer<typeof insertSupportTicketSchema>;
+export type SupportTicket = typeof supportTickets.$inferSelect;
+
 export const allRelations = {
   orderRelations,
   orderItemRelations,
