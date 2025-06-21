@@ -44,6 +44,8 @@ import simplifiedEnhancedForecastRouter from './routes/simplified-enhanced-forec
 import syncRouter from './routes/sync';
 import interAppApiRouter from './routes/inter-app-api';
 import suppliersProductsRouter from './routes/suppliers-products';
+import ordersCopyRouter from './routes/orders-copy';
+import suppliersProductsRouter from './routes/suppliers-products';
 
 // Hilfsfunktion zum Gruppieren der Transaktionen nach Zeitraum
 function groupTransactionsByPeriod(transactions, period) {

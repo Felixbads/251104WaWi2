@@ -1628,6 +1628,10 @@ export const insertOrderSchema = createInsertSchema(orders).omit({
   createdAt: true,
   updatedAt: true,
   totalAmount: true // wird aus den Positionen berechnet
+}).extend({
+  // Add fields for copy functionality
+  sourceOrderId: z.number().optional(), // ID of the order being copied
+  orderMode: z.enum(['standard', 'refill', 'special', 'emergency', 'copy']).default('standard'),
 });
 
 export type InsertOrder = z.infer<typeof insertOrderSchema>;

@@ -124,13 +124,6 @@ const ProductSelectionTable: React.FC<ProductSelectionTableProps> = ({
       }
     }));
   }, [supplierProductsResponse]);
-    
-    // Map purchase conditions to a product-like format
-    return purchaseConditions.map((condition: PurchaseCondition) => ({
-      id: condition.productId,
-      name: condition.productName || `Produkt ID: ${condition.productId}`,
-      sku: condition.productSku,
-      price: condition.unitPrice,
       packagingUnit: condition.packagingUnit,
       minQuantity: condition.minQuantity || 1,
       // Gebindegröße aus der Einkaufsbedingung
