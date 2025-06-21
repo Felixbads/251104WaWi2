@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { rawDb } from '../db';
 import { ultraRobustVendonSync } from '../services/ultraRobustVendonSync';
 import { vendonSync } from '../services/vendonSync';
+import { vendonScheduler } from '../services/vendonScheduler';
 
 const router = Router();
 
@@ -328,6 +329,75 @@ router.post('/vendon/gap-recovery', async (req: Request, res: Response) => {
     res.status(500).json({
       status: 'error',
       message: 'Gap recovery failed',
+      details: error instanceof Error ? error.message : String(error)
+    });
+  }
+});
+
+// Scheduler control endpoints
+router.get('/scheduler/status', async (req: Request, res: Response) => {
+  try {
+    const status = vendonScheduler.getStatus();
+    res.json({
+      status: 'success',
+      data: status
+    });
+  } catch (error) {
+    console.error('Error fetching scheduler status:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to fetch scheduler status',
+      details: error instanceof Error ? error.message : String(error)
+    });
+  }
+});
+
+router.post('/scheduler/start', async (req: Request, res: Response) => {
+  try {
+    vendonScheduler.start();
+    res.json({
+      status: 'success',
+      message: 'Vendon scheduler started'
+    });
+  } catch (error) {
+    console.error('Error starting scheduler:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to start scheduler',
+      details: error instanceof Error ? error.message : String(error)
+    });
+  }
+});
+
+router.post('/scheduler/stop', async (req: Request, res: Response) => {
+  try {
+    vendonScheduler.stop();
+    res.json({
+      status: 'success',
+      message: 'Vendon scheduler stopped'
+    });
+  } catch (error) {
+    console.error('Error stopping scheduler:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to stop scheduler',
+      details: error instanceof Error ? error.message : String(error)
+    });
+  }
+});
+
+router.post('/scheduler/trigger', async (req: Request, res: Response) => {
+  try {
+    await vendonScheduler.triggerImmediateSync();
+    res.json({
+      status: 'success',
+      message: 'Immediate sync triggered'
+    });
+  } catch (error) {
+    console.error('Error triggering immediate sync:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to trigger immediate sync',
       details: error instanceof Error ? error.message : String(error)
     });
   }
