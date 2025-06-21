@@ -3562,6 +3562,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use(`${API_PREFIX}/inventory-transfers`, inventoryTransfersRoutes);
   app.get(`${API_PREFIX}/removed-products`, getRemovedProducts);
   
+  // Photo upload routes
+  const photosRouter = await import('./routes/photos');
+  app.use(`${API_PREFIX}/photos`, photosRouter.default);
+  
   // Top entfernte Produkte API
   app.post(`${API_PREFIX}/removed-products/top`, async (req, res) => {
     try {

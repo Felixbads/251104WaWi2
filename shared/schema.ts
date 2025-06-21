@@ -92,6 +92,11 @@ export const suppliers = pgTable("suppliers", {
   orderEmailCc: text("order_email_cc"), // CC recipients (comma-separated)
   orderEmailBcc: text("order_email_bcc"), // BCC recipients (comma-separated)
   emailSignature: text("email_signature"), // Custom email signature
+  
+  // Neue Felder für Beschreibung und Fotos
+  shortDescription: text("short_description"), // Kurze Lieferantenbeschreibung
+  photos: text("photos").array(), // Array von Foto-URLs
+  
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -126,6 +131,8 @@ export const insertSupplierSchema = createInsertSchema(suppliers)
     orderEmailCc: z.string().optional().nullable().or(z.literal("")),
     orderEmailBcc: z.string().optional().nullable().or(z.literal("")),
     emailSignature: z.string().optional().nullable().or(z.literal("")),
+    shortDescription: z.string().optional().nullable().or(z.literal("")),
+    photos: z.array(z.string()).optional().nullable(),
   });
 
 export type InsertSupplier = z.infer<typeof insertSupplierSchema>;
@@ -299,17 +306,33 @@ export const products = pgTable("products", {
   sustainabilityScore: real("sustainability_score"), // 0-100 calculated score
   certifications: text("certifications"), // JSON array: ["bio", "fairtrade", "regional"]
   
+  // Neue Felder für Beschreibung, Inhaltsstoffe und Allergene
+  shortDescription: text("short_description"), // Kurze Produktbeschreibung
+  ingredients: text("ingredients"), // Inhaltsstoffe als Text
+  allergens: text("allergens"), // Allergene als Text
+  nutritionalInfo: text("nutritional_info"), // Nährwertangaben als JSON string
+  photos: text("photos").array(), // Array von Foto-URLs
+  
   // Keep the full JSON for reference and backward compatibility
   additionalData: text("additional_data"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-export const insertProductSchema = createInsertSchema(products).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-});
+export const insertProductSchema = createInsertSchema(products)
+  .omit({
+    id: true,
+    createdAt: true,
+    updatedAt: true,
+  })
+  .extend({
+    productName: z.string().min(1, "Produktname ist erforderlich"),
+    shortDescription: z.string().optional().nullable().or(z.literal("")),
+    ingredients: z.string().optional().nullable().or(z.literal("")),
+    allergens: z.string().optional().nullable().or(z.literal("")),
+    nutritionalInfo: z.string().optional().nullable().or(z.literal("")),
+    photos: z.array(z.string()).optional().nullable(),
+  });
 
 export type InsertProduct = z.infer<typeof insertProductSchema>;
 export type Product = typeof products.$inferSelect;

@@ -64,10 +64,11 @@ router.get('/suppliers', async (req: AuthenticatedRequest, res: Response) => {
           productCount: productCount.length,
           // Vollständigkeitsstatus
           completeness: {
-            hasDescription: !!supplier.notes && supplier.notes.length >= 30,
+            hasDescription: !!supplier.shortDescription || (!!supplier.notes && supplier.notes.length >= 30),
             hasWebsite: !!supplier.website,
             hasCompleteAddress: !!(supplier.address && supplier.city && supplier.postalCode),
-            hasContact: !!(supplier.email || supplier.phone)
+            hasContact: !!(supplier.email || supplier.phone),
+            hasPhotos: !!(supplier.photos && supplier.photos.length > 0)
           }
         };
       })
