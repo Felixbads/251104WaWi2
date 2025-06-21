@@ -99,21 +99,22 @@ const ProductSelectionTable: React.FC<ProductSelectionTableProps> = ({
   });
   
   // Fetch products from source order if in copy mode
-  const { data: sourceOrderProducts } = useQuery({
+  const { data: sourceOrderData } = useQuery({
     queryKey: ['/api/orders-direct', sourceOrderId],
     enabled: mode === 'copy' && !!sourceOrderId,
-    select: (data: any) => {
-      if (!data || !data.items) return [];
-      return data.items.map((item: any) => ({
-        id: item.productId || item.product_id,
-        orderQuantity: item.quantity,
-        name: item.productName || item.product_name || '',
-        price: item.price || 0,
-        sku: item.sku || '',
-        packageSize: item.packageSize || item.package_size || 1
-      }));
-    }
   });
+
+  const sourceOrderProducts = React.useMemo(() => {
+    if (!sourceOrderData || !sourceOrderData.items) return [];
+    return sourceOrderData.items.map((item: any) => ({
+      id: item.product_id,
+      orderQuantity: item.quantity,
+      name: item.product_name || '',
+      price: item.unit_price || item.price || 0,
+      sku: item.sku || '',
+      packageSize: item.package_size || 1
+    }));
+  }, [sourceOrderData]);
   
   // Fetch inventory for warehouse to show stock levels
   const { data: inventory } = useQuery({
