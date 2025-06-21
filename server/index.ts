@@ -42,6 +42,190 @@ import { eq } from 'drizzle-orm';
 import nodemailer from 'nodemailer';
 
 const app = express();
+
+// INTER-APP API ENDPOINTS - MUST BE FIRST TO BYPASS ALL MIDDLEWARE
+// Health Check für externe Apps
+app.get('/api/inter-app/health', async (req, res) => {
+  try {
+    res.setHeader('Content-Type', 'application/json');
+    console.log('[INTER-APP] Health check request received');
+    
+    const dbTest = await pool.query('SELECT 1 as test');
+    
+    res.json({
+      success: true,
+      status: 'healthy',
+      database: 'connected',
+      timestamp: new Date().toISOString(),
+      version: '1.0.0',
+      message: 'Wawi-Proviantomat API verfügbar'
+    });
+  } catch (error) {
+    console.error('[INTER-APP] Health Check Fehler:', error);
+    res.status(500).json({
+      success: false,
+      status: 'unhealthy',
+      error: 'Datenbankverbindung fehlgeschlagen',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Lieferanten-API für externe Apps
+app.get('/api/inter-app/suppliers', async (req, res) => {
+  try {
+    res.setHeader('Content-Type', 'application/json');
+    console.log('[INTER-APP] Lieferanten-Anfrage von externer App');
+    
+    const suppliersQuery = `
+      SELECT 
+        s.id,
+        s.name,
+        s.contact_person as "contactPerson",
+        s.phone,
+        s.email,
+        s.website,
+        s.address,
+        s.city,
+        s.postal_code as "postalCode",
+        s.country,
+        s.status,
+        s.notes,
+        s.payment_terms as "paymentTerms",
+        s.delivery_terms as "deliveryTerms",
+        s.minimum_order_value as "minimumOrderValue",
+        s.delivery_days as "deliveryDays",
+        s.created_at as "createdAt",
+        s.updated_at as "updatedAt",
+        COUNT(p.id) as product_count
+      FROM suppliers s
+      LEFT JOIN products p ON s.id = p.supplier_id AND p.status = 'active'
+      WHERE s.status = 'active'
+      GROUP BY s.id
+      ORDER BY s.name
+    `;
+    
+    const result = await pool.query(suppliersQuery);
+    
+    const suppliersWithCompleteness = result.rows.map(supplier => ({
+      ...supplier,
+      productCount: parseInt(supplier.product_count) || 0,
+      completeness: {
+        hasDescription: !!(supplier.notes && supplier.notes.length >= 30),
+        hasWebsite: !!supplier.website,
+        hasCompleteAddress: !!(supplier.address && supplier.city && supplier.postalCode),
+        hasContact: !!(supplier.email || supplier.phone)
+      }
+    }));
+    
+    res.json({
+      success: true,
+      data: suppliersWithCompleteness,
+      total: suppliersWithCompleteness.length,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('[INTER-APP] Fehler beim Abrufen der Lieferanten:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Fehler beim Abrufen der Lieferanten',
+      code: 'SUPPLIERS_FETCH_ERROR',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Produkte-API für externe Apps
+app.get('/api/inter-app/products', async (req, res) => {
+  try {
+    res.setHeader('Content-Type', 'application/json');
+    
+    const { supplier_id, limit = '100', offset = '0' } = req.query;
+    console.log('[INTER-APP] Produkte-Anfrage von externer App', { supplier_id, limit, offset });
+    
+    const limitNum = Math.min(parseInt(limit as string) || 100, 500);
+    const offsetNum = parseInt(offset as string) || 0;
+    
+    let productsQuery = `
+      SELECT 
+        p.id,
+        p.product_name as name,
+        p.description,
+        p.price,
+        p.status,
+        p.ean,
+        p.category,
+        p.supplier_id as "supplierId",
+        p.created_at as "createdAt",
+        s.name as "supplierName",
+        s.email as "supplierEmail",
+        s.website as "supplierWebsite"
+      FROM products p
+      LEFT JOIN suppliers s ON p.supplier_id = s.id
+      WHERE p.status = 'active'
+    `;
+    
+    const params = [];
+    
+    if (supplier_id && !isNaN(parseInt(supplier_id as string))) {
+      productsQuery += ` AND p.supplier_id = $${params.length + 1}`;
+      params.push(parseInt(supplier_id as string));
+    }
+    
+    productsQuery += ` ORDER BY p.name LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+    params.push(limitNum, offsetNum);
+    
+    const result = await pool.query(productsQuery, params);
+    
+    let countQuery = `
+      SELECT COUNT(*) as total
+      FROM products p
+      WHERE p.status = 'active'
+    `;
+    
+    const countParams = [];
+    if (supplier_id && !isNaN(parseInt(supplier_id as string))) {
+      countQuery += ` AND p.supplier_id = $${countParams.length + 1}`;
+      countParams.push(parseInt(supplier_id as string));
+    }
+    
+    const countResult = await pool.query(countQuery, countParams);
+    const total = parseInt(countResult.rows[0].total) || 0;
+    
+    const productsWithCompleteness = result.rows.map(product => ({
+      ...product,
+      completeness: {
+        hasDescription: !!(product.description && product.description.length >= 10),
+        hasPrice: !!(product.price && product.price > 0),
+        hasEan: !!product.ean,
+        hasSupplier: !!product.supplierId
+      }
+    }));
+    
+    res.json({
+      success: true,
+      data: productsWithCompleteness,
+      pagination: {
+        total: total,
+        limit: limitNum,
+        offset: offsetNum,
+        hasMore: (offsetNum + limitNum) < total
+      },
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('[INTER-APP] Fehler beim Abrufen der Produkte:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Fehler beim Abrufen der Produkte',
+      code: 'PRODUCTS_FETCH_ERROR',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 // Konfiguriere den File-Upload-Handler mit angepassten Optionen
@@ -679,195 +863,7 @@ Elbsandstein Proviant & Quartier GmbH`;
   app.use('/api', simpleEmailRouter);
   console.log('[SERVER] Simple email router mounted successfully');
   
-  // INTER-APP API ENDPOINTS - MUST BE BEFORE VITE MIDDLEWARE
-  
-  // Health Check für externe Apps
-  app.get('/api/inter-app/health', async (req, res) => {
-    try {
-      res.setHeader('Content-Type', 'application/json');
-      console.log('[INTER-APP] Health check request received');
-      
-      // Teste Datenbankverbindung
-      const dbTest = await pool.query('SELECT 1 as test');
-      
-      res.json({
-        success: true,
-        status: 'healthy',
-        database: 'connected',
-        timestamp: new Date().toISOString(),
-        version: '1.0.0',
-        message: 'Wawi-Proviantomat API verfügbar'
-      });
-    } catch (error) {
-      console.error('[INTER-APP] Health Check Fehler:', error);
-      res.status(500).json({
-        success: false,
-        status: 'unhealthy',
-        error: 'Datenbankverbindung fehlgeschlagen',
-        timestamp: new Date().toISOString()
-      });
-    }
-  });
 
-  // Lieferanten-API für externe Apps
-  app.get('/api/inter-app/suppliers', async (req, res) => {
-    try {
-      res.setHeader('Content-Type', 'application/json');
-      
-      console.log('[INTER-APP] Lieferanten-Anfrage von externer App');
-      
-      const suppliersQuery = `
-        SELECT 
-          s.id,
-          s.name,
-          s.contact_person as "contactPerson",
-          s.phone,
-          s.email,
-          s.website,
-          s.address,
-          s.city,
-          s.postal_code as "postalCode",
-          s.country,
-          s.status,
-          s.notes,
-          s.payment_terms as "paymentTerms",
-          s.delivery_terms as "deliveryTerms",
-          s.minimum_order_value as "minimumOrderValue",
-          s.delivery_days as "deliveryDays",
-          s.created_at as "createdAt",
-          s.updated_at as "updatedAt",
-          COUNT(p.id) as product_count
-        FROM suppliers s
-        LEFT JOIN products p ON s.id = p.supplier_id AND p.status = 'active'
-        WHERE s.status = 'active'
-        GROUP BY s.id
-        ORDER BY s.name
-      `;
-      
-      const result = await pool.query(suppliersQuery);
-      
-      // Erweitere mit Vollständigkeitsstatus
-      const suppliersWithCompleteness = result.rows.map(supplier => ({
-        ...supplier,
-        productCount: parseInt(supplier.product_count) || 0,
-        completeness: {
-          hasDescription: !!(supplier.notes && supplier.notes.length >= 30),
-          hasWebsite: !!supplier.website,
-          hasCompleteAddress: !!(supplier.address && supplier.city && supplier.postalCode),
-          hasContact: !!(supplier.email || supplier.phone)
-        }
-      }));
-      
-      res.json({
-        success: true,
-        data: suppliersWithCompleteness,
-        total: suppliersWithCompleteness.length,
-        timestamp: new Date().toISOString()
-      });
-      
-    } catch (error) {
-      console.error('[INTER-APP] Fehler beim Abrufen der Lieferanten:', error);
-      res.status(500).json({
-        success: false,
-        error: 'Fehler beim Abrufen der Lieferanten',
-        code: 'SUPPLIERS_FETCH_ERROR',
-        timestamp: new Date().toISOString()
-      });
-    }
-  });
-
-  // Produkte-API für externe Apps
-  app.get('/api/inter-app/products', async (req, res) => {
-    try {
-      res.setHeader('Content-Type', 'application/json');
-      
-      const { supplier_id, limit = '100', offset = '0' } = req.query;
-      
-      console.log('[INTER-APP] Produkte-Anfrage von externer App', { supplier_id, limit, offset });
-      
-      const limitNum = Math.min(parseInt(limit as string) || 100, 500);
-      const offsetNum = parseInt(offset as string) || 0;
-      
-      let productsQuery = `
-        SELECT 
-          p.id,
-          p.name,
-          p.description,
-          p.price,
-          p.status,
-          p.ean,
-          p.category,
-          p.supplier_id as "supplierId",
-          p.created_at as "createdAt",
-          s.name as "supplierName",
-          s.email as "supplierEmail",
-          s.website as "supplierWebsite"
-        FROM products p
-        LEFT JOIN suppliers s ON p.supplier_id = s.id
-        WHERE p.status = 'active'
-      `;
-      
-      const params = [];
-      
-      if (supplier_id && !isNaN(parseInt(supplier_id as string))) {
-        productsQuery += ` AND p.supplier_id = $${params.length + 1}`;
-        params.push(parseInt(supplier_id as string));
-      }
-      
-      productsQuery += ` ORDER BY p.name LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
-      params.push(limitNum, offsetNum);
-      
-      const result = await pool.query(productsQuery, params);
-      
-      // Zähle Gesamtanzahl für Pagination
-      let countQuery = `
-        SELECT COUNT(*) as total
-        FROM products p
-        WHERE p.status = 'active'
-      `;
-      
-      const countParams = [];
-      if (supplier_id && !isNaN(parseInt(supplier_id as string))) {
-        countQuery += ` AND p.supplier_id = $${countParams.length + 1}`;
-        countParams.push(parseInt(supplier_id as string));
-      }
-      
-      const countResult = await pool.query(countQuery, countParams);
-      const total = parseInt(countResult.rows[0].total) || 0;
-      
-      // Erweitere mit Vollständigkeitsstatus
-      const productsWithCompleteness = result.rows.map(product => ({
-        ...product,
-        completeness: {
-          hasDescription: !!(product.description && product.description.length >= 10),
-          hasPrice: !!(product.price && product.price > 0),
-          hasEan: !!product.ean,
-          hasSupplier: !!product.supplierId
-        }
-      }));
-      
-      res.json({
-        success: true,
-        data: productsWithCompleteness,
-        pagination: {
-          total: total,
-          limit: limitNum,
-          offset: offsetNum,
-          hasMore: (offsetNum + limitNum) < total
-        },
-        timestamp: new Date().toISOString()
-      });
-      
-    } catch (error) {
-      console.error('[INTER-APP] Fehler beim Abrufen der Produkte:', error);
-      res.status(500).json({
-        success: false,
-        error: 'Fehler beim Abrufen der Produkte',
-        code: 'PRODUCTS_FETCH_ERROR',
-        timestamp: new Date().toISOString()
-      });
-    }
-  });
 
   // Mount bulk orders router BEFORE Vite middleware to ensure proper API routing
   const bulkOrdersRouter = (await import('./routes/bulk-orders')).default;
