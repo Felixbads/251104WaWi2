@@ -109,6 +109,7 @@ import DatabaseManager from "@/pages/DatabaseManager";
 import CriticalInventory from "@/pages/CriticalInventory";
 import Ruecklaufer from "@/pages/Ruecklaufer";
 import RevenueExpectations from "@/pages/RevenueExpectations";
+import OrdersOverviewPage from "@/pages/OrdersOverviewPage";
 
 // Authentifizierte und nicht-authentifizierte Router
 function AuthenticatedRouter() {

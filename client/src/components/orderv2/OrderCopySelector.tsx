@@ -11,14 +11,18 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Separator } from "@/components/ui/separator";
 import { 
   ArrowRight, 
+  ArrowLeft,
   Search, 
   Package, 
   Calendar, 
   Truck,
   Building2,
-  Copy
+  Copy,
+  Eye,
+  CheckCircle
 } from 'lucide-react';
 
 interface OrderCopySelectorProps {
@@ -43,6 +47,8 @@ const OrderCopySelector: React.FC<OrderCopySelectorProps> = ({
   onBack 
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
+  const [showDetails, setShowDetails] = useState(false);
 
   // Fetch orders for copying
   const { data: orders = [], isLoading, error } = useQuery({
@@ -238,13 +244,224 @@ const OrderCopySelector: React.FC<OrderCopySelectorProps> = ({
                       </span>
                     </div>
                   )}
+                  
+                  <div className="flex items-center justify-between mt-4 pt-3 border-t">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedOrderId(order.id);
+                        setShowDetails(true);
+                      }}
+                      className="flex items-center gap-2"
+                    >
+                      <Eye className="h-4 w-4" />
+                      Details anzeigen
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onSelectOrder(order.id);
+                      }}
+                      className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700"
+                    >
+                      <Copy className="h-4 w-4" />
+                      Kopieren
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             ))}
           </div>
         )}
       </CardContent>
+      
+      {/* Order Details Modal/View */}
+      {showDetails && selectedOrderId && (
+        <OrderDetailsView
+          orderId={selectedOrderId}
+          onBack={() => {
+            setShowDetails(false);
+            setSelectedOrderId(null);
+          }}
+          onCopyOrder={() => {
+            onSelectOrder(selectedOrderId);
+          }}
+        />
+      )}
     </Card>
+  );
+};
+
+// Order Details Component
+interface OrderDetailsViewProps {
+  orderId: number;
+  onBack: () => void;
+  onCopyOrder: () => void;
+}
+
+const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({
+  orderId,
+  onBack,
+  onCopyOrder
+}) => {
+  // Fetch order details
+  const { data: orderDetails, isLoading: detailsLoading } = useQuery({
+    queryKey: ['/api/orders', orderId],
+    enabled: !!orderId
+  });
+
+  // Fetch order items
+  const { data: orderItems = [], isLoading: itemsLoading } = useQuery({
+    queryKey: ['/api/orders', orderId, 'items'],
+    enabled: !!orderId
+  });
+
+  const isLoading = detailsLoading || itemsLoading;
+
+  if (isLoading) {
+    return (
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <Card className="w-full max-w-4xl max-h-[80vh] overflow-y-auto">
+          <CardHeader>
+            <Skeleton className="h-8 w-64" />
+            <Skeleton className="h-4 w-48" />
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {[...Array(5)].map((_, i) => (
+                <Skeleton key={i} className="h-16 w-full" />
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <Card className="w-full max-w-4xl max-h-[80vh] overflow-y-auto">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Package className="h-5 w-5" />
+                Bestelldetails: {orderDetails?.orderNumber || orderDetails?.order_number}
+              </CardTitle>
+              <CardDescription>
+                Überprüfen Sie die Bestelldetails vor dem Kopieren
+              </CardDescription>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={onBack}
+                className="flex items-center gap-2"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Zurück
+              </Button>
+              <Button
+                onClick={onCopyOrder}
+                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700"
+              >
+                <Copy className="h-4 w-4" />
+                Bestellung kopieren
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+        
+        <CardContent className="space-y-6">
+          {/* Order Information */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <h3 className="font-medium text-gray-900">Bestellinformationen</h3>
+              <div className="text-sm space-y-1">
+                <div><span className="font-medium">Status:</span> {getStatusBadge(orderDetails?.status)}</div>
+                <div><span className="font-medium">Lieferant:</span> {orderDetails?.supplierName || orderDetails?.supplier_name || 'Unbekannt'}</div>
+                <div><span className="font-medium">Lager:</span> {orderDetails?.warehouseName || orderDetails?.warehouse_name || 'Unbekannt'}</div>
+                <div><span className="font-medium">Bestelldatum:</span> {formatDate(orderDetails?.orderDate || orderDetails?.order_date || orderDetails?.created_at)}</div>
+                {orderDetails?.expectedDeliveryDate && (
+                  <div><span className="font-medium">Liefertermin:</span> {formatDate(orderDetails.expectedDeliveryDate)}</div>
+                )}
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <h3 className="font-medium text-gray-900">Bestellwert</h3>
+              <div className="text-sm space-y-1">
+                <div><span className="font-medium">Positionen:</span> {orderItems.length}</div>
+                <div><span className="font-medium">Gesamtwert:</span> {orderDetails?.totalAmount?.toFixed(2) || '0.00'} €</div>
+              </div>
+            </div>
+          </div>
+          
+          <Separator />
+          
+          {/* Order Items */}
+          <div className="space-y-4">
+            <h3 className="font-medium text-gray-900">Bestellpositionen</h3>
+            
+            {orderItems.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <Package className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                <p>Keine Bestellpositionen gefunden</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {orderItems.map((item: any, index: number) => (
+                  <div key={item.id || index} className="border rounded-lg p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <h4 className="font-medium">{item.productName || item.product_name || `Produkt-ID ${item.productId || item.product_id}`}</h4>
+                        <div className="text-sm text-gray-600 mt-1">
+                          <span>Menge: {item.quantity} {item.unit || 'Stk'}</span>
+                          {item.unitPrice > 0 && (
+                            <span className="ml-4">Einzelpreis: {item.unitPrice?.toFixed(2) || item.unit_price?.toFixed(2)} €</span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-medium">
+                          {(item.totalPrice?.toFixed(2) || item.total_price?.toFixed(2) || '0.00')} €
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          
+          <Separator />
+          
+          {/* Copy Action */}
+          <div className="bg-blue-50 p-4 rounded-lg">
+            <div className="flex items-start gap-3">
+              <CheckCircle className="h-5 w-5 text-blue-600 mt-0.5" />
+              <div>
+                <h4 className="font-medium text-blue-900">Bestellung kopieren</h4>
+                <p className="text-sm text-blue-700 mt-1">
+                  Diese Bestellung wird als Vorlage für eine neue Bestellung verwendet. 
+                  Alle Positionen werden übernommen und können anschließend angepasst werden.
+                </p>
+                <Button
+                  onClick={onCopyOrder}
+                  className="mt-3 bg-blue-600 hover:bg-blue-700"
+                >
+                  <Copy className="h-4 w-4 mr-2" />
+                  Jetzt kopieren
+                </Button>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
   );
 };
 
