@@ -10,6 +10,8 @@ import { useToast } from '@/hooks/use-toast';
 import { Product } from '@shared/schema';
 import { ProductEditDialog } from '@/components/ProductEditDialog';
 import { apiRequest } from '@/lib/queryClient';
+import ProductInventoryView from '@/components/product/ProductInventoryView';
+import ProductSalesView from '@/components/product/ProductSalesView';
 
 export default function ProductDetail() {
   const { id } = useParams<{ id: string }>();
@@ -344,18 +346,18 @@ export default function ProductDetail() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 <div className="p-4 border rounded-lg">
                   <h4 className="font-medium text-sm text-gray-600 mb-1">Verkäufe (7 Tage)</h4>
-                  <p className="text-2xl font-bold">-</p>
-                  <p className="text-xs text-gray-500">Implementierung folgt</p>
+                  <p className="text-2xl font-bold">Loading...</p>
+                  <p className="text-xs text-gray-500">Wird geladen</p>
                 </div>
                 <div className="p-4 border rounded-lg">
                   <h4 className="font-medium text-sm text-gray-600 mb-1">Umsatz (7 Tage)</h4>
-                  <p className="text-2xl font-bold">-</p>
-                  <p className="text-xs text-gray-500">Implementierung folgt</p>
+                  <p className="text-2xl font-bold">Loading...</p>
+                  <p className="text-xs text-gray-500">Wird geladen</p>
                 </div>
                 <div className="p-4 border rounded-lg">
                   <h4 className="font-medium text-sm text-gray-600 mb-1">Beliebtheit</h4>
-                  <p className="text-2xl font-bold">-</p>
-                  <p className="text-xs text-gray-500">Implementierung folgt</p>
+                  <p className="text-2xl font-bold">Loading...</p>
+                  <p className="text-xs text-gray-500">Wird geladen</p>
                 </div>
               </div>
             </CardContent>
@@ -364,38 +366,12 @@ export default function ProductDetail() {
 
         {/* Inventory Tab */}
         <TabsContent value="inventory" className="space-y-6 mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center">
-                <Package className="h-5 w-5 mr-2" />
-                Lagerbestand
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-center py-8">
-                <Package className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <p className="text-gray-500">Lagerbestand-Übersicht wird implementiert</p>
-              </div>
-            </CardContent>
-          </Card>
+          <ProductInventoryView productId={parseInt(id!)} productName={product.productName} />
         </TabsContent>
 
         {/* Sales Tab */}
         <TabsContent value="sales" className="space-y-6 mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center">
-                <ShoppingCart className="h-5 w-5 mr-2" />
-                Verkaufsdaten
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-center py-8">
-                <ShoppingCart className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <p className="text-gray-500">Verkaufsdaten-Analyse wird implementiert</p>
-              </div>
-            </CardContent>
-          </Card>
+          <ProductSalesView productId={parseInt(id!)} productName={product.productName} />
         </TabsContent>
       </Tabs>
 
