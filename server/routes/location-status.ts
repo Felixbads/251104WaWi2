@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../db';
-import { machines, transactions, products } from '@shared/schema';
+import { machines, transactions, products, refills, events } from '@shared/schema';
 import { sql, eq, desc, and, gte, lte, ne } from 'drizzle-orm';
 
 const router = Router();
@@ -96,8 +96,33 @@ router.get('/', async (req: Request, res: Response) => {
       .where(eq(transactions.machineId, machine.id))
       .orderBy(desc(transactions.datetime))
       .limit(3);
+
+      // Letztes Refill (Nachfüllung)
+      const lastRefill = await db.select({
+        datetime: refills.datetime,
+        operator: refills.operator
+      })
+      .from(refills)
+      .where(eq(refills.machineId, machine.id))
+      .orderBy(desc(refills.datetime))
+      .limit(1);
+
+      // Letztes Door Open Event
+      const lastDoorOpen = await db.select({
+        datetime: events.datetime,
+        eventType: events.eventType
+      })
+      .from(events)
+      .where(
+        and(
+          eq(events.machineId, machine.id),
+          sql`${events.eventType} ILIKE '%door%' OR ${events.eventType} ILIKE '%open%'`
+        )
+      )
+      .orderBy(desc(events.datetime))
+      .limit(1);
       
-      // Tage seit letztem Verkauf berechnen
+      // Tage seit letztem Ereignis berechnen
       const now = new Date();
       const lastSaleDate = lastSale[0]?.datetime;
       const daysSinceLastSale = lastSaleDate 
@@ -113,6 +138,16 @@ router.get('/', async (req: Request, res: Response) => {
       const daysSinceLastAlcohol = lastAlcoholSaleDate
         ? Math.floor((now.getTime() - new Date(lastAlcoholSaleDate).getTime()) / (1000 * 60 * 60 * 24))
         : null;
+
+      const lastRefillDate = lastRefill[0]?.datetime;
+      const daysSinceLastRefill = lastRefillDate
+        ? Math.floor((now.getTime() - new Date(lastRefillDate).getTime()) / (1000 * 60 * 60 * 24))
+        : null;
+
+      const lastDoorOpenDate = lastDoorOpen[0]?.datetime;
+      const daysSinceLastDoorOpen = lastDoorOpenDate
+        ? Math.floor((now.getTime() - new Date(lastDoorOpenDate).getTime()) / (1000 * 60 * 60 * 24))
+        : null;
       
       // Status bewerten
       let status: 'ok' | 'warning' | 'error' = 'ok';
@@ -127,12 +162,26 @@ router.get('/', async (req: Request, res: Response) => {
         status = 'error';
         warnings.push('Keine Verkäufe seit über 5 Tagen');
       }
+
+      if (daysSinceLastRefill !== null && daysSinceLastRefill > 14) {
+        if (status !== 'error') status = 'warning';
+        warnings.push('Keine Nachfüllung seit über 14 Tagen');
+      }
+
+      if (daysSinceLastRefill !== null && daysSinceLastRefill > 30) {
+        status = 'error';
+        warnings.push('Keine Nachfüllung seit über 30 Tagen');
+      }
       
       machineStatusData.push({
         id: machine.id,
         machineName: machine.machineName,
         location: `Location ID: ${machine.locationId}`,
-        lastRefill: null, // TODO: Füllungsdaten implementieren
+        lastRefill: lastRefill[0] ? {
+          datetime: lastRefill[0].datetime.toISOString(),
+          operator: lastRefill[0].operator || 'Unbekannt',
+          daysAgo: daysSinceLastRefill
+        } : null,
         lastSale: lastSale[0] ? {
           datetime: lastSale[0].datetime.toISOString(),
           daysAgo: daysSinceLastSale
@@ -147,7 +196,10 @@ router.get('/', async (req: Request, res: Response) => {
           productName: lastAlcoholSale[0].productName,
           daysAgo: daysSinceLastAlcohol
         } : null,
-        lastDoorOpen: null, // TODO: Event-Daten implementieren
+        lastDoorOpen: lastDoorOpen[0] ? {
+          datetime: lastDoorOpen[0].datetime.toISOString(),
+          daysAgo: daysSinceLastDoorOpen
+        } : null,
         todayRevenue: parseFloat(todayRevenue[0]?.total?.toString() || '0'),
         recentTransactions: recentTransactions.map(t => ({
           datetime: t.datetime.toISOString(),
