@@ -36,14 +36,32 @@ export default function ProductInventoryView({ productId, productName }: Product
   const [refreshing, setRefreshing] = useState(false);
 
   // Fetch warehouse inventory
-  const { data: warehouseInventory, isLoading: isLoadingWarehouse, refetch: refetchWarehouse } = useQuery({
+  const { data: warehouseInventory, isLoading: isLoadingWarehouse, refetch: refetchWarehouse, error: warehouseError } = useQuery({
     queryKey: [`/api/products/${productId}/warehouse-inventory`],
+    queryFn: async () => {
+      const url = `/api/products/${productId}/warehouse-inventory`;
+      console.log('Fetching warehouse inventory from:', url);
+      const response = await fetch(url);
+      if (!response.ok) throw new Error('Failed to fetch warehouse inventory');
+      const data = await response.json();
+      console.log('Warehouse inventory received:', data);
+      return data;
+    },
     staleTime: 1000 * 60 * 5, // 5 minutes
   });
 
   // Fetch machine inventory
-  const { data: machineInventory, isLoading: isLoadingMachine, refetch: refetchMachine } = useQuery({
+  const { data: machineInventory, isLoading: isLoadingMachine, refetch: refetchMachine, error: machineError } = useQuery({
     queryKey: [`/api/products/${productId}/machine-inventory`],
+    queryFn: async () => {
+      const url = `/api/products/${productId}/machine-inventory`;
+      console.log('Fetching machine inventory from:', url);
+      const response = await fetch(url);
+      if (!response.ok) throw new Error('Failed to fetch machine inventory');
+      const data = await response.json();
+      console.log('Machine inventory received:', data);
+      return data;
+    },
     staleTime: 1000 * 60 * 5, // 5 minutes
   });
 

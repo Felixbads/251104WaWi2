@@ -45,14 +45,32 @@ export default function ProductSalesView({ productId, productName }: ProductSale
   const [selectedMachine, setSelectedMachine] = useState<string>('all');
 
   // Fetch sales data
-  const { data: salesData, isLoading: isLoadingSales } = useQuery({
+  const { data: salesData, isLoading: isLoadingSales, error: salesError } = useQuery({
     queryKey: [`/api/products/${productId}/sales`, timeRange, selectedMachine],
+    queryFn: async () => {
+      const url = `/api/products/${productId}/sales?timeRange=${timeRange}${selectedMachine !== 'all' ? `&selectedMachine=${selectedMachine}` : ''}`;
+      console.log('Fetching sales data from:', url);
+      const response = await fetch(url);
+      if (!response.ok) throw new Error('Failed to fetch sales data');
+      const data = await response.json();
+      console.log('Sales data received:', data);
+      return data;
+    },
     staleTime: 1000 * 60 * 5, // 5 minutes
   });
 
   // Fetch refill history
-  const { data: refillData, isLoading: isLoadingRefills } = useQuery({
+  const { data: refillData, isLoading: isLoadingRefills, error: refillError } = useQuery({
     queryKey: [`/api/products/${productId}/refills`, timeRange],
+    queryFn: async () => {
+      const url = `/api/products/${productId}/refills?timeRange=${timeRange}`;
+      console.log('Fetching refill data from:', url);
+      const response = await fetch(url);
+      if (!response.ok) throw new Error('Failed to fetch refill data');
+      const data = await response.json();
+      console.log('Refill data received:', data);
+      return data;
+    },
     staleTime: 1000 * 60 * 5, // 5 minutes
   });
 
@@ -125,7 +143,7 @@ export default function ProductSalesView({ productId, productName }: ProductSale
               <div>
                 <p className="text-sm text-muted-foreground">Gesamtverkäufe</p>
                 <p className="text-2xl font-bold">
-                  {salesData?.summary?.totalSales || 0}
+                  {salesData?.summary?.totalSales || salesData?.totalSales || 0}
                 </p>
               </div>
               <ShoppingCart className="h-8 w-8 text-blue-500" />
@@ -139,7 +157,7 @@ export default function ProductSalesView({ productId, productName }: ProductSale
               <div>
                 <p className="text-sm text-muted-foreground">Gesamtumsatz</p>
                 <p className="text-2xl font-bold">
-                  {formatCurrency(salesData?.summary?.totalRevenue || 0)}
+                  {formatCurrency(salesData?.summary?.totalRevenue || salesData?.totalRevenue || 0)}
                 </p>
               </div>
               <Euro className="h-8 w-8 text-green-500" />
@@ -153,7 +171,7 @@ export default function ProductSalesView({ productId, productName }: ProductSale
               <div>
                 <p className="text-sm text-muted-foreground">Ø Preis</p>
                 <p className="text-2xl font-bold">
-                  {formatCurrency(salesData?.summary?.avgPrice || 0)}
+                  {formatCurrency(salesData?.summary?.avgPrice || salesData?.avgPrice || 0)}
                 </p>
               </div>
               <TrendingUp className="h-8 w-8 text-purple-500" />
@@ -167,7 +185,7 @@ export default function ProductSalesView({ productId, productName }: ProductSale
               <div>
                 <p className="text-sm text-muted-foreground">Aktive Automaten</p>
                 <p className="text-2xl font-bold">
-                  {salesData?.summary?.activeMachines || 0}
+                  {salesData?.summary?.activeMachines || salesData?.activeMachines || (salesData?.machines?.length || 0)}
                 </p>
               </div>
               <MapPin className="h-8 w-8 text-orange-500" />
