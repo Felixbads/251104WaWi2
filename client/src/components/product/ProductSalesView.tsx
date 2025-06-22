@@ -94,7 +94,7 @@ export default function ProductSalesView({ productId, productName }: ProductSale
     }
   };
 
-  if (isLoadingSales || isLoadingRefills) {
+  if ((isLoadingSales && !salesData) || (isLoadingRefills && !refillData)) {
     return (
       <div className="space-y-6">
         <Card>

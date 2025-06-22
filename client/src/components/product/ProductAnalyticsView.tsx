@@ -73,7 +73,7 @@ export default function ProductAnalyticsView({ productId, productName }: Product
     return <Activity className="h-4 w-4 text-gray-600" />;
   };
 
-  if (isLoading) {
+  if (isLoading && !analyticsData) {
     return (
       <div className="space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
