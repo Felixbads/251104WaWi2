@@ -161,7 +161,7 @@ router.get('/api/products/:id/sales', async (req, res) => {
     
     console.log(`[PRODUCT_SALES] Found product: ${productName}`);
     
-    // Get sales summary with corrected SQL syntax
+    // Get sales summary with direct string interpolation to avoid SQL parameter issues
     const summaryQuery = `
       SELECT 
         COUNT(*)::integer as total_sales,
@@ -169,11 +169,11 @@ router.get('/api/products/:id/sales', async (req, res) => {
         COALESCE(AVG(price), 0)::numeric as avg_price,
         COUNT(DISTINCT machine_id)::integer as active_machines
       FROM transactions 
-      WHERE product_name ILIKE '%' || $1 || '%'
+      WHERE product_name ILIKE '%${productName.replace(/'/g, "''")}%'
         AND datetime >= NOW() - INTERVAL '${days} days'
     `;
     
-    const summaryResult = await db.execute(summaryQuery, [productName]);
+    const summaryResult = await db.execute(summaryQuery);
     const summary = Array.isArray(summaryResult) ? summaryResult[0] : (summaryResult.rows?.[0]);
     
     console.log(`[PRODUCT_SALES] Summary data:`, summary);
@@ -198,14 +198,14 @@ router.get('/api/products/:id/sales', async (req, res) => {
       FROM transactions t
       JOIN machines m ON t.machine_id = m.id
       LEFT JOIN locations l ON m.location_id = l.id
-      WHERE t.product_name ILIKE '%' || $1 || '%'
+      WHERE t.product_name ILIKE '%${productName.replace(/'/g, "''")}%'
         AND t.datetime >= NOW() - INTERVAL '${days} days'
       GROUP BY t.machine_id, m.machine_name, l.name
       ORDER BY COUNT(*) DESC
       LIMIT 20
     `;
     
-    const machinesResult = await db.execute(machinesQuery, [productName]);
+    const machinesResult = await db.execute(machinesQuery);
     const machines = Array.isArray(machinesResult) ? machinesResult : (machinesResult.rows || []);
     
     console.log(`[PRODUCT_SALES] Machine data count: ${machines.length}`);
