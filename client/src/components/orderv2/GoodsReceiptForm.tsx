@@ -331,7 +331,7 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-12"></TableHead>
+
                 <TableHead>Artikel</TableHead>
                 <TableHead className="text-right">Bestellt</TableHead>
                 <TableHead className="text-right">Erhalten</TableHead>
@@ -345,22 +345,8 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
                 const isDifferent = item.receivedQuantity !== item.orderedQuantity;
                 
                 return (
-                  <TableRow key={item.id} className={item.damaged ? 'bg-destructive/10' : isDifferent ? 'bg-amber-50' : ''}>
-                    <TableCell>
-                      <div className="flex items-center space-x-2">
-                        <Checkbox 
-                          id={`damaged-${item.id}`}
-                          checked={item.damaged}
-                          onCheckedChange={(checked) => handleDamagedChange(item.id, !!checked)}
-                        />
-                        <label 
-                          htmlFor={`damaged-${item.id}`}
-                          className="text-xs font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                        >
-                          Beschädigt
-                        </label>
-                      </div>
-                    </TableCell>
+                  <TableRow key={item.id} className={isDifferent ? 'bg-amber-50' : ''}>
+
                     <TableCell className="font-medium">{item.name || item.productName || 'Unbekannter Artikel'}</TableCell>
                     <TableCell className="text-right">{item.orderedQuantity}</TableCell>
                     <TableCell className="text-right">
