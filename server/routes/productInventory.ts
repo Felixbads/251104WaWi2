@@ -66,7 +66,8 @@ router.get('/api/products/:id/machine-inventory', async (req, res) => {
       WITH machine_sales AS (
         SELECT 
           t.machine_id,
-          m.machine_name as "machineName",
+          m.machine_name as "machineName", 
+          m.max_capacity,
           l.name as "locationName",
           COUNT(*) as sales_count,
           MAX(t.datetime) as last_sale
@@ -75,7 +76,7 @@ router.get('/api/products/:id/machine-inventory', async (req, res) => {
         LEFT JOIN locations l ON m.location_id = l.id
         WHERE t.product_name ILIKE '%${product.product_name}%'
           AND t.datetime >= NOW() - INTERVAL '60 days'
-        GROUP BY t.machine_id, m.machine_name, l.name
+        GROUP BY t.machine_id, m.machine_name, m.max_capacity, l.name
       )
       SELECT 
         machine_id as "machineId",
@@ -87,7 +88,7 @@ router.get('/api/products/:id/machine-inventory', async (req, res) => {
           WHEN sales_count > 5 THEN 5
           ELSE 2
         END as "currentStock",
-        20 as "maxCapacity",
+        COALESCE(max_capacity, 20) as "maxCapacity",
         last_sale as "lastRefill",
         CASE 
           WHEN sales_count <= 2 THEN 'empty'
@@ -262,6 +263,84 @@ router.get('/api/products/:id/refills', async (req, res) => {
   } catch (error) {
     console.error('Error fetching refill data:', error);
     res.status(500).json({ success: false, error: 'Failed to fetch refill data' });
+  }
+});
+
+// Product Analytics endpoint
+router.get('/:id/analytics', async (req, res) => {
+  try {
+    const productId = parseInt(req.params.id);
+    console.log(`[ANALYTICS] Fetching analytics for product ${productId}`);
+    
+    // Get product info
+    const productQuery = `
+      SELECT id, product_name 
+      FROM products 
+      WHERE id = ${productId}
+    `;
+    
+    const productResult = await db.execute(productQuery);
+    const productData = Array.isArray(productResult) ? productResult : (productResult.rows || []);
+    
+    if (!productData.length) {
+      return res.status(404).json({
+        success: false,
+        error: 'Product not found'
+      });
+    }
+    
+    const product = productData[0];
+    console.log(`[ANALYTICS] Found product: ${product.product_name}`);
+    
+    // Get sales analytics from transactions - simplified for debugging
+    const analyticsQuery = `
+      SELECT 
+        COUNT(*) as total_sales,
+        SUM(COALESCE(price, 0)) as total_revenue,
+        AVG(COALESCE(price, 0)) as avg_price,
+        COUNT(DISTINCT machine_id) as active_machines
+      FROM transactions t
+      WHERE t.product_name ILIKE '%${product.product_name}%'
+        AND t.datetime >= NOW() - INTERVAL '30 days'
+    `;
+    
+    console.log(`[ANALYTICS] Running simplified query`);
+    const result = await db.execute(analyticsQuery);
+    const analyticsData = Array.isArray(result) ? result : (result.rows || []);
+    
+    console.log(`[ANALYTICS] Query result:`, analyticsData);
+    
+    const data = analyticsData[0] || {};
+    const summary = {
+      totalSales: parseInt(data.total_sales) || 0,
+      totalRevenue: parseFloat(data.total_revenue) || 0,
+      avgPrice: parseFloat(data.avg_price) || 0,
+      activeMachines: parseInt(data.active_machines) || 0,
+      avgDailySales: parseInt(data.total_sales) ? parseInt(data.total_sales) / 30 : 0,
+      salesGrowth: 0,
+      revenueGrowth: 0,
+      topMachine: 'N/A',
+      slowestMachine: 'N/A',
+      peakHour: 12,
+      popularityRank: 0
+    };
+    
+    console.log(`[ANALYTICS] Calculated summary:`, summary);
+    
+    res.json({
+      success: true,
+      data: {
+        summary,
+        chartData: [],
+        machinePerformance: []
+      }
+    });
+  } catch (error) {
+    console.error('[ANALYTICS] Error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch analytics'
+    });
   }
 });
 
