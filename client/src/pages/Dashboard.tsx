@@ -445,7 +445,13 @@ export default function Dashboard() {
                     <div 
                       key={idx} 
                       className="flex items-center justify-between p-2 rounded border hover:bg-gray-50 cursor-pointer"
-                      onClick={() => setLocation(`/wareneingang/${order.id}`)}
+                      onClick={() => {
+                        if (order.status === 'sent') {
+                          setLocation(`/bestellungen/workflow?step=goodsReceipt&orderId=${order.id}`);
+                        } else {
+                          setLocation(`/bestellungen/${order.id}`);
+                        }
+                      }}
                     >
                       <div className="flex flex-col text-xs">
                         <span className="font-medium">{order.orderNumber}</span>
