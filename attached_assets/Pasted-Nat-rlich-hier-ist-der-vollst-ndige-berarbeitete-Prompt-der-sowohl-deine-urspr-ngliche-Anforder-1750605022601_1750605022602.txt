@@ -1,0 +1,85 @@
+Natürlich – hier ist der vollständige, überarbeitete Prompt, der sowohl deine ursprüngliche Anforderung als auch die recherchierten Kennzeichnungspflichten und deren strukturierte Darstellung berücksichtigt:
+
+⸻
+
+🔧 Prompt: Überprüfung und Erweiterung von Produkt- und Lieferantendaten mit LMIV-Konformität
+
+Bitte führe folgende Aufgaben aus, um die Produkt- und Lieferantendatenbank systematisch zu prüfen, zu vervollständigen und LMIV-konform aufzubereiten:
+
+⸻
+
+1. Strukturprüfung Produkt- und Lieferantenseiten
+	•	Überprüfe, ob auf jeder Unterseite (Frontend und Backend) zu einem Produkt oder Lieferanten folgende Felder vorhanden sind:
+	•	Kurzbeschreibung (Textfeld, max. 300 Zeichen)
+	•	Langbeschreibung (optional)
+	•	Bilder / Medienanhänge
+	•	Verknüpfung zum Hersteller / Lieferantenprofil
+	•	Falls diese Felder fehlen oder leer sind, dokumentiere dies zur Nachpflege.
+
+⸻
+
+2. Medienspeicherung und Zuordnung
+	•	Stelle sicher, dass Bilder und andere Medieninhalte nicht in der Hauptdatenbank, sondern über einen externen Dienst (z. B. AWS S3, Cloudinary etc.) gespeichert und per URL eingebunden werden.
+	•	Jeder Mediendatensatz soll eindeutig dem Produkt oder dem Lieferanten zugewiesen sein.
+	•	Struktur: Medien-ID, URL, Typ, Verwendungszweck, zugehöriges Produkt/Lieferant.
+
+⸻
+
+3. Ergänzung gesetzlich verpflichtender Informationen gemäß LMIV
+
+Für alle verpackten Lebensmittelprodukte muss eine vollständige Erfassung der gesetzlich vorgeschriebenen Pflichtangaben laut Lebensmittelinformationsverordnung (EU-Verordnung 1169/2011) erfolgen:
+
+Pflichtfelder pro Produkt:
+	•	Verkehrsbezeichnung
+	•	Zutatenverzeichnis (inkl. Hervorhebung allergener Zutaten)
+	•	Allergenliste (klar lesbar, optional mit Icons)
+	•	Nettofüllmenge
+	•	Mindesthaltbarkeitsdatum oder Verbrauchsdatum
+	•	Name/Firma und Anschrift des Lebensmittelunternehmers
+	•	Herkunftsland / Ursprungsland
+	•	Nährwertdeklaration pro 100 g/ml:
+	•	Brennwert (kJ/kcal)
+	•	Fett / davon gesättigte Fettsäuren
+	•	Kohlenhydrate / davon Zucker
+	•	Eiweiß
+	•	Salz
+	•	Hinweise zur Aufbewahrung / Verwendung
+	•	Alkoholgehalt (bei Getränken > 1,2 Vol.-%)
+	•	Losnummer / Charge (im System erfassbar, nicht zwingend im Frontend)
+
+⸻
+
+4. Strukturierte Darstellung im Frontend (Empfehlung)
+
+Die LMIV-Pflichtangaben sollen in der App/Webansicht übersichtlich und rechtssicher angezeigt werden, z. B. durch:
+	•	Tabs oder Sektionen:
+	•	Beschreibung
+	•	Zutaten (mit hervorgehobenen Allergenen)
+	•	Nährwerttabelle
+	•	Hinweise & Lagerung
+	•	Herstellerangaben
+	•	Nährwerttabelle (Standardformat):
+
+Nährwert je 100 g/ml	Menge
+Brennwert	840 kJ / 200 kcal
+Fett	8,0 g
+davon gesättigt	2,0 g
+Kohlenhydrate	25 g
+davon Zucker	12 g
+Eiweiß	5,0 g
+Salz	0,8 g
+
+
+	•	Tooltip-Funktion oder Info-Icons für erklärungsbedürftige Begriffe
+	•	Downloadbare Produktinformation (PDF)
+	•	Allergenfilterfunktion optional im Frontend
+
+⸻
+
+5. Datenhaltung und Schnittstellenkompatibilität
+	•	Alle Daten sollen in strukturierter Form in der Datenbank vorliegen und über eine zentrale Schnittstelle (API) abrufbar sein.
+	•	Medienelemente und Pflichtinformationen müssen versionierbar und mandantenfähig sein (z. B. bei mehreren Verkaufsstellen oder Sprachversionen).
+
+⸻
+
+Wenn du möchtest, kann ich diesen Prompt auch als technisches Dokument oder Anforderungsprofil für Entwickler:innen formatieren (inkl. JSON- oder Datenmodell-Vorschlag). Sag einfach Bescheid.
