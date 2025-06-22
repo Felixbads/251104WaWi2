@@ -1,0 +1,56 @@
+Hier ist ein umfassender und komplexer Prompt für einen QA-Agenten oder Entwickler, um die vollständige Prüfung einer Web- oder App-Oberfläche durchzuführen:
+
+⸻
+
+Prompt:
+
+Bitte führe eine vollständige, systematische und tiefgehende Prüfung der gesamten Anwendung (Frontend) durch. Ziel ist es, jede einzelne Seite, Ansicht, Komponente und Interaktionselemente wie Buttons, Links, Formulare, Menüs und Tabs auf Funktionalität, Konsistenz, Responsiveness und Usability zu überprüfen.
+
+Prüfkriterien:
+	1.	Seitenstruktur und Navigation
+	•	Funktionieren alle internen und externen Links korrekt?
+	•	Wird beim Seitenwechsel der richtige Inhalt geladen?
+	•	Existiert eine konsistente Navigationslogik (Header/Footer/Menüs)?
+	•	Werden fehlerhafte Seitenaufrufe (z. B. 404) korrekt abgefangen?
+	2.	Buttons & Interaktive Elemente
+	•	Reagieren Buttons und Schaltflächen auf Klicks wie erwartet?
+	•	Entsprechen die Buttons dem visuellen Stil (Farbe, Größe, Hover-Effekte)?
+	•	Gibt es Redundanzen, unklare Beschriftungen oder widersprüchliche Funktionen?
+	•	Werden Ladeindikatoren, Statusmeldungen oder Erfolgsnachrichten korrekt angezeigt?
+	3.	Formulare & Eingabefelder
+	•	Funktionieren alle Formularfelder inkl. Validierung (Pflichtfelder, E-Mail-Formate, Zahlen, Datum)?
+	•	Sind Platzhalter, Labels und Hilfetexte konsistent und verständlich?
+	•	Funktioniert das Absenden, Zurücksetzen oder Zwischenspeichern von Formularen?
+	•	Werden Fehler korrekt angezeigt und benutzerfreundlich erklärt?
+	4.	Konsistenzprüfung
+	•	Einheitliche Sprache (z. B. Sie/Du, Formatierungen, Datumsanzeige)?
+	•	Einheitliche Icons, Farben, Layouts über alle Seiten hinweg?
+	•	Wiederverwendete UI-Komponenten gleichartig umgesetzt?
+	5.	Responsive Design
+	•	Funktioniert die Darstellung auf verschiedenen Bildschirmgrößen (Mobil, Tablet, Desktop)?
+	•	Werden Elemente korrekt gestapelt oder skaliert?
+	•	Gibt es überlappende, abgeschnittene oder nicht erreichbare Elemente?
+	6.	Barrierefreiheit (a11y)
+	•	Können alle Elemente per Tastatur bedient werden?
+	•	Sind ARIA-Rollen, Alt-Texte, und Kontraste korrekt implementiert?
+	•	Gibt es sinnvolle Tab-Reihenfolgen und Screenreader-Kompatibilität?
+	7.	Technische Funktionalität
+	•	Gibt es Konsolenfehler, Warnungen oder Netzwerkprobleme im Dev-Tool?
+	•	Werden Ladezeiten und API-Aufrufe korrekt durchgeführt?
+	•	Gibt es veraltete oder nicht mehr funktionierende Komponenten?
+	8.	Spezialfälle & Fehlertoleranz
+	•	Was passiert bei Leerfeldern, fehlerhaften Eingaben oder unterbrochener Internetverbindung?
+	•	Gibt es sinnvolle Fallbacks und Fehlermeldungen?
+	•	Was passiert bei doppeltem Absenden von Formularen oder mehrfachen Klicks auf Buttons?
+	9.	Sicherheit & Berechtigungen (soweit möglich im UI)
+	•	Sind geschützte Seiten/Buttons ohne Authentifizierung aufrufbar?
+	•	Wird bei fehlerhaften Sessions oder abgelaufenen Logins sauber umgeleitet?
+	10.	Dokumentation & Reporting
+
+	•	Dokumentiere jede Abweichung vom erwarteten Verhalten mit Screenshot und Reproduktionsschritten.
+	•	Kennzeichne: kritisch / hoch / mittel / niedrig (Schweregrad).
+	•	Füge Hinweise hinzu, ob es sich um Design-Fehler, technische Bugs oder UX-Verbesserungspotenzial handelt.
+
+⸻
+
+Wenn du möchtest, kann ich diesen Prompt auch auf ein bestimmtes Framework (z. B. React, Vue, Flutter) oder eine Sprache anpassen.
