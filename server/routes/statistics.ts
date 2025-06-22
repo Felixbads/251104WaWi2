@@ -70,7 +70,9 @@ router.get('/database', async (req, res) => {
       openOrdersCount,
       productsCount,
       machinesCount,
-      suppliersCount
+      suppliersCount,
+      refillsCount,
+      eventsCount
     ] = await Promise.all([
       // Anzahl aller Transaktionen
       db.select({ count: count() }).from(transactions),
@@ -86,7 +88,13 @@ router.get('/database', async (req, res) => {
       db.select({ count: count() }).from(machines),
       
       // Anzahl aller Lieferanten
-      db.select({ count: count() }).from(suppliers)
+      db.select({ count: count() }).from(suppliers),
+      
+      // Anzahl aller Refills
+      db.select({ count: count() }).from(refills),
+      
+      // Anzahl aller Events
+      db.select({ count: count() }).from(events)
     ]);
 
     // Daten aufbereiten und zurückgeben
@@ -96,6 +104,8 @@ router.get('/database', async (req, res) => {
       products: productsCount[0].count || 0,
       machines: machinesCount[0].count || 0,
       suppliers: suppliersCount[0].count || 0,
+      refills: refillsCount[0].count || 0,
+      events: eventsCount[0].count || 0,
       lastUpdated: new Date().toISOString()
     };
 
