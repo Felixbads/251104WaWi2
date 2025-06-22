@@ -199,7 +199,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const httpServer = createServer(app);
   
   // Register product inventory routes FIRST to avoid conflicts
-  app.use(productInventoryRouter);
+  app.use('/', productInventoryRouter);
   
   // Middleware für Content-Type-Header für alle API-Antworten
   app.use(`${API_PREFIX}`, (req, res, next) => {
