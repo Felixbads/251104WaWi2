@@ -37,6 +37,9 @@ export default function SyncStatusCard({ onSettingsClick }: SyncStatusCardProps)
       queryClient.invalidateQueries({ queryKey: ['/api/sync/status'] });
       queryClient.invalidateQueries({ queryKey: ['/api/sync/logs'] });
       queryClient.invalidateQueries({ queryKey: ['/api/transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/statistics/database'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/refills'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/location-status'] });
       toast({
         title: "Synchronisierung abgeschlossen",
         description: "Alle Daten wurden erfolgreich synchronisiert.",

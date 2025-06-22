@@ -134,19 +134,27 @@ export default function Dashboard() {
 
   // Datenbankstatistiken für das Dashboard
   const { data: databaseStats, isLoading: isLoadingDatabaseStats } = useQuery({
-    queryKey: ['/api/statistics/database'],
+    queryKey: ['/api/statistics/database', new Date().toISOString().split('T')[0]], // Täglich neuer Cache-Key
     queryFn: () => getDatabaseStatistics(),
-    refetchInterval: 60000 // Jede Minute aktualisieren
+    refetchInterval: 30000, // Alle 30 Sekunden aktualisieren
+    staleTime: 0, // Daten sofort als veraltet markieren
+    gcTime: 0, // Keine Zwischenspeicherung
+    refetchOnMount: 'always', // Immer neu laden beim Mount
+    refetchOnWindowFocus: true, // Neu laden bei Fokus
   });
 
   // Refill-Daten für die letzten 30 Tage
   const { data: refillData, isLoading: isLoadingRefills } = useQuery({
-    queryKey: ['/api/refills'],
+    queryKey: ['/api/refills', new Date().toISOString().split('T')[0]], // Täglich neuer Cache-Key
     queryFn: () => getRefills({ 
       startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
       endDate: new Date().toISOString().split('T')[0],
       limit: 100
     }),
+    staleTime: 0, // Daten sofort als veraltet markieren
+    gcTime: 0, // Keine Zwischenspeicherung
+    refetchOnMount: 'always', // Immer neu laden beim Mount
+    refetchOnWindowFocus: true, // Neu laden bei Fokus
   });
 
   // Kritische Bestände für das Dashboard
