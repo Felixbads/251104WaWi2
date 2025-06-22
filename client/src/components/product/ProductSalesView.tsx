@@ -203,9 +203,9 @@ export default function ProductSalesView({ productId, productName }: ProductSale
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {salesData?.machines && salesData.machines.length > 0 ? (
+          {(salesData?.machines || salesData?.data) && (salesData.machines || salesData.data).length > 0 ? (
             <div className="space-y-4">
-              {salesData.machines.map((machine: SalesData) => (
+              {(salesData.machines || salesData.data || []).map((machine: SalesData) => (
                 <div key={machine.machineId} className="border rounded-lg p-4">
                   <div className="flex items-center justify-between mb-3">
                     <div>
@@ -270,9 +270,9 @@ export default function ProductSalesView({ productId, productName }: ProductSale
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {refillData?.data && refillData.data.length > 0 ? (
+          {(refillData?.data || refillData) && (Array.isArray(refillData?.data) ? refillData.data : Array.isArray(refillData) ? refillData : []).length > 0 ? (
             <div className="space-y-3">
-              {refillData.data.map((refill: RefillData) => (
+              {(Array.isArray(refillData?.data) ? refillData.data : Array.isArray(refillData) ? refillData : []).map((refill: RefillData) => (
                 <div key={refill.refillId} className="flex items-center justify-between p-3 border rounded-lg">
                   <div className="flex-1">
                     <div className="font-medium">{refill.machineName}</div>
