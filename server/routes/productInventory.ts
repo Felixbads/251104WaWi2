@@ -87,7 +87,12 @@ router.get('/api/products/:id/machine-inventory', async (req, res) => {
           WHEN sales_count > 5 THEN 5
           ELSE 2
         END as "currentStock",
-        20 as "maxCapacity",
+        CASE 
+          WHEN sales_count > 20 THEN 50
+          WHEN sales_count > 10 THEN 40 
+          WHEN sales_count > 5 THEN 30
+          ELSE 25
+        END as "maxCapacity",
         last_sale as "lastRefill",
         CASE 
           WHEN sales_count <= 2 THEN 'empty'
