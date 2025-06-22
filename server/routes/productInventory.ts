@@ -127,21 +127,38 @@ router.get('/api/products/:id/sales', async (req, res) => {
                  timeRange === '30d' ? 30 : 
                  timeRange === '90d' ? 90 : 7;
     
-    // Get product name
-    const productQuery = `
-      SELECT product_name 
-      FROM products 
-      WHERE id = $1
-    `;
+    // Get product name - check multiple sources
+    let productName = null;
+    
+    // First try from products table
+    const productQuery = `SELECT product_name FROM products WHERE id = $1`;
     const productResult = await db.execute(productQuery, [productId]);
     const product = Array.isArray(productResult) ? productResult[0] : (productResult.rows?.[0]);
     
-    if (!product) {
-      console.log(`[PRODUCT_SALES] Product ${productId} not found`);
+    if (product?.product_name) {
+      productName = product.product_name;
+    } else {
+      // If not found in products, try to find from transactions
+      const transactionQuery = `
+        SELECT DISTINCT product_name 
+        FROM transactions 
+        WHERE product_id = $1 OR id = $1
+        LIMIT 1
+      `;
+      const transactionResult = await db.execute(transactionQuery, [productId]);
+      const transactionProduct = Array.isArray(transactionResult) ? transactionResult[0] : (transactionResult.rows?.[0]);
+      
+      if (transactionProduct?.product_name) {
+        productName = transactionProduct.product_name;
+      }
+    }
+    
+    if (!productName) {
+      console.log(`[PRODUCT_SALES] Product ${productId} not found in any table`);
       return res.status(404).json({ success: false, error: 'Product not found' });
     }
     
-    console.log(`[PRODUCT_SALES] Found product: ${product.product_name}`);
+    console.log(`[PRODUCT_SALES] Found product: ${productName}`);
     
     // Get sales summary with better error handling
     const summaryQuery = `
@@ -155,7 +172,7 @@ router.get('/api/products/:id/sales', async (req, res) => {
         AND datetime >= NOW() - INTERVAL '${days} days'
     `;
     
-    const summaryResult = await db.execute(summaryQuery, [`%${product.product_name}%`]);
+    const summaryResult = await db.execute(summaryQuery, [`%${productName}%`]);
     const summary = Array.isArray(summaryResult) ? summaryResult[0] : (summaryResult.rows?.[0]);
     
     console.log(`[PRODUCT_SALES] Summary data:`, summary);
@@ -187,7 +204,7 @@ router.get('/api/products/:id/sales', async (req, res) => {
       LIMIT 20
     `;
     
-    const machinesResult = await db.execute(machinesQuery, [`%${product.product_name}%`]);
+    const machinesResult = await db.execute(machinesQuery, [`%${productName}%`]);
     const machines = Array.isArray(machinesResult) ? machinesResult : (machinesResult.rows || []);
     
     console.log(`[PRODUCT_SALES] Machine data count: ${machines.length}`);

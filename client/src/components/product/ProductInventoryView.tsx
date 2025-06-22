@@ -139,7 +139,7 @@ export default function ProductInventoryView({ productId, productName }: Product
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {warehouseInventory?.data && warehouseInventory.data.length > 0 ? (
+          {(warehouseInventory?.data || []).length > 0 ? (
             <div className="space-y-3">
               {warehouseInventory.data.map((item: InventoryItem) => {
                 const status = getStockStatus(item.quantity, item.minQuantity || 5, item.maxQuantity || 100);
@@ -187,7 +187,7 @@ export default function ProductInventoryView({ productId, productName }: Product
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {machineInventory?.data && machineInventory.data.length > 0 ? (
+          {(machineInventory?.data || []).length > 0 ? (
             <div className="space-y-3">
               {machineInventory.data.map((machine: MachineInventory) => {
                 const statusInfo = getMachineStatus(machine.status);
