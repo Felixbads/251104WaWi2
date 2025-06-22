@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Package, MapPin, RefreshCw, AlertTriangle, CheckCircle } from 'lucide-react';
+import { Package, MapPin, RefreshCw, AlertTriangle } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 
 interface ProductInventoryViewProps {
@@ -143,7 +143,7 @@ export default function ProductInventoryView({ productId, productName }: Product
                     </div>
                     <div className="text-right space-y-1">
                       <div className="font-bold text-lg">{item.quantity}</div>
-                      <Badge variant={status.color as any} className="text-xs">
+                      <Badge variant={status.color === 'success' ? 'default' : status.color === 'warning' ? 'secondary' : 'destructive'} className="text-xs">
                         {status.text}
                       </Badge>
                     </div>
@@ -184,7 +184,7 @@ export default function ProductInventoryView({ productId, productName }: Product
                           <div className="text-sm text-muted-foreground">{machine.locationName}</div>
                         )}
                       </div>
-                      <Badge variant={statusInfo.color as any}>
+                      <Badge variant={statusInfo.color === 'success' ? 'default' : statusInfo.color === 'warning' ? 'secondary' : 'destructive'}>
                         {statusInfo.text}
                       </Badge>
                     </div>

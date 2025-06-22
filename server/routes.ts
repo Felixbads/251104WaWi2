@@ -28,6 +28,7 @@ import warehouse3ApiRouter from './routes/warehouse3.api';
 import warehouseMovementsRouter from './routes/warehouse-movements';
 import warehouseLocationsRouter from './routes/warehouse-locations';
 import inventoryCountBatchesRouter from './routes/inventory-count-batches';
+import productInventoryRouter from './routes/productInventory';
 import warehousesRouter from './routes/warehouses';
 import emailRouter from './routes/email';
 import { criticalInventoryRouter } from './routes/critical-inventory';
