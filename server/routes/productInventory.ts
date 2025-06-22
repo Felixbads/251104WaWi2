@@ -4,7 +4,7 @@ import { db } from '../db';
 const router = Router();
 
 // Get warehouse inventory for a product
-router.get('/api/products/:id/warehouse-inventory', async (req, res) => {
+router.get('/:id/warehouse-inventory', async (req, res) => {
   try {
     const productId = parseInt(req.params.id);
     
@@ -39,7 +39,7 @@ router.get('/api/products/:id/warehouse-inventory', async (req, res) => {
 });
 
 // Get machine inventory for a product
-router.get('/api/products/:id/machine-inventory', async (req, res) => {
+router.get('/:id/machine-inventory', async (req, res) => {
   try {
     const productId = parseInt(req.params.id);
     
@@ -112,7 +112,7 @@ router.get('/api/products/:id/machine-inventory', async (req, res) => {
 });
 
 // Get sales data for a product
-router.get('/api/products/:id/sales', async (req, res) => {
+router.get('/:id/sales', async (req, res) => {
   console.log(`[PRODUCT_INVENTORY_ROUTER] Sales endpoint hit for product ${req.params.id}`);
   try {
     const productId = parseInt(req.params.id);
@@ -226,7 +226,7 @@ router.get('/api/products/:id/sales', async (req, res) => {
 });
 
 // Get refill history for a product
-router.get('/api/products/:id/refills', async (req, res) => {
+router.get('/:id/refills', async (req, res) => {
   try {
     const productId = parseInt(req.params.id);
     const timeRange = req.query.timeRange as string || '7d';
