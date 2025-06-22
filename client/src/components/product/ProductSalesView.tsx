@@ -208,7 +208,7 @@ export default function ProductSalesView({ productId, productName }: ProductSale
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {Array.isArray(salesData) ? (
+          {Array.isArray(salesData) && salesData.length > 0 ? (
             <div className="space-y-3">
               <p className="text-sm text-muted-foreground">
                 Tägliche Verkäufe (letzten {timeRange === '1d' ? '24 Stunden' : timeRange === '7d' ? '7 Tage' : timeRange === '30d' ? '30 Tage' : '90 Tage'})

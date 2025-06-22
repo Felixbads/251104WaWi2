@@ -212,7 +212,7 @@ router.get('/api/products/:id/sales', async (req, res) => {
 });
 
 // Get refill history for a product
-router.get('/products/:id/refills', async (req, res) => {
+router.get('/api/products/:id/refills', async (req, res) => {
   try {
     const productId = parseInt(req.params.id);
     const timeRange = req.query.timeRange as string || '7d';
