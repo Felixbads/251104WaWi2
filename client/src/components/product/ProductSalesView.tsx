@@ -210,7 +210,7 @@ export default function ProductSalesView({ productId, productName }: ProductSale
         <CardContent>
           {(salesData?.machines || []).length > 0 ? (
             <div className="space-y-4">
-              {(salesData.machines || salesData.data || []).map((machine: SalesData) => (
+              {(salesData?.machines || []).map((machine: SalesData) => (
                 <div key={machine.machineId} className="border rounded-lg p-4">
                   <div className="flex items-center justify-between mb-3">
                     <div>
