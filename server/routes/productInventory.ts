@@ -173,6 +173,7 @@ router.get('/api/products/:id/sales', async (req, res) => {
         AND datetime >= NOW() - INTERVAL '${days} days'
     `;
     
+    console.log(`[PRODUCT_SALES] Summary query:`, summaryQuery);
     const summaryResult = await db.execute(summaryQuery);
     const summary = Array.isArray(summaryResult) ? summaryResult[0] : (summaryResult.rows?.[0]);
     
@@ -205,6 +206,7 @@ router.get('/api/products/:id/sales', async (req, res) => {
       LIMIT 20
     `;
     
+    console.log(`[PRODUCT_SALES] Machines query:`, machinesQuery);
     const machinesResult = await db.execute(machinesQuery);
     const machines = Array.isArray(machinesResult) ? machinesResult : (machinesResult.rows || []);
     

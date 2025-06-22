@@ -164,7 +164,7 @@ export default function ProductSalesView({ productId, productName }: ProductSale
               <div>
                 <p className="text-sm text-muted-foreground">Gesamtumsatz</p>
                 <p className="text-2xl font-bold">
-                  {formatCurrency(salesData?.summary?.totalRevenue || salesData?.totalRevenue || 
+                  {formatCurrency(salesData?.summary?.total_revenue || salesData?.totalRevenue || 
                    (Array.isArray(salesData) ? salesData.reduce((sum, item) => sum + (item.revenue || 0), 0) : 0))}
                 </p>
               </div>
