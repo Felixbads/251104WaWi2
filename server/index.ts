@@ -1981,6 +1981,10 @@ Elbsandstein Proviant & Quartier GmbH`;
   app.use('/api/supplier-analytics', supplierAnalyticsRouter);
   app.use('/api/support-tickets', supportTicketsRouter);
 
+  // Register enhanced order copy router
+  const enhancedOrderCopyRouter = (await import('./routes/enhanced-order-copy')).default;
+  app.use('/api/enhanced-order-copy', enhancedOrderCopyRouter);
+
   // Register critical inventory routes
   app.use('/api/critical-inventory', criticalInventoryRouter);
   app.use('/api', criticalInventoryWorkingRouter);

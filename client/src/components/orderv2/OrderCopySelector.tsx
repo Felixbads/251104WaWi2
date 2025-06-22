@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { format } from 'date-fns';
+import { de } from 'date-fns/locale';
 import {
   Card,
   CardContent,
@@ -22,8 +24,10 @@ import {
   Building2,
   Copy,
   Eye,
-  CheckCircle
+  CheckCircle,
+  Edit
 } from 'lucide-react';
+import EnhancedOrderCopyDialog from './EnhancedOrderCopyDialog';
 
 interface OrderCopySelectorProps {
   onSelectOrder: (orderId: number) => void;
@@ -49,6 +53,8 @@ const OrderCopySelector: React.FC<OrderCopySelectorProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
   const [showDetails, setShowDetails] = useState(false);
+  const [showEnhancedCopyDialog, setShowEnhancedCopyDialog] = useState(false);
+  const [orderToCopy, setOrderToCopy] = useState<number | null>(null);
 
   // Fetch orders for copying
   const { data: orders = [], isLoading, error } = useQuery({
@@ -96,7 +102,11 @@ const OrderCopySelector: React.FC<OrderCopySelectorProps> = ({
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('de-DE');
+    try {
+      return format(new Date(dateString), 'dd.MM.yyyy', { locale: de });
+    } catch (e) {
+      return 'Ungültiges Datum';
+    }
   };
 
   if (error) {
@@ -261,37 +271,15 @@ const OrderCopySelector: React.FC<OrderCopySelectorProps> = ({
                     </Button>
                     <Button
                       size="sm"
-                      onClick={async (e) => {
+                      onClick={(e) => {
                         e.stopPropagation();
-                        try {
-                          const response = await fetch(`/api/orders/${order.id}/copy`, {
-                            method: 'POST',
-                            headers: {
-                              'Content-Type': 'application/json'
-                            }
-                          });
-                          
-                          if (!response.ok) {
-                            throw new Error('Fehler beim Kopieren der Bestellung');
-                          }
-                          
-                          const result = await response.json();
-                          
-                          if (result.success && result.order) {
-                            // Direkt zur neuen Bestellung navigieren
-                            window.location.href = `/bestellungen/${result.order.id}`;
-                          } else {
-                            throw new Error(result.message || 'Unbekannter Fehler');
-                          }
-                        } catch (error) {
-                          console.error('Fehler beim Kopieren:', error);
-                          alert('Fehler beim Kopieren der Bestellung');
-                        }
+                        setOrderToCopy(order.id);
+                        setShowEnhancedCopyDialog(true);
                       }}
                       className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700"
                     >
-                      <Copy className="h-4 w-4" />
-                      Kopieren
+                      <Edit className="h-4 w-4" />
+                      Kopieren & Anpassen
                     </Button>
                   </div>
                 </CardContent>
@@ -310,7 +298,25 @@ const OrderCopySelector: React.FC<OrderCopySelectorProps> = ({
             setSelectedOrderId(null);
           }}
           onCopyOrder={() => {
-            onSelectOrder(selectedOrderId);
+            setOrderToCopy(selectedOrderId);
+            setShowEnhancedCopyDialog(true);
+            setShowDetails(false);
+          }}
+        />
+      )}
+
+      {/* Enhanced Copy Dialog */}
+      {showEnhancedCopyDialog && orderToCopy && (
+        <EnhancedOrderCopyDialog
+          isOpen={showEnhancedCopyDialog}
+          onClose={() => {
+            setShowEnhancedCopyDialog(false);
+            setOrderToCopy(null);
+          }}
+          sourceOrderId={orderToCopy}
+          onSuccess={(newOrderId) => {
+            // Navigate to new order or refresh list
+            window.location.href = `/bestellungen/workflow?orderId=${newOrderId}`;
           }}
         />
       )}
@@ -406,11 +412,15 @@ const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({
                 Zurück
               </Button>
               <Button
-                onClick={onCopyOrder}
+                onClick={() => {
+                  setOrderToCopy(orderId);
+                  setShowEnhancedCopyDialog(true);
+                  onBack();
+                }}
                 className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700"
               >
-                <Copy className="h-4 w-4" />
-                Bestellung kopieren
+                <Edit className="h-4 w-4" />
+                Kopieren & Anpassen
               </Button>
             </div>
           </div>
