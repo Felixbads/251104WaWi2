@@ -331,7 +331,6 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
           <Table>
             <TableHeader>
               <TableRow>
-
                 <TableHead>Artikel</TableHead>
                 <TableHead className="text-right">Bestellt</TableHead>
                 <TableHead className="text-right">Erhalten</TableHead>
@@ -346,7 +345,6 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
                 
                 return (
                   <TableRow key={item.id} className={isDifferent ? 'bg-amber-50' : ''}>
-
                     <TableCell className="font-medium">{item.name || item.productName || 'Unbekannter Artikel'}</TableCell>
                     <TableCell className="text-right">{item.orderedQuantity}</TableCell>
                     <TableCell className="text-right">

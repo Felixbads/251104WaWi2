@@ -132,16 +132,14 @@ function AuthenticatedRouter() {
         <Route path="/unauthorized" component={Unauthorized} />
 
         {/* Geschützte Routen, die Freigabe erfordern */}
-        <Route path="/login">
+
+
+        <Route path="/">
           {() => (
             <ApprovedUserRoute>
               <Dashboard />
             </ApprovedUserRoute>
           )}
-        </Route>
-
-        <Route path="/">
-          <Redirect to="/login" />
         </Route>
 
         <Route path="/transactions">
