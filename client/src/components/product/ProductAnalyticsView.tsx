@@ -3,51 +3,59 @@ import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { BarChart, TrendingUp, TrendingDown, Activity, Target, Clock } from 'lucide-react';
+import { BarChart, TrendingUp, Calendar, Euro, ShoppingCart } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart as RechartsBarChart, Bar } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart as RechartsBarChart, Bar, ComposedChart } from 'recharts';
 
 interface ProductAnalyticsViewProps {
   productId: number;
   productName: string;
 }
 
-interface AnalyticsData {
+interface SalesData {
   summary: {
     totalSales: number;
     totalRevenue: number;
-    avgDailySales: number;
-    salesGrowth: number;
-    revenueGrowth: number;
-    topMachine: string;
-    slowestMachine: string;
-    peakHour: number;
-    popularityRank: number;
+    avgPrice: number;
+    activeMachines: number;
   };
   salesTrend: Array<{
     date: string;
     sales: number;
     revenue: number;
   }>;
-  hourlyPattern: Array<{
-    hour: number;
-    sales: number;
-    label: string;
-  }>;
-  machinePerformance: Array<{
+  machines: Array<{
+    machineId: number;
     machineName: string;
-    sales: number;
-    revenue: number;
-    efficiency: number;
+    locationName?: string;
+    totalSales: number;
+    totalRevenue: number;
+    avgPrice: number;
+    lastSale?: string;
   }>;
 }
 
 export default function ProductAnalyticsView({ productId, productName }: ProductAnalyticsViewProps) {
   const [timeRange, setTimeRange] = useState('30d');
 
-  const { data: analyticsData, isLoading } = useQuery({
-    queryKey: [`/api/products/${productId}/analytics`, timeRange],
-    staleTime: 1000 * 60 * 10, // 10 minutes
+  // Fetch sales data
+  const { data: salesData, isLoading: isLoadingSales, error: salesError } = useQuery({
+    queryKey: [`/api/products/${productId}/sales`, timeRange],
+    queryFn: async () => {
+      const url = `/api/products/${productId}/sales?timeRange=${timeRange}`;
+      console.log('Fetching sales data from:', url);
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('authToken') || 'test'}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      if (!response.ok) throw new Error('Failed to fetch sales data');
+      const data = await response.json();
+      console.log('Sales data received:', data);
+      return data;
+    },
+    staleTime: 1000 * 60 * 5, // 5 minutes
   });
 
   const formatCurrency = (amount: number) => {
@@ -57,37 +65,25 @@ export default function ProductAnalyticsView({ productId, productName }: Product
     }).format(amount);
   };
 
-  const formatPercentage = (value: number) => {
-    return `${value > 0 ? '+' : ''}${value.toFixed(1)}%`;
-  };
-
-  const getGrowthColor = (growth: number) => {
-    if (growth > 0) return 'text-green-600';
-    if (growth < 0) return 'text-red-600';
-    return 'text-gray-600';
-  };
-
-  const getGrowthIcon = (growth: number) => {
-    if (growth > 0) return <TrendingUp className="h-4 w-4 text-green-600" />;
-    if (growth < 0) return <TrendingDown className="h-4 w-4 text-red-600" />;
-    return <Activity className="h-4 w-4 text-gray-600" />;
-  };
-
-  if (isLoading && !analyticsData) {
+  if (isLoadingSales) {
     return (
       <div className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {[1, 2, 3].map((i) => (
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          {[1, 2, 3, 4].map((i) => (
             <Card key={i}>
-              <CardContent className="p-4">
-                <Skeleton className="h-16 w-full" />
+              <CardHeader className="pb-2">
+                <Skeleton className="h-4 w-24" />
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-8 w-16 mb-2" />
+                <Skeleton className="h-3 w-20" />
               </CardContent>
             </Card>
           ))}
         </div>
         <Card>
           <CardHeader>
-            <Skeleton className="h-6 w-48" />
+            <Skeleton className="h-6 w-32" />
           </CardHeader>
           <CardContent>
             <Skeleton className="h-64 w-full" />
@@ -97,213 +93,216 @@ export default function ProductAnalyticsView({ productId, productName }: Product
     );
   }
 
-  const analytics = analyticsData?.data as AnalyticsData;
+  if (salesError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-gray-500 mb-2">Fehler beim Laden der Analysedaten</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!salesData?.success) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <BarChart className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+          <p className="text-gray-500 mb-2">Keine Analysedaten verfügbar</p>
+          <p className="text-sm text-gray-400">Für den ausgewählten Zeitraum wurden keine Daten gefunden.</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Ensure we have valid data structures
+  const summary = salesData?.data?.summary || salesData?.summary || {};
+  const trend = salesData?.data?.salesTrend || salesData?.salesTrend || [];
+  const machinesList = salesData?.data?.machines || salesData?.machines || [];
 
   return (
     <div className="space-y-6">
-      {/* Header with time range selector */}
+      {/* Header with filters */}
       <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
         <div>
-          <h3 className="text-lg font-semibold">Produktauswertung für {productName}</h3>
-          <p className="text-sm text-muted-foreground">Detaillierte Verkaufs- und Leistungsanalyse</p>
+          <h3 className="text-lg font-semibold">Verkaufsgrafiken für {productName}</h3>
+          <p className="text-sm text-muted-foreground">Grafische Auswertung der Verkaufsdaten</p>
         </div>
-        <Select value={timeRange} onValueChange={setTimeRange}>
-          <SelectTrigger className="w-32">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="7d">7 Tage</SelectItem>
-            <SelectItem value="30d">30 Tage</SelectItem>
-            <SelectItem value="90d">90 Tage</SelectItem>
-            <SelectItem value="1y">1 Jahr</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="flex gap-2">
+          <Select value={timeRange} onValueChange={setTimeRange}>
+            <SelectTrigger className="w-32">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="7d">7 Tage</SelectItem>
+              <SelectItem value="30d">30 Tage</SelectItem>
+              <SelectItem value="90d">90 Tage</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
-      {/* Key Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Gesamtverkäufe</p>
-                <p className="text-2xl font-bold">{analytics?.summary?.totalSales || 0}</p>
-                <div className={`flex items-center gap-1 text-sm ${getGrowthColor(analytics?.summary?.salesGrowth || 0)}`}>
-                  {getGrowthIcon(analytics?.summary?.salesGrowth || 0)}
-                  {formatPercentage(analytics?.summary?.salesGrowth || 0)}
-                </div>
+                <p className="text-2xl font-bold">
+                  {summary?.totalSales || 0}
+                </p>
               </div>
-              <BarChart className="h-8 w-8 text-blue-500" />
+              <ShoppingCart className="h-8 w-8 text-blue-500" />
             </div>
           </CardContent>
         </Card>
-
+        
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Gesamtumsatz</p>
-                <p className="text-2xl font-bold">{formatCurrency(analytics?.summary?.totalRevenue || 0)}</p>
-                <div className={`flex items-center gap-1 text-sm ${getGrowthColor(analytics?.summary?.revenueGrowth || 0)}`}>
-                  {getGrowthIcon(analytics?.summary?.revenueGrowth || 0)}
-                  {formatPercentage(analytics?.summary?.revenueGrowth || 0)}
-                </div>
+                <p className="text-2xl font-bold">
+                  {formatCurrency(summary?.totalRevenue || 0)}
+                </p>
               </div>
-              <TrendingUp className="h-8 w-8 text-green-500" />
+              <Euro className="h-8 w-8 text-green-500" />
             </div>
           </CardContent>
         </Card>
-
+        
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Ø täglich</p>
-                <p className="text-2xl font-bold">{(analytics?.summary?.avgDailySales || 0).toFixed(1)}</p>
-                <p className="text-sm text-muted-foreground">Verkäufe/Tag</p>
+                <p className="text-sm text-muted-foreground">Ø Preis</p>
+                <p className="text-2xl font-bold">
+                  {formatCurrency(summary?.avgPrice || 0)}
+                </p>
               </div>
-              <Activity className="h-8 w-8 text-purple-500" />
+              <TrendingUp className="h-8 w-8 text-purple-500" />
             </div>
           </CardContent>
         </Card>
-
+        
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Beliebtheit</p>
-                <p className="text-2xl font-bold">#{analytics?.summary?.popularityRank || '-'}</p>
-                <p className="text-sm text-muted-foreground">von allen Produkten</p>
+                <p className="text-sm text-muted-foreground">Aktive Automaten</p>
+                <p className="text-2xl font-bold">
+                  {summary?.activeMachines || 0}
+                </p>
               </div>
-              <Target className="h-8 w-8 text-orange-500" />
+              <BarChart className="h-8 w-8 text-orange-500" />
             </div>
           </CardContent>
         </Card>
       </div>
 
       {/* Sales Trend Chart */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Verkaufstrend</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {analytics?.salesTrend && analytics.salesTrend.length > 0 ? (
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={analytics.salesTrend}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis 
-                  dataKey="date" 
-                  tickFormatter={(value) => new Date(value).toLocaleDateString('de-DE', { month: 'short', day: 'numeric' })}
-                />
-                <YAxis yAxisId="sales" orientation="left" />
-                <YAxis yAxisId="revenue" orientation="right" />
-                <Tooltip 
-                  labelFormatter={(value) => new Date(value).toLocaleDateString('de-DE')}
-                  formatter={(value: any, name: string) => [
-                    name === 'sales' ? `${value} Stück` : formatCurrency(value),
-                    name === 'sales' ? 'Verkäufe' : 'Umsatz'
-                  ]}
-                />
-                <Line yAxisId="sales" type="monotone" dataKey="sales" stroke="#3b82f6" strokeWidth={2} />
-                <Line yAxisId="revenue" type="monotone" dataKey="revenue" stroke="#10b981" strokeWidth={2} />
-              </LineChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="h-64 flex items-center justify-center text-gray-500">
-              Keine Trenddaten verfügbar
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Hourly Pattern */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {trend.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Clock className="h-5 w-5" />
-              Verkaufsmuster nach Uhrzeit
+            <CardTitle className="flex items-center">
+              <BarChart className="h-5 w-5 mr-2" />
+              Verkaufsverlauf: Umsatz (€) und Anzahl
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {analytics?.hourlyPattern && analytics.hourlyPattern.length > 0 ? (
-              <ResponsiveContainer width="100%" height={250}>
-                <RechartsBarChart data={analytics.hourlyPattern}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="label" />
-                  <YAxis />
-                  <Tooltip 
-                    formatter={(value: any) => [`${value} Verkäufe`, 'Anzahl']}
-                    labelFormatter={(label) => `${label} Uhr`}
-                  />
-                  <Bar dataKey="sales" fill="#3b82f6" />
-                </RechartsBarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-64 flex items-center justify-center text-gray-500">
-                Keine Stundendaten verfügbar
-              </div>
-            )}
+            <ResponsiveContainer width="100%" height={300}>
+              <ComposedChart data={trend}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis 
+                  dataKey="date" 
+                  tickFormatter={(value) => new Date(value).toLocaleDateString('de-DE', { 
+                    month: 'short', 
+                    day: 'numeric' 
+                  })}
+                />
+                <YAxis yAxisId="left" orientation="left" />
+                <YAxis yAxisId="right" orientation="right" />
+                <Tooltip 
+                  labelFormatter={(value) => new Date(value).toLocaleDateString('de-DE')}
+                  formatter={(value, name) => [
+                    name === 'revenue' ? formatCurrency(Number(value)) : `${value} Stück`,
+                    name === 'revenue' ? 'Umsatz' : 'Verkäufe'
+                  ]}
+                />
+                <Bar yAxisId="left" dataKey="revenue" fill="#3b82f6" name="revenue" />
+                <Line yAxisId="right" type="monotone" dataKey="sales" stroke="#10b981" strokeWidth={2} name="sales" />
+              </ComposedChart>
+            </ResponsiveContainer>
           </CardContent>
         </Card>
+      )}
 
-        {/* Top Machines Performance */}
+      {/* Machine Performance Chart */}
+      {machinesList.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Automat-Performance</CardTitle>
+            <CardTitle className="flex items-center">
+              <BarChart className="h-5 w-5 mr-2" />
+              Verkäufe nach Automaten
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            {analytics?.machinePerformance && analytics.machinePerformance.length > 0 ? (
-              <div className="space-y-3">
-                {analytics.machinePerformance.slice(0, 5).map((machine, index) => (
-                  <div key={machine.machineName} className="flex items-center justify-between p-3 border rounded">
-                    <div className="flex items-center gap-3">
-                      <Badge variant="outline" className="w-8 h-8 rounded-full flex items-center justify-center">
-                        {index + 1}
-                      </Badge>
-                      <div>
-                        <div className="font-medium text-sm">{machine.machineName}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {machine.sales} Verkäufe • {formatCurrency(machine.revenue)}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-sm font-medium">{machine.efficiency.toFixed(1)}%</div>
-                      <div className="text-xs text-muted-foreground">Effizienz</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="h-64 flex items-center justify-center text-gray-500">
-                Keine Performance-Daten verfügbar
-              </div>
-            )}
+            <ResponsiveContainer width="100%" height={300}>
+              <RechartsBarChart data={machinesList.slice(0, 10)}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis 
+                  dataKey="machineName" 
+                  angle={-45}
+                  textAnchor="end"
+                  height={100}
+                />
+                <YAxis />
+                <Tooltip 
+                  formatter={(value, name) => [
+                    name === 'totalRevenue' ? formatCurrency(Number(value)) : `${value} Stück`,
+                    name === 'totalRevenue' ? 'Umsatz' : 'Verkäufe'
+                  ]}
+                />
+                <Bar dataKey="totalSales" fill="#8884d8" name="totalSales" />
+                <Bar dataKey="totalRevenue" fill="#82ca9d" name="totalRevenue" />
+              </RechartsBarChart>
+            </ResponsiveContainer>
           </CardContent>
         </Card>
-      </div>
+      )}
 
-      {/* Performance Insights */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Performance-Insights</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="p-4 bg-blue-50 rounded-lg">
-              <h4 className="font-medium text-blue-900 mb-2">Bester Automat</h4>
-              <p className="text-blue-700">{analytics?.summary?.topMachine || 'Nicht verfügbar'}</p>
-            </div>
-            <div className="p-4 bg-orange-50 rounded-lg">
-              <h4 className="font-medium text-orange-900 mb-2">Verkaufs-Stoßzeit</h4>
-              <p className="text-orange-700">
-                {analytics?.summary?.peakHour ? `${analytics.summary.peakHour}:00 Uhr` : 'Nicht verfügbar'}
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Daily Sales Trend */}
+      {trend.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <TrendingUp className="h-5 w-5 mr-2" />
+              Täglicher Verkaufstrend
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={250}>
+              <LineChart data={trend}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis 
+                  dataKey="date" 
+                  tickFormatter={(value) => new Date(value).toLocaleDateString('de-DE', { 
+                    month: 'short', 
+                    day: 'numeric' 
+                  })}
+                />
+                <YAxis />
+                <Tooltip 
+                  labelFormatter={(value) => new Date(value).toLocaleDateString('de-DE')}
+                  formatter={(value) => [`${value} Stück`, 'Verkäufe']}
+                />
+                <Line type="monotone" dataKey="sales" stroke="#8884d8" strokeWidth={2} />
+              </LineChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

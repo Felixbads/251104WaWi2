@@ -135,8 +135,12 @@ export default function ProductDetail() {
               <span>Lagerbestand</span>
             </TabsTrigger>
             <TabsTrigger value="sales" className="flex items-center gap-1 px-3 py-2 text-xs sm:text-sm whitespace-nowrap">
-              <BarChart className="h-3 w-3 sm:h-4 sm:w-4" />
+              <ShoppingCart className="h-3 w-3 sm:h-4 sm:w-4" />
               <span>Verkäufe</span>
+            </TabsTrigger>
+            <TabsTrigger value="analytics" className="flex items-center gap-1 px-3 py-2 text-xs sm:text-sm whitespace-nowrap">
+              <BarChart className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span>Grafiken</span>
             </TabsTrigger>
           </TabsList>
         </div>
@@ -340,6 +344,11 @@ export default function ProductDetail() {
         {/* Sales Tab */}
         <TabsContent value="sales" className="space-y-6 mt-6">
           <ProductSalesView productId={parseInt(id!)} productName={product.productName} />
+        </TabsContent>
+
+        {/* Analytics Tab with Charts */}
+        <TabsContent value="analytics" className="space-y-6 mt-6">
+          <ProductAnalyticsView productId={parseInt(id!)} productName={product.productName} />
         </TabsContent>
       </Tabs>
 

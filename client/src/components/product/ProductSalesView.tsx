@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ShoppingCart, TrendingUp, Calendar, MapPin, Euro, BarChart } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart as RechartsBarChart, Bar, ComposedChart } from 'recharts';
+
 
 interface ProductSalesViewProps {
   productId: number;
@@ -293,7 +293,10 @@ export default function ProductSalesView({ productId, productName }: ProductSale
                   <div className="flex-1">
                     <div className="font-medium">{refill.machineName}</div>
                     <div className="text-sm text-muted-foreground">
-                      {new Date(refill.refillDate).toLocaleString('de-DE')}
+                      {refill.refillDate && !isNaN(new Date(refill.refillDate).getTime()) 
+                        ? new Date(refill.refillDate).toLocaleString('de-DE')
+                        : 'Datum nicht verfügbar'
+                      }
                     </div>
                     {refill.reason && (
                       <div className="text-xs text-muted-foreground">{refill.reason}</div>
@@ -301,13 +304,13 @@ export default function ProductSalesView({ productId, productName }: ProductSale
                   </div>
                   <div className="text-right space-y-1">
                     <div className="flex items-center gap-2">
-                      <span className="text-green-600">+{refill.quantityAdded}</span>
-                      {refill.quantityRemoved > 0 && (
+                      <span className="text-green-600">+{refill.quantityAdded || 0}</span>
+                      {(refill.quantityRemoved || 0) > 0 && (
                         <span className="text-red-600">-{refill.quantityRemoved}</span>
                       )}
                     </div>
                     <Badge variant={refill.netChange > 0 ? 'default' : 'secondary'} className="text-xs">
-                      Netto: {refill.netChange > 0 ? '+' : ''}{refill.netChange}
+                      Netto: {refill.netChange > 0 ? '+' : ''}{refill.netChange || 0}
                     </Badge>
                   </div>
                 </div>
