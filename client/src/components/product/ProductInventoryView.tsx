@@ -97,7 +97,7 @@ export default function ProductInventoryView({ productId, productName }: Product
     }
   };
 
-  if ((isLoadingWarehouse && !warehouseData) || (isLoadingMachine && !machineData)) {
+  if ((isLoadingWarehouse && !warehouseInventory) || (isLoadingMachine && !machineInventory)) {
     return (
       <div className="space-y-6">
         <Card>
