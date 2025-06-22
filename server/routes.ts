@@ -198,6 +198,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // HTTP-Server für Express erstellen
   const httpServer = createServer(app);
   
+  // Register product inventory routes FIRST to avoid conflicts
+  app.use(productInventoryRouter);
+  
   // Middleware für Content-Type-Header für alle API-Antworten
   app.use(`${API_PREFIX}`, (req, res, next) => {
     res.setHeader('Content-Type', 'application/json');
@@ -3978,8 +3981,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use(`${API_PREFIX}/inventory-counts`, inventoryCountBatchesRouter);
   app.use(`${API_PREFIX}/warehouse-movements`, warehouseMovementsRouter);
   app.use(`${API_PREFIX}/warehouses`, warehousesRouter); // Neue Route für /api/warehouses
-  // Product inventory APIs - must be before general product routes to avoid conflicts
-  app.use(productInventoryRouter);
   
   // Registriere Inventar-API Router für Warehouse-Statistiken
   const inventoryApiRouter = await import('./routes/inventory-api');
