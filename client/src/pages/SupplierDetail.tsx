@@ -839,38 +839,31 @@ export default function SupplierDetail() {
           <TabsList className="inline-flex w-auto min-w-full h-auto p-1">
             <TabsTrigger value="dashboard" className="flex items-center gap-1 px-2 py-2 text-xs sm:text-sm whitespace-nowrap">
               <BarChart className="h-3 w-3 sm:h-4 sm:w-4" />
-              <span className="hidden xs:inline sm:hidden">Dash</span>
-              <span className="hidden sm:inline">Dashboard</span>
+              <span>Dashboard</span>
             </TabsTrigger>
             <TabsTrigger value="info" className="flex items-center gap-1 px-2 py-2 text-xs sm:text-sm whitespace-nowrap">
               <Building className="h-3 w-3 sm:h-4 sm:w-4" />
-              <span className="hidden xs:inline sm:hidden">Info</span>
-              <span className="hidden sm:inline">Informationen</span>
+              <span>Info</span>
             </TabsTrigger>
             <TabsTrigger value="products" className="flex items-center gap-1 px-2 py-2 text-xs sm:text-sm whitespace-nowrap">
               <Package className="h-3 w-3 sm:h-4 sm:w-4" />
-              <span className="hidden xs:inline sm:hidden">Prod</span>
-              <span className="hidden sm:inline">Produkte</span>
+              <span>Produkte</span>
             </TabsTrigger>
             <TabsTrigger value="purchaseConditions" className="flex items-center gap-1 px-2 py-2 text-xs sm:text-sm whitespace-nowrap">
               <FileText className="h-3 w-3 sm:h-4 sm:w-4" />
-              <span className="hidden xs:inline sm:hidden">Eink</span>
-              <span className="hidden sm:inline">Einkaufsbedingungen</span>
+              <span>Einkauf</span>
             </TabsTrigger>
             <TabsTrigger value="orders" className="flex items-center gap-1 px-2 py-2 text-xs sm:text-sm whitespace-nowrap">
               <Truck className="h-3 w-3 sm:h-4 sm:w-4" />
-              <span className="hidden xs:inline sm:hidden">Best</span>
-              <span className="hidden sm:inline">Bestellungen</span>
+              <span>Bestellungen</span>
             </TabsTrigger>
             <TabsTrigger value="stats" className="flex items-center gap-1 px-2 py-2 text-xs sm:text-sm whitespace-nowrap">
               <BarChart className="h-3 w-3 sm:h-4 sm:w-4" />
-              <span className="hidden xs:inline sm:hidden">Stats</span>
-              <span className="hidden sm:inline">Statistiken</span>
+              <span>Statistiken</span>
             </TabsTrigger>
             <TabsTrigger value="emailTemplates" className="flex items-center gap-1 px-2 py-2 text-xs sm:text-sm whitespace-nowrap">
               <Mail className="h-3 w-3 sm:h-4 sm:w-4" />
-              <span className="hidden xs:inline sm:hidden">Mail</span>
-              <span className="hidden sm:inline">E-Mail-Vorlagen</span>
+              <span>E-Mail</span>
             </TabsTrigger>
           </TabsList>
         </div>

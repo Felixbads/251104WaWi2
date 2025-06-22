@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, Edit, Package, Info, Image } from 'lucide-react';
+import { ArrowLeft, Edit, Package, Info, Image, BarChart, ShoppingCart } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Product } from '@shared/schema';
 import { ProductEditDialog } from '@/components/ProductEditDialog';
@@ -113,19 +113,31 @@ export default function ProductDetail() {
           <TabsList className="inline-flex w-auto min-w-full h-auto p-1">
             <TabsTrigger value="overview" className="flex items-center gap-1 px-3 py-2 text-xs sm:text-sm whitespace-nowrap">
               <Info className="h-3 w-3 sm:h-4 sm:w-4" />
-              <span className="hidden xs:inline">Übersicht</span>
+              <span>Übersicht</span>
             </TabsTrigger>
             <TabsTrigger value="details" className="flex items-center gap-1 px-3 py-2 text-xs sm:text-sm whitespace-nowrap">
               <Package className="h-3 w-3 sm:h-4 sm:w-4" />
-              <span className="hidden xs:inline">Details</span>
+              <span>Details</span>
             </TabsTrigger>
             <TabsTrigger value="nutrition" className="flex items-center gap-1 px-3 py-2 text-xs sm:text-sm whitespace-nowrap">
               <span className="text-xs sm:text-sm">🥗</span>
-              <span className="hidden xs:inline">Nährwerte</span>
+              <span>Nährwerte</span>
             </TabsTrigger>
             <TabsTrigger value="photos" className="flex items-center gap-1 px-3 py-2 text-xs sm:text-sm whitespace-nowrap">
               <Image className="h-3 w-3 sm:h-4 sm:w-4" />
-              <span className="hidden xs:inline">Fotos</span>
+              <span>Fotos</span>
+            </TabsTrigger>
+            <TabsTrigger value="analytics" className="flex items-center gap-1 px-3 py-2 text-xs sm:text-sm whitespace-nowrap">
+              <BarChart className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span>Auswertung</span>
+            </TabsTrigger>
+            <TabsTrigger value="inventory" className="flex items-center gap-1 px-3 py-2 text-xs sm:text-sm whitespace-nowrap">
+              <Package className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span>Lagerbestand</span>
+            </TabsTrigger>
+            <TabsTrigger value="sales" className="flex items-center gap-1 px-3 py-2 text-xs sm:text-sm whitespace-nowrap">
+              <ShoppingCart className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span>Verkäufe</span>
             </TabsTrigger>
           </TabsList>
         </div>
@@ -315,6 +327,73 @@ export default function ProductDetail() {
               ) : (
                 <p className="text-gray-500">Keine Fotos verfügbar</p>
               )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Analytics Tab */}
+        <TabsContent value="analytics" className="space-y-6 mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center">
+                <BarChart className="h-5 w-5 mr-2" />
+                Produktauswertung
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="p-4 border rounded-lg">
+                  <h4 className="font-medium text-sm text-gray-600 mb-1">Verkäufe (7 Tage)</h4>
+                  <p className="text-2xl font-bold">-</p>
+                  <p className="text-xs text-gray-500">Implementierung folgt</p>
+                </div>
+                <div className="p-4 border rounded-lg">
+                  <h4 className="font-medium text-sm text-gray-600 mb-1">Umsatz (7 Tage)</h4>
+                  <p className="text-2xl font-bold">-</p>
+                  <p className="text-xs text-gray-500">Implementierung folgt</p>
+                </div>
+                <div className="p-4 border rounded-lg">
+                  <h4 className="font-medium text-sm text-gray-600 mb-1">Beliebtheit</h4>
+                  <p className="text-2xl font-bold">-</p>
+                  <p className="text-xs text-gray-500">Implementierung folgt</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Inventory Tab */}
+        <TabsContent value="inventory" className="space-y-6 mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center">
+                <Package className="h-5 w-5 mr-2" />
+                Lagerbestand
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-center py-8">
+                <Package className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <p className="text-gray-500">Lagerbestand-Übersicht wird implementiert</p>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Sales Tab */}
+        <TabsContent value="sales" className="space-y-6 mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center">
+                <ShoppingCart className="h-5 w-5 mr-2" />
+                Verkaufsdaten
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-center py-8">
+                <ShoppingCart className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <p className="text-gray-500">Verkaufsdaten-Analyse wird implementiert</p>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
