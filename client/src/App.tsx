@@ -578,17 +578,11 @@ function AuthenticatedRouter() {
 import PublicRoute from "@/pages/PublicRoute";
 
 function PublicRouter() {
-  // Beim Rendern überprüfen wir die aktuelle URL 
-  const [location] = useLocation();
-
   return (
     <Switch>
-      {/* Login-Seite zeigt stattdessen direkt das Dashboard mit Login-Formular */}
-      <Route path="/login">
-        {() => <Dashboard />}
-      </Route>
-      <Route path="/register" component={() => <PublicRoute component={Register} />} />
-      <Route path="/">
+      <Route path="/login" component={Login} />
+      <Route path="/register" component={Register} />
+      <Route path="*">
         <Redirect to="/login" />
       </Route>
     </Switch>
