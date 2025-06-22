@@ -107,7 +107,7 @@ router.get('/', async (req: Request, res: Response) => {
       .orderBy(desc(refills.datetime))
       .limit(1);
 
-      // Letztes Door Open Event
+      // Letztes Door Open Event (A = Access/Door events in Vendon)
       const lastDoorOpen = await db.select({
         datetime: events.datetime,
         eventType: events.eventType
@@ -116,7 +116,7 @@ router.get('/', async (req: Request, res: Response) => {
       .where(
         and(
           eq(events.machineId, machine.id),
-          sql`${events.eventType} ILIKE '%door%' OR ${events.eventType} ILIKE '%open%'`
+          eq(events.eventType, 'A') // A = Access/Door events in Vendon system
         )
       )
       .orderBy(desc(events.datetime))
