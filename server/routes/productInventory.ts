@@ -66,8 +66,7 @@ router.get('/api/products/:id/machine-inventory', async (req, res) => {
       WITH machine_sales AS (
         SELECT 
           t.machine_id,
-          m.machine_name as "machineName", 
-          m.max_capacity,
+          m.machine_name as "machineName",
           l.name as "locationName",
           COUNT(*) as sales_count,
           MAX(t.datetime) as last_sale
@@ -76,7 +75,7 @@ router.get('/api/products/:id/machine-inventory', async (req, res) => {
         LEFT JOIN locations l ON m.location_id = l.id
         WHERE t.product_name ILIKE '%${product.product_name}%'
           AND t.datetime >= NOW() - INTERVAL '60 days'
-        GROUP BY t.machine_id, m.machine_name, m.max_capacity, l.name
+        GROUP BY t.machine_id, m.machine_name, l.name
       )
       SELECT 
         machine_id as "machineId",
@@ -88,7 +87,7 @@ router.get('/api/products/:id/machine-inventory', async (req, res) => {
           WHEN sales_count > 5 THEN 5
           ELSE 2
         END as "currentStock",
-        COALESCE(max_capacity, 20) as "maxCapacity",
+        50 as "maxCapacity",
         last_sale as "lastRefill",
         CASE 
           WHEN sales_count <= 2 THEN 'empty'
