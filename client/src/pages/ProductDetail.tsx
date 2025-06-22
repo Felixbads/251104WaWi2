@@ -12,6 +12,7 @@ import { ProductEditDialog } from '@/components/ProductEditDialog';
 import { apiRequest } from '@/lib/queryClient';
 import ProductInventoryView from '@/components/product/ProductInventoryView';
 import ProductSalesView from '@/components/product/ProductSalesView';
+import ProductAnalyticsView from '@/components/product/ProductAnalyticsView';
 
 export default function ProductDetail() {
   const { id } = useParams<{ id: string }>();
