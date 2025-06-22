@@ -206,15 +206,41 @@ router.get('/:id/sales', async (req, res) => {
     
     console.log(`[PRODUCT_SALES] Machine data count: ${machines.length}`);
     
+    // Get sales trend data for the chart
+    const trendQuery = `
+      SELECT 
+        DATE(datetime) as date,
+        COUNT(*) as sales,
+        SUM(COALESCE(price, 0)) as revenue
+      FROM transactions 
+      WHERE product_name ILIKE '%${productName}%'
+        AND datetime >= NOW() - INTERVAL '${days} days'
+      GROUP BY DATE(datetime)
+      ORDER BY date
+    `;
+    
+    console.log(`[PRODUCT_SALES] Trend query:`, trendQuery);
+    const trendResult = await db.execute(trendQuery);
+    const trendData = Array.isArray(trendResult) ? trendResult : (trendResult.rows || []);
+    
+    console.log(`[PRODUCT_SALES] Trend data count: ${trendData.length}`);
+
     const response = { 
       success: true, 
-      summary: {
-        totalSales: parseInt(summary?.total_sales || 0),
-        totalRevenue: parseFloat(summary?.total_revenue || 0),
-        avgPrice: parseFloat(summary?.avg_price || 0),
-        activeMachines: parseInt(summary?.active_machines || 0)
-      },
-      machines 
+      data: {
+        summary: {
+          totalSales: parseInt(summary?.total_sales || 0),
+          totalRevenue: parseFloat(summary?.total_revenue || 0),
+          avgPrice: parseFloat(summary?.avg_price || 0),
+          activeMachines: parseInt(summary?.active_machines || 0)
+        },
+        salesTrend: trendData.map(row => ({
+          date: row.date,
+          sales: parseInt(row.sales || 0),
+          revenue: parseFloat(row.revenue || 0)
+        })),
+        machines 
+      }
     };
     
     console.log(`[PRODUCT_SALES] Sending response:`, JSON.stringify(response, null, 2));

@@ -155,7 +155,7 @@ export default function ProductSalesView({ productId, productName }: ProductSale
               <div>
                 <p className="text-sm text-muted-foreground">Gesamtverkäufe</p>
                 <p className="text-2xl font-bold">
-                  {salesData?.summary?.totalSales || 0}
+                  {salesSummary?.totalSales || 0}
                 </p>
               </div>
               <ShoppingCart className="h-8 w-8 text-blue-500" />
@@ -169,7 +169,7 @@ export default function ProductSalesView({ productId, productName }: ProductSale
               <div>
                 <p className="text-sm text-muted-foreground">Gesamtumsatz</p>
                 <p className="text-2xl font-bold">
-                  {formatCurrency(salesData?.summary?.totalRevenue || 0)}
+                  {formatCurrency(salesSummary?.totalRevenue || 0)}
                 </p>
               </div>
               <Euro className="h-8 w-8 text-green-500" />
@@ -183,7 +183,7 @@ export default function ProductSalesView({ productId, productName }: ProductSale
               <div>
                 <p className="text-sm text-muted-foreground">Ø Preis</p>
                 <p className="text-2xl font-bold">
-                  {formatCurrency(salesData?.summary?.avgPrice || 0)}
+                  {formatCurrency(salesSummary?.avgPrice || 0)}
                 </p>
               </div>
               <TrendingUp className="h-8 w-8 text-purple-500" />
@@ -197,7 +197,7 @@ export default function ProductSalesView({ productId, productName }: ProductSale
               <div>
                 <p className="text-sm text-muted-foreground">Aktive Automaten</p>
                 <p className="text-2xl font-bold">
-                  {salesData?.summary?.activeMachines || 0}
+                  {salesSummary?.activeMachines || 0}
                 </p>
               </div>
               <MapPin className="h-8 w-8 text-orange-500" />
@@ -215,9 +215,9 @@ export default function ProductSalesView({ productId, productName }: ProductSale
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {(salesData?.machines || []).length > 0 ? (
+          {machines.length > 0 ? (
             <div className="space-y-4">
-              {(salesData?.machines || []).map((machine: SalesData) => (
+              {machines.map((machine: any) => (
                 <div key={machine.machineId} className="border rounded-lg p-4">
                   <div className="flex items-center justify-between mb-3">
                     <div>
@@ -230,29 +230,29 @@ export default function ProductSalesView({ productId, productName }: ProductSale
                       )}
                     </div>
                     <div className="flex items-center gap-2">
-                      {getTrendIcon(machine.salesTrend)}
                       <Badge variant="outline">
                         {machine.totalSales} Verkäufe
+                      </Badge>
+                      <Badge variant="secondary">
+                        {formatCurrency(machine.totalRevenue)}
                       </Badge>
                     </div>
                   </div>
                   
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
                     <div>
-                      <span className="text-muted-foreground">Heute:</span>
-                      <div className="font-medium">{machine.periodSales?.today || 0}</div>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">7 Tage:</span>
-                      <div className="font-medium">{machine.periodSales?.last7Days || 0}</div>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">Umsatz:</span>
-                      <div className="font-medium">{formatCurrency(machine.totalRevenue)}</div>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">Ø Preis:</span>
+                      <span className="text-muted-foreground">Durchschnittspreis:</span>
                       <div className="font-medium">{formatCurrency(machine.avgPrice)}</div>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Letzter Verkauf:</span>
+                      <div className="font-medium">
+                        {machine.lastSale ? new Date(machine.lastSale).toLocaleDateString('de-DE') : 'Nie'}
+                      </div>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Gesamtumsatz:</span>
+                      <div className="font-medium">{formatCurrency(machine.totalRevenue)}</div>
                     </div>
                   </div>
                   

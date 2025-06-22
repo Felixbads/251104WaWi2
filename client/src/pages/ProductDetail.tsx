@@ -330,36 +330,7 @@ export default function ProductDetail() {
           </Card>
         </TabsContent>
 
-        {/* Analytics Tab */}
-        <TabsContent value="analytics" className="space-y-6 mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center">
-                <BarChart className="h-5 w-5 mr-2" />
-                Produktauswertung
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                <div className="p-4 border rounded-lg">
-                  <h4 className="font-medium text-sm text-gray-600 mb-1">Verkäufe (7 Tage)</h4>
-                  <p className="text-2xl font-bold">Loading...</p>
-                  <p className="text-xs text-gray-500">Wird geladen</p>
-                </div>
-                <div className="p-4 border rounded-lg">
-                  <h4 className="font-medium text-sm text-gray-600 mb-1">Umsatz (7 Tage)</h4>
-                  <p className="text-2xl font-bold">Loading...</p>
-                  <p className="text-xs text-gray-500">Wird geladen</p>
-                </div>
-                <div className="p-4 border rounded-lg">
-                  <h4 className="font-medium text-sm text-gray-600 mb-1">Beliebtheit</h4>
-                  <p className="text-2xl font-bold">Loading...</p>
-                  <p className="text-xs text-gray-500">Wird geladen</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
+
 
         {/* Inventory Tab */}
         <TabsContent value="inventory" className="space-y-6 mt-6">
