@@ -140,26 +140,13 @@ function dispatch(action: Action) {
 type Toast = Omit<ToasterToast, "id">
 
 function toast({ ...props }: Toast) {
+  // GLOBAL TOAST DEACTIVATION - Toasts sind global deaktiviert
+  // Diese Funktion tut nichts mehr, um störende Pop-ups zu vermeiden
   const id = genId()
-
-  const update = (props: ToasterToast) =>
-    dispatch({
-      type: "UPDATE_TOAST",
-      toast: { ...props, id },
-    })
-  const dismiss = () => dispatch({ type: "DISMISS_TOAST", toastId: id })
-
-  dispatch({
-    type: "ADD_TOAST",
-    toast: {
-      ...props,
-      id,
-      open: true,
-      onOpenChange: (open) => {
-        if (!open) dismiss()
-      },
-    },
-  })
+  
+  // Dummy-Funktionen zurückgeben, damit der bestehende Code nicht bricht
+  const update = () => {}
+  const dismiss = () => {}
 
   return {
     id: id,
@@ -169,22 +156,12 @@ function toast({ ...props }: Toast) {
 }
 
 function useToast() {
-  const [state, setState] = React.useState<State>(memoryState)
-
-  React.useEffect(() => {
-    listeners.push(setState)
-    return () => {
-      const index = listeners.indexOf(setState)
-      if (index > -1) {
-        listeners.splice(index, 1)
-      }
-    }
-  }, [state])
-
+  // GLOBAL TOAST DEACTIVATION - useToast Hook ist global deaktiviert
+  // Gibt leere Arrays und Dummy-Funktionen zurück
   return {
-    ...state,
+    toasts: [], // Keine Toasts mehr
     toast,
-    dismiss: (toastId?: string) => dispatch({ type: "DISMISS_TOAST", toastId }),
+    dismiss: () => {}, // Dummy-Funktion
   }
 }
 
