@@ -125,7 +125,7 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
       price: item.price || item.unit_price || item.unitPrice || 0,
       unitPrice: item.price || item.unit_price || item.unitPrice || 0,
       unit: item.unit || 'Stk.',
-      damaged: false,
+      // Remove damaged field entirely
       comment: '',
       expiryDate: '' // Leeres Feld für MHD hinzufügen
     }))
@@ -139,7 +139,7 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
   const totalReceived = receivedItems.reduce((sum, item) => sum + (item.receivedQuantity || 0), 0);
   const isComplete = totalReceived === totalOrdered;
   const hasDiscrepancies = receivedItems.some(item => 
-    item.receivedQuantity !== item.orderedQuantity || item.damaged
+    item.receivedQuantity !== item.orderedQuantity
   );
   
   // Handle input change
@@ -151,14 +151,7 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
     );
   };
   
-  // Handle damaged state change
-  const handleDamagedChange = (id: number, damaged: boolean) => {
-    setReceivedItems(items =>
-      items.map(item =>
-        item.id === id ? { ...item, damaged } : item
-      )
-    );
-  };
+  // Removed damaged functionality as requested
   
   // Handle comment change
   const handleCommentChange = (id: number, comment: string) => {
