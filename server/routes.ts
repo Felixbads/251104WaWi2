@@ -4016,6 +4016,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use(`${API_PREFIX}/inventory-counts`, inventoryCountBatchesRouter);
   app.use(`${API_PREFIX}/warehouse-movements`, warehouseMovementsRouter);
   app.use(`${API_PREFIX}/warehouses`, warehousesRouter); // Neue Route für /api/warehouses
+  app.use(productInventoryRouter); // Product inventory APIs
   
   // Registriere Inventar-API Router für Warehouse-Statistiken
   const inventoryApiRouter = await import('./routes/inventory-api');

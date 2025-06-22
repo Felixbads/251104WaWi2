@@ -748,85 +748,51 @@ export default function Products() {
     const tags = product.tags ? JSON.parse(product.tags) : [];
     const isAlcohol = tags.includes('alcohol') || product.requiresAgeVerification;
     
-    // Bestandsstatus berechnen
-    let stockStatus = "Unbekannt";
-    let stockStatusClass = "text-gray-500";
-    
-    if (typeof product.inStock === 'number') {
-      if (product.inStock <= 0) {
-        stockStatus = "Nicht auf Lager";
-        stockStatusClass = "text-red-500";
-      } else if (product.amountCritical && product.inStock <= product.amountCritical) {
-        stockStatus = "Kritisch";
-        stockStatusClass = "text-amber-500";
-      } else {
-        stockStatus = "Auf Lager";
-        stockStatusClass = "text-green-500";
-      }
-    }
-    
     return (
       <div 
-        className="flex items-center p-4 hover:bg-gray-50 cursor-pointer"
+        className="flex items-center p-4 hover:bg-gray-50 cursor-pointer border-b"
         onClick={() => setLocation(`/produkte/${product.id}`)}
       >
         <div className="flex-1 min-w-0">
-          <div className="flex items-center">
-            <h3 className="text-base font-medium truncate mr-2">{product.productName}</h3>
-            {isAlcohol && (
-              <Badge variant="outline" className="bg-amber-100 text-amber-800 border-amber-300">
-                18+
-              </Badge>
-            )}
-          </div>
-          <div className="flex flex-wrap gap-4 mt-1 text-sm">
-            {product.sku && (
-              <span className="text-gray-500 flex items-center">
-                <Tag className="h-3 w-3 mr-1" />
-                {product.sku}
-              </span>
-            )}
-            {product.category && (
-              <span className="text-gray-500">
-                Kategorie: {product.category}
-              </span>
-            )}
-            {product.supplier && (
-              <span className="text-gray-500">
-                Lieferant: {product.supplier}
-              </span>
-            )}
-          </div>
-        </div>
-        
-        <div className="flex items-center gap-6 ml-4">
-          <div className="text-right">
-            <p className="text-xs text-gray-500">Preis</p>
-            <p className="font-medium">{product.price?.toFixed(2) || '–'} €</p>
-          </div>
-          <div className="text-right min-w-[80px]">
-            <p className="text-xs text-gray-500">Bestand</p>
-            <div className="flex items-center justify-end">
-              <div className={`w-4 h-4 rounded-full ${stockStatusClass.replace('text-', 'bg-')}`} />
+          <div className="flex items-start justify-between">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-1">
+                <h3 className="text-base font-medium text-gray-900 leading-tight">{product.productName}</h3>
+                {isAlcohol && (
+                  <Badge variant="outline" className="bg-amber-100 text-amber-800 border-amber-300 text-xs">
+                    18+
+                  </Badge>
+                )}
+              </div>
+              
+              <div className="space-y-1">
+                {product.category && (
+                  <p className="text-sm text-gray-600">
+                    Kategorie: {product.category}
+                  </p>
+                )}
+                
+                <div className="flex flex-wrap gap-4 text-sm text-gray-500">
+                  {product.sku && (
+                    <span className="flex items-center">
+                      <Tag className="h-3 w-3 mr-1" />
+                      {product.sku}
+                    </span>
+                  )}
+                  {product.supplier && (
+                    <span>Lieferant: {product.supplier}</span>
+                  )}
+                </div>
+              </div>
+            </div>
+            
+            <div className="text-right ml-4">
+              <p className="text-lg font-semibold text-gray-900">
+                {product.price?.toFixed(2) || '–'} €
+              </p>
+              <p className="text-xs text-gray-500">Preis</p>
             </div>
           </div>
-          {product.salesCount !== undefined && (
-            <div className="text-right min-w-[80px]">
-              <p className="text-xs text-gray-500">Verkäufe</p>
-              <p className="font-medium">{product.salesCount}</p>
-            </div>
-          )}
-          <Button 
-            variant="outline" 
-            size="sm"
-            onClick={(e) => {
-              e.stopPropagation(); // Verhindert, dass der Click-Handler des Elternelements ausgelöst wird
-              setLocation(`/produkte/${product.id}`);
-            }}
-          >
-            <ExternalLink className="h-4 w-4 mr-2" />
-            Details
-          </Button>
         </div>
       </div>
     );
