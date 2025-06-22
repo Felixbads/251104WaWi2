@@ -869,7 +869,7 @@ export default function Products() {
             type="search"
             value={searchTerm}
             placeholder="Nach Produkten suchen..."
-            className="pl-8 h-9 w-full"
+            className="pl-8 h-9 w-full min-w-[320px]"
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
