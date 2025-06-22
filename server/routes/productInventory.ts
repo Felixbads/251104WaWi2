@@ -130,26 +130,27 @@ router.get('/api/products/:id/sales', async (req, res) => {
     // Get product name - check multiple sources
     let productName = null;
     
-    // First try from products table
-    const productQuery = `SELECT product_name FROM products WHERE id = $1`;
+    // Use the productId directly to find transaction data
+    const productQuery = `
+      SELECT DISTINCT product_name 
+      FROM transactions 
+      WHERE id = $1 OR product_id = $1
+      ORDER BY datetime DESC
+      LIMIT 1
+    `;
     const productResult = await db.execute(productQuery, [productId]);
     const product = Array.isArray(productResult) ? productResult[0] : (productResult.rows?.[0]);
     
     if (product?.product_name) {
       productName = product.product_name;
     } else {
-      // If not found in products, try to find from transactions
-      const transactionQuery = `
-        SELECT DISTINCT product_name 
-        FROM transactions 
-        WHERE product_id = $1 OR id = $1
-        LIMIT 1
-      `;
-      const transactionResult = await db.execute(transactionQuery, [productId]);
-      const transactionProduct = Array.isArray(transactionResult) ? transactionResult[0] : (transactionResult.rows?.[0]);
+      // Fallback: try products table
+      const fallbackQuery = `SELECT product_name FROM products WHERE id = $1`;
+      const fallbackResult = await db.execute(fallbackQuery, [productId]);
+      const fallbackProduct = Array.isArray(fallbackResult) ? fallbackResult[0] : (fallbackResult.rows?.[0]);
       
-      if (transactionProduct?.product_name) {
-        productName = transactionProduct.product_name;
+      if (fallbackProduct?.product_name) {
+        productName = fallbackProduct.product_name;
       }
     }
     
@@ -160,7 +161,7 @@ router.get('/api/products/:id/sales', async (req, res) => {
     
     console.log(`[PRODUCT_SALES] Found product: ${productName}`);
     
-    // Get sales summary with better error handling
+    // Get sales summary with corrected SQL syntax
     const summaryQuery = `
       SELECT 
         COUNT(*)::integer as total_sales,
@@ -168,11 +169,11 @@ router.get('/api/products/:id/sales', async (req, res) => {
         COALESCE(AVG(price), 0)::numeric as avg_price,
         COUNT(DISTINCT machine_id)::integer as active_machines
       FROM transactions 
-      WHERE product_name ILIKE $1
+      WHERE product_name ILIKE '%' || $1 || '%'
         AND datetime >= NOW() - INTERVAL '${days} days'
     `;
     
-    const summaryResult = await db.execute(summaryQuery, [`%${productName}%`]);
+    const summaryResult = await db.execute(summaryQuery, [productName]);
     const summary = Array.isArray(summaryResult) ? summaryResult[0] : (summaryResult.rows?.[0]);
     
     console.log(`[PRODUCT_SALES] Summary data:`, summary);
@@ -197,14 +198,14 @@ router.get('/api/products/:id/sales', async (req, res) => {
       FROM transactions t
       JOIN machines m ON t.machine_id = m.id
       LEFT JOIN locations l ON m.location_id = l.id
-      WHERE t.product_name ILIKE $1
+      WHERE t.product_name ILIKE '%' || $1 || '%'
         AND t.datetime >= NOW() - INTERVAL '${days} days'
       GROUP BY t.machine_id, m.machine_name, l.name
       ORDER BY COUNT(*) DESC
       LIMIT 20
     `;
     
-    const machinesResult = await db.execute(machinesQuery, [`%${productName}%`]);
+    const machinesResult = await db.execute(machinesQuery, [productName]);
     const machines = Array.isArray(machinesResult) ? machinesResult : (machinesResult.rows || []);
     
     console.log(`[PRODUCT_SALES] Machine data count: ${machines.length}`);
