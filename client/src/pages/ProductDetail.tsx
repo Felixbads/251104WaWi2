@@ -109,12 +109,26 @@ export default function ProductDetail() {
       </div>
 
       <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="overview">Übersicht</TabsTrigger>
-          <TabsTrigger value="details">Details</TabsTrigger>
-          <TabsTrigger value="nutrition">Nährwerte</TabsTrigger>
-          <TabsTrigger value="photos">Fotos</TabsTrigger>
-        </TabsList>
+        <div className="w-full overflow-x-auto pb-2">
+          <TabsList className="inline-flex w-auto min-w-full h-auto p-1">
+            <TabsTrigger value="overview" className="flex items-center gap-1 px-3 py-2 text-xs sm:text-sm whitespace-nowrap">
+              <Info className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span className="hidden xs:inline">Übersicht</span>
+            </TabsTrigger>
+            <TabsTrigger value="details" className="flex items-center gap-1 px-3 py-2 text-xs sm:text-sm whitespace-nowrap">
+              <Package className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span className="hidden xs:inline">Details</span>
+            </TabsTrigger>
+            <TabsTrigger value="nutrition" className="flex items-center gap-1 px-3 py-2 text-xs sm:text-sm whitespace-nowrap">
+              <span className="text-xs sm:text-sm">🥗</span>
+              <span className="hidden xs:inline">Nährwerte</span>
+            </TabsTrigger>
+            <TabsTrigger value="photos" className="flex items-center gap-1 px-3 py-2 text-xs sm:text-sm whitespace-nowrap">
+              <Image className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span className="hidden xs:inline">Fotos</span>
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value="overview" className="space-y-6 mt-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
