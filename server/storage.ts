@@ -2257,8 +2257,8 @@ export class DatabaseStorage implements IStorage {
         );
       }
 
-      // Zeitbereich für die Abfrage festlegen: standardmäßig letzte 30 Tage
-      const effectiveStartDate = startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000); // 30 Tage zurück wenn nicht angegeben
+      // Zeitbereich für die Abfrage festlegen: wenn keine Daten angegeben, alle Daten zurückgeben
+      const effectiveStartDate = startDate || new Date('2020-01-01'); // Sehr weites Startdatum für alle Daten
       const effectiveEndDate = endDate || new Date();
       
       console.log(`Abfrage für Zeitraum: ${effectiveStartDate.toISOString()} bis ${effectiveEndDate.toISOString()}`);

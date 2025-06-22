@@ -139,11 +139,11 @@ export default function Dashboard() {
     refetchInterval: 60000 // Jede Minute aktualisieren
   });
 
-  // Refill-Daten für die letzten 7 Tage
+  // Refill-Daten für die letzten 30 Tage
   const { data: refillData, isLoading: isLoadingRefills } = useQuery({
     queryKey: ['/api/refills'],
     queryFn: () => getRefills({ 
-      startDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
       endDate: new Date().toISOString().split('T')[0],
       limit: 100
     }),
