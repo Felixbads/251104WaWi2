@@ -343,4 +343,205 @@ router.get('/:id/analytics', async (req, res) => {
   }
 });
 
+// Get analytics data for a product
+router.get('/:id/analytics', async (req, res) => {
+  try {
+    const productId = parseInt(req.params.id);
+    const timeRange = req.query.timeRange as string || '30d';
+    
+    console.log(`[PRODUCT_ANALYTICS] Fetching analytics for product ${productId}, timeRange: ${timeRange}`);
+    
+    // Parse time range
+    let days = 30;
+    if (timeRange === '7d') days = 7;
+    else if (timeRange === '30d') days = 30;
+    else if (timeRange === '90d') days = 90;
+    
+    // First, get the product name
+    const productQuery = `
+      SELECT product_name, sku, barcode 
+      FROM products 
+      WHERE id = $1
+    `;
+    const productResult = await db.execute(productQuery, [productId]);
+    const product = Array.isArray(productResult) ? productResult[0] : (productResult.rows?.[0]);
+    
+    if (!product) {
+      console.log(`[PRODUCT_ANALYTICS] Product ${productId} not found`);
+      return res.status(404).json({ success: false, error: 'Product not found' });
+    }
+    
+    const productName = product.product_name;
+    console.log(`[PRODUCT_ANALYTICS] Found product: ${productName}`);
+    
+    // Get summary statistics
+    const summaryQuery = `
+      WITH period_stats AS (
+        SELECT 
+          COUNT(*) as total_sales,
+          SUM(price) as total_revenue,
+          COUNT(DISTINCT machine_id) as machines_count,
+          COUNT(DISTINCT DATE(datetime)) as active_days
+        FROM transactions 
+        WHERE product_name ILIKE $1
+          AND datetime >= NOW() - INTERVAL '${days} days'
+      ),
+      prev_period_stats AS (
+        SELECT 
+          COUNT(*) as prev_sales,
+          SUM(price) as prev_revenue
+        FROM transactions 
+        WHERE product_name ILIKE $1
+          AND datetime >= NOW() - INTERVAL '${days * 2} days'
+          AND datetime < NOW() - INTERVAL '${days} days'
+      ),
+      machine_stats AS (
+        SELECT 
+          m.machine_name,
+          COUNT(*) as sales_count,
+          RANK() OVER (ORDER BY COUNT(*) DESC) as sales_rank
+        FROM transactions t
+        JOIN machines m ON t.machine_id = m.id
+        WHERE t.product_name ILIKE $1
+          AND t.datetime >= NOW() - INTERVAL '${days} days'
+        GROUP BY m.machine_name
+      ),
+      hourly_stats AS (
+        SELECT 
+          EXTRACT(HOUR FROM datetime) as hour,
+          COUNT(*) as sales_count,
+          RANK() OVER (ORDER BY COUNT(*) DESC) as hour_rank
+        FROM transactions 
+        WHERE product_name ILIKE $1
+          AND datetime >= NOW() - INTERVAL '${days} days'
+        GROUP BY EXTRACT(HOUR FROM datetime)
+      )
+      SELECT 
+        ps.total_sales,
+        ps.total_revenue,
+        ps.machines_count,
+        ps.active_days,
+        CASE WHEN ps.active_days > 0 THEN ps.total_sales::float / ps.active_days ELSE 0 END as avg_daily_sales,
+        pps.prev_sales,
+        pps.prev_revenue,
+        CASE 
+          WHEN pps.prev_sales > 0 
+          THEN ((ps.total_sales - pps.prev_sales)::float / pps.prev_sales * 100)
+          ELSE 0 
+        END as sales_growth,
+        CASE 
+          WHEN pps.prev_revenue > 0 
+          THEN ((ps.total_revenue - pps.prev_revenue)::float / pps.prev_revenue * 100)
+          ELSE 0 
+        END as revenue_growth,
+        (SELECT machine_name FROM machine_stats WHERE sales_rank = 1 LIMIT 1) as top_machine,
+        (SELECT machine_name FROM machine_stats ORDER BY sales_count ASC LIMIT 1) as slowest_machine,
+        (SELECT hour FROM hourly_stats WHERE hour_rank = 1 LIMIT 1) as peak_hour
+      FROM period_stats ps
+      CROSS JOIN prev_period_stats pps
+    `;
+    
+    const summaryResult = await db.execute(summaryQuery, [`%${productName}%`, `%${productName}%`, `%${productName}%`, `%${productName}%`]);
+    const summary = Array.isArray(summaryResult) ? summaryResult[0] : (summaryResult.rows?.[0]);
+    
+    // Get daily sales trend
+    const trendQuery = `
+      SELECT 
+        DATE(datetime) as date,
+        COUNT(*) as sales,
+        SUM(price) as revenue
+      FROM transactions 
+      WHERE product_name ILIKE $1
+        AND datetime >= NOW() - INTERVAL '${days} days'
+      GROUP BY DATE(datetime)
+      ORDER BY date
+    `;
+    
+    const trendResult = await db.execute(trendQuery, [`%${productName}%`]);
+    const salesTrend = Array.isArray(trendResult) ? trendResult : (trendResult.rows || []);
+    
+    // Get hourly pattern
+    const hourlyQuery = `
+      SELECT 
+        EXTRACT(HOUR FROM datetime) as hour,
+        COUNT(*) as sales
+      FROM transactions 
+      WHERE product_name ILIKE $1
+        AND datetime >= NOW() - INTERVAL '${days} days'
+      GROUP BY EXTRACT(HOUR FROM datetime)
+      ORDER BY hour
+    `;
+    
+    const hourlyResult = await db.execute(hourlyQuery, [`%${productName}%`]);
+    const hourlyData = Array.isArray(hourlyResult) ? hourlyResult : (hourlyResult.rows || []);
+    
+    const hourlyPattern = hourlyData.map(row => ({
+      hour: parseInt(row.hour),
+      sales: parseInt(row.sales),
+      label: `${row.hour}:00`
+    }));
+    
+    // Get machine performance
+    const machineQuery = `
+      SELECT 
+        m.machine_name as "machineName",
+        COUNT(*) as sales,
+        SUM(t.price) as revenue,
+        ROUND(COUNT(*)::float / NULLIF(${days}, 0) * 100, 1) as efficiency
+      FROM transactions t
+      JOIN machines m ON t.machine_id = m.id
+      WHERE t.product_name ILIKE $1
+        AND t.datetime >= NOW() - INTERVAL '${days} days'
+      GROUP BY m.machine_name
+      ORDER BY sales DESC
+      LIMIT 10
+    `;
+    
+    const machineResult = await db.execute(machineQuery, [`%${productName}%`]);
+    const machinePerformance = Array.isArray(machineResult) ? machineResult : (machineResult.rows || []);
+    
+    const analyticsData = {
+      summary: {
+        totalSales: parseInt(summary?.total_sales || 0),
+        totalRevenue: parseFloat(summary?.total_revenue || 0),
+        avgDailySales: parseFloat(summary?.avg_daily_sales || 0),
+        salesGrowth: parseFloat(summary?.sales_growth || 0),
+        revenueGrowth: parseFloat(summary?.revenue_growth || 0),
+        topMachine: summary?.top_machine || 'N/A',
+        slowestMachine: summary?.slowest_machine || 'N/A',
+        peakHour: parseInt(summary?.peak_hour || 12),
+        popularityRank: 1 // Could be calculated against all products
+      },
+      salesTrend: salesTrend.map(row => ({
+        date: row.date,
+        sales: parseInt(row.sales),
+        revenue: parseFloat(row.revenue)
+      })),
+      hourlyPattern,
+      machinePerformance: machinePerformance.map(row => ({
+        machineName: row.machineName,
+        sales: parseInt(row.sales),
+        revenue: parseFloat(row.revenue),
+        efficiency: parseFloat(row.efficiency)
+      }))
+    };
+    
+    console.log(`[PRODUCT_ANALYTICS] Analytics data compiled for product ${productId}:`, {
+      totalSales: analyticsData.summary.totalSales,
+      totalRevenue: analyticsData.summary.totalRevenue,
+      trendsCount: analyticsData.salesTrend.length,
+      machinesCount: analyticsData.machinePerformance.length
+    });
+    
+    res.json({ success: true, data: analyticsData });
+  } catch (error) {
+    console.error('[PRODUCT_ANALYTICS] Error fetching analytics:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to fetch product analytics', 
+      details: error.message 
+    });
+  }
+});
+
 export default router;

@@ -3839,6 +3839,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use(`${API_PREFIX}/admin`, adminRouter);
   app.use(`${API_PREFIX}/location-status`, locationStatusRouter);
   app.use(`${API_PREFIX}/sync`, syncRouter);
+  app.use(`${API_PREFIX}/products`, productInventoryRouter);
   
   // Erste Version der Warehouse-Stats-API entfernt, um Duplikate zu vermeiden.
   // Die unten definierte Version (Zeile 2483) wird stattdessen verwendet.
