@@ -143,7 +143,8 @@ export default function ProductSalesView({ productId, productName }: ProductSale
               <div>
                 <p className="text-sm text-muted-foreground">Gesamtverkäufe</p>
                 <p className="text-2xl font-bold">
-                  {salesData?.summary?.totalSales || salesData?.totalSales || 0}
+                  {salesData?.summary?.totalSales || salesData?.totalSales || 
+                   (Array.isArray(salesData) ? salesData.reduce((sum, item) => sum + (item.count || 0), 0) : 0)}
                 </p>
               </div>
               <ShoppingCart className="h-8 w-8 text-blue-500" />
@@ -157,7 +158,8 @@ export default function ProductSalesView({ productId, productName }: ProductSale
               <div>
                 <p className="text-sm text-muted-foreground">Gesamtumsatz</p>
                 <p className="text-2xl font-bold">
-                  {formatCurrency(salesData?.summary?.totalRevenue || salesData?.totalRevenue || 0)}
+                  {formatCurrency(salesData?.summary?.totalRevenue || salesData?.totalRevenue || 
+                   (Array.isArray(salesData) ? salesData.reduce((sum, item) => sum + (item.revenue || 0), 0) : 0))}
                 </p>
               </div>
               <Euro className="h-8 w-8 text-green-500" />
@@ -171,7 +173,10 @@ export default function ProductSalesView({ productId, productName }: ProductSale
               <div>
                 <p className="text-sm text-muted-foreground">Ø Preis</p>
                 <p className="text-2xl font-bold">
-                  {formatCurrency(salesData?.summary?.avgPrice || salesData?.avgPrice || 0)}
+                  {formatCurrency(salesData?.summary?.avgPrice || salesData?.avgPrice || 
+                   (Array.isArray(salesData) && salesData.length > 0 ? 
+                    salesData.reduce((sum, item) => sum + (item.revenue || 0), 0) / 
+                    salesData.reduce((sum, item) => sum + (item.count || 0), 0) || 0 : 0))}
                 </p>
               </div>
               <TrendingUp className="h-8 w-8 text-purple-500" />
@@ -203,7 +208,31 @@ export default function ProductSalesView({ productId, productName }: ProductSale
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {(salesData?.machines || salesData?.data) && (salesData.machines || salesData.data).length > 0 ? (
+          {Array.isArray(salesData) ? (
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Tägliche Verkäufe (letzten {timeRange === '1d' ? '24 Stunden' : timeRange === '7d' ? '7 Tage' : timeRange === '30d' ? '30 Tage' : '90 Tage'})
+              </p>
+              {salesData.map((sale, index) => (
+                <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
+                  <div>
+                    <div className="font-medium">
+                      {new Date(sale.date).toLocaleDateString('de-DE')}
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      {sale.count} Verkäufe
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="font-semibold">{formatCurrency(sale.revenue)}</div>
+                    <div className="text-sm text-muted-foreground">
+                      Ø {formatCurrency(sale.revenue / sale.count)}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (salesData?.machines || salesData?.data) && (salesData.machines || salesData.data).length > 0 ? (
             <div className="space-y-4">
               {(salesData.machines || salesData.data || []).map((machine: SalesData) => (
                 <div key={machine.machineId} className="border rounded-lg p-4">

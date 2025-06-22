@@ -2258,46 +2258,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // Produkt-Verkaufsdaten abrufen
-  app.get(`${API_PREFIX}/products/:id/sales`, async (req: Request, res: Response) => {
-    try {
-      const productId = parseInt(req.params.id);
-      const period = req.query.period as 'day' | 'week' | 'month' | 'year' || 'month';
-      const limit = req.query.limit ? parseInt(req.query.limit as string) : 1000;
-      
-      if (isNaN(productId)) {
-        return res.status(400).json({ error: "Invalid product ID" });
-      }
-      
-      // Produkt abrufen, um zu überprüfen, ob es existiert
-      const product = await storage.getProduct(productId);
-      
-      if (!product) {
-        return res.status(404).json({ error: "Product not found" });
-      }
-      
-      // Transaktionen des Produkts mit Limit abrufen
-      // Der verbesserte getTransactionsByProduct sucht nun auch nach dem Produktnamen
-      const transactions = await storage.getTransactionsByProduct(productId, limit);
-      
-      console.log(`Gefundene Transaktionen für Produkt ${productId} (${product.productName}): ${transactions.length}`);
-      
-      if (!transactions || transactions.length === 0) {
-        return res.json([]);
-      }
-      
-      // Verkaufsdaten nach Zeitraum gruppieren
-      const salesData = groupTransactionsByPeriod(transactions, period);
-      
-      res.json(salesData);
-    } catch (error) {
-      console.error(`Error fetching sales data for product ID ${req.params.id}:`, error);
-      res.status(500).json({ 
-        error: "Failed to fetch product sales data", 
-        details: error instanceof Error ? error.message : String(error) 
-      });
-    }
-  });
+  // Note: Product sales endpoint moved to productInventory.ts router
+  // This old endpoint is commented out to avoid conflicts
 
   // Get batches for a specific product in a warehouse
   app.get(`${API_PREFIX}/products/:id/batches`, async (req: Request, res: Response) => {
@@ -4016,7 +3978,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use(`${API_PREFIX}/inventory-counts`, inventoryCountBatchesRouter);
   app.use(`${API_PREFIX}/warehouse-movements`, warehouseMovementsRouter);
   app.use(`${API_PREFIX}/warehouses`, warehousesRouter); // Neue Route für /api/warehouses
-  app.use(productInventoryRouter); // Product inventory APIs
+  // Product inventory APIs - must be before general product routes to avoid conflicts
+  app.use(productInventoryRouter);
   
   // Registriere Inventar-API Router für Warehouse-Statistiken
   const inventoryApiRouter = await import('./routes/inventory-api');
