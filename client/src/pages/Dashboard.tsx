@@ -471,7 +471,7 @@ export default function Dashboard() {
                   {openOrders.length > 3 && (
                     <div className="text-center pt-1">
                       <button 
-                        onClick={() => setLocation("/bestellungen/neu-v2")}
+                        onClick={() => setLocation("/bestellungen")}
                         className="text-xs text-primary hover:underline"
                       >
                         Alle {openOrders.length} Lieferungen anzeigen
