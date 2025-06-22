@@ -2500,6 +2500,16 @@ export class DatabaseStorage implements IStorage {
     return event;
   }
 
+  async getRecentSyncLogs(hours: number = 24): Promise<SyncLog[]> {
+    const cutoffDate = new Date(Date.now() - hours * 60 * 60 * 1000);
+    return await db
+      .select()
+      .from(syncLogs)
+      .where(gte(syncLogs.createdAt, cutoffDate))
+      .orderBy(desc(syncLogs.createdAt))
+      .limit(100);
+  }
+
   async createEvent(event: InsertEvent): Promise<Event> {
     // Add timestamps to ensure consistent data
     const [newEvent] = await db.insert(events).values({
