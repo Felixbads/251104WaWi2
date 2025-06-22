@@ -179,7 +179,7 @@ export default function ProductSalesView({ productId, productName }: ProductSale
               <div>
                 <p className="text-sm text-muted-foreground">Ø Preis</p>
                 <p className="text-2xl font-bold">
-                  {formatCurrency(salesData?.summary?.avgPrice || salesData?.avgPrice || 
+                  {formatCurrency(salesData?.summary?.avg_price || salesData?.avgPrice || 
                    (Array.isArray(salesData) && salesData.length > 0 ? 
                     salesData.reduce((sum, item) => sum + (item.revenue || 0), 0) / 
                     salesData.reduce((sum, item) => sum + (item.count || 0), 0) || 0 : 0))}
@@ -196,7 +196,7 @@ export default function ProductSalesView({ productId, productName }: ProductSale
               <div>
                 <p className="text-sm text-muted-foreground">Aktive Automaten</p>
                 <p className="text-2xl font-bold">
-                  {salesData?.summary?.activeMachines || salesData?.activeMachines || (salesData?.machines?.length || 0)}
+                  {salesData?.summary?.active_machines || salesData?.activeMachines || (salesData?.machines?.length || 0)}
                 </p>
               </div>
               <MapPin className="h-8 w-8 text-orange-500" />
