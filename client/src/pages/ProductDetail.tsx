@@ -129,16 +129,13 @@ export default function ProductDetail() {
               <Image className="h-3 w-3 sm:h-4 sm:w-4" />
               <span>Fotos</span>
             </TabsTrigger>
-            <TabsTrigger value="analytics" className="flex items-center gap-1 px-3 py-2 text-xs sm:text-sm whitespace-nowrap">
-              <BarChart className="h-3 w-3 sm:h-4 sm:w-4" />
-              <span>Auswertung</span>
-            </TabsTrigger>
+
             <TabsTrigger value="inventory" className="flex items-center gap-1 px-3 py-2 text-xs sm:text-sm whitespace-nowrap">
               <Package className="h-3 w-3 sm:h-4 sm:w-4" />
               <span>Lagerbestand</span>
             </TabsTrigger>
             <TabsTrigger value="sales" className="flex items-center gap-1 px-3 py-2 text-xs sm:text-sm whitespace-nowrap">
-              <ShoppingCart className="h-3 w-3 sm:h-4 sm:w-4" />
+              <BarChart className="h-3 w-3 sm:h-4 sm:w-4" />
               <span>Verkäufe</span>
             </TabsTrigger>
           </TabsList>

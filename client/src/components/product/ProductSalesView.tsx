@@ -4,8 +4,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ShoppingCart, TrendingUp, Calendar, MapPin, Euro } from 'lucide-react';
+import { ShoppingCart, TrendingUp, Calendar, MapPin, Euro, BarChart } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart as RechartsBarChart, Bar, ComposedChart } from 'recharts';
 
 interface ProductSalesViewProps {
   productId: number;
@@ -13,20 +14,26 @@ interface ProductSalesViewProps {
 }
 
 interface SalesData {
-  machineId: number;
-  machineName: string;
-  locationName?: string;
-  totalSales: number;
-  totalRevenue: number;
-  avgPrice: number;
-  lastSale?: string;
-  salesTrend: 'up' | 'down' | 'stable';
-  periodSales: {
-    today: number;
-    yesterday: number;
-    last7Days: number;
-    last30Days: number;
+  summary: {
+    totalSales: number;
+    totalRevenue: number;
+    avgPrice: number;
+    activeMachines: number;
   };
+  salesTrend: Array<{
+    date: string;
+    sales: number;
+    revenue: number;
+  }>;
+  machines: Array<{
+    machineId: number;
+    machineName: string;
+    locationName?: string;
+    totalSales: number;
+    totalRevenue: number;
+    avgPrice: number;
+    lastSale?: string;
+  }>;
 }
 
 interface RefillData {
