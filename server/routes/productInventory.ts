@@ -22,11 +22,11 @@ router.get('/api/products/:id/warehouse-inventory', async (req, res) => {
         inv.updated_at as "lastRefill"
       FROM inventory_items inv
       JOIN warehouses w ON inv.warehouse_id = w.id
-      WHERE inv.product_id = $1 AND w.is_active = true
+      WHERE inv.product_id = ${productId} AND w.is_active = true
       ORDER BY inv.quantity DESC
     `;
     
-    const result = await db.execute(query, [productId]);
+    const result = await db.execute(query);
     const data = Array.isArray(result) ? result : (result.rows || []);
     
     console.log(`[WAREHOUSE_INVENTORY] Found ${data.length} warehouse records for product ${productId}`);
@@ -49,9 +49,9 @@ router.get('/api/products/:id/machine-inventory', async (req, res) => {
     const productQuery = `
       SELECT product_name, sku, barcode 
       FROM products 
-      WHERE id = $1
+      WHERE id = ${productId}
     `;
-    const productResult = await db.execute(productQuery, [productId]);
+    const productResult = await db.execute(productQuery);
     const product = Array.isArray(productResult) ? productResult[0] : (productResult.rows?.[0]);
     
     if (!product) {
@@ -73,7 +73,7 @@ router.get('/api/products/:id/machine-inventory', async (req, res) => {
         FROM transactions t
         JOIN machines m ON t.machine_id = m.id
         LEFT JOIN locations l ON m.location_id = l.id
-        WHERE t.product_name ILIKE $1
+        WHERE t.product_name ILIKE '%${product.product_name}%'
           AND t.datetime >= NOW() - INTERVAL '60 days'
         GROUP BY t.machine_id, m.machine_name, l.name
       )
@@ -99,7 +99,7 @@ router.get('/api/products/:id/machine-inventory', async (req, res) => {
       LIMIT 15
     `;
     
-    const result = await db.execute(query, [`%${product.product_name}%`]);
+    const result = await db.execute(query);
     const data = Array.isArray(result) ? result : (result.rows || []);
     
     console.log(`[MACHINE_INVENTORY] Found ${data.length} machines with inventory for product ${productId}`);
