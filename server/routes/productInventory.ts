@@ -172,7 +172,7 @@ router.get('/api/products/:id/sales', async (req, res) => {
         AND datetime >= NOW() - INTERVAL '${days} days'
     `;
     
-    const summaryResult = await db.execute(summaryQuery, [productName]);
+    const summaryResult = await db.execute(summaryQuery, [`%${productName}%`]);
     const summary = Array.isArray(summaryResult) ? summaryResult[0] : (summaryResult.rows?.[0]);
     
     console.log(`[PRODUCT_SALES] Summary data:`, summary);
@@ -197,14 +197,14 @@ router.get('/api/products/:id/sales', async (req, res) => {
       FROM transactions t
       JOIN machines m ON t.machine_id = m.id
       LEFT JOIN locations l ON m.location_id = l.id
-      WHERE t.product_name ILIKE '%' || $1 || '%'
+      WHERE t.product_name ILIKE $1
         AND t.datetime >= NOW() - INTERVAL '${days} days'
       GROUP BY t.machine_id, m.machine_name, l.name
       ORDER BY COUNT(*) DESC
       LIMIT 20
     `;
     
-    const machinesResult = await db.execute(machinesQuery, [productName]);
+    const machinesResult = await db.execute(machinesQuery, [`%${productName}%`]);
     const machines = Array.isArray(machinesResult) ? machinesResult : (machinesResult.rows || []);
     
     console.log(`[PRODUCT_SALES] Machine data count: ${machines.length}`);

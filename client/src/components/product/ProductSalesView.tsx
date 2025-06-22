@@ -50,7 +50,12 @@ export default function ProductSalesView({ productId, productName }: ProductSale
     queryFn: async () => {
       const url = `/api/products/${productId}/sales?timeRange=${timeRange}${selectedMachine !== 'all' ? `&selectedMachine=${selectedMachine}` : ''}`;
       console.log('Fetching sales data from:', url);
-      const response = await fetch(url);
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('authToken') || 'test'}`,
+          'Content-Type': 'application/json'
+        }
+      });
       if (!response.ok) throw new Error('Failed to fetch sales data');
       const data = await response.json();
       console.log('Sales data received:', data);
@@ -143,7 +148,8 @@ export default function ProductSalesView({ productId, productName }: ProductSale
               <div>
                 <p className="text-sm text-muted-foreground">Gesamtverkäufe</p>
                 <p className="text-2xl font-bold">
-                  {salesData?.summary?.totalSales || salesData?.totalSales || 
+                  {salesData?.summary?.totalSales || 
+                   salesData?.totalSales || 
                    (Array.isArray(salesData) ? salesData.reduce((sum, item) => sum + (item.count || 0), 0) : 0)}
                 </p>
               </div>

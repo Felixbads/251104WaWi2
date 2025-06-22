@@ -41,7 +41,12 @@ export default function ProductInventoryView({ productId, productName }: Product
     queryFn: async () => {
       const url = `/api/products/${productId}/warehouse-inventory`;
       console.log('Fetching warehouse inventory from:', url);
-      const response = await fetch(url);
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('authToken') || 'test'}`,
+          'Content-Type': 'application/json'
+        }
+      });
       if (!response.ok) throw new Error('Failed to fetch warehouse inventory');
       const data = await response.json();
       console.log('Warehouse inventory received:', data);
@@ -56,7 +61,12 @@ export default function ProductInventoryView({ productId, productName }: Product
     queryFn: async () => {
       const url = `/api/products/${productId}/machine-inventory`;
       console.log('Fetching machine inventory from:', url);
-      const response = await fetch(url);
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('authToken') || 'test'}`,
+          'Content-Type': 'application/json'
+        }
+      });
       if (!response.ok) throw new Error('Failed to fetch machine inventory');
       const data = await response.json();
       console.log('Machine inventory received:', data);
