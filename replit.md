@@ -109,7 +109,13 @@ This is a comprehensive vending machine management platform (Warenwirtschaftssys
 
 ## Changelog
 
-- June 24, 2025. Initial setup
+- June 24, 2025: Identified critical Vendon API synchronization failure
+  - Events and refills endpoints returning 400 Bad Request errors
+  - Most recent door events are from June 7th (17 days old)
+  - Location status displaying "Letzte Türöffnung 07.06.2025" due to stale data
+  - Only transaction sync is working; events/refills sync broken for weeks
+  - Need updated API key with proper events/refills endpoint access
+- June 24, 2025: Initial setup
 
 ## User Preferences
 
