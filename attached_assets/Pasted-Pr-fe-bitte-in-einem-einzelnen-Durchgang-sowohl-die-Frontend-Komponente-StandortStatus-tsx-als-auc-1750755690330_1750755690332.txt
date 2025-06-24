@@ -1,0 +1,28 @@
+Prüfe bitte in einem einzelnen Durchgang sowohl die Frontend-Komponente (StandortStatus.tsx) als auch das zugrundeliegende Backend (API-Responses) auf folgende Consistency- und Funktionspunkte:
+
+1. **Letzte Verkäufe vs. Letzter Verkauf**  
+   - Vergleiche das erste Element im Array `recentTransactions` mit dem Feld `lastSale`.  
+   - Stelle sicher, dass in der Einzelanzeige (`lastSale`) exakt dieselbe Datums- und Zeitinformation wie in `recentTransactions[0]` angezeigt wird.  
+
+2. **Datum vs. Uhrzeit**  
+   - Überall, wo ein Zeitpunkt ausgegeben wird (`lastSale`, `lastRefill`, `lastDoorOpen`, `lastCashlessSale`, `lastAlcoholSale`), muss neben dem Datum auch die Uhrzeit erscheinen.  
+   - Überprüfe, ob das Rendering im Frontend tatsächlich die Uhrzeit aus `datetime`-Feldern zeigt (z. B. via `toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' })`).
+
+3. **Letzter bargeldloser Verkauf**  
+   - Stelle sicher, dass nicht die `paymentMethod` (z. B. „CASH“) unter dem Zeitabstand steht, sondern der formatierte Zeitstempel aus `lastCashlessSale.datetime`.  
+
+4. **Letzte Füllung vs. letzte Türöffnung**  
+   - Prüfe, ob beim Füllen (`lastRefill`) immer auch ein Tür-Öffnungs-Timestamp (`lastDoorOpen`) geloggt wird.  
+   - Fällt `lastDoorOpen` beim Nachfüllen aus, muss das Backend beide Felder synchron aktualisieren oder das Frontend aus `lastRefill.datetime` einen Platzhalter-Öffnungszeitpunkt derivieren.
+
+5. **Heutiger Umsatz**  
+   - Vergleiche die API-Berechnung von `todayRevenue` mit lokal berechneten Umsätzen im Frontend.  
+   - Achte darauf, dass der Tageswechsel nach der lokalen Zeitzone (nicht UTC) erfolgt.
+
+6. **Generelle Datenkonsistenz**  
+   - Validiere, dass alle „Letzte ...“-Felder nur dann „Keine Daten“ anzeigen, wenn wirklich kein Datensatz vorliegt.  
+   - Überprüfe, dass Backend-Logs und Frontend-Darstellung stets auf derselben Datenquelle basieren und kein Caching-Stale-State vorliegt.
+
+Formuliere in deinem Testbericht zu jedem Punkt kurz das Ergebnis (OK/FAIL), den gefundenen Wert im Backend und der UI sowie eine Empfehlung zur Behebung.```
+
+Mit diesem Prompt kannst du in einem QA-Durchlauf strukturiert alle Inkonsistenzen aufdecken und dokumentieren.

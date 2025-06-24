@@ -1,0 +1,38 @@
+Folgendes ist mir bei der Komponente aufgefallen – deswegen siehst du an einigen Stellen „unsinnige“ oder inkonsistente Angaben:
+	1.	„Letzter Verkauf“ vs. „Letzte Verkäufe“
+	•	Die Liste recentTransactions (die du siehst unter „Letzte Verkäufe“) kommt direkt aus dem API-Array und zeigt korrekt z. B. 23.06.2025 – 21:11.
+	•	Der einzelne Wert lastSale wird aber separat vom Backend geliefert und nicht aus recentTransactions[0] abgeleitet. Wenn dieser Backend-Wert veraltet ist oder falsch berechnet wurde, siehst du hier „Heute“, obwohl die letzte Transaktion eigentlich gestern war.
+	2.	Anzeige der Zeit fehlt
+	•	In der Übersicht von lastSale wird nur toLocaleDateString gerendert, also das Datum – nie die Uhrzeit. Das ist inkonsistent zu den Einträgen in recentTransactions, die beide ausgeben.
+	3.	Bargeldloser Verkauf zeigt statt Datum die Zahlungsart
+
+{/* aktuell */}
+<p className="text-xs text-muted-foreground">
+  {machine.lastCashlessSale.paymentMethod}
+</p>
+
+Hier wird unter dem Tages-Abstand (formatDaysAgo(...)) paymentMethod (also z. B. „CASH“) angezeigt, nicht der Zeitpunkt der Transaktion. Du müsstest stattdessen auch hier machine.lastCashlessSale.datetime formatieren.
+
+	4.	„Letzte Füllung“ vs. „Letzte Türöffnung“
+Beide Felder basieren auf getrennten API-Feldern lastRefill und lastDoorOpen. Wenn das Backend beim Nachfüllen (lastRefill) versäumt, gleichzeitig eine Türöffnung (lastDoorOpen) zu speichern, kommt im UI „Keine Daten“ für die Türöffnung, obwohl gefüllt wurde.
+→ Entweder das Backend muss beide Datensätze immer zusammen aktualisieren, oder du leitest dir im Front-end aus lastRefill.datetime einen Tür-Öffnungs­zeitpunkt ab, wenn letzterer fehlt.
+	5.	Heutiger Umsatz
+Du verwendest hier machine.todayRevenue.toFixed(2). Wenn das Backend den Tageswechsel (00:00) nach UTC und nicht nach lokalem Zeitzonen-Offset berechnet, können Umsätze erst nach Mitternacht plötzlich im „gestern“- vs. „heute“-Bucket landen.
+
+⸻
+
+Was zu tun wäre
+	•	lastSale nicht mehr separat aus dem API-Feld, sondern direkt aus recentTransactions[0] ziehen – so hast du garantiert dieselben Daten.
+	•	Für Letzter bargeldloser Verkauf den Timestamp formatieren:
+
+- {machine.lastCashlessSale.paymentMethod}
++ {new Date(machine.lastCashlessSale.datetime).toLocaleString('de-DE', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' })}
+
+
+	•	Einheitliches Rendering von Datum + Uhrzeit überall (z. B. immer toLocaleString oder kombinierte dateString + timeString).
+	•	Backend prüfen:
+	•	Stellt es lastSale, lastCashlessSale, lastAlcoholSale und recentTransactions konsistent auf Basis der gleichen Datenbasis bereit?
+	•	Wird todayRevenue mit dem korrekten lokalen Tageswechsel berechnet?
+	•	Wird bei jeder Füllung auch eine Türöffnung geloggt?
+
+Damit harmonieren alle Anzeigen wieder und du bekommst keine widersprüchlichen Daten mehr.
