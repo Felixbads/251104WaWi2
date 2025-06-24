@@ -122,6 +122,8 @@ router.get('/', async (req: Request, res: Response) => {
       )
       .orderBy(desc(events.datetime))
       .limit(1);
+
+
       
       // Tage seit letztem Ereignis berechnen
       const now = new Date();
