@@ -258,6 +258,9 @@ function MachineStatusCard({ machine }: { machine: MachineStatusData }) {
   };
 
   const formatDaysAgo = (daysAgo: number) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
     if (daysAgo === 0) return "Heute";
     if (daysAgo === 1) return "Gestern";
     return `vor ${daysAgo} Tagen`;

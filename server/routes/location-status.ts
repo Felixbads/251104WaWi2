@@ -57,7 +57,7 @@ router.get('/', async (req: Request, res: Response) => {
       .where(
         and(
           eq(transactions.machineId, machine.id),
-          sql`${transactions.paymentMethod} != 'CASH' AND ${transactions.paymentMethod} IS NOT NULL`
+          sql`${transactions.paymentMethod} = 'CASHLESS' OR ${transactions.paymentMethod} = 'CARD' OR ${transactions.paymentMethod} = 'MOBILE'`
         )
       )
       .orderBy(desc(transactions.datetime))
@@ -125,31 +125,34 @@ router.get('/', async (req: Request, res: Response) => {
 
 
       
-      // Tage seit letztem Ereignis berechnen
+      // Tage seit letztem Ereignis berechnen (korrigierte Zeitzone-Behandlung)
       const now = new Date();
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
       const lastSaleDate = lastSale[0]?.datetime;
       const daysSinceLastSale = lastSaleDate 
-        ? Math.floor((now.getTime() - new Date(lastSaleDate).getTime()) / (1000 * 60 * 60 * 24))
+        ? Math.floor((today.getTime() - new Date(new Date(lastSaleDate).toDateString()).getTime()) / (1000 * 60 * 60 * 24))
         : null;
       
       const lastCashlessSaleDate = lastCashlessSale[0]?.datetime;
       const daysSinceLastCashless = lastCashlessSaleDate
-        ? Math.floor((now.getTime() - new Date(lastCashlessSaleDate).getTime()) / (1000 * 60 * 60 * 24))
+        ? Math.floor((today.getTime() - new Date(new Date(lastCashlessSaleDate).toDateString()).getTime()) / (1000 * 60 * 60 * 24))
         : null;
         
       const lastAlcoholSaleDate = lastAlcoholSale[0]?.datetime;
       const daysSinceLastAlcohol = lastAlcoholSaleDate
-        ? Math.floor((now.getTime() - new Date(lastAlcoholSaleDate).getTime()) / (1000 * 60 * 60 * 24))
+        ? Math.floor((today.getTime() - new Date(new Date(lastAlcoholSaleDate).toDateString()).getTime()) / (1000 * 60 * 60 * 24))
         : null;
 
       const lastRefillDate = lastRefill[0]?.datetime;
       const daysSinceLastRefill = lastRefillDate
-        ? Math.floor((now.getTime() - new Date(lastRefillDate).getTime()) / (1000 * 60 * 60 * 24))
+        ? Math.floor((today.getTime() - new Date(new Date(lastRefillDate).toDateString()).getTime()) / (1000 * 60 * 60 * 24))
         : null;
 
       const lastDoorOpenDate = lastDoorOpen[0]?.datetime;
       const daysSinceLastDoorOpen = lastDoorOpenDate
-        ? Math.floor((now.getTime() - new Date(lastDoorOpenDate).getTime()) / (1000 * 60 * 60 * 24))
+        ? Math.floor((today.getTime() - new Date(new Date(lastDoorOpenDate).toDateString()).getTime()) / (1000 * 60 * 60 * 24))
         : null;
       
       // Status bewerten

@@ -109,6 +109,13 @@ This is a comprehensive vending machine management platform (Warenwirtschaftssys
 
 ## Changelog
 
+- June 24, 2025: Complete StandortStatus consistency fixes implemented
+  - RESOLVED: Fixed "Letzter Verkauf" to derive from recentTransactions[0] with consistent datetime display
+  - RESOLVED: Fixed "Letzter bargeldloser Verkauf" to show formatted datetime instead of payment method
+  - RESOLVED: Fixed backend cashless sale query to properly exclude CASH transactions
+  - RESOLVED: Added intelligent fallback for door opening times using refill datetime when door events missing
+  - RESOLVED: All timestamp displays now consistently show both date and time across all fields
+  - Frontend now displays harmonized data without contradictory timestamps
 - June 24, 2025: Fixed location status data synchronization issues
   - RESOLVED: Fixed door event query in location-status API (event_name → event_type = 'A')
   - RESOLVED: Manual refills sync successfully retrieved today's Stolpen refill data
