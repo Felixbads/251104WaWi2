@@ -48,7 +48,7 @@ router.get('/', async (req: Request, res: Response) => {
       .orderBy(desc(transactions.datetime))
       .limit(1);
       
-      // Letzte bargeldlose Zahlung
+      // Letzte bargeldlose Zahlung - korrigierte Filterung
       const lastCashlessSale = await db.select({
         datetime: transactions.datetime,
         paymentMethod: transactions.paymentMethod
@@ -57,7 +57,7 @@ router.get('/', async (req: Request, res: Response) => {
       .where(
         and(
           eq(transactions.machineId, machine.id),
-          sql`${transactions.paymentMethod} = 'CASHLESS' OR ${transactions.paymentMethod} = 'CARD' OR ${transactions.paymentMethod} = 'MOBILE'`
+          sql`UPPER(${transactions.paymentMethod}) IN ('CASHLESS', 'CARD', 'MOBILE', 'DEBIT', 'CREDIT')`
         )
       )
       .orderBy(desc(transactions.datetime))
