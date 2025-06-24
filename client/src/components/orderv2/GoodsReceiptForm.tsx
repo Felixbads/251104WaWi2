@@ -125,7 +125,7 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
       price: item.price || item.unit_price || item.unitPrice || 0,
       unitPrice: item.price || item.unit_price || item.unitPrice || 0,
       unit: item.unit || 'Stk.',
-      // Remove damaged field entirely
+      damaged: false,
       comment: '',
       expiryDate: '' // Leeres Feld für MHD hinzufügen
     }))
@@ -139,7 +139,7 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
   const totalReceived = receivedItems.reduce((sum, item) => sum + (item.receivedQuantity || 0), 0);
   const isComplete = totalReceived === totalOrdered;
   const hasDiscrepancies = receivedItems.some(item => 
-    item.receivedQuantity !== item.orderedQuantity
+    item.receivedQuantity !== item.orderedQuantity || item.damaged
   );
   
   // Handle input change
@@ -151,7 +151,14 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
     );
   };
   
-  // Removed damaged functionality as requested
+  // Handle damaged state change
+  const handleDamagedChange = (id: number, damaged: boolean) => {
+    setReceivedItems(items =>
+      items.map(item =>
+        item.id === id ? { ...item, damaged } : item
+      )
+    );
+  };
   
   // Handle comment change
   const handleCommentChange = (id: number, comment: string) => {
@@ -331,6 +338,7 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-12"></TableHead>
                 <TableHead>Artikel</TableHead>
                 <TableHead className="text-right">Bestellt</TableHead>
                 <TableHead className="text-right">Erhalten</TableHead>
@@ -344,7 +352,22 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
                 const isDifferent = item.receivedQuantity !== item.orderedQuantity;
                 
                 return (
-                  <TableRow key={item.id} className={isDifferent ? 'bg-amber-50' : ''}>
+                  <TableRow key={item.id} className={item.damaged ? 'bg-destructive/10' : isDifferent ? 'bg-amber-50' : ''}>
+                    <TableCell>
+                      <div className="flex items-center space-x-2">
+                        <Checkbox 
+                          id={`damaged-${item.id}`}
+                          checked={item.damaged}
+                          onCheckedChange={(checked) => handleDamagedChange(item.id, !!checked)}
+                        />
+                        <label 
+                          htmlFor={`damaged-${item.id}`}
+                          className="text-xs font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                        >
+                          Beschädigt
+                        </label>
+                      </div>
+                    </TableCell>
                     <TableCell className="font-medium">{item.name || item.productName || 'Unbekannter Artikel'}</TableCell>
                     <TableCell className="text-right">{item.orderedQuantity}</TableCell>
                     <TableCell className="text-right">

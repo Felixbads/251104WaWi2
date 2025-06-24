@@ -97,25 +97,30 @@ router.get('/', async (req: Request, res: Response) => {
       .orderBy(desc(transactions.datetime))
       .limit(3);
 
-      // Letztes Refill (Nachfüllung) - using raw SQL for reliability
-      const lastRefillResult = await db.execute(sql`
-        SELECT datetime, operator 
-        FROM refills 
-        WHERE machine_id = ${machine.id} 
-        ORDER BY datetime DESC 
-        LIMIT 1
-      `);
-      const lastRefill = lastRefillResult.rows;
+      // Letztes Refill (Nachfüllung)
+      const lastRefill = await db.select({
+        datetime: refills.datetime,
+        operator: refills.operator
+      })
+      .from(refills)
+      .where(eq(refills.machineId, machine.id))
+      .orderBy(desc(refills.datetime))
+      .limit(1);
 
-      // Letztes Door Open Event (A = Access/Door events in Vendon) - using raw SQL
-      const lastDoorOpenResult = await db.execute(sql`
-        SELECT datetime, event_type 
-        FROM events 
-        WHERE machine_id = ${machine.id} AND event_type = 'A'
-        ORDER BY datetime DESC 
-        LIMIT 1
-      `);
-      const lastDoorOpen = lastDoorOpenResult.rows;
+      // Letztes Door Open Event (A = Access/Door events in Vendon)
+      const lastDoorOpen = await db.select({
+        datetime: events.datetime,
+        eventType: events.eventType
+      })
+      .from(events)
+      .where(
+        and(
+          eq(events.machineId, machine.id),
+          eq(events.eventType, 'A') // A = Access/Door events in Vendon system
+        )
+      )
+      .orderBy(desc(events.datetime))
+      .limit(1);
       
       // Tage seit letztem Ereignis berechnen
       const now = new Date();

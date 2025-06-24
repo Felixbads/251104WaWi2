@@ -132,14 +132,16 @@ function AuthenticatedRouter() {
         <Route path="/unauthorized" component={Unauthorized} />
 
         {/* Geschützte Routen, die Freigabe erfordern */}
-
-
-        <Route path="/">
+        <Route path="/login">
           {() => (
             <ApprovedUserRoute>
               <Dashboard />
             </ApprovedUserRoute>
           )}
+        </Route>
+
+        <Route path="/">
+          <Redirect to="/login" />
         </Route>
 
         <Route path="/transactions">
@@ -578,11 +580,17 @@ function AuthenticatedRouter() {
 import PublicRoute from "@/pages/PublicRoute";
 
 function PublicRouter() {
+  // Beim Rendern überprüfen wir die aktuelle URL 
+  const [location] = useLocation();
+
   return (
     <Switch>
-      <Route path="/login" component={Login} />
-      <Route path="/register" component={Register} />
-      <Route path="*">
+      {/* Login-Seite zeigt stattdessen direkt das Dashboard mit Login-Formular */}
+      <Route path="/login">
+        {() => <Dashboard />}
+      </Route>
+      <Route path="/register" component={() => <PublicRoute component={Register} />} />
+      <Route path="/">
         <Redirect to="/login" />
       </Route>
     </Switch>
