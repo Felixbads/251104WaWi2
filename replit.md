@@ -1,0 +1,116 @@
+# Vending Machine Management System
+
+## Overview
+
+This is a comprehensive vending machine management platform (Warenwirtschaftssystem) built with React and Node.js. The system manages vending machines, inventory, orders, suppliers, and provides real-time monitoring capabilities. It integrates with the Vendon API for transaction data and machine telemetry.
+
+## System Architecture
+
+### Frontend Architecture
+- **Framework**: React with TypeScript
+- **State Management**: TanStack Query for server state, React hooks for local state
+- **Routing**: Wouter for lightweight client-side routing
+- **UI Components**: Custom component library with shadcn/ui base
+- **Styling**: Tailwind CSS with responsive design patterns
+- **Build Tool**: Vite for fast development and optimized builds
+
+### Backend Architecture
+- **Runtime**: Node.js with Express.js
+- **Database**: PostgreSQL with Drizzle ORM
+- **API Design**: RESTful endpoints with structured error handling
+- **External Integration**: Vendon API for real-time vending machine data
+- **Authentication**: Role-based access control with user approval system
+
+### Data Storage Solutions
+- **Primary Database**: PostgreSQL hosted on Neon (serverless)
+- **Schema Management**: Drizzle ORM with TypeScript schema definitions
+- **Backup Strategy**: Automated database backups with 7-day retention
+- **Data Sync**: Real-time synchronization with Vendon API for transactions and machine status
+
+## Key Components
+
+### Core Business Logic
+1. **Vending Machine Management**: Real-time monitoring, status tracking, and configuration
+2. **Inventory System**: Multi-warehouse inventory tracking with batch management and expiration dates
+3. **Order Processing**: Complete order lifecycle from creation to delivery with PDF generation
+4. **Supplier Management**: Comprehensive supplier database with product catalogs
+5. **Transaction Processing**: Real-time transaction import and historical data analysis
+6. **User Management**: Role-based access with approval workflows
+
+### Technical Components
+1. **Storage Layer**: `server/storage/database-storage.ts` - Database abstraction layer
+2. **API Layer**: `server/routes/` - Modular route handlers for different business domains
+3. **Sync Services**: `server/services/vendonSync.ts` - Real-time data synchronization
+4. **PDF Generation**: Order and document generation with customizable templates
+5. **Excel Import System**: Bulk data import capabilities for historical transactions
+
+## Data Flow
+
+### Real-time Data Synchronization
+1. Vendon API provides machine status, transactions, and telemetry data
+2. Background sync service polls API endpoints every 5 minutes
+3. Data is normalized and stored in local PostgreSQL database
+4. Frontend receives updates through API polling and displays real-time status
+
+### Order Processing Flow
+1. User selects warehouse and supplier
+2. Products are selected with quantities and delivery preferences
+3. Order is validated and stored with generated order number
+4. PDF documents are generated for customer and internal use
+5. Email notifications are sent to relevant parties
+6. Order status is tracked through completion
+
+### Inventory Management Flow
+1. Products are synchronized from Vendon API and supplier catalogs
+2. Warehouse assignments link products to physical locations
+3. Inventory movements track all stock changes with audit trail
+4. Automated reorder points trigger procurement notifications
+5. Batch tracking manages expiration dates and quality control
+
+## External Dependencies
+
+### Core APIs
+- **Vendon Cloud API**: Machine data, transactions, and telemetry
+- **SMTP Service**: Email notifications for orders and system alerts
+- **PostgreSQL**: Primary data storage on Neon platform
+
+### Libraries and Frameworks
+- **React Ecosystem**: React, React DOM, React Hook Form
+- **State Management**: TanStack Query, Zustand
+- **UI Components**: Radix UI primitives, Lucide React icons
+- **Data Processing**: date-fns, Zod validation, XLSX for Excel handling
+- **PDF Generation**: jsPDF, html2canvas for document creation
+
+### Development Tools
+- **TypeScript**: Full type safety across frontend and backend
+- **Vite**: Fast development server and build tool
+- **Tailwind CSS**: Utility-first styling framework
+- **ESLint/Prettier**: Code quality and formatting
+
+## Deployment Strategy
+
+### Production Environment
+- **Platform**: Replit with autoscale deployment target
+- **Build Process**: `npm run build` creates production-optimized bundle
+- **Runtime**: `npm run start` serves production application
+- **Port Configuration**: Internal port 5000 mapped to external port 80
+
+### Database Management
+- **Schema Deployment**: `npm run db:push` applies schema changes
+- **Migrations**: Drizzle migrations for database versioning
+- **Backup System**: Automated daily backups with retention policy
+- **Connection Pooling**: PostgreSQL connection pooling for performance
+
+### Environment Configuration
+- **Development**: Hot reloading with Vite dev server
+- **Production**: Optimized build with compression and caching
+- **Environment Variables**: Secure handling of API keys and database credentials
+- **Monitoring**: Application health checks and error logging
+
+## Changelog
+
+- June 24, 2025. Initial setup
+
+## User Preferences
+
+Preferred communication style: Simple, everyday language.
