@@ -109,6 +109,12 @@ This is a comprehensive vending machine management platform (Warenwirtschaftssys
 
 ## Changelog
 
+- June 24, 2025: Fixed location status data synchronization issues
+  - RESOLVED: Fixed door event query in location-status API (event_name → event_type = 'A')
+  - RESOLVED: Manual refills sync successfully retrieved today's Stolpen refill data
+  - Dashboard now displays current refill dates instead of 18-day-old data
+  - Door events from June 22nd now properly detected and displayed
+  - Location status accurately shows "daysAgo: 0" for today's refills
 - June 24, 2025: Identified critical Vendon API synchronization failure
   - Events and refills endpoints returning 400 Bad Request errors
   - Most recent door events are from June 7th (17 days old)
