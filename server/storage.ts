@@ -2816,7 +2816,7 @@ export class DatabaseStorage implements IStorage {
           SELECT datetime 
           FROM events 
           WHERE machine_id = m.id 
-          AND event_name = 'Automatentüre offen'
+          AND event_type = 'A'
           ORDER BY datetime DESC 
           LIMIT 1
         ) e ON true
