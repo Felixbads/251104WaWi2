@@ -57,7 +57,7 @@ router.get('/', async (req: Request, res: Response) => {
       .where(
         and(
           eq(transactions.machineId, machine.id),
-          ne(transactions.paymentMethod, 'CASH')
+          sql`${transactions.paymentMethod} != 'CASH' AND ${transactions.paymentMethod} IS NOT NULL`
         )
       )
       .orderBy(desc(transactions.datetime))

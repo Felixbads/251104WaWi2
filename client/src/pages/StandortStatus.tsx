@@ -364,6 +364,21 @@ function MachineStatusCard({ machine }: { machine: MachineStatusData }) {
                   })}
                 </p>
               </div>
+            ) : machine.lastRefill ? (
+              <div>
+                <p className="text-muted-foreground">
+                  {formatDaysAgo(machine.lastRefill.daysAgo)} (bei Füllung)
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {new Date(machine.lastRefill.datetime).toLocaleString('de-DE', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  })}
+                </p>
+              </div>
             ) : (
               <p className="text-muted-foreground">Keine Daten</p>
             )}
@@ -456,6 +471,15 @@ function MachineStatusCard({ machine }: { machine: MachineStatusData }) {
                   {formatDaysAgo(machine.lastCashlessSale.daysAgo)}
                 </p>
                 <p className="text-xs text-muted-foreground">
+                  {new Date(machine.lastCashlessSale.datetime).toLocaleString('de-DE', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  })}
+                </p>
+                <p className="text-xs text-muted-foreground">
                   {machine.lastCashlessSale.paymentMethod}
                 </p>
               </div>
@@ -470,16 +494,18 @@ function MachineStatusCard({ machine }: { machine: MachineStatusData }) {
           <Calendar className="h-4 w-4 text-slate-500" />
           <div className="flex-1">
             <p className="font-medium">Letzter Verkauf</p>
-            {machine.lastSale ? (
+            {machine.recentTransactions.length > 0 ? (
               <div>
                 <p className="text-muted-foreground">
-                  {formatDaysAgo(machine.lastSale.daysAgo)}
+                  {formatDaysAgo(Math.floor((new Date().getTime() - new Date(machine.recentTransactions[0].datetime).getTime()) / (1000 * 60 * 60 * 24)))}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  {new Date(machine.lastSale.datetime).toLocaleDateString('de-DE', {
+                  {new Date(machine.recentTransactions[0].datetime).toLocaleString('de-DE', {
                     day: '2-digit',
                     month: '2-digit',
-                    year: 'numeric'
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
                   })}
                 </p>
               </div>
