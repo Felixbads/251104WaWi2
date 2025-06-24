@@ -110,7 +110,8 @@ router.get('/', async (req: Request, res: Response) => {
       // Letztes Door Open Event (A = Access/Door events in Vendon)
       const lastDoorOpen = await db.select({
         datetime: events.datetime,
-        eventType: events.eventType
+        eventType: events.eventType,
+        eventName: events.eventName
       })
       .from(events)
       .where(
