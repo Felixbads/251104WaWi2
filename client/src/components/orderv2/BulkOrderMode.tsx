@@ -676,7 +676,7 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
                   salesAnalysis.map((item: SalesAnalysis) => {
                     const isExpanded = expandedRows[item.productId];
                     return (
-                      <div key={item.productId}>
+                      <React.Fragment key={item.productId}>
                         <TableRow>
                           <TableCell className="font-medium">{item.productName}</TableCell>
                           <TableCell>{item.totalSales}</TableCell>
@@ -832,7 +832,7 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
                     const isExpanded = expandedRows[item.productId];
                     
                     return (
-                      <div key={item.productId}>
+                      <React.Fragment key={item.productId}>
                         <TableRow>
                           <TableCell className="font-medium">{item.productName}</TableCell>
                           <TableCell>
