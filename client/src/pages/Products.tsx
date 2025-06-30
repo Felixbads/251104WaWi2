@@ -42,6 +42,7 @@ import {
 } from "@/components/ui/tooltip";
 import PageHeader from "@/components/layout/PageHeader";
 import { ExportImportButtons } from "@/components/ExportImportButtons";
+import { ProductPhotoUpload } from "@/components/ProductPhotoUpload";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -745,14 +746,23 @@ export default function Products() {
             </div>
           )}
           
-          <Button 
-            variant="outline" 
-            size="sm"
-            onClick={() => setLocation(`/produkte/${product.id}`)}
-          >
-            <ExternalLink className="h-4 w-4 mr-2" />
-            Details
-          </Button>
+          <div className="flex gap-2">
+            <ProductPhotoUpload 
+              productId={product.id} 
+              size="sm"
+              onUploadSuccess={() => {
+                queryClient.invalidateQueries({ queryKey: ['/api/products'] });
+              }}
+            />
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => setLocation(`/produkte/${product.id}`)}
+            >
+              <ExternalLink className="h-4 w-4 mr-2" />
+              Details
+            </Button>
+          </div>
         </CardContent>
       </Card>
     );
@@ -802,11 +812,20 @@ export default function Products() {
               </div>
             </div>
             
-            <div className="text-right ml-4">
-              <p className="text-lg font-semibold text-gray-900">
-                {product.price?.toFixed(2) || '–'} €
-              </p>
-              <p className="text-xs text-gray-500">Preis</p>
+            <div className="flex items-center gap-3 ml-4">
+              <ProductPhotoUpload 
+                productId={product.id} 
+                size="sm"
+                onUploadSuccess={() => {
+                  queryClient.invalidateQueries({ queryKey: ['/api/products'] });
+                }}
+              />
+              <div className="text-right">
+                <p className="text-lg font-semibold text-gray-900">
+                  {product.price?.toFixed(2) || '–'} €
+                </p>
+                <p className="text-xs text-gray-500">Preis</p>
+              </div>
             </div>
           </div>
         </div>
