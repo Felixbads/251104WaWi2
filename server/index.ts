@@ -2011,8 +2011,7 @@ Elbsandstein Proviant & Quartier GmbH`;
       const cashlessResult = await pool.query(`
         SELECT 
           datetime,
-          payment_method,
-          COUNT(*) as count
+          payment_method
         FROM transactions 
         WHERE location_name = $1 
           AND payment_method != 'CASH'
@@ -2033,8 +2032,7 @@ Elbsandstein Proviant & Quartier GmbH`;
           event_datetime,
           event_type,
           event_name,
-          machine_id,
-          COUNT(*) as count
+          machine_id
         FROM events 
         WHERE machine_id IN (
           SELECT id FROM machines WHERE location = $1
@@ -2054,15 +2052,14 @@ Elbsandstein Proviant & Quartier GmbH`;
       // 4. Check refills
       const refillsResult = await pool.query(`
         SELECT 
-          refill_datetime,
-          machine_id,
-          COUNT(*) as count
+          datetime as refill_datetime,
+          machine_id
         FROM refills 
         WHERE machine_id IN (
           SELECT id FROM machines WHERE location = $1
         )
-        AND refill_datetime >= NOW() - INTERVAL '7 days'
-        ORDER BY refill_datetime DESC
+        AND datetime >= NOW() - INTERVAL '7 days'
+        ORDER BY datetime DESC
         LIMIT 10
       `, [location]);
       
