@@ -10,8 +10,8 @@ import { useToast } from '@/hooks/use-toast';
 import { Save, Search, Package, Edit2, Check, X } from 'lucide-react';
 import { apiRequest } from '@/lib/queryClient';
 
-// Lokale Product-Interface für diese Komponente
-interface ProductData {
+// Vereinfachte Product-Interface für diese Komponente
+interface EditableProduct {
   id: number;
   vendonId?: string;
   productName: string;
@@ -25,9 +25,6 @@ interface ProductData {
   supplierId?: number;
   supplier?: string;
   supplierSku?: string;
-}
-
-interface EditableProduct extends Product {
   isEditing?: boolean;
   hasChanges?: boolean;
 }
@@ -63,7 +60,7 @@ export default function ProductDataEntry() {
   const queryClient = useQueryClient();
 
   // Produkte laden
-  const { data: products = [], isLoading, refetch } = useQuery<Product[]>({
+  const { data: products = [], isLoading, refetch } = useQuery<EditableProduct[]>({
     queryKey: ['/api/products', { limit: 1000 }],
     staleTime: 1000 * 60 * 5, // 5 Minuten
   });
@@ -76,7 +73,7 @@ export default function ProductDataEntry() {
 
   // Produkt aktualisieren
   const updateProductMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: number, data: Partial<Product> }) => {
+    mutationFn: async ({ id, data }: { id: number, data: Partial<EditableProduct> }) => {
       return apiRequest(`/api/products/${id}`, {
         method: 'PATCH',
         body: JSON.stringify(data),
@@ -102,7 +99,7 @@ export default function ProductDataEntry() {
 
   // Mehrere Produkte gleichzeitig aktualisieren
   const updateMultipleProductsMutation = useMutation({
-    mutationFn: async (updates: { id: number, data: Partial<Product> }[]) => {
+    mutationFn: async (updates: { id: number, data: Partial<EditableProduct> }[]) => {
       const promises = updates.map(({ id, data }) => 
         apiRequest(`/api/products/${id}`, {
           method: 'PATCH',
@@ -149,7 +146,7 @@ export default function ProductDataEntry() {
   );
 
   // Einzelnes Feld aktualisieren
-  const updateProductField = (id: number, field: keyof Product, value: any) => {
+  const updateProductField = (id: number, field: keyof EditableProduct, value: any) => {
     setEditableProducts(prev => prev.map(product => {
       if (product.id === id) {
         const updated = { ...product, [field]: value, hasChanges: true };
@@ -499,7 +496,7 @@ export default function ProductDataEntry() {
                           placeholder="Lieferanten-SKU"
                         />
                       ) : (
-                        <span className="text-muted-foreground">{(product as any).supplierSku || '-'}</span>
+                        <span className="text-muted-foreground">{product.supplierSku || '-'}</span>
                       )}
                     </td>
                   </tr>
