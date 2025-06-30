@@ -880,6 +880,11 @@ Elbsandstein Proviant & Quartier GmbH`;
   app.use('/api/bulk-orders', bulkOrdersRouter);
   console.log('[SERVER] Bulk orders router mounted successfully');
   
+  // Mount orders router BEFORE registerRoutes to bypass Vite wildcard routing
+  const ordersRouter = (await import('./routes/orders')).default;
+  app.use('/api/orders', ordersRouter);
+  console.log('[SERVER] Orders router mounted successfully');
+  
   const server = await registerRoutes(app);
 
   // Direct email endpoint that bypasses all routing conflicts

@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { storage } from '../storage';
 import { db } from '../db';
-import { and, asc, desc, eq, gte, ilike, inArray, isNull, lt, or, SQL, sql, lte } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, ilike, inArray, isNull, lt, or, sql, lte } from 'drizzle-orm';
 import { 
   orders, 
   orderItems,
@@ -207,20 +207,20 @@ router.get('/', async (req: Request, res: Response) => {
     const sortField = req.query.sortField as string || 'orderDate';
     const sortOrder = (req.query.sortOrder as string || 'desc') === 'asc' ? asc : desc;
 
-    // Benutzer-basierte Filterung
+    // Benutzer-basierte Filterung (deaktiviert für jetzt)
     let userConstraints: any[] = [];
-    if (req.user && req.user.role !== 'admin') {
-      if (req.user.locationId) {
-        userConstraints.push(eq(orders.locationId, req.user.locationId));
-      }
-      
-      if (req.user.warehouseIds && Array.isArray(req.user.warehouseIds)) {
-        userConstraints.push(inArray(orders.warehouseId, req.user.warehouseIds));
-      }
-    }
+    // if (req.user && req.user.role !== 'admin') {
+    //   if (req.user.locationId) {
+    //     userConstraints.push(eq(orders.locationId, req.user.locationId));
+    //   }
+    //   
+    //   if (req.user.warehouseIds && Array.isArray(req.user.warehouseIds)) {
+    //     userConstraints.push(inArray(orders.warehouseId, req.user.warehouseIds));
+    //   }
+    // }
     
     // Erstelle die Basisabfrage für die Zählung und die eigentliche Datenabfrage
-    let countQuery = db.select({ count: SQL`count(*)` }).from(orders);
+    let countQuery = db.select({ count: sql`count(*)` }).from(orders);
     let query = db.select().from(orders);
 
     // Status-Filter hinzufügen, wenn definiert
