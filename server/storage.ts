@@ -5445,6 +5445,56 @@ class DatabaseStorageWithStock extends DatabaseStorage {
       return false;
     }
   }
+
+  // Purchase Conditions methods
+  async getPurchaseConditionsByProduct(productId: number): Promise<PurchaseCondition[]> {
+    const result = await db.select({
+      condition: purchaseConditions,
+      supplier: suppliers
+    })
+    .from(purchaseConditions)
+    .leftJoin(suppliers, eq(purchaseConditions.supplierId, suppliers.id))
+    .where(eq(purchaseConditions.productId, productId))
+    .orderBy(desc(purchaseConditions.validFrom));
+
+    return result.map(row => ({
+      ...row.condition,
+      supplierName: row.supplier?.name || 'Unbekannt'
+    }));
+  }
+
+  async getPurchaseConditionsBySupplier(supplierId: number): Promise<PurchaseCondition[]> {
+    const result = await db.select({
+      condition: purchaseConditions,
+      supplier: suppliers
+    })
+    .from(purchaseConditions)
+    .leftJoin(suppliers, eq(purchaseConditions.supplierId, suppliers.id))
+    .where(eq(purchaseConditions.supplierId, supplierId))
+    .orderBy(desc(purchaseConditions.validFrom));
+
+    return result.map(row => ({
+      ...row.condition,
+      supplierName: row.supplier?.name || 'Unbekannt'
+    }));
+  }
+
+  async getPurchaseCondition(id: number): Promise<PurchaseCondition | undefined> {
+    const [result] = await db.select({
+      condition: purchaseConditions,
+      supplier: suppliers
+    })
+    .from(purchaseConditions)
+    .leftJoin(suppliers, eq(purchaseConditions.supplierId, suppliers.id))
+    .where(eq(purchaseConditions.id, id));
+
+    if (!result) return undefined;
+
+    return {
+      ...result.condition,
+      supplierName: result.supplier?.name || 'Unbekannt'
+    };
+  }
 }
 
 // Export an instance of the DatabaseStorage implementation
