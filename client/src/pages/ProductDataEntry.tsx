@@ -230,10 +230,9 @@ export default function ProductDataEntry() {
       if (response.ok) {
         const result = await response.json();
         
-        // Update the product with the photo URL
-        if (result.uploadedPhotos && result.uploadedPhotos[0]) {
-          const photoUrl = result.uploadedPhotos[0].url;
-          handleFieldChange(productId, 'photoUrl', photoUrl);
+        // Update the product with the photo URL from response
+        if (result.photoPath) {
+          handleFieldChange(productId, 'description', (getCurrentValue({ id: productId } as any, 'description') || '') + '\nFoto: ' + result.photoPath);
         }
         
         toast({
