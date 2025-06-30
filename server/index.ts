@@ -2240,24 +2240,44 @@ Elbsandstein Proviant & Quartier GmbH`;
     }
   });
 
-  // WORKING PHOTO UPLOAD ENDPOINT
-  app.post('/api/photos/upload', uploadPhotos.single('photo'), async (req, res) => {
+  // ROBUST PHOTO UPLOAD WITH EXPRESS-FILEUPLOAD
+  app.post('/api/photos/upload', async (req, res) => {
     try {
       console.log('Photo upload request received');
-      console.log('File:', req.file);
+      console.log('Files:', req.files);
+      console.log('Body:', req.body);
       
-      if (!req.file) {
-        return res.status(400).json({ 
-          success: false, 
-          error: 'Keine Datei hochgeladen' 
+      if (!req.files || !req.files.photo) {
+        return res.status(400).json({
+          success: false,
+          error: 'Keine Datei hochgeladen'
         });
       }
       
+      const photo = req.files.photo as any;
+      const path = require('path');
+      const fs = require('fs');
+      
+      // Ensure upload directory exists
+      const uploadsDir = path.join(process.cwd(), 'uploads', 'photos');
+      if (!fs.existsSync(uploadsDir)) {
+        fs.mkdirSync(uploadsDir, { recursive: true });
+      }
+      
+      // Generate unique filename
+      const timestamp = Date.now();
+      const ext = path.extname(photo.name);
+      const filename = `product_${timestamp}${ext}`;
+      const filePath = path.join(uploadsDir, filename);
+      
+      // Move file to uploads directory
+      await photo.mv(filePath);
+      
       const uploadedPhoto = {
-        filename: req.file.filename,
-        originalname: req.file.originalname,
-        url: `/uploads/photos/${req.file.filename}`,
-        size: req.file.size
+        filename: filename,
+        originalname: photo.name,
+        url: `/uploads/photos/${filename}`,
+        size: photo.size
       };
       
       console.log('Photo uploaded successfully:', uploadedPhoto);
@@ -2269,7 +2289,7 @@ Elbsandstein Proviant & Quartier GmbH`;
       });
     } catch (error) {
       console.error('Photo upload error:', error);
-      res.status(500).json({ 
+      res.status(500).json({
         success: false,
         error: 'Fehler beim Hochladen der Fotos',
         message: error instanceof Error ? error.message : 'Unbekannter Fehler'
