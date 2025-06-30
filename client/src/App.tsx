@@ -221,6 +221,12 @@ function AuthenticatedRouter() {
           </ApprovedUserRoute>
         )} />
 
+        <Route path="/product-data-entry" component={props => (
+          <ApprovedUserRoute>
+            <ProductDataEntry {...props} />
+          </ApprovedUserRoute>
+        )} />
+
         <Route path="/produkte/:id" component={props => (
           <ApprovedUserRoute>
             <ProductDetail {...props} />
