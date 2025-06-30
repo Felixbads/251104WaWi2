@@ -320,6 +320,24 @@ export default function Suppliers() {
                     </div>
                   </div>
 
+                  {/* Einkaufspreise Sektion */}
+                  {supplier.analytics?.pricing && (
+                    <div className="grid grid-cols-2 gap-4 text-sm border-t pt-2">
+                      <div>
+                        <p className="text-muted-foreground">Ø Einkaufspreis</p>
+                        <p className="font-semibold text-blue-600">
+                          {formatCurrency(supplier.analytics.pricing.average)}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">Preisspanne</p>
+                        <p className="font-semibold text-gray-700 text-xs">
+                          {formatCurrency(supplier.analytics.pricing.minimum)} - {formatCurrency(supplier.analytics.pricing.maximum)}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
                   {supplier.analytics?.lastOrderDate && (
                     <div>
                       <p className="text-muted-foreground text-xs">

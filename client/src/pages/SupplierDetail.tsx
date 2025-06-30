@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   ArrowLeft, Phone, Mail, Globe, MapPin, Building, Truck, 
   Calendar, Clock, Edit, Package, FileText, BarChart, AlertTriangle,
-  RefreshCw, Download, CheckCircle, X, Trash2, Save, Plus, Check, Search
+  RefreshCw, Download, CheckCircle, X, Trash2, Save, Plus, Check, Search, Euro
 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
@@ -1117,14 +1117,51 @@ export default function SupplierDetail() {
                         <h3 className="font-medium">{product.productName || product.name || 'Unbenanntes Produkt'}</h3>
                         <div className="text-sm text-muted-foreground">
                           {product.sku && <span className="mr-2">SKU: {product.sku}</span>}
-                          {product.supplierSku && <span>Lieferanten-Nr.: {product.supplierSku}</span>}
+                          {product.supplierSku && <span className="mr-2">Lieferanten-Nr.: {product.supplierSku}</span>}
+                          {product.category && <span className="mr-2">• {product.category}</span>}
                         </div>
+                        {/* Einkaufsbedingungen anzeigen */}
+                        {(product.unitPrice || product.minQuantity || product.deliveryTime) && (
+                          <div className="text-xs text-muted-foreground mt-1 flex items-center gap-3">
+                            {product.unitPrice && (
+                              <span className="flex items-center">
+                                <Euro className="h-3 w-3 mr-1" />
+                                EK: {product.unitPrice.toFixed(2)} €
+                              </span>
+                            )}
+                            {product.minQuantity && (
+                              <span>Min: {product.minQuantity}</span>
+                            )}
+                            {product.deliveryTime && (
+                              <span className="flex items-center">
+                                <Clock className="h-3 w-3 mr-1" />
+                                {product.deliveryTime}
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
                       <div className="flex items-center gap-2">
-                        <Badge variant="outline">
-                          {product.purchasePrice ? `${product.purchasePrice.toFixed(2)} €` : 
-                           product.price ? `${product.price.toFixed(2)} €` : 'k.A.'}
-                        </Badge>
+                        <div className="text-right">
+                          {/* Hauptpreis (Einkaufspreis) */}
+                          <Badge variant={product.unitPrice ? "default" : "outline"} className="mb-1">
+                            {product.unitPrice ? `${product.unitPrice.toFixed(2)} €` : 
+                             product.purchasePrice ? `${product.purchasePrice.toFixed(2)} €` : 
+                             product.price ? `${product.price.toFixed(2)} €` : 'k.A.'}
+                          </Badge>
+                          {/* Bruttopreis falls verfügbar */}
+                          {product.grossPrice && product.grossPrice !== product.unitPrice && (
+                            <div className="text-xs text-muted-foreground">
+                              Brutto: {product.grossPrice.toFixed(2)} €
+                            </div>
+                          )}
+                          {/* Bevorzugter Lieferant Indikator */}
+                          {product.isPreferred && (
+                            <div className="text-xs text-green-600 font-medium">
+                              ⭐ Bevorzugt
+                            </div>
+                          )}
+                        </div>
                         <Button 
                           variant="ghost" 
                           size="icon" 
