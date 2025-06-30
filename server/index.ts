@@ -234,14 +234,8 @@ app.get('/api/inter-app/products', async (req, res) => {
 
 // Remove global error handler - no longer needed with dedicated photo upload handling
 
-// Skip body parsing for photo upload routes
-app.use((req, res, next) => {
-  if (req.url.includes('/photos/upload/')) {
-    console.log('[MIDDLEWARE] Skipping body parsing for photo upload:', req.url);
-    return next();
-  }
-  next();
-});
+// Allow JSON body parsing for all routes (including Cloudinary photo uploads)
+// The old multipart photo upload system has been replaced with Cloudinary base64 uploads
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
