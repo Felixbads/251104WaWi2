@@ -3703,6 +3703,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Photo upload routes
   const photosRouter = await import('./routes/photos');
   app.use(`${API_PREFIX}/photos`, photosRouter.default);
+
+  // Purchase Conditions API
+  app.get(`${API_PREFIX}/purchase-conditions/product/:productId`, async (req, res) => {
+    try {
+      const { productId } = req.params;
+      const storage = getStorage();
+      
+      const conditions = await storage.getPurchaseConditionsByProduct(parseInt(productId));
+      res.json(conditions);
+    } catch (error) {
+      console.error('Fehler beim Laden der Einkaufsbedingungen:', error);
+      res.status(500).json({ error: 'Fehler beim Laden der Einkaufsbedingungen' });
+    }
+  });
   
   // Top entfernte Produkte API
   app.post(`${API_PREFIX}/removed-products/top`, async (req, res) => {

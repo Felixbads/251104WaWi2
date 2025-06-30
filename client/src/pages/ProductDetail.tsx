@@ -13,6 +13,7 @@ import { apiRequest } from '@/lib/queryClient';
 import ProductInventoryView from '@/components/product/ProductInventoryView';
 import ProductSalesView from '@/components/product/ProductSalesView';
 import ProductAnalyticsView from '@/components/product/ProductAnalyticsView';
+import { PurchaseConditionsDisplay } from '@/components/PurchaseConditionsDisplay';
 
 export default function ProductDetail() {
   const { id } = useParams<{ id: string }>();
@@ -217,6 +218,9 @@ export default function ProductDetail() {
                     <p className="font-medium">{product.shelfLifeDays} Tage</p>
                   </div>
                 )}
+                
+                {/* Einkaufsbedingungen */}
+                <PurchaseConditionsDisplay productId={product.id} supplierId={product.supplierId} />
               </CardContent>
             </Card>
           </div>
