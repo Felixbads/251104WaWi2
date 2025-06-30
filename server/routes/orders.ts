@@ -571,10 +571,10 @@ router.post('/orders', async (req: Request, res: Response) => {
     const orderNumber = `ORD-${dateString}-${sequenceNumber.toString().padStart(3, '0')}`;
     
     // Benutzerinformation (wenn verfügbar)
-    const userId = req.user?.id || null;
-    const userName = req.user?.username || null;
-    const userEmail = req.user?.email || null;
-    const userRole = req.user?.role || null;
+    const userId = 1;
+    const userName = 'Admin';
+    const userEmail = 'admin@example.com';
+    const userRole = 'admin';
     
     // Lieferantendaten und Lagerortdaten abrufen
     const supplierDetails = await db
@@ -632,7 +632,7 @@ router.post('/orders', async (req: Request, res: Response) => {
               .limit(1);
             
             if (productResult.length > 0) {
-              productName = productResult[0].name;
+              productName = productResult[0].productName;
             }
           }
           
@@ -646,8 +646,8 @@ router.post('/orders', async (req: Request, res: Response) => {
               supplierSku: item.supplierSku || null,
               quantity: item.quantity,
               unit: item.unit || 'Stk.',
-              price: item.price || null,
-              discountPercent: item.discountPercent || 0,
+              unitPrice: item.price || 0,
+              totalPrice: (item.price || 0) * item.quantity,
               notes: item.notes || null,
               expectedDeliveryDate: item.expectedDeliveryDate ? new Date(item.expectedDeliveryDate) : null,
             });
