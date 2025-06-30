@@ -43,6 +43,7 @@ import { orders } from '../shared/schema';
 import { eq } from 'drizzle-orm';
 import nodemailer from 'nodemailer';
 import { uploadPhotos } from './middleware/fileUpload';
+import { startPhotoServer } from './photoServer';
 
 const app = express();
 
