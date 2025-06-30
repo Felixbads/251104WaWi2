@@ -1976,6 +1976,229 @@ Elbsandstein Proviant & Quartier GmbH`;
     }
   });
 
+  // COMPREHENSIVE DEBUGGING ENDPOINT FOR LOCATION STATUS DATA
+  app.get('/api/debug/location-status/:location', async (req, res) => {
+    try {
+      const location = req.params.location;
+      console.log(`🔍 DEBUGGING location status for: ${location}`);
+      
+      const debug: any = {
+        location,
+        timestamp: new Date().toISOString(),
+        queries: {}
+      };
+
+      // 1. Check recent transactions
+      const transactionsResult = await pool.query(`
+        SELECT 
+          datetime,
+          COUNT(*) as count,
+          MAX(datetime) as latest_transaction
+        FROM transactions 
+        WHERE location_name = $1 
+          AND datetime >= NOW() - INTERVAL '7 days'
+        GROUP BY DATE(datetime)
+        ORDER BY datetime DESC
+        LIMIT 10
+      `, [location]);
+      
+      debug.queries.recentTransactions = {
+        count: transactionsResult.rows.length,
+        latest: transactionsResult.rows[0]?.latest_transaction,
+        data: transactionsResult.rows
+      };
+
+      // 2. Check cashless sales specifically
+      const cashlessResult = await pool.query(`
+        SELECT 
+          datetime,
+          payment_method,
+          COUNT(*) as count
+        FROM transactions 
+        WHERE location_name = $1 
+          AND payment_method != 'CASH'
+          AND datetime >= NOW() - INTERVAL '7 days'
+        ORDER BY datetime DESC
+        LIMIT 5
+      `, [location]);
+      
+      debug.queries.cashlessSales = {
+        count: cashlessResult.rows.length,
+        latest: cashlessResult.rows[0]?.datetime,
+        data: cashlessResult.rows
+      };
+
+      // 3. Check door events (multiple possible field names)
+      const doorEventsResult = await pool.query(`
+        SELECT 
+          event_datetime,
+          event_type,
+          event_name,
+          machine_id,
+          COUNT(*) as count
+        FROM events 
+        WHERE machine_id IN (
+          SELECT id FROM machines WHERE location = $1
+        )
+        AND (event_type = 'A' OR event_name LIKE '%door%' OR event_name LIKE '%open%')
+        AND event_datetime >= NOW() - INTERVAL '7 days'
+        ORDER BY event_datetime DESC
+        LIMIT 10
+      `, [location]);
+      
+      debug.queries.doorEvents = {
+        count: doorEventsResult.rows.length,
+        latest: doorEventsResult.rows[0]?.event_datetime,
+        data: doorEventsResult.rows
+      };
+
+      // 4. Check refills
+      const refillsResult = await pool.query(`
+        SELECT 
+          refill_datetime,
+          machine_id,
+          COUNT(*) as count
+        FROM refills 
+        WHERE machine_id IN (
+          SELECT id FROM machines WHERE location = $1
+        )
+        AND refill_datetime >= NOW() - INTERVAL '7 days'
+        ORDER BY refill_datetime DESC
+        LIMIT 10
+      `, [location]);
+      
+      debug.queries.refills = {
+        count: refillsResult.rows.length,
+        latest: refillsResult.rows[0]?.refill_datetime,
+        data: refillsResult.rows
+      };
+
+      // 5. Check machines for this location
+      const machinesResult = await pool.query(`
+        SELECT id, machine_name, location, status 
+        FROM machines 
+        WHERE location = $1
+      `, [location]);
+      
+      debug.queries.machines = {
+        count: machinesResult.rows.length,
+        data: machinesResult.rows
+      };
+
+      console.log(`🔍 Debug results for ${location}:`, JSON.stringify(debug, null, 2));
+      
+      res.json({
+        success: true,
+        debug
+      });
+    } catch (error) {
+      console.error('Debug location status error:', error);
+      res.status(500).json({ 
+        success: false,
+        error: 'Debug failed',
+        message: error instanceof Error ? error.message : 'Unknown error' 
+      });
+    }
+  });
+
+  // COMPREHENSIVE DEBUGGING ENDPOINT FOR PHOTO UPLOAD FUNCTIONALITY
+  app.get('/api/debug/photo-upload', async (req, res) => {
+    try {
+      console.log('🔍 DEBUGGING photo upload functionality');
+      
+      const debug: any = {
+        timestamp: new Date().toISOString(),
+        uploads: {},
+        database: {},
+        filesystem: {}
+      };
+
+      // Check uploads directory
+      const fs = await import('fs/promises');
+      try {
+        const uploadsStats = await fs.stat('uploads');
+        debug.filesystem.uploadsDir = {
+          exists: true,
+          isDirectory: uploadsStats.isDirectory(),
+          permissions: uploadsStats.mode.toString(8)
+        };
+        
+        const uploadsContents = await fs.readdir('uploads', { withFileTypes: true });
+        debug.filesystem.uploadsContents = uploadsContents.map(item => ({
+          name: item.name,
+          isFile: item.isFile(),
+          isDirectory: item.isDirectory()
+        }));
+      } catch (fsError) {
+        debug.filesystem.uploadsDir = {
+          exists: false,
+          error: fsError instanceof Error ? fsError.message : 'Unknown filesystem error'
+        };
+      }
+
+      // Check products with photos in database
+      const productsWithPhotosResult = await pool.query(`
+        SELECT 
+          id,
+          product_name,
+          photo_url,
+          updated_at
+        FROM products 
+        WHERE photo_url IS NOT NULL 
+          AND photo_url != ''
+        ORDER BY updated_at DESC
+        LIMIT 10
+      `);
+      
+      debug.database.productsWithPhotos = {
+        count: productsWithPhotosResult.rows.length,
+        data: productsWithPhotosResult.rows
+      };
+
+      // Check recent photo upload attempts (if logs exist)
+      try {
+        const recentUploads = await pool.query(`
+          SELECT 
+            product_id,
+            filename,
+            upload_time,
+            success
+          FROM upload_logs 
+          WHERE upload_time >= NOW() - INTERVAL '1 day'
+          ORDER BY upload_time DESC
+          LIMIT 10
+        `);
+        
+        debug.database.recentUploads = {
+          count: recentUploads.rows.length,
+          data: recentUploads.rows
+        };
+      } catch (logError) {
+        debug.database.recentUploads = {
+          error: 'Upload logs table not found or accessible'
+        };
+      }
+
+      // Check static file serving path
+      debug.uploads.staticPath = `/uploads (served from ${path.join(process.cwd(), 'uploads')})`;
+      debug.uploads.expectedPhotoPath = 'Example: /uploads/products/productId_timestamp.jpg';
+
+      console.log('🔍 Photo upload debug results:', JSON.stringify(debug, null, 2));
+      
+      res.json({
+        success: true,
+        debug
+      });
+    } catch (error) {
+      console.error('Debug photo upload error:', error);
+      res.status(500).json({ 
+        success: false,
+        error: 'Photo upload debug failed',
+        message: error instanceof Error ? error.message : 'Unknown error' 
+      });
+    }
+  });
+
 
 
   // Register supplier analytics router BEFORE Vite to prevent routing conflicts
