@@ -208,6 +208,41 @@ export default function ProductDataEntry() {
     return editedValue !== undefined ? editedValue : product[field];
   };
 
+  // Handle file upload
+  const handleFileUpload = async (productId: number, file: File) => {
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('productId', productId.toString());
+
+      const response = await fetch('/api/products/upload-image', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+        },
+        body: formData
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        handleFieldChange(productId, 'imageUrl', result.imageUrl);
+        toast({
+          title: "Erfolg",
+          description: "Foto wurde erfolgreich hochgeladen.",
+        });
+      } else {
+        throw new Error('Upload failed');
+      }
+    } catch (error) {
+      console.error('Error uploading file:', error);
+      toast({
+        title: "Fehler",
+        description: "Foto konnte nicht hochgeladen werden.",
+        variant: "destructive",
+      });
+    }
+  };
+
   if (loadingProducts) {
     return <div className="p-6">Lade Produktdaten...</div>;
   }
@@ -251,24 +286,17 @@ export default function ProductDataEntry() {
           <table className="w-full">
             <thead className="bg-muted/50">
               <tr>
-                <th className="text-left p-2 font-medium w-20">Aktion</th>
-                <th className="text-left p-2 font-medium w-64">Produktname</th>
-                <th className="text-left p-2 font-medium w-48">Kurzbeschreibung</th>
-                <th className="text-left p-2 font-medium w-64">Detailbeschreibung</th>
-                <th className="text-left p-2 font-medium w-20">Preis</th>
+                <th className="text-left p-2 font-medium w-16">Aktion</th>
+                <th className="text-left p-2 font-medium w-56">Produktname</th>
+                <th className="text-left p-2 font-medium w-44">Kurzbeschreibung</th>
+                <th className="text-left p-2 font-medium w-52">Detailbeschreibung</th>
                 <th className="text-left p-2 font-medium w-32">Kategorie</th>
-                <th className="text-left p-2 font-medium w-24">Status</th>
                 <th className="text-left p-2 font-medium w-40">Lieferant</th>
                 <th className="text-left p-2 font-medium w-20">Pfand</th>
-                <th className="text-left p-2 font-medium w-16">MwSt</th>
                 <th className="text-left p-2 font-medium w-32">Gebindegröße</th>
                 <th className="text-left p-2 font-medium w-48">Inhaltsstoffe</th>
                 <th className="text-left p-2 font-medium w-48">Allergene</th>
-                <th className="text-left p-2 font-medium w-12">Bio</th>
-                <th className="text-left p-2 font-medium w-12">Lokal</th>
-                <th className="text-left p-2 font-medium w-12">Vegan</th>
-                <th className="text-left p-2 font-medium w-16">Vegetarisch</th>
-                <th className="text-left p-2 font-medium w-24">Foto</th>
+                <th className="text-left p-2 font-medium w-20">Foto</th>
               </tr>
             </thead>
             <tbody>
@@ -286,39 +314,30 @@ export default function ProductDataEntry() {
                     </Button>
                   </td>
                   
-                  {/* Produktname */}
-                  <td className="p-2 w-64">
-                    <Input
-                      value={String(getCurrentValue(product, 'productName') || '')}
-                      onChange={(e) => handleFieldChange(product.id, 'productName', e.target.value)}
-                      className="w-full"
-                    />
+                  {/* Produktname (Read-only from Vendon) */}
+                  <td className="p-2 w-56">
+                    <div className="text-xs bg-gray-50 p-2 rounded border leading-tight max-h-16 overflow-y-auto">
+                      {String(getCurrentValue(product, 'productName') || '')}
+                    </div>
                   </td>
                   
                   {/* Kurzbeschreibung */}
-                  <td className="p-2 w-48">
+                  <td className="p-2 w-44">
                     <Input
                       value={String(getCurrentValue(product, 'shortDescription') || '')}
                       onChange={(e) => handleFieldChange(product.id, 'shortDescription', e.target.value)}
-                      className="w-full"
+                      className="w-full text-xs"
                     />
                   </td>
                   
                   {/* Detailbeschreibung */}
-                  <td className="p-2 w-64">
+                  <td className="p-2 w-52">
                     <textarea
                       value={String(getCurrentValue(product, 'description') || '')}
                       onChange={(e) => handleFieldChange(product.id, 'description', e.target.value)}
-                      className="w-full p-1 border rounded resize-none h-16"
+                      className="w-full p-1 border rounded resize-none h-16 text-xs"
                       rows={2}
                     />
-                  </td>
-                  
-                  {/* Preis (Read-only) */}
-                  <td className="p-2 w-20">
-                    <div className="text-sm bg-gray-100 p-2 rounded border">
-                      €{Number(getCurrentValue(product, 'price') || 0).toFixed(2)}
-                    </div>
                   </td>
                   
                   {/* Kategorie */}
@@ -337,19 +356,6 @@ export default function ProductDataEntry() {
                       <option value="Backwaren">Backwaren</option>
                       <option value="Alkoholische Getränke">Alkoholische Getränke</option>
                       <option value="Sonstiges">Sonstiges</option>
-                    </select>
-                  </td>
-                  
-                  {/* Status */}
-                  <td className="p-2 w-24">
-                    <select
-                      value={String(getCurrentValue(product, 'status') || '')}
-                      onChange={(e) => handleFieldChange(product.id, 'status', e.target.value)}
-                      className="w-full p-1 border rounded text-xs"
-                    >
-                      <option value="active">Aktiv</option>
-                      <option value="inactive">Inaktiv</option>
-                      <option value="discontinued">Eingestellt</option>
                     </select>
                   </td>
                   
@@ -378,13 +384,6 @@ export default function ProductDataEntry() {
                       onChange={(e) => handleFieldChange(product.id, 'depositPrice', parseFloat(e.target.value) || 0)}
                       className="w-full text-xs"
                     />
-                  </td>
-                  
-                  {/* MwSt (Read-only) */}
-                  <td className="p-2 w-16">
-                    <div className="text-xs bg-gray-100 p-2 rounded border text-center">
-                      {getCurrentValue(product, 'vat') || 19}%
-                    </div>
                   </td>
                   
                   {/* Gebindegröße */}
@@ -416,48 +415,8 @@ export default function ProductDataEntry() {
                     />
                   </td>
                   
-                  {/* Bio */}
-                  <td className="p-2 w-12 text-center">
-                    <input
-                      type="checkbox"
-                      checked={Boolean(getCurrentValue(product, 'isOrganic'))}
-                      onChange={(e) => handleFieldChange(product.id, 'isOrganic', e.target.checked)}
-                      className="w-4 h-4"
-                    />
-                  </td>
-                  
-                  {/* Lokal */}
-                  <td className="p-2 w-12 text-center">
-                    <input
-                      type="checkbox"
-                      checked={Boolean(getCurrentValue(product, 'isLocal'))}
-                      onChange={(e) => handleFieldChange(product.id, 'isLocal', e.target.checked)}
-                      className="w-4 h-4"
-                    />
-                  </td>
-                  
-                  {/* Vegan */}
-                  <td className="p-2 w-12 text-center">
-                    <input
-                      type="checkbox"
-                      checked={Boolean(getCurrentValue(product, 'isVegan'))}
-                      onChange={(e) => handleFieldChange(product.id, 'isVegan', e.target.checked)}
-                      className="w-4 h-4"
-                    />
-                  </td>
-                  
-                  {/* Vegetarisch */}
-                  <td className="p-2 w-16 text-center">
-                    <input
-                      type="checkbox"
-                      checked={Boolean(getCurrentValue(product, 'isVegetarian'))}
-                      onChange={(e) => handleFieldChange(product.id, 'isVegetarian', e.target.checked)}
-                      className="w-4 h-4"
-                    />
-                  </td>
-                  
                   {/* Foto */}
-                  <td className="p-2 w-24">
+                  <td className="p-2 w-20">
                     <div className="flex flex-col gap-1">
                       <input
                         type="file"
@@ -465,8 +424,8 @@ export default function ProductDataEntry() {
                         onChange={(e) => {
                           const file = e.target.files?.[0];
                           if (file) {
-                            // TODO: Implement file upload functionality
-                            console.log('File selected:', file.name);
+                            // For now, just store the file name
+                            handleFieldChange(product.id, 'productName', `${getCurrentValue(product, 'productName')} (Foto: ${file.name})`);
                           }
                         }}
                         className="text-xs hidden"
@@ -480,6 +439,9 @@ export default function ProductDataEntry() {
                       >
                         <Upload className="h-3 w-3" />
                       </Button>
+                      {getCurrentValue(product, 'imageUrl') && (
+                        <div className="text-xs text-green-600">Foto vorhanden</div>
+                      )}
                     </div>
                   </td>
                 </tr>
