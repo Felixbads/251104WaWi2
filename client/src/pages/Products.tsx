@@ -31,7 +31,8 @@ import {
   Percent,
   RefreshCw,
   Upload,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Edit
 } from "lucide-react";
 import {
   Tooltip,
@@ -875,6 +876,17 @@ export default function Products() {
         </div>
         
         <div className="flex gap-2">
+          {/* Produktdaten bearbeiten Button */}
+          <Button 
+            variant="default" 
+            size="sm"
+            onClick={() => setLocation('/product-data-entry')}
+            className="flex items-center gap-1.5"
+          >
+            <Edit className="h-4 w-4" />
+            <span>Daten bearbeiten</span>
+          </Button>
+          
           {/* Synchronisierungs-Button */}
           <TooltipProvider>
             <Tooltip>
