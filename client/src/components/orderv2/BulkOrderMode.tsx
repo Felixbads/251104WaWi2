@@ -717,7 +717,7 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
                             </TableCell>
                           </TableRow>
                         )}
-                      </div>
+                      </React.Fragment>
                     );
                   })
                 ) : (
@@ -906,7 +906,7 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
                             </TableCell>
                           </TableRow>
                         )}
-                      </div>
+                      </React.Fragment>
                     );
                   }) : (
                     <TableRow>
