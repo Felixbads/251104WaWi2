@@ -1414,12 +1414,28 @@ export default function SupplierDetail() {
           <SupplierStatistics supplierId={parseInt(id!)} supplier={supplier} />
         </TabsContent>
         
-        {/* E-Mail-Vorlagen Tab */}
+        {/* E-Mail-Vorlagen Tab - erweiterte Sichtbarkeit */}
         <TabsContent value="emailTemplates">
-          <SupplierEmailTemplates 
-            supplierId={parseInt(id)} 
-            supplierName={supplier?.name || ''} 
-          />
+          <div className="space-y-4">
+            <Card className="border-green-200 bg-green-50">
+              <CardHeader>
+                <CardTitle className="text-green-800 flex items-center gap-2">
+                  <Mail className="h-5 w-5" />
+                  Automatische E-Mail-Vorlagen für Bestellungen
+                </CardTitle>
+                <CardDescription className="text-green-700">
+                  <strong>Wichtige Funktion:</strong> Erstellen Sie lieferanten-spezifische E-Mail-Vorlagen, die automatisch 
+                  bei Bestellungen verwendet werden. Jeder Lieferant kann individuelle Vorlagen für Standard-, 
+                  Nachbestellungs- und Eilbestellungen haben.
+                </CardDescription>
+              </CardHeader>
+            </Card>
+            
+            <SupplierEmailTemplates 
+              supplierId={parseInt(id)} 
+              supplierName={supplier?.name || ''} 
+            />
+          </div>
         </TabsContent>
       </Tabs>
 
