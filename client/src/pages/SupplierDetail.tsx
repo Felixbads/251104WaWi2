@@ -88,6 +88,7 @@ const supplierFormSchema = z.object({
   taxId: z.string().optional(),
   accountNumber: z.string().optional(),
   bankDetails: z.string().optional(),
+  showPricesInOrders: z.boolean().default(true),
 });
 
 type SupplierFormValues = z.infer<typeof supplierFormSchema>;

@@ -97,6 +97,9 @@ export const suppliers = pgTable("suppliers", {
   shortDescription: text("short_description"), // Kurze Lieferantenbeschreibung
   photos: text("photos").array(), // Array von Foto-URLs
   
+  // Preisanzeige in Bestellungen - Option für Lieferanten
+  showPricesInOrders: boolean("show_prices_in_orders").default(true), // Standardmäßig Preise anzeigen
+  
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
