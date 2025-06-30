@@ -94,10 +94,19 @@ export default function ProductDataEntry() {
   // Single product update mutation
   const updateProductMutation = useMutation({
     mutationFn: async ({ id, data }: { id: number; data: Partial<Product> }) => {
-      return apiRequest(`/api/products/${id}`, {
+      const response = await fetch(`/api/products/${id}`, {
         method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify(data),
       });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      return response.json();
     },
     onSuccess: () => {
       toast({
@@ -119,12 +128,21 @@ export default function ProductDataEntry() {
   const bulkUpdateMutation = useMutation({
     mutationFn: async (updates: Array<{ id: number; data: Partial<Product> }>) => {
       return Promise.all(
-        updates.map(({ id, data }) =>
-          apiRequest(`/api/products/${id}`, {
+        updates.map(async ({ id, data }) => {
+          const response = await fetch(`/api/products/${id}`, {
             method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+            },
             body: JSON.stringify(data),
-          })
-        )
+          });
+          
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          
+          return response.json();
+        })
       );
     },
     onSuccess: () => {
@@ -233,24 +251,24 @@ export default function ProductDataEntry() {
           <table className="w-full">
             <thead className="bg-muted/50">
               <tr>
-                <th className="text-left p-2 font-medium min-w-[80px]">Aktion</th>
-                <th className="text-left p-2 font-medium min-w-[200px]">Produktname</th>
-                <th className="text-left p-2 font-medium min-w-[150px]">Kurzbeschreibung</th>
-                <th className="text-left p-2 font-medium min-w-[200px]">Detailbeschreibung</th>
-                <th className="text-left p-2 font-medium">Preis</th>
-                <th className="text-left p-2 font-medium">Kategorie</th>
-                <th className="text-left p-2 font-medium">Status</th>
-                <th className="text-left p-2 font-medium">Lieferant</th>
-                <th className="text-left p-2 font-medium">Pfand</th>
-                <th className="text-left p-2 font-medium">MwSt</th>
-                <th className="text-left p-2 font-medium">Gebindegröße</th>
-                <th className="text-left p-2 font-medium min-w-[150px]">Inhaltsstoffe</th>
-                <th className="text-left p-2 font-medium min-w-[150px]">Allergene</th>
-                <th className="text-left p-2 font-medium">Bio</th>
-                <th className="text-left p-2 font-medium">Lokal</th>
-                <th className="text-left p-2 font-medium">Vegan</th>
-                <th className="text-left p-2 font-medium">Vegetarisch</th>
-                <th className="text-left p-2 font-medium">Foto</th>
+                <th className="text-left p-2 font-medium w-20">Aktion</th>
+                <th className="text-left p-2 font-medium w-64">Produktname</th>
+                <th className="text-left p-2 font-medium w-48">Kurzbeschreibung</th>
+                <th className="text-left p-2 font-medium w-64">Detailbeschreibung</th>
+                <th className="text-left p-2 font-medium w-20">Preis</th>
+                <th className="text-left p-2 font-medium w-32">Kategorie</th>
+                <th className="text-left p-2 font-medium w-24">Status</th>
+                <th className="text-left p-2 font-medium w-40">Lieferant</th>
+                <th className="text-left p-2 font-medium w-20">Pfand</th>
+                <th className="text-left p-2 font-medium w-16">MwSt</th>
+                <th className="text-left p-2 font-medium w-32">Gebindegröße</th>
+                <th className="text-left p-2 font-medium w-48">Inhaltsstoffe</th>
+                <th className="text-left p-2 font-medium w-48">Allergene</th>
+                <th className="text-left p-2 font-medium w-12">Bio</th>
+                <th className="text-left p-2 font-medium w-12">Lokal</th>
+                <th className="text-left p-2 font-medium w-12">Vegan</th>
+                <th className="text-left p-2 font-medium w-16">Vegetarisch</th>
+                <th className="text-left p-2 font-medium w-24">Foto</th>
               </tr>
             </thead>
             <tbody>
@@ -269,49 +287,46 @@ export default function ProductDataEntry() {
                   </td>
                   
                   {/* Produktname */}
-                  <td className="p-2">
+                  <td className="p-2 w-64">
                     <Input
                       value={String(getCurrentValue(product, 'productName') || '')}
                       onChange={(e) => handleFieldChange(product.id, 'productName', e.target.value)}
-                      className="min-w-[200px]"
+                      className="w-full"
                     />
                   </td>
                   
                   {/* Kurzbeschreibung */}
-                  <td className="p-2">
+                  <td className="p-2 w-48">
                     <Input
                       value={String(getCurrentValue(product, 'shortDescription') || '')}
                       onChange={(e) => handleFieldChange(product.id, 'shortDescription', e.target.value)}
-                      className="min-w-[150px]"
+                      className="w-full"
                     />
                   </td>
                   
                   {/* Detailbeschreibung */}
-                  <td className="p-2">
+                  <td className="p-2 w-64">
                     <textarea
                       value={String(getCurrentValue(product, 'description') || '')}
                       onChange={(e) => handleFieldChange(product.id, 'description', e.target.value)}
-                      className="w-full p-1 border rounded resize-none min-w-[200px] h-16"
+                      className="w-full p-1 border rounded resize-none h-16"
                       rows={2}
                     />
                   </td>
                   
-                  {/* Preis */}
-                  <td className="p-2">
-                    <Input
-                      type="number"
-                      step="0.01"
-                      value={String(getCurrentValue(product, 'price') || '')}
-                      onChange={(e) => handleFieldChange(product.id, 'price', parseFloat(e.target.value) || 0)}
-                    />
+                  {/* Preis (Read-only) */}
+                  <td className="p-2 w-20">
+                    <div className="text-sm bg-gray-100 p-2 rounded border">
+                      €{Number(getCurrentValue(product, 'price') || 0).toFixed(2)}
+                    </div>
                   </td>
                   
                   {/* Kategorie */}
-                  <td className="p-2">
+                  <td className="p-2 w-32">
                     <select
                       value={String(getCurrentValue(product, 'category') || '')}
                       onChange={(e) => handleFieldChange(product.id, 'category', e.target.value)}
-                      className="w-full p-1 border rounded"
+                      className="w-full p-1 border rounded text-xs"
                     >
                       <option value="">Kategorie wählen</option>
                       <option value="Getränke">Getränke</option>
@@ -326,11 +341,11 @@ export default function ProductDataEntry() {
                   </td>
                   
                   {/* Status */}
-                  <td className="p-2">
+                  <td className="p-2 w-24">
                     <select
                       value={String(getCurrentValue(product, 'status') || '')}
                       onChange={(e) => handleFieldChange(product.id, 'status', e.target.value)}
-                      className="w-full p-1 border rounded"
+                      className="w-full p-1 border rounded text-xs"
                     >
                       <option value="active">Aktiv</option>
                       <option value="inactive">Inaktiv</option>
@@ -339,11 +354,11 @@ export default function ProductDataEntry() {
                   </td>
                   
                   {/* Lieferant */}
-                  <td className="p-2">
+                  <td className="p-2 w-40">
                     <select
                       value={String(getCurrentValue(product, 'supplierId') || '')}
                       onChange={(e) => handleFieldChange(product.id, 'supplierId', e.target.value ? parseInt(e.target.value) : null)}
-                      className="w-full p-1 border rounded"
+                      className="w-full p-1 border rounded text-xs"
                     >
                       <option value="">Kein Lieferant</option>
                       {suppliers.map((supplier: Supplier) => (
@@ -355,57 +370,54 @@ export default function ProductDataEntry() {
                   </td>
                   
                   {/* Pfand */}
-                  <td className="p-2">
+                  <td className="p-2 w-20">
                     <Input
                       type="number"
                       step="0.01"
                       value={String(getCurrentValue(product, 'depositPrice') || '')}
                       onChange={(e) => handleFieldChange(product.id, 'depositPrice', parseFloat(e.target.value) || 0)}
+                      className="w-full text-xs"
                     />
                   </td>
                   
-                  {/* MwSt */}
-                  <td className="p-2">
-                    <select
-                      value={String(getCurrentValue(product, 'vat') || '')}
-                      onChange={(e) => handleFieldChange(product.id, 'vat', parseInt(e.target.value) || 19)}
-                      className="w-full p-1 border rounded"
-                    >
-                      <option value="7">7%</option>
-                      <option value="19">19%</option>
-                    </select>
+                  {/* MwSt (Read-only) */}
+                  <td className="p-2 w-16">
+                    <div className="text-xs bg-gray-100 p-2 rounded border text-center">
+                      {getCurrentValue(product, 'vat') || 19}%
+                    </div>
                   </td>
                   
                   {/* Gebindegröße */}
-                  <td className="p-2">
+                  <td className="p-2 w-32">
                     <Input
                       value={String(getCurrentValue(product, 'packageSize') || '')}
                       onChange={(e) => handleFieldChange(product.id, 'packageSize', e.target.value)}
+                      className="w-full text-xs"
                     />
                   </td>
                   
                   {/* Inhaltsstoffe */}
-                  <td className="p-2">
+                  <td className="p-2 w-48">
                     <textarea
                       value={String(getCurrentValue(product, 'ingredients') || '')}
                       onChange={(e) => handleFieldChange(product.id, 'ingredients', e.target.value)}
-                      className="w-full p-1 border rounded resize-none min-w-[150px] h-16"
+                      className="w-full p-1 border rounded resize-none h-16 text-xs"
                       rows={2}
                     />
                   </td>
                   
                   {/* Allergene */}
-                  <td className="p-2">
+                  <td className="p-2 w-48">
                     <textarea
                       value={String(getCurrentValue(product, 'allergens') || '')}
                       onChange={(e) => handleFieldChange(product.id, 'allergens', e.target.value)}
-                      className="w-full p-1 border rounded resize-none min-w-[150px] h-16"
+                      className="w-full p-1 border rounded resize-none h-16 text-xs"
                       rows={2}
                     />
                   </td>
                   
                   {/* Bio */}
-                  <td className="p-2">
+                  <td className="p-2 w-12 text-center">
                     <input
                       type="checkbox"
                       checked={Boolean(getCurrentValue(product, 'isOrganic'))}
@@ -415,7 +427,7 @@ export default function ProductDataEntry() {
                   </td>
                   
                   {/* Lokal */}
-                  <td className="p-2">
+                  <td className="p-2 w-12 text-center">
                     <input
                       type="checkbox"
                       checked={Boolean(getCurrentValue(product, 'isLocal'))}
@@ -425,7 +437,7 @@ export default function ProductDataEntry() {
                   </td>
                   
                   {/* Vegan */}
-                  <td className="p-2">
+                  <td className="p-2 w-12 text-center">
                     <input
                       type="checkbox"
                       checked={Boolean(getCurrentValue(product, 'isVegan'))}
@@ -435,7 +447,7 @@ export default function ProductDataEntry() {
                   </td>
                   
                   {/* Vegetarisch */}
-                  <td className="p-2">
+                  <td className="p-2 w-16 text-center">
                     <input
                       type="checkbox"
                       checked={Boolean(getCurrentValue(product, 'isVegetarian'))}
@@ -445,7 +457,7 @@ export default function ProductDataEntry() {
                   </td>
                   
                   {/* Foto */}
-                  <td className="p-2">
+                  <td className="p-2 w-24">
                     <div className="flex flex-col gap-1">
                       <input
                         type="file"
@@ -457,11 +469,16 @@ export default function ProductDataEntry() {
                             console.log('File selected:', file.name);
                           }
                         }}
-                        className="text-xs"
+                        className="text-xs hidden"
+                        id={`file-${product.id}`}
                       />
-                      <Button size="sm" variant="outline" className="text-xs">
-                        <Upload className="h-3 w-3 mr-1" />
-                        Upload
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        className="text-xs h-6 px-2"
+                        onClick={() => document.getElementById(`file-${product.id}`)?.click()}
+                      >
+                        <Upload className="h-3 w-3" />
                       </Button>
                     </div>
                   </td>
