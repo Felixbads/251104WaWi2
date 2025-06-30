@@ -212,24 +212,21 @@ export default function ProductDataEntry() {
   const handleFileUpload = async (productId: number, file: File) => {
     try {
       const formData = new FormData();
-      formData.append('file', file);
-      formData.append('productId', productId.toString());
+      formData.append('photo', file);
 
-      const response = await fetch('/api/products/upload-image', {
+      const response = await fetch(`/api/photos/upload/${productId}`, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
-        },
         body: formData
       });
 
       if (response.ok) {
         const result = await response.json();
-        handleFieldChange(productId, 'description', `${getCurrentValue({ id: productId } as Product, 'description')} (Foto hochgeladen: ${result.filename})`);
         toast({
           title: "Erfolg",
           description: "Foto wurde erfolgreich hochgeladen.",
         });
+        // Refresh the products data to show updated photo status
+        queryClient.invalidateQueries({ queryKey: ["/api/products"] });
       } else {
         throw new Error('Upload failed');
       }
@@ -287,6 +284,7 @@ export default function ProductDataEntry() {
             <thead className="bg-muted/50">
               <tr>
                 <th className="text-left p-2 font-medium w-16">Aktion</th>
+                <th className="text-left p-2 font-medium w-16">Foto</th>
                 <th className="text-left p-2 font-medium w-56">Produktname</th>
                 <th className="text-left p-2 font-medium w-44">Kurzbeschreibung</th>
                 <th className="text-left p-2 font-medium w-52">Detailbeschreibung</th>
@@ -296,7 +294,7 @@ export default function ProductDataEntry() {
                 <th className="text-left p-2 font-medium w-32">Gebindegröße</th>
                 <th className="text-left p-2 font-medium w-48">Inhaltsstoffe</th>
                 <th className="text-left p-2 font-medium w-48">Allergene</th>
-                <th className="text-left p-2 font-medium w-20">Foto</th>
+                <th className="text-left p-2 font-medium w-20">Upload</th>
               </tr>
             </thead>
             <tbody>
@@ -312,6 +310,19 @@ export default function ProductDataEntry() {
                     >
                       <Save className="h-3 w-3" />
                     </Button>
+                  </td>
+                  
+                  {/* Foto Thumbnail */}
+                  <td className="p-2 w-16">
+                    <div className="w-12 h-12 bg-gray-100 rounded border flex items-center justify-center">
+                      {String(getCurrentValue(product, 'description')).includes('Foto hochgeladen:') ? (
+                        <div className="w-10 h-10 bg-green-100 rounded flex items-center justify-center">
+                          <span className="text-xs text-green-600">📷</span>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-gray-400">Kein Foto</span>
+                      )}
+                    </div>
                   </td>
                   
                   {/* Produktname (Read-only from Vendon) */}
@@ -415,7 +426,7 @@ export default function ProductDataEntry() {
                     />
                   </td>
                   
-                  {/* Foto */}
+                  {/* Foto Upload */}
                   <td className="p-2 w-20">
                     <div className="flex flex-col gap-1">
                       <input
@@ -424,8 +435,7 @@ export default function ProductDataEntry() {
                         onChange={(e) => {
                           const file = e.target.files?.[0];
                           if (file) {
-                            // For now, just store the file name
-                            handleFieldChange(product.id, 'productName', `${getCurrentValue(product, 'productName')} (Foto: ${file.name})`);
+                            handleFileUpload(product.id, file);
                           }
                         }}
                         className="text-xs hidden"
@@ -439,7 +449,6 @@ export default function ProductDataEntry() {
                       >
                         <Upload className="h-3 w-3" />
                       </Button>
-
                     </div>
                   </td>
                 </tr>

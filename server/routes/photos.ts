@@ -1,63 +1,131 @@
-import { Router, Request, Response } from 'express';
-import { uploadPhotos, getPhotoUrl, deletePhotoFile } from '../middleware/fileUpload';
+import express from 'express';
+import multer from 'multer';
 import path from 'path';
+import fs from 'fs';
 
-const router = Router();
+const router = express.Router();
 
-// Upload photos for suppliers or products
-router.post('/upload', uploadPhotos.array('photos', 10), (req: Request, res: Response) => {
+// Configure multer for file uploads
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadDir = path.join(process.cwd(), 'uploads', 'products');
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    const productId = req.body.productId || req.params.productId;
+    const extension = path.extname(file.originalname);
+    cb(null, `product-${productId}-${Date.now()}${extension}`);
+  }
+});
+
+const upload = multer({
+  storage,
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = /jpeg|jpg|png|gif|webp/;
+    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+    const mimetype = allowedTypes.test(file.mimetype);
+
+    if (mimetype && extname) {
+      return cb(null, true);
+    } else {
+      cb(new Error('Nur Bilddateien sind erlaubt (JPEG, PNG, GIF, WebP)'));
+    }
+  },
+  limits: {
+    fileSize: 5 * 1024 * 1024 // 5MB limit
+  }
+});
+
+// Upload photo for product
+router.post('/upload/:productId', upload.single('photo'), async (req, res) => {
   try {
-    if (!req.files || !Array.isArray(req.files)) {
-      return res.status(400).json({
-        success: false,
-        error: 'Keine Dateien hochgeladen'
-      });
+    if (!req.file) {
+      return res.status(400).json({ error: 'Keine Datei hochgeladen' });
     }
 
-    const uploadedPhotos = req.files.map(file => ({
-      filename: file.filename,
-      originalName: file.originalname,
-      url: getPhotoUrl(file.filename),
-      size: file.size
-    }));
+    const productId = parseInt(req.params.productId);
+    const photoPath = `/uploads/products/${req.file.filename}`;
+
+    // Update product with photo information
+    const { pool } = await import('../db');
+    
+    // Update the description field to include photo info
+    const updateQuery = `
+      UPDATE products 
+      SET description = COALESCE(description, '') || 
+          CASE 
+            WHEN description IS NULL OR description = '' THEN 'Foto hochgeladen: ${req.file.filename}'
+            ELSE E'\nFoto hochgeladen: ${req.file.filename}'
+          END,
+          updated_at = NOW()
+      WHERE id = $1
+      RETURNING *
+    `;
+    
+    const result = await pool.query(updateQuery, [productId]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Produkt nicht gefunden' });
+    }
 
     res.json({
       success: true,
-      photos: uploadedPhotos
+      photoPath,
+      filename: req.file.filename,
+      product: result.rows[0]
     });
+
   } catch (error) {
-    console.error('Photo upload error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Fehler beim Hochladen der Fotos'
+    console.error('Fehler beim Hochladen des Fotos:', error);
+    res.status(500).json({ 
+      error: 'Fehler beim Hochladen des Fotos',
+      details: error instanceof Error ? error.message : String(error)
     });
   }
 });
 
-// Delete a photo
-router.delete('/:filename', (req: Request, res: Response) => {
+// Get product photo
+router.get('/:productId', async (req, res) => {
   try {
-    const { filename } = req.params;
+    const productId = parseInt(req.params.productId);
     
-    // Validate filename to prevent path traversal
-    if (!filename || filename.includes('..') || filename.includes('/')) {
-      return res.status(400).json({
-        success: false,
-        error: 'Ungültiger Dateiname'
+    const { pool } = await import('../db');
+    const result = await pool.query(
+      'SELECT description FROM products WHERE id = $1',
+      [productId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Produkt nicht gefunden' });
+    }
+
+    const description = result.rows[0].description || '';
+    const photoMatch = description.match(/Foto hochgeladen: ([^\n\r]+)/);
+    
+    if (photoMatch) {
+      const filename = photoMatch[1];
+      const photoPath = `/uploads/products/${filename}`;
+      res.json({ 
+        hasPhoto: true, 
+        photoPath,
+        filename 
+      });
+    } else {
+      res.json({ 
+        hasPhoto: false, 
+        photoPath: null,
+        filename: null 
       });
     }
 
-    deletePhotoFile(filename);
-    
-    res.json({
-      success: true,
-      message: 'Foto erfolgreich gelöscht'
-    });
   } catch (error) {
-    console.error('Photo deletion error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Fehler beim Löschen des Fotos'
+    console.error('Fehler beim Abrufen des Fotos:', error);
+    res.status(500).json({ 
+      error: 'Fehler beim Abrufen des Fotos',
+      details: error instanceof Error ? error.message : String(error)
     });
   }
 });
