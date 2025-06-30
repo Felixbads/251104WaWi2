@@ -262,25 +262,22 @@ export default function ProductDetail() {
         </TabsContent>
 
         <TabsContent value="details" className="space-y-6 mt-6">
+          {/* Section 1: Basic Info */}
           <Card>
             <CardHeader>
-              <CardTitle>Detaillierte Produktinformationen</CardTitle>
+              <CardTitle>Grundinformationen</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                 {Object.entries({
-                  'Vendon ID': product.vendonId,
+                  'Vendon-ID': product.vendonId,
+                  'Produktname': product.productName,
+                  'Kategorie': product.category,
                   'Artikel': product.article,
                   'Einheiten': product.units,
                   'MwSt.': product.vat ? `${product.vat}%` : null,
+                  'Preis': product.price ? `${product.price.toFixed(2)} €` : null,
                   'Pfandpreis': product.depositPrice ? `${product.depositPrice.toFixed(2)} €` : null,
-                  'Einkaufspreis': product.costPrice ? `${product.costPrice.toFixed(2)} €` : null,
-                  'Kritisch': product.critical ? 'Ja' : 'Nein',
-                  'Bio': product.isOrganic ? 'Ja' : 'Nein',
-                  'Vegan': product.isVegan ? 'Ja' : 'Nein',
-                  'Vegetarisch': product.isVegetarian ? 'Ja' : 'Nein',
-                  'Lokal': product.isLocal ? 'Ja' : 'Nein',
-                  'Nachhaltigkeitsscore': product.sustainabilityScore ? `${product.sustainabilityScore}/100` : null,
                 }).filter(([_, value]) => value !== null && value !== undefined).map(([key, value]) => (
                   <div key={key}>
                     <span className="text-sm text-gray-500">{key}</span>
@@ -288,6 +285,100 @@ export default function ProductDetail() {
                   </div>
                 ))}
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Section 2: Supplier Info */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Lieferanteninformationen</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                {Object.entries({
+                  'Lieferant': product.supplierName,
+                  'Lieferanten-SKU': product.supplierSku,
+                  'Artikel beim Lieferanten': product.articleSupplier,
+                  'Nettopreis': product.costPrice ? `${product.costPrice.toFixed(2)} €` : null,
+                  'Mindestbestellmenge': product.minOrderQuantity,
+                  'Gebindegröße': product.packageSize,
+                  'Haltbarkeit (Tage)': product.shelfLifeDays,
+                }).filter(([_, value]) => value !== null && value !== undefined).map(([key, value]) => (
+                  <div key={key}>
+                    <span className="text-sm text-gray-500">{key}</span>
+                    <p className="font-medium">{value}</p>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Section 3: Ingredients */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Inhaltsstoffe & Nährwerte</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {product.ingredients && (
+                <div>
+                  <span className="text-sm text-gray-500">Inhaltsstoffe</span>
+                  <p className="font-medium">{product.ingredients}</p>
+                </div>
+              )}
+              {product.allergens && (
+                <div>
+                  <span className="text-sm text-gray-500">Allergene</span>
+                  <p className="font-medium">{product.allergens}</p>
+                </div>
+              )}
+              {product.nutritionalInfo && (
+                <div>
+                  <span className="text-sm text-gray-500">Nährwerttabelle</span>
+                  <div className="mt-2 p-3 bg-gray-50 rounded border">
+                    <pre className="text-sm whitespace-pre-wrap">{product.nutritionalInfo}</pre>
+                  </div>
+                </div>
+              )}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {Object.entries({
+                  'Bio': product.isOrganic ? 'Ja' : 'Nein',
+                  'Vegan': product.isVegan ? 'Ja' : 'Nein',
+                  'Vegetarisch': product.isVegetarian ? 'Ja' : 'Nein',
+                  'Lokal': product.isLocal ? 'Ja' : 'Nein',
+                }).map(([key, value]) => (
+                  <div key={key}>
+                    <span className="text-sm text-gray-500">{key}</span>
+                    <p className="font-medium">{value}</p>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Section 4: Photo Display */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Produktfotos</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {product.photos && product.photos.length > 0 ? (
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {product.photos.map((photo, index) => (
+                    <div key={index} className="aspect-square bg-gray-100 rounded border overflow-hidden">
+                      <img 
+                        src={`/api/photos/${photo}`} 
+                        alt={`${product.productName} - Foto ${index + 1}`}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <Image className="h-12 w-12 mx-auto text-gray-400 mb-2" />
+                  <p className="text-gray-500">Keine Produktfotos vorhanden</p>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
