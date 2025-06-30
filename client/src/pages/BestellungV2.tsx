@@ -106,7 +106,7 @@ const BestellungV2: React.FC = () => {
       setOrderId(parseInt(orderIdParam));
       
       // Wenn wir eine bestehende Bestellung laden, Daten abrufen
-      if (stepParam === 'sendOrder' || stepParam === 'goodsReceipt') {
+      if (stepParam === 'sendOrder' || stepParam === 'goodsReceipt' || stepParam === 'viewOrder') {
         loadExistingOrderData(parseInt(orderIdParam));
       }
     }
