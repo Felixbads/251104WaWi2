@@ -1,503 +1,691 @@
-import React, { useState, useEffect } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea';
-import { Badge } from '@/components/ui/badge';
-import { useToast } from '@/hooks/use-toast';
-import { Save, Search, Package, Edit2, Check, X } from 'lucide-react';
-import { apiRequest } from '@/lib/queryClient';
+import { useState, useEffect } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { 
+  Select, 
+  SelectContent, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue 
+} from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Search, Save, SaveAll, Package, Euro, FileText, Image, Edit3 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
 
-// Vereinfachte Product-Interface für diese Komponente
-interface EditableProduct {
+// Complete product interface matching ALL database fields from schema.ts
+interface Product {
   id: number;
-  vendonId?: string;
+  vendonId: string;
   productName: string;
-  description?: string;
-  category?: string;
-  price?: number;
-  vat?: number;
-  status?: string;
-  sku?: string;
-  barcode?: string;
-  supplierId?: number;
-  supplier?: string;
-  supplierSku?: string;
-  isEditing?: boolean;
-  hasChanges?: boolean;
+  price?: number | null;
+  category?: string | null;
+  description?: string | null;
+  status?: string | null;
+  sku?: string | null;
+  barcode?: string | null;
+  supplierId?: number | null;
+  supplierName?: string | null;
+  supplierSku?: string | null;
+  articleSupplier?: string | null;
+  packageSize?: string | null;
+  shelfLifeDays?: number | null;
+  minOrderQuantity?: number | null;
+  vat?: number | null;
+  depositPrice?: number | null;
+  depositVat?: number | null;
+  productType?: string | null;
+  article?: string | null;
+  tags?: string | null;
+  units?: string | null;
+  recipe?: string | null;
+  costPrice?: number | null;
+  warehouseLocation?: string | null;
+  vendonUpdatedAt?: string | null;
+  accountId?: number | null;
+  accountName?: string | null;
+  accountTimezone?: string | null;
+  amountMax?: number | null;
+  amountStandard?: number | null;
+  amountCritical?: number | null;
+  refillUnitSize?: number | null;
+  minRefill?: number | null;
+  critical?: boolean | null;
+  carbonFootprint?: number | null;
+  waterUsage?: number | null;
+  packagingType?: string | null;
+  packagingRecyclable?: boolean | null;
+  transportDistance?: number | null;
+  isOrganic?: boolean | null;
+  isLocal?: boolean | null;
+  isVegan?: boolean | null;
+  isVegetarian?: boolean | null;
+  sustainabilityScore?: number | null;
+  certifications?: string | null;
+  shortDescription?: string | null;
+  ingredients?: string | null;
+  allergens?: string | null;
+  nutritionalInfo?: string | null;
+  photos?: string[] | null;
+  additionalData?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
-// Kategorien für Dropdown
-const PRODUCT_CATEGORIES = [
-  'Getränke',
-  'Snacks',
-  'Süßwaren',
-  'Kaffeespezialitäten',
-  'Heißgetränke',
-  'Kaltgetränke',
-  'Energie-Drinks',
-  'Gesunde Snacks',
-  'Belegte Brötchen',
-  'Süßspeisen',
-  'Sonstige'
-];
-
-// Status-Optionen
-const PRODUCT_STATUS = [
-  { value: 'active', label: 'Aktiv' },
-  { value: 'inactive', label: 'Inaktiv' },
-  { value: 'discontinued', label: 'Ausgelaufen' },
-  { value: 'pending', label: 'Ausstehend' }
-];
+interface Supplier {
+  id: number;
+  name: string;
+}
 
 export default function ProductDataEntry() {
   const [searchTerm, setSearchTerm] = useState("");
-  const [editableProducts, setEditableProducts] = useState<EditableProduct[]>([]);
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [editedProducts, setEditedProducts] = useState<Record<number, Partial<Product>>>({});
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Produkte laden
-  const { data: products = [], isLoading, refetch } = useQuery<EditableProduct[]>({
-    queryKey: ['/api/products', { limit: 1000 }],
-    staleTime: 1000 * 60 * 5, // 5 Minuten
+  // Load products from database
+  const { data: products = [], isLoading: loadingProducts } = useQuery({
+    queryKey: ["/api/products"],
+    queryFn: () => apiRequest("/api/products?limit=1000"),
   });
 
-  // Lieferanten laden für Dropdown
-  const { data: suppliers = [] } = useQuery<Array<{ id: number; name: string }>>({
-    queryKey: ['/api/suppliers'],
-    staleTime: 1000 * 60 * 10, // 10 Minuten
+  // Load suppliers for dropdown
+  const { data: suppliers = [] } = useQuery({
+    queryKey: ["/api/suppliers"],
+    queryFn: () => apiRequest("/api/suppliers"),
   });
 
-  // Produkt aktualisieren
+  // Update product mutation
   const updateProductMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: number, data: Partial<EditableProduct> }) => {
-      return apiRequest(`/api/products/${id}`, {
-        method: 'PATCH',
-        body: JSON.stringify(data),
-      });
-    },
+    mutationFn: ({ id, data }: { id: number; data: Partial<Product> }) =>
+      apiRequest(`/api/products/${id}`, { method: "PATCH", data }),
     onSuccess: () => {
       toast({
-        title: 'Erfolg',
-        description: 'Produkt wurde aktualisiert',
-        variant: 'default',
+        title: "Erfolg",
+        description: "Produkt erfolgreich aktualisiert",
       });
-      queryClient.invalidateQueries({ queryKey: ['/api/products'] });
+      queryClient.invalidateQueries({ queryKey: ["/api/products"] });
     },
-    onError: (error) => {
+    onError: () => {
       toast({
-        title: 'Fehler',
-        description: 'Produkt konnte nicht aktualisiert werden',
-        variant: 'destructive',
+        title: "Fehler",
+        description: "Fehler beim Aktualisieren des Produkts",
+        variant: "destructive",
       });
-      console.error('Update error:', error);
-    }
+    },
   });
 
-  // Mehrere Produkte gleichzeitig aktualisieren
-  const updateMultipleProductsMutation = useMutation({
-    mutationFn: async (updates: { id: number, data: Partial<EditableProduct> }[]) => {
-      const promises = updates.map(({ id, data }) => 
-        apiRequest(`/api/products/${id}`, {
-          method: 'PATCH',
-          body: JSON.stringify(data),
-        })
-      );
-      return Promise.all(promises);
-    },
-    onSuccess: (_, variables) => {
+  // Bulk update mutation
+  const bulkUpdateMutation = useMutation({
+    mutationFn: (updates: Array<{ id: number; data: Partial<Product> }>) =>
+      Promise.all(
+        updates.map(({ id, data }) =>
+          apiRequest(`/api/products/${id}`, { method: "PATCH", data })
+        )
+      ),
+    onSuccess: () => {
       toast({
-        title: 'Erfolg',
-        description: `${variables.length} Produkte wurden aktualisiert`,
-        variant: 'default',
+        title: "Erfolg",
+        description: `${Object.keys(editedProducts).length} Produkte erfolgreich aktualisiert`,
       });
-      queryClient.invalidateQueries({ queryKey: ['/api/products'] });
-      setHasUnsavedChanges(false);
+      setEditedProducts({});
+      queryClient.invalidateQueries({ queryKey: ["/api/products"] });
     },
-    onError: (error) => {
+    onError: () => {
       toast({
-        title: 'Fehler',
-        description: 'Nicht alle Produkte konnten aktualisiert werden',
-        variant: 'destructive',
+        title: "Fehler",
+        description: "Fehler beim Bulk-Update",
+        variant: "destructive",
       });
-      console.error('Bulk update error:', error);
-    }
+    },
   });
 
-  // Initialisiere bearbeitbare Produkte
-  useEffect(() => {
-    if (products.length > 0) {
-      setEditableProducts(products.map(product => ({
-        ...product,
-        isEditing: false,
-        hasChanges: false
-      })));
-    }
-  }, [products]);
-
-  // Gefilterte Produkte
-  const filteredProducts = editableProducts.filter(product =>
+  const filteredProducts = products.filter((product: Product) =>
     product.productName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     product.sku?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    product.category?.toLowerCase().includes(searchTerm.toLowerCase())
+    product.barcode?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // Einzelnes Feld aktualisieren
-  const updateProductField = (id: number, field: keyof EditableProduct, value: any) => {
-    setEditableProducts(prev => prev.map(product => {
-      if (product.id === id) {
-        const updated = { ...product, [field]: value, hasChanges: true };
-        return updated;
+  const handleFieldChange = (productId: number, field: keyof Product, value: any) => {
+    setEditedProducts(prev => ({
+      ...prev,
+      [productId]: {
+        ...prev[productId],
+        [field]: value
       }
-      return product;
     }));
-    setHasUnsavedChanges(true);
   };
 
-  // Bearbeitungsmodus umschalten
-  const toggleEditMode = (id: number) => {
-    setEditableProducts(prev => prev.map(product => ({
-      ...product,
-      isEditing: product.id === id ? !product.isEditing : product.isEditing
-    })));
-  };
-
-  // Einzelnes Produkt speichern
-  const saveProduct = (product: EditableProduct) => {
-    if (!product.hasChanges) return;
-
-    const { isEditing, hasChanges, ...productData } = product;
-    updateProductMutation.mutate({ 
-      id: product.id, 
-      data: productData 
-    });
-
-    // Update local state
-    setEditableProducts(prev => prev.map(p => 
-      p.id === product.id 
-        ? { ...p, hasChanges: false, isEditing: false }
-        : p
-    ));
-  };
-
-  // Alle Änderungen speichern
-  const saveAllChanges = () => {
-    const changedProducts = editableProducts.filter(p => p.hasChanges);
-    if (changedProducts.length === 0) {
-      toast({
-        title: 'Keine Änderungen',
-        description: 'Es gibt keine ungespeicherten Änderungen',
-        variant: 'default',
+  const saveProduct = (productId: number) => {
+    const changes = editedProducts[productId];
+    if (changes) {
+      updateProductMutation.mutate({ id: productId, data: changes });
+      setEditedProducts(prev => {
+        const newState = { ...prev };
+        delete newState[productId];
+        return newState;
       });
-      return;
     }
-
-    const updates = changedProducts.map(product => {
-      const { isEditing, hasChanges, ...productData } = product;
-      return { id: product.id, data: productData };
-    });
-
-    updateMultipleProductsMutation.mutate(updates);
-
-    // Reset local state
-    setEditableProducts(prev => prev.map(p => ({
-      ...p,
-      hasChanges: false,
-      isEditing: false
-    })));
   };
 
-  // Änderungen verwerfen
-  const discardChanges = () => {
-    setEditableProducts(products.map(product => ({
-      ...product,
-      isEditing: false,
-      hasChanges: false
-    })));
-    setHasUnsavedChanges(false);
-    toast({
-      title: 'Änderungen verworfen',
-      description: 'Alle ungespeicherten Änderungen wurden zurückgesetzt',
-      variant: 'default',
-    });
+  const saveAllProducts = () => {
+    const updates = Object.entries(editedProducts).map(([id, data]) => ({
+      id: parseInt(id),
+      data
+    }));
+    if (updates.length > 0) {
+      bulkUpdateMutation.mutate(updates);
+    }
   };
 
-  if (isLoading) {
+  const getFieldValue = (product: Product, field: keyof Product) => {
+    const productId = product.id;
+    return editedProducts[productId]?.[field] !== undefined 
+      ? editedProducts[productId][field] 
+      : product[field];
+  };
+
+  const hasChanges = Object.keys(editedProducts).length > 0;
+
+  if (loadingProducts) {
     return (
-      <div className="container py-8">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-          <p className="mt-2 text-muted-foreground">Lade Produkte...</p>
-        </div>
+      <div className="container mx-auto p-6">
+        <div className="text-center">Lade Produktdaten...</div>
       </div>
     );
   }
 
   return (
-    <div className="container py-8 space-y-6">
-      {/* Header */}
-      <div className="flex flex-col space-y-4 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
+    <div className="container mx-auto p-6 space-y-6">
+      <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold">Produktdaten bearbeiten</h1>
+          <h1 className="text-2xl font-bold">Produktdaten bearbeiten</h1>
           <p className="text-muted-foreground">
             Bearbeiten Sie Produktinformationen direkt in der Tabelle
           </p>
         </div>
-        <div className="flex items-center space-x-2">
-          {hasUnsavedChanges && (
-            <>
-              <Button
-                variant="outline"
-                onClick={discardChanges}
-              >
-                <X className="h-4 w-4 mr-2" />
-                Verwerfen
-              </Button>
-              <Button
-                onClick={saveAllChanges}
-                disabled={updateMultipleProductsMutation.isPending}
-              >
-                <Save className="h-4 w-4 mr-2" />
-                Alle speichern
-              </Button>
-            </>
-          )}
-        </div>
+        {hasChanges && (
+          <Button 
+            onClick={saveAllProducts}
+            disabled={bulkUpdateMutation.isPending}
+            className="bg-green-600 hover:bg-green-700"
+          >
+            <SaveAll className="mr-2 h-4 w-4" />
+            Alle speichern ({Object.keys(editedProducts).length})
+          </Button>
+        )}
       </div>
 
-      {/* Suchfeld und Statistiken */}
       <Card>
-        <CardContent className="pt-6">
-          <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-            <div className="relative flex-1 max-w-sm">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+        <CardHeader>
+          <div className="flex items-center space-x-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Produkte durchsuchen..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
+                className="pl-8"
               />
             </div>
-            <div className="flex items-center space-x-4 text-sm text-muted-foreground">
-              <div className="flex items-center">
-                <Package className="h-4 w-4 mr-1" />
-                {filteredProducts.length} Produkte
-              </div>
-              {hasUnsavedChanges && (
-                <Badge variant="secondary">
-                  {editableProducts.filter(p => p.hasChanges).length} ungespeicherte Änderungen
-                </Badge>
-              )}
-            </div>
+            <Badge variant="outline">
+              <Package className="mr-1 h-3 w-3" />
+              {filteredProducts.length} Produkte
+            </Badge>
           </div>
-        </CardContent>
-      </Card>
-
-      {/* Produkttabelle */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Produktübersicht</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
             <table className="w-full border-collapse">
               <thead>
-                <tr className="border-b">
-                  <th className="text-left p-3 font-medium">Aktion</th>
-                  <th className="text-left p-3 font-medium">Produktname</th>
-                  <th className="text-left p-3 font-medium">SKU</th>
-                  <th className="text-left p-3 font-medium">Kategorie</th>
-                  <th className="text-left p-3 font-medium">Preis (€)</th>
-                  <th className="text-left p-3 font-medium">Beschreibung</th>
-                  <th className="text-left p-3 font-medium">Status</th>
-                  <th className="text-left p-3 font-medium">Lieferant</th>
-                  <th className="text-left p-3 font-medium">Lieferanten-SKU</th>
+                <tr className="border-b bg-muted/50">
+                  <th className="text-left p-2 font-medium">Aktion</th>
+                  <th className="text-left p-2 font-medium min-w-[200px]">Produktname</th>
+                  <th className="text-left p-2 font-medium">SKU</th>
+                  <th className="text-left p-2 font-medium">Barcode</th>
+                  <th className="text-left p-2 font-medium">Kategorie</th>
+                  <th className="text-left p-2 font-medium">
+                    <Euro className="inline mr-1 h-4 w-4" />
+                    Preis
+                  </th>
+                  <th className="text-left p-2 font-medium">MwSt %</th>
+                  <th className="text-left p-2 font-medium">
+                    <Package className="inline mr-1 h-4 w-4" />
+                    Pfand
+                  </th>
+                  <th className="text-left p-2 font-medium">Pfand MwSt %</th>
+                  <th className="text-left p-2 font-medium">Einheit</th>
+                  <th className="text-left p-2 font-medium">Produkttyp</th>
+                  <th className="text-left p-2 font-medium">Status</th>
+                  <th className="text-left p-2 font-medium">Lieferant</th>
+                  <th className="text-left p-2 font-medium">Lieferanten-SKU</th>
+                  <th className="text-left p-2 font-medium">Artikel-Nr.</th>
+                  <th className="text-left p-2 font-medium">Packungsgröße</th>
+                  <th className="text-left p-2 font-medium">MHD Tage</th>
+                  <th className="text-left p-2 font-medium">Min. Bestellmenge</th>
+                  <th className="text-left p-2 font-medium">Einkaufspreis</th>
+                  <th className="text-left p-2 font-medium">Lagerort</th>
+                  <th className="text-left p-2 font-medium">
+                    <FileText className="inline mr-1 h-4 w-4" />
+                    Kurzbeschreibung
+                  </th>
+                  <th className="text-left p-2 font-medium">Beschreibung</th>
+                  <th className="text-left p-2 font-medium">Inhaltsstoffe</th>
+                  <th className="text-left p-2 font-medium">Allergene</th>
+                  <th className="text-left p-2 font-medium">Nährwerte</th>
+                  <th className="text-left p-2 font-medium">Rezept</th>
+                  <th className="text-left p-2 font-medium">Tags</th>
+                  <th className="text-left p-2 font-medium">
+                    <Image className="inline mr-1 h-4 w-4" />
+                    Fotos (URLs)
+                  </th>
+                  <th className="text-left p-2 font-medium">Verpackungstyp</th>
+                  <th className="text-left p-2 font-medium">Recycelbar</th>
+                  <th className="text-left p-2 font-medium">CO₂-Fußabdruck</th>
+                  <th className="text-left p-2 font-medium">Wasserverbrauch</th>
+                  <th className="text-left p-2 font-medium">Transportdistanz</th>
+                  <th className="text-left p-2 font-medium">Bio</th>
+                  <th className="text-left p-2 font-medium">Lokal</th>
+                  <th className="text-left p-2 font-medium">Vegan</th>
+                  <th className="text-left p-2 font-medium">Vegetarisch</th>
+                  <th className="text-left p-2 font-medium">Nachhaltigkeitsscore</th>
+                  <th className="text-left p-2 font-medium">Zertifizierungen</th>
+                  <th className="text-left p-2 font-medium">Max. Menge</th>
+                  <th className="text-left p-2 font-medium">Standard Menge</th>
+                  <th className="text-left p-2 font-medium">Kritische Menge</th>
+                  <th className="text-left p-2 font-medium">Nachfüll-Einheit</th>
+                  <th className="text-left p-2 font-medium">Min. Nachfüllung</th>
+                  <th className="text-left p-2 font-medium">Kritisch</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredProducts.map((product) => (
-                  <tr 
-                    key={product.id} 
-                    className={`border-b hover:bg-muted/50 ${product.hasChanges ? 'bg-yellow-50' : ''}`}
-                  >
-                    {/* Aktions-Spalte */}
-                    <td className="p-3">
-                      <div className="flex items-center space-x-1">
-                        <Button
-                          size="sm"
-                          variant={product.isEditing ? "default" : "outline"}
-                          onClick={() => toggleEditMode(product.id)}
-                        >
-                          {product.isEditing ? <Check className="h-3 w-3" /> : <Edit2 className="h-3 w-3" />}
-                        </Button>
-                        {product.hasChanges && (
-                          <Button
-                            size="sm"
-                            onClick={() => saveProduct(product)}
-                            disabled={updateProductMutation.isPending}
-                          >
-                            <Save className="h-3 w-3" />
-                          </Button>
-                        )}
-                      </div>
+                {filteredProducts.map((product: Product) => (
+                  <tr key={product.id} className="border-b hover:bg-muted/30">
+                    <td className="p-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => saveProduct(product.id)}
+                        disabled={!editedProducts[product.id] || updateProductMutation.isPending}
+                      >
+                        <Save className="h-3 w-3" />
+                      </Button>
                     </td>
-
-                    {/* Produktname */}
-                    <td className="p-3">
-                      {product.isEditing ? (
-                        <Input
-                          value={product.productName || ''}
-                          onChange={(e) => updateProductField(product.id, 'productName', e.target.value)}
-                          className="min-w-[200px]"
-                          placeholder="Produktname"
-                        />
-                      ) : (
-                        <span className="font-medium">{product.productName}</span>
-                      )}
+                    <td className="p-2">
+                      <Input
+                        value={getFieldValue(product, 'productName') || ''}
+                        onChange={(e) => handleFieldChange(product.id, 'productName', e.target.value)}
+                        className="min-w-[200px]"
+                      />
                     </td>
-
-                    {/* SKU */}
-                    <td className="p-3">
-                      {product.isEditing ? (
-                        <Input
-                          value={product.sku || ''}
-                          onChange={(e) => updateProductField(product.id, 'sku', e.target.value)}
-                          className="min-w-[100px]"
-                          placeholder="SKU"
-                        />
-                      ) : (
-                        <span className="text-muted-foreground">{product.sku}</span>
-                      )}
+                    <td className="p-2">
+                      <Input
+                        value={getFieldValue(product, 'sku') || ''}
+                        onChange={(e) => handleFieldChange(product.id, 'sku', e.target.value)}
+                      />
                     </td>
-
-                    {/* Kategorie */}
-                    <td className="p-3">
-                      {product.isEditing ? (
-                        <Select
-                          value={product.category || ''}
-                          onValueChange={(value) => updateProductField(product.id, 'category', value)}
-                        >
-                          <SelectTrigger className="min-w-[150px]">
-                            <SelectValue placeholder="Kategorie wählen" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {PRODUCT_CATEGORIES.map((category) => (
-                              <SelectItem key={category} value={category}>
-                                {category}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      ) : (
-                        <Badge variant="secondary">{product.category || 'Keine Kategorie'}</Badge>
-                      )}
+                    <td className="p-2">
+                      <Input
+                        value={getFieldValue(product, 'barcode') || ''}
+                        onChange={(e) => handleFieldChange(product.id, 'barcode', e.target.value)}
+                      />
                     </td>
-
-                    {/* Preis */}
-                    <td className="p-3">
-                      {product.isEditing ? (
-                        <Input
-                          type="number"
-                          step="0.01"
-                          value={product.price || ''}
-                          onChange={(e) => updateProductField(product.id, 'price', parseFloat(e.target.value) || null)}
-                          className="min-w-[100px]"
-                          placeholder="0.00"
-                        />
-                      ) : (
-                        <span>{product.price ? `${product.price.toFixed(2)} €` : '-'}</span>
-                      )}
+                    <td className="p-2">
+                      <Select
+                        value={getFieldValue(product, 'category') || ''}
+                        onValueChange={(value) => handleFieldChange(product.id, 'category', value)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Kategorie" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Getränke">Getränke</SelectItem>
+                          <SelectItem value="Snacks">Snacks</SelectItem>
+                          <SelectItem value="Süßwaren">Süßwaren</SelectItem>
+                          <SelectItem value="Milchprodukte">Milchprodukte</SelectItem>
+                          <SelectItem value="Fleischwaren">Fleischwaren</SelectItem>
+                          <SelectItem value="Backwaren">Backwaren</SelectItem>
+                          <SelectItem value="Warme Speisen">Warme Speisen</SelectItem>
+                          <SelectItem value="Sonstiges">Sonstiges</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </td>
-
-                    {/* Beschreibung */}
-                    <td className="p-3">
-                      {product.isEditing ? (
-                        <Textarea
-                          value={product.description || ''}
-                          onChange={(e) => updateProductField(product.id, 'description', e.target.value)}
-                          className="min-w-[200px] min-h-[60px]"
-                          placeholder="Produktbeschreibung"
-                        />
-                      ) : (
-                        <span className="text-sm text-muted-foreground">
-                          {product.description ? 
-                            (product.description.length > 50 ? 
-                              `${product.description.substring(0, 50)}...` : 
-                              product.description
-                            ) : '-'
-                          }
-                        </span>
-                      )}
+                    <td className="p-2">
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={getFieldValue(product, 'price') || ''}
+                        onChange={(e) => handleFieldChange(product.id, 'price', parseFloat(e.target.value) || null)}
+                      />
                     </td>
-
-                    {/* Status */}
-                    <td className="p-3">
-                      {product.isEditing ? (
-                        <Select
-                          value={product.status || ''}
-                          onValueChange={(value) => updateProductField(product.id, 'status', value)}
-                        >
-                          <SelectTrigger className="min-w-[120px]">
-                            <SelectValue placeholder="Status wählen" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {PRODUCT_STATUS.map((status) => (
-                              <SelectItem key={status.value} value={status.value}>
-                                {status.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      ) : (
-                        <Badge variant={product.status === 'active' ? 'default' : 'secondary'}>
-                          {PRODUCT_STATUS.find(s => s.value === product.status)?.label || product.status}
-                        </Badge>
-                      )}
+                    <td className="p-2">
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={getFieldValue(product, 'vat') || ''}
+                        onChange={(e) => handleFieldChange(product.id, 'vat', parseFloat(e.target.value) || null)}
+                      />
                     </td>
-
-                    {/* Lieferant */}
-                    <td className="p-3">
-                      {product.isEditing ? (
-                        <Select
-                          value={product.supplierId?.toString() || ''}
-                          onValueChange={(value) => {
-                            const supplier = suppliers.find(s => s.id.toString() === value);
-                            updateProductField(product.id, 'supplierId', parseInt(value) || null);
-                            updateProductField(product.id, 'supplier', supplier?.name || null);
-                          }}
-                        >
-                          <SelectTrigger className="min-w-[150px]">
-                            <SelectValue placeholder="Lieferant wählen" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="">Kein Lieferant</SelectItem>
-                            {suppliers.map((supplier: any) => (
-                              <SelectItem key={supplier.id} value={supplier.id.toString()}>
-                                {supplier.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      ) : (
-                        <span className="text-sm">{product.supplier || '-'}</span>
-                      )}
+                    <td className="p-2">
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={getFieldValue(product, 'depositPrice') || ''}
+                        onChange={(e) => handleFieldChange(product.id, 'depositPrice', parseFloat(e.target.value) || null)}
+                      />
                     </td>
-
-                    {/* Lieferanten-SKU */}
-                    <td className="p-3">
-                      {product.isEditing ? (
-                        <Input
-                          value={(product as any).supplierSku || ''}
-                          onChange={(e) => updateProductField(product.id, 'sku', e.target.value)}
-                          className="min-w-[120px]"
-                          placeholder="Lieferanten-SKU"
-                        />
-                      ) : (
-                        <span className="text-muted-foreground">{product.supplierSku || '-'}</span>
-                      )}
+                    <td className="p-2">
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={getFieldValue(product, 'depositVat') || ''}
+                        onChange={(e) => handleFieldChange(product.id, 'depositVat', parseFloat(e.target.value) || null)}
+                      />
+                    </td>
+                    <td className="p-2">
+                      <Input
+                        value={getFieldValue(product, 'units') || ''}
+                        onChange={(e) => handleFieldChange(product.id, 'units', e.target.value)}
+                      />
+                    </td>
+                    <td className="p-2">
+                      <Select
+                        value={getFieldValue(product, 'productType') || ''}
+                        onValueChange={(value) => handleFieldChange(product.id, 'productType', value)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Typ" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="food">Lebensmittel</SelectItem>
+                          <SelectItem value="beverage">Getränk</SelectItem>
+                          <SelectItem value="snack">Snack</SelectItem>
+                          <SelectItem value="other">Sonstiges</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </td>
+                    <td className="p-2">
+                      <Select
+                        value={getFieldValue(product, 'status') || ''}
+                        onValueChange={(value) => handleFieldChange(product.id, 'status', value)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="active">Aktiv</SelectItem>
+                          <SelectItem value="inactive">Inaktiv</SelectItem>
+                          <SelectItem value="discontinued">Eingestellt</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </td>
+                    <td className="p-2">
+                      <Select
+                        value={getFieldValue(product, 'supplierId')?.toString() || ''}
+                        onValueChange={(value) => handleFieldChange(product.id, 'supplierId', parseInt(value) || null)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Lieferant" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {suppliers.map((supplier: Supplier) => (
+                            <SelectItem key={supplier.id} value={supplier.id.toString()}>
+                              {supplier.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </td>
+                    <td className="p-2">
+                      <Input
+                        value={getFieldValue(product, 'supplierSku') || ''}
+                        onChange={(e) => handleFieldChange(product.id, 'supplierSku', e.target.value)}
+                      />
+                    </td>
+                    <td className="p-2">
+                      <Input
+                        value={getFieldValue(product, 'articleSupplier') || ''}
+                        onChange={(e) => handleFieldChange(product.id, 'articleSupplier', e.target.value)}
+                      />
+                    </td>
+                    <td className="p-2">
+                      <Input
+                        value={getFieldValue(product, 'packageSize') || ''}
+                        onChange={(e) => handleFieldChange(product.id, 'packageSize', e.target.value)}
+                        placeholder="z.B. 6x0,5L"
+                      />
+                    </td>
+                    <td className="p-2">
+                      <Input
+                        type="number"
+                        value={getFieldValue(product, 'shelfLifeDays') || ''}
+                        onChange={(e) => handleFieldChange(product.id, 'shelfLifeDays', parseInt(e.target.value) || null)}
+                      />
+                    </td>
+                    <td className="p-2">
+                      <Input
+                        type="number"
+                        value={getFieldValue(product, 'minOrderQuantity') || ''}
+                        onChange={(e) => handleFieldChange(product.id, 'minOrderQuantity', parseInt(e.target.value) || null)}
+                      />
+                    </td>
+                    <td className="p-2">
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={getFieldValue(product, 'costPrice') || ''}
+                        onChange={(e) => handleFieldChange(product.id, 'costPrice', parseFloat(e.target.value) || null)}
+                      />
+                    </td>
+                    <td className="p-2">
+                      <Input
+                        value={getFieldValue(product, 'warehouseLocation') || ''}
+                        onChange={(e) => handleFieldChange(product.id, 'warehouseLocation', e.target.value)}
+                      />
+                    </td>
+                    <td className="p-2">
+                      <Textarea
+                        value={getFieldValue(product, 'shortDescription') || ''}
+                        onChange={(e) => handleFieldChange(product.id, 'shortDescription', e.target.value)}
+                        className="min-w-[200px]"
+                        rows={2}
+                      />
+                    </td>
+                    <td className="p-2">
+                      <Textarea
+                        value={getFieldValue(product, 'description') || ''}
+                        onChange={(e) => handleFieldChange(product.id, 'description', e.target.value)}
+                        className="min-w-[200px]"
+                        rows={2}
+                      />
+                    </td>
+                    <td className="p-2">
+                      <Textarea
+                        value={getFieldValue(product, 'ingredients') || ''}
+                        onChange={(e) => handleFieldChange(product.id, 'ingredients', e.target.value)}
+                        className="min-w-[200px]"
+                        rows={2}
+                      />
+                    </td>
+                    <td className="p-2">
+                      <Textarea
+                        value={getFieldValue(product, 'allergens') || ''}
+                        onChange={(e) => handleFieldChange(product.id, 'allergens', e.target.value)}
+                        className="min-w-[200px]"
+                        rows={2}
+                      />
+                    </td>
+                    <td className="p-2">
+                      <Textarea
+                        value={getFieldValue(product, 'nutritionalInfo') || ''}
+                        onChange={(e) => handleFieldChange(product.id, 'nutritionalInfo', e.target.value)}
+                        className="min-w-[200px]"
+                        rows={2}
+                        placeholder="JSON Format"
+                      />
+                    </td>
+                    <td className="p-2">
+                      <Textarea
+                        value={getFieldValue(product, 'recipe') || ''}
+                        onChange={(e) => handleFieldChange(product.id, 'recipe', e.target.value)}
+                        className="min-w-[200px]"
+                        rows={2}
+                      />
+                    </td>
+                    <td className="p-2">
+                      <Input
+                        value={getFieldValue(product, 'tags') || ''}
+                        onChange={(e) => handleFieldChange(product.id, 'tags', e.target.value)}
+                        placeholder="Tag1, Tag2"
+                      />
+                    </td>
+                    <td className="p-2">
+                      <Textarea
+                        value={Array.isArray(getFieldValue(product, 'photos')) 
+                          ? (getFieldValue(product, 'photos') as string[]).join('\n') 
+                          : getFieldValue(product, 'photos') || ''}
+                        onChange={(e) => handleFieldChange(product.id, 'photos', e.target.value.split('\n').filter(url => url.trim()))}
+                        className="min-w-[200px]"
+                        rows={3}
+                        placeholder="Eine URL pro Zeile"
+                      />
+                    </td>
+                    <td className="p-2">
+                      <Select
+                        value={getFieldValue(product, 'packagingType') || ''}
+                        onValueChange={(value) => handleFieldChange(product.id, 'packagingType', value)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Verpackung" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="glass">Glas</SelectItem>
+                          <SelectItem value="plastic">Plastik</SelectItem>
+                          <SelectItem value="aluminum">Aluminium</SelectItem>
+                          <SelectItem value="paper">Papier</SelectItem>
+                          <SelectItem value="biodegradable">Biologisch abbaubar</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </td>
+                    <td className="p-2">
+                      <Checkbox
+                        checked={getFieldValue(product, 'packagingRecyclable') || false}
+                        onCheckedChange={(checked) => handleFieldChange(product.id, 'packagingRecyclable', checked)}
+                      />
+                    </td>
+                    <td className="p-2">
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={getFieldValue(product, 'carbonFootprint') || ''}
+                        onChange={(e) => handleFieldChange(product.id, 'carbonFootprint', parseFloat(e.target.value) || null)}
+                        placeholder="kg CO₂"
+                      />
+                    </td>
+                    <td className="p-2">
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={getFieldValue(product, 'waterUsage') || ''}
+                        onChange={(e) => handleFieldChange(product.id, 'waterUsage', parseFloat(e.target.value) || null)}
+                        placeholder="Liter"
+                      />
+                    </td>
+                    <td className="p-2">
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={getFieldValue(product, 'transportDistance') || ''}
+                        onChange={(e) => handleFieldChange(product.id, 'transportDistance', parseFloat(e.target.value) || null)}
+                        placeholder="km"
+                      />
+                    </td>
+                    <td className="p-2">
+                      <Checkbox
+                        checked={getFieldValue(product, 'isOrganic') || false}
+                        onCheckedChange={(checked) => handleFieldChange(product.id, 'isOrganic', checked)}
+                      />
+                    </td>
+                    <td className="p-2">
+                      <Checkbox
+                        checked={getFieldValue(product, 'isLocal') || false}
+                        onCheckedChange={(checked) => handleFieldChange(product.id, 'isLocal', checked)}
+                      />
+                    </td>
+                    <td className="p-2">
+                      <Checkbox
+                        checked={getFieldValue(product, 'isVegan') || false}
+                        onCheckedChange={(checked) => handleFieldChange(product.id, 'isVegan', checked)}
+                      />
+                    </td>
+                    <td className="p-2">
+                      <Checkbox
+                        checked={getFieldValue(product, 'isVegetarian') || false}
+                        onCheckedChange={(checked) => handleFieldChange(product.id, 'isVegetarian', checked)}
+                      />
+                    </td>
+                    <td className="p-2">
+                      <Input
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        max="100"
+                        value={getFieldValue(product, 'sustainabilityScore') || ''}
+                        onChange={(e) => handleFieldChange(product.id, 'sustainabilityScore', parseFloat(e.target.value) || null)}
+                        placeholder="0-100"
+                      />
+                    </td>
+                    <td className="p-2">
+                      <Input
+                        value={getFieldValue(product, 'certifications') || ''}
+                        onChange={(e) => handleFieldChange(product.id, 'certifications', e.target.value)}
+                        placeholder="Bio, Fairtrade"
+                      />
+                    </td>
+                    <td className="p-2">
+                      <Input
+                        type="number"
+                        value={getFieldValue(product, 'amountMax') || ''}
+                        onChange={(e) => handleFieldChange(product.id, 'amountMax', parseInt(e.target.value) || null)}
+                      />
+                    </td>
+                    <td className="p-2">
+                      <Input
+                        type="number"
+                        value={getFieldValue(product, 'amountStandard') || ''}
+                        onChange={(e) => handleFieldChange(product.id, 'amountStandard', parseInt(e.target.value) || null)}
+                      />
+                    </td>
+                    <td className="p-2">
+                      <Input
+                        type="number"
+                        value={getFieldValue(product, 'amountCritical') || ''}
+                        onChange={(e) => handleFieldChange(product.id, 'amountCritical', parseInt(e.target.value) || null)}
+                      />
+                    </td>
+                    <td className="p-2">
+                      <Input
+                        type="number"
+                        value={getFieldValue(product, 'refillUnitSize') || ''}
+                        onChange={(e) => handleFieldChange(product.id, 'refillUnitSize', parseInt(e.target.value) || null)}
+                      />
+                    </td>
+                    <td className="p-2">
+                      <Input
+                        type="number"
+                        value={getFieldValue(product, 'minRefill') || ''}
+                        onChange={(e) => handleFieldChange(product.id, 'minRefill', parseInt(e.target.value) || null)}
+                      />
+                    </td>
+                    <td className="p-2">
+                      <Checkbox
+                        checked={getFieldValue(product, 'critical') || false}
+                        onCheckedChange={(checked) => handleFieldChange(product.id, 'critical', checked)}
+                      />
                     </td>
                   </tr>
                 ))}
@@ -506,12 +694,10 @@ export default function ProductDataEntry() {
           </div>
 
           {filteredProducts.length === 0 && (
-            <div className="text-center py-8">
-              <Package className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-              <h3 className="text-lg font-medium">Keine Produkte gefunden</h3>
-              <p className="text-muted-foreground">
-                {searchTerm ? 'Keine Produkte entsprechen Ihrer Suche' : 'Keine Produkte verfügbar'}
-              </p>
+            <div className="text-center py-8 text-muted-foreground">
+              <Package className="mx-auto h-12 w-12 mb-4 opacity-50" />
+              <h3 className="text-lg font-medium mb-2">Keine Produkte gefunden</h3>
+              <p>Keine Produkte verfügbar</p>
             </div>
           )}
         </CardContent>

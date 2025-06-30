@@ -1697,6 +1697,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // Get all products
+  app.get(`${API_PREFIX}/products`, async (req: Request, res: Response) => {
+    try {
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : 1000;
+      const offset = req.query.offset ? parseInt(req.query.offset as string) : 0;
+      const search = req.query.search as string | undefined;
+      const supplierId = req.query.supplierId ? parseInt(req.query.supplierId as string) : undefined;
+      const status = req.query.status as string | undefined;
+      
+      const productsResponse = await storage.getProducts({
+        limit, 
+        offset, 
+        search, 
+        supplierId, 
+        status
+      });
+      
+      res.json(productsResponse.products || productsResponse);
+    } catch (error) {
+      console.error("Error fetching products:", error);
+      res.status(500).json({ 
+        error: "Failed to fetch products", 
+        details: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+
+  // Update product by ID
+  app.patch(`${API_PREFIX}/products/:id`, async (req: Request, res: Response) => {
+    try {
+      const productId = parseInt(req.params.id);
+      if (isNaN(productId)) {
+        return res.status(400).json({ error: "Invalid product ID" });
+      }
+      
+      const updatedProduct = await storage.updateProduct(productId, req.body);
+      res.json(updatedProduct);
+    } catch (error) {
+      console.error("Error updating product:", error);
+      res.status(500).json({ 
+        error: "Failed to update product", 
+        details: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+
   // Get supplier by ID
   app.get(`${API_PREFIX}/suppliers/:id`, async (req: Request, res: Response) => {
     try {
