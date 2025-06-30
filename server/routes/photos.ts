@@ -52,14 +52,14 @@ router.post('/upload/:productId', upload.single('photo'), async (req, res) => {
     // Update product with photo information
     const { pool } = await import('../db');
     
-    // Update the photo_url field and description
+    // Update both photo_url and photos array
     const updateQuery = `
       UPDATE products 
       SET photo_url = $2,
-          description = COALESCE(description, '') || 
-          CASE 
-            WHEN description IS NULL OR description = '' THEN 'Foto hochgeladen: ${req.file.filename}'
-            ELSE E'\nFoto hochgeladen: ${req.file.filename}'
+          photos = CASE 
+            WHEN photos IS NULL THEN ARRAY[$2]
+            WHEN $2 = ANY(photos) THEN photos
+            ELSE array_append(photos, $2)
           END,
           updated_at = NOW()
       WHERE id = $1

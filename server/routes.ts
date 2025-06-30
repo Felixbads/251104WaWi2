@@ -46,6 +46,7 @@ import syncRouter from './routes/sync';
 import interAppApiRouter from './routes/inter-app-api';
 import suppliersProductsRouter from './routes/suppliers-products';
 import resilientSyncRouter from './routes/resilientSync';
+import photosRouter from './routes/photos';
 
 // Hilfsfunktion zum Gruppieren der Transaktionen nach Zeitraum
 function groupTransactionsByPeriod(transactions, period) {
