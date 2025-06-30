@@ -231,9 +231,9 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
       <CardContent>
         {suppliersLoading ? (
           <div className="text-center py-8">Lade Lieferanten...</div>
-        ) : (
+        ) : suppliers?.data && Array.isArray(suppliers.data) && suppliers.data.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {suppliers?.map((supplier: any) => (
+            {suppliers.data.map((supplier: any) => (
               <Card 
                 key={supplier.id} 
                 className={`cursor-pointer transition-colors ${
@@ -255,6 +255,10 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
                 </CardContent>
               </Card>
             ))}
+          </div>
+        ) : (
+          <div className="text-center py-8 text-gray-500">
+            Keine Lieferanten verfügbar oder Fehler beim Laden.
           </div>
         )}
         {selectedSupplierId && (
