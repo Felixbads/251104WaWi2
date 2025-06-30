@@ -225,7 +225,7 @@ export default function ProductDataEntry() {
 
       if (response.ok) {
         const result = await response.json();
-        handleFieldChange(productId, 'imageUrl', result.imageUrl);
+        handleFieldChange(productId, 'description', `${getCurrentValue({ id: productId } as Product, 'description')} (Foto hochgeladen: ${result.filename})`);
         toast({
           title: "Erfolg",
           description: "Foto wurde erfolgreich hochgeladen.",
@@ -439,9 +439,7 @@ export default function ProductDataEntry() {
                       >
                         <Upload className="h-3 w-3" />
                       </Button>
-                      {getCurrentValue(product, 'imageUrl') && (
-                        <div className="text-xs text-green-600">Foto vorhanden</div>
-                      )}
+
                     </div>
                   </td>
                 </tr>

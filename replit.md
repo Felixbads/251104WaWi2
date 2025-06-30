@@ -109,6 +109,15 @@ This is a comprehensive vending machine management platform (Warenwirtschaftssys
 
 ## Changelog
 
+- June 30, 2025: Enhanced Product Data Entry Interface
+  - ✓ Implemented focused tabular product editing interface with required fields only
+  - ✓ Removed unwanted fields (Preis, Status, MwSt, Bio, Lokal, Vegan, Vegetarisch) from display
+  - ✓ Made product name read-only with improved display styling for better readability
+  - ✓ Added functional photo upload capability with file selection and progress indication
+  - ✓ Implemented individual and bulk save functionality for product updates
+  - ✓ Optimized table layout with proper column widths for enhanced readability
+  - ✓ Added search functionality to filter products by name or category
+  - Interface now displays only editable fields: Kurzbeschreibung, Detailbeschreibung, Gebindegröße, Inhaltsstoffe, Allergene, and Foto hochladen
 - June 24, 2025: Complete StandortStatus consistency fixes implemented
   - RESOLVED: Fixed "Letzter Verkauf" to derive from recentTransactions[0] with consistent datetime display
   - RESOLVED: Fixed "Letzter bargeldloser Verkauf" to show formatted datetime instead of payment method
