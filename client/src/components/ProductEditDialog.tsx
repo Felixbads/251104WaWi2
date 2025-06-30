@@ -68,7 +68,7 @@ export function ProductEditDialog({ product, isOpen, onOpenChange, onSave }: Pro
           <DialogTitle>Produkt bearbeiten: {product.productName}</DialogTitle>
         </DialogHeader>
 
-        <Tabs defaultValue="general" className="w-full">
+        <Tabs value="general" onValueChange={() => {}} defaultValue="general" className="w-full">
           <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="general">Allgemein</TabsTrigger>
             <TabsTrigger value="details">Details</TabsTrigger>
