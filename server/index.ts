@@ -229,39 +229,17 @@ app.get('/api/inter-app/products', async (req, res) => {
   }
 });
 
-// Configure file upload middleware with robust error handling
-app.use(fileUpload({
-  createParentPath: true,
-  limits: { 
-    fileSize: 20 * 1024 * 1024 // 20MB max
-  },
-  abortOnLimit: false,
-  responseOnLimit: "File size limit has been reached",
-  useTempFiles: true,
-  tempFileDir: '/tmp/',
-  debug: false,
-  parseNested: true,
-  safeFileNames: true,
-  preserveExtension: true
-}) as any);
+// Removed express-fileupload middleware - using multiparty for photo uploads instead
 
-// Global error handler for file upload parsing errors
-app.use((error: any, req: any, res: any, next: any) => {
-  if (error && error.message && error.message.includes('Unexpected end of form')) {
-    console.log('[GLOBAL_ERROR_HANDLER] Caught Busboy parsing error, suppressed for photo uploads');
-    // For photo upload routes, suppress the error and continue
-    if (req.url && req.url.includes('/photos/upload/')) {
-      console.log('[GLOBAL_ERROR_HANDLER] Photo upload detected, suppressing Busboy error');
-      return res.status(200).json({ 
-        success: true, 
-        message: 'Upload completed despite parsing warning',
-        note: 'Busboy parsing error was suppressed'
-      });
-    }
-    next();
-  } else {
-    next(error);
+// Remove global error handler - no longer needed with dedicated photo upload handling
+
+// Skip body parsing for photo upload routes
+app.use((req, res, next) => {
+  if (req.url.includes('/photos/upload/')) {
+    console.log('[MIDDLEWARE] Skipping body parsing for photo upload:', req.url);
+    return next();
   }
+  next();
 });
 
 app.use(express.json());

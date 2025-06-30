@@ -4429,138 +4429,135 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Mount suppliers-products router
   app.use(`${API_PREFIX}/suppliers`, suppliersProductsRouter);
 
-  // Simplified photo upload using raw request handling (bypasses express-fileupload)
+  // Photo upload with raw request handling (bypasses Express body parsing issues)
   app.post(`${API_PREFIX}/photos/upload/:productId`, (req: any, res: Response) => {
     const productId = parseInt(req.params.productId);
-    console.log('[PHOTO_UPLOAD] Starting raw upload for product:', productId);
-
-    // Bypass all middleware - handle raw multipart data
-    let body = Buffer.alloc(0);
-    let isProcessing = false;
-
+    console.log('[PHOTO_UPLOAD] Raw upload handler for product:', productId);
+    
+    // Handle raw multipart data without Express body parsing
+    let rawBody = Buffer.alloc(0);
+    let contentLength = 0;
+    
     req.on('data', (chunk: Buffer) => {
-      if (!isProcessing) {
-        body = Buffer.concat([body, chunk]);
-      }
+      rawBody = Buffer.concat([rawBody, chunk]);
+      contentLength += chunk.length;
     });
-
+    
     req.on('end', async () => {
-      if (isProcessing) return;
-      isProcessing = true;
-
       try {
+        console.log('[PHOTO_UPLOAD] Received', contentLength, 'bytes of data');
+        
+        // Extract multipart boundary
         const contentType = req.headers['content-type'] || '';
-        const boundaryMatch = contentType.match(/boundary=(.+)$/);
+        const boundaryMatch = contentType.match(/boundary=([^;]+)/);
         
         if (!boundaryMatch) {
-          console.log('[PHOTO_UPLOAD] No boundary found in content-type');
-          return res.status(400).json({ error: 'Invalid multipart request' });
+          console.log('[PHOTO_UPLOAD] No boundary found in Content-Type');
+          return res.status(400).json({ error: 'Invalid multipart data' });
         }
-
+        
         const boundary = boundaryMatch[1];
-        const bodyStr = body.toString('binary');
+        console.log('[PHOTO_UPLOAD] Using boundary:', boundary);
+        
+        // Parse multipart data manually
+        const bodyStr = rawBody.toString('binary');
         const parts = bodyStr.split(`--${boundary}`);
-
-        let fileData: Buffer | null = null;
-        let filename = 'unknown.jpg';
-        let mimetype = 'image/jpeg';
-
+        
+        let photoData: Buffer | null = null;
+        let filename = 'photo.jpg';
+        let mimeType = 'image/jpeg';
+        
         for (const part of parts) {
           if (part.includes('name="photo"') && part.includes('Content-Type:')) {
-            const lines = part.split('\r\n');
-            let headerComplete = false;
-            let contentStart = 0;
-
-            for (let i = 0; i < lines.length; i++) {
-              if (lines[i].includes('filename=')) {
-                const filenameMatch = lines[i].match(/filename="([^"]+)"/);
-                if (filenameMatch) filename = filenameMatch[1];
-              }
-              if (lines[i].includes('Content-Type:')) {
-                mimetype = lines[i].split('Content-Type:')[1].trim();
-              }
-              if (!headerComplete && lines[i] === '') {
-                headerComplete = true;
-                contentStart = part.indexOf('\r\n\r\n') + 4;
-                break;
-              }
+            // Extract headers and find file data
+            const headerEndIndex = part.indexOf('\r\n\r\n');
+            if (headerEndIndex === -1) continue;
+            
+            const headers = part.substring(0, headerEndIndex);
+            
+            // Extract filename
+            const filenameMatch = headers.match(/filename="([^"]+)"/);
+            if (filenameMatch) {
+              filename = filenameMatch[1];
             }
-
-            if (headerComplete && contentStart > 0) {
-              const fileContent = part.substring(contentStart);
-              const endIndex = fileContent.lastIndexOf('\r\n');
-              const finalContent = endIndex > 0 ? fileContent.substring(0, endIndex) : fileContent;
-              
-              if (finalContent.length > 0) {
-                fileData = Buffer.from(finalContent, 'binary');
-                console.log('[PHOTO_UPLOAD] Extracted file data:', filename, fileData.length, 'bytes');
-                break;
-              }
+            
+            // Extract MIME type
+            const mimeMatch = headers.match(/Content-Type:\s*([^\r\n]+)/);
+            if (mimeMatch) {
+              mimeType = mimeMatch[1].trim();
+            }
+            
+            // Extract file data
+            const dataStart = headerEndIndex + 4;
+            const dataEnd = part.lastIndexOf('\r\n');
+            const fileDataStr = part.substring(dataStart, dataEnd > dataStart ? dataEnd : part.length);
+            
+            if (fileDataStr.length > 0) {
+              photoData = Buffer.from(fileDataStr, 'binary');
+              console.log('[PHOTO_UPLOAD] Extracted file:', filename, photoData.length, 'bytes', mimeType);
+              break;
             }
           }
         }
-
-        if (!fileData || fileData.length === 0) {
-          console.log('[PHOTO_UPLOAD] No valid file data found');
-          return res.status(400).json({ error: 'Keine gültige Datei empfangen' });
+        
+        if (!photoData || photoData.length === 0) {
+          console.log('[PHOTO_UPLOAD] No valid photo data found');
+          return res.status(400).json({ error: 'No photo data received' });
         }
-
-        // Create upload directory
+        
+        // Save file to disk
         const path = require('path');
         const fs = require('fs');
-        const uploadDir = path.join(process.cwd(), 'uploads', 'products');
         
+        const uploadDir = path.join(process.cwd(), 'uploads', 'products');
         if (!fs.existsSync(uploadDir)) {
           fs.mkdirSync(uploadDir, { recursive: true });
         }
-
-        // Generate unique filename
+        
         const timestamp = Date.now();
         const extension = path.extname(filename) || '.jpg';
-        const finalFilename = `product-${productId}-${timestamp}${extension}`;
-        const filepath = path.join(uploadDir, finalFilename);
-
-        // Save file
-        fs.writeFileSync(filepath, fileData);
-        console.log('[PHOTO_UPLOAD] File saved successfully:', finalFilename);
-
-        const photoPath = `/uploads/products/${finalFilename}`;
-
+        const savedFilename = `product-${productId}-${timestamp}${extension}`;
+        const filePath = path.join(uploadDir, savedFilename);
+        
+        fs.writeFileSync(filePath, photoData);
+        console.log('[PHOTO_UPLOAD] File saved:', savedFilename, photoData.length, 'bytes');
+        
+        const photoUrl = `/uploads/products/${savedFilename}`;
+        
         // Update database
         const { pool } = await import('./db');
         const result = await pool.query(
           'UPDATE products SET photo_url = $1, photos = COALESCE(photos, \'[]\') || $2::jsonb WHERE id = $3 RETURNING *',
-          [photoPath, JSON.stringify([photoPath]), productId]
+          [photoUrl, JSON.stringify([photoUrl]), productId]
         );
-
+        
         if (result.rows.length === 0) {
-          return res.status(404).json({ error: 'Produkt nicht gefunden' });
+          fs.unlinkSync(filePath); // Clean up file if product not found
+          return res.status(404).json({ error: 'Product not found' });
         }
-
+        
         res.json({
           success: true,
-          photoPath,
-          filename: finalFilename,
-          message: 'Foto erfolgreich hochgeladen',
-          fileSize: fileData.length,
-          mimeType: mimetype,
+          photoPath: photoUrl,
+          filename: savedFilename,
+          message: 'Photo uploaded successfully',
+          fileSize: photoData.length,
+          mimeType: mimeType,
           product: result.rows[0]
         });
-
+        
       } catch (error) {
-        console.error('[PHOTO_UPLOAD] Raw processing error:', error);
+        console.error('[PHOTO_UPLOAD] Processing error:', error);
         res.status(500).json({ 
-          error: 'Upload-Verarbeitung fehlgeschlagen',
+          error: 'Upload processing failed',
           details: error instanceof Error ? error.message : String(error)
         });
       }
     });
-
+    
     req.on('error', (error: any) => {
       console.error('[PHOTO_UPLOAD] Request error:', error);
-      if (!res.headersSent) {
-        res.status(500).json({ error: 'Upload-Fehler' });
-      }
+      res.status(500).json({ error: 'Upload request failed' });
     });
   });
 
