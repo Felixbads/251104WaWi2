@@ -2240,71 +2240,35 @@ Elbsandstein Proviant & Quartier GmbH`;
     }
   });
 
-  // SIMPLIFIED WORKING PHOTO UPLOAD
-  app.post('/api/photos/upload', async (req, res) => {
+  // WORKING PHOTO UPLOAD ENDPOINT
+  app.post('/api/photos/upload', uploadPhotos.single('photo'), async (req, res) => {
     try {
-      const multer = await import('multer');
-      const path = await import('path');
-      const fs = await import('fs/promises');
+      console.log('Photo upload request received');
+      console.log('File:', req.file);
       
-      // Ensure uploads directory exists
-      const uploadsDir = path.join(process.cwd(), 'uploads', 'photos');
-      await fs.mkdir(uploadsDir, { recursive: true });
-      
-      const storage = multer.diskStorage({
-        destination: uploadsDir,
-        filename: (req, file, cb) => {
-          const timestamp = Date.now();
-          const ext = path.extname(file.originalname);
-          cb(null, `product_${timestamp}${ext}`);
-        }
-      });
-      
-      const upload = multer.default({ 
-        storage,
-        limits: { fileSize: 5 * 1024 * 1024 },
-        fileFilter: (req, file, cb) => {
-          if (file.mimetype.startsWith('image/')) {
-            cb(null, true);
-          } else {
-            cb(new Error('Nur Bilddateien sind erlaubt'));
-          }
-        }
-      });
-      
-      upload.single('photos')(req, res, (err) => {
-        if (err) {
-          console.error('Upload error:', err);
-          return res.status(400).json({
-            success: false,
-            error: err.message
-          });
-        }
-        
-        if (!req.file) {
-          return res.status(400).json({
-            success: false,
-            error: 'Keine Datei hochgeladen'
-          });
-        }
-        
-        const uploadedPhoto = {
-          filename: req.file.filename,
-          originalname: req.file.originalname,
-          url: `/uploads/photos/${req.file.filename}`,
-          size: req.file.size
-        };
-        
-        console.log('Photo uploaded successfully:', uploadedPhoto);
-        
-        res.json({
-          success: true,
-          message: 'Foto erfolgreich hochgeladen',
-          uploadedPhotos: [uploadedPhoto]
+      if (!req.file) {
+        return res.status(400).json({ 
+          success: false, 
+          error: 'Keine Datei hochgeladen' 
         });
+      }
+      
+      const uploadedPhoto = {
+        filename: req.file.filename,
+        originalname: req.file.originalname,
+        url: `/uploads/photos/${req.file.filename}`,
+        size: req.file.size
+      };
+      
+      console.log('Photo uploaded successfully:', uploadedPhoto);
+      
+      res.json({
+        success: true,
+        message: 'Foto erfolgreich hochgeladen',
+        uploadedPhotos: [uploadedPhoto]
       });
     } catch (error) {
-      console.error('❌ Photo upload error:', error);
+      console.error('Photo upload error:', error);
       res.status(500).json({ 
         success: false,
         error: 'Fehler beim Hochladen der Fotos',
