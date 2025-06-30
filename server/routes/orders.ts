@@ -189,7 +189,7 @@ function createOrderItemsTable(items: any[]): string {
 }
 
 // Alle Bestellungen abrufen
-router.get('/orders', async (req: Request, res: Response) => {
+router.get('/', async (req: Request, res: Response) => {
   // Header zur Sicherstellung der richtigen Antwortformatierung
   res.setHeader('Content-Type', 'application/json');
   
@@ -727,7 +727,7 @@ router.post('/orders', async (req: Request, res: Response) => {
 });
 
 // Bestellung abrufen - VEREINFACHT
-router.get('/orders/:id', async (req: Request, res: Response) => {
+router.get('/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const orderId = parseInt(id);
@@ -768,7 +768,7 @@ router.get('/orders/:id', async (req: Request, res: Response) => {
 
 
 // Bestellpositionen abrufen
-router.get('/orders/:id/items', async (req: Request, res: Response) => {
+router.get('/:id/items', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const orderId = parseInt(id);
