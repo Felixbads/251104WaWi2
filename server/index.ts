@@ -2240,32 +2240,68 @@ Elbsandstein Proviant & Quartier GmbH`;
     }
   });
 
-  // Photo upload endpoint - REPARIERT
-  app.post('/api/photos/upload', uploadPhotos.array('photos', 10), async (req, res) => {
+  // SIMPLIFIED WORKING PHOTO UPLOAD
+  app.post('/api/photos/upload', async (req, res) => {
     try {
-      console.log('📸 Photo upload request received');
-      console.log('Files:', req.files);
+      const multer = await import('multer');
+      const path = await import('path');
+      const fs = await import('fs/promises');
       
-      if (!req.files || !Array.isArray(req.files) || req.files.length === 0) {
-        return res.status(400).json({ 
-          success: false, 
-          error: 'Keine Dateien hochgeladen' 
+      // Ensure uploads directory exists
+      const uploadsDir = path.join(process.cwd(), 'uploads', 'photos');
+      await fs.mkdir(uploadsDir, { recursive: true });
+      
+      const storage = multer.diskStorage({
+        destination: uploadsDir,
+        filename: (req, file, cb) => {
+          const timestamp = Date.now();
+          const ext = path.extname(file.originalname);
+          cb(null, `product_${timestamp}${ext}`);
+        }
+      });
+      
+      const upload = multer.default({ 
+        storage,
+        limits: { fileSize: 5 * 1024 * 1024 },
+        fileFilter: (req, file, cb) => {
+          if (file.mimetype.startsWith('image/')) {
+            cb(null, true);
+          } else {
+            cb(new Error('Nur Bilddateien sind erlaubt'));
+          }
+        }
+      });
+      
+      upload.single('photos')(req, res, (err) => {
+        if (err) {
+          console.error('Upload error:', err);
+          return res.status(400).json({
+            success: false,
+            error: err.message
+          });
+        }
+        
+        if (!req.file) {
+          return res.status(400).json({
+            success: false,
+            error: 'Keine Datei hochgeladen'
+          });
+        }
+        
+        const uploadedPhoto = {
+          filename: req.file.filename,
+          originalname: req.file.originalname,
+          url: `/uploads/photos/${req.file.filename}`,
+          size: req.file.size
+        };
+        
+        console.log('Photo uploaded successfully:', uploadedPhoto);
+        
+        res.json({
+          success: true,
+          message: 'Foto erfolgreich hochgeladen',
+          uploadedPhotos: [uploadedPhoto]
         });
-      }
-      
-      const uploadedPhotos = req.files.map(file => ({
-        filename: file.filename,
-        originalname: file.originalname,
-        url: `/uploads/photos/${file.filename}`,
-        size: file.size
-      }));
-      
-      console.log('📸 Uploaded photos:', uploadedPhotos);
-      
-      res.json({
-        success: true,
-        message: `${uploadedPhotos.length} Foto(s) erfolgreich hochgeladen`,
-        photos: uploadedPhotos
       });
     } catch (error) {
       console.error('❌ Photo upload error:', error);
