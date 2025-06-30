@@ -4429,136 +4429,63 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Mount suppliers-products router
   app.use(`${API_PREFIX}/suppliers`, suppliersProductsRouter);
 
-  // Photo upload with raw request handling (bypasses Express body parsing issues)
-  app.post(`${API_PREFIX}/photos/upload/:productId`, (req: any, res: Response) => {
+  // Cloudinary photo upload - uses base64 encoding to bypass multipart issues
+  app.post(`${API_PREFIX}/photos/upload/:productId`, async (req: any, res: Response) => {
     const productId = parseInt(req.params.productId);
-    console.log('[PHOTO_UPLOAD] Raw upload handler for product:', productId);
+    console.log('[CLOUDINARY_UPLOAD] Processing upload for product:', productId);
     
-    // Handle raw multipart data without Express body parsing
-    let rawBody = Buffer.alloc(0);
-    let contentLength = 0;
-    
-    req.on('data', (chunk: Buffer) => {
-      rawBody = Buffer.concat([rawBody, chunk]);
-      contentLength += chunk.length;
-    });
-    
-    req.on('end', async () => {
-      try {
-        console.log('[PHOTO_UPLOAD] Received', contentLength, 'bytes of data');
-        
-        // Extract multipart boundary
-        const contentType = req.headers['content-type'] || '';
-        const boundaryMatch = contentType.match(/boundary=([^;]+)/);
-        
-        if (!boundaryMatch) {
-          console.log('[PHOTO_UPLOAD] No boundary found in Content-Type');
-          return res.status(400).json({ error: 'Invalid multipart data' });
-        }
-        
-        const boundary = boundaryMatch[1];
-        console.log('[PHOTO_UPLOAD] Using boundary:', boundary);
-        
-        // Parse multipart data manually
-        const bodyStr = rawBody.toString('binary');
-        const parts = bodyStr.split(`--${boundary}`);
-        
-        let photoData: Buffer | null = null;
-        let filename = 'photo.jpg';
-        let mimeType = 'image/jpeg';
-        
-        for (const part of parts) {
-          if (part.includes('name="photo"') && part.includes('Content-Type:')) {
-            // Extract headers and find file data
-            const headerEndIndex = part.indexOf('\r\n\r\n');
-            if (headerEndIndex === -1) continue;
-            
-            const headers = part.substring(0, headerEndIndex);
-            
-            // Extract filename
-            const filenameMatch = headers.match(/filename="([^"]+)"/);
-            if (filenameMatch) {
-              filename = filenameMatch[1];
-            }
-            
-            // Extract MIME type
-            const mimeMatch = headers.match(/Content-Type:\s*([^\r\n]+)/);
-            if (mimeMatch) {
-              mimeType = mimeMatch[1].trim();
-            }
-            
-            // Extract file data
-            const dataStart = headerEndIndex + 4;
-            const dataEnd = part.lastIndexOf('\r\n');
-            const fileDataStr = part.substring(dataStart, dataEnd > dataStart ? dataEnd : part.length);
-            
-            if (fileDataStr.length > 0) {
-              photoData = Buffer.from(fileDataStr, 'binary');
-              console.log('[PHOTO_UPLOAD] Extracted file:', filename, photoData.length, 'bytes', mimeType);
-              break;
-            }
-          }
-        }
-        
-        if (!photoData || photoData.length === 0) {
-          console.log('[PHOTO_UPLOAD] No valid photo data found');
-          return res.status(400).json({ error: 'No photo data received' });
-        }
-        
-        // Save file to disk
-        const path = require('path');
-        const fs = require('fs');
-        
-        const uploadDir = path.join(process.cwd(), 'uploads', 'products');
-        if (!fs.existsSync(uploadDir)) {
-          fs.mkdirSync(uploadDir, { recursive: true });
-        }
-        
-        const timestamp = Date.now();
-        const extension = path.extname(filename) || '.jpg';
-        const savedFilename = `product-${productId}-${timestamp}${extension}`;
-        const filePath = path.join(uploadDir, savedFilename);
-        
-        fs.writeFileSync(filePath, photoData);
-        console.log('[PHOTO_UPLOAD] File saved:', savedFilename, photoData.length, 'bytes');
-        
-        const photoUrl = `/uploads/products/${savedFilename}`;
-        
-        // Update database
-        const { pool } = await import('./db');
-        const result = await pool.query(
-          'UPDATE products SET photo_url = $1, photos = COALESCE(photos, \'[]\') || $2::jsonb WHERE id = $3 RETURNING *',
-          [photoUrl, JSON.stringify([photoUrl]), productId]
-        );
-        
-        if (result.rows.length === 0) {
-          fs.unlinkSync(filePath); // Clean up file if product not found
-          return res.status(404).json({ error: 'Product not found' });
-        }
-        
-        res.json({
-          success: true,
-          photoPath: photoUrl,
-          filename: savedFilename,
-          message: 'Photo uploaded successfully',
-          fileSize: photoData.length,
-          mimeType: mimeType,
-          product: result.rows[0]
-        });
-        
-      } catch (error) {
-        console.error('[PHOTO_UPLOAD] Processing error:', error);
-        res.status(500).json({ 
-          error: 'Upload processing failed',
-          details: error instanceof Error ? error.message : String(error)
-        });
+    try {
+      const { imageData, filename } = req.body;
+      
+      if (!imageData) {
+        return res.status(400).json({ error: 'Keine Bilddaten empfangen' });
       }
-    });
-    
-    req.on('error', (error: any) => {
-      console.error('[PHOTO_UPLOAD] Request error:', error);
-      res.status(500).json({ error: 'Upload request failed' });
-    });
+      
+      // Decode base64 image data
+      const base64Data = imageData.replace(/^data:image\/[a-z]+;base64,/, '');
+      const imageBuffer = Buffer.from(base64Data, 'base64');
+      
+      console.log('[CLOUDINARY_UPLOAD] Image size:', imageBuffer.length, 'bytes');
+      
+      // Upload to Cloudinary
+      const { uploadProductPhoto } = await import('./services/cloudinaryService');
+      const uploadResult = await uploadProductPhoto(imageBuffer, productId, filename);
+      
+      if (!uploadResult.success) {
+        console.error('[CLOUDINARY_UPLOAD] Upload failed:', uploadResult.error);
+        return res.status(500).json({ error: uploadResult.error || 'Upload fehlgeschlagen' });
+      }
+      
+      // Update database with Cloudinary URL
+      const { pool } = await import('./db');
+      const result = await pool.query(
+        'UPDATE products SET photo_url = $1, photos = COALESCE(photos, \'[]\') || $2::jsonb WHERE id = $3 RETURNING *',
+        [uploadResult.url, JSON.stringify([uploadResult.url]), productId]
+      );
+      
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: 'Produkt nicht gefunden' });
+      }
+      
+      console.log('[CLOUDINARY_UPLOAD] Database updated successfully');
+      
+      res.json({
+        success: true,
+        photoPath: uploadResult.url,
+        cloudinaryUrl: uploadResult.url,
+        publicId: uploadResult.publicId,
+        message: 'Foto erfolgreich hochgeladen',
+        fileSize: imageBuffer.length,
+        product: result.rows[0]
+      });
+      
+    } catch (error) {
+      console.error('[CLOUDINARY_UPLOAD] Error:', error);
+      res.status(500).json({ 
+        error: 'Upload-Verarbeitung fehlgeschlagen',
+        details: error instanceof Error ? error.message : String(error)
+      });
+    }
   });
 
   // Route für Refill-Verarbeitung mit Lagerbestandsabzug

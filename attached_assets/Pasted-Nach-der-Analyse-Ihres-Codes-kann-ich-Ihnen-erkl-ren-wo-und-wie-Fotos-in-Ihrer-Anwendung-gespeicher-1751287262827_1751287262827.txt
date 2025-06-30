@@ -1,0 +1,60 @@
+Nach der Analyse Ihres Codes kann ich Ihnen erklären, wo und wie Fotos in Ihrer Anwendung gespeichert werden:
+
+Aktuelle Foto-Speicherung
+1. Cloudinary (Hauptspeicher)
+Die Anwendung nutzt Cloudinary als primären Cloud-Speicher für alle Medien:
+
+Konfiguration (aus server/utils/cloudinary.ts):
+
+Cloud Name: dzl0viskw
+Ordner: krippen-village
+Automatische Optimierung: Qualität "auto:good", Format "auto"
+Maximale Größe: 1920px Breite
+Upload-Prozess:
+
+Bilder werden zunächst mit Sharp verarbeitet (Größenanpassung)
+Dann als Base64 zu Cloudinary hochgeladen
+Cloudinary gibt eine sichere URL zurück
+2. Lokaler Fallback-Speicher
+Zusätzlich gibt es noch lokale Upload-Ordner:
+
+uploads/
+├── contributions/    # Beitragsbilder
+├── site/            # Website-Bilder (Logos, etc.)
+│   ├── OMEXOM_COULEURS_CMJN.jpg
+│   └── Sachsen.jpg
+└── stations/        # Stationsbilder
+    ├── ziegelscheune.webp
+    ├── 0F7F48B5-A3C2-453E-8174-64452394A816.webp
+    └── WhatsApp-Image-2024-10-24-at-16.19.33.webp
+3. Speicherorte im Detail
+Stationsbilder:
+
+Primär: Cloudinary (https://res.cloudinary.com/dzl0viskw/...)
+Fallback: uploads/stations/
+Beitragsbilder:
+
+Primär: Cloudinary
+Fallback: uploads/contributions/
+Website-Assets:
+
+Logos/Sponsoren: uploads/site/
+Statische Assets: client/public/assets/
+4. Upload-Flow
+MediaManager Component (client/src/components/media-manager.tsx)
+API Endpoint (/api/admin/upload in server/routes.ts)
+Sharp Verarbeitung (Bildoptimierung)
+Cloudinary Upload (server/utils/cloudinary.ts)
+URL-Rückgabe an Frontend
+5. Datenbank-Speicherung
+In der Datenbank werden nur die URLs gespeichert, nicht die Bilder selbst:
+
+stations.imageUrls - Array von Cloudinary URLs
+stations.featuredImage - Hauptbild URL
+stationContributions.media - Beitragsmedien URLs
+6. Sicherheit & Limits
+Dateigröße: Max. 50MB
+Erlaubte Formate: JPEG, PNG, WebP, MP4, WebM, OGG, WAV
+Automatische Optimierung: Durch Cloudinary
+Backup: Nur URLs in Datenbank, Bilder bleiben in Cloudinary
+Die Anwendung nutzt also ein Hybrid-System mit Cloudinary als Hauptspeicher und lokalen Ordnern als Fallback/Legacy-Unterstützung.

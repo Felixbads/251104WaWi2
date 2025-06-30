@@ -39,33 +39,48 @@ export function ProductPhotoUpload({ productId, onUploadSuccess, size = "sm" }: 
     setIsUploading(true);
 
     try {
-      const formData = new FormData();
-      formData.append('photo', file);
-      formData.append('productId', productId.toString());
+      console.log('[CLOUDINARY_UPLOAD] Starting upload for:', file.name, file.size, 'bytes');
 
-      const response = await fetch('/api/photos/upload', {
+      // Convert file to base64
+      const base64Data = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
+      // Send to Cloudinary via our API
+      const response = await fetch(`/api/photos/upload/${productId}`, {
         method: 'POST',
-        body: formData,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          imageData: base64Data,
+          filename: file.name,
+        }),
       });
 
       if (response.ok) {
         const result = await response.json();
+        console.log('[CLOUDINARY_UPLOAD] Upload successful:', result);
         
         toast({
           title: "Erfolg",
-          description: "Foto erfolgreich hochgeladen",
+          description: "Foto erfolgreich zu Cloudinary hochgeladen",
         });
 
         // Callback aufrufen wenn vorhanden
-        if (onUploadSuccess && result.photoPath) {
-          onUploadSuccess(result.photoPath);
+        if (onUploadSuccess && (result.cloudinaryUrl || result.photoPath)) {
+          onUploadSuccess(result.cloudinaryUrl || result.photoPath);
         }
       } else {
         const error = await response.json();
-        throw new Error(error.message || 'Upload fehlgeschlagen');
+        console.error('[CLOUDINARY_UPLOAD] Upload failed:', error);
+        throw new Error(error.error || 'Upload fehlgeschlagen');
       }
     } catch (error) {
-      console.error('Upload-Fehler:', error);
+      console.error('[CLOUDINARY_UPLOAD] Upload error:', error);
       toast({
         title: "Fehler",
         description: error instanceof Error ? error.message : "Upload fehlgeschlagen",
