@@ -86,6 +86,85 @@ export async function uploadProductPhoto(
 }
 
 /**
+ * Upload a supplier photo to Cloudinary with multiple size variants
+ * @param buffer - Image buffer data
+ * @param supplierId - Supplier ID for folder organization
+ * @param filename - Original filename
+ * @returns Upload result with multiple URLs
+ */
+export async function uploadSupplierPhoto(
+  buffer: Buffer,
+  supplierId: number,
+  filename: string = 'photo.jpg'
+): Promise<{ success: boolean; urls?: { thumbnail: string; medium: string; large: string }; error?: string }> {
+  try {
+    console.log('[CLOUDINARY] Processing supplier photo upload for ID:', supplierId);
+
+    // Create base filename without extension
+    const baseFilename = filename.replace(/\.[^/.]+$/, '');
+    const timestamp = Date.now();
+
+    // Process different sizes
+    const sizes = [
+      { name: 'thumbnail', width: 150, height: 150 },
+      { name: 'medium', width: 400, height: 400 },
+      { name: 'large', width: 800, height: 800 }
+    ];
+
+    const uploadPromises = sizes.map(async (size) => {
+      const processedBuffer = await sharp(buffer)
+        .resize(size.width, size.height, {
+          fit: 'cover',
+          position: 'center'
+        })
+        .webp({ quality: 85 })
+        .toBuffer();
+
+      return new Promise<{ name: string; url: string }>((resolve, reject) => {
+        cloudinary.uploader.upload_stream(
+          {
+            resource_type: 'image',
+            folder: `suppliers/${supplierId}`,
+            public_id: `${baseFilename}_${size.name}_${timestamp}`,
+            format: 'webp',
+            overwrite: true
+          },
+          (error, result) => {
+            if (error) {
+              console.error(`[CLOUDINARY] Upload error for ${size.name}:`, error);
+              reject(error);
+            } else if (result) {
+              console.log(`[CLOUDINARY] ${size.name} uploaded successfully:`, result.secure_url);
+              resolve({ name: size.name, url: result.secure_url });
+            }
+          }
+        ).end(processedBuffer);
+      });
+    });
+
+    const results = await Promise.all(uploadPromises);
+    
+    const urls = {
+      thumbnail: results.find(r => r.name === 'thumbnail')?.url || '',
+      medium: results.find(r => r.name === 'medium')?.url || '',
+      large: results.find(r => r.name === 'large')?.url || ''
+    };
+
+    return {
+      success: true,
+      urls
+    };
+
+  } catch (error) {
+    console.error('[CLOUDINARY] Supplier upload error:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Upload failed'
+    };
+  }
+}
+
+/**
  * Delete a photo from Cloudinary
  * @param publicId - Cloudinary public ID
  * @returns Deletion result

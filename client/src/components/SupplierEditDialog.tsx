@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { PhotoUpload } from '@/components/PhotoUpload';
+import { SupplierPhotoUpload } from '@/components/SupplierPhotoUpload';
 import { useToast } from '@/hooks/use-toast';
 import { Supplier } from '@shared/schema';
 
@@ -250,9 +250,10 @@ export function SupplierEditDialog({ supplier, isOpen, onOpenChange, onSave }: S
                 <CardTitle>Fotos</CardTitle>
               </CardHeader>
               <CardContent>
-                <PhotoUpload
+                <SupplierPhotoUpload
+                  supplierId={supplier.id}
                   photos={formData.photos}
-                  onPhotosChange={(photos) => handleInputChange('photos', photos)}
+                  onPhotosChange={(photos: string[]) => handleInputChange('photos', photos)}
                   maxPhotos={10}
                 />
               </CardContent>

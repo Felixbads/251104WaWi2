@@ -48,6 +48,73 @@ const upload = multer({
   }
 });
 
+// Upload photo for a supplier using Cloudinary
+router.post('/upload/supplier/:supplierId', async (req, res) => {
+  try {
+    const supplierId = parseInt(req.params.supplierId);
+    console.log('[SUPPLIER_CLOUDINARY_UPLOAD] Processing upload for supplier:', supplierId);
+    
+    const { data, filename, entityType = 'supplier' } = req.body;
+    
+    if (!data) {
+      console.log('[SUPPLIER_CLOUDINARY_UPLOAD] No image data received');
+      return res.status(400).json({ error: 'Keine Bilddaten empfangen' });
+    }
+    
+    // Decode base64 image data
+    const base64Data = data.replace(/^data:image\/[a-z]+;base64,/, '');
+    const imageBuffer = Buffer.from(base64Data, 'base64');
+    
+    console.log('[SUPPLIER_CLOUDINARY_UPLOAD] Image size:', imageBuffer.length, 'bytes');
+    
+    // Upload to Cloudinary
+    const { uploadSupplierPhoto } = await import('../services/cloudinaryService');
+    const uploadResult = await uploadSupplierPhoto(imageBuffer, supplierId, filename);
+    
+    if (!uploadResult.success) {
+      console.error('[SUPPLIER_CLOUDINARY_UPLOAD] Upload failed:', uploadResult.error);
+      return res.status(500).json({ error: uploadResult.error || 'Upload fehlgeschlagen' });
+    }
+    
+    // Update database with Cloudinary URL
+    const { pool } = await import('../db');
+    
+    // Get current photos array
+    const supplierResult = await pool.query(
+      'SELECT photos FROM suppliers WHERE id = $1',
+      [supplierId]
+    );
+    
+    if (supplierResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Lieferant nicht gefunden' });
+    }
+    
+    const currentPhotos = supplierResult.rows[0].photos || [];
+    const newPhotos = [...currentPhotos, uploadResult.urls.medium];
+    
+    // Update supplier with new photo URL
+    await pool.query(
+      'UPDATE suppliers SET photos = $1, updated_at = NOW() WHERE id = $2',
+      [JSON.stringify(newPhotos), supplierId]
+    );
+    
+    console.log('[SUPPLIER_CLOUDINARY_UPLOAD] Upload successful for supplier:', supplierId);
+    
+    res.json({
+      success: true,
+      urls: uploadResult.urls,
+      message: 'Lieferantenfoto erfolgreich hochgeladen'
+    });
+
+  } catch (error) {
+    console.error('[SUPPLIER_CLOUDINARY_UPLOAD] Error:', error);
+    res.status(500).json({ 
+      error: 'Fehler beim Upload',
+      details: error instanceof Error ? error.message : 'Unbekannter Fehler'
+    });
+  }
+});
+
 // Upload photo for a product using Cloudinary
 router.post('/upload/:productId', async (req, res) => {
   try {
