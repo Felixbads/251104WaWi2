@@ -4429,6 +4429,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Mount suppliers-products router
   app.use(`${API_PREFIX}/suppliers`, suppliersProductsRouter);
 
+  // Mount photo upload router
+  app.use(`${API_PREFIX}/photos`, photosRouter.default || photosRouter);
+
   // Route für Refill-Verarbeitung mit Lagerbestandsabzug
   app.post('/api/refills/:id/process', async (req: Request, res: Response) => {
     try {

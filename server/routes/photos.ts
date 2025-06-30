@@ -2,6 +2,7 @@ import express from 'express';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import { rawDb } from '../db';
 
 const router = express.Router();
 
@@ -15,15 +16,22 @@ const storage = multer.diskStorage({
     cb(null, uploadDir);
   },
   filename: (req, file, cb) => {
-    const productId = req.body.productId || req.params.productId;
+    const productId = req.params.productId;
     const extension = path.extname(file.originalname);
-    cb(null, `product-${productId}-${Date.now()}${extension}`);
+    const timestamp = Date.now();
+    cb(null, `product-${productId}-${timestamp}${extension}`);
   }
 });
 
 const upload = multer({
   storage,
   fileFilter: (req, file, cb) => {
+    console.log('[PHOTO_UPLOAD] File received:', {
+      originalname: file.originalname,
+      mimetype: file.mimetype,
+      size: file.size
+    });
+    
     const allowedTypes = /jpeg|jpg|png|gif|webp/;
     const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
     const mimetype = allowedTypes.test(file.mimetype);
@@ -31,11 +39,12 @@ const upload = multer({
     if (mimetype && extname) {
       return cb(null, true);
     } else {
+      console.log('[PHOTO_UPLOAD] File rejected - invalid type');
       cb(new Error('Nur Bilddateien sind erlaubt (JPEG, PNG, GIF, WebP)'));
     }
   },
   limits: {
-    fileSize: 5 * 1024 * 1024 // 5MB limit
+    fileSize: 10 * 1024 * 1024 // 10MB limit
   }
 });
 
