@@ -1700,11 +1700,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get all products
   app.get(`${API_PREFIX}/products`, async (req: Request, res: Response) => {
     try {
+      console.log(`[DEBUG] GET /api/products called with query:`, req.query);
+      
       const limit = req.query.limit ? parseInt(req.query.limit as string) : 1000;
       const offset = req.query.offset ? parseInt(req.query.offset as string) : 0;
       const search = req.query.search as string | undefined;
       const supplierId = req.query.supplierId ? parseInt(req.query.supplierId as string) : undefined;
       const status = req.query.status as string | undefined;
+      
+      console.log(`[DEBUG] Products query params: limit=${limit}, offset=${offset}, search=${search}, supplierId=${supplierId}, status=${status}`);
+      
+      // Direct database check to see if products exist
+      try {
+        const directCountQuery = 'SELECT COUNT(*) as count FROM products';
+        const countResult = await rawDb.query(directCountQuery);
+        console.log(`[DEBUG] Direct DB query - Total products in database:`, countResult.rows[0]?.count || 0);
+      } catch (dbError) {
+        console.error(`[DEBUG] Direct DB query failed:`, dbError);
+      }
       
       const productsResponse = await storage.getProducts({
         limit, 
@@ -1714,7 +1727,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         status
       });
       
-      res.json(productsResponse.products || productsResponse);
+      console.log(`[DEBUG] Storage.getProducts response type:`, typeof productsResponse);
+      console.log(`[DEBUG] Storage.getProducts response structure:`, {
+        isArray: Array.isArray(productsResponse),
+        hasProducts: productsResponse?.products ? true : false,
+        productsCount: Array.isArray(productsResponse?.products) ? productsResponse.products.length : 'not array',
+        directCount: Array.isArray(productsResponse) ? productsResponse.length : 'not direct array',
+        keys: Object.keys(productsResponse || {})
+      });
+      
+      const finalProducts = productsResponse.products || productsResponse;
+      console.log(`[DEBUG] Final products to return:`, {
+        isArray: Array.isArray(finalProducts),
+        count: Array.isArray(finalProducts) ? finalProducts.length : 'not array',
+        firstItem: Array.isArray(finalProducts) && finalProducts.length > 0 ? finalProducts[0] : 'none'
+      });
+      
+      res.json(finalProducts);
     } catch (error) {
       console.error("Error fetching products:", error);
       res.status(500).json({ 

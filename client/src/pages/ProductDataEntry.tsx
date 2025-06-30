@@ -89,12 +89,12 @@ export default function ProductDataEntry() {
     queryFn: () => fetch('/api/suppliers').then(res => res.json()),
   });
 
-  // Ensure data is always an array
+  // Ensure data is always an array - API returns { data: [...], meta: {...} }
   const products = Array.isArray(productsData) ? productsData : 
-                   (productsData?.products && Array.isArray(productsData.products)) ? productsData.products : [];
+                   (productsData?.data && Array.isArray(productsData.data)) ? productsData.data : [];
   
   const suppliers = Array.isArray(suppliersData) ? suppliersData : 
-                    (suppliersData?.suppliers && Array.isArray(suppliersData.suppliers)) ? suppliersData.suppliers : [];
+                    (suppliersData?.data && Array.isArray(suppliersData.data)) ? suppliersData.data : [];
 
   // Update product mutation
   const updateProductMutation = useMutation({
