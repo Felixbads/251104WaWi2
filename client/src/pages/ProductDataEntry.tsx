@@ -1,12 +1,10 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { Save, Search } from "lucide-react";
+import { Save, Search, Upload } from "lucide-react";
 
 interface Product {
   id: number;
@@ -15,9 +13,8 @@ interface Product {
   price?: number | null;
   category?: string | null;
   description?: string | null;
+  shortDescription?: string | null;
   status?: string | null;
-  sku?: string | null;
-  barcode?: string | null;
   supplierId?: number | null;
   supplierName?: string | null;
   supplierSku?: string | null;
@@ -54,9 +51,7 @@ interface Product {
   isLocal?: boolean | null;
   isVegan?: boolean | null;
   isVegetarian?: boolean | null;
-  sustainabilityScore?: number | null;
   certifications?: string | null;
-  shortDescription?: string | null;
   ingredients?: string | null;
   allergens?: string | null;
   nutritionalInfo?: string | null;
@@ -77,14 +72,14 @@ export default function ProductDataEntry() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Load products from database  
-  const { data: productsData = [], isLoading: loadingProducts } = useQuery({
+  // Fetch products
+  const { data: productsData, isLoading: loadingProducts } = useQuery({
     queryKey: ["/api/products"],
     queryFn: () => fetch('/api/products?limit=1000').then(res => res.json()),
   });
 
-  // Load suppliers for dropdown
-  const { data: suppliersData = [] } = useQuery({
+  // Fetch suppliers
+  const { data: suppliersData } = useQuery({
     queryKey: ["/api/suppliers"],  
     queryFn: () => fetch('/api/suppliers').then(res => res.json()),
   });
@@ -96,10 +91,14 @@ export default function ProductDataEntry() {
   const suppliers = Array.isArray(suppliersData) ? suppliersData : 
                     (suppliersData?.data && Array.isArray(suppliersData.data)) ? suppliersData.data : [];
 
-  // Update product mutation
+  // Single product update mutation
   const updateProductMutation = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: Partial<Product> }) =>
-      apiRequest(`/api/products/${id}`, { method: "PATCH", data }),
+    mutationFn: async ({ id, data }: { id: number; data: Partial<Product> }) => {
+      return apiRequest(`/api/products/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      });
+    },
     onSuccess: () => {
       toast({
         title: "Erfolg",
@@ -118,12 +117,16 @@ export default function ProductDataEntry() {
 
   // Bulk update mutation
   const bulkUpdateMutation = useMutation({
-    mutationFn: (updates: Array<{ id: number; data: Partial<Product> }>) =>
-      Promise.all(
+    mutationFn: async (updates: Array<{ id: number; data: Partial<Product> }>) => {
+      return Promise.all(
         updates.map(({ id, data }) =>
-          apiRequest(`/api/products/${id}`, { method: "PATCH", data })
+          apiRequest(`/api/products/${id}`, {
+            method: 'PATCH',
+            body: JSON.stringify(data),
+          })
         )
-      ),
+      );
+    },
     onSuccess: () => {
       toast({
         title: "Erfolg",
@@ -141,26 +144,9 @@ export default function ProductDataEntry() {
     },
   });
 
-  const getStringValue = (product: Product, field: keyof Product): string => {
-    const value = product[field];
-    if (value === null || value === undefined) return '';
-    if (typeof value === 'boolean') return value ? 'true' : 'false';
-    if (typeof value === 'number') return value.toString();
-    if (Array.isArray(value)) return value.join(', ');
-    return String(value);
-  };
-
-  const getBooleanValue = (product: Product, field: keyof Product): boolean => {
-    const value = product[field];
-    if (typeof value === 'boolean') return value;
-    if (typeof value === 'string') return value === 'true';
-    return false;
-  };
-
   const filteredProducts = products.filter((product: Product) =>
     product.productName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    product.sku?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    product.barcode?.toLowerCase().includes(searchTerm.toLowerCase())
+    product.category?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const handleFieldChange = (productId: number, field: keyof Product, value: any) => {
@@ -218,7 +204,7 @@ export default function ProductDataEntry() {
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
             <Input
-              placeholder="Suche nach Produktname, SKU oder Barcode..."
+              placeholder="Suche nach Produktname oder Kategorie..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10"
@@ -249,23 +235,28 @@ export default function ProductDataEntry() {
               <tr>
                 <th className="text-left p-2 font-medium min-w-[80px]">Aktion</th>
                 <th className="text-left p-2 font-medium min-w-[200px]">Produktname</th>
-                <th className="text-left p-2 font-medium">SKU</th>
-                <th className="text-left p-2 font-medium">Barcode</th>
+                <th className="text-left p-2 font-medium min-w-[150px]">Kurzbeschreibung</th>
+                <th className="text-left p-2 font-medium min-w-[200px]">Detailbeschreibung</th>
                 <th className="text-left p-2 font-medium">Preis</th>
                 <th className="text-left p-2 font-medium">Kategorie</th>
                 <th className="text-left p-2 font-medium">Status</th>
                 <th className="text-left p-2 font-medium">Lieferant</th>
                 <th className="text-left p-2 font-medium">Pfand</th>
                 <th className="text-left p-2 font-medium">MwSt</th>
+                <th className="text-left p-2 font-medium">Gebindegröße</th>
+                <th className="text-left p-2 font-medium min-w-[150px]">Inhaltsstoffe</th>
+                <th className="text-left p-2 font-medium min-w-[150px]">Allergene</th>
                 <th className="text-left p-2 font-medium">Bio</th>
                 <th className="text-left p-2 font-medium">Lokal</th>
                 <th className="text-left p-2 font-medium">Vegan</th>
                 <th className="text-left p-2 font-medium">Vegetarisch</th>
+                <th className="text-left p-2 font-medium">Foto</th>
               </tr>
             </thead>
             <tbody>
               {filteredProducts.map((product: Product) => (
                 <tr key={product.id} className="border-b hover:bg-muted/30">
+                  {/* Aktion */}
                   <td className="p-2">
                     <Button
                       size="sm"
@@ -276,123 +267,203 @@ export default function ProductDataEntry() {
                       <Save className="h-3 w-3" />
                     </Button>
                   </td>
+                  
+                  {/* Produktname */}
                   <td className="p-2">
                     <Input
-                      value={getStringValue(product, 'productName')}
+                      value={String(getCurrentValue(product, 'productName') || '')}
                       onChange={(e) => handleFieldChange(product.id, 'productName', e.target.value)}
                       className="min-w-[200px]"
                     />
                   </td>
+                  
+                  {/* Kurzbeschreibung */}
                   <td className="p-2">
                     <Input
-                      value={getStringValue(product, 'sku')}
-                      onChange={(e) => handleFieldChange(product.id, 'sku', e.target.value)}
+                      value={String(getCurrentValue(product, 'shortDescription') || '')}
+                      onChange={(e) => handleFieldChange(product.id, 'shortDescription', e.target.value)}
+                      className="min-w-[150px]"
                     />
                   </td>
+                  
+                  {/* Detailbeschreibung */}
                   <td className="p-2">
-                    <Input
-                      value={getStringValue(product, 'barcode')}
-                      onChange={(e) => handleFieldChange(product.id, 'barcode', e.target.value)}
+                    <textarea
+                      value={String(getCurrentValue(product, 'description') || '')}
+                      onChange={(e) => handleFieldChange(product.id, 'description', e.target.value)}
+                      className="w-full p-1 border rounded resize-none min-w-[200px] h-16"
+                      rows={2}
                     />
                   </td>
-                  <td className="p-2">
-                    <Input
-                      type="number"
-                      step="0.01"
-                      value={getStringValue(product, 'price')}
-                      onChange={(e) => handleFieldChange(product.id, 'price', parseFloat(e.target.value) || null)}
-                    />
-                  </td>
-                  <td className="p-2">
-                    <Select
-                      value={getStringValue(product, 'category')}
-                      onValueChange={(value) => handleFieldChange(product.id, 'category', value)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Kategorie" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Getränke">Getränke</SelectItem>
-                        <SelectItem value="Snacks">Snacks</SelectItem>
-                        <SelectItem value="Süßwaren">Süßwaren</SelectItem>
-                        <SelectItem value="Fleisch">Fleisch</SelectItem>
-                        <SelectItem value="Milchprodukte">Milchprodukte</SelectItem>
-                        <SelectItem value="Alkohol">Alkohol</SelectItem>
-                        <SelectItem value="Sonstige">Sonstige</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </td>
-                  <td className="p-2">
-                    <Select
-                      value={getStringValue(product, 'status')}
-                      onValueChange={(value) => handleFieldChange(product.id, 'status', value)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Status" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="active">Aktiv</SelectItem>
-                        <SelectItem value="inactive">Inaktiv</SelectItem>
-                        <SelectItem value="discontinued">Eingestellt</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </td>
-                  <td className="p-2">
-                    <Select
-                      value={getStringValue(product, 'supplierId')}
-                      onValueChange={(value) => handleFieldChange(product.id, 'supplierId', parseInt(value) || null)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Lieferant" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {suppliers.map((supplier: Supplier) => (
-                          <SelectItem key={supplier.id} value={supplier.id.toString()}>
-                            {supplier.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </td>
+                  
+                  {/* Preis */}
                   <td className="p-2">
                     <Input
                       type="number"
                       step="0.01"
-                      value={getStringValue(product, 'depositPrice')}
-                      onChange={(e) => handleFieldChange(product.id, 'depositPrice', parseFloat(e.target.value) || null)}
+                      value={String(getCurrentValue(product, 'price') || '')}
+                      onChange={(e) => handleFieldChange(product.id, 'price', parseFloat(e.target.value) || 0)}
                     />
                   </td>
+                  
+                  {/* Kategorie */}
+                  <td className="p-2">
+                    <select
+                      value={String(getCurrentValue(product, 'category') || '')}
+                      onChange={(e) => handleFieldChange(product.id, 'category', e.target.value)}
+                      className="w-full p-1 border rounded"
+                    >
+                      <option value="">Kategorie wählen</option>
+                      <option value="Getränke">Getränke</option>
+                      <option value="Snacks">Snacks</option>
+                      <option value="Süßwaren">Süßwaren</option>
+                      <option value="Milchprodukte">Milchprodukte</option>
+                      <option value="Fleischwaren">Fleischwaren</option>
+                      <option value="Backwaren">Backwaren</option>
+                      <option value="Alkoholische Getränke">Alkoholische Getränke</option>
+                      <option value="Sonstiges">Sonstiges</option>
+                    </select>
+                  </td>
+                  
+                  {/* Status */}
+                  <td className="p-2">
+                    <select
+                      value={String(getCurrentValue(product, 'status') || '')}
+                      onChange={(e) => handleFieldChange(product.id, 'status', e.target.value)}
+                      className="w-full p-1 border rounded"
+                    >
+                      <option value="active">Aktiv</option>
+                      <option value="inactive">Inaktiv</option>
+                      <option value="discontinued">Eingestellt</option>
+                    </select>
+                  </td>
+                  
+                  {/* Lieferant */}
+                  <td className="p-2">
+                    <select
+                      value={String(getCurrentValue(product, 'supplierId') || '')}
+                      onChange={(e) => handleFieldChange(product.id, 'supplierId', e.target.value ? parseInt(e.target.value) : null)}
+                      className="w-full p-1 border rounded"
+                    >
+                      <option value="">Kein Lieferant</option>
+                      {suppliers.map((supplier: Supplier) => (
+                        <option key={supplier.id} value={supplier.id}>
+                          {supplier.name}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                  
+                  {/* Pfand */}
                   <td className="p-2">
                     <Input
                       type="number"
-                      step="0.1"
-                      value={getStringValue(product, 'vat')}
-                      onChange={(e) => handleFieldChange(product.id, 'vat', parseFloat(e.target.value) || null)}
+                      step="0.01"
+                      value={String(getCurrentValue(product, 'depositPrice') || '')}
+                      onChange={(e) => handleFieldChange(product.id, 'depositPrice', parseFloat(e.target.value) || 0)}
                     />
                   </td>
+                  
+                  {/* MwSt */}
                   <td className="p-2">
-                    <Checkbox
-                      checked={getBooleanValue(product, 'isOrganic')}
-                      onCheckedChange={(checked) => handleFieldChange(product.id, 'isOrganic', checked === true)}
+                    <select
+                      value={String(getCurrentValue(product, 'vat') || '')}
+                      onChange={(e) => handleFieldChange(product.id, 'vat', parseInt(e.target.value) || 19)}
+                      className="w-full p-1 border rounded"
+                    >
+                      <option value="7">7%</option>
+                      <option value="19">19%</option>
+                    </select>
+                  </td>
+                  
+                  {/* Gebindegröße */}
+                  <td className="p-2">
+                    <Input
+                      value={String(getCurrentValue(product, 'packageSize') || '')}
+                      onChange={(e) => handleFieldChange(product.id, 'packageSize', e.target.value)}
                     />
                   </td>
+                  
+                  {/* Inhaltsstoffe */}
                   <td className="p-2">
-                    <Checkbox
-                      checked={getBooleanValue(product, 'isLocal')}
-                      onCheckedChange={(checked) => handleFieldChange(product.id, 'isLocal', checked === true)}
+                    <textarea
+                      value={String(getCurrentValue(product, 'ingredients') || '')}
+                      onChange={(e) => handleFieldChange(product.id, 'ingredients', e.target.value)}
+                      className="w-full p-1 border rounded resize-none min-w-[150px] h-16"
+                      rows={2}
                     />
                   </td>
+                  
+                  {/* Allergene */}
                   <td className="p-2">
-                    <Checkbox
-                      checked={getBooleanValue(product, 'isVegan')}
-                      onCheckedChange={(checked) => handleFieldChange(product.id, 'isVegan', checked === true)}
+                    <textarea
+                      value={String(getCurrentValue(product, 'allergens') || '')}
+                      onChange={(e) => handleFieldChange(product.id, 'allergens', e.target.value)}
+                      className="w-full p-1 border rounded resize-none min-w-[150px] h-16"
+                      rows={2}
                     />
                   </td>
+                  
+                  {/* Bio */}
                   <td className="p-2">
-                    <Checkbox
-                      checked={getBooleanValue(product, 'isVegetarian')}
-                      onCheckedChange={(checked) => handleFieldChange(product.id, 'isVegetarian', checked === true)}
+                    <input
+                      type="checkbox"
+                      checked={Boolean(getCurrentValue(product, 'isOrganic'))}
+                      onChange={(e) => handleFieldChange(product.id, 'isOrganic', e.target.checked)}
+                      className="w-4 h-4"
                     />
+                  </td>
+                  
+                  {/* Lokal */}
+                  <td className="p-2">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(getCurrentValue(product, 'isLocal'))}
+                      onChange={(e) => handleFieldChange(product.id, 'isLocal', e.target.checked)}
+                      className="w-4 h-4"
+                    />
+                  </td>
+                  
+                  {/* Vegan */}
+                  <td className="p-2">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(getCurrentValue(product, 'isVegan'))}
+                      onChange={(e) => handleFieldChange(product.id, 'isVegan', e.target.checked)}
+                      className="w-4 h-4"
+                    />
+                  </td>
+                  
+                  {/* Vegetarisch */}
+                  <td className="p-2">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(getCurrentValue(product, 'isVegetarian'))}
+                      onChange={(e) => handleFieldChange(product.id, 'isVegetarian', e.target.checked)}
+                      className="w-4 h-4"
+                    />
+                  </td>
+                  
+                  {/* Foto */}
+                  <td className="p-2">
+                    <div className="flex flex-col gap-1">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            // TODO: Implement file upload functionality
+                            console.log('File selected:', file.name);
+                          }
+                        }}
+                        className="text-xs"
+                      />
+                      <Button size="sm" variant="outline" className="text-xs">
+                        <Upload className="h-3 w-3 mr-1" />
+                        Upload
+                      </Button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -400,12 +471,6 @@ export default function ProductDataEntry() {
           </table>
         </div>
       </div>
-
-      {filteredProducts.length === 0 && (
-        <div className="text-center py-8 text-muted-foreground">
-          Keine Produkte gefunden.
-        </div>
-      )}
     </div>
   );
 }
