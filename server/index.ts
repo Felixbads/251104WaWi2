@@ -229,10 +229,21 @@ app.get('/api/inter-app/products', async (req, res) => {
   }
 });
 
+// Configure file upload middleware BEFORE other body parsers
+app.use(fileUpload({
+  createParentPath: true,
+  limits: { 
+    fileSize: 20 * 1024 * 1024 // 20MB max
+  },
+  abortOnLimit: false,
+  responseOnLimit: "File size limit has been reached",
+  useTempFiles: true,
+  tempFileDir: '/tmp/',
+  debug: true
+}) as any);
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
-// Konfiguriere den File-Upload-Handler mit angepassten Optionen
-app.use(fileUpload() as any);
 
 // HINWEIS: Der direkte SQL-Endpunkt für BestellungV3 wurde in eine separate Route-Datei verschoben: server/routes/order-v3.ts
 
