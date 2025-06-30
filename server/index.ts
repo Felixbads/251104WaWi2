@@ -2035,7 +2035,7 @@ Elbsandstein Proviant & Quartier GmbH`;
           machine_id
         FROM events 
         WHERE machine_id IN (
-          SELECT id FROM machines WHERE location = $1
+          SELECT id FROM machines WHERE location_name = $1
         )
         AND (event_type = 'A' OR event_name LIKE '%door%' OR event_name LIKE '%open%')
         AND event_datetime >= NOW() - INTERVAL '7 days'
@@ -2056,7 +2056,7 @@ Elbsandstein Proviant & Quartier GmbH`;
           machine_id
         FROM refills 
         WHERE machine_id IN (
-          SELECT id FROM machines WHERE location = $1
+          SELECT id FROM machines WHERE location_name = $1
         )
         AND datetime >= NOW() - INTERVAL '7 days'
         ORDER BY datetime DESC
@@ -2071,9 +2071,9 @@ Elbsandstein Proviant & Quartier GmbH`;
 
       // 5. Check machines for this location
       const machinesResult = await pool.query(`
-        SELECT id, machine_name, location, status 
+        SELECT id, machine_name, location_name, status 
         FROM machines 
-        WHERE location = $1
+        WHERE location_name = $1
       `, [location]);
       
       debug.queries.machines = {
