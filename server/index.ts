@@ -237,8 +237,9 @@ app.get('/api/inter-app/products', async (req, res) => {
 // Allow JSON body parsing for all routes (including Cloudinary photo uploads)
 // The old multipart photo upload system has been replaced with Cloudinary base64 uploads
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
+// Increase upload limits for photo uploads
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: false, limit: '50mb' }));
 
 // HINWEIS: Der direkte SQL-Endpunkt für BestellungV3 wurde in eine separate Route-Datei verschoben: server/routes/order-v3.ts
 
