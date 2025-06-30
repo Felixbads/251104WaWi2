@@ -4429,129 +4429,139 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Mount suppliers-products router
   app.use(`${API_PREFIX}/suppliers`, suppliersProductsRouter);
 
-  // Photo upload with robust error handling for "Unexpected end of form"
-  app.post(`${API_PREFIX}/photos/upload/:productId`, async (req: any, res: Response) => {
-    let productId: number;
-    
-    try {
-      productId = parseInt(req.params.productId);
-      console.log('[PHOTO_UPLOAD] Upload attempt for product:', productId);
+  // Simplified photo upload using raw request handling (bypasses express-fileupload)
+  app.post(`${API_PREFIX}/photos/upload/:productId`, (req: any, res: Response) => {
+    const productId = parseInt(req.params.productId);
+    console.log('[PHOTO_UPLOAD] Starting raw upload for product:', productId);
 
-      // Add timeout to prevent hanging requests
-      const timeoutId = setTimeout(() => {
-        if (!res.headersSent) {
-          console.log('[PHOTO_UPLOAD] Request timeout after 10 seconds');
-          res.status(408).json({ error: 'Upload-Timeout' });
-        }
-      }, 10000);
+    // Bypass all middleware - handle raw multipart data
+    let body = Buffer.alloc(0);
+    let isProcessing = false;
 
-      // Check if files were uploaded
-      if (!req.files || !req.files.photo) {
-        clearTimeout(timeoutId);
-        console.log('[PHOTO_UPLOAD] No file received');
-        return res.status(400).json({ error: 'Keine Datei empfangen' });
+    req.on('data', (chunk: Buffer) => {
+      if (!isProcessing) {
+        body = Buffer.concat([body, chunk]);
       }
+    });
 
-      const uploadedFile = req.files.photo;
-      console.log('[PHOTO_UPLOAD] File received:', uploadedFile.name, uploadedFile.mimetype, uploadedFile.size || 'size unknown');
+    req.on('end', async () => {
+      if (isProcessing) return;
+      isProcessing = true;
 
-      // Validate file type
-      if (!uploadedFile.mimetype?.startsWith('image/')) {
-        clearTimeout(timeoutId);
-        return res.status(400).json({ error: 'Nur Bilddateien sind erlaubt' });
-      }
-
-      // Create upload directory
-      const path = require('path');
-      const fs = require('fs');
-      const uploadDir = path.join(process.cwd(), 'uploads', 'products');
-      
-      if (!fs.existsSync(uploadDir)) {
-        fs.mkdirSync(uploadDir, { recursive: true });
-      }
-
-      // Generate unique filename
-      const timestamp = Date.now();
-      const extension = path.extname(uploadedFile.name) || '.jpg';
-      const filename = `product-${productId}-${timestamp}${extension}`;
-      const filepath = path.join(uploadDir, filename);
-
-      // Save file with error handling
       try {
-        if (uploadedFile.data && uploadedFile.data.length > 0) {
-          fs.writeFileSync(filepath, uploadedFile.data);
-          console.log('[PHOTO_UPLOAD] File saved via buffer:', filename, uploadedFile.data.length, 'bytes');
-        } else if (uploadedFile.tempFilePath && fs.existsSync(uploadedFile.tempFilePath)) {
-          // Copy from temp file if available
-          fs.copyFileSync(uploadedFile.tempFilePath, filepath);
-          console.log('[PHOTO_UPLOAD] File copied from temp:', filename);
-        } else if (uploadedFile.mv) {
-          // Fallback to mv method
-          await uploadedFile.mv(filepath);
-          console.log('[PHOTO_UPLOAD] File moved via mv:', filename);
-        } else {
-          throw new Error('No valid file data or method available');
+        const contentType = req.headers['content-type'] || '';
+        const boundaryMatch = contentType.match(/boundary=(.+)$/);
+        
+        if (!boundaryMatch) {
+          console.log('[PHOTO_UPLOAD] No boundary found in content-type');
+          return res.status(400).json({ error: 'Invalid multipart request' });
         }
-      } catch (fileError) {
-        clearTimeout(timeoutId);
-        console.error('[PHOTO_UPLOAD] File save error:', fileError);
-        return res.status(500).json({ 
-          error: 'Datei konnte nicht gespeichert werden',
-          details: fileError instanceof Error ? fileError.message : String(fileError)
-        });
-      }
 
-      const photoPath = `/uploads/products/${filename}`;
+        const boundary = boundaryMatch[1];
+        const bodyStr = body.toString('binary');
+        const parts = bodyStr.split(`--${boundary}`);
 
-      // Update database
-      const { pool } = await import('./db');
-      const result = await pool.query(
-        'UPDATE products SET photo_url = $1, photos = COALESCE(photos, \'[]\') || $2::jsonb WHERE id = $3 RETURNING *',
-        [photoPath, JSON.stringify([photoPath]), productId]
-      );
+        let fileData: Buffer | null = null;
+        let filename = 'unknown.jpg';
+        let mimetype = 'image/jpeg';
 
-      if (result.rows.length === 0) {
-        clearTimeout(timeoutId);
-        return res.status(404).json({ error: 'Produkt nicht gefunden' });
-      }
+        for (const part of parts) {
+          if (part.includes('name="photo"') && part.includes('Content-Type:')) {
+            const lines = part.split('\r\n');
+            let headerComplete = false;
+            let contentStart = 0;
 
-      clearTimeout(timeoutId);
-      
-      if (!res.headersSent) {
+            for (let i = 0; i < lines.length; i++) {
+              if (lines[i].includes('filename=')) {
+                const filenameMatch = lines[i].match(/filename="([^"]+)"/);
+                if (filenameMatch) filename = filenameMatch[1];
+              }
+              if (lines[i].includes('Content-Type:')) {
+                mimetype = lines[i].split('Content-Type:')[1].trim();
+              }
+              if (!headerComplete && lines[i] === '') {
+                headerComplete = true;
+                contentStart = part.indexOf('\r\n\r\n') + 4;
+                break;
+              }
+            }
+
+            if (headerComplete && contentStart > 0) {
+              const fileContent = part.substring(contentStart);
+              const endIndex = fileContent.lastIndexOf('\r\n');
+              const finalContent = endIndex > 0 ? fileContent.substring(0, endIndex) : fileContent;
+              
+              if (finalContent.length > 0) {
+                fileData = Buffer.from(finalContent, 'binary');
+                console.log('[PHOTO_UPLOAD] Extracted file data:', filename, fileData.length, 'bytes');
+                break;
+              }
+            }
+          }
+        }
+
+        if (!fileData || fileData.length === 0) {
+          console.log('[PHOTO_UPLOAD] No valid file data found');
+          return res.status(400).json({ error: 'Keine gültige Datei empfangen' });
+        }
+
+        // Create upload directory
+        const path = require('path');
+        const fs = require('fs');
+        const uploadDir = path.join(process.cwd(), 'uploads', 'products');
+        
+        if (!fs.existsSync(uploadDir)) {
+          fs.mkdirSync(uploadDir, { recursive: true });
+        }
+
+        // Generate unique filename
+        const timestamp = Date.now();
+        const extension = path.extname(filename) || '.jpg';
+        const finalFilename = `product-${productId}-${timestamp}${extension}`;
+        const filepath = path.join(uploadDir, finalFilename);
+
+        // Save file
+        fs.writeFileSync(filepath, fileData);
+        console.log('[PHOTO_UPLOAD] File saved successfully:', finalFilename);
+
+        const photoPath = `/uploads/products/${finalFilename}`;
+
+        // Update database
+        const { pool } = await import('./db');
+        const result = await pool.query(
+          'UPDATE products SET photo_url = $1, photos = COALESCE(photos, \'[]\') || $2::jsonb WHERE id = $3 RETURNING *',
+          [photoPath, JSON.stringify([photoPath]), productId]
+        );
+
+        if (result.rows.length === 0) {
+          return res.status(404).json({ error: 'Produkt nicht gefunden' });
+        }
+
         res.json({
           success: true,
           photoPath,
-          filename,
+          filename: finalFilename,
           message: 'Foto erfolgreich hochgeladen',
+          fileSize: fileData.length,
+          mimeType: mimetype,
           product: result.rows[0]
         });
-      }
 
-    } catch (error) {
-      console.error('[PHOTO_UPLOAD] Unexpected error:', error);
-      
-      // Handle "Unexpected end of form" specifically
-      if (error instanceof Error && error.message.includes('Unexpected end of form')) {
-        console.log('[PHOTO_UPLOAD] Busboy parsing error detected - attempting graceful recovery');
-        
-        if (!res.headersSent) {
-          return res.status(200).json({
-            success: true,
-            message: 'Upload wurde verarbeitet (trotz Parsing-Warnung)',
-            photoPath: `/uploads/products/product-${productId || 'unknown'}-${Date.now()}.jpg`,
-            filename: `product-${productId || 'unknown'}-${Date.now()}.jpg`,
-            note: 'File upload completed successfully despite technical warning'
-          });
-        }
-      }
-      
-      if (!res.headersSent) {
+      } catch (error) {
+        console.error('[PHOTO_UPLOAD] Raw processing error:', error);
         res.status(500).json({ 
-          error: 'Upload fehlgeschlagen',
+          error: 'Upload-Verarbeitung fehlgeschlagen',
           details: error instanceof Error ? error.message : String(error)
         });
       }
-    }
+    });
+
+    req.on('error', (error: any) => {
+      console.error('[PHOTO_UPLOAD] Request error:', error);
+      if (!res.headersSent) {
+        res.status(500).json({ error: 'Upload-Fehler' });
+      }
+    });
   });
 
   // Route für Refill-Verarbeitung mit Lagerbestandsabzug

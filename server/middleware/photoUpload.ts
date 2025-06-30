@@ -34,13 +34,13 @@ export function createPhotoUploadMiddleware() {
 
       req.on('end', () => {
         try {
-          const boundaryBuffer = Buffer.from(`--${boundary}`);
-          const parts = body.split(boundaryBuffer);
+          const boundaryStr = `--${boundary}`;
+          const bodyStr = body.toString('binary');
+          const parts = bodyStr.split(boundaryStr);
           
-          for (const part of parts) {
-            if (part.length < 10) continue;
+          for (const partStr of parts) {
+            if (partStr.length < 10) continue;
             
-            const partStr = part.toString();
             if (partStr.includes('name="photo"') && partStr.includes('Content-Type: image/')) {
               const headerEnd = partStr.indexOf('\r\n\r\n');
               if (headerEnd === -1) continue;
@@ -55,7 +55,11 @@ export function createPhotoUploadMiddleware() {
                 
                 // Extract file data (skip headers and CRLF)
                 const dataStart = headerEnd + 4;
-                const fileData = part.slice(dataStart, part.length - 2); // Remove trailing CRLF
+                const dataEnd = partStr.length - 2; // Remove trailing CRLF
+                const fileDataStr = partStr.substring(dataStart, dataEnd);
+                
+                // Convert binary string back to Buffer
+                const fileData = Buffer.from(fileDataStr, 'binary');
                 
                 if (fileData.length > 0) {
                   req.photoFile = {
