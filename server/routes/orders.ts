@@ -607,7 +607,7 @@ router.post('/orders', async (req: Request, res: Response) => {
           orderDate: new Date(),
                 // Verwende das zuvor validierte und konvertierte Datum
           ...(parsedDeliveryDate ? { expectedDeliveryDate: parsedDeliveryDate } : {}),
-          internalNotes: notes,
+          notes: notes,
           createdBy: userId,
           createdByName: userName,
           createdByEmail: userEmail,
