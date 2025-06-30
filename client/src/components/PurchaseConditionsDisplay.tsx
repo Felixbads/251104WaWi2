@@ -10,17 +10,16 @@ interface PurchaseCondition {
   productId: number;
   supplierId: number;
   supplierName: string;
-  netPrice: number;
+  unitPrice: number;
   grossPrice: number;
-  vatRate: number;
+  taxRate: number;
   packagingQuantity: number;
   packagingUnit: string;
-  minOrderQuantity: number;
-  deliveryTime: number;
-  paymentTerms: string;
-  isActive: boolean;
+  minQuantity: number;
+  deliveryTime: string;
+  isPreferred: boolean;
   validFrom: string;
-  validUntil?: string;
+  validTo?: string;
   notes?: string;
 }
 
@@ -31,7 +30,7 @@ interface PurchaseConditionsDisplayProps {
 
 export function PurchaseConditionsDisplay({ productId, supplierId }: PurchaseConditionsDisplayProps) {
   const { data: conditions, isLoading, error } = useQuery<PurchaseCondition[]>({
-    queryKey: [`/api/purchase-conditions/product/${productId}`],
+    queryKey: [`/api/products/${productId}/purchase-conditions`],
     staleTime: 1000 * 60 * 5, // 5 Minuten
   });
 
@@ -58,13 +57,14 @@ export function PurchaseConditionsDisplay({ productId, supplierId }: PurchaseCon
     ? conditions.filter(c => c.supplierId === supplierId)
     : conditions;
 
-  const activeConditions = filteredConditions.filter(c => c.isActive);
+  // Zeige alle Bedingungen (entferne isActive Filter da das Feld isPreferred heißt)
+  const displayConditions = filteredConditions;
 
-  if (activeConditions.length === 0) {
+  if (displayConditions.length === 0) {
     return (
       <div className="mt-4">
         <h4 className="text-sm font-medium text-gray-900 mb-2">Einkaufsbedingungen</h4>
-        <p className="text-sm text-gray-500">Keine aktiven Einkaufsbedingungen verfügbar</p>
+        <p className="text-sm text-gray-500">Keine Einkaufsbedingungen verfügbar</p>
       </div>
     );
   }
@@ -77,7 +77,7 @@ export function PurchaseConditionsDisplay({ productId, supplierId }: PurchaseCon
       </h4>
       
       <div className="space-y-3">
-        {activeConditions.map((condition) => (
+        {displayConditions.map((condition) => (
           <Card key={condition.id} className="border-l-4 border-l-blue-500">
             <CardContent className="p-4">
               <div className="flex justify-between items-start mb-3">
