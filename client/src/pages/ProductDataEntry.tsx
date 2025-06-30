@@ -84,12 +84,20 @@ export default function ProductDataEntry() {
     queryFn: () => fetch('/api/suppliers').then(res => res.json()),
   });
 
+  // Fetch product categories
+  const { data: categoriesData } = useQuery({
+    queryKey: ["/api/product-categories"],
+    queryFn: () => fetch('/api/product-categories').then(res => res.json()),
+  });
+
   // Ensure data is always an array - API returns { data: [...], meta: {...} }
   const products = Array.isArray(productsData) ? productsData : 
                    (productsData?.data && Array.isArray(productsData.data)) ? productsData.data : [];
   
   const suppliers = Array.isArray(suppliersData) ? suppliersData : 
                     (suppliersData?.data && Array.isArray(suppliersData.data)) ? suppliersData.data : [];
+
+  const categories = Array.isArray(categoriesData) ? categoriesData : [];
 
   // Single product update mutation
   const updateProductMutation = useMutation({
@@ -212,19 +220,27 @@ export default function ProductDataEntry() {
   const handleFileUpload = async (productId: number, file: File) => {
     try {
       const formData = new FormData();
-      formData.append('photo', file);
+      formData.append('photos', file);
 
-      const response = await fetch(`/api/photos/upload/${productId}`, {
+      const response = await fetch('/api/photos/upload', {
         method: 'POST',
         body: formData
       });
 
       if (response.ok) {
         const result = await response.json();
+        
+        // Update the product with the photo URL
+        if (result.uploadedPhotos && result.uploadedPhotos[0]) {
+          const photoUrl = result.uploadedPhotos[0].url;
+          handleFieldChange(productId, 'photoUrl', photoUrl);
+        }
+        
         toast({
           title: "Erfolg",
           description: "Foto wurde erfolgreich hochgeladen.",
         });
+        
         // Refresh the products data to show updated photo status
         queryClient.invalidateQueries({ queryKey: ["/api/products"] });
       } else {
@@ -359,14 +375,11 @@ export default function ProductDataEntry() {
                       className="w-full p-1 border rounded text-xs"
                     >
                       <option value="">Kategorie wählen</option>
-                      <option value="Getränke">Getränke</option>
-                      <option value="Snacks">Snacks</option>
-                      <option value="Süßwaren">Süßwaren</option>
-                      <option value="Milchprodukte">Milchprodukte</option>
-                      <option value="Fleischwaren">Fleischwaren</option>
-                      <option value="Backwaren">Backwaren</option>
-                      <option value="Alkoholische Getränke">Alkoholische Getränke</option>
-                      <option value="Sonstiges">Sonstiges</option>
+                      {categories.map((category: string) => (
+                        <option key={category} value={category}>
+                          {category}
+                        </option>
+                      ))}
                     </select>
                   </td>
                   
