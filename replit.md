@@ -109,6 +109,15 @@ This is a comprehensive vending machine management platform (Warenwirtschaftssys
 
 ## Changelog
 
+- June 30, 2025: Consolidated Product Detail View with Mobile-First Design
+  - ✓ Consolidated Details and Overview tabs into single comprehensive Details tab
+  - ✓ Removed Nährwerte, Fotos, and Übersicht tabs as requested
+  - ✓ Implemented mobile-first responsive design with adaptive grid layouts
+  - ✓ Added purchase conditions (Einkaufsbedingungen) section under supplier information
+  - ✓ Enhanced ingredient and nutrition display with improved visual hierarchy
+  - ✓ Integrated photo gallery within consolidated Details view
+  - ✓ Optimized typography and spacing for better mobile readability
+  - ✓ Maintained comprehensive product information in organized card sections
 - June 30, 2025: Enhanced Product Data Entry Interface
   - ✓ Implemented focused tabular product editing interface with required fields only
   - ✓ Removed unwanted fields (Preis, Status, MwSt, Bio, Lokal, Vegan, Vegetarisch) from display
