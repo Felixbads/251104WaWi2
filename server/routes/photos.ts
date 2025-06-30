@@ -52,10 +52,11 @@ router.post('/upload/:productId', upload.single('photo'), async (req, res) => {
     // Update product with photo information
     const { pool } = await import('../db');
     
-    // Update the description field to include photo info
+    // Update the photo_url field and description
     const updateQuery = `
       UPDATE products 
-      SET description = COALESCE(description, '') || 
+      SET photo_url = $2,
+          description = COALESCE(description, '') || 
           CASE 
             WHEN description IS NULL OR description = '' THEN 'Foto hochgeladen: ${req.file.filename}'
             ELSE E'\nFoto hochgeladen: ${req.file.filename}'
@@ -65,7 +66,7 @@ router.post('/upload/:productId', upload.single('photo'), async (req, res) => {
       RETURNING *
     `;
     
-    const result = await pool.query(updateQuery, [productId]);
+    const result = await pool.query(updateQuery, [productId, photoPath]);
     
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Produkt nicht gefunden' });

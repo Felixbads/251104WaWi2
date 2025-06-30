@@ -312,6 +312,7 @@ export const products = pgTable("products", {
   allergens: text("allergens"), // Allergene als Text
   nutritionalInfo: text("nutritional_info"), // Nährwertangaben als JSON string
   photos: text("photos").array(), // Array von Foto-URLs
+  photoUrl: text("photo_url"), // Haupt-Foto URL für einfachen Zugriff
   
   // Keep the full JSON for reference and backward compatibility
   additionalData: text("additional_data"),
