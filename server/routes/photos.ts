@@ -68,8 +68,8 @@ router.post('/upload/supplier/:supplierId', async (req, res) => {
     console.log('[SUPPLIER_CLOUDINARY_UPLOAD] Image size:', imageBuffer.length, 'bytes');
     
     // Upload to Cloudinary
-    const { uploadSupplierPhoto } = await import('../services/cloudinaryService');
-    const uploadResult = await uploadSupplierPhoto(imageBuffer, supplierId, filename);
+    const cloudinaryService = await import('../services/cloudinaryService');
+    const uploadResult = await cloudinaryService.uploadSupplierPhoto(imageBuffer, supplierId, filename);
     
     if (!uploadResult.success) {
       console.error('[SUPPLIER_CLOUDINARY_UPLOAD] Upload failed:', uploadResult.error);
@@ -90,7 +90,7 @@ router.post('/upload/supplier/:supplierId', async (req, res) => {
     }
     
     const currentPhotos = supplierResult.rows[0].photos || [];
-    const newPhotos = [...currentPhotos, uploadResult.urls.medium];
+    const newPhotos = [...currentPhotos, uploadResult.urls?.medium || ''];
     
     // Update supplier with new photo URL
     await pool.query(
@@ -111,6 +111,218 @@ router.post('/upload/supplier/:supplierId', async (req, res) => {
     res.status(500).json({ 
       error: 'Fehler beim Upload',
       details: error instanceof Error ? error.message : 'Unbekannter Fehler'
+    });
+  }
+});
+
+// API for external applications - Get photo data with supplier/producer relationships
+router.get('/external/:entityType/:entityId', async (req, res) => {
+  try {
+    const { entityType, entityId } = req.params;
+    const { pool } = await import('../db');
+    
+    console.log('[EXTERNAL_API] Photo request:', { entityType, entityId });
+    
+    if (entityType === 'product') {
+      const productResult = await pool.query(`
+        SELECT 
+          p.id,
+          p.product_name,
+          p.photos,
+          p.supplier_id,
+          s.name as supplier_name,
+          s.contact_person,
+          s.phone,
+          s.email,
+          s.photos as supplier_photos
+        FROM products p
+        LEFT JOIN suppliers s ON p.supplier_id = s.id
+        WHERE p.id = $1
+      `, [parseInt(entityId)]);
+      
+      if (productResult.rows.length === 0) {
+        return res.status(404).json({ 
+          success: false, 
+          error: 'Product not found' 
+        });
+      }
+      
+      const product = productResult.rows[0];
+      
+      res.json({
+        success: true,
+        data: {
+          entityType: 'product',
+          entityId: product.id,
+          entityName: product.product_name,
+          photos: product.photos || [],
+          supplier: {
+            id: product.supplier_id,
+            name: product.supplier_name,
+            contactPerson: product.contact_person,
+            phone: product.phone,
+            email: product.email,
+            photos: product.supplier_photos || []
+          }
+        }
+      });
+      
+    } else if (entityType === 'supplier') {
+      const supplierResult = await pool.query(`
+        SELECT 
+          s.id,
+          s.name,
+          s.contact_person,
+          s.phone,
+          s.email,
+          s.photos,
+          COUNT(p.id) as product_count
+        FROM suppliers s
+        LEFT JOIN products p ON s.id = p.supplier_id
+        WHERE s.id = $1
+        GROUP BY s.id, s.name, s.contact_person, s.phone, s.email, s.photos
+      `, [parseInt(entityId)]);
+      
+      if (supplierResult.rows.length === 0) {
+        return res.status(404).json({ 
+          success: false, 
+          error: 'Supplier not found' 
+        });
+      }
+      
+      const supplier = supplierResult.rows[0];
+      
+      // Get products for this supplier
+      const productsResult = await pool.query(`
+        SELECT id, product_name, photos
+        FROM products
+        WHERE supplier_id = $1
+        ORDER BY product_name
+        LIMIT 50
+      `, [parseInt(entityId)]);
+      
+      res.json({
+        success: true,
+        data: {
+          entityType: 'supplier',
+          entityId: supplier.id,
+          entityName: supplier.name,
+          contactPerson: supplier.contact_person,
+          phone: supplier.phone,
+          email: supplier.email,
+          photos: supplier.photos || [],
+          productCount: supplier.product_count,
+          products: productsResult.rows.map(p => ({
+            id: p.id,
+            name: p.product_name,
+            photos: p.photos || []
+          }))
+        }
+      });
+      
+    } else {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Invalid entity type. Use "product" or "supplier"' 
+      });
+    }
+    
+  } catch (error) {
+    console.error('[EXTERNAL_API] Error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Internal server error',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+// API for external applications - Search photos by entity name
+router.get('/external/search/:entityType', async (req, res) => {
+  try {
+    const { entityType } = req.params;
+    const { query, limit = 20 } = req.query;
+    const { pool } = await import('../db');
+    
+    console.log('[EXTERNAL_API] Search request:', { entityType, query, limit });
+    
+    if (!query || typeof query !== 'string') {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Query parameter required' 
+      });
+    }
+    
+    if (entityType === 'product') {
+      const searchResult = await pool.query(`
+        SELECT 
+          p.id,
+          p.product_name,
+          p.photos,
+          p.supplier_id,
+          s.name as supplier_name
+        FROM products p
+        LEFT JOIN suppliers s ON p.supplier_id = s.id
+        WHERE p.product_name ILIKE $1
+        AND (p.photos IS NOT NULL AND array_length(p.photos, 1) > 0)
+        ORDER BY p.product_name
+        LIMIT $2
+      `, [`%${query}%`, parseInt(limit as string)]);
+      
+      res.json({
+        success: true,
+        data: searchResult.rows.map(p => ({
+          entityType: 'product',
+          entityId: p.id,
+          entityName: p.product_name,
+          photos: p.photos,
+          supplier: {
+            id: p.supplier_id,
+            name: p.supplier_name
+          }
+        }))
+      });
+      
+    } else if (entityType === 'supplier') {
+      const searchResult = await pool.query(`
+        SELECT 
+          s.id,
+          s.name,
+          s.photos,
+          COUNT(p.id) as product_count
+        FROM suppliers s
+        LEFT JOIN products p ON s.id = p.supplier_id
+        WHERE s.name ILIKE $1
+        AND (s.photos IS NOT NULL AND array_length(s.photos, 1) > 0)
+        GROUP BY s.id, s.name, s.photos
+        ORDER BY s.name
+        LIMIT $2
+      `, [`%${query}%`, parseInt(limit as string)]);
+      
+      res.json({
+        success: true,
+        data: searchResult.rows.map(s => ({
+          entityType: 'supplier',
+          entityId: s.id,
+          entityName: s.name,
+          photos: s.photos,
+          productCount: s.product_count
+        }))
+      });
+      
+    } else {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Invalid entity type. Use "product" or "supplier"' 
+      });
+    }
+    
+  } catch (error) {
+    console.error('[EXTERNAL_API] Search error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Internal server error',
+      details: error instanceof Error ? error.message : 'Unknown error'
     });
   }
 });
