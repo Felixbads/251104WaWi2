@@ -79,8 +79,8 @@ router.post('/upload/:productId', async (req, res) => {
     // Update database with Cloudinary URL
     const { pool } = await import('../db');
     const result = await pool.query(
-      'UPDATE products SET photo_url = $1, photos = COALESCE(photos, \'[]\') || $2::jsonb WHERE id = $3 RETURNING *',
-      [uploadResult.url, JSON.stringify([uploadResult.url]), productId]
+      'UPDATE products SET photo_url = $1, photos = COALESCE(photos, ARRAY[]::text[]) || ARRAY[$2] WHERE id = $3 RETURNING *',
+      [uploadResult.url, uploadResult.url, productId]
     );
     
     if (result.rows.length === 0) {
