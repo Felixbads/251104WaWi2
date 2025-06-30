@@ -83,14 +83,14 @@ export function PurchaseConditionsDisplay({ productId, supplierId }: PurchaseCon
               <div className="flex justify-between items-start mb-3">
                 <div>
                   <h5 className="font-medium text-sm">{condition.supplierName}</h5>
-                  {condition.validUntil && (
+                  {condition.validTo && (
                     <p className="text-xs text-gray-500">
-                      Gültig bis: {new Date(condition.validUntil).toLocaleDateString('de-DE')}
+                      Gültig bis: {new Date(condition.validTo).toLocaleDateString('de-DE')}
                     </p>
                   )}
                 </div>
-                <Badge variant="secondary" className="text-xs">
-                  Aktiv
+                <Badge variant={condition.isPreferred ? "default" : "secondary"} className="text-xs">
+                  {condition.isPreferred ? "Bevorzugt" : "Alternative"}
                 </Badge>
               </div>
 
@@ -100,7 +100,7 @@ export function PurchaseConditionsDisplay({ productId, supplierId }: PurchaseCon
                     <Euro className="h-3 w-3 mr-1 text-gray-400" />
                     <span className="text-gray-600">Nettopreis:</span>
                     <span className="ml-1 font-medium">
-                      {condition.netPrice.toFixed(2)} €
+                      {condition.unitPrice.toFixed(2)} €
                     </span>
                   </div>
                   
@@ -124,7 +124,7 @@ export function PurchaseConditionsDisplay({ productId, supplierId }: PurchaseCon
                   <div className="flex items-center">
                     <span className="text-gray-600">Mindestmenge:</span>
                     <span className="ml-1 font-medium">
-                      {condition.minOrderQuantity}
+                      {condition.minQuantity}
                     </span>
                   </div>
 
@@ -132,25 +132,27 @@ export function PurchaseConditionsDisplay({ productId, supplierId }: PurchaseCon
                     <Clock className="h-3 w-3 mr-1 text-gray-400" />
                     <span className="text-gray-600">Lieferzeit:</span>
                     <span className="ml-1 font-medium">
-                      {condition.deliveryTime} Tage
+                      {condition.deliveryTime}
                     </span>
                   </div>
 
                   <div className="flex items-center">
                     <span className="text-gray-600">MwSt:</span>
                     <span className="ml-1 font-medium">
-                      {condition.vatRate}%
+                      {condition.taxRate}%
                     </span>
                   </div>
                 </div>
               </div>
 
-              {condition.paymentTerms && (
+              {condition.validFrom && (
                 <>
                   <Separator className="my-3" />
                   <div className="text-sm">
-                    <span className="text-gray-600">Zahlungsbedingungen:</span>
-                    <p className="mt-1 text-gray-800">{condition.paymentTerms}</p>
+                    <span className="text-gray-600">Gültig ab:</span>
+                    <p className="mt-1 text-gray-800">
+                      {new Date(condition.validFrom).toLocaleDateString('de-DE')}
+                    </p>
                   </div>
                 </>
               )}
