@@ -42,6 +42,7 @@ import { db } from './db';
 import { orders } from '../shared/schema';
 import { eq } from 'drizzle-orm';
 import nodemailer from 'nodemailer';
+import { uploadPhotos } from './middleware/fileUpload';
 
 const app = express();
 
@@ -2234,6 +2235,43 @@ Elbsandstein Proviant & Quartier GmbH`;
       console.error('Fehler beim Laden der Produktkategorien:', error);
       res.status(500).json({ 
         error: 'Fehler beim Laden der Produktkategorien',
+        message: error instanceof Error ? error.message : 'Unbekannter Fehler'
+      });
+    }
+  });
+
+  // Photo upload endpoint - REPARIERT
+  app.post('/api/photos/upload', uploadPhotos.array('photos', 10), async (req, res) => {
+    try {
+      console.log('📸 Photo upload request received');
+      console.log('Files:', req.files);
+      
+      if (!req.files || !Array.isArray(req.files) || req.files.length === 0) {
+        return res.status(400).json({ 
+          success: false, 
+          error: 'Keine Dateien hochgeladen' 
+        });
+      }
+      
+      const uploadedPhotos = req.files.map(file => ({
+        filename: file.filename,
+        originalname: file.originalname,
+        url: `/uploads/photos/${file.filename}`,
+        size: file.size
+      }));
+      
+      console.log('📸 Uploaded photos:', uploadedPhotos);
+      
+      res.json({
+        success: true,
+        message: `${uploadedPhotos.length} Foto(s) erfolgreich hochgeladen`,
+        photos: uploadedPhotos
+      });
+    } catch (error) {
+      console.error('❌ Photo upload error:', error);
+      res.status(500).json({ 
+        success: false,
+        error: 'Fehler beim Hochladen der Fotos',
         message: error instanceof Error ? error.message : 'Unbekannter Fehler'
       });
     }
