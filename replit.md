@@ -109,6 +109,14 @@ This is a comprehensive vending machine management platform (Warenwirtschaftssys
 
 ## Changelog
 
+- June 30, 2025: External Photo API and Supplier Upload System Implemented
+  - ✓ Complete supplier photo upload system with automatic scaling (thumbnail, medium, large)
+  - ✓ External API for accessing photo data with supplier/producer relationships
+  - ✓ New endpoints: `/api/photos/external/{entityType}/{entityId}` and `/api/photos/external/search/{entityType}`
+  - ✓ Comprehensive API documentation for external application integration
+  - ✓ Photo upload for suppliers with WebP conversion and multiple size variants
+  - ✓ Structured data access maintaining supplier-product relationships for external apps
+  - System now provides complete photo management for both products and suppliers with external API access
 - June 30, 2025: Advanced Photo Upload System with Image Processing Implemented
   - ✓ Complete photo upload system with Sharp-based image processing
   - ✓ Automatic image scaling: thumbnail (150x150), medium (400x400), large (800x800)
