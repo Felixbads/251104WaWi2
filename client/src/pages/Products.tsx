@@ -520,13 +520,28 @@ export default function Products() {
     return [];
   }, [vendonProducts]);
 
-  // Kategorien und Lieferanten sammeln aus verarbeiteten Vendon-Produkten
+  // Kategorien aus der Datenbank laden (alle verfügbaren Kategorien)
+  const { data: categoriesFromDB } = useQuery({
+    queryKey: ['/api/product-categories'],
+    queryFn: async () => {
+      const response = await fetch('/api/product-categories');
+      if (!response.ok) throw new Error('Failed to fetch categories');
+      return response.json();
+    }
+  });
+
+  // Kategorien kombinieren: Aus Datenbank + aus vorhandenen Produkten
   const categories: string[] = useMemo(() => {
-    return processedVendonProducts.length > 0
+    const dbCategories = categoriesFromDB || [];
+    const productCategories = processedVendonProducts.length > 0
       ? Array.from(new Set(processedVendonProducts.map((product: any) => 
           product.category || 'Unkategorisiert'))) as string[]
       : [];
-  }, [processedVendonProducts]);
+    
+    // Kombiniere beide Listen und entferne Duplikate
+    const allCategories = [...new Set([...dbCategories, ...productCategories])];
+    return allCategories.sort();
+  }, [categoriesFromDB, processedVendonProducts]);
     
   const suppliers = useMemo(() => {
     return processedVendonProducts.length > 0
