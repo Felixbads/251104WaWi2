@@ -1992,19 +1992,18 @@ Elbsandstein Proviant & Quartier GmbH`;
       const transactionsResult = await pool.query(`
         SELECT 
           datetime,
-          COUNT(*) as count,
-          MAX(datetime) as latest_transaction
+          product_name,
+          price
         FROM transactions 
         WHERE location_name = $1 
           AND datetime >= NOW() - INTERVAL '7 days'
-        GROUP BY DATE(datetime)
         ORDER BY datetime DESC
         LIMIT 10
       `, [location]);
       
       debug.queries.recentTransactions = {
         count: transactionsResult.rows.length,
-        latest: transactionsResult.rows[0]?.latest_transaction,
+        latest: transactionsResult.rows[0]?.datetime,
         data: transactionsResult.rows
       };
 
