@@ -56,6 +56,7 @@ interface Product {
   allergens?: string | null;
   nutritionalInfo?: string | null;
   photos?: string[] | null;
+  photoUrl?: string | null;
   additionalData?: string | null;
   createdAt?: string;
   updatedAt?: string;
@@ -232,7 +233,9 @@ export default function ProductDataEntry() {
         
         // Update the product with the photo URL from response
         if (result.photoPath) {
-          handleFieldChange(productId, 'description', (getCurrentValue({ id: productId } as any, 'description') || '') + '\nFoto: ' + result.photoPath);
+          // Store photo URL in description field
+          const currentDesc = getCurrentValue({ id: productId } as Product, 'description') || '';
+          handleFieldChange(productId, 'description', currentDesc + (currentDesc ? '\n' : '') + `Foto: ${result.photoPath}`);
         }
         
         toast({

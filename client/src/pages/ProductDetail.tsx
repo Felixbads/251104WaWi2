@@ -429,17 +429,36 @@ export default function ProductDetail() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {product.photos && product.photos.length > 0 ? (
+              {(product.photos && product.photos.length > 0) || product.photoUrl ? (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4">
-                  {product.photos.map((photo, index) => (
+                  {/* Show photos from array */}
+                  {product.photos && product.photos.map((photo, index) => (
                     <div key={index} className="aspect-square bg-gray-100 rounded border overflow-hidden">
                       <img 
-                        src={`/api/photos/${photo}`} 
+                        src={photo.startsWith('http') ? photo : `/uploads/photos/${photo.replace(/^\/+/, '')}`}
                         alt={`${product.productName} - Foto ${index + 1}`}
                         className="w-full h-full object-cover hover:scale-105 transition-transform"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          target.style.display = 'none';
+                        }}
                       />
                     </div>
                   ))}
+                  {/* Show photoUrl if different from photos array */}
+                  {product.photoUrl && (!product.photos || !product.photos.includes(product.photoUrl)) && (
+                    <div className="aspect-square bg-gray-100 rounded border overflow-hidden">
+                      <img 
+                        src={product.photoUrl.startsWith('http') ? product.photoUrl : `/uploads/photos/${product.photoUrl.replace(/^\/+/, '')}`}
+                        alt={`${product.productName} - Hauptfoto`}
+                        className="w-full h-full object-cover hover:scale-105 transition-transform"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          target.style.display = 'none';
+                        }}
+                      />
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="text-center py-8">
