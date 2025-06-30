@@ -421,6 +421,26 @@ export const insertUserEcoChoiceSchema = createInsertSchema(userEcoChoices).omit
 export type InsertUserEcoChoice = z.infer<typeof insertUserEcoChoiceSchema>;
 export type UserEcoChoice = typeof userEcoChoices.$inferSelect;
 
+// Product Categories table - für vordefinierte Kategorien
+export const productCategories = pgTable("product_categories", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull().unique(),
+  description: text("description"),
+  sortOrder: integer("sort_order").default(0),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertProductCategorySchema = createInsertSchema(productCategories).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertProductCategory = z.infer<typeof insertProductCategorySchema>;
+export type ProductCategory = typeof productCategories.$inferSelect;
+
 // Transactions table - neu strukturiert basierend auf der Vendon API
 export const transactions = pgTable("transactions", {
   // Primärschlüssel und Referenzen
