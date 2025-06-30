@@ -53,14 +53,14 @@ router.post("/warehouses", async (req, res) => {
   try {
     // Daten validieren
     const validatedData = insertWarehouseSchema.parse(req.body);
-    
+
     // Neues Lager erstellen
     const [newWarehouse] = await db.insert(warehouses).values({
       ...validatedData,
       createdAt: new Date(),
       updatedAt: new Date(),
     }).returning();
-    
+
     return res.status(201).json({
       success: true,
       message: "Lager erfolgreich erstellt",
@@ -81,13 +81,13 @@ router.get("/warehouses/:id", async (req, res) => {
     if (isNaN(warehouseId)) {
       return res.status(400).json({ success: false, message: "Ungültige Lager-ID" });
     }
-    
+
     const result = await db.query(`SELECT * FROM warehouses WHERE id = $1 LIMIT 1`, [warehouseId]);
-    
+
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, message: "Lager nicht gefunden" });
     }
-    
+
     return res.json(result.rows[0]);
   } catch (error) {
     return handleServerError(error, res);
@@ -101,21 +101,21 @@ router.patch("/warehouses/:id", async (req, res) => {
     if (isNaN(warehouseId)) {
       return res.status(400).json({ success: false, message: "Ungültige Lager-ID" });
     }
-    
+
     // Prüfen, ob das Lager existiert
     const existingWarehouseResult = await db.query(`SELECT * FROM warehouses WHERE id = $1 LIMIT 1`, [warehouseId]);
     if (existingWarehouseResult.rows.length === 0) {
       return res.status(404).json({ success: false, message: "Lager nicht gefunden" });
     }
-    
+
     // Daten validieren
     const validatedData = insertWarehouseSchema.partial().parse(req.body);
-    
+
     // SQL-Update-Anweisung und Parameter erstellen
     const updateFields = [];
     const updateValues = [warehouseId]; // Erste Parameter-Position ist für die ID
     let paramPosition = 2; // Beginne mit Position 2 für die Update-Werte
-    
+
     for (const [key, value] of Object.entries(validatedData)) {
       if (value !== undefined) {
         updateFields.push(`${snakeCaseKey(key)} = $${paramPosition}`);
@@ -123,23 +123,23 @@ router.patch("/warehouses/:id", async (req, res) => {
         paramPosition++;
       }
     }
-    
+
     // Immer updatedAt aktualisieren
     updateFields.push(`updated_at = $${paramPosition}`);
     updateValues.push(new Date());
-    
+
     if (updateFields.length === 0) {
       return res.status(400).json({ success: false, message: "Keine Felder zum Aktualisieren angegeben" });
     }
-    
+
     // SQL-Abfrage ausführen
     const updateResult = await db.query(
       `UPDATE warehouses SET ${updateFields.join(', ')} WHERE id = $1 RETURNING *`,
       updateValues
     );
-    
+
     const updatedWarehouse = updateResult.rows[0];
-    
+
     return res.json({
       success: true,
       message: "Lager erfolgreich aktualisiert",
@@ -165,19 +165,19 @@ router.delete("/warehouses/:id", async (req, res) => {
     if (isNaN(warehouseId)) {
       return res.status(400).json({ success: false, message: "Ungültige Lager-ID" });
     }
-    
+
     // Prüfen, ob das Lager existiert
     const existingWarehouseResult = await db.query(`SELECT * FROM warehouses WHERE id = $1 LIMIT 1`, [warehouseId]);
     if (existingWarehouseResult.rows.length === 0) {
       return res.status(404).json({ success: false, message: "Lager nicht gefunden" });
     }
-    
+
     // TODO: Prüfen, ob Abhängigkeiten bestehen (Bestand, Bewegungen, etc.)
     // Hier könnte man prüfen, ob es Produkte oder Bewegungen gibt, die auf dieses Lager verweisen
-    
+
     // Lager löschen
     await db.query(`DELETE FROM warehouses WHERE id = $1`, [warehouseId]);
-    
+
     return res.json({
       success: true,
       message: "Lager erfolgreich gelöscht",
@@ -194,14 +194,14 @@ router.get("/warehouses/:id/stats", async (req, res) => {
     if (isNaN(warehouseId)) {
       return res.status(400).json({ success: false, message: "Ungültige Lager-ID" });
     }
-    
+
     // Produkte im Lager zählen
     const productCountResult = await db.query(
       `SELECT COUNT(*) FROM product_inventory WHERE warehouse_id = $1`,
       [warehouseId]
     );
     const productCount = parseInt(productCountResult.rows[0]?.count) || 0;
-      
+
     // Produkte mit niedrigem Bestand zählen
     const lowStockCountResult = await db.query(
       `SELECT COUNT(*) FROM product_inventory 
@@ -209,7 +209,7 @@ router.get("/warehouses/:id/stats", async (req, res) => {
       [warehouseId]
     );
     const lowStockCount = parseInt(lowStockCountResult.rows[0]?.count) || 0;
-    
+
     // Zugewiesene Automaten zählen
     const machineCountResult = await db.query(
       `SELECT COUNT(*) FROM machine_warehouse_assignments 
@@ -217,7 +217,7 @@ router.get("/warehouses/:id/stats", async (req, res) => {
       [warehouseId]
     );
     const machineCount = parseInt(machineCountResult.rows[0]?.count) || 0;
-    
+
     // Datum der letzten Inventur
     const lastInventoryResult = await db.query(
       `SELECT end_date FROM inventory_counts 
@@ -227,11 +227,11 @@ router.get("/warehouses/:id/stats", async (req, res) => {
       [warehouseId]
     );
     const lastInventoryDate = lastInventoryResult.rows.length > 0 ? lastInventoryResult.rows[0].end_date : null;
-    
+
     // Bewegungen der letzten 30 Tage zählen
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    
+
     const movementCount30DaysResult = await db.query(
       `SELECT COUNT(*) FROM inventory_movements 
        WHERE ((source_type = 'warehouse' AND source_id = $1) 
@@ -240,7 +240,7 @@ router.get("/warehouses/:id/stats", async (req, res) => {
       [warehouseId, thirtyDaysAgo]
     );
     const movementCount30Days = parseInt(movementCount30DaysResult.rows[0]?.count) || 0;
-    
+
     // Statistiken zusammenstellen
     const stats = {
       productCount,
@@ -249,7 +249,7 @@ router.get("/warehouses/:id/stats", async (req, res) => {
       lastInventoryDate,
       movementCount30Days,
     };
-    
+
     return res.json(stats);
   } catch (error) {
     return handleServerError(error, res);
@@ -265,18 +265,18 @@ router.get("/warehouses/:id/inventory", async (req, res) => {
     if (isNaN(warehouseId)) {
       return res.status(400).json({ success: false, message: "Ungültige Lager-ID" });
     }
-    
+
     // Abfrageparameter für Paginierung und Filterung
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 10;
     const offset = (page - 1) * limit;
-    
+
     const search = req.query.search as string || '';
     const category = req.query.category as string || null;
     const sortBy = req.query.sortBy as string || 'productName';
     const sortOrder = req.query.sortOrder as string === 'desc' ? 'desc' : 'asc';
     const lowStock = req.query.lowStock === 'true';
-    
+
     // Basis-SQL erstellen
     let sqlQuery = `
       SELECT 
@@ -295,10 +295,10 @@ router.get("/warehouses/:id/inventory", async (req, res) => {
       FROM product_inventory pi
       WHERE pi.warehouse_id = $1
     `;
-    
+
     const queryParams = [warehouseId];
     let paramIndex = 2;
-    
+
     // Suchfilter anwenden
     if (search) {
       // TODO: Hier müsste man eigentlich mit der products-Tabelle joinen
@@ -306,7 +306,7 @@ router.get("/warehouses/:id/inventory", async (req, res) => {
       // queryParams.push(`%${search}%`);
       // paramIndex++;
     }
-    
+
     // Kategoriefilter anwenden
     if (category) {
       // TODO: Hier müsste man eigentlich mit der products-Tabelle joinen
@@ -314,12 +314,12 @@ router.get("/warehouses/:id/inventory", async (req, res) => {
       // queryParams.push(category);
       // paramIndex++;
     }
-    
+
     // Filter für niedrigen Bestand
     if (lowStock) {
       sqlQuery += ` AND pi.current_stock < pi.minimum_stock`;
     }
-    
+
     // Sortierung anwenden
     if (sortBy === 'currentStock') {
       sqlQuery += ` ORDER BY pi.current_stock ${sortOrder === 'desc' ? 'DESC' : 'ASC'}`;
@@ -332,23 +332,23 @@ router.get("/warehouses/:id/inventory", async (req, res) => {
       // Default: nach ID sortieren
       sqlQuery += ` ORDER BY pi.id ${sortOrder === 'desc' ? 'DESC' : 'ASC'}`;
     }
-    
+
     // Gesamtanzahl der Einträge ermitteln
     const countResult = await db.query(
       `SELECT COUNT(*) FROM product_inventory WHERE warehouse_id = $1`,
       [warehouseId]
     );
     const total = parseInt(countResult.rows[0]?.count) || 0;
-    
+
     // Limit und Offset für Paginierung anwenden
     sqlQuery += ` LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
     queryParams.push(limit);
     queryParams.push(offset);
-    
+
     // Abfrage ausführen
     const result = await db.query(sqlQuery, queryParams);
     const items = result.rows;
-    
+
     // Ergebnis zurückgeben
     return res.json({
       items,
@@ -371,19 +371,19 @@ router.get("/warehouses/:id/movements", async (req, res) => {
     if (isNaN(warehouseId)) {
       return res.status(400).json({ success: false, message: "Ungültige Lager-ID" });
     }
-    
+
     // Abfrageparameter für Paginierung und Filterung
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 10;
     const offset = (page - 1) * limit;
-    
+
     const search = req.query.search as string || '';
     const movementType = req.query.movementType as string || null;
     const startDate = req.query.startDate ? new Date(req.query.startDate as string) : null;
     const endDate = req.query.endDate ? new Date(req.query.endDate as string) : null;
     const sortBy = req.query.sortBy as string || 'performedAt';
     const sortOrder = req.query.sortOrder as string === 'asc' ? 'asc' : 'desc';
-    
+
     // Basis-SQL erstellen
     let sqlQuery = `
       SELECT 
@@ -415,10 +415,10 @@ router.get("/warehouses/:id/movements", async (req, res) => {
       WHERE ((im.source_type = 'warehouse' AND im.source_id = $1)
            OR (im.destination_type = 'warehouse' AND im.destination_id = $1))
     `;
-    
+
     const queryParams = [warehouseId];
     let paramIndex = 2;
-    
+
     // Suchfilter anwenden
     if (search) {
       // TODO: Hier müsste man eigentlich mit der products-Tabelle joinen für Produktnamen
@@ -426,21 +426,21 @@ router.get("/warehouses/:id/movements", async (req, res) => {
       // queryParams.push(`%${search}%`);
       // paramIndex++;
     }
-    
+
     // Bewegungstyp-Filter anwenden
     if (movementType) {
       sqlQuery += ` AND im.movement_type = $${paramIndex}`;
       queryParams.push(movementType);
       paramIndex++;
     }
-    
+
     // Datumsfilter anwenden
     if (startDate) {
       sqlQuery += ` AND im.performed_at >= $${paramIndex}`;
       queryParams.push(startDate);
       paramIndex++;
     }
-    
+
     if (endDate) {
       // Setze das Ende des Tages für den Enddate-Filter
       const endOfDay = new Date(endDate);
@@ -449,7 +449,7 @@ router.get("/warehouses/:id/movements", async (req, res) => {
       queryParams.push(endOfDay);
       paramIndex++;
     }
-    
+
     // Sortierung anwenden
     if (sortBy === 'performedAt') {
       sqlQuery += ` ORDER BY im.performed_at ${sortOrder === 'desc' ? 'DESC' : 'ASC'}`;
@@ -461,7 +461,7 @@ router.get("/warehouses/:id/movements", async (req, res) => {
       // Default: nach Datum sortieren
       sqlQuery += ` ORDER BY im.performed_at ${sortOrder === 'desc' ? 'DESC' : 'ASC'}`;
     }
-    
+
     // Gesamtanzahl der Einträge ermitteln
     const countResult = await db.query(
       `SELECT COUNT(*) FROM inventory_movements im
@@ -470,16 +470,16 @@ router.get("/warehouses/:id/movements", async (req, res) => {
       [warehouseId]
     );
     const total = parseInt(countResult.rows[0]?.count) || 0;
-    
+
     // Limit und Offset für Paginierung anwenden
     sqlQuery += ` LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
     queryParams.push(limit);
     queryParams.push(offset);
-    
+
     // Abfrage ausführen
     const result = await db.query(sqlQuery, queryParams);
     const items = result.rows;
-    
+
     // Ergebnis zurückgeben
     return res.json({
       items,
@@ -503,10 +503,12 @@ router.get("/products/categories", async (req, res) => {
       "Snacks",
       "Süßwaren",
       "Backwaren",
+      "Aufstriche",
+      "Gerichte im Glas",
       "Regionale Produkte",
       "Saisonale Produkte"
     ];
-    
+
     return res.json(categories);
   } catch (error) {
     return handleServerError(error, res);
