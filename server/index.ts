@@ -1,4 +1,5 @@
 import express, { type Request, Response, NextFunction } from "express";
+import path from "path";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { startAutomaticSync } from "./scheduler";
@@ -1993,6 +1994,11 @@ Elbsandstein Proviant & Quartier GmbH`;
   
   // Register direct SQL router
   app.use('/api', directSqlRouter);
+
+  // Serve static files for uploads (CRITICAL for photo upload functionality)
+  const uploadsPath = path.join(process.cwd(), 'uploads');
+  app.use('/uploads', express.static(uploadsPath));
+  console.log('✓ Static file serving for uploads configured at /uploads');
 
   // importantly only setup vite in development and after
   // setting up all the other routes so the catch-all route
