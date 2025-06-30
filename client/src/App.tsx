@@ -15,6 +15,7 @@ import AutomatDetail from "@/pages/AutomatDetail"; // Detail-Ansicht eines Autom
 import RefillDetail from "@/pages/RefillDetail"; // Detail-Ansicht einer Auffüllung
 import Products from "@/pages/Products";
 import ProductDetail from "@/pages/ProductDetail"; // Detail-Ansicht eines Produkts
+import ProductDataEntry from "@/pages/ProductDataEntry"; // Tabellarische Produktdatenbearbeitung
 import WarenbewegungNewPage from "@/pages/WarenbewegungNewPage"; // Neue Warenumlagerung-Komponente
 import SyncDashboard from "@/pages/SyncDashboard";
 import SyncHistory from "@/pages/SyncHistory";
@@ -211,6 +212,12 @@ function AuthenticatedRouter() {
         <Route path="/produkte/neu" component={props => (
           <ApprovedUserRoute>
             <ProductDetail {...props} isNew={true} />
+          </ApprovedUserRoute>
+        )} />
+
+        <Route path="/produkte/bearbeiten" component={props => (
+          <ApprovedUserRoute>
+            <ProductDataEntry {...props} />
           </ApprovedUserRoute>
         )} />
 
