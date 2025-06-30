@@ -89,13 +89,25 @@ router.post('/upload/supplier/:supplierId', async (req, res) => {
       return res.status(404).json({ error: 'Lieferant nicht gefunden' });
     }
     
-    const currentPhotos = supplierResult.rows[0].photos || [];
+    // Handle photos as array - parse if it's a string
+    let currentPhotos = supplierResult.rows[0].photos;
+    if (typeof currentPhotos === 'string') {
+      try {
+        currentPhotos = JSON.parse(currentPhotos);
+      } catch (e) {
+        currentPhotos = [];
+      }
+    }
+    if (!Array.isArray(currentPhotos)) {
+      currentPhotos = [];
+    }
+    
     const newPhotos = [...currentPhotos, uploadResult.urls?.medium || ''];
     
     // Update supplier with new photo URL
     await pool.query(
       'UPDATE suppliers SET photos = $1, updated_at = NOW() WHERE id = $2',
-      [JSON.stringify(newPhotos), supplierId]
+      [newPhotos, supplierId]
     );
     
     console.log('[SUPPLIER_CLOUDINARY_UPLOAD] Upload successful for supplier:', supplierId);
