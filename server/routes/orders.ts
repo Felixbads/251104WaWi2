@@ -380,19 +380,15 @@ router.post('/bulk', async (req: Request, res: Response) => {
         orderNumber,
         supplierId,
         supplierName: supplier.name,
-        locationId: supplier.warehouseId || null,
-        locationName: supplier.warehouseId ? 'Standard-Lager' : null,
-        orderType,
+        locationId: null,
+        locationName: null,
         status: 'draft',
         priority,
         expectedDeliveryDate: expectedDeliveryDate ? new Date(expectedDeliveryDate) : null,
         notes,
-        totalValue: totalValue || 0,
-        createdBy: userId,
-        createdByName: userName,
-        createdByEmail: userEmail,
-        analysisWeeks,
-        forecastWeeks
+        totalAmount: totalValue || 0,
+        createdById: userId,
+        createdByName: userName
       })
       .returning();
 
