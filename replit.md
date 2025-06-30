@@ -109,6 +109,14 @@ This is a comprehensive vending machine management platform (Warenwirtschaftssys
 
 ## Changelog
 
+- June 30, 2025: Critical API Routing Issue Resolved
+  - ✓ Fixed critical API routing problem where Vite wildcard route intercepted all requests before API routes
+  - ✓ Relocated Orders API registration before registerRoutes() to bypass Vite middleware conflicts
+  - ✓ Corrected TypeScript errors in orders.ts including SQL import issues and user authentication references
+  - ✓ BestellungV2 (Orders V2) now successfully loads order data from database with proper JSON responses
+  - ✓ All order management functionality restored including order creation, viewing, and status updates
+  - ✓ API endpoints `/api/orders`, `/api/bulk-orders`, and related order services now functioning correctly
+  - System now has fully operational order management with resolved backend routing architecture
 - June 30, 2025: External Photo API and Supplier Upload System Implemented
   - ✓ Complete supplier photo upload system with automatic scaling (thumbnail, medium, large)
   - ✓ External API for accessing photo data with supplier/producer relationships
