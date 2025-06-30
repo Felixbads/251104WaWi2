@@ -50,6 +50,10 @@ export function ProductPhotoUpload({ productId, onUploadSuccess, size = "sm" }: 
       });
 
       // Send to Cloudinary via our API
+      console.log('[CLOUDINARY_UPLOAD] Starting API request to:', `/api/photos/upload/${productId}`);
+      console.log('[CLOUDINARY_UPLOAD] File size:', file.size, 'bytes');
+      console.log('[CLOUDINARY_UPLOAD] Base64 length:', base64Data.length);
+      
       const response = await fetch(`/api/photos/upload/${productId}`, {
         method: 'POST',
         headers: {
@@ -61,13 +65,16 @@ export function ProductPhotoUpload({ productId, onUploadSuccess, size = "sm" }: 
         }),
       });
 
+      console.log('[CLOUDINARY_UPLOAD] Response status:', response.status);
+      console.log('[CLOUDINARY_UPLOAD] Response ok:', response.ok);
+
       if (response.ok) {
         const result = await response.json();
         console.log('[CLOUDINARY_UPLOAD] Upload successful:', result);
         
         toast({
           title: "Erfolg",
-          description: "Foto erfolgreich zu Cloudinary hochgeladen",
+          description: "Foto erfolgreich hochgeladen",
         });
 
         // Callback aufrufen wenn vorhanden
@@ -75,15 +82,34 @@ export function ProductPhotoUpload({ productId, onUploadSuccess, size = "sm" }: 
           onUploadSuccess(result.cloudinaryUrl || result.photoPath);
         }
       } else {
-        const error = await response.json();
-        console.error('[CLOUDINARY_UPLOAD] Upload failed:', error);
-        throw new Error(error.error || 'Upload fehlgeschlagen');
+        const errorText = await response.text();
+        console.error('[CLOUDINARY_UPLOAD] Response error text:', errorText);
+        
+        try {
+          const error = JSON.parse(errorText);
+          console.error('[CLOUDINARY_UPLOAD] Upload failed:', error);
+          throw new Error(error.error || 'Upload fehlgeschlagen');
+        } catch (parseError) {
+          console.error('[CLOUDINARY_UPLOAD] Could not parse error response:', parseError);
+          throw new Error(`Server Error ${response.status}: ${errorText}`);
+        }
       }
     } catch (error) {
       console.error('[CLOUDINARY_UPLOAD] Upload error:', error);
+      console.error('[CLOUDINARY_UPLOAD] Error details:', JSON.stringify(error));
+      
+      let errorMessage = "Upload fehlgeschlagen";
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      } else if (typeof error === 'string') {
+        errorMessage = error;
+      } else if (error && typeof error === 'object' && 'message' in error) {
+        errorMessage = String(error.message);
+      }
+      
       toast({
         title: "Fehler",
-        description: error instanceof Error ? error.message : "Upload fehlgeschlagen",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {

@@ -7,7 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
-import { PhotoUpload } from '@/components/PhotoUpload';
+import { ProductPhotoUpload } from '@/components/ProductPhotoUpload';
 import { useToast } from '@/hooks/use-toast';
 import { Product } from '@shared/schema';
 
@@ -305,11 +305,46 @@ export function ProductEditDialog({ product, isOpen, onOpenChange, onSave }: Pro
                 <CardTitle>Produktfotos</CardTitle>
               </CardHeader>
               <CardContent>
-                <PhotoUpload
-                  photos={formData.photos}
-                  onPhotosChange={(photos) => handleInputChange('photos', photos)}
-                  maxPhotos={10}
-                />
+                <div className="space-y-4">
+                  <ProductPhotoUpload
+                    productId={product.id}
+                    onUploadSuccess={(photoPath) => {
+                      // Update form data with new photo
+                      const currentPhotos = formData.photos || [];
+                      handleInputChange('photos', [...currentPhotos, photoPath]);
+                      toast({
+                        title: "Erfolg",
+                        description: "Foto erfolgreich hochgeladen",
+                      });
+                    }}
+                  />
+                  
+                  {/* Display current photos */}
+                  {formData.photos && formData.photos.length > 0 && (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                      {formData.photos.map((photo, index) => (
+                        <div key={index} className="relative group">
+                          <img 
+                            src={photo} 
+                            alt={`Foto ${index + 1}`}
+                            className="w-full h-32 object-cover rounded border"
+                          />
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                            onClick={() => {
+                              const newPhotos = formData.photos.filter((_, i) => i !== index);
+                              handleInputChange('photos', newPhotos);
+                            }}
+                          >
+                            ×
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
