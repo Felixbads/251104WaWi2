@@ -4429,8 +4429,66 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Mount suppliers-products router
   app.use(`${API_PREFIX}/suppliers`, suppliersProductsRouter);
 
-  // Mount photo upload router
-  app.use(`${API_PREFIX}/photos`, photosRouter.default || photosRouter);
+  // Photo upload using express-fileupload (simpler than multer)
+  app.post(`${API_PREFIX}/photos/upload/:productId`, async (req: Request, res: Response) => {
+    try {
+      console.log('[PHOTO_UPLOAD] Request received for product:', req.params.productId);
+      console.log('[PHOTO_UPLOAD] Files in request:', req.files);
+
+      if (!req.files || !req.files.photo) {
+        return res.status(400).json({ error: 'Keine Datei empfangen' });
+      }
+
+      const uploadedFile = Array.isArray(req.files.photo) ? req.files.photo[0] : req.files.photo;
+      
+      if (!uploadedFile.mimetype?.startsWith('image/')) {
+        return res.status(400).json({ error: 'Nur Bilddateien sind erlaubt' });
+      }
+
+      // Create upload directory
+      const uploadDir = path.join(process.cwd(), 'uploads', 'products');
+      if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir, { recursive: true });
+      }
+
+      // Generate filename
+      const productId = parseInt(req.params.productId);
+      const extension = path.extname(uploadedFile.name);
+      const timestamp = Date.now();
+      const filename = `product-${productId}-${timestamp}${extension}`;
+      const filepath = path.join(uploadDir, filename);
+
+      // Save file
+      await uploadedFile.mv(filepath);
+      console.log('[PHOTO_UPLOAD] File saved:', filename);
+
+      const photoPath = `/uploads/products/${filename}`;
+
+      // Update database
+      const result = await pool.query(
+        'UPDATE products SET photo_url = $1, photos = COALESCE(photos, \'[]\') || $2::jsonb WHERE id = $3 RETURNING *',
+        [photoPath, JSON.stringify([photoPath]), productId]
+      );
+
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: 'Produkt nicht gefunden' });
+      }
+
+      res.json({
+        success: true,
+        photoPath,
+        filename,
+        product: result.rows[0]
+      });
+
+    } catch (error) {
+      console.error('[PHOTO_UPLOAD] Error:', error);
+      res.status(500).json({ 
+        error: 'Upload fehlgeschlagen',
+        details: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
 
   // Route für Refill-Verarbeitung mit Lagerbestandsabzug
   app.post('/api/refills/:id/process', async (req: Request, res: Response) => {

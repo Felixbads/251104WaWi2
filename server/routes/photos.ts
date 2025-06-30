@@ -6,14 +6,16 @@ import { rawDb } from '../db';
 
 const router = express.Router();
 
+// Create uploads directory if it doesn't exist
+const uploadsDir = path.join(process.cwd(), 'uploads', 'products');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+
 // Configure multer for file uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const uploadDir = path.join(process.cwd(), 'uploads', 'products');
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-    cb(null, uploadDir);
+    cb(null, uploadsDir);
   },
   filename: (req, file, cb) => {
     const productId = req.params.productId;
@@ -32,51 +34,42 @@ const upload = multer({
       size: file.size
     });
     
-    const allowedTypes = /jpeg|jpg|png|gif|webp/;
-    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-    const mimetype = allowedTypes.test(file.mimetype);
-
-    if (mimetype && extname) {
-      return cb(null, true);
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
     } else {
-      console.log('[PHOTO_UPLOAD] File rejected - invalid type');
-      cb(new Error('Nur Bilddateien sind erlaubt (JPEG, PNG, GIF, WebP)'));
+      cb(new Error('Nur Bilder sind erlaubt'), false);
     }
   },
   limits: {
-    fileSize: 10 * 1024 * 1024 // 10MB limit
+    fileSize: 5 * 1024 * 1024, // 5MB
+    fieldNameSize: 100,
+    fieldSize: 5 * 1024 * 1024,
+    files: 1
   }
 });
 
-// Upload photo for product
+// Upload photo for a product
 router.post('/upload/:productId', upload.single('photo'), async (req, res) => {
   try {
+    console.log('[PHOTO_UPLOAD] Upload attempt for product:', req.params.productId);
+    
     if (!req.file) {
-      return res.status(400).json({ error: 'Keine Datei hochgeladen' });
+      console.log('[PHOTO_UPLOAD] No file received');
+      return res.status(400).json({ error: 'Keine Datei empfangen' });
     }
+
+    console.log('[PHOTO_UPLOAD] File successfully saved:', req.file.filename);
 
     const productId = parseInt(req.params.productId);
     const photoPath = `/uploads/products/${req.file.filename}`;
 
-    // Update product with photo information
+    // Update product with photo path
     const { pool } = await import('../db');
-    
-    // Update both photo_url and photos array
-    const updateQuery = `
-      UPDATE products 
-      SET photo_url = $2,
-          photos = CASE 
-            WHEN photos IS NULL THEN ARRAY[$2]
-            WHEN $2 = ANY(photos) THEN photos
-            ELSE array_append(photos, $2)
-          END,
-          updated_at = NOW()
-      WHERE id = $1
-      RETURNING *
-    `;
-    
-    const result = await pool.query(updateQuery, [productId, photoPath]);
-    
+    const result = await pool.query(
+      'UPDATE products SET photo_url = $1, photos = COALESCE(photos, \'[]\') || $2::jsonb WHERE id = $3 RETURNING *',
+      [photoPath, JSON.stringify([photoPath]), productId]
+    );
+
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Produkt nicht gefunden' });
     }
@@ -104,7 +97,7 @@ router.get('/:productId', async (req, res) => {
     
     const { pool } = await import('../db');
     const result = await pool.query(
-      'SELECT description FROM products WHERE id = $1',
+      'SELECT photo_url FROM products WHERE id = $1',
       [productId]
     );
 
@@ -112,16 +105,13 @@ router.get('/:productId', async (req, res) => {
       return res.status(404).json({ error: 'Produkt nicht gefunden' });
     }
 
-    const description = result.rows[0].description || '';
-    const photoMatch = description.match(/Foto hochgeladen: ([^\n\r]+)/);
+    const photoUrl = result.rows[0].photo_url;
     
-    if (photoMatch) {
-      const filename = photoMatch[1];
-      const photoPath = `/uploads/products/${filename}`;
+    if (photoUrl) {
       res.json({ 
         hasPhoto: true, 
-        photoPath,
-        filename 
+        photoPath: photoUrl,
+        filename: path.basename(photoUrl)
       });
     } else {
       res.json({ 
