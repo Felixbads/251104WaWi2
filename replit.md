@@ -109,6 +109,13 @@ This is a comprehensive vending machine management platform (Warenwirtschaftssys
 
 ## Changelog
 
+- June 30, 2025: Product Categories and Photo Upload Fixed
+  - ✓ Fixed product categories dropdown to show all available categories from database
+  - ✓ Added "Aufstriche" and "Gerichte im Glas" to product categories table
+  - ✓ Corrected category list to match user interface (Getränke, Snacks, Süßwaren, etc.)
+  - ✓ Repaired photo upload functionality with proper Multer middleware integration
+  - ✓ Fixed photo upload endpoint `/api/photos/upload` with correct URL generation
+  - Categories now load from `product_categories` table instead of existing product categories only
 - June 30, 2025: Consolidated Product Detail View with Mobile-First Design
   - ✓ Consolidated Details and Overview tabs into single comprehensive Details tab
   - ✓ Removed Nährwerte, Fotos, and Übersicht tabs as requested
