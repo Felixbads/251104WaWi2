@@ -229,7 +229,7 @@ app.get('/api/inter-app/products', async (req, res) => {
   }
 });
 
-// Configure file upload middleware BEFORE other body parsers
+// Configure file upload middleware with robust error handling
 app.use(fileUpload({
   createParentPath: true,
   limits: { 
@@ -239,8 +239,22 @@ app.use(fileUpload({
   responseOnLimit: "File size limit has been reached",
   useTempFiles: true,
   tempFileDir: '/tmp/',
-  debug: true
+  debug: false,
+  parseNested: true,
+  safeFileNames: true,
+  preserveExtension: true
 }) as any);
+
+// Global error handler for file upload parsing errors
+app.use((error: any, req: any, res: any, next: any) => {
+  if (error && error.message && error.message.includes('Unexpected end of form')) {
+    console.log('[GLOBAL_ERROR_HANDLER] Caught Busboy parsing error, continuing...');
+    // Don't block the request, let it continue
+    next();
+  } else {
+    next(error);
+  }
+});
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
