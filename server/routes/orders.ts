@@ -607,7 +607,7 @@ router.post('/orders', async (req: Request, res: Response) => {
           orderDate: new Date(),
                 // Verwende das zuvor validierte und konvertierte Datum
           ...(parsedDeliveryDate ? { expectedDeliveryDate: parsedDeliveryDate } : {}),
-          notes,
+          internalNotes: notes,
           createdBy: userId,
           createdByName: userName,
           createdByEmail: userEmail,
@@ -649,7 +649,6 @@ router.post('/orders', async (req: Request, res: Response) => {
               unitPrice: item.price || 0,
               totalPrice: (item.price || 0) * item.quantity,
               notes: item.notes || null,
-              expectedDeliveryDate: item.expectedDeliveryDate ? new Date(item.expectedDeliveryDate) : null,
             });
         } catch (itemError) {
           console.error('Fehler beim Erstellen eines Bestelleintrags:', itemError);
@@ -701,8 +700,8 @@ router.post('/orders', async (req: Request, res: Response) => {
             id: item.id,
             productId: item.productId,
             quantity: item.quantity,
-            price: item.price,
-            discount: item.discountPercent || 0
+            price: item.unitPrice,
+            discount: item.discount || 0
           }))
         }
       });
