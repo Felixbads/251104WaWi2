@@ -2240,53 +2240,141 @@ Elbsandstein Proviant & Quartier GmbH`;
     }
   });
 
-  // ROBUST PHOTO UPLOAD WITH EXPRESS-FILEUPLOAD
+  // COMPREHENSIVE PHOTO UPLOAD WITH IMAGE PROCESSING
   app.post('/api/photos/upload', async (req, res) => {
     try {
       console.log('Photo upload request received');
       console.log('Files:', req.files);
       console.log('Body:', req.body);
+      console.log('Content-Type:', req.headers['content-type']);
       
-      if (!req.files || !req.files.photo) {
+      if (!req.files) {
         return res.status(400).json({
           success: false,
-          error: 'Keine Datei hochgeladen'
+          error: 'Keine Dateien hochgeladen'
         });
       }
       
-      const photo = req.files.photo as any;
-      const path = require('path');
-      const fs = require('fs');
+      const { imageProcessor } = await import('./services/imageProcessor');
+      const uploadedPhotos = [];
       
-      // Ensure upload directory exists
-      const uploadsDir = path.join(process.cwd(), 'uploads', 'photos');
-      if (!fs.existsSync(uploadsDir)) {
-        fs.mkdirSync(uploadsDir, { recursive: true });
+      // Handle different file field scenarios
+      const files: any[] = [];
+      
+      // Check for 'photos' field (array or single)
+      if ((req.files as any).photos) {
+        const photosField = (req.files as any).photos;
+        if (Array.isArray(photosField)) {
+          files.push(...photosField);
+        } else {
+          files.push(photosField);
+        }
       }
       
-      // Generate unique filename
-      const timestamp = Date.now();
-      const ext = path.extname(photo.name);
-      const filename = `product_${timestamp}${ext}`;
-      const filePath = path.join(uploadsDir, filename);
+      // Check for 'photo' field (single file)
+      if ((req.files as any).photo) {
+        const photoField = (req.files as any).photo;
+        if (Array.isArray(photoField)) {
+          files.push(...photoField);
+        } else {
+          files.push(photoField);
+        }
+      }
       
-      // Move file to uploads directory
-      await photo.mv(filePath);
+      // Check for any other file fields
+      if (files.length === 0) {
+        for (const [fieldName, fileData] of Object.entries(req.files)) {
+          console.log(`Found file field: ${fieldName}`);
+          if (Array.isArray(fileData)) {
+            files.push(...fileData);
+          } else {
+            files.push(fileData);
+          }
+        }
+      }
       
-      const uploadedPhoto = {
-        filename: filename,
-        originalname: photo.name,
-        url: `/uploads/photos/${filename}`,
-        size: photo.size
-      };
+      if (files.length === 0) {
+        return res.status(400).json({
+          success: false,
+          error: 'Keine gültigen Bilddateien gefunden',
+          debug: {
+            filesReceived: req.files,
+            fieldsFound: Object.keys(req.files)
+          }
+        });
+      }
       
-      console.log('Photo uploaded successfully:', uploadedPhoto);
+      console.log(`Processing ${files.length} files`);
+      
+      for (const file of files) {
+        try {
+          // Validate file type
+          const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+          if (!allowedTypes.includes(file.mimetype)) {
+            console.warn(`Skipping invalid file type: ${file.mimetype}`);
+            continue;
+          }
+          
+          // Process image with multiple sizes
+          const processedImages = await imageProcessor.processImage(
+            file.data,
+            file.name,
+            {
+              maxWidth: 1200,
+              maxHeight: 1200,
+              quality: 85,
+              format: 'webp',
+              sizes: [
+                { suffix: '_thumb', width: 150, height: 150 },
+                { suffix: '_medium', width: 400, height: 400 },
+                { suffix: '_large', width: 800, height: 800 }
+              ]
+            }
+          );
+          
+          // Store main image info
+          const mainImage = processedImages[0];
+          uploadedPhotos.push({
+            filename: mainImage.filename,
+            originalname: file.name,
+            url: mainImage.url,
+            size: mainImage.size,
+            width: mainImage.width,
+            height: mainImage.height,
+            format: mainImage.format,
+            variants: processedImages.slice(1).map(img => ({
+              suffix: img.filename.includes('_thumb') ? '_thumb' : 
+                      img.filename.includes('_medium') ? '_medium' : '_large',
+              url: img.url,
+              width: img.width,
+              height: img.height
+            }))
+          });
+          
+        } catch (fileError) {
+          console.error(`Error processing file ${file.name}:`, fileError);
+        }
+      }
+      
+      if (uploadedPhotos.length === 0) {
+        return res.status(400).json({
+          success: false,
+          error: 'Keine Bilder konnten verarbeitet werden'
+        });
+      }
+      
+      console.log(`Successfully processed ${uploadedPhotos.length} photos`);
       
       res.json({
         success: true,
-        message: 'Foto erfolgreich hochgeladen',
-        uploadedPhotos: [uploadedPhoto]
+        message: `${uploadedPhotos.length} Foto(s) erfolgreich hochgeladen und verarbeitet`,
+        uploadedPhotos: uploadedPhotos,
+        photos: uploadedPhotos.map(photo => ({
+          url: photo.url,
+          filename: photo.filename
+        }))
       });
+      
     } catch (error) {
       console.error('Photo upload error:', error);
       res.status(500).json({
