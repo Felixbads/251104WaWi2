@@ -790,37 +790,41 @@ export default function SupplierDetail() {
                   )}
                 />
                 
-                {/* Bestellungseinstellungen */}
-                <FormField
-                  control={form.control}
-                  name="showPricesInOrders"
-                  render={({ field }) => (
-                    <FormItem className="md:col-span-2">
-                      <FormLabel className="flex items-center gap-2">
-                        <Euro className="h-4 w-4" />
-                        Preise in Bestellungen anzeigen
-                      </FormLabel>
-                      <FormControl>
-                        <div className="flex items-center space-x-2">
-                          <input
-                            type="checkbox"
-                            id="showPricesInOrders"
-                            checked={field.value}
-                            onChange={(e) => field.onChange(e.target.checked)}
-                            className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
-                          />
-                          <label htmlFor="showPricesInOrders" className="text-sm text-gray-700">
-                            Einzelpreise und Gesamtpreise in E-Mail-Bestellungen an diesen Lieferanten anzeigen
-                          </label>
-                        </div>
-                      </FormControl>
-                      <FormDescription>
-                        Einige Lieferanten möchten keine Preise in den Bestellungen sehen - nur Artikelnummer, Bezeichnung und Menge.
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                {/* Bestellungseinstellungen - prominenter dargestellt */}
+                <div className="md:col-span-2 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <h3 className="text-lg font-semibold text-blue-900 mb-3 flex items-center gap-2">
+                    <Euro className="h-5 w-5" />
+                    Bestellungseinstellungen
+                  </h3>
+                  
+                  <FormField
+                    control={form.control}
+                    name="showPricesInOrders"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormControl>
+                          <div className="flex items-center space-x-3">
+                            <input
+                              type="checkbox"
+                              id="showPricesInOrders"
+                              checked={field.value}
+                              onChange={(e) => field.onChange(e.target.checked)}
+                              className="w-5 h-5 text-blue-600 bg-white border-2 border-blue-300 rounded focus:ring-blue-500"
+                            />
+                            <label htmlFor="showPricesInOrders" className="text-base font-medium text-blue-900">
+                              Euro-Werte in Bestellungen anzeigen
+                            </label>
+                          </div>
+                        </FormControl>
+                        <FormDescription className="ml-8 text-blue-700">
+                          <strong>Wichtig:</strong> Einige Lieferanten möchten keine Preise in den Bestellungen sehen - nur Artikelnummer, Bezeichnung und Menge. 
+                          Deaktivieren Sie diese Option, wenn der Lieferant preisfreie Bestellungen bevorzugt.
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
 
                 {/* Anmerkungen */}
                 <FormField
