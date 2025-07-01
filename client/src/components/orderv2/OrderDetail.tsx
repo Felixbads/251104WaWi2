@@ -51,10 +51,13 @@ interface Order {
   created_at: string;
   supplier_name: string;
   supplier_email: string;
+  supplier_id?: number;
   warehouse_name: string;
   warehouseName?: string;
   total_amount: number;
   expected_delivery_date?: string;
+  delivery_location?: string;
+  supplier_show_prices?: boolean;
   notes?: string;
   items: OrderItem[];
   itemsByVat?: VatGroup[];
@@ -466,7 +469,7 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
                     <Input
                       type="date"
                       value={editingOrder?.expected_delivery_date || ''}
-                      onChange={(e) => setEditingOrder(prev => prev ? {...prev, expected_delivery_date: e.target.value} : null)}
+                      onChange={(e) => setEditingOrder((prev: any) => prev ? {...prev, expected_delivery_date: e.target.value} : null)}
                       className="mt-1"
                     />
                   ) : (
@@ -486,7 +489,7 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
                 {isEditing ? (
                   <Input
                     value={editingOrder?.delivery_location || ''}
-                    onChange={(e) => setEditingOrder(prev => prev ? {...prev, delivery_location: e.target.value} : null)}
+                    onChange={(e) => setEditingOrder((prev: any) => prev ? {...prev, delivery_location: e.target.value} : null)}
                     placeholder="Lieferadresse oder Lager"
                     className="mt-1"
                   />
@@ -518,7 +521,7 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
                 {isEditing ? (
                   <Textarea
                     value={editingOrder?.notes || ''}
-                    onChange={(e) => setEditingOrder(prev => prev ? {...prev, notes: e.target.value} : null)}
+                    onChange={(e) => setEditingOrder((prev: any) => prev ? {...prev, notes: e.target.value} : null)}
                     placeholder="Notizen zur Bestellung..."
                     className="mt-1"
                     rows={3}
@@ -533,7 +536,19 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
           {/* Order Items */}
           <Card>
             <CardHeader>
-              <CardTitle>Bestellpositionen</CardTitle>
+              <CardTitle className="flex items-center justify-between">
+                Bestellpositionen
+                {isEditing && (
+                  <Button
+                    onClick={() => setShowAddItemDialog(true)}
+                    variant="outline"
+                    size="sm"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Produkt hinzufügen
+                  </Button>
+                )}
+              </CardTitle>
             </CardHeader>
             <CardContent>
               {isLoadingItems ? (
@@ -541,22 +556,55 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
                   <Loader2 className="h-6 w-6 animate-spin mr-2" />
                   <span>Lade Bestellpositionen...</span>
                 </div>
-              ) : orderItems.length === 0 ? (
+              ) : (isEditing ? editingItems : orderItems).length === 0 ? (
                 <div className="text-center py-8 text-gray-500">
                   Keine Bestellpositionen gefunden
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {orderItems.map((item, index) => (
+                  {(isEditing ? editingItems : orderItems).map((item, index) => (
                     <div key={item.id} className="flex items-center justify-between py-3 border-b last:border-b-0">
                       <div className="flex-1">
                         <h4 className="font-medium">{item.product_name}</h4>
-                        <p className="text-sm text-gray-600">
-                          {item.quantity} {item.unit} × {item.unit_price.toFixed(2)} €
-                        </p>
+                        <div className="flex items-center space-x-4 mt-2">
+                          {isEditing ? (
+                            <>
+                              <div className="flex items-center space-x-2">
+                                <Label className="text-sm">Menge:</Label>
+                                <Input
+                                  type="number"
+                                  min="1"
+                                  value={item.quantity}
+                                  onChange={(e) => updateItemQuantity(item.id, parseInt(e.target.value) || 1)}
+                                  className="w-20"
+                                />
+                                <span className="text-sm text-gray-600">{item.unit}</span>
+                              </div>
+                              <div className="text-sm text-gray-600">
+                                × {item.unit_price.toFixed(2)} €
+                              </div>
+                            </>
+                          ) : (
+                            <p className="text-sm text-gray-600">
+                              {item.quantity} {item.unit} × {item.unit_price.toFixed(2)} €
+                            </p>
+                          )}
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <p className="font-medium">{item.total_price.toFixed(2)} €</p>
+                      <div className="flex items-center space-x-2">
+                        <div className="text-right">
+                          <p className="font-medium">{item.total_price.toFixed(2)} €</p>
+                        </div>
+                        {isEditing && (
+                          <Button
+                            onClick={() => removeItem(item.id)}
+                            variant="ghost"
+                            size="sm"
+                            className="text-red-600 hover:text-red-800"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -565,7 +613,12 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
                   
                   <div className="flex justify-between items-center pt-4">
                     <span className="text-lg font-semibold">Gesamtsumme:</span>
-                    <span className="text-lg font-bold">{order.total_amount.toFixed(2)} €</span>
+                    <span className="text-lg font-bold">
+                      {isEditing 
+                        ? editingItems.reduce((sum, item) => sum + item.total_price, 0).toFixed(2)
+                        : order.total_amount.toFixed(2)
+                      } €
+                    </span>
                   </div>
                 </div>
               )}
@@ -644,9 +697,72 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
         </div>
       </div>
 
+      {/* Add Item Dialog */}
+      <Dialog open={showAddItemDialog} onOpenChange={setShowAddItemDialog}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Produkt zur Bestellung hinzufügen</DialogTitle>
+            <DialogDescription>
+              Wählen Sie ein Produkt aus dem Sortiment des Lieferanten aus
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            {availableProducts.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                Keine Produkte verfügbar
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-96 overflow-y-auto">
+                {availableProducts.map((product) => {
+                  const [selectedQuantity, setSelectedQuantity] = React.useState(1);
+                  
+                  return (
+                    <div key={product.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
+                      <div className="flex-1">
+                        <h4 className="font-medium">{product.productName || product.name}</h4>
+                        <p className="text-sm text-gray-600">
+                          {product.price?.toFixed(2)} € / {product.units || 'Stk'}
+                        </p>
+                        {product.description && (
+                          <p className="text-xs text-gray-500 mt-1">{product.description}</p>
+                        )}
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Input
+                          type="number"
+                          min="1"
+                          defaultValue={1}
+                          className="w-20"
+                          onChange={(e) => setSelectedQuantity(parseInt(e.target.value) || 1)}
+                        />
+                        <Button
+                          onClick={() => addNewItem(product, selectedQuantity)}
+                          size="sm"
+                          variant="outline"
+                        >
+                          <Plus className="h-4 w-4 mr-1" />
+                          Hinzufügen
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAddItemDialog(false)}>
+              Abbrechen
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Email Dialog */}
       <EmailDialog
-        isOpen={isEmailDialogOpen}
+        open={isEmailDialogOpen}
         onClose={() => setIsEmailDialogOpen(false)}
         order={{
           ...order,
