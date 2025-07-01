@@ -3,7 +3,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Loader2, Package, Mail, FileText, AlertCircle, ArrowLeft } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Loader2, Package, Mail, FileText, AlertCircle, ArrowLeft, Edit3, Plus, Trash2, Save, X, CalendarDays, MapPin, MessageCircle } from "lucide-react";
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import EmailDialog from './EmailDialog';
@@ -84,6 +90,15 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
   const [isLoadingEmail, setIsLoadingEmail] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isEmailDialogOpen, setIsEmailDialogOpen] = useState(false);
+  
+  // Bearbeitungszustände
+  const [isEditing, setIsEditing] = useState(false);
+  const [editingOrder, setEditingOrder] = useState<any>(null);
+  const [editingItems, setEditingItems] = useState<OrderItem[]>([]);
+  const [showAddItemDialog, setShowAddItemDialog] = useState(false);
+  const [showPricesInEmail, setShowPricesInEmail] = useState(true);
+  const [availableProducts, setAvailableProducts] = useState<any[]>([]);
+  const [isSaving, setIsSaving] = useState(false);
 
   const loadOrderData = async () => {
     try {
@@ -167,6 +182,116 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
     loadOrderItems();
   }, [orderId]);
 
+  // Bearbeitungsfunktionen
+  const startEditing = () => {
+    if (!order) return;
+    setEditingOrder({
+      ...order,
+      expected_delivery_date: order.expected_delivery_date || '',
+      delivery_location: order.delivery_location || order.warehouse_name || '',
+      notes: order.notes || ''
+    });
+    setEditingItems([...orderItems]);
+    setShowPricesInEmail(order.supplier_show_prices !== false);
+    setIsEditing(true);
+    
+    // Lade verfügbare Produkte für den Lieferanten
+    loadAvailableProducts();
+  };
+
+  const cancelEditing = () => {
+    setIsEditing(false);
+    setEditingOrder(null);
+    setEditingItems([]);
+    setShowAddItemDialog(false);
+  };
+
+  const loadAvailableProducts = async () => {
+    if (!order) return;
+    try {
+      const response = await fetch(`/api/suppliers/${order.supplier_id}/products`);
+      if (response.ok) {
+        const products = await response.json();
+        setAvailableProducts(products.data || products || []);
+      }
+    } catch (error) {
+      console.error('Error loading available products:', error);
+    }
+  };
+
+  const updateItemQuantity = (itemId: number, newQuantity: number) => {
+    setEditingItems(prev => prev.map(item => 
+      item.id === itemId 
+        ? { ...item, quantity: newQuantity, total_price: newQuantity * item.unit_price }
+        : item
+    ));
+  };
+
+  const removeItem = (itemId: number) => {
+    setEditingItems(prev => prev.filter(item => item.id !== itemId));
+  };
+
+  const addNewItem = (product: any, quantity: number) => {
+    const newItem: OrderItem = {
+      id: -Math.random(), // Temporary negative ID for new items
+      product_id: product.id,
+      product_name: product.productName || product.name,
+      quantity: quantity,
+      unit: product.units || 'Stk',
+      unit_price: product.price || 0,
+      total_price: quantity * (product.price || 0)
+    };
+    setEditingItems(prev => [...prev, newItem]);
+    setShowAddItemDialog(false);
+  };
+
+  const saveChanges = async () => {
+    if (!editingOrder || !order) return;
+    
+    setIsSaving(true);
+    try {
+      // Update order details
+      const orderUpdateResponse = await fetch(`/api/orders/${orderId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          expected_delivery_date: editingOrder.expected_delivery_date,
+          delivery_location: editingOrder.delivery_location,
+          notes: editingOrder.notes,
+          supplier_show_prices: showPricesInEmail
+        })
+      });
+
+      if (!orderUpdateResponse.ok) {
+        throw new Error('Failed to update order');
+      }
+
+      // Update order items
+      const itemsUpdateResponse = await fetch(`/api/orders/${orderId}/items`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: editingItems })
+      });
+
+      if (!itemsUpdateResponse.ok) {
+        throw new Error('Failed to update order items');
+      }
+
+      // Reload data
+      await loadOrderData();
+      await loadOrderItems();
+      
+      setIsEditing(false);
+      setEditingOrder(null);
+      setEditingItems([]);
+    } catch (error) {
+      console.error('Error saving changes:', error);
+      alert('Fehler beim Speichern der Änderungen');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const getStatusColor = (status: string) => {
     switch (status?.toLowerCase()) {
       case 'pending': return 'bg-yellow-100 text-yellow-800';
@@ -246,14 +371,51 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
           </div>
         </div>
         <div className="flex items-center space-x-2">
-          <Button 
-            onClick={() => setIsEmailDialogOpen(true)}
-            variant="outline"
-            size="sm"
-          >
-            <Mail className="h-4 w-4 mr-2" />
-            E-Mail senden
-          </Button>
+          {!isEditing ? (
+            <>
+              <Button 
+                onClick={startEditing}
+                variant="outline"
+                size="sm"
+              >
+                <Edit3 className="h-4 w-4 mr-2" />
+                Bearbeiten
+              </Button>
+              <Button 
+                onClick={() => setIsEmailDialogOpen(true)}
+                variant="outline"
+                size="sm"
+              >
+                <Mail className="h-4 w-4 mr-2" />
+                E-Mail senden
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button 
+                onClick={saveChanges}
+                variant="default"
+                size="sm"
+                disabled={isSaving}
+              >
+                {isSaving ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Save className="h-4 w-4 mr-2" />
+                )}
+                Speichern
+              </Button>
+              <Button 
+                onClick={cancelEditing}
+                variant="outline"
+                size="sm"
+                disabled={isSaving}
+              >
+                <X className="h-4 w-4 mr-2" />
+                Abbrechen
+              </Button>
+            </>
+          )}
           <Badge className={getStatusColor(order.status)}>
             {getStatusText(order.status)}
           </Badge>
@@ -266,9 +428,18 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
           {/* Order Details Card */}
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center">
-                <Package className="h-5 w-5 mr-2" />
-                Bestelldetails
+              <CardTitle className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <Package className="h-5 w-5 mr-2" />
+                  Bestelldetails
+                </div>
+                {isEditing && (
+                  <div className="flex items-center space-x-2 text-blue-600">
+                    <CalendarDays className="h-4 w-4" />
+                    <MapPin className="h-4 w-4" />
+                    <MessageCircle className="h-4 w-4" />
+                  </div>
+                )}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -287,26 +458,75 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
                     {format(new Date(order.created_at), 'dd.MM.yyyy', { locale: de })}
                   </p>
                 </div>
+                
+                {/* Liefertermin - bearbeitbar */}
                 <div>
                   <label className="text-sm font-medium text-gray-600">Gewünschter Liefertermin</label>
-                  <p className="text-sm">
-                    {order.expected_delivery_date 
-                      ? format(new Date(order.expected_delivery_date), 'dd.MM.yyyy', { locale: de })
-                      : 'Nicht angegeben'
-                    }
-                  </p>
+                  {isEditing ? (
+                    <Input
+                      type="date"
+                      value={editingOrder?.expected_delivery_date || ''}
+                      onChange={(e) => setEditingOrder(prev => prev ? {...prev, expected_delivery_date: e.target.value} : null)}
+                      className="mt-1"
+                    />
+                  ) : (
+                    <p className="text-sm">
+                      {order.expected_delivery_date 
+                        ? format(new Date(order.expected_delivery_date), 'dd.MM.yyyy', { locale: de })
+                        : 'Nicht angegeben'
+                      }
+                    </p>
+                  )}
                 </div>
               </div>
               
-              {order.notes && (
-                <>
-                  <Separator />
-                  <div>
-                    <label className="text-sm font-medium text-gray-600">Notizen</label>
-                    <p className="text-sm mt-1">{order.notes}</p>
-                  </div>
-                </>
+              {/* Lieferort - bearbeitbar */}
+              <div>
+                <label className="text-sm font-medium text-gray-600">Lieferort</label>
+                {isEditing ? (
+                  <Input
+                    value={editingOrder?.delivery_location || ''}
+                    onChange={(e) => setEditingOrder(prev => prev ? {...prev, delivery_location: e.target.value} : null)}
+                    placeholder="Lieferadresse oder Lager"
+                    className="mt-1"
+                  />
+                ) : (
+                  <p className="text-sm">
+                    {order.delivery_location || order.warehouse_name || 'Standard Lager'}
+                  </p>
+                )}
+              </div>
+              
+              {/* Preisanzeige Einstellung - bearbeitbar */}
+              {isEditing && (
+                <div className="flex items-center space-x-2 p-3 bg-orange-50 border border-orange-200 rounded-lg">
+                  <Checkbox
+                    id="showPrices"
+                    checked={showPricesInEmail}
+                    onCheckedChange={(checked) => setShowPricesInEmail(checked as boolean)}
+                  />
+                  <Label htmlFor="showPrices" className="text-sm text-orange-800">
+                    Preise in E-Mail-Bestellungen anzeigen
+                  </Label>
+                </div>
               )}
+              
+              {/* Notizen - bearbeitbar */}
+              <Separator />
+              <div>
+                <label className="text-sm font-medium text-gray-600">Notizen</label>
+                {isEditing ? (
+                  <Textarea
+                    value={editingOrder?.notes || ''}
+                    onChange={(e) => setEditingOrder(prev => prev ? {...prev, notes: e.target.value} : null)}
+                    placeholder="Notizen zur Bestellung..."
+                    className="mt-1"
+                    rows={3}
+                  />
+                ) : (
+                  <p className="text-sm mt-1">{order.notes || 'Keine Notizen'}</p>
+                )}
+              </div>
             </CardContent>
           </Card>
 
