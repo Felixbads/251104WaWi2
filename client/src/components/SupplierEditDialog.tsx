@@ -34,7 +34,8 @@ export function SupplierEditDialog({ supplier, isOpen, onOpenChange, onSave }: S
     deliveryTerms: supplier.deliveryTerms || '',
     minimumOrderValue: supplier.minimumOrderValue || 0,
     taxId: supplier.taxId || '',
-    photos: supplier.photos || []
+    photos: supplier.photos || [],
+    showPricesInOrders: supplier.showPricesInOrders !== false // Default true
   });
 
   const { toast } = useToast();
@@ -239,6 +240,26 @@ export function SupplierEditDialog({ supplier, isOpen, onOpenChange, onSave }: S
                     value={formData.taxId}
                     onChange={(e) => handleInputChange('taxId', e.target.value)}
                   />
+                </div>
+
+                <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="flex items-center space-x-3">
+                    <input
+                      type="checkbox"
+                      id="showPricesInOrders"
+                      checked={formData.showPricesInOrders}
+                      onChange={(e) => handleInputChange('showPricesInOrders', e.target.checked)}
+                      className="w-5 h-5 text-blue-600 bg-white border-2 border-blue-300 rounded focus:ring-blue-500"
+                    />
+                    <div>
+                      <label htmlFor="showPricesInOrders" className="text-base font-medium text-blue-900">
+                        Euro-Werte in Bestellungen anzeigen
+                      </label>
+                      <p className="text-sm text-blue-700">
+                        Wenn deaktiviert, werden in Bestell-E-Mails an diesen Lieferanten keine Preise angezeigt
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </CardContent>
             </Card>
