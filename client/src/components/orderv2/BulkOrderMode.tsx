@@ -301,8 +301,19 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
   const { data: inventoryData, isLoading: inventoryLoading } = useQuery({
     queryKey: [`/api/bulk-orders/inventory/bulk/${selectedSupplierId}`],
     enabled: !!selectedSupplierId,
-    staleTime: 1000 * 60 * 2,
+    staleTime: 0, // Force fresh data
   });
+
+  // Debug logging for inventory data
+  useEffect(() => {
+    if (inventoryData) {
+      console.log(`[BulkOrderMode] Inventory data received for supplier ${selectedSupplierId}:`, {
+        dataLength: Array.isArray(inventoryData) ? inventoryData.length : 'not-array',
+        firstProduct: Array.isArray(inventoryData) ? inventoryData[0]?.product_name : null,
+        rawData: inventoryData
+      });
+    }
+  }, [inventoryData, selectedSupplierId]);
 
   const { data: salesAnalysis, isLoading: salesLoading } = useQuery({
     queryKey: [`/api/bulk-orders/analytics/sales/${selectedSupplierId}/${analysisWeeks}`],
@@ -350,6 +361,13 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
 
   // Handle supplier selection
   const handleSupplierSelect = (supplierId: number, supplierName: string) => {
+    console.log(`[BulkOrderMode] Supplier selected:`, { supplierId, supplierName });
+    
+    // Clear cache for the new supplier
+    queryClient.invalidateQueries({ 
+      queryKey: [`/api/bulk-orders/inventory/bulk/${supplierId}`] 
+    });
+    
     setSelectedSupplierId(supplierId);
     setSelectedSupplierName(supplierName);
     setStep('inventory');
