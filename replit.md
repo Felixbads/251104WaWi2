@@ -109,6 +109,14 @@ This is a comprehensive vending machine management platform (Warenwirtschaftssys
 
 ## Changelog
 
+- July 1, 2025: Inter-App API Authentication Issue Fixed
+  - ✓ Resolved HMAC-SHA256 authentication problem for health endpoint
+  - ✓ Moved health endpoint before authenticated router to bypass authentication requirement
+  - ✓ Added comprehensive debug logging for signature verification
+  - ✓ Fixed TypeScript errors in authentication middleware
+  - ✓ Health endpoint `/api/inter-app/health` now works without authentication
+  - ✓ Other inter-app endpoints still require proper HMAC authentication
+  - External applications can now successfully connect and verify API availability
 - July 1, 2025: Enhanced Inter-App API Implementation Complete
   - ✓ Complete enhanced API for product and supplier data transfer implemented
   - ✓ All requested fields included: product names, descriptions, ingredients, allergens, nutritional info, photos
