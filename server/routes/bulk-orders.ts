@@ -28,7 +28,7 @@ router.get('/inventory/bulk/:supplierId', async (req, res) => {
       SELECT COUNT(*) as count FROM purchase_conditions WHERE supplier_id = ${supplierId}
     `;
     const pcResult = await db.execute(purchaseConditionsQuery);
-    const hasPurchaseConditions = parseInt(pcResult.rows[0].count) > 0;
+    const hasPurchaseConditions = parseInt(String(pcResult.rows[0].count)) > 0;
     
     let inventoryQuery;
     if (hasPurchaseConditions) {
@@ -98,7 +98,7 @@ router.get('/analytics/sales/:supplierId/:weeks', async (req, res) => {
       SELECT COUNT(*) as count FROM purchase_conditions WHERE supplier_id = ${supplierId}
     `;
     const pcResult = await db.execute(purchaseConditionsQuery);
-    const hasPurchaseConditions = parseInt(pcResult.rows[0].count) > 0;
+    const hasPurchaseConditions = parseInt(String(pcResult.rows[0].count)) > 0;
 
     let salesQuery;
     if (hasPurchaseConditions) {
@@ -237,7 +237,7 @@ router.get('/forecast/bulk/:supplierId/:weeks', async (req, res) => {
       SELECT COUNT(*) as count FROM purchase_conditions WHERE supplier_id = ${supplierId}
     `;
     const pcResult = await db.execute(purchaseConditionsQuery);
-    const hasPurchaseConditions = parseInt(pcResult.rows[0].count) > 0;
+    const hasPurchaseConditions = parseInt(String(pcResult.rows[0].count)) > 0;
 
     let forecastQuery;
     if (hasPurchaseConditions) {
