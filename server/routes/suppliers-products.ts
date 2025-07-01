@@ -49,87 +49,39 @@ router.get('/:id/products', async (req: Request, res: Response) => {
 
     console.log(`[SUPPLIER-PRODUCTS] Supplier ${supplierId} has purchase conditions: ${hasPurchaseConditions}`);
 
-    let supplierProducts;
+    // GEÄNDERT: Immer ALLE Produkte des Lieferanten anzeigen (konsistent mit Bulk Orders)
+    console.log(`[SUPPLIER-PRODUCTS] Using comprehensive approach for supplier ${supplierId} - showing ALL products`);
+    
+    // Hole ALLE Produkte des Lieferanten, unabhängig von purchase_conditions
+    const supplierProducts = await db
+      .select({
+        id: products.id,
+        vendonId: products.vendonId,
+        productName: products.productName,
+        sku: products.sku,
+        barcode: products.barcode,
+        price: products.price,
+        category: products.category,
+        description: products.description,
+        status: products.status,
+        supplierSku: products.supplierSku,
+        packageSize: products.packageSize,
+        minOrderQuantity: products.minOrderQuantity,
+        shelfLifeDays: products.shelfLifeDays,
+        supplierId: products.supplierId,
+        createdAt: products.createdAt,
+        updatedAt: products.updatedAt,
+      })
+      .from(products)
+      .where(
+        and(
+          eq(products.supplierId, supplierId),
+          eq(products.status, 'active')
+        )
+      )
+      .orderBy(asc(products.productName));
 
-    if (hasPurchaseConditions) {
-      // Use purchase conditions approach
-      console.log(`[SUPPLIER-PRODUCTS] Using purchase conditions for supplier ${supplierId}`);
-      
-      supplierProducts = await db
-        .select({
-          id: products.id,
-          vendonId: products.vendonId,
-          productName: products.productName,
-          sku: products.sku,
-          barcode: products.barcode,
-          price: products.price,
-          category: products.category,
-          description: products.description,
-          status: products.status,
-          supplierSku: products.supplierSku,
-          packageSize: products.packageSize,
-          minOrderQuantity: products.minOrderQuantity,
-          shelfLifeDays: products.shelfLifeDays,
-          // Purchase condition fields
-          unitPrice: purchaseConditions.unitPrice,
-          taxRate: purchaseConditions.taxRate,
-          grossPrice: purchaseConditions.grossPrice,
-          minQuantity: purchaseConditions.minQuantity,
-          packagingUnit: purchaseConditions.packagingUnit,
-          packagingQuantity: purchaseConditions.packagingQuantity,
-          deliveryTime: purchaseConditions.deliveryTime,
-          isPreferred: purchaseConditions.isPreferred,
-          notes: purchaseConditions.notes,
-          leadTime: purchaseConditions.leadTime,
-          validFrom: purchaseConditions.validFrom,
-          validTo: purchaseConditions.validTo,
-          createdAt: products.createdAt,
-          updatedAt: products.updatedAt,
-        })
-        .from(products)
-        .innerJoin(purchaseConditions, eq(products.id, purchaseConditions.productId))
-        .where(eq(purchaseConditions.supplierId, supplierId))
-        .orderBy(asc(products.productName));
 
-    } else {
-      // Use direct supplier assignment approach
-      console.log(`[SUPPLIER-PRODUCTS] Using direct supplier assignment for supplier ${supplierId}`);
-      
-      supplierProducts = await db
-        .select({
-          id: products.id,
-          vendonId: products.vendonId,
-          productName: products.productName,
-          sku: products.sku,
-          barcode: products.barcode,
-          price: products.price,
-          category: products.category,
-          description: products.description,
-          status: products.status,
-          supplierSku: products.supplierSku,
-          packageSize: products.packageSize,
-          minOrderQuantity: products.minOrderQuantity,
-          shelfLifeDays: products.shelfLifeDays,
-          // Set purchase condition fields to null for direct assignments
-          unitPrice: sql<number>`${products.price}`,
-          taxRate: sql<number>`19.0`,
-          grossPrice: sql<number>`${products.price} * 1.19`,
-          minQuantity: sql<number>`1`,
-          packagingUnit: sql<string>`'Stück'`,
-          packagingQuantity: sql<number>`1`,
-          deliveryTime: sql<string>`'2-3 Tage'`,
-          isPreferred: sql<boolean>`true`,
-          notes: sql<string>`NULL`,
-          leadTime: sql<number>`3`,
-          validFrom: sql<Date>`NULL`,
-          validTo: sql<Date>`NULL`,
-          createdAt: products.createdAt,
-          updatedAt: products.updatedAt,
-        })
-        .from(products)
-        .where(eq(products.supplierId, supplierId))
-        .orderBy(asc(products.productName));
-    }
 
     console.log(`[SUPPLIER-PRODUCTS] Found ${supplierProducts.length} products for supplier ${supplierId}`);
 
