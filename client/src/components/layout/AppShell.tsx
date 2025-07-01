@@ -5,10 +5,8 @@ import MobileFooter from "./MobileFooter";
 import MobileMenu from "./MobileMenu";
 import { 
   LogOut, Users, Home, Package, ShoppingBag, Truck, Mail, 
-  ShoppingCart, Building2, TrashIcon, BarChart2, RefreshCw, 
-  Clock, Settings, LineChart, Database, PieChart, BarChart4,
-  ClipboardCheck, MoveHorizontal, AlertTriangle, Cloud, Calendar,
-  HelpCircle
+  ShoppingCart, Building2, TrashIcon, BarChart2, Settings, 
+  PieChart, BarChart4, ClipboardCheck, MoveHorizontal
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
@@ -25,7 +23,6 @@ export const menuItems = {
   overview: [
     { title: 'Dashboard', icon: <Home className="h-5 w-5 mr-3" />, path: '/' },
     { title: 'Standorte', icon: <BarChart4 className="h-5 w-5 mr-3" />, path: '/standort-status' },
-    { title: 'Standort-Analyse', icon: <PieChart className="h-5 w-5 mr-3" />, path: '/standort-analyse' },
     { title: 'Produkte', icon: <ShoppingBag className="h-5 w-5 mr-3" />, path: '/produkte' },
     { title: 'Lieferanten', icon: <Truck className="h-5 w-5 mr-3" />, path: '/lieferanten' },
     { title: 'Transaktionen', icon: <Mail className="h-5 w-5 mr-3" />, path: '/transactions' },
@@ -33,7 +30,6 @@ export const menuItems = {
   management: [] as MenuItem[],
   storage: [
     { title: 'Lagerbestand', icon: <Building2 className="h-5 w-5 mr-3" />, path: '/lagerbestand' },
-    { title: 'Kritische Bestände', icon: <AlertTriangle className="h-5 w-5 mr-3" />, path: '/kritische-bestaende' },
     { title: 'Rückläufer', icon: <TrashIcon className="h-5 w-5 mr-3" />, path: '/ruecklaufer' },
     { title: 'Warenbewegung', icon: <MoveHorizontal className="h-5 w-5 mr-3" />, path: '/warenbewegung' },
     { title: 'Inventur', icon: <ClipboardCheck className="h-5 w-5 mr-3" />, path: '/inventur' },
@@ -43,17 +39,10 @@ export const menuItems = {
   analysis: [
     { title: 'Auswertung', icon: <BarChart2 className="h-5 w-5 mr-3" />, path: '/auswertungen' },
     { title: 'Erweiterte Auswertung', icon: <PieChart className="h-5 w-5 mr-3" />, path: '/erweiterte-analyse' },
-    { title: 'Prognose', icon: <BarChart2 className="h-5 w-5 mr-3" />, path: '/forecast' },
-    { title: 'Prognoseanalyse', icon: <LineChart className="h-5 w-5 mr-3" />, path: '/forecast-evaluation' },
+    { title: 'Standort-Analyse', icon: <PieChart className="h-5 w-5 mr-3" />, path: '/standort-analyse' },
     { title: 'Umsatzerwartungen', icon: <BarChart4 className="h-5 w-5 mr-3" />, path: '/revenue-expectations' },
   ] as MenuItem[],
   system: [
-    { title: 'Synchronisierung', icon: <RefreshCw className="h-5 w-5 mr-3" />, path: '/synchronization' },
-    { title: 'Support-Ticket', icon: <HelpCircle className="h-5 w-5 mr-3" />, path: '/support' },
-    { title: 'Sync-Verlauf', icon: <Clock className="h-5 w-5 mr-3" />, path: '/sync-history' },
-    { title: 'Datenverfügbarkeit', icon: <Database className="h-5 w-5 mr-3" />, path: '/datenverfuegbarkeit' },
-    { title: '  • Wetterdaten', icon: <Cloud className="h-4 w-4 mr-3 ml-2" />, path: '/datenverfuegbarkeit/wetter' },
-    { title: '  • Feiertage', icon: <Calendar className="h-4 w-4 mr-3 ml-2" />, path: '/datenverfuegbarkeit/feiertage' },
     { title: 'Benutzer', icon: <Users className="h-5 w-5 mr-3" />, path: '/benutzer' },
     { title: 'Einstellungen', icon: <Settings className="h-5 w-5 mr-3" />, path: '/settings' },
   ] as MenuItem[]
