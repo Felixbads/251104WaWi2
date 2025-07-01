@@ -377,14 +377,18 @@ export default function EmailDialog({
             />
           </div>
 
-          {/* HTML Preview Section */}
+          {/* HTML Preview and Edit Section */}
           <div className="space-y-2">
-            <Label>E-Mail-Vorschau</Label>
+            <Label>E-Mail-Inhalt</Label>
             <Tabs value={previewTab} onValueChange={setPreviewTab} className="w-full">
-              <TabsList className="grid w-full grid-cols-2">
+              <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="preview" className="flex items-center gap-2">
                   <Eye className="w-4 h-4" />
                   Vorschau
+                </TabsTrigger>
+                <TabsTrigger value="edit" className="flex items-center gap-2">
+                  <Code className="w-4 h-4" />
+                  Bearbeiten
                 </TabsTrigger>
                 <TabsTrigger value="html" className="flex items-center gap-2">
                   <Code className="w-4 h-4" />
@@ -401,6 +405,21 @@ export default function EmailDialog({
                   ) : (
                     <p className="text-muted-foreground italic">E-Mail-Inhalt wird automatisch generiert basierend auf der Bestellung</p>
                   )}
+                </div>
+              </TabsContent>
+              <TabsContent value="edit" className="mt-2">
+                <div className="space-y-2">
+                  <Textarea
+                    id="emailContentEdit"
+                    value={emailData.htmlContent}
+                    onChange={(e) => handleInputChange('htmlContent', e.target.value)}
+                    placeholder="E-Mail-Text hier bearbeiten..."
+                    rows={12}
+                    className="font-mono text-sm"
+                  />
+                  <p className="text-sm text-muted-foreground">
+                    Sie können den E-Mail-Text hier direkt bearbeiten. HTML-Tags sind erlaubt.
+                  </p>
                 </div>
               </TabsContent>
               <TabsContent value="html" className="mt-2">
