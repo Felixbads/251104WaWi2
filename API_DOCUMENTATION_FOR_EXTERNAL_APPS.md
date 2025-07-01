@@ -47,16 +47,23 @@ https://[ihre-wawi-replit-domain]/api
       "postalCode": "12345",
       "country": "Deutschland",
       "status": "active",
-      "notes": "Beschreibung des Lieferanten",
-      "shortDescription": "Kurze Beschreibung",
+      "notes": "Anmerkungen und weitere Beschreibung des Lieferanten",
+      "shortDescription": "Kurze Lieferantenbeschreibung für Übersichten",
       "photos": ["foto1.jpg", "foto2.jpg"],
+      "paymentTerms": "14 Tage netto",
+      "deliveryTerms": "Frei Haus ab 100€",
+      "minimumOrderValue": 100.00,
+      "deliveryDays": "[\"montag\", \"mittwoch\", \"freitag\"]",
       "productCount": 25,
       "completeness": {
         "hasDescription": true,
         "hasWebsite": true,
         "hasCompleteAddress": true,
-        "hasContact": true
-      }
+        "hasContact": true,
+        "hasPhotos": true
+      },
+      "createdAt": "2025-01-01T00:00:00.000Z",
+      "updatedAt": "2025-01-15T10:30:00.000Z"
     }
   ],
   "total": 15
@@ -81,12 +88,12 @@ https://[ihre-wawi-replit-domain]/api
       "productName": "Coca Cola 0,33l",
       "price": 1.50,
       "category": "Getränke",
-      "description": "Erfrischungsgetränk mit Koffein in der praktischen 0,33l Dose",
-      "shortDescription": "Cola-Erfrischungsgetränk",
-      "ingredients": "Wasser, Zucker, Kohlensäure, Koffein",
-      "allergens": "Keine bekannten Allergene",
-      "nutritionalInfo": "{\"energy\": \"180kJ\", \"sugar\": \"10.6g\"}",
-      "photos": ["cola1.jpg", "cola2.jpg"],
+      "description": "Erfrischungsgetränk mit Koffein in der praktischen 0,33l Dose. Perfekt geeignet für den schnellen Energieschub zwischendurch.",
+      "shortDescription": "Cola-Erfrischungsgetränk mit Koffein",
+      "ingredients": "Wasser, Zucker, Kohlensäure, natürliches Aroma, Koffein, Phosphorsäure, Karamellzuckerkulör",
+      "allergens": "Keine Allergene. Kann Spuren von Nüssen enthalten.",
+      "nutritionalInfo": "{\"energy\": \"180kJ/43kcal\", \"fat\": \"0g\", \"carbohydrates\": \"10.6g\", \"sugar\": \"10.6g\", \"protein\": \"0g\", \"salt\": \"0.02g\", \"caffeine\": \"34mg\"}",
+      "photos": ["cola_front.jpg", "cola_back.jpg", "cola_ingredients.jpg"],
       "status": "active",
       "sku": "COLA-033",
       "barcode": "4006381008847",
@@ -98,7 +105,26 @@ https://[ihre-wawi-replit-domain]/api
       "minOrderQuantity": 24,
       "vat": 19.0,
       "depositPrice": 0.25,
-      "productType": "Getränk",
+      "depositVat": 19.0,
+      "productType": "PRODUCT",
+      "supplier": {
+        "id": 1,
+        "name": "Getränke Schmidt GmbH",
+        "email": "info@getraenke-schmidt.de",
+        "website": "https://www.getraenke-schmidt.de",
+        "shortDescription": "Traditioneller Getränkegroßhandel seit 1950",
+        "photos": ["logo_schmidt.jpg"]
+      },
+      "completeness": {
+        "hasDescription": true,
+        "hasPrice": true,
+        "hasBarcode": true,
+        "hasSupplier": true,
+        "hasIngredients": true,
+        "hasAllergens": true,
+        "hasNutritionalInfo": true,
+        "hasPhotos": true
+      },
       "createdAt": "2025-01-01T00:00:00.000Z",
       "updatedAt": "2025-01-15T10:30:00.000Z"
     }
@@ -281,16 +307,21 @@ Alle Lager mit Inventar-Statistiken.
 Jeder Datensatz enthält `completeness`-Informationen:
 
 **Lieferanten:**
-- `hasDescription`: Beschreibung ≥ 30 Zeichen
+- `hasDescription`: Kurzbeschreibung oder Anmerkungen ≥ 30 Zeichen
 - `hasWebsite`: Website-URL vorhanden
-- `hasCompleteAddress`: Vollständige Adresse
-- `hasContact`: Kontaktdaten vorhanden
+- `hasCompleteAddress`: Vollständige Adresse (Straße, Stadt, PLZ)
+- `hasContact`: Kontaktdaten vorhanden (E-Mail oder Telefon)
+- `hasPhotos`: Mindestens ein Foto hochgeladen
 
 **Produkte:**
-- `hasDescription`: Beschreibung ≥ 10 Zeichen
-- `hasPrice`: Gültiger Preis
-- `hasEan`: EAN-Code vorhanden
+- `hasDescription`: Kurz- oder Detailbeschreibung ≥ 10 Zeichen
+- `hasPrice`: Gültiger Preis > 0
+- `hasBarcode`: Barcode/EAN-Code vorhanden
 - `hasSupplier`: Lieferant zugeordnet
+- `hasIngredients`: Inhaltsstoffe angegeben
+- `hasAllergens`: Allergene-Informationen vorhanden
+- `hasNutritionalInfo`: Nährwertangaben als JSON verfügbar
+- `hasPhotos`: Mindestens ein Produktfoto hochgeladen
 
 ---
 
