@@ -1503,21 +1503,26 @@ function NewOrderForm({
                               // Wenn kein Lieferant ausgewählt ist, alle Produkte anzeigen
                               if (!currentSupplierId) return true;
                               
-                              // Supplier aus den Daten abrufen
-                              const supplier = suppliers?.data?.find((s: any) => s.id === currentSupplierId);
-                              if (!supplier) return true;
+                              // Direkte Zuordnung über supplierId verwenden
+                              // Das ist die zuverlässigste Methode, da sie die Datenbankverknüpfung nutzt
+                              if (product.supplierId === currentSupplierId) {
+                                return true;
+                              }
                               
-                              // Produktnamen und Lieferantennamen normalisieren für besseren Vergleich
-                              const productName = (product.productName || product.name || "").toLowerCase();
-                              const supplierName = supplier.name.toLowerCase();
+                              // Fallback für Produkte ohne supplierId: Name-basierte Filterung
+                              if (!product.supplierId) {
+                                const supplier = suppliers?.data?.find((s: any) => s.id === currentSupplierId);
+                                if (!supplier) return false;
+                                
+                                const productName = (product.productName || product.name || "").toLowerCase();
+                                const supplierName = supplier.name.toLowerCase();
+                                
+                                // Prüfen, ob Produktname den Lieferantennamen enthält
+                                return productName.includes(supplierName) || 
+                                       supplierName.split(" ").some((word: string) => word.length > 3 && productName.includes(word));
+                              }
                               
-                              // Prüfen, ob Produktname den Lieferantennamen enthält
-                              // Oft steht der Herstellername in Klammern am Ende des Produktnamens
-                              return productName.includes(supplierName) || 
-                                     // Wenn der Lieferantenname "Wehlen" enthält, dann auch Milchhof Fiedler Produkte anzeigen
-                                     (supplierName.includes("wehlen") && productName.includes("fiedler")) ||
-                                     // Allgemeine Prüfung für teilweise Übereinstimmungen
-                                     supplierName.split(" ").some((word: string) => word.length > 3 && productName.includes(word));
+                              return false;
                             })
                             .map((product: any) => (
                               <SelectItem key={product.id} value={product.id.toString()}>
