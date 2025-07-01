@@ -914,7 +914,206 @@ router.post('/orders/:id/copy', async (req: Request, res: Response) => {
   }
 });
 
-// Bestellung aktualisieren
+// Bestellung aktualisieren (PUT für Frontend)
+router.put('/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const orderId = parseInt(id);
+    const updateData = req.body;
+    
+    if (isNaN(orderId)) {
+      return res.status(400).json({ error: 'Ungültige Bestellungs-ID' });
+    }
+    
+    console.log(`PUT /api/orders/${id} - Updating order with data:`, updateData);
+    
+    // Aktuelle Bestellung abrufen
+    const existingOrderResult = await db
+      .select()
+      .from(orders)
+      .where(eq(orders.id, orderId))
+      .limit(1);
+    
+    if (!existingOrderResult || existingOrderResult.length === 0) {
+      return res.status(404).json({ error: 'Bestellung nicht gefunden' });
+    }
+    
+    const existingOrder = existingOrderResult[0];
+    
+    // Updates vorbereiten (only basic fields for now)
+    const updates: any = {
+      expectedDeliveryDate: updateData.expected_delivery_date || updateData.expectedDeliveryDate || existingOrder.expectedDeliveryDate,
+      deliveryLocation: updateData.delivery_location || updateData.deliveryLocation || existingOrder.deliveryLocation,
+      notes: updateData.notes || existingOrder.notes,
+      updatedAt: new Date()
+    };
+    
+    // In Datenbank aktualisieren
+    const updatedOrderResult = await db
+      .update(orders)
+      .set(updates)
+      .where(eq(orders.id, orderId))
+      .returning();
+    
+    if (!updatedOrderResult || updatedOrderResult.length === 0) {
+      return res.status(500).json({ error: 'Fehler beim Aktualisieren der Bestellung' });
+    }
+    
+    console.log(`Order ${orderId} updated successfully`);
+    
+    res.json({
+      success: true,
+      order: updatedOrderResult[0]
+    });
+  } catch (error) {
+    console.error('Fehler beim Aktualisieren der Bestellung:', error);
+    res.status(500).json({ error: 'Fehler beim Aktualisieren der Bestellung' });
+  }
+});
+
+// Neue Position zu Bestellung hinzufügen
+router.post('/:id/items', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const orderId = parseInt(id);
+    const itemData = req.body;
+    
+    if (isNaN(orderId)) {
+      return res.status(400).json({ error: 'Ungültige Bestellungs-ID' });
+    }
+    
+    console.log(`POST /api/orders/${id}/items - Adding item:`, itemData);
+    
+    // Bestellung existiert prüfen
+    const orderResult = await db
+      .select()
+      .from(orders)
+      .where(eq(orders.id, orderId))
+      .limit(1);
+    
+    if (!orderResult || orderResult.length === 0) {
+      return res.status(404).json({ error: 'Bestellung nicht gefunden' });
+    }
+    
+    // Neue Position hinzufügen
+    const newItem = await db
+      .insert(orderItems)
+      .values({
+        orderId,
+        productId: itemData.product_id || itemData.productId || null,
+        productName: itemData.product_name || itemData.productName || 'Unbenanntes Produkt',
+        quantity: itemData.quantity || 1,
+        unit: itemData.unit || 'Stk.',
+        unitPrice: itemData.unit_price || itemData.unitPrice || 0,
+        totalPrice: (itemData.quantity || 1) * (itemData.unit_price || itemData.unitPrice || 0),
+        packageSize: itemData.package_size || itemData.packageSize || null,
+        packageQuantity: itemData.package_quantity || itemData.packageQuantity || null,
+        packageInfo: itemData.package_info || itemData.packageInfo || null,
+        vatRate: itemData.vat_rate || itemData.vatRate || 19,
+        vatAmount: ((itemData.quantity || 1) * (itemData.unit_price || itemData.unitPrice || 0)) * (itemData.vat_rate || itemData.vatRate || 19) / 100,
+        netAmount: ((itemData.quantity || 1) * (itemData.unit_price || itemData.unitPrice || 0)) - (((itemData.quantity || 1) * (itemData.unit_price || itemData.unitPrice || 0)) * (itemData.vat_rate || itemData.vatRate || 19) / 100),
+        grossAmount: (itemData.quantity || 1) * (itemData.unit_price || itemData.unitPrice || 0)
+      })
+      .returning();
+    
+    if (!newItem || newItem.length === 0) {
+      return res.status(500).json({ error: 'Fehler beim Hinzufügen der Position' });
+    }
+    
+    console.log(`Item added to order ${orderId}:`, newItem[0]);
+    
+    res.json({
+      success: true,
+      item: newItem[0]
+    });
+  } catch (error) {
+    console.error('Fehler beim Hinzufügen der Position:', error);
+    res.status(500).json({ error: 'Fehler beim Hinzufügen der Position' });
+  }
+});
+
+// Bestellposition aktualisieren
+router.put('/:orderId/items/:itemId', async (req: Request, res: Response) => {
+  try {
+    const { orderId, itemId } = req.params;
+    const orderIdNum = parseInt(orderId);
+    const itemIdNum = parseInt(itemId);
+    const updateData = req.body;
+    
+    if (isNaN(orderIdNum) || isNaN(itemIdNum)) {
+      return res.status(400).json({ error: 'Ungültige IDs' });
+    }
+    
+    console.log(`PUT /api/orders/${orderId}/items/${itemId} - Updating item:`, updateData);
+    
+    // Position aktualisieren
+    const updatedItem = await db
+      .update(orderItems)
+      .set({
+        quantity: updateData.quantity || 1,
+        unitPrice: updateData.unit_price || updateData.unitPrice || 0,
+        totalPrice: (updateData.quantity || 1) * (updateData.unit_price || updateData.unitPrice || 0),
+        vatRate: updateData.vat_rate || updateData.vatRate || 19,
+        vatAmount: ((updateData.quantity || 1) * (updateData.unit_price || updateData.unitPrice || 0)) * (updateData.vat_rate || updateData.vatRate || 19) / 100,
+        netAmount: ((updateData.quantity || 1) * (updateData.unit_price || updateData.unitPrice || 0)) - (((updateData.quantity || 1) * (updateData.unit_price || updateData.unitPrice || 0)) * (updateData.vat_rate || updateData.vatRate || 19) / 100),
+        grossAmount: (updateData.quantity || 1) * (updateData.unit_price || updateData.unitPrice || 0),
+        updatedAt: new Date()
+      })
+      .where(and(eq(orderItems.id, itemIdNum), eq(orderItems.orderId, orderIdNum)))
+      .returning();
+    
+    if (!updatedItem || updatedItem.length === 0) {
+      return res.status(404).json({ error: 'Position nicht gefunden' });
+    }
+    
+    console.log(`Item ${itemIdNum} updated in order ${orderIdNum}`);
+    
+    res.json({
+      success: true,
+      item: updatedItem[0]
+    });
+  } catch (error) {
+    console.error('Fehler beim Aktualisieren der Position:', error);
+    res.status(500).json({ error: 'Fehler beim Aktualisieren der Position' });
+  }
+});
+
+// Bestellposition löschen
+router.delete('/:orderId/items/:itemId', async (req: Request, res: Response) => {
+  try {
+    const { orderId, itemId } = req.params;
+    const orderIdNum = parseInt(orderId);
+    const itemIdNum = parseInt(itemId);
+    
+    if (isNaN(orderIdNum) || isNaN(itemIdNum)) {
+      return res.status(400).json({ error: 'Ungültige IDs' });
+    }
+    
+    console.log(`DELETE /api/orders/${orderId}/items/${itemId} - Removing item`);
+    
+    // Position löschen
+    const deletedItem = await db
+      .delete(orderItems)
+      .where(and(eq(orderItems.id, itemIdNum), eq(orderItems.orderId, orderIdNum)))
+      .returning();
+    
+    if (!deletedItem || deletedItem.length === 0) {
+      return res.status(404).json({ error: 'Position nicht gefunden' });
+    }
+    
+    console.log(`Item ${itemIdNum} removed from order ${orderIdNum}`);
+    
+    res.json({
+      success: true,
+      message: 'Position erfolgreich entfernt'
+    });
+  } catch (error) {
+    console.error('Fehler beim Löschen der Position:', error);
+    res.status(500).json({ error: 'Fehler beim Löschen der Position' });
+  }
+});
+
+// Bestellung aktualisieren (PATCH für Legacy)
 router.patch('/orders/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
