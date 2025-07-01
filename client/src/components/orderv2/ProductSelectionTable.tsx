@@ -130,15 +130,19 @@ const ProductSelectionTable: React.FC<ProductSelectionTableProps> = ({
   
   // Convert supplier products response to products array
   const products = React.useMemo(() => {
-    if (!supplierProductsResponse?.data) return [];
+    console.log('[ProductSelectionTable] Processing products response:', supplierProductsResponse);
     
-    // Use the enhanced supplier products data
-    return supplierProductsResponse.data.map((product: any) => ({
+    if (!supplierProductsResponse?.data || !Array.isArray(supplierProductsResponse.data)) {
+      console.log('[ProductSelectionTable] No products data available');
+      return [];
+    }
+    
+    const processedProducts = supplierProductsResponse.data.map((product: any) => ({
       ...product,
       // Map productName to name for consistency
       name: product.productName || product.name || '',
-      // Ensure price is available from either unitPrice or price field
-      price: product.unitPrice || product.price || 0,
+      // KRITISCH: Verwende den korrigierten Preis (jetzt sollte unitPrice den Einkaufspreis enthalten)
+      price: product.price || 0, // Die API liefert jetzt den Einkaufspreis im price-Feld
       // Add purchase condition information if available
       purchaseCondition: {
         unitPrice: product.unitPrice,
@@ -153,6 +157,11 @@ const ProductSelectionTable: React.FC<ProductSelectionTableProps> = ({
         leadTime: product.leadTime
       }
     }));
+    
+    console.log('[ProductSelectionTable] Processed products:', processedProducts.length, 'products');
+    console.log('[ProductSelectionTable] First product:', processedProducts[0]);
+    
+    return processedProducts;
   }, [supplierProductsResponse]);
   
   // Map purchase conditions to a product-like format
