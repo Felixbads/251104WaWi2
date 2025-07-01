@@ -163,6 +163,20 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
         supplier_name: orderData.supplierName || orderData.supplier_name || 'Unbekannter Lieferant'
       });
 
+      // Supplier-Preisanzeige-Einstellung laden
+      if (orderData.supplier_id) {
+        try {
+          const supplierResponse = await fetch(`/api/suppliers/${orderData.supplier_id}`);
+          if (supplierResponse.ok) {
+            const supplierData = await supplierResponse.json();
+            setShowPricesInEmail(supplierData.showPricesInOrders !== false); // Default true
+          }
+        } catch (error) {
+          console.error('Error loading supplier settings:', error);
+          setShowPricesInEmail(true); // Default fallback
+        }
+      }
+
     } catch (error) {
       console.error('Error loading order:', error);
       setError(error instanceof Error ? error.message : 'Fehler beim Laden der Bestellung');
@@ -296,15 +310,14 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
     
     setIsSaving(true);
     try {
-      // Update order details
+      // Update order details (ohne showPricesInEmail - wird über Supplier gesteuert)
       const orderUpdateResponse = await fetch(`/api/orders/${orderId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           expected_delivery_date: editingOrder.expected_delivery_date,
           delivery_location: editingOrder.delivery_location,
-          notes: editingOrder.notes,
-          supplier_show_prices: showPricesInEmail
+          notes: editingOrder.notes
         })
       });
 
@@ -543,19 +556,16 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
                 )}
               </div>
               
-              {/* Preisanzeige Einstellung - bearbeitbar */}
-              {isEditing && (
-                <div className="flex items-center space-x-2 p-3 bg-orange-50 border border-orange-200 rounded-lg">
-                  <Checkbox
-                    id="showPrices"
-                    checked={showPricesInEmail}
-                    onCheckedChange={(checked) => setShowPricesInEmail(checked as boolean)}
-                  />
-                  <Label htmlFor="showPrices" className="text-sm text-orange-800">
-                    Preise in E-Mail-Bestellungen anzeigen
-                  </Label>
-                </div>
-              )}
+              {/* Preisanzeige Status - nur lesbar */}
+              <div className="flex items-center space-x-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className={`w-3 h-3 rounded-full ${showPricesInEmail ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                <span className="text-sm text-blue-800">
+                  Preise in E-Mails: <strong>{showPricesInEmail ? 'Aktiviert' : 'Deaktiviert'}</strong>
+                </span>
+                <span className="text-xs text-blue-600">
+                  (wird über Lieferant-Einstellungen gesteuert)
+                </span>
+              </div>
               
               {/* Notizen - bearbeitbar */}
               <Separator />
