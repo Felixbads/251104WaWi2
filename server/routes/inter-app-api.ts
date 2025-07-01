@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../db';
-import { suppliers, products, warehouses, warehouseInventory } from '../../shared/schema';
+import { suppliers, products, warehouses } from '../../shared/schema';
 import { eq, and, isNotNull, ne } from 'drizzle-orm';
 import { interAppAuthMiddleware, interAppRateLimitMiddleware } from '../middleware/inter-app-auth';
 
@@ -37,6 +37,8 @@ router.get('/suppliers', async (req: AuthenticatedRequest, res: Response) => {
         country: suppliers.country,
         status: suppliers.status,
         notes: suppliers.notes,
+        shortDescription: suppliers.shortDescription,
+        photos: suppliers.photos,
         paymentTerms: suppliers.paymentTerms,
         deliveryTerms: suppliers.deliveryTerms,
         minimumOrderValue: suppliers.minimumOrderValue,
@@ -47,6 +49,8 @@ router.get('/suppliers', async (req: AuthenticatedRequest, res: Response) => {
       .from(suppliers)
       .where(eq(suppliers.status, 'active'))
       .orderBy(suppliers.name);
+
+    console.log(`[INTER-APP-API] ${allSuppliers.length} Lieferanten gefunden`);
 
     // Zähle Produkte pro Lieferant
     const suppliersWithCounts = await Promise.all(
@@ -64,7 +68,8 @@ router.get('/suppliers', async (req: AuthenticatedRequest, res: Response) => {
           productCount: productCount.length,
           // Vollständigkeitsstatus
           completeness: {
-            hasDescription: !!supplier.shortDescription || (!!supplier.notes && supplier.notes.length >= 30),
+            hasDescription: !!(supplier.shortDescription && supplier.shortDescription.length >= 30) || 
+                           !!(supplier.notes && supplier.notes.length >= 30),
             hasWebsite: !!supplier.website,
             hasCompleteAddress: !!(supplier.address && supplier.city && supplier.postalCode),
             hasContact: !!(supplier.email || supplier.phone),
@@ -93,7 +98,7 @@ router.get('/suppliers', async (req: AuthenticatedRequest, res: Response) => {
 
 /**
  * GET /api/inter-app/suppliers/:id
- * Liefert einen spezifischen Lieferanten mit allen Details
+ * Liefert einen spezifischen Lieferanten mit allen Produkten
  */
 router.get('/suppliers/:id', async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -107,13 +112,34 @@ router.get('/suppliers/:id', async (req: AuthenticatedRequest, res: Response) =>
       });
     }
 
+    // Hole Lieferanten-Details
     const supplier = await db
-      .select()
+      .select({
+        id: suppliers.id,
+        name: suppliers.name,
+        contactPerson: suppliers.contactPerson,
+        phone: suppliers.phone,
+        email: suppliers.email,
+        website: suppliers.website,
+        address: suppliers.address,
+        city: suppliers.city,
+        postalCode: suppliers.postalCode,
+        country: suppliers.country,
+        status: suppliers.status,
+        notes: suppliers.notes,
+        shortDescription: suppliers.shortDescription,
+        photos: suppliers.photos,
+        paymentTerms: suppliers.paymentTerms,
+        deliveryTerms: suppliers.deliveryTerms,
+        minimumOrderValue: suppliers.minimumOrderValue,
+        deliveryDays: suppliers.deliveryDays,
+        createdAt: suppliers.createdAt,
+        updatedAt: suppliers.updatedAt
+      })
       .from(suppliers)
-      .where(eq(suppliers.id, supplierId))
-      .limit(1);
+      .where(eq(suppliers.id, supplierId));
 
-    if (supplier.length === 0) {
+    if (!supplier || supplier.length === 0) {
       return res.status(404).json({
         success: false,
         error: 'Lieferant nicht gefunden',
@@ -125,16 +151,32 @@ router.get('/suppliers/:id', async (req: AuthenticatedRequest, res: Response) =>
     const supplierProducts = await db
       .select({
         id: products.id,
-        name: products.name,
+        vendonId: products.vendonId,
+        productName: products.productName,
+        shortDescription: products.shortDescription,
         description: products.description,
+        ingredients: products.ingredients,
+        allergens: products.allergens,
+        nutritionalInfo: products.nutritionalInfo,
+        photos: products.photos,
         price: products.price,
+        category: products.category,
         status: products.status,
-        ean: products.ean,
-        createdAt: products.createdAt
+        sku: products.sku,
+        barcode: products.barcode,
+        packageSize: products.packageSize,
+        shelfLifeDays: products.shelfLifeDays,
+        minOrderQuantity: products.minOrderQuantity,
+        vat: products.vat,
+        depositPrice: products.depositPrice,
+        depositVat: products.depositVat,
+        productType: products.productType,
+        createdAt: products.createdAt,
+        updatedAt: products.updatedAt
       })
       .from(products)
       .where(eq(products.supplierId, supplierId))
-      .orderBy(products.name);
+      .orderBy(products.productName);
 
     res.json({
       success: true,
@@ -167,66 +209,92 @@ router.get('/products', async (req: AuthenticatedRequest, res: Response) => {
     const limitNum = Math.min(parseInt(limit as string) || 100, 500); // Max 500
     const offsetNum = parseInt(offset as string) || 0;
 
-    let query = db
-      .select({
-        id: products.id,
-        name: products.name,
-        description: products.description,
-        price: products.price,
-        status: products.status,
-        ean: products.ean,
-        category: products.category,
-        supplierId: products.supplierId,
-        supplierName: suppliers.name,
-        supplierEmail: suppliers.email,
-        supplierWebsite: suppliers.website,
-        createdAt: products.createdAt
-      })
-      .from(products)
-      .leftJoin(suppliers, eq(products.supplierId, suppliers.id))
-      .where(eq(products.status, 'active'));
-
+    // Build the base query
+    let whereConditions = [eq(products.status, 'active')];
+    
     if (supplier_id) {
       const supplierIdNum = parseInt(supplier_id as string);
       if (!isNaN(supplierIdNum)) {
-        query = query.where(and(
-          eq(products.status, 'active'),
-          eq(products.supplierId, supplierIdNum)
-        ));
+        whereConditions.push(eq(products.supplierId, supplierIdNum));
       }
     }
 
-    const allProducts = await query
+    const allProducts = await db
+      .select({
+        id: products.id,
+        vendonId: products.vendonId,
+        productName: products.productName,
+        price: products.price,
+        category: products.category,
+        description: products.description,
+        shortDescription: products.shortDescription,
+        ingredients: products.ingredients,
+        allergens: products.allergens,
+        nutritionalInfo: products.nutritionalInfo,
+        photos: products.photos,
+        status: products.status,
+        sku: products.sku,
+        barcode: products.barcode,
+        supplierId: products.supplierId,
+        supplierName: products.supplierName,
+        supplierSku: products.supplierSku,
+        packageSize: products.packageSize,
+        shelfLifeDays: products.shelfLifeDays,
+        minOrderQuantity: products.minOrderQuantity,
+        vat: products.vat,
+        depositPrice: products.depositPrice,
+        depositVat: products.depositVat,
+        productType: products.productType,
+        createdAt: products.createdAt,
+        updatedAt: products.updatedAt,
+        // Supplier information
+        supplier: {
+          id: suppliers.id,
+          name: suppliers.name,
+          email: suppliers.email,
+          website: suppliers.website,
+          shortDescription: suppliers.shortDescription,
+          photos: suppliers.photos
+        }
+      })
+      .from(products)
+      .leftJoin(suppliers, eq(products.supplierId, suppliers.id))
+      .where(and(...whereConditions))
       .limit(limitNum)
       .offset(offsetNum)
-      .orderBy(products.name);
+      .orderBy(products.productName);
 
-    // Zähle Gesamtanzahl für Pagination
-    const totalCountResult = await db
+    // Vollständigkeitsstatus für jedes Produkt hinzufügen
+    const productsWithCompleteness = allProducts.map(product => ({
+      ...product,
+      completeness: {
+        hasDescription: !!(product.shortDescription && product.shortDescription.length >= 10) ||
+                      !!(product.description && product.description.length >= 10),
+        hasPrice: !!(product.price && product.price > 0),
+        hasBarcode: !!product.barcode,
+        hasSupplier: !!product.supplierId,
+        hasIngredients: !!product.ingredients,
+        hasAllergens: !!product.allergens,
+        hasNutritionalInfo: !!product.nutritionalInfo,
+        hasPhotos: !!(product.photos && product.photos.length > 0)
+      }
+    }));
+
+    // Gesamtanzahl für Pagination ermitteln
+    const totalCount = await db
       .select({ count: products.id })
       .from(products)
-      .where(supplier_id ? 
-        and(eq(products.status, 'active'), eq(products.supplierId, parseInt(supplier_id as string))) :
-        eq(products.status, 'active')
-      );
+      .leftJoin(suppliers, eq(products.supplierId, suppliers.id))
+      .where(and(...whereConditions));
 
     res.json({
       success: true,
-      data: allProducts.map(product => ({
-        ...product,
-        // Vollständigkeitsstatus
-        completeness: {
-          hasDescription: !!product.description && product.description.length >= 10,
-          hasPrice: !!product.price && product.price > 0,
-          hasEan: !!product.ean,
-          hasSupplier: !!product.supplierId
-        }
-      })),
+      data: productsWithCompleteness,
       pagination: {
-        total: totalCountResult.length,
+        total: totalCount.length,
         limit: limitNum,
         offset: offsetNum,
-        hasMore: (offsetNum + limitNum) < totalCountResult.length
+        hasMore: totalCount.length > offsetNum + limitNum
       },
       timestamp: new Date().toISOString()
     });
@@ -243,7 +311,7 @@ router.get('/products', async (req: AuthenticatedRequest, res: Response) => {
 
 /**
  * GET /api/inter-app/products/:id
- * Liefert ein spezifisches Produkt mit allen Details
+ * Liefert ein spezifisches Produkt mit vollständigen Informationen
  */
 router.get('/products/:id', async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -260,28 +328,49 @@ router.get('/products/:id', async (req: AuthenticatedRequest, res: Response) => 
     const product = await db
       .select({
         id: products.id,
-        name: products.name,
-        description: products.description,
+        vendonId: products.vendonId,
+        productName: products.productName,
         price: products.price,
-        status: products.status,
-        ean: products.ean,
         category: products.category,
+        description: products.description,
+        shortDescription: products.shortDescription,
+        ingredients: products.ingredients,
+        allergens: products.allergens,
+        nutritionalInfo: products.nutritionalInfo,
+        photos: products.photos,
+        status: products.status,
+        sku: products.sku,
+        barcode: products.barcode,
         supplierId: products.supplierId,
-        supplierName: suppliers.name,
-        supplierEmail: suppliers.email,
-        supplierWebsite: suppliers.website,
-        supplierAddress: suppliers.address,
-        supplierCity: suppliers.city,
-        supplierPostalCode: suppliers.postalCode,
-        supplierCountry: suppliers.country,
-        createdAt: products.createdAt
+        supplierName: products.supplierName,
+        supplierSku: products.supplierSku,
+        packageSize: products.packageSize,
+        shelfLifeDays: products.shelfLifeDays,
+        minOrderQuantity: products.minOrderQuantity,
+        vat: products.vat,
+        depositPrice: products.depositPrice,
+        depositVat: products.depositVat,
+        productType: products.productType,
+        createdAt: products.createdAt,
+        updatedAt: products.updatedAt,
+        // Supplier information
+        supplier: {
+          id: suppliers.id,
+          name: suppliers.name,
+          email: suppliers.email,
+          website: suppliers.website,
+          address: suppliers.address,
+          city: suppliers.city,
+          postalCode: suppliers.postalCode,
+          shortDescription: suppliers.shortDescription,
+          photos: suppliers.photos
+        }
       })
       .from(products)
       .leftJoin(suppliers, eq(products.supplierId, suppliers.id))
-      .where(eq(products.id, productId))
-      .limit(1);
+      .where(eq(products.id, productId));
 
-    if (product.length === 0) {
+    if (!product || product.length === 0) {
       return res.status(404).json({
         success: false,
         error: 'Produkt nicht gefunden',
@@ -289,9 +378,24 @@ router.get('/products/:id', async (req: AuthenticatedRequest, res: Response) => 
       });
     }
 
+    const productWithCompleteness = {
+      ...product[0],
+      completeness: {
+        hasDescription: !!(product[0].shortDescription && product[0].shortDescription.length >= 10) ||
+                      !!(product[0].description && product[0].description.length >= 10),
+        hasPrice: !!(product[0].price && product[0].price > 0),
+        hasBarcode: !!product[0].barcode,
+        hasSupplier: !!product[0].supplierId,
+        hasIngredients: !!product[0].ingredients,
+        hasAllergens: !!product[0].allergens,
+        hasNutritionalInfo: !!product[0].nutritionalInfo,
+        hasPhotos: !!(product[0].photos && product[0].photos.length > 0)
+      }
+    };
+
     res.json({
       success: true,
-      data: product[0],
+      data: productWithCompleteness,
       timestamp: new Date().toISOString()
     });
 
@@ -306,188 +410,28 @@ router.get('/products/:id', async (req: AuthenticatedRequest, res: Response) => 
 });
 
 /**
- * GET /api/inter-app/warehouses
- * Liefert alle Lager mit Inventar-Zusammenfassung
- */
-router.get('/warehouses', async (req: AuthenticatedRequest, res: Response) => {
-  try {
-    const allWarehouses = await db
-      .select()
-      .from(warehouses)
-      .where(eq(warehouses.status, 'active'))
-      .orderBy(warehouses.name);
-
-    // Hole Inventar-Statistiken für jedes Lager
-    const warehousesWithStats = await Promise.all(
-      allWarehouses.map(async (warehouse) => {
-        const inventoryCount = await db
-          .select({ count: warehouseInventory.id })
-          .from(warehouseInventory)
-          .where(eq(warehouseInventory.warehouseId, warehouse.id));
-
-        return {
-          ...warehouse,
-          inventoryCount: inventoryCount.length
-        };
-      })
-    );
-
-    res.json({
-      success: true,
-      data: warehousesWithStats,
-      total: warehousesWithStats.length,
-      timestamp: new Date().toISOString()
-    });
-
-  } catch (error) {
-    console.error('[INTER-APP-API] Fehler beim Abrufen der Lager:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Fehler beim Abrufen der Lager',
-      code: 'WAREHOUSES_FETCH_ERROR'
-    });
-  }
-});
-
-/**
  * GET /api/inter-app/health
- * Gesundheitscheck der API
+ * Health Check für die API
  */
 router.get('/health', async (req: AuthenticatedRequest, res: Response) => {
   try {
-    // Teste Datenbankverbindung
-    const dbTest = await db.select({ count: suppliers.id }).from(suppliers).limit(1);
+    // Test database connection
+    const healthCheck = await db.select({ count: suppliers.id }).from(suppliers).limit(1);
     
     res.json({
       success: true,
       status: 'healthy',
       database: 'connected',
-      timestamp: new Date().toISOString(),
-      version: '1.0.0',
-      source: req.interAppSource
+      timestamp: new Date().toISOString()
     });
-
   } catch (error) {
-    console.error('[INTER-APP-API] Health Check Fehler:', error);
+    console.error('[INTER-APP-API] Health Check fehlgeschlagen:', error);
     res.status(500).json({
       success: false,
       status: 'unhealthy',
-      error: 'Datenbankverbindung fehlgeschlagen',
+      database: 'disconnected',
+      error: error instanceof Error ? error.message : 'Unknown error',
       timestamp: new Date().toISOString()
-    });
-  }
-});
-
-/**
- * GET /api/inter-app/data-completeness
- * Analysiert die Vollständigkeit der Daten
- */
-router.get('/data-completeness', async (req: AuthenticatedRequest, res: Response) => {
-  try {
-    // Lieferanten-Vollständigkeit
-    const allSuppliers = await db.select().from(suppliers).where(eq(suppliers.status, 'active'));
-    const supplierStats = {
-      total: allSuppliers.length,
-      withDescription: allSuppliers.filter(s => s.notes && s.notes.length >= 30).length,
-      withWebsite: allSuppliers.filter(s => !!s.website).length,
-      withCompleteAddress: allSuppliers.filter(s => s.address && s.city && s.postalCode).length,
-      withContact: allSuppliers.filter(s => s.email || s.phone).length
-    };
-
-    // Produkt-Vollständigkeit
-    const allProducts = await db.select().from(products).where(eq(products.status, 'active'));
-    const productStats = {
-      total: allProducts.length,
-      withDescription: allProducts.filter(p => p.description && p.description.length >= 10).length,
-      withPrice: allProducts.filter(p => p.price && p.price > 0).length,
-      withSupplier: allProducts.filter(p => !!p.supplierId).length,
-      withEan: allProducts.filter(p => !!p.ean).length
-    };
-
-    res.json({
-      success: true,
-      data: {
-        suppliers: {
-          ...supplierStats,
-          completeness: {
-            description: Math.round((supplierStats.withDescription / supplierStats.total) * 100),
-            website: Math.round((supplierStats.withWebsite / supplierStats.total) * 100),
-            address: Math.round((supplierStats.withCompleteAddress / supplierStats.total) * 100),
-            contact: Math.round((supplierStats.withContact / supplierStats.total) * 100)
-          }
-        },
-        products: {
-          ...productStats,
-          completeness: {
-            description: Math.round((productStats.withDescription / productStats.total) * 100),
-            price: Math.round((productStats.withPrice / productStats.total) * 100),
-            supplier: Math.round((productStats.withSupplier / productStats.total) * 100),
-            ean: Math.round((productStats.withEan / productStats.total) * 100)
-          }
-        }
-      },
-      timestamp: new Date().toISOString()
-    });
-
-  } catch (error) {
-    console.error('[INTER-APP-API] Fehler bei Vollständigkeitsanalyse:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Fehler bei der Vollständigkeitsanalyse',
-      code: 'COMPLETENESS_ANALYSIS_ERROR'
-    });
-  }
-});
-
-/**
- * GET /api/inter-app/config-check
- * Prüft die Konfiguration der Umgebungsvariablen (ohne Authentifizierung)
- */
-router.get('/config-check', async (req: Request, res: Response) => {
-  try {
-    const interAppSecret = process.env.INTER_APP_SECRET;
-    const apiSecretKey = process.env.API_SECRET_KEY;
-    
-    res.json({
-      success: true,
-      configuration: {
-        hasInterAppSecret: !!interAppSecret,
-        hasApiSecretKey: !!apiSecretKey,
-        interAppSecretLength: interAppSecret ? interAppSecret.length : 0,
-        apiSecretKeyLength: apiSecretKey ? apiSecretKey.length : 0
-      },
-      timestamp: new Date().toISOString()
-    });
-  } catch (error) {
-    console.error('[INTER-APP-API] Config Check Fehler:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Konfigurationsprüfung fehlgeschlagen'
-    });
-  }
-});
-
-/**
- * GET /api/inter-app/debug
- * Einfache Debug-Route ohne Authentifizierung zum Testen der Erreichbarkeit
- */
-router.get('/debug', async (req: Request, res: Response) => {
-  try {
-    res.json({
-      success: true,
-      message: 'Inter-App API ist erreichbar',
-      timestamp: new Date().toISOString(),
-      headers: {
-        'user-agent': req.headers['user-agent'],
-        'content-type': req.headers['content-type'],
-        'authorization': req.headers.authorization ? 'Present' : 'Missing'
-      }
-    });
-  } catch (error) {
-    console.error('[INTER-APP-API] Debug Fehler:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Debug-Route Fehler'
     });
   }
 });
