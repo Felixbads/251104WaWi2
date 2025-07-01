@@ -183,12 +183,12 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
       const items = await response.json();
       setOrderItems(items.map((item: any) => ({
         id: item.id,
-        product_id: item.product_id || item.productId,
-        product_name: item.product_name || item.productName || `Produkt-ID ${item.product_id || item.productId}`,
+        productId: item.productId,
+        productName: item.productName || `Produkt-ID ${item.productId}`,
         quantity: parseInt(item.quantity || 1),
         unit: item.unit || 'Stk',
-        unit_price: parseFloat(item.unit_price || item.unitPrice || 0),
-        total_price: parseFloat(item.total_price || item.totalPrice || 0)
+        unitPrice: parseFloat(item.unitPrice || 0),
+        totalPrice: parseFloat(item.totalPrice || 0)
       })));
 
     } catch (error) {
@@ -264,7 +264,7 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
   const updateItemQuantity = (itemId: number, newQuantity: number) => {
     setEditingItems(prev => prev.map(item => 
       item.id === itemId 
-        ? { ...item, quantity: newQuantity, total_price: newQuantity * item.unit_price }
+        ? { ...item, quantity: newQuantity, totalPrice: newQuantity * item.unitPrice }
         : item
     ));
   };
