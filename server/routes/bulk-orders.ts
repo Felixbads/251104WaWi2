@@ -50,7 +50,6 @@ router.get('/inventory/bulk/:supplierId', async (req, res) => {
         LEFT JOIN warehouses w ON ii.warehouse_id = w.id
         WHERE pc.supplier_id = ${supplierId}
         GROUP BY p.id, p.product_name, pc.unit_price, p.price
-        HAVING COALESCE(SUM(ii.quantity), 0) > 0
         ORDER BY p.product_name
       `;
     } else {
@@ -71,7 +70,6 @@ router.get('/inventory/bulk/:supplierId', async (req, res) => {
         LEFT JOIN warehouses w ON ii.warehouse_id = w.id
         WHERE p.supplier_id = ${supplierId}
         GROUP BY p.id, p.product_name, p.price
-        HAVING COALESCE(SUM(ii.quantity), 0) > 0
         ORDER BY p.product_name
       `;
     }
