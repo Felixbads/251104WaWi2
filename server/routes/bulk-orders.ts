@@ -169,16 +169,14 @@ router.get('/forecast/bulk/:supplierId/:weeks', async (req, res) => {
     const pcResult = await db.execute(purchaseConditionsQuery);
     const hasPurchaseConditions = parseInt(String(pcResult.rows[0].count)) > 0;
 
-    let forecastQuery;
-    if (hasPurchaseConditions) {
-      console.log('Using purchase conditions for forecast');
-      forecastQuery = sql`
-        WITH supplier_products AS (
-          SELECT DISTINCT p.id, p.product_name
-          FROM products p
-          INNER JOIN purchase_conditions pc ON p.id = pc.product_id
-          WHERE pc.supplier_id = ${supplierId}
-        ),
+    // Always use comprehensive supplier query for forecast too
+    console.log('Using comprehensive supplier query for forecast');
+    let forecastQuery = sql`
+      WITH supplier_products AS (
+        SELECT DISTINCT p.id, p.product_name
+        FROM products p
+        WHERE p.supplier_id = ${supplierId}
+      ),
         historical_sales AS (
           SELECT 
             sp.id as product_id,
@@ -199,37 +197,7 @@ router.get('/forecast/bulk/:supplierId/:weeks', async (req, res) => {
         FROM historical_sales hs
         WHERE hs.avg_weekly_sales > 0
         ORDER BY hs.avg_weekly_sales DESC
-      `;
-    } else {
-      console.log('Using supplier_id for forecast');
-      forecastQuery = sql`
-        WITH supplier_products AS (
-          SELECT DISTINCT p.id, p.product_name
-          FROM products p
-          WHERE p.supplier_id = ${supplierId}
-        ),
-        historical_sales AS (
-          SELECT 
-            sp.id as product_id,
-            sp.product_name,
-            COUNT(t.id) as total_sales,
-            COALESCE(COUNT(t.id)::float / 4, 0) as avg_weekly_sales
-          FROM supplier_products sp
-          LEFT JOIN transactions t ON LOWER(TRIM(t.product_name)) = LOWER(TRIM(sp.product_name))
-            AND t.datetime >= ${subWeeks(new Date(), 4).toISOString()}
-          GROUP BY sp.id, sp.product_name
-        )
-        SELECT 
-          hs.product_id,
-          hs.product_name,
-          hs.avg_weekly_sales,
-          CAST(hs.avg_weekly_sales * ${forecastWeeks} AS INTEGER) as forecasted_demand,
-          'medium' as confidence_level
-        FROM historical_sales hs
-        WHERE hs.avg_weekly_sales > 0
-        ORDER BY hs.avg_weekly_sales DESC
-      `;
-    }
+    `;
 
     console.log('Executing forecast query...');
     const result = await db.execute(forecastQuery);
