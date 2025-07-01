@@ -175,20 +175,24 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
     try {
       setIsLoadingItems(true);
       
-      const response = await fetch(`${window.location.origin}/api/orders/${orderId}/items`);
+      const response = await fetch(`${window.location.origin}/api/order-items-direct/${orderId}`);
       if (!response.ok) {
         throw new Error(`Failed to load order items: ${response.statusText}`);
       }
 
-      const items = await response.json();
+      const result = await response.json();
+      const items = result.data || result;
+      
+      console.log('Loading order items from API:', items);
+      
       setOrderItems(items.map((item: any) => ({
         id: item.id,
-        productId: item.productId,
-        productName: item.productName || `Produkt-ID ${item.productId}`,
+        productId: item.product_id,
+        productName: item.product_name || `Produkt-ID ${item.product_id || 'undefined'}`,
         quantity: parseInt(item.quantity || 1),
         unit: item.unit || 'Stk',
-        unitPrice: parseFloat(item.unitPrice || 0),
-        totalPrice: parseFloat(item.totalPrice || 0)
+        unitPrice: parseFloat(item.unit_price || 0),
+        totalPrice: parseFloat(item.total_price || 0)
       })));
 
     } catch (error) {
