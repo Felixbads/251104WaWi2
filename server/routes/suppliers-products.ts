@@ -50,36 +50,73 @@ router.get('/:id/products', async (req: Request, res: Response) => {
     console.log(`[SUPPLIER-PRODUCTS] Supplier ${supplierId} has purchase conditions: ${hasPurchaseConditions}`);
 
     // GEÄNDERT: Immer ALLE Produkte des Lieferanten anzeigen (konsistent mit Bulk Orders)
-    console.log(`[SUPPLIER-PRODUCTS] Using comprehensive approach for supplier ${supplierId} - showing ALL products`);
+    // KRITISCH: Verwende EINKAUFSPREISE (purchase_conditions.unitPrice) statt Verkaufspreise (products.price)
+    console.log(`[SUPPLIER-PRODUCTS] Using comprehensive approach for supplier ${supplierId} - showing ALL products with PURCHASE PRICES`);
     
-    // Hole ALLE Produkte des Lieferanten, unabhängig von purchase_conditions
-    const supplierProducts = await db
-      .select({
-        id: products.id,
-        vendonId: products.vendonId,
-        productName: products.productName,
-        sku: products.sku,
-        barcode: products.barcode,
-        price: products.price,
-        category: products.category,
-        description: products.description,
-        status: products.status,
-        supplierSku: products.supplierSku,
-        packageSize: products.packageSize,
-        minOrderQuantity: products.minOrderQuantity,
-        shelfLifeDays: products.shelfLifeDays,
-        supplierId: products.supplierId,
-        createdAt: products.createdAt,
-        updatedAt: products.updatedAt,
-      })
-      .from(products)
-      .where(
-        and(
-          eq(products.supplierId, supplierId),
-          eq(products.status, 'active')
+    let supplierProducts;
+    
+    if (hasPurchaseConditions) {
+      // Mit Purchase Conditions: Nutze Einkaufspreise
+      console.log(`[SUPPLIER-PRODUCTS] Using PURCHASE PRICES from purchase_conditions for supplier ${supplierId}`);
+      supplierProducts = await db
+        .select({
+          id: products.id,
+          vendonId: products.vendonId,
+          productName: products.productName,
+          sku: products.sku,
+          barcode: products.barcode,
+          price: purchaseConditions.unitPrice, // EINKAUFSPREIS statt Verkaufspreis
+          category: products.category,
+          description: products.description,
+          status: products.status,
+          supplierSku: products.supplierSku,
+          packageSize: products.packageSize,
+          minOrderQuantity: products.minOrderQuantity,
+          shelfLifeDays: products.shelfLifeDays,
+          supplierId: products.supplierId,
+          createdAt: products.createdAt,
+          updatedAt: products.updatedAt,
+        })
+        .from(products)
+        .innerJoin(purchaseConditions, eq(products.id, purchaseConditions.productId))
+        .where(
+          and(
+            eq(purchaseConditions.supplierId, supplierId),
+            eq(products.status, 'active')
+          )
         )
-      )
-      .orderBy(asc(products.productName));
+        .orderBy(asc(products.productName));
+    } else {
+      // Ohne Purchase Conditions: Fallback auf Produkt-Preise (für Kompatibilität)
+      console.log(`[SUPPLIER-PRODUCTS] No purchase conditions found, using product prices for supplier ${supplierId}`);
+      supplierProducts = await db
+        .select({
+          id: products.id,
+          vendonId: products.vendonId,
+          productName: products.productName,
+          sku: products.sku,
+          barcode: products.barcode,
+          price: products.price,
+          category: products.category,
+          description: products.description,
+          status: products.status,
+          supplierSku: products.supplierSku,
+          packageSize: products.packageSize,
+          minOrderQuantity: products.minOrderQuantity,
+          shelfLifeDays: products.shelfLifeDays,
+          supplierId: products.supplierId,
+          createdAt: products.createdAt,
+          updatedAt: products.updatedAt,
+        })
+        .from(products)
+        .where(
+          and(
+            eq(products.supplierId, supplierId),
+            eq(products.status, 'active')
+          )
+        )
+        .orderBy(asc(products.productName));
+    }
 
 
 
