@@ -276,12 +276,12 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
   const addNewItem = (product: any, quantity: number) => {
     const newItem: OrderItem = {
       id: -Math.random(), // Temporary negative ID for new items
-      product_id: product.id,
-      product_name: product.productName || product.name,
+      productId: product.id,
+      productName: product.productName || product.name,
       quantity: quantity,
       unit: product.units || 'Stk',
-      unit_price: product.price || 0,
-      total_price: quantity * (product.price || 0)
+      unitPrice: product.price || 0,
+      totalPrice: quantity * (product.price || 0)
     };
     setEditingItems(prev => [...prev, newItem]);
     setShowAddItemDialog(false);
@@ -604,7 +604,7 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
                   {(isEditing ? editingItems : orderItems).map((item, index) => (
                     <div key={item.id} className="flex items-center justify-between py-3 border-b last:border-b-0">
                       <div className="flex-1">
-                        <h4 className="font-medium">{item.product_name}</h4>
+                        <h4 className="font-medium">{item.productName}</h4>
                         <div className="flex items-center space-x-4 mt-2">
                           {isEditing ? (
                             <>
@@ -620,19 +620,19 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
                                 <span className="text-sm text-gray-600">{item.unit}</span>
                               </div>
                               <div className="text-sm text-gray-600">
-                                × {item.unit_price.toFixed(2)} €
+                                × {item.unitPrice.toFixed(2)} €
                               </div>
                             </>
                           ) : (
                             <p className="text-sm text-gray-600">
-                              {item.quantity} {item.unit} × {item.unit_price.toFixed(2)} €
+                              {item.quantity} {item.unit} × {item.unitPrice.toFixed(2)} €
                             </p>
                           )}
                         </div>
                       </div>
                       <div className="flex items-center space-x-2">
                         <div className="text-right">
-                          <p className="font-medium">{item.total_price.toFixed(2)} €</p>
+                          <p className="font-medium">{item.totalPrice.toFixed(2)} €</p>
                         </div>
                         {isEditing && (
                           <Button
@@ -654,7 +654,7 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
                     <span className="text-lg font-semibold">Gesamtsumme:</span>
                     <span className="text-lg font-bold">
                       {isEditing 
-                        ? editingItems.reduce((sum, item) => sum + item.total_price, 0).toFixed(2)
+                        ? editingItems.reduce((sum, item) => sum + item.totalPrice, 0).toFixed(2)
                         : order.total_amount.toFixed(2)
                       } €
                     </span>
