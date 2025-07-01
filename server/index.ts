@@ -44,10 +44,13 @@ import { eq } from 'drizzle-orm';
 import nodemailer from 'nodemailer';
 import { uploadPhotos } from './middleware/fileUpload';
 import { startPhotoServer } from './photoServer';
+import interAppApiRouter from './routes/inter-app-api';
 
 const app = express();
 
 // INTER-APP API ENDPOINTS - MUST BE FIRST TO BYPASS ALL MIDDLEWARE
+// Mount enhanced inter-app API routes
+app.use('/api/inter-app', interAppApiRouter);
 // Health Check für externe Apps
 app.get('/api/inter-app/health', async (req, res) => {
   try {
