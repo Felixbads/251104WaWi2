@@ -16,19 +16,19 @@ import EmailDialog from './EmailDialog';
 
 interface OrderItem {
   id: number;
-  product_id: number;
-  product_name: string;
+  productId: number;
+  productName: string;
   quantity: number;
   unit: string;
-  unit_price: number;
-  total_price: number;
-  package_size?: number;
-  package_quantity?: number;
-  package_info?: string;
-  vat_rate?: number;
-  vat_amount?: number;
-  net_amount?: number;
-  gross_amount?: number;
+  unitPrice: number;
+  totalPrice: number;
+  packageSize?: number;
+  packageQuantity?: number;
+  packageInfo?: string;
+  vatRate?: number;
+  vatAmount?: number;
+  netAmount?: number;
+  grossAmount?: number;
 }
 
 interface VatGroup {
@@ -82,6 +82,45 @@ interface OrderDetailProps {
   orderId: number;
   onBack: () => void;
   onEmailPrepare?: () => void;
+}
+
+// Separate ProductRow component to avoid conditional hooks
+function ProductRow({ product, onAdd }: { 
+  product: any; 
+  onAdd: (product: any, quantity: number) => void 
+}) {
+  const [selectedQuantity, setSelectedQuantity] = React.useState(1);
+  
+  return (
+    <div className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
+      <div className="flex-1">
+        <h4 className="font-medium">{product.productName || product.name}</h4>
+        <p className="text-sm text-gray-600">
+          {product.price?.toFixed(2)} € / {product.units || 'Stk'}
+        </p>
+        {product.description && (
+          <p className="text-xs text-gray-500 mt-1">{product.description}</p>
+        )}
+      </div>
+      <div className="flex items-center space-x-2">
+        <Input
+          type="number"
+          min="1"
+          defaultValue={1}
+          className="w-20"
+          onChange={(e) => setSelectedQuantity(parseInt(e.target.value) || 1)}
+        />
+        <Button
+          onClick={() => onAdd(product, selectedQuantity)}
+          size="sm"
+          variant="outline"
+        >
+          <Plus className="h-4 w-4 mr-1" />
+          Hinzufügen
+        </Button>
+      </div>
+    </div>
+  );
 }
 
 const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepare }) => {
@@ -714,40 +753,13 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
               </div>
             ) : (
               <div className="space-y-2 max-h-96 overflow-y-auto">
-                {availableProducts.map((product) => {
-                  const [selectedQuantity, setSelectedQuantity] = React.useState(1);
-                  
-                  return (
-                    <div key={product.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
-                      <div className="flex-1">
-                        <h4 className="font-medium">{product.productName || product.name}</h4>
-                        <p className="text-sm text-gray-600">
-                          {product.price?.toFixed(2)} € / {product.units || 'Stk'}
-                        </p>
-                        {product.description && (
-                          <p className="text-xs text-gray-500 mt-1">{product.description}</p>
-                        )}
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <Input
-                          type="number"
-                          min="1"
-                          defaultValue={1}
-                          className="w-20"
-                          onChange={(e) => setSelectedQuantity(parseInt(e.target.value) || 1)}
-                        />
-                        <Button
-                          onClick={() => addNewItem(product, selectedQuantity)}
-                          size="sm"
-                          variant="outline"
-                        >
-                          <Plus className="h-4 w-4 mr-1" />
-                          Hinzufügen
-                        </Button>
-                      </div>
-                    </div>
-                  );
-                })}
+                {availableProducts.map((product) => (
+                  <ProductRow 
+                    key={product.id} 
+                    product={product} 
+                    onAdd={(product, quantity) => addNewItem(product, quantity)} 
+                  />
+                ))}
               </div>
             )}
           </div>

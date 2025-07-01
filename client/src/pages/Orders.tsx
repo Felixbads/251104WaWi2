@@ -1031,7 +1031,7 @@ export default function Orders() {
                       {selectedOrder.orderItems.map((item) => (
                         <TableRow key={item.id}>
                           <TableCell>{item.positionNumber}</TableCell>
-                          <TableCell className="font-medium">{item.productName}</TableCell>
+                          <TableCell className="font-medium">{item.productName || item.product_name || `Produkt #${item.productId || item.product_id}`}</TableCell>
                           <TableCell className="text-right">{item.quantity} {item.unit}</TableCell>
                           <TableCell className="text-right">{formatCurrency(item.unitPrice)}</TableCell>
                           <TableCell className="text-right">{formatCurrency(item.totalPrice)}</TableCell>
