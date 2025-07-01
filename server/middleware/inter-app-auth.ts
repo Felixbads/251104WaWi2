@@ -66,18 +66,46 @@ export function interAppAuthMiddleware(req: AuthenticatedRequest, res: Response,
     .update(signaturePayload)
     .digest('hex');
 
+  // Debug-Ausgabe für Signatur-Prüfung
+  console.log(`[INTER-APP-AUTH] Signature debug:`);
+  console.log(`  Method: ${method}`);
+  console.log(`  Path: ${path}`);
+  console.log(`  Body: "${body}"`);
+  console.log(`  Timestamp: ${timestamp}`);
+  console.log(`  Source: ${source}`);
+  console.log(`  Signature Payload: "${signaturePayload}"`);
+  console.log(`  Expected Signature: ${expectedSignature}`);
+  console.log(`  Provided Signature: ${token}`);
+
   // Vergleiche Signaturen (Zeit-sichere Vergleichung)
   const providedSignature = token;
-  const signatureMatch = crypto.timingSafeEqual(
-    Buffer.from(expectedSignature, 'hex'),
-    Buffer.from(providedSignature, 'hex')
-  );
+  let signatureMatch = false;
+  
+  try {
+    signatureMatch = crypto.timingSafeEqual(
+      Buffer.from(expectedSignature, 'hex'),
+      Buffer.from(providedSignature, 'hex')
+    );
+  } catch (error) {
+    console.warn(`[INTER-APP-AUTH] Fehler beim Signatur-Vergleich: ${error instanceof Error ? error.message : error}`);
+    return res.status(401).json({ 
+      error: 'Ungültiges Signatur-Format',
+      code: 'INVALID_SIGNATURE_FORMAT'
+    });
+  }
 
   if (!signatureMatch) {
     console.warn(`[INTER-APP-AUTH] Ungültige Signatur von ${req.ip} für ${method} ${path}`);
+    console.warn(`[INTER-APP-AUTH] Erwartete Signatur: ${expectedSignature}`);
+    console.warn(`[INTER-APP-AUTH] Erhaltene Signatur: ${providedSignature}`);
     return res.status(401).json({ 
       error: 'Ungültige Authentifizierung',
-      code: 'INVALID_SIGNATURE'
+      code: 'INVALID_SIGNATURE',
+      debug: {
+        expectedPayload: signaturePayload,
+        expectedSignature: expectedSignature,
+        providedSignature: providedSignature
+      }
     });
   }
 
@@ -146,7 +174,7 @@ export function interAppRateLimitMiddleware(
   windowMinutes: number = 1
 ) {
   return (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
-    const source = req.interAppSource || req.ip;
+    const source = req.interAppSource || req.ip || 'unknown';
     const now = Date.now();
     const windowMs = windowMinutes * 60 * 1000;
     

@@ -49,9 +49,7 @@ import interAppApiRouter from './routes/inter-app-api';
 const app = express();
 
 // INTER-APP API ENDPOINTS - MUST BE FIRST TO BYPASS ALL MIDDLEWARE
-// Mount enhanced inter-app API routes
-app.use('/api/inter-app', interAppApiRouter);
-// Health Check für externe Apps
+// Health Check für externe Apps (OHNE Authentifizierung)
 app.get('/api/inter-app/health', async (req, res) => {
   try {
     res.setHeader('Content-Type', 'application/json');
@@ -77,6 +75,9 @@ app.get('/api/inter-app/health', async (req, res) => {
     });
   }
 });
+
+// Mount enhanced inter-app API routes (MIT Authentifizierung)
+app.use('/api/inter-app', interAppApiRouter);
 
 // Lieferanten-API für externe Apps
 app.get('/api/inter-app/suppliers', async (req, res) => {
