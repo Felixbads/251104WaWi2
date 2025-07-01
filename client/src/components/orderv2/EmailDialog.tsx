@@ -111,6 +111,9 @@ export default function EmailDialog({
 
       // Add order items if available
       if (orderItems.length > 0) {
+        // Check if supplier wants prices shown (default: true if not specified)
+        const showPrices = orderData?.supplier_show_prices !== false;
+        
         htmlContent += `
           <h3>Bestellpositionen:</h3>
           <table border="1" cellpadding="8" cellspacing="0" style="border-collapse: collapse; width: 100%;">
@@ -119,8 +122,7 @@ export default function EmailDialog({
                 <th>Artikel</th>
                 <th>Menge</th>
                 <th>Einheit</th>
-                <th>Einzelpreis</th>
-                <th>Gesamtpreis</th>
+                ${showPrices ? '<th>Einzelpreis</th><th>Gesamtpreis</th>' : ''}
               </tr>
             </thead>
             <tbody>
@@ -135,17 +137,21 @@ export default function EmailDialog({
               <td>${item.product_name || 'Unbekanntes Produkt'}</td>
               <td>${item.quantity || 0}</td>
               <td>${item.unit || 'Stk'}</td>
-              <td>${item.unit_price ? item.unit_price.toFixed(2) + ' €' : 'N/A'}</td>
-              <td>${itemTotal ? itemTotal.toFixed(2) + ' €' : 'N/A'}</td>
+              ${showPrices ? `<td>${item.unit_price ? item.unit_price.toFixed(2) + ' €' : 'N/A'}</td><td>${itemTotal ? itemTotal.toFixed(2) + ' €' : 'N/A'}</td>` : ''}
             </tr>
           `;
         });
         
-        htmlContent += `
+        if (showPrices) {
+          htmlContent += `
             <tr style="background-color: #f5f5f5; font-weight: bold;">
-              <td colspan="4">Gesamtsumme:</td>
-              <td>${totalAmount.toFixed(2)} €</td>
+              <td colspan="3">Gesamtsumme:</td>
+              <td colspan="2">${totalAmount.toFixed(2)} €</td>
             </tr>
+          `;
+        }
+        
+        htmlContent += `
             </tbody>
           </table>
         `;

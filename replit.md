@@ -109,6 +109,15 @@ This is a comprehensive vending machine management platform (Warenwirtschaftssys
 
 ## Changelog
 
+- July 1, 2025: Product Display and Email Customization Enhanced
+  - ✓ Fixed product display to show ALL supplier products in both regular and bulk orders (19 products instead of 6 for Milchhof Fiedler)
+  - ✓ Modified suppliers-products.ts to remove purchase_conditions filtering and display all active supplier products
+  - ✓ Added email customization with editable content in EmailDialog component
+  - ✓ Enhanced email interface with three tabs: Preview, Edit, and HTML Code view
+  - ✓ Implemented supplier-specific price visibility setting (showPricesInOrders field)
+  - ✓ Added UI control in supplier edit form to toggle price display in order emails
+  - ✓ Email system now respects supplier preference for showing/hiding prices in order communications
+  - Both order management systems now display complete product catalogs with customizable email formatting
 - July 1, 2025: Inter-App API Authentication Issue Fixed
   - ✓ Resolved HMAC-SHA256 authentication problem for health endpoint
   - ✓ Moved health endpoint before authenticated router to bypass authentication requirement

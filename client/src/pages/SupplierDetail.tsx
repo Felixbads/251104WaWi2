@@ -826,6 +826,35 @@ export default function SupplierDetail() {
                   />
                 </div>
 
+                {/* Preisanzeige-Einstellung für E-Mails */}
+                <FormField
+                  control={form.control}
+                  name="showPricesInOrders"
+                  render={({ field }) => (
+                    <FormItem className="md:col-span-2">
+                      <div className="flex items-center space-x-2 p-4 bg-orange-50 border border-orange-200 rounded-lg">
+                        <FormControl>
+                          <input
+                            type="checkbox"
+                            checked={field.value || false}
+                            onChange={(e) => field.onChange(e.target.checked)}
+                            className="w-4 h-4 text-orange-600 bg-gray-100 border-gray-300 rounded focus:ring-orange-500"
+                          />
+                        </FormControl>
+                        <div className="space-y-1">
+                          <FormLabel className="text-sm font-medium text-orange-800">
+                            Preise in Bestell-E-Mails anzeigen
+                          </FormLabel>
+                          <p className="text-xs text-orange-700">
+                            Wenn deaktiviert, werden in Bestell-E-Mails an diesen Lieferanten keine Preise angezeigt
+                          </p>
+                        </div>
+                      </div>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
                 {/* Anmerkungen */}
                 <FormField
                   control={form.control}
