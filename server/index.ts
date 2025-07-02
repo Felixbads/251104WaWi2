@@ -45,6 +45,7 @@ import nodemailer from 'nodemailer';
 import { uploadPhotos } from './middleware/fileUpload';
 import { startPhotoServer } from './photoServer';
 import interAppApiRouter from './routes/inter-app-api';
+import suppliersFastRouter from './routes/suppliers-fast';
 
 const app = express();
 
@@ -2216,6 +2217,7 @@ Elbsandstein Proviant & Quartier GmbH`;
 
   // Register supplier analytics router BEFORE Vite to prevent routing conflicts
   app.use('/api/supplier-analytics', supplierAnalyticsRouter);
+  app.use('/api/suppliers', suppliersFastRouter);
   app.use('/api/support-tickets', supportTicketsRouter);
 
   // Register enhanced order copy router
