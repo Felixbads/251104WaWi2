@@ -323,6 +323,23 @@ export function SupplierEditDialog({ supplier, isOpen, onOpenChange, onSave }: S
                 </div>
               </CardContent>
             </Card>
+            
+            <Card>
+              <CardHeader>
+                <CardTitle>Einkaufsbedingungen (Produktpreise)</CardTitle>
+                <p className="text-sm text-gray-600">
+                  Hier können Sie die Einkaufspreise für Produkte dieses Lieferanten verwalten
+                </p>
+              </CardHeader>
+              <CardContent>
+                <div className="text-center py-8 text-gray-500">
+                  <p className="mb-4">Die Einkaufsbedingungen werden auf der Lieferanten-Detailseite verwaltet.</p>
+                  <p className="text-sm">
+                    Öffnen Sie die Lieferanten-Detailseite, um Produktpreise hinzuzufügen und zu bearbeiten.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           <TabsContent value="ordering" className="space-y-4">
@@ -524,19 +541,9 @@ export function SupplierEditDialog({ supplier, isOpen, onOpenChange, onSave }: S
               <CardContent className="space-y-4">
                 <div>
                   <Label>Aktuelles Foto</Label>
-                  {formData.photoUrl ? (
-                    <div className="mt-2">
-                      <img 
-                        src={formData.photoUrl} 
-                        alt="Lieferanten-Foto" 
-                        className="max-w-xs h-32 object-cover rounded-lg border"
-                      />
-                    </div>
-                  ) : (
-                    <div className="mt-2 p-4 border-2 border-dashed border-gray-300 rounded-lg text-center text-gray-500">
-                      Kein Foto hochgeladen
-                    </div>
-                  )}
+                  <div className="mt-2 p-4 border-2 border-dashed border-gray-300 rounded-lg text-center text-gray-500">
+                    Foto-Upload wird implementiert
+                  </div>
                 </div>
                 
                 <div>
