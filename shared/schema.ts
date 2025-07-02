@@ -113,6 +113,11 @@ export const suppliers = pgTable("suppliers", {
   deliveryFrequency: text("delivery_frequency"), // "weekly", "biweekly", "on_demand"
   deliveryWeekday: text("delivery_weekday"), // "monday", "tuesday", etc.
   
+  // Zusätzliche Einkaufsbedingungen-Felder
+  preferredDeliveryMethod: text("preferred_delivery_method"), // "delivery", "pickup", etc.
+  orderPreferences: text("order_preferences"), // Zusätzliche Bestellpräferenzen
+  deliveryPreferences: text("delivery_preferences"), // Zusätzliche Lieferpräferenzen
+  
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
