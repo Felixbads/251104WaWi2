@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { SupplierPhotoUpload } from '@/components/SupplierPhotoUpload';
+import { PurchaseConditionsTab } from '@/components/PurchaseConditionsTab';
 import { useToast } from '@/hooks/use-toast';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
@@ -354,22 +355,10 @@ export function SupplierEditDialog({ supplier, isOpen, onOpenChange, onSave }: S
               </CardContent>
             </Card>
             
-            <Card>
-              <CardHeader>
-                <CardTitle>Einkaufsbedingungen (Produktpreise)</CardTitle>
-                <p className="text-sm text-gray-600">
-                  Hier können Sie die Einkaufspreise für Produkte dieses Lieferanten verwalten
-                </p>
-              </CardHeader>
-              <CardContent>
-                <div className="text-center py-8 text-gray-500">
-                  <p className="mb-4">Die Einkaufsbedingungen werden auf der Lieferanten-Detailseite verwaltet.</p>
-                  <p className="text-sm">
-                    Öffnen Sie die Lieferanten-Detailseite, um Produktpreise hinzuzufügen und zu bearbeiten.
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
+            <PurchaseConditionsTab 
+              supplierId={supplier.id} 
+              supplierName={supplier.name}
+            />
           </TabsContent>
 
           <TabsContent value="ordering" className="space-y-4">
