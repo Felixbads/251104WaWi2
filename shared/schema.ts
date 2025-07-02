@@ -95,10 +95,23 @@ export const suppliers = pgTable("suppliers", {
   
   // Neue Felder für Beschreibung und Fotos
   shortDescription: text("short_description"), // Kurze Lieferantenbeschreibung
+  description: text("description"), // Detaillierte Lieferantenbeschreibung
   photos: text("photos").array(), // Array von Foto-URLs
   
   // Preisanzeige in Bestellungen - Option für Lieferanten
   showPricesInOrders: boolean("show_prices_in_orders").default(true), // Standardmäßig Preise anzeigen
+  
+  // Bestellungseinstellungen
+  hideOrderPrices: boolean("hide_order_prices").default(false), // E-Mails ohne EUR-Werte
+  deliveryMethod: text("delivery_method").default("delivery"), // "delivery" or "pickup"
+  
+  // Bestellungs-Turnus Einstellungen
+  orderFrequency: text("order_frequency"), // "weekly", "biweekly", "on_demand"
+  orderWeekday: text("order_weekday"), // "monday", "tuesday", etc.
+  
+  // Lieferungs-/Abholungs-Turnus Einstellungen  
+  deliveryFrequency: text("delivery_frequency"), // "weekly", "biweekly", "on_demand"
+  deliveryWeekday: text("delivery_weekday"), // "monday", "tuesday", etc.
   
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),

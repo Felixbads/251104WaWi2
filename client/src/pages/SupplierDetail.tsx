@@ -979,6 +979,31 @@ export default function SupplierDetail() {
                 
                 <Separator />
                 
+                {/* Beschreibung */}
+                <div>
+                  <h3 className="text-sm font-medium text-muted-foreground mb-2">Beschreibung</h3>
+                  
+                  {supplier.shortDescription && (
+                    <div className="mb-3">
+                      <span className="font-medium text-sm">Kurzbeschreibung:</span>
+                      <p className="text-sm text-muted-foreground mt-1">{supplier.shortDescription}</p>
+                    </div>
+                  )}
+                  
+                  {supplier.description && (
+                    <div>
+                      <span className="font-medium text-sm">Beschreibung:</span>
+                      <p className="text-sm text-muted-foreground mt-1 whitespace-pre-wrap">{supplier.description}</p>
+                    </div>
+                  )}
+                  
+                  {!supplier.shortDescription && !supplier.description && (
+                    <p className="text-sm text-muted-foreground italic">Keine Beschreibung verfügbar</p>
+                  )}
+                </div>
+                
+                <Separator />
+                
                 <div>
                   <h3 className="text-sm font-medium text-muted-foreground mb-2">Adresse</h3>
                   
