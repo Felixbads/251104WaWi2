@@ -17,6 +17,18 @@ export async function getSuppliersSchedules(req: Request, res: Response) {
         contactPerson: suppliers.contactPerson,
         phone: suppliers.phone,
         email: suppliers.email,
+        // Purchase conditions
+        paymentTerms: suppliers.paymentTerms,
+        deliveryTerms: suppliers.deliveryTerms,
+        showPricesInOrders: suppliers.showPricesInOrders,
+        preferredDeliveryMethod: suppliers.preferredDeliveryMethod,
+        // Additional scheduling preferences
+        orderPreferences: suppliers.orderPreferences,
+        deliveryPreferences: suppliers.deliveryPreferences,
+        // Basic supplier info
+        description: suppliers.description,
+        address: suppliers.address,
+        status: suppliers.status,
       })
       .from(suppliers)
       .where(sql`${suppliers.status} = 'active'`)

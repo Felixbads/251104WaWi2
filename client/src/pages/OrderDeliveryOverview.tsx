@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Calendar, Truck, Package, Clock, User, MapPin } from "lucide-react";
+import { Calendar, Truck, Package, Clock, User, MapPin, CreditCard, FileText, Settings, CheckCircle, XCircle } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
@@ -19,6 +19,17 @@ interface SupplierSchedule {
   contactPerson: string | null;
   phone: string | null;
   email: string | null;
+  // Purchase conditions
+  paymentTerms: string | null;
+  deliveryTerms: string | null;
+  showPricesInOrders: boolean | null;
+  preferredDeliveryMethod: string | null;
+  orderPreferences: string | null;
+  deliveryPreferences: string | null;
+  // Basic info
+  description: string | null;
+  address: string | null;
+  status: string | null;
 }
 
 const weekdayMap: Record<string, string> = {
@@ -92,14 +103,86 @@ export default function OrderDeliveryOverview() {
           <User className="h-5 w-5 text-blue-600" />
           {supplier.name}
         </CardTitle>
-        {supplier.contactPerson && (
-          <CardDescription className="flex items-center gap-2">
-            <MapPin className="h-4 w-4" />
-            {supplier.contactPerson}
-          </CardDescription>
-        )}
+        <CardDescription className="space-y-1">
+          {supplier.contactPerson && (
+            <div className="flex items-center gap-2">
+              <User className="h-4 w-4" />
+              {supplier.contactPerson}
+            </div>
+          )}
+          {supplier.address && (
+            <div className="flex items-center gap-2">
+              <MapPin className="h-4 w-4" />
+              {supplier.address}
+            </div>
+          )}
+          {supplier.email && (
+            <div className="flex items-center gap-2 text-sm text-gray-600">
+              📧 {supplier.email}
+            </div>
+          )}
+          {supplier.phone && (
+            <div className="flex items-center gap-2 text-sm text-gray-600">
+              📞 {supplier.phone}
+            </div>
+          )}
+        </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-3">
+      <CardContent className="space-y-4">
+        {/* Einkaufsbedingungen */}
+        <div className="bg-gray-50 p-3 rounded-lg space-y-3">
+          <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+            <Settings className="h-4 w-4" />
+            Einkaufsbedingungen
+          </div>
+          
+          {/* Zahlungsbedingungen */}
+          {supplier.paymentTerms && (
+            <div className="flex items-start gap-2">
+              <CreditCard className="h-4 w-4 text-green-600 mt-0.5" />
+              <div className="flex-1">
+                <div className="text-sm font-medium">Zahlungsbedingungen</div>
+                <div className="text-sm text-gray-600">{supplier.paymentTerms}</div>
+              </div>
+            </div>
+          )}
+
+          {/* Lieferbedingungen */}
+          {supplier.deliveryTerms && (
+            <div className="flex items-start gap-2">
+              <FileText className="h-4 w-4 text-blue-600 mt-0.5" />
+              <div className="flex-1">
+                <div className="text-sm font-medium">Lieferbedingungen</div>
+                <div className="text-sm text-gray-600">{supplier.deliveryTerms}</div>
+              </div>
+            </div>
+          )}
+
+          {/* E-Mail ohne EUR Werte */}
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2">
+              {supplier.showPricesInOrders ? (
+                <CheckCircle className="h-4 w-4 text-green-600" />
+              ) : (
+                <XCircle className="h-4 w-4 text-red-600" />
+              )}
+              <div className="text-sm">
+                Preise in Bestellungen {supplier.showPricesInOrders ? 'anzeigen' : 'ausblenden'}
+              </div>
+            </div>
+          </div>
+
+          {/* Bevorzugte Lieferart */}
+          {supplier.preferredDeliveryMethod && (
+            <div className="flex items-center gap-2">
+              <Truck className="h-4 w-4 text-purple-600" />
+              <div className="text-sm">
+                <span className="font-medium">Bevorzugt:</span> {deliveryMethodMap[supplier.preferredDeliveryMethod] || supplier.preferredDeliveryMethod}
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* Bestellungsturnus */}
         {supplier.orderFrequency && (
           <div className="flex items-center gap-2">
@@ -144,13 +227,21 @@ export default function OrderDeliveryOverview() {
           </div>
         )}
 
-        {/* Kontakt */}
-        {(supplier.phone || supplier.email) && (
-          <div className="pt-2 border-t">
-            <div className="text-xs text-gray-500 space-y-1">
-              {supplier.phone && <div>📞 {supplier.phone}</div>}
-              {supplier.email && <div>✉️ {supplier.email}</div>}
-            </div>
+        {/* Zusätzliche Präferenzen */}
+        {(supplier.orderPreferences || supplier.deliveryPreferences) && (
+          <div className="pt-2 border-t space-y-2">
+            {supplier.orderPreferences && (
+              <div className="text-sm">
+                <span className="font-medium text-gray-700">Bestellpräferenzen:</span>
+                <div className="text-gray-600">{supplier.orderPreferences}</div>
+              </div>
+            )}
+            {supplier.deliveryPreferences && (
+              <div className="text-sm">
+                <span className="font-medium text-gray-700">Lieferpräferenzen:</span>
+                <div className="text-gray-600">{supplier.deliveryPreferences}</div>
+              </div>
+            )}
           </div>
         )}
 
