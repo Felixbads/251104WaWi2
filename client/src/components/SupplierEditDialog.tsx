@@ -38,6 +38,7 @@ export function SupplierEditDialog({ supplier, isOpen, onOpenChange, onSave }: S
     showPricesInOrders: supplier.showPricesInOrders !== false // Default true
   });
 
+  const [activeTab, setActiveTab] = useState("general");
   const { toast } = useToast();
 
   const handleInputChange = (field: string, value: any) => {
@@ -65,7 +66,7 @@ export function SupplierEditDialog({ supplier, isOpen, onOpenChange, onSave }: S
           <DialogTitle>Lieferant bearbeiten: {supplier.name}</DialogTitle>
         </DialogHeader>
 
-        <Tabs defaultValue="general" className="w-full">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="general">Allgemein</TabsTrigger>
             <TabsTrigger value="contact">Kontakt</TabsTrigger>

@@ -40,41 +40,13 @@ import {
   assignProductToSupplier,
   unassignProductFromSupplier
 } from "@/lib/api";
+import { Supplier } from "../../../shared/schema";
 import PurchaseConditionForm from "@/components/forms/PurchaseConditionForm";
 import SupplierEmailTemplates from "@/components/suppliers/SupplierEmailTemplates";
 import { SupplierEditDialog } from "@/components/SupplierEditDialog";
 import { apiRequest } from "@/lib/queryClient";
 
-interface Supplier {
-  id: number;
-  name: string;
-  contactPerson?: string;
-  email?: string;
-  phone?: string;
-  website?: string;
-  address?: string;
-  city?: string;
-  postalCode?: string;
-  country?: string;
-  notes?: string;
-  status: string;
-  paymentTerms?: string;
-  deliveryTerms?: string;
-  minimumOrderValue?: number;
-  deliveryDays?: string;
-  taxId?: string;
-  accountNumber?: string;
-  bankDetails?: string;
-  shortDescription?: string;
-  photos?: string[];
-  orderEmailRecipient?: string;
-  orderEmailCc?: string;
-  orderEmailBcc?: string;
-  emailSignature?: string;
-  showPricesInOrders?: boolean;
-  productsCount?: number;
-  openOrdersCount?: number;
-}
+
 
 // Schema für das Lieferanten-Formular
 const supplierFormSchema = z.object({
