@@ -2217,7 +2217,7 @@ Elbsandstein Proviant & Quartier GmbH`;
 
   // Register supplier analytics router BEFORE Vite to prevent routing conflicts
   app.use('/api/supplier-analytics', supplierAnalyticsRouter);
-  app.use('/api/suppliers', suppliersFastRouter);
+  app.use('/api/suppliers-fast', suppliersFastRouter);
   app.use('/api/support-tickets', supportTicketsRouter);
 
   // Register enhanced order copy router
