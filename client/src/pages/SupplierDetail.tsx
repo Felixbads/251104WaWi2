@@ -170,6 +170,11 @@ export default function SupplierDetail() {
     enabled: !!id
   });
   
+  // Extract purchase conditions from response
+  const purchaseConditions = Array.isArray(purchaseConditionsResponse?.data) 
+    ? purchaseConditionsResponse.data 
+    : [];
+  
   // Mutation für das Aktualisieren des Lieferanten
   const updateMutation = useMutation({
     mutationFn: (data: Partial<SupplierFormValues>) => 
