@@ -47,6 +47,7 @@ import interAppApiRouter from './routes/inter-app-api';
 import suppliersProductsRouter from './routes/suppliers-products';
 import resilientSyncRouter from './routes/resilientSync';
 import photosRouter from './routes/photos';
+import { getSuppliersSchedules } from './routes/suppliers-schedules';
 
 // Hilfsfunktion zum Gruppieren der Transaktionen nach Zeitraum
 function groupTransactionsByPeriod(transactions, period) {

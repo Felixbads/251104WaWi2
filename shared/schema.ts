@@ -148,7 +148,14 @@ export const insertSupplierSchema = createInsertSchema(suppliers)
     orderEmailBcc: z.string().optional().nullable().or(z.literal("")),
     emailSignature: z.string().optional().nullable().or(z.literal("")),
     shortDescription: z.string().optional().nullable().or(z.literal("")),
+    description: z.string().optional().nullable().or(z.literal("")),
     photos: z.array(z.string()).optional().nullable(),
+    hideOrderPrices: z.boolean().optional(),
+    deliveryMethod: z.string().optional().nullable().or(z.literal("")),
+    orderFrequency: z.string().optional().nullable().or(z.literal("")),
+    orderWeekday: z.string().optional().nullable().or(z.literal("")),
+    deliveryFrequency: z.string().optional().nullable().or(z.literal("")),
+    deliveryWeekday: z.string().optional().nullable().or(z.literal("")),
   });
 
 export type InsertSupplier = z.infer<typeof insertSupplierSchema>;
