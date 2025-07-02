@@ -44,6 +44,7 @@ import { Supplier } from "../../../shared/schema";
 import PurchaseConditionForm from "@/components/forms/PurchaseConditionForm";
 import SupplierEmailTemplates from "@/components/suppliers/SupplierEmailTemplates";
 import { SupplierEditDialog } from "@/components/SupplierEditDialog";
+import { PurchaseConditionsTab } from "@/components/PurchaseConditionsTab";
 import { apiRequest } from "@/lib/queryClient";
 
 
@@ -1410,148 +1411,10 @@ export default function SupplierDetail() {
         
         {/* Einkaufsbedingungen Tab */}
         <TabsContent value="purchaseConditions">
-          <div className="space-y-6">
-            {/* Zahlungs- und Lieferbedingungen */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Zahlungs- und Lieferbedingungen</CardTitle>
-                <CardDescription>
-                  Grundlegende Konditionen für Bestellungen bei diesem Lieferanten
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-4">
-                  <div>
-                    <h4 className="text-sm font-medium text-muted-foreground mb-2">Zahlungsbedingungen</h4>
-                    <p className="text-sm">{supplier.paymentTerms || 'Nicht angegeben'}</p>
-                  </div>
-                  
-                  <div>
-                    <h4 className="text-sm font-medium text-muted-foreground mb-2">Lieferbedingungen</h4>
-                    <p className="text-sm">{supplier.deliveryTerms || 'Nicht angegeben'}</p>
-                  </div>
-                </div>
-                
-                <div className="space-y-4">
-                  <div>
-                    <h4 className="text-sm font-medium text-muted-foreground mb-2">Bevorzugte Lieferart</h4>
-                    <div className="flex items-center gap-2">
-                      {supplier.preferredDeliveryMethod === 'delivery' && <Truck className="h-4 w-4" />}
-                      {supplier.preferredDeliveryMethod === 'pickup' && <Package className="h-4 w-4" />}
-                      <span className="text-sm">
-                        {supplier.preferredDeliveryMethod === 'delivery' ? 'Lieferung' : 
-                         supplier.preferredDeliveryMethod === 'pickup' ? 'Abholung' : 'Nicht angegeben'}
-                      </span>
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <h4 className="text-sm font-medium text-muted-foreground mb-2">Preise in Bestellungen anzeigen</h4>
-                    <div className="flex items-center gap-2">
-                      {supplier.showPricesInOrders ? (
-                        <><CheckCircle className="h-4 w-4 text-green-600" /><span className="text-sm">Ja, Preise anzeigen</span></>
-                      ) : (
-                        <><XCircle className="h-4 w-4 text-red-600" /><span className="text-sm">Nein, ohne Preise</span></>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Bestellrhythmus */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Bestellrhythmus</CardTitle>
-                <CardDescription>
-                  Regelmäßige Bestellungen und Lieferungen
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-4">
-                  <h4 className="text-sm font-medium text-muted-foreground">Bestellungen</h4>
-                  
-                  <div>
-                    <label className="text-sm font-medium">Bestellfrequenz</label>
-                    <div className="flex items-center gap-2 mt-1">
-                      <Calendar className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-sm">
-                        {supplier.orderFrequency === 'weekly' ? 'Wöchentlich' :
-                         supplier.orderFrequency === 'biweekly' ? '2-Wöchentlich' :
-                         supplier.orderFrequency === 'on-demand' ? 'Nach Bedarf' :
-                         supplier.orderFrequency || 'Nicht angegeben'}
-                      </span>
-                    </div>
-                  </div>
-                  
-                  {supplier.orderFrequency && supplier.orderFrequency !== 'on-demand' && (
-                    <div>
-                      <label className="text-sm font-medium">Bestelltag</label>
-                      <div className="flex items-center gap-2 mt-1">
-                        <Clock className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-sm">
-                          {supplier.orderWeekday === 'monday' ? 'Montag' :
-                           supplier.orderWeekday === 'tuesday' ? 'Dienstag' :
-                           supplier.orderWeekday === 'wednesday' ? 'Mittwoch' :
-                           supplier.orderWeekday === 'thursday' ? 'Donnerstag' :
-                           supplier.orderWeekday === 'friday' ? 'Freitag' :
-                           supplier.orderWeekday || 'Nicht angegeben'}
-                        </span>
-                      </div>
-                    </div>
-                  )}
-                  
-                  {supplier.orderPreferences && (
-                    <div>
-                      <label className="text-sm font-medium">Bestellnotizen</label>
-                      <p className="text-sm text-muted-foreground mt-1">{supplier.orderPreferences}</p>
-                    </div>
-                  )}
-                </div>
-                
-                <div className="space-y-4">
-                  <h4 className="text-sm font-medium text-muted-foreground">Lieferungen</h4>
-                  
-                  <div>
-                    <label className="text-sm font-medium">Lieferfrequenz</label>
-                    <div className="flex items-center gap-2 mt-1">
-                      <Truck className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-sm">
-                        {supplier.deliveryFrequency === 'weekly' ? 'Wöchentlich' :
-                         supplier.deliveryFrequency === 'biweekly' ? '2-Wöchentlich' :
-                         supplier.deliveryFrequency === 'on-demand' ? 'Nach Bedarf' :
-                         supplier.deliveryFrequency || 'Nicht angegeben'}
-                      </span>
-                    </div>
-                  </div>
-                  
-                  {supplier.deliveryFrequency && supplier.deliveryFrequency !== 'on-demand' && (
-                    <div>
-                      <label className="text-sm font-medium">Liefertag</label>
-                      <div className="flex items-center gap-2 mt-1">
-                        <Clock className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-sm">
-                          {supplier.deliveryWeekday === 'monday' ? 'Montag' :
-                           supplier.deliveryWeekday === 'tuesday' ? 'Dienstag' :
-                           supplier.deliveryWeekday === 'wednesday' ? 'Mittwoch' :
-                           supplier.deliveryWeekday === 'thursday' ? 'Donnerstag' :
-                           supplier.deliveryWeekday === 'friday' ? 'Freitag' :
-                           supplier.deliveryWeekday || 'Nicht angegeben'}
-                        </span>
-                      </div>
-                    </div>
-                  )}
-                  
-                  {supplier.deliveryPreferences && (
-                    <div>
-                      <label className="text-sm font-medium">Liefernotizen</label>
-                      <p className="text-sm text-muted-foreground mt-1">{supplier.deliveryPreferences}</p>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+          <PurchaseConditionsTab 
+            supplierId={parseInt(id!)} 
+            supplierName={supplier.name}
+          />
         </TabsContent>
         
         {/* Statistiken Tab */}

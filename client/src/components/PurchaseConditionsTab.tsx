@@ -236,11 +236,13 @@ export function PurchaseConditionsTab({ supplierId, supplierName }: PurchaseCond
                     <SelectValue placeholder="Produkt auswählen" />
                   </SelectTrigger>
                   <SelectContent>
-                    {availableProducts.map((product: ProductOption) => (
+                    {availableProducts && availableProducts.length > 0 ? availableProducts.map((product: ProductOption) => (
                       <SelectItem key={product.id} value={product.id.toString()}>
                         {product.productName}
                       </SelectItem>
-                    ))}
+                    )) : (
+                      <SelectItem value="none" disabled>Keine Produkte verfügbar</SelectItem>
+                    )}
                   </SelectContent>
                 </Select>
               </div>
