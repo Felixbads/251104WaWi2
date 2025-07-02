@@ -70,6 +70,7 @@ function withAuth(WrappedComponent: React.ComponentType<any>) {
 // Importiere fehlende Komponenten
 import SuppliersFast from "@/pages/SuppliersFast";
 import SupplierDetail from "@/pages/SupplierDetail";
+import OrderDeliveryOverview from "@/pages/OrderDeliveryOverview";
 import Reporting from "@/pages/Reporting";
 import Orders from "@/pages/Orders";
 import NewOrder from "@/pages/NewOrder";
@@ -242,6 +243,12 @@ function AuthenticatedRouter() {
         <Route path="/lieferanten/:id" component={props => (
           <ApprovedUserRoute>
             <SupplierDetail {...props} />
+          </ApprovedUserRoute>
+        )} />
+
+        <Route path="/lieferanten-planung" component={props => (
+          <ApprovedUserRoute>
+            <OrderDeliveryOverview {...props} />
           </ApprovedUserRoute>
         )} />
 

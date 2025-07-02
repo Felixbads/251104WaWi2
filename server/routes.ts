@@ -4644,5 +4644,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Add suppliers-schedules endpoint
+  app.get(`${API_PREFIX}/suppliers-schedules`, getSuppliersSchedules);
+
   return httpServer;
 }
