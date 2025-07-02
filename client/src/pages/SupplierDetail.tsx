@@ -83,13 +83,18 @@ export default function SupplierDetail() {
   const [deletingPurchaseConditionId, setDeletingPurchaseConditionId] = useState<number | null>(null);
   const [showProductAssignmentDialog, setShowProductAssignmentDialog] = useState(false);
   const [productSearchTerm, setProductSearchTerm] = useState("");
+  const [activeTab, setActiveTab] = useState("dashboard");
   
   // Mutation zum Aktualisieren des Lieferanten
   const updateSupplierMutation = useMutation({
     mutationFn: async (updatedSupplier: Partial<Supplier>) => {
+      // Convert null values to undefined for consistency
+      const cleanUpdatedSupplier = Object.fromEntries(
+        Object.entries(updatedSupplier).map(([key, value]) => [key, value === null ? undefined : value])
+      );
       return apiRequest(`/api/suppliers/${id}`, {
         method: 'PUT',
-        body: JSON.stringify(updatedSupplier),
+        body: JSON.stringify(cleanUpdatedSupplier),
       });
     },
     onSuccess: () => {
@@ -124,7 +129,7 @@ export default function SupplierDetail() {
   });
   
   // Produkte extrahieren und als Array zur Verfügung stellen
-  const products = productsResponse?.data ? productsResponse.data : [];
+  const products = Array.isArray(productsResponse?.data) ? productsResponse.data : [];
   
   // Debugging-Ausgabe (temporär)
   console.log(`Lieferant ${id} - Produkte geladen:`, products?.length, 
@@ -138,7 +143,7 @@ export default function SupplierDetail() {
   });
   
   // Alle Produkte extrahieren
-  const allProducts = allProductsResponse?.data 
+  const allProducts = Array.isArray(allProductsResponse?.data) 
     ? allProductsResponse.data.map((product: any) => ({
         ...product
       }))
@@ -152,11 +157,11 @@ export default function SupplierDetail() {
   });
   
   // Bestellungen extrahieren und als Array zur Verfügung stellen
-  const orders = ordersResponse?.data ? ordersResponse.data : [];
+  const orders = Array.isArray(ordersResponse?.data) ? ordersResponse.data : [];
   
   // Einkaufsbedingungen des Lieferanten abfragen
   const { 
-    data: purchaseConditions, 
+    data: purchaseConditionsResponse, 
     isLoading: isPurchaseConditionsLoading,
     refetch: refetchPurchaseConditions
   } = useQuery({
@@ -876,11 +881,11 @@ export default function SupplierDetail() {
         <h1 className="text-2xl font-bold">{supplier.name}</h1>
         <div className="text-muted-foreground flex items-center gap-2">
           <span>Lieferantendetails</span>
-          {getStatusBadge(supplier.status)}
+          {getStatusBadge(supplier.status || "ACTIVE")}
         </div>
       </div>
       
-      <Tabs defaultValue="dashboard">
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <div className="w-full overflow-x-auto pb-2">
           <TabsList className="inline-flex w-auto min-w-full h-auto p-1">
             <TabsTrigger value="dashboard" className="flex items-center gap-1 px-2 py-2 text-xs sm:text-sm whitespace-nowrap">
