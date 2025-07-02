@@ -9,6 +9,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { SupplierPhotoUpload } from '@/components/SupplierPhotoUpload';
 import { useToast } from '@/hooks/use-toast';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { apiRequest } from '@/lib/queryClient';
 import { Supplier } from '@shared/schema';
 
 interface SupplierEditDialogProps {
@@ -19,6 +21,36 @@ interface SupplierEditDialogProps {
 }
 
 export function SupplierEditDialog({ supplier, isOpen, onOpenChange, onSave }: SupplierEditDialogProps) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const updateSupplierMutation = useMutation({
+    mutationFn: async (data: Partial<Supplier>) => {
+      return await apiRequest(`/api/suppliers/${supplier.id}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      });
+    },
+    onSuccess: (updatedSupplier) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/suppliers'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/suppliers', supplier.id] });
+      onSave(updatedSupplier);
+      onOpenChange(false);
+      toast({
+        title: "Lieferant gespeichert",
+        description: "Die Änderungen wurden erfolgreich gespeichert.",
+      });
+    },
+    onError: (error) => {
+      console.error('Fehler beim Speichern:', error);
+      toast({
+        title: "Fehler",
+        description: "Beim Speichern ist ein Fehler aufgetreten.",
+        variant: "destructive",
+      });
+    },
+  });
+
   const [formData, setFormData] = useState({
     name: supplier.name || '',
     shortDescription: supplier.shortDescription || '',
@@ -59,7 +91,6 @@ export function SupplierEditDialog({ supplier, isOpen, onOpenChange, onSave }: S
   });
 
   const [activeTab, setActiveTab] = useState("general");
-  const { toast } = useToast();
 
   const handleInputChange = (field: string, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -75,8 +106,7 @@ export function SupplierEditDialog({ supplier, isOpen, onOpenChange, onSave }: S
       return;
     }
 
-    onSave(formData);
-    onOpenChange(false);
+    updateSupplierMutation.mutate(formData);
   };
 
   return (
@@ -573,8 +603,8 @@ export function SupplierEditDialog({ supplier, isOpen, onOpenChange, onSave }: S
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Abbrechen
           </Button>
-          <Button onClick={handleSave}>
-            Speichern
+          <Button onClick={handleSave} disabled={updateSupplierMutation.isPending}>
+            {updateSupplierMutation.isPending ? 'Speichere...' : 'Speichern'}
           </Button>
         </div>
       </DialogContent>
