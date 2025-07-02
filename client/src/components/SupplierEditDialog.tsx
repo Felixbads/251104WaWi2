@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { SupplierPhotoUpload } from '@/components/SupplierPhotoUpload';
 import { useToast } from '@/hooks/use-toast';
 import { Supplier } from '@shared/schema';
@@ -29,13 +30,32 @@ export function SupplierEditDialog({ supplier, isOpen, onOpenChange, onSave }: S
     city: supplier.city || '',
     postalCode: supplier.postalCode || '',
     country: supplier.country || 'Deutschland',
+    status: supplier.status || 'active',
     notes: supplier.notes || '',
     paymentTerms: supplier.paymentTerms || '',
     deliveryTerms: supplier.deliveryTerms || '',
     minimumOrderValue: supplier.minimumOrderValue || 0,
+    deliveryDays: supplier.deliveryDays || '',
     taxId: supplier.taxId || '',
+    bankDetails: supplier.bankDetails || '',
     photos: supplier.photos || [],
-    showPricesInOrders: supplier.showPricesInOrders !== false // Default true
+    showPricesInOrders: supplier.showPricesInOrders !== false, // Default true
+    // Bestellungseinstellungen
+    orderFrequency: supplier.orderFrequency || '',
+    orderWeekday: supplier.orderWeekday || '',
+    orderPreferences: supplier.orderPreferences || '',
+    // Lieferungseinstellungen
+    deliveryFrequency: supplier.deliveryFrequency || '',
+    deliveryWeekday: supplier.deliveryWeekday || '',
+    deliveryPreferences: supplier.deliveryPreferences || '',
+    preferredDeliveryMethod: supplier.preferredDeliveryMethod || '',
+    // E-Mail-Template-Felder
+    emailTemplate: supplier.emailTemplate || '',
+    emailSubjectTemplate: supplier.emailSubjectTemplate || '',
+    orderEmailRecipient: supplier.orderEmailRecipient || '',
+    orderEmailCc: supplier.orderEmailCc || '',
+    orderEmailBcc: supplier.orderEmailBcc || '',
+    emailSignature: supplier.emailSignature || ''
   });
 
   const [activeTab, setActiveTab] = useState("general");
@@ -67,10 +87,12 @@ export function SupplierEditDialog({ supplier, isOpen, onOpenChange, onSave }: S
         </DialogHeader>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="general">Allgemein</TabsTrigger>
             <TabsTrigger value="contact">Kontakt</TabsTrigger>
             <TabsTrigger value="terms">Konditionen</TabsTrigger>
+            <TabsTrigger value="ordering">Bestellungen</TabsTrigger>
+            <TabsTrigger value="email">E-Mail</TabsTrigger>
             <TabsTrigger value="media">Fotos</TabsTrigger>
           </TabsList>
 
@@ -80,13 +102,28 @@ export function SupplierEditDialog({ supplier, isOpen, onOpenChange, onSave }: S
                 <CardTitle>Grundinformationen</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div>
-                  <Label htmlFor="name">Lieferantenname *</Label>
-                  <Input
-                    id="name"
-                    value={formData.name}
-                    onChange={(e) => handleInputChange('name', e.target.value)}
-                  />
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="name">Lieferantenname *</Label>
+                    <Input
+                      id="name"
+                      value={formData.name}
+                      onChange={(e) => handleInputChange('name', e.target.value)}
+                    />
+                  </div>
+                  
+                  <div>
+                    <Label htmlFor="status">Status</Label>
+                    <Select value={formData.status} onValueChange={(value) => handleInputChange('status', value)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Status wählen" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="active">Aktiv</SelectItem>
+                        <SelectItem value="inactive">Inaktiv</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
                 
                 <div>
@@ -234,12 +271,34 @@ export function SupplierEditDialog({ supplier, isOpen, onOpenChange, onSave }: S
                   />
                 </div>
 
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="taxId">Steuernummer / USt-ID</Label>
+                    <Input
+                      id="taxId"
+                      value={formData.taxId}
+                      onChange={(e) => handleInputChange('taxId', e.target.value)}
+                    />
+                  </div>
+                  
+                  <div>
+                    <Label htmlFor="bankDetails">Bankverbindung</Label>
+                    <Input
+                      id="bankDetails"
+                      value={formData.bankDetails}
+                      onChange={(e) => handleInputChange('bankDetails', e.target.value)}
+                      placeholder="IBAN, BIC, etc."
+                    />
+                  </div>
+                </div>
+                
                 <div>
-                  <Label htmlFor="taxId">Steuernummer / USt-ID</Label>
+                  <Label htmlFor="deliveryDays">Liefertage</Label>
                   <Input
-                    id="taxId"
-                    value={formData.taxId}
-                    onChange={(e) => handleInputChange('taxId', e.target.value)}
+                    id="deliveryDays"
+                    value={formData.deliveryDays}
+                    onChange={(e) => handleInputChange('deliveryDays', e.target.value)}
+                    placeholder="z.B. Mo, Mi, Fr"
                   />
                 </div>
 
@@ -266,18 +325,238 @@ export function SupplierEditDialog({ supplier, isOpen, onOpenChange, onSave }: S
             </Card>
           </TabsContent>
 
+          <TabsContent value="ordering" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Bestelleinstellungen</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="orderFrequency">Bestellfrequenz</Label>
+                    <Select value={formData.orderFrequency} onValueChange={(value) => handleInputChange('orderFrequency', value)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Bestellfrequenz wählen" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="weekly">Wöchentlich</SelectItem>
+                        <SelectItem value="biweekly">2-Wöchentlich</SelectItem>
+                        <SelectItem value="on-demand">Nach Bedarf</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  <div>
+                    <Label htmlFor="orderWeekday">Bestelltag</Label>
+                    <Select value={formData.orderWeekday} onValueChange={(value) => handleInputChange('orderWeekday', value)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Wochentag wählen" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="monday">Montag</SelectItem>
+                        <SelectItem value="tuesday">Dienstag</SelectItem>
+                        <SelectItem value="wednesday">Mittwoch</SelectItem>
+                        <SelectItem value="thursday">Donnerstag</SelectItem>
+                        <SelectItem value="friday">Freitag</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                
+                <div>
+                  <Label htmlFor="orderPreferences">Bestellnotizen</Label>
+                  <Textarea
+                    id="orderPreferences"
+                    value={formData.orderPreferences}
+                    onChange={(e) => handleInputChange('orderPreferences', e.target.value)}
+                    placeholder="Besondere Bestellpräferenzen..."
+                    rows={3}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardHeader>
+                <CardTitle>Liefereinstellungen</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="deliveryFrequency">Lieferfrequenz</Label>
+                    <Select value={formData.deliveryFrequency} onValueChange={(value) => handleInputChange('deliveryFrequency', value)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Lieferfrequenz wählen" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="weekly">Wöchentlich</SelectItem>
+                        <SelectItem value="biweekly">2-Wöchentlich</SelectItem>
+                        <SelectItem value="on-demand">Nach Bedarf</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  <div>
+                    <Label htmlFor="deliveryWeekday">Liefertag</Label>
+                    <Select value={formData.deliveryWeekday} onValueChange={(value) => handleInputChange('deliveryWeekday', value)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Wochentag wählen" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="monday">Montag</SelectItem>
+                        <SelectItem value="tuesday">Dienstag</SelectItem>
+                        <SelectItem value="wednesday">Mittwoch</SelectItem>
+                        <SelectItem value="thursday">Donnerstag</SelectItem>
+                        <SelectItem value="friday">Freitag</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                
+                <div>
+                  <Label htmlFor="preferredDeliveryMethod">Bevorzugte Lieferart</Label>
+                  <Select value={formData.preferredDeliveryMethod} onValueChange={(value) => handleInputChange('preferredDeliveryMethod', value)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Lieferart wählen" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="delivery">Lieferung</SelectItem>
+                      <SelectItem value="pickup">Abholung</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div>
+                  <Label htmlFor="deliveryPreferences">Liefernotizen</Label>
+                  <Textarea
+                    id="deliveryPreferences"
+                    value={formData.deliveryPreferences}
+                    onChange={(e) => handleInputChange('deliveryPreferences', e.target.value)}
+                    placeholder="Besondere Lieferpräferenzen..."
+                    rows={3}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="email" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>E-Mail-Einstellungen</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <Label htmlFor="orderEmailRecipient">Bestell-E-Mail Empfänger</Label>
+                  <Input
+                    id="orderEmailRecipient"
+                    type="email"
+                    value={formData.orderEmailRecipient}
+                    onChange={(e) => handleInputChange('orderEmailRecipient', e.target.value)}
+                    placeholder="bestellungen@lieferant.de"
+                  />
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="orderEmailCc">CC (Kopie)</Label>
+                    <Input
+                      id="orderEmailCc"
+                      type="email"
+                      value={formData.orderEmailCc}
+                      onChange={(e) => handleInputChange('orderEmailCc', e.target.value)}
+                      placeholder="chef@lieferant.de"
+                    />
+                  </div>
+                  
+                  <div>
+                    <Label htmlFor="orderEmailBcc">BCC (Blindkopie)</Label>
+                    <Input
+                      id="orderEmailBcc"
+                      type="email"
+                      value={formData.orderEmailBcc}
+                      onChange={(e) => handleInputChange('orderEmailBcc', e.target.value)}
+                      placeholder="buchhaltung@lieferant.de"
+                    />
+                  </div>
+                </div>
+                
+                <div>
+                  <Label htmlFor="emailSubjectTemplate">E-Mail Betreff</Label>
+                  <Input
+                    id="emailSubjectTemplate"
+                    value={formData.emailSubjectTemplate}
+                    onChange={(e) => handleInputChange('emailSubjectTemplate', e.target.value)}
+                    placeholder="Bestellung #{orderNumber} vom {date}"
+                  />
+                </div>
+                
+                <div>
+                  <Label htmlFor="emailSignature">E-Mail Signatur</Label>
+                  <Textarea
+                    id="emailSignature"
+                    value={formData.emailSignature}
+                    onChange={(e) => handleInputChange('emailSignature', e.target.value)}
+                    placeholder="Mit freundlichen Grüßen..."
+                    rows={4}
+                  />
+                </div>
+                
+                <div>
+                  <Label htmlFor="emailTemplate">E-Mail Vorlage (HTML)</Label>
+                  <Textarea
+                    id="emailTemplate"
+                    value={formData.emailTemplate}
+                    onChange={(e) => handleInputChange('emailTemplate', e.target.value)}
+                    placeholder="Benutzerdefinierte E-Mail Vorlage..."
+                    rows={6}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
           <TabsContent value="media" className="space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle>Fotos</CardTitle>
+                <CardTitle>Lieferanten-Fotos</CardTitle>
               </CardHeader>
-              <CardContent>
-                <SupplierPhotoUpload
-                  supplierId={supplier.id}
-                  photos={formData.photos}
-                  onPhotosChange={(photos: string[]) => handleInputChange('photos', photos)}
-                  maxPhotos={10}
-                />
+              <CardContent className="space-y-4">
+                <div>
+                  <Label>Aktuelles Foto</Label>
+                  {formData.photoUrl ? (
+                    <div className="mt-2">
+                      <img 
+                        src={formData.photoUrl} 
+                        alt="Lieferanten-Foto" 
+                        className="max-w-xs h-32 object-cover rounded-lg border"
+                      />
+                    </div>
+                  ) : (
+                    <div className="mt-2 p-4 border-2 border-dashed border-gray-300 rounded-lg text-center text-gray-500">
+                      Kein Foto hochgeladen
+                    </div>
+                  )}
+                </div>
+                
+                <div>
+                  <Label htmlFor="photoUpload">Neues Foto hochladen</Label>
+                  <Input
+                    id="photoUpload"
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        // TODO: Implement photo upload functionality
+                        console.log('Photo upload:', file);
+                      }
+                    }}
+                  />
+                  <p className="text-sm text-gray-500 mt-1">
+                    Unterstützte Formate: JPG, PNG, WebP (max. 5MB)
+                  </p>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
