@@ -100,12 +100,12 @@ export function SupplierEditDialog({ supplier, isOpen, onOpenChange, onSave }: S
                 </div>
 
                 <div>
-                  <Label htmlFor="notes">Anmerkungen</Label>
+                  <Label htmlFor="notes">Beschreibung</Label>
                   <Textarea
                     id="notes"
                     value={formData.notes}
                     onChange={(e) => handleInputChange('notes', e.target.value)}
-                    placeholder="Zusätzliche Anmerkungen..."
+                    placeholder="Detaillierte Beschreibung des Lieferanten..."
                     rows={4}
                   />
                 </div>

@@ -63,7 +63,15 @@ interface Supplier {
   minimumOrderValue?: number;
   deliveryDays?: string;
   taxId?: string;
+  accountNumber?: string;
   bankDetails?: string;
+  shortDescription?: string;
+  photos?: string[];
+  orderEmailRecipient?: string;
+  orderEmailCc?: string;
+  orderEmailBcc?: string;
+  emailSignature?: string;
+  showPricesInOrders?: boolean;
   productsCount?: number;
   openOrdersCount?: number;
 }
@@ -1078,8 +1086,60 @@ export default function SupplierDetail() {
                         <p className="text-sm">{supplier.taxId}</p>
                       </div>
                     )}
+                    
+                    {supplier.accountNumber && (
+                      <div>
+                        <span className="font-medium">Kontonummer:</span>
+                        <p className="text-sm">{supplier.accountNumber}</p>
+                      </div>
+                    )}
                   </div>
                 </div>
+                
+                {/* E-Mail-Einstellungen */}
+                {(supplier.orderEmailRecipient || supplier.orderEmailCc || supplier.orderEmailBcc || supplier.emailSignature) && (
+                  <>
+                    <Separator />
+                    <div>
+                      <h3 className="text-sm font-medium text-muted-foreground mb-2">E-Mail-Einstellungen</h3>
+                      
+                      <div className="grid grid-cols-1 gap-y-2">
+                        {supplier.orderEmailRecipient && (
+                          <div>
+                            <span className="font-medium">Bestellungs-E-Mail:</span>
+                            <p className="text-sm">{supplier.orderEmailRecipient}</p>
+                          </div>
+                        )}
+                        
+                        {supplier.orderEmailCc && (
+                          <div>
+                            <span className="font-medium">CC-Empfänger:</span>
+                            <p className="text-sm">{supplier.orderEmailCc}</p>
+                          </div>
+                        )}
+                        
+                        {supplier.orderEmailBcc && (
+                          <div>
+                            <span className="font-medium">BCC-Empfänger:</span>
+                            <p className="text-sm">{supplier.orderEmailBcc}</p>
+                          </div>
+                        )}
+                        
+                        {supplier.emailSignature && (
+                          <div>
+                            <span className="font-medium">E-Mail-Signatur:</span>
+                            <p className="text-sm whitespace-pre-line">{supplier.emailSignature}</p>
+                          </div>
+                        )}
+                        
+                        <div>
+                          <span className="font-medium">Preise in Bestellungen anzeigen:</span>
+                          <p className="text-sm">{supplier.showPricesInOrders ? 'Ja' : 'Nein'}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -1099,7 +1159,7 @@ export default function SupplierDetail() {
                 )}
                 {supplier.notes && (
                   <div>
-                    <h4 className="font-medium mb-2">Anmerkungen</h4>
+                    <h4 className="font-medium mb-2">Beschreibung</h4>
                     <p className="whitespace-pre-line">{supplier.notes}</p>
                   </div>
                 )}
