@@ -85,13 +85,33 @@ interface Product {
   category: string;
 }
 
-export default function EnhancedOrderingProcess() {
+interface EnhancedOrderingProcessProps {
+  supplierId: number;
+  supplierName: string;
+  suppliers: Supplier[];
+  warehouseId: number;
+  warehouseName: string;
+  warehouses: Warehouse[];
+  onOrderSuccess: () => void;
+  onBack: () => void;
+}
+
+export default function EnhancedOrderingProcess({
+  supplierId,
+  supplierName,
+  suppliers = [],
+  warehouseId,
+  warehouseName,
+  warehouses = [],
+  onOrderSuccess,
+  onBack
+}: EnhancedOrderingProcessProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   
   const [orderingState, setOrderingState] = useState<OrderingState>({
-    selectedWarehouse: null,
-    selectedSupplier: null,
+    selectedWarehouse: warehouseId,
+    selectedSupplier: supplierId,
     orderMode: 'standard',
     cart: [],
     deliveryLocation: '',
@@ -103,17 +123,8 @@ export default function EnhancedOrderingProcess() {
 
   const [currentStep, setCurrentStep] = useState<'warehouse' | 'supplier' | 'products' | 'cart' | 'review' | 'send'>('warehouse');
 
-  // Fetch warehouses
-  const { data: warehouses, isLoading: warehousesLoading } = useQuery<Warehouse[]>({
-    queryKey: ['/api/warehouses'],
-    enabled: true
-  });
-
-  // Fetch suppliers
-  const { data: suppliers, isLoading: suppliersLoading } = useQuery<Supplier[]>({
-    queryKey: ['/api/suppliers'],
-    enabled: orderingState.selectedWarehouse !== null
-  });
+  // Da wir suppliers und warehouses bereits über Props erhalten, 
+  // benötigen wir keine zusätzlichen Queries
 
   // Fetch products for selected supplier
   const { data: products, isLoading: productsLoading } = useQuery<Product[]>({

@@ -58,19 +58,7 @@ export default function EnhancedOrdering() {
     }
   });
 
-  // Debug logging for suppliers and warehouses
-  useEffect(() => {
-    console.log('Enhanced Ordering - Current state:', {
-      suppliers: suppliers,
-      warehouses: warehouses,
-      selectedSupplier: selectedSupplier,
-      selectedWarehouse: selectedWarehouse,
-      loadingSuppliers: loadingSuppliers,
-      loadingWarehouses: loadingWarehouses,
-      suppliersError: suppliersError,
-      warehousesError: warehousesError
-    });
-  }, [suppliers, warehouses, selectedSupplier, selectedWarehouse, loadingSuppliers, loadingWarehouses, suppliersError, warehousesError]);
+
 
   // Auto-select if only one supplier/warehouse
   useEffect(() => {
@@ -131,8 +119,10 @@ export default function EnhancedOrdering() {
         <EnhancedOrderingProcess
           supplierId={selectedSupplier.id}
           supplierName={selectedSupplier.name}
+          suppliers={suppliers}
           warehouseId={selectedWarehouse.id}
           warehouseName={selectedWarehouse.name}
+          warehouses={warehouses}
           onOrderSuccess={handleOrderSuccess}
           onBack={handleBack}
         />
