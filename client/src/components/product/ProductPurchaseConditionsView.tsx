@@ -295,11 +295,11 @@ export default function ProductPurchaseConditionsView({ productId, productName }
                     <SelectValue placeholder="Lieferant auswählen" />
                   </SelectTrigger>
                   <SelectContent>
-                    {suppliers.map(supplier => (
+                    {suppliers?.map(supplier => (
                       <SelectItem key={supplier.id} value={supplier.id.toString()}>
                         {supplier.companyName}
                       </SelectItem>
-                    ))}
+                    )) || []}
                   </SelectContent>
                 </Select>
               </div>
