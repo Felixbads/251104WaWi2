@@ -1,0 +1,35 @@
+Bitte analysiere und entwickle ein robustes Konzept zur automatisierten Verarbeitung und Darstellung von Ferien-, Urlaubs- und Feiertagsdaten für alle 16 Bundesländer Deutschlands. Die Daten müssen vollständig, aktuell und systematisch verfügbar sein, um zwei zentrale Anwendungsbereiche zu unterstützen:
+
+⸻
+
+1. Startseite / Mitarbeiterinformation
+	•	Ziel: Darstellung von Wetterinformationen und Hinweisen auf bevorstehende Feiertage, Urlaube oder verlängerte Wochenenden (z. B. Brückentage) je Bundesland.
+	•	Nutzen: Mitarbeitende sollen tagesaktuell abschätzen können, ob mit einer erhöhten Kundennachfrage zu rechnen ist (z. B. vor langen Wochenenden, Sommerferienbeginn etc.).
+	•	Anforderung: Darstellung von:
+	•	Aktuellen und kommenden Feiertagen (bundesweit und landesspezifisch)
+	•	Ferienzeiträumen (Schulferien) je Bundesland
+	•	Brückentagen und langen Wochenenden
+	•	Wochenendlage (z. B. Montag = Feiertag)
+	•	Optional: Urlaubshochzeiten (z. B. Sommerferienstart) auf Basis historischer Daten
+
+⸻
+
+2. Prognose-Tool / Verkaufsprognose
+	•	Ziel: Verbesserung der Vorhersagegenauigkeit für Verkäufe durch Berücksichtigung externer Einflussfaktoren wie Feiertage, Ferien und arbeitsfreie Tage.
+	•	Nutzen: Exakte Verkaufsprognosen auch in Ausnahmewochen (z. B. Ostern, Pfingsten, Sommerferienstart).
+	•	Anforderung:
+	•	Automatisierter Import und Aktualisierung aller relevanten Datenquellen (z. B. offizielle Landesportale, APIs wie feiertage-api.de, ferien-api.de o. ä.)
+	•	Strukturierung nach: Datum, Bundesland, Art (gesetzlicher Feiertag, Ferienbeginn/-ende, Brückentag, Wochenende)
+	•	Zeitliche Relevanz (heute / nächste 7 Tage / nächste 30 Tage)
+	•	Verknüpfung der Informationen mit regionalen Verkaufsdaten (Mapping: Standort → Bundesland)
+	•	Möglichkeit zur Gewichtung im Prognosemodell (z. B. Feiertag = -50 %, Ferienbeginn = +20 %, Brückentag = +10 % etc.)
+
+⸻
+
+Technische Anforderungen:
+	•	Vollständiger Abdeckungsgrad: Alle 16 Bundesländer (inkl. besonderer Regelungen z. B. Bayern, Sachsen-Anhalt etc.)
+	•	Tägliche Aktualisierung der Quelldaten
+	•	Einbindung über API oder ETL-Job
+	•	Verfügbarmachung in einem einheitlichen Datenmodell, damit die Informationen sowohl:
+	•	auf der Startseite visualisiert als auch
+	•	im Prognose-Tool automatisch verrechnet werden können
