@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { db } from '../db';
-import { inventoryMovements, products, warehouses } from '../../shared/schema';
+import { inventoryMovements, inventoryTransfers, inventoryTransferItems, products, warehouses } from '../../shared/schema';
 import { eq, desc } from 'drizzle-orm';
 
 const router = Router();
@@ -11,9 +11,9 @@ const router = Router();
  */
 router.get('/', async (req, res) => {
   try {
-    console.log('[INVENTORY_MOVEMENTS] Fetching all inventory movements');
+    console.log('[INVENTORY_MOVEMENTS] Fetching all inventory movements and transfers');
 
-    // Execute query to get all inventory movements with product and warehouse details
+    // Get regular inventory movements
     const movements = await db
       .select({
         id: inventoryMovements.id,
@@ -39,11 +39,57 @@ router.get('/', async (req, res) => {
       .leftJoin(products, eq(inventoryMovements.productId, products.id))
       .orderBy(desc(inventoryMovements.createdAt));
 
-    console.log(`[INVENTORY_MOVEMENTS] Found ${movements.length} inventory movements`);
+    // Get inventory transfers with their items
+    const transfers = await db
+      .select({
+        transferId: inventoryTransfers.id,
+        sourceWarehouseId: inventoryTransfers.sourceWarehouseId,
+        targetWarehouseId: inventoryTransfers.targetWarehouseId,
+        status: inventoryTransfers.status,
+        notes: inventoryTransfers.notes,
+        createdAt: inventoryTransfers.createdAt,
+        completedAt: inventoryTransfers.completedAt,
+        productId: inventoryTransferItems.productId,
+        productName: inventoryTransferItems.productName,
+        quantity: inventoryTransferItems.quantity,
+        reason: inventoryTransferItems.reason
+      })
+      .from(inventoryTransfers)
+      .leftJoin(inventoryTransferItems, eq(inventoryTransfers.id, inventoryTransferItems.transferId))
+      .orderBy(desc(inventoryTransfers.createdAt));
 
-    // Get warehouse names for source and destination
+    // Convert transfers to movement format
+    const transferMovements = transfers.map(transfer => ({
+      id: `transfer-${transfer.transferId}`,
+      productId: transfer.productId,
+      productName: transfer.productName,
+      sourceWarehouseId: transfer.sourceWarehouseId,
+      destinationWarehouseId: transfer.targetWarehouseId,
+      quantity: transfer.quantity,
+      movementType: 'transfer',
+      direction: 'transfer',
+      status: transfer.status,
+      notes: transfer.notes || transfer.reason,
+      locationFrom: null,
+      locationTo: null,
+      createdAt: transfer.createdAt,
+      updatedAt: transfer.createdAt,
+      performedAt: transfer.completedAt,
+      batchNumber: null,
+      referenceType: 'transfer',
+      referenceId: transfer.transferId
+    }));
+
+    // Combine and sort all movements
+    const allMovements = [...movements, ...transferMovements].sort((a, b) => 
+      new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+    );
+
+    console.log(`[INVENTORY_MOVEMENTS] Found ${movements.length} movements and ${transferMovements.length} transfers`);
+
+    // Get warehouse names for source and destination from all movements
     const warehouseIds = new Set<number>();
-    movements.forEach(movement => {
+    allMovements.forEach(movement => {
       if (movement.sourceWarehouseId) warehouseIds.add(movement.sourceWarehouseId);
       if (movement.destinationWarehouseId) warehouseIds.add(movement.destinationWarehouseId);
     });
@@ -52,14 +98,13 @@ router.get('/', async (req, res) => {
     if (warehouseIds.size > 0) {
       const warehouseData = await db
         .select({ id: warehouses.id, name: warehouses.name })
-        .from(warehouses)
-        .where(eq(warehouses.id, Array.from(warehouseIds)[0])); // Simple approach for now
+        .from(warehouses);
       
       warehouseData.forEach(wh => warehouseMap.set(wh.id, wh.name));
     }
 
-    // Enrich movements with warehouse names
-    const enrichedMovements = movements.map(movement => ({
+    // Enrich all movements with warehouse names
+    const enrichedMovements = allMovements.map(movement => ({
       ...movement,
       sourceWarehouseName: movement.sourceWarehouseId ? warehouseMap.get(movement.sourceWarehouseId) || `Lager ${movement.sourceWarehouseId}` : null,
       destinationWarehouseName: movement.destinationWarehouseId ? warehouseMap.get(movement.destinationWarehouseId) || `Lager ${movement.destinationWarehouseId}` : null,
