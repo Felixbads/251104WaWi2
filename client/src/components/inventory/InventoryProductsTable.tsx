@@ -23,12 +23,25 @@ export interface InventoryProduct {
   warehouseId: number;
   warehouseName?: string;
   status?: string;
+  packageTypeId?: number;
+  packageTypeName?: string;
+  unitsPerPackage?: number;
+}
+
+export interface PackageType {
+  id: number;
+  name: string;
+  description?: string;
+  unitsPerPackage: number;
+  isActive: boolean;
+  sortOrder: number;
 }
 
 interface InventoryProductsTableProps {
   products: InventoryProduct[];
   onAddToCart: (product: InventoryProduct, quantity: number) => void;
   warehouseId: number;
+  packageTypes?: PackageType[];
 }
 
 type UnitType = 'pieces' | 'packages';
@@ -57,24 +70,43 @@ function parsePackageSize(packageSize: string | null | undefined): number {
   return 1; // Fallback für einzelne Stücke
 }
 
-// Gebinde-Informationen für ein Produkt
+// Gebinde-Informationen für ein Produkt (erweitert für Package Types)
 function getPackageInfo(product: InventoryProduct) {
-  const packageCount = parsePackageSize(product.packageSize);
-  const hasPackaging = packageCount > 1;
+  // Bevorzuge Package Type Data, fallback auf packageSize parsing
+  let packageCount = 1;
+  let packageLabel = 'Gebinde';
+  let hasPackaging = false;
+  
+  if (product.unitsPerPackage && product.unitsPerPackage > 1) {
+    // Package Type verfügbar
+    packageCount = product.unitsPerPackage;
+    hasPackaging = true;
+    packageLabel = product.packageTypeName 
+      ? `${product.packageTypeName} (${packageCount} Stück)` 
+      : `Gebinde (${packageCount} Stück)`;
+  } else if (product.packageSize) {
+    // Fallback auf packageSize parsing
+    packageCount = parsePackageSize(product.packageSize);
+    hasPackaging = packageCount > 1;
+    packageLabel = `Gebinde (${product.packageSize})`;
+  }
   
   return {
     packageCount,
     hasPackaging,
     piecesInStock: product.quantity,
     packagesInStock: hasPackaging ? Math.floor(product.quantity / packageCount) : 0,
-    packageLabel: product.packageSize ? `Gebinde (${product.packageSize})` : 'Gebinde'
+    packageLabel,
+    packageTypeName: product.packageTypeName,
+    packageTypeId: product.packageTypeId
   };
 }
 
 export default function InventoryProductsTable({
   products,
   onAddToCart,
-  warehouseId
+  warehouseId,
+  packageTypes = []
 }: InventoryProductsTableProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());

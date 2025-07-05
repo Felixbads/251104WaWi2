@@ -31,6 +31,8 @@ import {
   orderItems, type OrderItem, type InsertOrderItem,
   purchaseConditions, type PurchaseCondition, type InsertPurchaseCondition,
   refillBatchMovements, type RefillBatchMovement, type InsertRefillBatchMovement,
+  // Package Types für Gebinde-System
+  packageTypes, type PackageType, type InsertPackageType,
   // Neue Tabellen für verbessertes Lagerverwaltungssystem
   productBatches, type ProductBatch, type InsertProductBatch,
   productMovements, type ProductMovement, type InsertProductMovement
@@ -438,6 +440,16 @@ export interface IStorage {
     productId: number, 
     quantity: number
   ): Promise<RefillBatchMovement[]>;
+
+  // Package Type operations für Gebinde-System
+  getPackageTypes(filter?: { isActive?: boolean }): Promise<PackageType[]>;
+  getPackageTypeById(id: number): Promise<PackageType | undefined>;
+  createPackageType(packageType: InsertPackageType): Promise<PackageType>;
+  updatePackageType(id: number, packageType: Partial<InsertPackageType>): Promise<PackageType | undefined>;
+  deletePackageType(id: number): Promise<boolean>;
+
+  // Product operations extended for package support
+  getProductById(id: number): Promise<Product | undefined>;
 }
 
 // Database storage implementation
@@ -5385,6 +5397,79 @@ export class DatabaseStorage implements IStorage {
       console.error('Fehler beim Laden der Maschinen-Status-Übersicht:', error);
       throw error;
     }
+  }
+
+  // Package Type operations für Gebinde-System
+  async getPackageTypes(filter?: { isActive?: boolean }): Promise<PackageType[]> {
+    let query = db.select().from(packageTypes);
+    
+    if (filter?.isActive !== undefined) {
+      query = query.where(eq(packageTypes.isActive, filter.isActive));
+    }
+    
+    query = query.orderBy(asc(packageTypes.name));
+    
+    return await query;
+  }
+
+  async getPackageTypeById(id: number): Promise<PackageType | undefined> {
+    const [result] = await db.select()
+      .from(packageTypes)
+      .where(eq(packageTypes.id, id));
+    
+    return result;
+  }
+
+  async createPackageType(packageType: InsertPackageType): Promise<PackageType> {
+    const [newPackageType] = await db.insert(packageTypes).values({
+      ...packageType,
+      createdAt: new Date()
+    }).returning();
+    
+    return newPackageType;
+  }
+
+  async updatePackageType(id: number, packageType: Partial<InsertPackageType>): Promise<PackageType | undefined> {
+    const [updatedPackageType] = await db.update(packageTypes)
+      .set({
+        ...packageType,
+        updatedAt: new Date()
+      })
+      .where(eq(packageTypes.id, id))
+      .returning();
+    
+    return updatedPackageType;
+  }
+
+  async deletePackageType(id: number): Promise<boolean> {
+    try {
+      const result = await db.delete(packageTypes)
+        .where(eq(packageTypes.id, id));
+      
+      return result.rowCount > 0;
+    } catch (error) {
+      console.error(`Fehler beim Löschen des Package Types mit ID ${id}:`, error);
+      return false;
+    }
+  }
+
+  // Product operations extended for package support
+  async getProductById(id: number): Promise<Product | undefined> {
+    const [result] = await db.select({
+      product: products,
+      packageType: packageTypes
+    })
+    .from(products)
+    .leftJoin(packageTypes, eq(products.packageTypeId, packageTypes.id))
+    .where(eq(products.id, id));
+    
+    if (!result) return undefined;
+    
+    return {
+      ...result.product,
+      packageTypeName: result.packageType?.name || null,
+      packageSize: result.packageType?.unitsPerPackage || null
+    } as Product;
   }
 }
 

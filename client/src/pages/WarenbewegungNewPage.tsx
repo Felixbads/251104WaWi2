@@ -54,6 +54,17 @@ interface Warehouse {
   status?: string;
 }
 
+interface PackageType {
+  id: number;
+  name: string;
+  description?: string;
+  unitsPerPackage: number;
+  isActive: boolean;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 interface InventoryProduct {
   id: number;
   productId: number;
@@ -62,6 +73,9 @@ interface InventoryProduct {
   warehouseId: number;
   warehouseName?: string;
   status?: string;
+  packageTypeId?: number;
+  packageTypeName?: string;
+  unitsPerPackage?: number;
 }
 
 // Form schema for disposal
@@ -118,6 +132,13 @@ export default function WarenbewegungNewPage() {
   const { data: warehouses, isLoading: warehousesLoading } = useQuery({
     queryKey: ['/api/warehouses'],
     select: (data: Warehouse[]) => data.filter(w => w.status === 'active')
+  });
+
+  // Get all package types
+  const { data: packageTypes, isLoading: packageTypesLoading } = useQuery({
+    queryKey: ['/api/package-types'],
+    select: (data: { packageTypes: PackageType[] }) => 
+      data.packageTypes.filter(pt => pt.isActive).sort((a, b) => a.sortOrder - b.sortOrder)
   });
 
   // Get products for selected source warehouse (transfer)
@@ -489,6 +510,7 @@ export default function WarenbewegungNewPage() {
                         });
                       }}
                       warehouseId={parseInt(sourceWarehouseId)}
+                      packageTypes={packageTypes}
                     />
                   ) : (
                     <Alert>
@@ -679,6 +701,7 @@ export default function WarenbewegungNewPage() {
                             });
                           }}
                           warehouseId={parseInt(disposalWarehouseId)}
+                          packageTypes={packageTypes}
                         />
                       ) : (
                         <Alert>

@@ -48,6 +48,7 @@ import suppliersProductsRouter from './routes/suppliers-products';
 import resilientSyncRouter from './routes/resilientSync';
 import photosRouter from './routes/photos';
 import { getSuppliersSchedules } from './routes/suppliers-schedules';
+import packageTypesRouter from './routes/packageTypes';
 import inventoryTransfersRouter from './routes/inventoryTransfers';
 import inventoryMovementsRouter from './routes/inventoryMovements';
 import { MhdFifoService } from './services/mhdFifoService';
@@ -4773,6 +4774,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Add suppliers-schedules endpoint
   app.get(`${API_PREFIX}/suppliers-schedules`, getSuppliersSchedules);
+
+  // Package Types API für Gebinde-System
+  app.use(`${API_PREFIX}/package-types`, packageTypesRouter);
 
   return httpServer;
 }

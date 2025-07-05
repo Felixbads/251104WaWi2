@@ -278,6 +278,26 @@ export const insertMachineSchema = createInsertSchema(machines).omit({
 export type InsertMachine = z.infer<typeof insertMachineSchema>;
 export type Machine = typeof machines.$inferSelect;
 
+// Package Types table - Standardisierte Gebindearten
+export const packageTypes = pgTable("package_types", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull().unique(), // z.B. "Karton", "Stiege", "Kasten", "Kiste"
+  description: text("description"), // Beschreibung der Gebindeart
+  isActive: boolean("is_active").default(true), // Kann deaktiviert werden
+  sortOrder: integer("sort_order").default(0), // Sortierreihenfolge
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertPackageTypeSchema = createInsertSchema(packageTypes).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertPackageType = z.infer<typeof insertPackageTypeSchema>;
+export type PackageType = typeof packageTypes.$inferSelect;
+
 // Products table - Schema aktualisiert für text vendonId
 export const products = pgTable("products", {
   id: serial("id").primaryKey(),
@@ -296,9 +316,14 @@ export const products = pgTable("products", {
   supplierSku: text("supplier_sku"),
   // Neue Zusatzfelder für Lieferanten-Details
   articleSupplier: text("article_supplier"),      // Artikelnummer des Lieferanten
-  packageSize: text("package_size"),              // Gebindegröße, z.B. "6x0,5L" oder "24x330ml"
+  packageSize: text("package_size"),              // Gebindegröße, z.B. "6x0,5L" oder "24x330ml" (Legacy)
   shelfLifeDays: integer("shelf_life_days"),      // MHD-Haltbarkeit in Tagen ab Lieferung
   minOrderQuantity: integer("min_order_quantity"), // Mindestbestellmenge
+  
+  // Neue strukturierte Gebinde-Felder
+  packageTypeId: integer("package_type_id").references(() => packageTypes.id), // Verweis auf Gebindeart
+  packageQuantity: integer("package_quantity").default(1), // Anzahl Einzelprodukte pro Gebinde
+  baseUnitName: text("base_unit_name").default("Stück"), // Name der Grundeinheit (Stück, Liter, kg, etc.)
   // Extracted from additionalData
   vat: real("vat"),
   depositPrice: real("deposit_price"),
@@ -931,7 +956,15 @@ export const productsRelations = relations(products, ({ one, many }) => ({
     fields: [products.supplierId],
     references: [suppliers.id],
   }),
+  packageType: one(packageTypes, {
+    fields: [products.packageTypeId],
+    references: [packageTypes.id],
+  }),
   purchaseConditions: many(purchaseConditions),
+}));
+
+export const packageTypesRelations = relations(packageTypes, ({ many }) => ({
+  products: many(products),
 }));
 
 export const machinesRelations = relations(machines, ({ one }) => ({
@@ -2419,7 +2452,7 @@ export const insertInventoryTransferItemSchema = createInsertSchema(inventoryTra
   previousTargetStock: true,
   currentTargetStock: true,
 }).extend({
-  productId: z.string().transform((val) => parseInt(val)), // String zu Integer konvertieren
+  productId: z.number().int().positive(), // Direkt als Integer validieren
 });
 
 // Types for inventory transfers
