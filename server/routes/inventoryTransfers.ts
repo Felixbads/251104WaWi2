@@ -54,19 +54,42 @@ router.get("/:id", async (req, res) => {
   }
 });
 
-// POST /api/inventory-transfers - Neue Warenbewegung erstellen
+// POST /api/inventory-transfers - Neue Warenbewegung erstellen und sofort ausführen
 router.post("/", async (req, res) => {
   try {
+    console.log("Transfer Request Body:", JSON.stringify(req.body, null, 2));
+    
     // Validiere Request-Body
-    const { items: itemsData, ...transferData } = req.body;
+    const { items: itemsData, autoExecute = true, ...transferData } = req.body;
     const validatedTransferData = insertInventoryTransferSchema.parse(transferData);
+    
+    // Validiere Items zuerst
+    const itemsSchema = z.array(insertInventoryTransferItemSchema.omit({ transferId: true }));
+    const validatedItems = itemsSchema.parse(itemsData);
+    
+    console.log("Validated transfer data:", validatedTransferData);
+    console.log("Validated items:", validatedItems);
+    
+    // Prüfe Lagerbestände vor der Erstellung
+    if (autoExecute) {
+      for (const item of validatedItems) {
+        const sourceStock = await storage.getInventoryItemByProductAndWarehouse(
+          parseInt(item.productId.toString()), 
+          validatedTransferData.sourceWarehouseId
+        );
+        
+        if (!sourceStock || (sourceStock.quantity || 0) < item.quantity) {
+          return res.status(400).json({
+            error: "Insufficient stock",
+            details: `Product ${item.productName || item.productId} has insufficient stock in source warehouse (available: ${sourceStock?.quantity || 0}, requested: ${item.quantity})`,
+          });
+        }
+      }
+    }
     
     // Speichere Warenbewegung in DB
     const newTransfer = await storage.createInventoryTransfer(validatedTransferData);
-    
-    // Validiere Items
-    const itemsSchema = z.array(insertInventoryTransferItemSchema);
-    const validatedItems = itemsSchema.parse(itemsData);
+    console.log("Created transfer:", newTransfer);
     
     // Füge transferId zu Items hinzu und speichere sie
     if (validatedItems && validatedItems.length > 0) {
@@ -76,13 +99,52 @@ router.post("/", async (req, res) => {
       }));
       
       await storage.createInventoryTransferItems(itemsWithTransferId);
+      console.log("Created transfer items:", itemsWithTransferId.length);
+    }
+    
+    // Wenn autoExecute=true, führe Transfer sofort aus
+    if (autoExecute) {
+      console.log("Auto-executing transfer...");
+      
+      // Aktualisiere den Lagerbestand für jedes Item
+      for (const item of validatedItems) {
+        const result = await storage.updateInventoryForTransfer(
+          validatedTransferData.sourceWarehouseId, 
+          validatedTransferData.targetWarehouseId, 
+          item.productId.toString(), 
+          item.quantity
+        );
+        
+        console.log(`Transfer result for product ${item.productId}:`, result);
+        
+        if (!result.success) {
+          // Rollback: Lösche erstellten Transfer
+          await storage.deleteInventoryTransfer(newTransfer.id);
+          return res.status(400).json({
+            error: "Transfer execution failed",
+            details: `Product ${item.productName || item.productId}: Ungenügender Bestand`,
+          });
+        }
+      }
+
+      // Setze Transfer auf "completed"
+      await storage.updateInventoryTransfer(newTransfer.id, {
+        status: "completed",
+        completedAt: new Date(),
+      });
+      
+      console.log("Transfer completed successfully");
     }
     
     // Hole die vollständige Warenbewegung mit Items
     const completedTransfer = await storage.getInventoryTransferById(newTransfer.id);
     const items = await storage.getInventoryTransferItems({ transferId: newTransfer.id });
     
-    return res.status(201).json({ ...completedTransfer, items });
+    return res.status(201).json({ 
+      ...completedTransfer, 
+      items,
+      executed: autoExecute 
+    });
   } catch (error) {
     console.error("Error creating inventory transfer:", error);
     if (error instanceof z.ZodError) {
