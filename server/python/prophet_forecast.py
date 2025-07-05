@@ -77,6 +77,7 @@ class ProphetForecaster:
     def get_historical_data(self, model_id, start_date, end_date, location_ids=None, machine_ids=None):
         """
         Ruft historische Transaktionsdaten für das Modelltraining ab
+        KRITISCH: Korrekte Behandlung von Schulferien vs. Feiertagen
         
         Args:
             model_id: ID des zu trainierenden Modells
@@ -172,6 +173,7 @@ class ProphetForecaster:
                             df[col].fillna(df[col].mean(), inplace=True)
             
             # Feiertagsdaten hinzufügen, wenn aktiviert
+            # KRITISCH: Korrekte Unterscheidung zwischen Schulferien und Feiertagen
             if model_info['uses_holiday_data']:
                 cursor.execute("""
                     SELECT 
@@ -188,10 +190,22 @@ class ProphetForecaster:
                 holiday_data = cursor.fetchall()
                 if holiday_data:
                     holiday_df = pd.DataFrame(holiday_data)
-                    # Binäre Feiertagsspalte hinzufügen
-                    holiday_df['is_holiday'] = 1
-                    df = pd.merge(df, holiday_df, on='ds', how='left')
-                    df['is_holiday'].fillna(0, inplace=True)
+                    
+                    # KORREKT: Schulferien haben POSITIVEN Einfluss auf Verkäufe (Tourismus)
+                    holiday_df['is_school_vacation'] = holiday_df['holiday_type'].apply(
+                        lambda x: 1 if x == 'SCHOOL_HOLIDAY' else 0
+                    )
+                    
+                    # KORREKT: Feiertage haben NEGATIVEN Einfluss auf Verkäufe (geschlossene Geschäfte)
+                    holiday_df['is_public_holiday'] = holiday_df['holiday_type'].apply(
+                        lambda x: 1 if x == 'PUBLIC_HOLIDAY' else 0
+                    )
+                    
+                    # Merge mit Hauptdaten
+                    df = pd.merge(df, holiday_df[['ds', 'is_school_vacation', 'is_public_holiday']], 
+                                on='ds', how='left')
+                    df['is_school_vacation'].fillna(0, inplace=True)
+                    df['is_public_holiday'].fillna(0, inplace=True)
             
             # Wochentag als kategorischer Faktor
             df['day_of_week'] = df['day_of_week'].astype('category')
@@ -310,10 +324,10 @@ class ProphetForecaster:
             )
             
             # Setze die untere Grenze auf 0 (keine negativen Verkäufe möglich)
-            training_df['floor'] = 0
+            prophet_df['floor'] = 0
             # Setze eine realistische Obergrenze basierend auf historischen Daten
             # oder einem sinnvollen Default-Wert
-            training_df['cap'] = training_df['y'].max() * 2  # 2x des maximalen historischen Werts
+            prophet_df['cap'] = prophet_df['y'].max() * 2  # 2x des maximalen historischen Werts
             
             # Feiertage hinzufügen, wenn vorhanden
             if holidays_df is not None and not holidays_df.empty:

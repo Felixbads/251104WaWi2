@@ -1914,21 +1914,41 @@ export async function getDashboardHolidayData(): Promise<DashboardHolidayData> {
         };
       });
 
-    // Brückentage berechnen (vereinfachte Logik)
+    // Brückentage berechnen (nur für PUBLIC_HOLIDAY an Dienstag/Donnerstag)
     const bridgeDays = holidays
       .filter((holiday: any) => {
+        // Nur Feiertage (nicht Schulferien) können Brückentage haben
+        if (holiday.type !== 'PUBLIC_HOLIDAY') return false;
+        
         const holidayDate = new Date(holiday.date);
         const dayOfWeek = holidayDate.getDay();
-        // Brückentag wenn Feiertag Dienstag oder Donnerstag ist
+        // Brückentag wenn Feiertag Dienstag (2) oder Donnerstag (4) ist
         return dayOfWeek === 2 || dayOfWeek === 4;
       })
       .slice(0, 3)
-      .map((holiday: any) => ({
-        date: holiday.date,
-        name: `Brückentag für ${holiday.name}`,
-        isBridgeDay: true,
-        relatedHoliday: holiday.name
-      }));
+      .map((holiday: any) => {
+        const holidayDate = new Date(holiday.date);
+        const dayOfWeek = holidayDate.getDay();
+        
+        // Berechne den Brückentag-Datum
+        let bridgeDate;
+        if (dayOfWeek === 2) {
+          // Feiertag ist Dienstag → Brückentag ist Montag
+          bridgeDate = new Date(holidayDate);
+          bridgeDate.setDate(bridgeDate.getDate() - 1);
+        } else {
+          // Feiertag ist Donnerstag → Brückentag ist Freitag
+          bridgeDate = new Date(holidayDate);
+          bridgeDate.setDate(bridgeDate.getDate() + 1);
+        }
+        
+        return {
+          date: bridgeDate.toISOString(),
+          name: `Brückentag für ${holiday.name}`,
+          isBridgeDay: true,
+          relatedHoliday: holiday.name
+        };
+      });
 
     return {
       today: todayHolidays,

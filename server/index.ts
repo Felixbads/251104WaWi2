@@ -48,6 +48,8 @@ import interAppApiRouter from './routes/inter-app-api';
 import suppliersFastRouter from './routes/suppliers-fast';
 import supplierDiscountsRouter from './routes/supplier-discounts';
 import locationStatusRouter from './routes/location-status-ultra-fast';
+import weatherCorrectionRouter from './routes/weather-correction';
+import { retroactiveWeatherService } from './services/retroactiveWeatherCorrection';
 
 const app = express();
 
@@ -899,6 +901,14 @@ Elbsandstein Proviant & Quartier GmbH`;
   console.log('[SERVER] Location status router mounted BEFORE registerRoutes');
   
   const server = await registerRoutes(app);
+
+  // Register weather correction service AFTER registerRoutes
+  app.use('/api/weather-correction', weatherCorrectionRouter);
+  console.log('[SERVER] Weather correction service registered');
+  
+  // Start daily weather correction cron job
+  retroactiveWeatherService.scheduleDailyCorrection();
+  console.log('[SERVER] Daily weather correction cron job started (6:00 AM)');
 
   // Direct email endpoint that bypasses all routing conflicts
   app.post('/email-send-direct/:orderId', async (req, res) => {

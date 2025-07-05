@@ -120,18 +120,44 @@ export default function HolidayDashboardWidget({ className }: HolidayDashboardWi
       <CardContent className="space-y-4">
         {/* Heutige Feiertage/Ferien */}
         {hasToday && (
-          <Alert className="border-red-200 bg-red-50 dark:bg-red-950/20">
-            <Calendar className="h-4 w-4 text-red-600" />
+          <Alert className={
+            holidayData.today.some(h => h.type === 'PUBLIC_HOLIDAY') 
+              ? "border-red-200 bg-red-50 dark:bg-red-950/20"
+              : "border-blue-200 bg-blue-50 dark:bg-blue-950/20"
+          }>
+            {holidayData.today.some(h => h.type === 'PUBLIC_HOLIDAY') 
+              ? <Calendar className="h-4 w-4 text-red-600" />
+              : <School className="h-4 w-4 text-blue-600" />
+            }
             <AlertDescription>
-              <div className="font-medium text-red-800 dark:text-red-200 mb-2">
-                Heute ist {holidayData.today.length > 1 ? 'sind' : 'ein'} {holidayData.today.length > 1 ? 'Feiertage' : 'Feiertag'}!
+              <div className={`font-medium mb-2 ${
+                holidayData.today.some(h => h.type === 'PUBLIC_HOLIDAY')
+                  ? 'text-red-800 dark:text-red-200'
+                  : 'text-blue-800 dark:text-blue-200'
+              }`}>
+                {(() => {
+                  const publicHolidays = holidayData.today.filter(h => h.type === 'PUBLIC_HOLIDAY');
+                  const schoolHolidays = holidayData.today.filter(h => h.type === 'SCHOOL_HOLIDAY');
+                  
+                  if (publicHolidays.length > 0 && schoolHolidays.length > 0) {
+                    return 'Heute ist Feiertag und Schulferien!';
+                  } else if (publicHolidays.length > 0) {
+                    return `Heute ${publicHolidays.length > 1 ? 'sind' : 'ist'} ${publicHolidays.length > 1 ? 'Feiertage' : 'Feiertag'}!`;
+                  } else {
+                    return `Heute ${schoolHolidays.length > 1 ? 'sind' : 'sind'} Schulferien!`;
+                  }
+                })()}
               </div>
               <div className="space-y-1">
                 {holidayData.today.map((holiday, index) => (
                   <div key={index} className="flex items-center justify-between">
                     <div className="flex items-center">
                       {getHolidayTypeIcon(holiday.type)}
-                      <span className="ml-2 text-sm font-medium text-red-700 dark:text-red-300">
+                      <span className={`ml-2 text-sm font-medium ${
+                        holiday.type === 'PUBLIC_HOLIDAY'
+                          ? 'text-red-700 dark:text-red-300'
+                          : 'text-blue-700 dark:text-blue-300'
+                      }`}>
                         {holiday.name}
                       </span>
                     </div>
@@ -201,16 +227,30 @@ export default function HolidayDashboardWidget({ className }: HolidayDashboardWi
         )}
 
         {/* Verkaufseinfluss-Hinweis */}
-        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+        <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-3">
           <div className="flex items-center mb-2">
-            <TrendingUp className="h-4 w-4 mr-2 text-blue-600" />
-            <span className="text-sm font-medium text-blue-800 dark:text-blue-200">
+            <TrendingUp className="h-4 w-4 mr-2 text-green-600" />
+            <span className="text-sm font-medium text-green-800 dark:text-green-200">
               Verkaufseinfluss
             </span>
           </div>
-          <p className="text-xs text-blue-700 dark:text-blue-300">
+          <p className="text-xs text-green-700 dark:text-green-300">
             {hasToday 
-              ? "Reduzierte Verkäufe heute erwartet - Feiertag berücksichtigen"
+              ? (() => {
+                  const isWeekend = new Date().getDay() === 0 || new Date().getDay() === 6;
+                  const hasSchoolHoliday = holidayData.today.some(h => h.type === 'SCHOOL_HOLIDAY');
+                  const hasPublicHoliday = holidayData.today.some(h => h.type === 'PUBLIC_HOLIDAY');
+                  
+                  if (hasSchoolHoliday && isWeekend) {
+                    return "Stark erhöhte Verkäufe erwartet - Schulferien + Wochenende";
+                  } else if (hasSchoolHoliday) {
+                    return "Erhöhte Verkäufe erwartet - Schulferien bedeuten mehr Besucher";
+                  } else if (hasPublicHoliday) {
+                    return "Leicht reduzierte Verkäufe möglich - Feiertag (weniger Arbeiter/Pendler)";
+                  } else {
+                    return "Normale Verkaufsmuster erwartet";
+                  }
+                })()
               : hasUpcoming && holidayData.upcoming[0]?.daysUntil <= 3
               ? `Erhöhte Nachfrage vor ${holidayData.upcoming[0].name} möglich`
               : "Normale Verkaufsmuster erwartet - keine besonderen Ereignisse"

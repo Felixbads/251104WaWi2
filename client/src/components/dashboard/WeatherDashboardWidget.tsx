@@ -23,8 +23,8 @@ export default function WeatherDashboardWidget({ className }: WeatherDashboardWi
   const { data: weatherData, isLoading, error } = useQuery({
     queryKey: ['/api/dashboard/weather'],
     queryFn: getDashboardWeatherData,
-    refetchInterval: 300000, // Alle 5 Minuten aktualisieren
-    staleTime: 240000, // 4 Minuten als "frisch" betrachten
+    refetchInterval: 24 * 60 * 60 * 1000, // Einmal täglich aktualisieren (24 Stunden)
+    staleTime: 23 * 60 * 60 * 1000, // 23 Stunden als "frisch" betrachten
   });
 
   const getWeatherIcon = (iconCode: string) => {
