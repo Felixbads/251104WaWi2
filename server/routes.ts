@@ -49,6 +49,7 @@ import resilientSyncRouter from './routes/resilientSync';
 import photosRouter from './routes/photos';
 import { getSuppliersSchedules } from './routes/suppliers-schedules';
 import { MhdFifoService } from './services/mhdFifoService';
+import warehouseProductsRouter from './routes/warehouseProducts';
 
 // Hilfsfunktion zum Gruppieren der Transaktionen nach Zeitraum
 function groupTransactionsByPeriod(transactions, period) {
@@ -173,6 +174,7 @@ import databaseViewerRoutes from "./routes/database-viewer";
 import emailRoutes from "./routes/email";
 import refillsRoutes from "./routes/refills";
 import enhancedVendonImportRoutes from "./routes/enhancedVendonImport";
+import warehouseProductsRoutes from "./routes/warehouseProducts";
 import { WebSocketServer } from 'ws';
 
 // API route prefix
@@ -3792,6 +3794,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use(`${API_PREFIX}/weather`, weatherRouter);
   app.use(`${API_PREFIX}/product-disposals`, productDisposalsRoutes);
   app.use(`${API_PREFIX}/inventory-transfers`, inventoryTransfersRoutes);
+  app.use(`${API_PREFIX}/warehouse-products`, warehouseProductsRoutes);
   app.get(`${API_PREFIX}/removed-products`, getRemovedProducts);
   
   // Photo upload routes
