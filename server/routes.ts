@@ -48,6 +48,7 @@ import suppliersProductsRouter from './routes/suppliers-products';
 import resilientSyncRouter from './routes/resilientSync';
 import photosRouter from './routes/photos';
 import { getSuppliersSchedules } from './routes/suppliers-schedules';
+import inventoryTransfersRouter from './routes/inventoryTransfers';
 import inventoryMovementsRouter from './routes/inventoryMovements';
 import { MhdFifoService } from './services/mhdFifoService';
 import warehouseProductsRouter from './routes/warehouseProducts';
@@ -4019,6 +4020,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Erste Version der Warehouse-Stats-API entfernt, um Duplikate zu vermeiden.
   // Die unten definierte Version (Zeile 2483) wird stattdessen verwendet.
+  
+  // Registriere Inventory Transfer Routen
+  app.use(`${API_PREFIX}/inventory-transfers`, inventoryTransfersRouter);
   
   // Registriere Bestellungs-Routen
   app.use(`${API_PREFIX}/orders`, ordersRouter);

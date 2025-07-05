@@ -171,6 +171,9 @@ export default function WarenbewegungNewPage() {
   // Mutation for transfer
   const transferMutation = useMutation({
     mutationFn: async (transferData: any) => {
+      console.log("🚀 Sende Transfer-Request an API:", transferData);
+      console.log("🔗 Request URL: /api/inventory-transfers");
+      
       const response = await fetch('/api/inventory-transfers', {
         method: 'POST',
         headers: {
@@ -179,12 +182,18 @@ export default function WarenbewegungNewPage() {
         body: JSON.stringify(transferData),
       });
       
+      console.log("📡 Response Status:", response.status);
+      console.log("📊 Response OK:", response.ok);
+      
       if (!response.ok) {
         const errorData = await response.json();
+        console.error("❌ API Error:", errorData);
         throw new Error(errorData.error || 'Fehler bei der Übertragung');
       }
       
-      return response.json();
+      const result = await response.json();
+      console.log("✅ API Success Response:", result);
+      return result;
     },
     onSuccess: () => {
       toast({
@@ -259,7 +268,13 @@ export default function WarenbewegungNewPage() {
   
   // Handle transfer submission
   const handleTransfer = () => {
+    console.log("🔄 Transfer-Button geklickt!");
+    console.log("Source Warehouse ID:", sourceWarehouseId);
+    console.log("Target Warehouse ID:", targetWarehouseId);
+    console.log("Cart Items:", cartItems);
+    
     if (!sourceWarehouseId || !targetWarehouseId) {
+      console.log("❌ Fehlende Warehouse-IDs");
       toast({
         title: "Fehlende Informationen",
         description: "Bitte wählen Sie ein Quell- und Ziellager aus.",
