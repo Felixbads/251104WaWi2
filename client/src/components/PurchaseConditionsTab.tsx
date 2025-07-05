@@ -194,6 +194,9 @@ export function PurchaseConditionsTab({ supplierId, supplierName }: PurchaseCond
   };
 
   const getProductName = (productId: number) => {
+    if (!Array.isArray(availableProducts)) {
+      return `Produkt ID: ${productId}`;
+    }
     const product = availableProducts.find((p: ProductOption) => p.id === productId);
     return product?.productName || `Produkt ID: ${productId}`;
   };

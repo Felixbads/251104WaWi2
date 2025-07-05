@@ -2188,10 +2188,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Format the data for price history display
       const priceHistory = purchaseConditions.map(condition => ({
         date: condition.validFrom,
-        price: condition.pricePerUnit,
+        price: condition.unitPrice,
         supplier: condition.supplierName,
-        minimumQuantity: condition.minimumQuantity,
-        discount: condition.discountPercentage,
+        minimumQuantity: condition.minQuantity,
+        discount: condition.taxRate, // Use tax rate as discount placeholder
         notes: condition.notes
       }));
       
