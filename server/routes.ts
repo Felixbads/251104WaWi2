@@ -1,5 +1,5 @@
 import type { Express, Request as ExpressRequest, Response, NextFunction } from "express";
-import { User, insertPurchaseConditionSchema, insertInventoryCountItemSchema, machines, transactions } from '../shared/schema';
+import { User, insertPurchaseConditionSchema, insertInventoryCountItemSchema, machines, transactions, refills } from '../shared/schema';
 
 // Erweitern der Request-Schnittstelle zur Unterstützung des user-Objekts
 interface Request extends ExpressRequest {
@@ -3631,6 +3631,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .orderBy(desc(transactions.datetime))
         .limit(3);
         
+        // Letzter Refill
+        const lastRefill = await db.select({
+          datetime: refills.datetime,
+          vendonRefillId: refills.vendonRefillId
+        })
+        .from(refills)
+        .where(eq(refills.machineId, machine.id))
+        .orderBy(desc(refills.datetime))
+        .limit(1);
+        
         // Tage seit letztem Verkauf berechnen
         const now = new Date();
         const lastSaleDate = lastSale[0]?.datetime;
@@ -3641,6 +3651,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const lastCashlessSaleDate = lastCashlessSale[0]?.datetime;
         const daysSinceLastCashless = lastCashlessSaleDate
           ? Math.floor((now.getTime() - new Date(lastCashlessSaleDate).getTime()) / (1000 * 60 * 60 * 24))
+          : null;
+        
+        const lastRefillDate = lastRefill[0]?.datetime;
+        const daysSinceLastRefill = lastRefillDate
+          ? Math.floor((now.getTime() - new Date(lastRefillDate).getTime()) / (1000 * 60 * 60 * 24))
           : null;
         
         // MHD Status aus der vorbereiteten Map abrufen
@@ -3673,7 +3688,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           id: machine.id,
           machineName: machine.name,
           location: machine.location,
-          lastRefill: null, // TODO: Füllungsdaten implementieren
+          lastRefill: lastRefill[0] ? {
+            datetime: lastRefill[0].datetime,
+            daysAgo: daysSinceLastRefill,
+            vendonRefillId: lastRefill[0].vendonRefillId
+          } : null,
           lastSale: lastSale[0] ? {
             datetime: lastSale[0].datetime,
             daysAgo: daysSinceLastSale

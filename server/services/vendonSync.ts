@@ -373,8 +373,8 @@ class VendonAPI {
     }
     
     try {
-      // Teste verschiedene Events-Endpunkte
-      const events = await this.makeRequest<any[]>('/events', 'GET', params);
+      // Korrekter Endpunkt laut Vendon API v1.9.0 Dokumentation
+      const events = await this.makeRequest<any[]>('/event/', 'GET', params);
       const result = {
         data: events,
         total: events.length, // Die API gibt die Gesamtzahl nicht direkt zurück, nehmen wir an, dass das alles ist
