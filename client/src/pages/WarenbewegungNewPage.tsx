@@ -310,7 +310,7 @@ export default function WarenbewegungNewPage() {
       notes: "Warenumlagung über Webschnittstelle",
       autoExecute: true, // Führe Transfer sofort aus
       items: cartItems.map(item => ({
-        productId: item.productId.toString(),
+        productId: item.productId, // Number beibehalten, nicht zu String konvertieren
         productName: item.productName,
         quantity: item.quantity,
         reason: "Umlagerung"
