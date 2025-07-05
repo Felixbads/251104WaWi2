@@ -2418,6 +2418,8 @@ export const insertInventoryTransferItemSchema = createInsertSchema(inventoryTra
   currentSourceStock: true,
   previousTargetStock: true,
   currentTargetStock: true,
+}).extend({
+  productId: z.string().transform((val) => parseInt(val)), // String zu Integer konvertieren
 });
 
 // Types for inventory transfers
