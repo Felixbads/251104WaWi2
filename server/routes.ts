@@ -36,7 +36,7 @@ import productSyncRouter from './routes/product-sync';
 import vendonImportStatsRouter from './routes/vendonImportStats';
 import vendonHistoricalImportRouter from './routes/vendonHistoricalImport';
 import eventsRouter from './routes/events';
-import locationStatusRouter from './routes/location-status';
+import locationStatusRouter from './routes/location-status-ultra-fast';
 import databaseRouter from './routes/database';
 import comprehensiveDataRouter from './routes/comprehensiveData';
 import weatherRouter from './routes/weather';

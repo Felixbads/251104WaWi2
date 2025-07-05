@@ -11,64 +11,106 @@ router.get('/', (req: Request, res: Response) => {
 
   const staticResponse = [
     {
-      id: '323959',
+      id: 323959,
       machineName: 'Bad Schandau Nationalparkbahnhof',
       location: 'Bad Schandau',
-      daysAgo: 0,
-      recentTransactions: [],
-      status: 'Active',
-      lastSale: 'Heute 15:30',
-      lastCashlessSale: 'Heute 14:45',
-      lastDoorOpening: 'Heute 08:00',
-      lastRefill: 'Heute 07:30',
-      totalSales: 45,
-      cashlessSales: 38,
-      dailyAverageRevenue: 125.50,
-      weeklyRevenue: 878.50,
-      monthlySales: 167,
-      todayRevenue: 125.50,
+      lastRefill: {
+        datetime: '2025-07-05T07:30:00.000Z',
+        operator: 'Wartungsteam',
+        daysAgo: 0
+      },
+      lastSale: {
+        datetime: '2025-07-05T15:30:00.000Z',
+        daysAgo: 0
+      },
+      lastCashlessSale: {
+        datetime: '2025-07-05T14:45:00.000Z',
+        paymentMethod: 'CARD',
+        daysAgo: 0
+      },
+      lastDoorOpen: {
+        datetime: '2025-07-05T08:00:00.000Z',
+        daysAgo: 0
+      },
       lastAlcoholSale: null,
-      warnings: []
+      todayRevenue: 125.50,
+      recentTransactions: [],
+      status: 'ok',
+      warnings: [],
+      mhdStatus: {
+        expiredCount: 0,
+        warningCount: 2,
+        earliestExpiry: '2025-07-15T00:00:00.000Z',
+        alertLevel: 'ok'
+      }
     },
     {
-      id: '325762', 
+      id: 325762,
       machineName: 'Rathen',
       location: 'Rathen',
-      daysAgo: 0,
-      recentTransactions: [],
-      status: 'Active',
-      lastSale: 'Heute 16:15',
-      lastCashlessSale: 'Heute 15:20',
-      lastDoorOpening: 'Heute 08:15',
-      lastRefill: 'Heute 07:45',
-      totalSales: 52,
-      cashlessSales: 41,
-      dailyAverageRevenue: 142.30,
-      weeklyRevenue: 995.10,
-      monthlySales: 201,
-      todayRevenue: 142.30,
+      lastRefill: {
+        datetime: '2025-07-05T07:45:00.000Z',
+        operator: 'Wartungsteam',
+        daysAgo: 0
+      },
+      lastSale: {
+        datetime: '2025-07-05T16:15:00.000Z',
+        daysAgo: 0
+      },
+      lastCashlessSale: {
+        datetime: '2025-07-05T15:20:00.000Z',
+        paymentMethod: 'CARD',
+        daysAgo: 0
+      },
+      lastDoorOpen: {
+        datetime: '2025-07-05T08:15:00.000Z',
+        daysAgo: 0
+      },
       lastAlcoholSale: null,
-      warnings: []
+      todayRevenue: 142.30,
+      recentTransactions: [],
+      status: 'ok',
+      warnings: [],
+      mhdStatus: {
+        expiredCount: 0,
+        warningCount: 1,
+        earliestExpiry: '2025-07-12T00:00:00.000Z',
+        alertLevel: 'ok'
+      }
     },
     {
-      id: '347989',
+      id: 347989,
       machineName: 'Königstein',
       location: 'Königstein',
-      daysAgo: 0,
-      recentTransactions: [],
-      status: 'Active',
-      lastSale: 'Heute 14:20',
-      lastCashlessSale: 'Heute 13:45',
-      lastDoorOpening: 'Heute 07:50',
-      lastRefill: 'Heute 07:15',
-      totalSales: 38,
-      cashlessSales: 32,
-      dailyAverageRevenue: 98.75,
-      weeklyRevenue: 691.25,
-      monthlySales: 145,
-      todayRevenue: 98.75,
+      lastRefill: {
+        datetime: '2025-07-05T07:15:00.000Z',
+        operator: 'Wartungsteam',
+        daysAgo: 0
+      },
+      lastSale: {
+        datetime: '2025-07-05T14:20:00.000Z',
+        daysAgo: 0
+      },
+      lastCashlessSale: {
+        datetime: '2025-07-05T13:45:00.000Z',
+        paymentMethod: 'CARD',
+        daysAgo: 0
+      },
+      lastDoorOpen: {
+        datetime: '2025-07-05T07:50:00.000Z',
+        daysAgo: 0
+      },
       lastAlcoholSale: null,
-      warnings: []
+      todayRevenue: 98.75,
+      recentTransactions: [],
+      status: 'ok',
+      warnings: [],
+      mhdStatus: {
+        expiredCount: 0,
+        warningCount: 0,
+        earliestExpiry: null,
+        alertLevel: 'ok'
+      }
     }
   ];
 
