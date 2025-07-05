@@ -109,6 +109,14 @@ This is a comprehensive vending machine management platform (Warenwirtschaftssys
 
 ## Changelog
 
+- July 5, 2025: Umfassende Analyse der Einkaufsbedingungen-Funktionalität abgeschlossen
+  - ✓ Vollständige Bewertung des aktuellen Einkaufsbedingungen-Systems durchgeführt
+  - ✓ System ist zu ~60% implementiert - Grundlagen vorhanden, erweiterte Features fehlen
+  - ✓ Identifizierte fehlende Komponenten: Lieferanten-Rabattsystem, automatische Rabattberechnung
+  - ✓ Fehlende Wirtschaftlichkeitsanalyse und historische Preisverfolgung dokumentiert
+  - ✓ Produktansicht für Einkaufsbedingungen noch nicht implementiert
+  - ✓ Detaillierte Implementierungsroadmap in analysis_purchase_conditions_system.md erstellt
+  - System hat solide Basis, benötigt Erweiterung um Rabattlogik und Wirtschaftlichkeitsanalyse
 - July 5, 2025: Alkohol-Tracking-System vollständig implementiert
   - ✓ Datenbank-Schema mit isAlcoholic-Spalte erweitert
   - ✓ Backend SQL-Abfragen für Alkohol-Verkaufs-Tracking implementiert
