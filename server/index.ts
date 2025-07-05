@@ -47,7 +47,7 @@ import { startPhotoServer } from './photoServer';
 import interAppApiRouter from './routes/inter-app-api';
 import suppliersFastRouter from './routes/suppliers-fast';
 import supplierDiscountsRouter from './routes/supplier-discounts';
-import locationStatusRouter from './routes/location-status-optimized';
+import locationStatusRouter from './routes/location-status-fast';
 
 const app = express();
 
