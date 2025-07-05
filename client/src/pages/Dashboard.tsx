@@ -18,7 +18,7 @@ import {
   Coffee
 } from "lucide-react";
 import PageHeader from "@/components/layout/PageHeader";
-import WeatherWidget from "@/components/weather/WeatherWidget";
+
 
 import HolidayDashboardWidget from "@/components/dashboard/HolidayDashboardWidget";
 import { SyncStatusWidget } from "@/components/SyncStatusWidget";
@@ -615,19 +615,7 @@ export default function Dashboard() {
 
       {/* Wetter und Prognosen */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
-        {/* Wettervorhersage */}
-        <Card className="h-full">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-lg flex items-center">
-              <Cloud className="h-5 w-5 mr-2 text-primary" />
-              Wettervorhersage
-            </CardTitle>
-            <CardDescription>Wetter für die nächsten 7 Tage</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <WeatherWidget className="h-full" forecastDays={7} />
-          </CardContent>
-        </Card>
+
 
         {/* Verkaufsprognosen */}
         <Card className="h-full">
