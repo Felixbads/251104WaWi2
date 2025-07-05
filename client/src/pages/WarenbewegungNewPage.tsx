@@ -112,7 +112,7 @@ export default function WarenbewegungNewPage() {
 
   // Get products for selected source warehouse (transfer)
   const { data: sourceProducts, isLoading: sourceProductsLoading } = useQuery({
-    queryKey: ['/api/warehouse-products', sourceWarehouseId, { includeZeroStock: false }],
+    queryKey: ['/api/warehouse-products', { warehouseId: sourceWarehouseId, includeZeroStock: false }],
     enabled: !!sourceWarehouseId,
     select: (data: any[]) => {
       return data
@@ -135,7 +135,7 @@ export default function WarenbewegungNewPage() {
     isLoading: disposalProductsLoading,
     refetch: refetchDisposalProducts
   } = useQuery({
-    queryKey: ['/api/warehouse-products', disposalWarehouseId, { includeZeroStock: false }],
+    queryKey: ['/api/warehouse-products', { warehouseId: disposalWarehouseId, includeZeroStock: false }],
     enabled: !!disposalWarehouseId,
     select: (data: any[]) => {
       return data
