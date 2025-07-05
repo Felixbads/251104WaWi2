@@ -47,9 +47,11 @@ import { startPhotoServer } from './photoServer';
 import interAppApiRouter from './routes/inter-app-api';
 import suppliersFastRouter from './routes/suppliers-fast';
 import supplierDiscountsRouter from './routes/supplier-discounts';
-import locationStatusRouter from './routes/location-status-fast';
+import locationStatusRouter from './routes/location-status-optimized';
 
 const app = express();
+
+// Optimized location status route with authentic database data will be registered below
 
 // INTER-APP API ENDPOINTS - MUST BE FIRST TO BYPASS ALL MIDDLEWARE
 // Health Check für externe Apps (OHNE Authentifizierung)
@@ -2225,7 +2227,8 @@ Elbsandstein Proviant & Quartier GmbH`;
   app.use('/api/suppliers-fast', suppliersFastRouter);
   app.use('/api/support-tickets', supportTicketsRouter);
   
-  // Register location status router
+  // Location status router will be registered below
+
   app.use('/api/location-status', locationStatusRouter);
 
   // Register enhanced order copy router
