@@ -1,0 +1,49 @@
+Analysiere und entwickle ein Datenmodell sowie die dahinterliegende Logik für die Zuordnung und Verwaltung von Einkaufsbedingungen zu Produkten, unter folgenden Voraussetzungen:
+	•	Produkte kommen aus der Vendon API und werden nicht manuell im System angelegt, sondern automatisch importiert.
+	•	Jedes Produkt kann im System einem oder mehreren Lieferanten zugeordnet werden.
+	•	Lieferanten werden manuell im System angelegt.
+
+⸻
+
+Anforderungen an die Datenstruktur und Anzeige:
+
+1. Produktzuordnung:
+	•	Produkte aus der Vendon API können Lieferanten zugeordnet werden.
+	•	Die Mehrwertsteuer (MwSt.) wird aus der API übernommen und ausschließlich angezeigt, nicht bearbeitet.
+
+2. Einkaufsbedingungen pro Produkt-Lieferant-Kombination:
+	•	Einkaufspreis (Netto)
+	•	Gebindemenge: Mengeneinheit, in der das Produkt bestellt werden muss (z. B. 24 Stück)
+	•	Mindestabnahmemenge (optional, kann leer sein)
+
+3. Lieferantenspezifische Rabatt- und Nachlasslogik:
+	•	Rabatte gelten lieferantenspezifisch, nicht produktspezifisch.
+	•	Mögliche Rabattarten:
+	•	Mengenrabatt (z. B. 5 % ab 100 Stück)
+	•	Skonto (z. B. 2 % bei Zahlung innerhalb von 10 Tagen)
+	•	Diese Rabatte sollen in der Lieferantenverwaltung gepflegt und für Bestellungen automatisch berücksichtigt werden.
+
+⸻
+
+Workflow-Integration:
+
+4. Verwendung der Einkaufsbedingungen in Bestellungen:
+	•	Die Einkaufsbedingungen bilden die Basis für Bestellungen bei Lieferanten.
+	•	Beim Erstellen einer Bestellung müssen die aktuell gültigen Einkaufspreise und Rabattkonditionen des jeweiligen Lieferanten automatisch übernommen werden.
+	•	Rabatte, Skonti oder Staffelpreise werden dynamisch anhand der Bestellmenge angewendet.
+
+5. Wareneingang & Wirtschaftlichkeitsberechnung:
+	•	Beim Wareneingang müssen die jeweiligen Einkaufspreise pro Produkt mitgeführt und dokumentiert werden.
+	•	Ziel: Ermöglichen einer exakten Wirtschaftlichkeits- und Deckungsbeitragsrechnung pro Produkt oder Warengruppe, auch rückwirkend.
+	•	Änderungen an Einkaufspreisen müssen historisch nachvollziehbar und bestellbezogen gespeichert sein.
+
+⸻
+
+Anzeige- und Pflegefunktionen:
+	•	Einkaufsbedingungen sollen sowohl beim Lieferanten als auch beim Produkt sichtbar und pflegbar sein:
+	•	In der Lieferantenansicht:
+	•	Übersicht aller zugeordneten Produkte mit den jeweiligen Einkaufspreisen, Mengen, Rabatten etc.
+	•	Möglichkeit zur Pflege der allgemeinen Lieferantenkonditionen (Rabatte, Skonti)
+	•	In der Produktansicht:
+	•	Übersicht aller zugeordneten Lieferanten mit individuellen Einkaufskonditionen
+	•	Möglichkeit zur Pflege der Einkaufskonditionen pro Lieferant
