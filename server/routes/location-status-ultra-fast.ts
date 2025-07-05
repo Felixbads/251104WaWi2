@@ -46,7 +46,7 @@ router.get('/', async (req: Request, res: Response) => {
         
         -- Last door opening for THIS machine  
         (SELECT MAX(e1.datetime) FROM events e1 
-         WHERE e1.machine_id = best_machines.machine_id AND e1.event_type = 'A') as last_door_open,
+         WHERE e1.machine_id = best_machines.machine_id AND e1.event_type = 'R') as last_door_open,
         
         -- Last alcohol sale for THIS machine
         (SELECT MAX(t4.datetime) FROM transactions t4 
@@ -105,12 +105,9 @@ router.get('/', async (req: Request, res: Response) => {
       recentTransactions: [],
       status: 'ok',
       warnings: [],
-      mhdStatus: {
-        expiredCount: 0,
-        warningCount: 0,
-        earliestExpiry: null,
-        alertLevel: 'ok'
-      }
+      warningCount: 0,
+      earliestExpiry: null,
+      alertLevel: 'ok'
     }));
     
 
