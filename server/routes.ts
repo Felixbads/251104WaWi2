@@ -2561,19 +2561,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get location status data for location status page
-  app.get(`${API_PREFIX}/location-status`, async (req: Request, res: Response) => {
-    try {
-      const locationStatusData = await storage.getLocationStatusData();
-      res.json(locationStatusData);
-    } catch (error) {
-      console.error("Error fetching location status data:", error);
-      res.status(500).json({ 
-        error: "Failed to fetch location status data", 
-        details: error instanceof Error ? error.message : String(error) 
-      });
-    }
-  });
+  // Location status route handled by dedicated router
 
   // Get machine by ID
   app.get(`${API_PREFIX}/machines/:id`, async (req: Request, res: Response) => {
@@ -3511,9 +3499,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Location Status API für das Dashboard
-  app.get(`${API_PREFIX}/location-status`, authenticate, async (req: Request, res: Response) => {
-    try {
+  // Location Status API für das Dashboard - DISABLED (duplicate route)
+  // app.get(`${API_PREFIX}/location-status`, authenticate, async (req: Request, res: Response) => {
+  /*  try {
       console.log('Location-Status-Daten werden abgerufen...');
       
       // Alle Automaten mit ihren Lagern abrufen
@@ -3741,7 +3729,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         details: error instanceof Error ? error.message : String(error) 
       });
     }
-  });
+  */
+  // });  /* End of commented duplicate location-status route */
 
   registerForecastRoutes(app);
   statisticsRoutes(app);
