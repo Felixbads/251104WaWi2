@@ -45,6 +45,7 @@ import PurchaseConditionForm from "@/components/forms/PurchaseConditionForm";
 import SupplierEmailTemplates from "@/components/suppliers/SupplierEmailTemplates";
 import { SupplierEditDialog } from "@/components/SupplierEditDialog";
 import { PurchaseConditionsTab } from "@/components/PurchaseConditionsTab";
+import SupplierDiscountManager from "@/components/SupplierDiscountManager";
 import { apiRequest } from "@/lib/queryClient";
 
 
@@ -910,6 +911,10 @@ export default function SupplierDetail() {
               <FileText className="h-3 w-3 sm:h-4 sm:w-4" />
               <span>Einkauf</span>
             </TabsTrigger>
+            <TabsTrigger value="discountConditions" className="flex items-center gap-1 px-2 py-2 text-xs sm:text-sm whitespace-nowrap">
+              <Euro className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span>Rabatte</span>
+            </TabsTrigger>
             <TabsTrigger value="orders" className="flex items-center gap-1 px-2 py-2 text-xs sm:text-sm whitespace-nowrap">
               <Truck className="h-3 w-3 sm:h-4 sm:w-4" />
               <span>Bestellungen</span>
@@ -1415,6 +1420,11 @@ export default function SupplierDetail() {
             supplierId={parseInt(id!)} 
             supplierName={supplier.name}
           />
+        </TabsContent>
+
+        {/* Rabattbedingungen Tab */}
+        <TabsContent value="discountConditions">
+          <SupplierDiscountManager supplierId={parseInt(id!)} />
         </TabsContent>
         
         {/* Statistiken Tab */}

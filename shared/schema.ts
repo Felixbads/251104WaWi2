@@ -805,6 +805,7 @@ export type MachineStock = typeof machineStocks.$inferSelect;
 export const suppliersRelations = relations(suppliers, ({ many }) => ({
   products: many(products),
   purchaseConditions: many(purchaseConditions),
+  supplierDiscountConditions: many(supplierDiscountConditions),
 }));
 
 // Purchase Conditions Tabelle - Beziehungen zwischen Produkten und Lieferanten
@@ -850,6 +851,76 @@ export const insertPurchaseConditionSchema = createInsertSchema(purchaseConditio
 
 export type InsertPurchaseCondition = z.infer<typeof insertPurchaseConditionSchema>;
 export type PurchaseCondition = typeof purchaseConditions.$inferSelect;
+
+// Supplier Discount Conditions Tabelle - Lieferantenspezifische Rabatt- und Nachlasslogik
+export const supplierDiscountConditions = pgTable("supplier_discount_conditions", {
+  id: serial("id").primaryKey(),
+  supplierId: integer("supplier_id").notNull().references(() => suppliers.id, { onDelete: "cascade" }),
+  
+  // Rabatttyp
+  discountType: text("discount_type").notNull(), // 'volume_discount', 'cash_discount', 'quantity_scale', 'order_value'
+  
+  // Schwellenwerte
+  thresholdQuantity: integer("threshold_quantity"), // Ab welcher Stückzahl
+  thresholdAmount: real("threshold_amount"), // Ab welchem Bestellwert in EUR
+  
+  // Rabattkonditionen
+  discountPercentage: real("discount_percentage"), // Rabatt in Prozent (z.B. 5.0 für 5%)
+  discountAmount: real("discount_amount"), // Fester Rabattbetrag in EUR
+  
+  // Skonto-spezifische Felder
+  paymentTermsDays: integer("payment_terms_days"), // Zahlungsziel in Tagen für Skonto
+  skontoPercentage: real("skonto_percentage"), // Skonto-Prozentsatz (z.B. 2.0 für 2%)
+  
+  // Staffelpreise
+  maxQuantity: integer("max_quantity"), // Bis zu welcher Menge gilt dieser Rabatt
+  maxAmount: real("max_amount"), // Bis zu welchem Bestellwert gilt dieser Rabatt
+  
+  // Gültigkeit und Status
+  validFrom: timestamp("valid_from"),
+  validTo: timestamp("valid_to"),
+  isActive: boolean("is_active").default(true),
+  
+  // Zusätzliche Bedingungen
+  description: text("description"), // Beschreibung der Rabattbedingung
+  minimumOrderQuantity: integer("minimum_order_quantity"), // Mindestbestellmenge für diesen Rabatt
+  applicableProductCategories: text("applicable_product_categories"), // JSON Array von Kategorien
+  excludedProductIds: text("excluded_product_ids"), // JSON Array von ausgeschlossenen Produkt-IDs
+  
+  // Kombinierbarkeit
+  canCombineWithOtherDiscounts: boolean("can_combine_with_other_discounts").default(false),
+  priority: integer("priority").default(0), // Priorität bei mehreren anwendbaren Rabatten
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertSupplierDiscountConditionSchema = createInsertSchema(supplierDiscountConditions)
+  .omit({
+    id: true,
+    createdAt: true,
+    updatedAt: true,
+  })
+  .extend({
+    discountType: z.enum(['volume_discount', 'cash_discount', 'quantity_scale', 'order_value']),
+    discountPercentage: z.number().min(0).max(100).optional(),
+    discountAmount: z.number().min(0).optional(),
+    thresholdQuantity: z.number().min(0).optional(),
+    thresholdAmount: z.number().min(0).optional(),
+    paymentTermsDays: z.number().min(0).optional(),
+    skontoPercentage: z.number().min(0).max(100).optional(),
+    validFrom: z.union([
+      z.date(),
+      z.string().transform((str) => new Date(str))
+    ]).optional(),
+    validTo: z.union([
+      z.date(),
+      z.string().transform((str) => new Date(str))
+    ]).optional(),
+  });
+
+export type InsertSupplierDiscountCondition = z.infer<typeof insertSupplierDiscountConditionSchema>;
+export type SupplierDiscountCondition = typeof supplierDiscountConditions.$inferSelect;
 
 export const productsRelations = relations(products, ({ one, many }) => ({
   supplier: one(suppliers, {
@@ -2378,6 +2449,14 @@ export const purchaseConditionsRelations = relations(purchaseConditions, ({ one 
   }),
   supplier: one(suppliers, {
     fields: [purchaseConditions.supplierId],
+    references: [suppliers.id],
+  }),
+}));
+
+// Relationen für supplierDiscountConditions definieren
+export const supplierDiscountConditionsRelations = relations(supplierDiscountConditions, ({ one }) => ({
+  supplier: one(suppliers, {
+    fields: [supplierDiscountConditions.supplierId],
     references: [suppliers.id],
   }),
 }));

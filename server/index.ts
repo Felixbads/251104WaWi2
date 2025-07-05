@@ -46,6 +46,7 @@ import { uploadPhotos } from './middleware/fileUpload';
 import { startPhotoServer } from './photoServer';
 import interAppApiRouter from './routes/inter-app-api';
 import suppliersFastRouter from './routes/suppliers-fast';
+import supplierDiscountsRouter from './routes/supplier-discounts';
 
 const app = express();
 
@@ -1147,6 +1148,9 @@ Elbsandstein Proviant & Quartier GmbH`;
   
   // Register weather data router
   app.use('/api/weather', weatherRouter);
+  
+  // Register supplier discount conditions router
+  app.use('/api/supplier-discounts', supplierDiscountsRouter);
   
   // Register enhanced forecasting router
   const simpleEnhancedForecastRouter = (await import('./routes/simple-enhanced-forecast')).default;
