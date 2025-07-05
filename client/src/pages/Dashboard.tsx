@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import PageHeader from "@/components/layout/PageHeader";
 import WeatherWidget from "@/components/weather/WeatherWidget";
-import WeatherDashboardWidget from "@/components/dashboard/WeatherDashboardWidget";
+
 import HolidayDashboardWidget from "@/components/dashboard/HolidayDashboardWidget";
 import { SyncStatusWidget } from "@/components/SyncStatusWidget";
 import { useToast } from "@/hooks/use-toast";
@@ -747,11 +747,8 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      {/* Wetter und Feiertage/Ferien für Mitarbeiter */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <WeatherDashboardWidget className="h-full" />
-        <HolidayDashboardWidget className="h-full" />
-      </div>
+      {/* Feiertage und Ferien für Mitarbeiter */}
+      <HolidayDashboardWidget className="h-full" />
 
       {/* Zahlungsmethoden nach Standort und Datenbankstatistiken nebeneinander */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

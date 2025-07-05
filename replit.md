@@ -109,6 +109,16 @@ This is a comprehensive vending machine management platform (Warenwirtschaftssys
 
 ## Changelog
 
+- July 5, 2025: Erweiterte Wetterbasierte Prognosemethodik-Analyse abgeschlossen
+  - ✓ WeatherDashboardWidget aus Dashboard entfernt (auf Nutzerwunsch "ersten Wetter Teil rausnehmen")
+  - ✓ Feiertags-Dashboard-API auf alle 16 deutschen Bundesländer erweitert (statt nur Sachsen)
+  - ✓ Umfassende Analyse für wetterbasierte Verkaufsprognosen erstellt (ENHANCED_WEATHER_FORECAST_METHODOLOGY_ANALYSIS.md)
+  - ✓ Negative Event Detection-Konzept entwickelt für ausgebliebene Transaktionen bei schlechtem Wetter
+  - ✓ Wetter-Sensitivitätsmatrix pro Automat konzipiert mit standortspezifischen Faktoren
+  - ✓ Erwartungswert-Modellierung für Baseline-Verkäufe unter Normalbedingungen
+  - ✓ 7-Tage Wetterprognose-Integration mit automatischen Verkaufskorrekturen
+  - ✓ Prophet-Modell-Erweiterung um negative Sampling für bessere Schlechtwetter-Prognosen
+  - System adressiert kritische Lücke: Ausgebliebene Verkäufe werden jetzt als aktive Prognosefaktoren berücksichtigt
 - July 5, 2025: Umfassende Analyse des Ferien-/Feiertags-Systems durchgeführt
   - ✓ System ist zu 85% vollständig implementiert und produktionsreif
   - ✓ Alle 16 deutschen Bundesländer vollständig abgedeckt

@@ -1883,7 +1883,9 @@ export async function getDashboardHolidayData(): Promise<DashboardHolidayData> {
     const endDate = new Date();
     endDate.setDate(today.getDate() + 30); // Nächste 30 Tage
 
-    const response = await fetch(`/api/holidays?startDate=${today.toISOString().split('T')[0]}&endDate=${endDate.toISOString().split('T')[0]}`);
+    // Alle deutschen Bundesländer explizit abfragen
+    const states = ['BW', 'BY', 'BE', 'BB', 'HB', 'HH', 'HE', 'MV', 'NI', 'NW', 'RP', 'SL', 'SN', 'ST', 'SH', 'TH'];
+    const response = await fetch(`/api/holidays?startDate=${today.toISOString().split('T')[0]}&endDate=${endDate.toISOString().split('T')[0]}&states=${states.join(',')}&includeAll=true`);
     
     if (!response.ok) {
       throw new Error('Fehler beim Abrufen der Feiertagsdaten');
