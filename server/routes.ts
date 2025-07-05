@@ -1089,34 +1089,66 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // GET /machines/:id/daily-stats - Tägliche KPIs für einen Automaten abrufen
   app.get(`${API_PREFIX}/machines/:id/daily-stats`, async (req: Request, res: Response) => {
     try {
-      // Die ID als Zahl parsen, da es sich um die interne Maschinen-ID handelt
-      const machineId = parseInt(req.params.id);
+      const inputId = req.params.id;
+      let internalMachineId: number;
       
-      if (isNaN(machineId)) {
-        return res.status(400).json({ error: "Ungültige Automaten-ID, muss eine Zahl sein" });
+      console.log(`[INFO] Abrufen von täglichen KPIs für Maschine mit ID ${inputId}`);
+      
+      // Zuerst versuchen, die ID als Zahl zu parsen (interne ID)
+      const parsedId = parseInt(inputId);
+      
+      if (!isNaN(parsedId)) {
+        // Prüfen, ob eine Maschine mit dieser internen ID existiert
+        try {
+          const machineCheck = await storage.getMachine(parsedId);
+          if (machineCheck) {
+            internalMachineId = parsedId;
+            console.log(`[DEBUG] Interne Maschinen-ID ${internalMachineId} gefunden`);
+          } else {
+            throw new Error('Machine not found with internal ID');
+          }
+        } catch {
+          // Falls keine Maschine mit interner ID gefunden, versuche als Vendon-ID
+          console.log(`[DEBUG] Keine Maschine mit interner ID ${parsedId} gefunden, versuche als Vendon-ID`);
+          const machineByVendonId = await storage.getMachineByVendonId(inputId);
+          if (machineByVendonId) {
+            internalMachineId = machineByVendonId.id;
+            console.log(`[DEBUG] Maschine mit Vendon-ID ${inputId} gefunden, interne ID: ${internalMachineId}`);
+          } else {
+            return res.status(404).json({ error: `Keine Maschine mit ID ${inputId} gefunden` });
+          }
+        }
+      } else {
+        // ID ist keine Zahl, behandle als Vendon-ID (String)
+        console.log(`[DEBUG] ID ${inputId} ist keine Zahl, behandle als Vendon-ID`);
+        const machineByVendonId = await storage.getMachineByVendonId(inputId);
+        if (machineByVendonId) {
+          internalMachineId = machineByVendonId.id;
+          console.log(`[DEBUG] Maschine mit Vendon-ID ${inputId} gefunden, interne ID: ${internalMachineId}`);
+        } else {
+          return res.status(404).json({ error: `Keine Maschine mit Vendon-ID ${inputId} gefunden` });
+        }
       }
-
-      console.log(`[INFO] Abrufen von täglichen KPIs für Maschine mit ID ${machineId}`);
       
-      // Als Nummer an die Storage-Methode übergeben
+      // Jetzt mit der korrekten internen ID die Statistiken abrufen
       try {
-        const stats = await storage.getMachineDailyStats(machineId);
-        console.log(`[DEBUG] Statistiken für Maschine ${machineId} abgerufen:`, JSON.stringify(stats));
+        const stats = await storage.getMachineDailyStats(internalMachineId);
+        console.log(`[DEBUG] Statistiken für Maschine ${internalMachineId} (Input: ${inputId}) abgerufen:`, JSON.stringify(stats));
         
         // Füge spezifisches Debug-Log für lastSale hinzu
         if (stats.lastSale) {
-          console.log(`[DEBUG] lastSale für Maschine ${machineId} gefunden:`, 
+          console.log(`[DEBUG] lastSale für Maschine ${internalMachineId} gefunden:`, 
             typeof stats.lastSale === 'object' ? 
               (stats.lastSale.datetime ? new Date(stats.lastSale.datetime).toISOString() : "Kein datetime-Feld") : 
               "Kein Objekt");
         } else {
-          console.log(`[DEBUG] Kein lastSale für Maschine ${machineId} gefunden!`);
+          console.log(`[DEBUG] Kein lastSale für Maschine ${internalMachineId} gefunden!`);
         }
         
         res.json(stats);
       } catch (storageError) {
         // Detaillierter Fehler-Log der Storage-Methode
-        console.error(`[ERROR] Storage-Fehler für Maschine ${machineId}:`, storageError);
+        console.error(`[ERROR] Storage-Fehler für Maschine ${internalMachineId}:`, storageError);
         console.error(`Stack Trace:`, storageError instanceof Error ? storageError.stack : 'Kein Stack Trace verfügbar');
         
         // Fallback für Fehlerfall: Leere Statistik-Struktur

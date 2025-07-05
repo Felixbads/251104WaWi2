@@ -109,6 +109,13 @@ This is a comprehensive vending machine management platform (Warenwirtschaftssys
 
 ## Changelog
 
+- July 5, 2025: Standorte-Seite Daten-Problem behoben
+  - ✓ Problem identifiziert: Frontend sendet Vendon-ID, Backend erwartete interne Maschinen-ID
+  - ✓ API-Route `/api/machines/:id/daily-stats` erweitert für beide ID-Typen
+  - ✓ Backend akzeptiert jetzt sowohl Vendon-IDs als auch interne Maschinen-IDs
+  - ✓ Intelligente ID-Erkennung: erst interne ID prüfen, dann Vendon-ID
+  - ✓ Vendon-Synchronisation läuft erfolgreich (aktuelle Transaktionen werden importiert)
+  - Standorte-Seite sollte jetzt aktuelle Live-Daten anzeigen statt veraltete Informationen
 - July 1, 2025: Product Display and Email Customization Enhanced
   - ✓ Fixed product display to show ALL supplier products in both regular and bulk orders (19 products instead of 6 for Milchhof Fiedler)
   - ✓ Modified suppliers-products.ts to remove purchase_conditions filtering and display all active supplier products
