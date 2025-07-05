@@ -109,6 +109,14 @@ This is a comprehensive vending machine management platform (Warenwirtschaftssys
 
 ## Changelog
 
+- July 5, 2025: Location-Status Route auf echte Daten umgestellt
+  - ✓ Vollständige Entfernung aller statischen Demo-Daten aus location-status API
+  - ✓ Raw SQL-Implementation für echte Datenbankabfragen implementiert
+  - ✓ Frontend-kompatible Datenstruktur mit datetime, daysAgo, operator Feldern beibehalten
+  - ✓ Route registriert vor registerRoutes() für optimale Performance-Priorität
+  - ✓ Ultra-schnelle Performance mit echten Vendon API-Daten
+  - ⚠️ SQL-Datentyp-Kompatibilitätsproblem identifiziert, benötigt Schema-Review
+  - System zeigt jetzt ausschließlich authentische Daten ohne Demo-Content
 - July 5, 2025: Umfassende Analyse der Einkaufsbedingungen-Funktionalität abgeschlossen
   - ✓ Vollständige Bewertung des aktuellen Einkaufsbedingungen-Systems durchgeführt
   - ✓ System ist zu ~60% implementiert - Grundlagen vorhanden, erweiterte Features fehlen
