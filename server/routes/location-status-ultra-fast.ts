@@ -18,41 +18,64 @@ router.get('/', async (req: Request, res: Response) => {
   try {
     console.log('🚀 ULTRA-FAST LOCATION-STATUS WITH RAW SQL CALLED! 🚀');
     
-    // Simplified SQL: get the machine with most recent transactions for each vendon_id
+    // Corrected SQL: get individual machine data with proper per-machine aggregation
     const result = await db.execute(`
       SELECT 
         CAST(best_machines.vendon_id AS text) as id,
         best_machines.machine_name,
         best_machines.location_name,
-        MAX(t.datetime) as last_sale,
-        COALESCE(SUM(CASE WHEN t.datetime >= CURRENT_DATE THEN t.price ELSE 0 END), 0) as today_revenue,
-        MAX(CASE WHEN t.payment_method != 'CASH' THEN t.datetime END) as last_cashless_sale,
-        MAX(r.datetime) as last_refill,
-        (SELECT r2.operator FROM refills r2 WHERE r2.machine_id = best_machines.id ORDER BY r2.datetime DESC LIMIT 1) as last_operator,
-        MAX(e.datetime) as last_door_open
+        best_machines.machine_id,
+        
+        -- Last sale for THIS machine
+        (SELECT MAX(t1.datetime) FROM transactions t1 WHERE t1.machine_id = best_machines.machine_id) as last_sale,
+        
+        -- Today's revenue for THIS machine  
+        (SELECT COALESCE(SUM(t2.price), 0) FROM transactions t2 
+         WHERE t2.machine_id = best_machines.machine_id AND t2.datetime >= CURRENT_DATE) as today_revenue,
+        
+        -- Last cashless sale for THIS machine
+        (SELECT MAX(t3.datetime) FROM transactions t3 
+         WHERE t3.machine_id = best_machines.machine_id AND t3.payment_method != 'CASH') as last_cashless_sale,
+        
+        -- Last refill for THIS machine
+        (SELECT MAX(r1.datetime) FROM refills r1 WHERE r1.machine_id = best_machines.machine_id) as last_refill,
+        
+        -- Last operator for THIS machine
+        (SELECT r2.operator FROM refills r2 WHERE r2.machine_id = best_machines.machine_id 
+         ORDER BY r2.datetime DESC LIMIT 1) as last_operator,
+        
+        -- Last door opening for THIS machine  
+        (SELECT MAX(e1.datetime) FROM events e1 
+         WHERE e1.machine_id = best_machines.machine_id AND e1.event_type = 'A') as last_door_open,
+        
+        -- Last alcohol sale for THIS machine
+        (SELECT MAX(t4.datetime) FROM transactions t4 
+         LEFT JOIN products p ON LOWER(TRIM(t4.product_name)) = LOWER(TRIM(p.product_name))
+         WHERE t4.machine_id = best_machines.machine_id AND p."isAlcoholic" = true) as last_alcohol_sale,
+         
+        -- Last alcohol product name for THIS machine
+        (SELECT t5.product_name FROM transactions t5 
+         LEFT JOIN products p2 ON LOWER(TRIM(t5.product_name)) = LOWER(TRIM(p2.product_name))
+         WHERE t5.machine_id = best_machines.machine_id AND p2."isAlcoholic" = true
+         ORDER BY t5.datetime DESC LIMIT 1) as last_alcohol_product
+        
       FROM (
         SELECT 
-          m.id, m.machine_name, m.location_name, m.vendon_id,
+          m.id as machine_id, m.machine_name, m.location_name, m.vendon_id,
           ROW_NUMBER() OVER (
             PARTITION BY CAST(m.vendon_id AS text) 
-            ORDER BY COALESCE(MAX(t.datetime), '1970-01-01'::timestamp) DESC
+            ORDER BY COALESCE((SELECT MAX(t.datetime) FROM transactions t WHERE t.machine_id = m.id), '1970-01-01'::timestamp) DESC
           ) as rn
         FROM machines m
-        LEFT JOIN transactions t ON m.id = t.machine_id
         WHERE m.vendon_id IS NOT NULL 
           AND CAST(m.vendon_id AS text) != '1001'  -- Exclude demo machine
-        GROUP BY m.id, m.machine_name, m.location_name, m.vendon_id
       ) best_machines
-      LEFT JOIN transactions t ON best_machines.id = t.machine_id
-      LEFT JOIN refills r ON best_machines.id = r.machine_id  
-      LEFT JOIN events e ON best_machines.id = e.machine_id AND e.event_type = 'A'
       WHERE best_machines.rn = 1
-      GROUP BY best_machines.id, best_machines.machine_name, best_machines.location_name, best_machines.vendon_id
       ORDER BY best_machines.machine_name
     `);
 
     const machineStatusData = result.rows.map((row: any) => ({
-      id: row.vendon_id || row.id,
+      id: row.id,
       machineName: row.machine_name,
       location: row.location_name,
       lastRefill: row.last_refill ? {
@@ -72,9 +95,16 @@ router.get('/', async (req: Request, res: Response) => {
       lastDoorOpen: row.last_door_open ? {
         datetime: new Date(row.last_door_open).toISOString(),
         daysAgo: getDaysAgo(row.last_door_open)
+      } : (row.last_refill ? {
+        datetime: new Date(row.last_refill).toISOString(),
+        daysAgo: getDaysAgo(row.last_refill)
+      } : null),
+      lastAlcoholSale: row.last_alcohol_sale ? {
+        datetime: new Date(row.last_alcohol_sale).toISOString(),
+        productName: row.last_alcohol_product || 'Unbekannt',
+        daysAgo: getDaysAgo(row.last_alcohol_sale)
       } : null,
-      lastAlcoholSale: null, // Will add back later after fixing types
-      todayRevenue: Number(row.today_revenue || 0) / 100, // Convert from cents to euros
+      todayRevenue: Number(row.today_revenue || 0), // Already in euros
       recentTransactions: [],
       status: 'ok',
       warnings: [],
@@ -85,6 +115,8 @@ router.get('/', async (req: Request, res: Response) => {
         alertLevel: 'ok'
       }
     }));
+    
+
     
     console.log(`Ultra-fast location status with raw SQL: Returning ${machineStatusData.length} locations`);
     res.json(machineStatusData);
