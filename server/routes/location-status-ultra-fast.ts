@@ -18,28 +18,36 @@ router.get('/', async (req: Request, res: Response) => {
   try {
     console.log('🚀 ULTRA-FAST LOCATION-STATUS WITH RAW SQL CALLED! 🚀');
     
-    // Get machine status with raw SQL to avoid Drizzle type issues
+    // Simplified SQL: get the machine with most recent transactions for each vendon_id
     const result = await db.execute(`
-      WITH machine_stats AS (
+      SELECT 
+        CAST(best_machines.vendon_id AS text) as id,
+        best_machines.machine_name,
+        best_machines.location_name,
+        MAX(t.datetime) as last_sale,
+        COALESCE(SUM(CASE WHEN t.datetime >= CURRENT_DATE THEN t.price ELSE 0 END), 0) as today_revenue,
+        MAX(CASE WHEN t.payment_method != 'CASH' THEN t.datetime END) as last_cashless_sale,
+        MAX(r.datetime) as last_refill,
+        (SELECT r2.operator FROM refills r2 WHERE r2.machine_id = best_machines.id ORDER BY r2.datetime DESC LIMIT 1) as last_operator,
+        MAX(e.datetime) as last_door_open
+      FROM (
         SELECT 
-          m.id,
-          m.machine_name,
-          m.location_name,
-          m.vendon_id,
-          MAX(t.datetime) as last_sale,
-          SUM(CASE WHEN t.datetime >= DATE_TRUNC('day', NOW()) THEN t.price ELSE 0 END) as today_revenue,
-          MAX(CASE WHEN t.payment_method != 'CASH' THEN t.datetime END) as last_cashless_sale,
-          MAX(r.datetime) as last_refill,
-          MAX(r.operator) as last_operator,
-          MAX(e.datetime) as last_door_open
+          m.id, m.machine_name, m.location_name, m.vendon_id,
+          ROW_NUMBER() OVER (
+            PARTITION BY CAST(m.vendon_id AS text) 
+            ORDER BY COALESCE(MAX(t.datetime), '1970-01-01'::timestamp) DESC
+          ) as rn
         FROM machines m
         LEFT JOIN transactions t ON m.id = t.machine_id
-        LEFT JOIN refills r ON m.id = r.machine_id
-        LEFT JOIN events e ON m.id = e.machine_id AND e.event_type = 'A'
+        WHERE m.vendon_id IS NOT NULL
         GROUP BY m.id, m.machine_name, m.location_name, m.vendon_id
-      )
-      SELECT * FROM machine_stats
-      ORDER BY id
+      ) best_machines
+      LEFT JOIN transactions t ON best_machines.id = t.machine_id
+      LEFT JOIN refills r ON best_machines.id = r.machine_id  
+      LEFT JOIN events e ON best_machines.id = e.machine_id AND e.event_type = 'A'
+      WHERE best_machines.rn = 1
+      GROUP BY best_machines.id, best_machines.machine_name, best_machines.location_name, best_machines.vendon_id
+      ORDER BY best_machines.machine_name
     `);
 
     const machineStatusData = result.rows.map((row: any) => ({
