@@ -10,7 +10,7 @@ import {
   TableHeader, 
   TableRow 
 } from "@/components/ui/table";
-import { CartItem } from "./InventoryCartContext";
+import { CartItem, useInventoryCart } from "./InventoryCartContext";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
@@ -78,6 +78,25 @@ export default function InventoryProductsTable({
 }: InventoryProductsTableProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
+  const { cartItems } = useInventoryCart();
+
+  // Hilfsfunktion: Verfügbare Menge berechnen (Lagerbestand - Warenkorb-Menge)
+  const getAvailableQuantity = (product: InventoryProduct) => {
+    const cartItem = cartItems.find(item => item.productId === product.productId);
+    const cartQuantity = cartItem ? cartItem.quantity : 0;
+    return Math.max(0, product.quantity - cartQuantity);
+  };
+
+  // Hilfsfunktion: Erweiterte Produktinformationen mit verfügbaren Mengen
+  const getEnhancedProductInfo = (product: InventoryProduct) => {
+    const availableQuantity = getAvailableQuantity(product);
+    const packageInfo = getPackageInfo({ ...product, quantity: availableQuantity });
+    return {
+      ...product,
+      availableQuantity,
+      packageInfo
+    };
+  };
   const [quantityInputs, setQuantityInputs] = useState<Record<number, number>>({});
   const [unitTypes, setUnitTypes] = useState<Record<number, UnitType>>({});
   
@@ -108,7 +127,8 @@ export default function InventoryProductsTable({
     const unitType = unitTypes[product.id] || 'pieces';
     const actualQuantity = calculateActualQuantity(product, inputQuantity, unitType);
     
-    if (actualQuantity > 0 && actualQuantity <= product.quantity) {
+    const availableQuantity = getAvailableQuantity(product);
+    if (actualQuantity > 0 && actualQuantity <= availableQuantity) {
       onAddToCart(product, actualQuantity);
       
       // Zurücksetzen der Auswahl und Menge nach dem Hinzufügen
@@ -164,16 +184,16 @@ export default function InventoryProductsTable({
     });
   };
 
-  // Berechnet verfügbare Menge für Anzeige
-  const getAvailableQuantityDisplay = (product: InventoryProduct, unitType: UnitType): string => {
-    const packageInfo = getPackageInfo(product);
+  // Berechnet verfügbare Menge für Anzeige (berücksichtigt Warenkorb)
+  const getAvailableQuantityDisplay = (enhancedProduct: any, unitType: UnitType): string => {
+    const packageInfo = enhancedProduct.packageInfo;
     
     if (unitType === 'pieces') {
-      return `${product.quantity} Stück verfügbar`;
+      return `${enhancedProduct.availableQuantity} Stück verfügbar`;
     } else if (packageInfo.hasPackaging) {
       return `${packageInfo.packagesInStock} Gebinde verfügbar (${packageInfo.packagesInStock * packageInfo.packageCount} Stück)`;
     } else {
-      return `${product.quantity} Stück verfügbar`;
+      return `${enhancedProduct.availableQuantity} Stück verfügbar`;
     }
   };
 
@@ -225,11 +245,12 @@ export default function InventoryProductsTable({
           </TableHeader>
           <TableBody>
             {filteredProducts.map((product) => {
-              const packageInfo = getPackageInfo(product);
+              const enhancedProduct = getEnhancedProductInfo(product);
+              const packageInfo = enhancedProduct.packageInfo;
               const unitType = unitTypes[product.id] || 'pieces';
               const inputQuantity = quantityInputs[product.id] || 1;
               const actualQuantity = calculateActualQuantity(product, inputQuantity, unitType);
-              const isValidQuantity = actualQuantity > 0 && actualQuantity <= product.quantity;
+              const isValidQuantity = actualQuantity > 0 && actualQuantity <= enhancedProduct.availableQuantity;
 
               return (
                 <TableRow key={product.id} className={selectedRows.has(product.id) ? "bg-muted/50" : ""}>
@@ -252,10 +273,15 @@ export default function InventoryProductsTable({
                   
                   <TableCell>
                     <div className="text-sm">
-                      <div className="font-medium">{product.quantity} Stück</div>
-                      {packageInfo.hasPackaging && (
+                      <div className="font-medium">{enhancedProduct.availableQuantity} Stück verfügbar</div>
+                      {enhancedProduct.packageInfo.hasPackaging && (
                         <div className="text-muted-foreground">
-                          {packageInfo.packagesInStock} Gebinde
+                          {enhancedProduct.packageInfo.packagesInStock} Gebinde verfügbar
+                        </div>
+                      )}
+                      {enhancedProduct.availableQuantity < product.quantity && (
+                        <div className="text-xs text-orange-600">
+                          ({product.quantity - enhancedProduct.availableQuantity} im Warenkorb)
                         </div>
                       )}
                     </div>
@@ -285,13 +311,13 @@ export default function InventoryProductsTable({
                       <Input
                         type="number"
                         min="1"
-                        max={unitType === 'pieces' ? product.quantity : packageInfo.packagesInStock}
+                        max={unitType === 'pieces' ? enhancedProduct.availableQuantity : enhancedProduct.packageInfo.packagesInStock}
                         value={inputQuantity}
                         onChange={(e) => handleQuantityChange(product.id, e.target.value)}
                         className={`w-24 ${!isValidQuantity ? 'border-red-500' : ''}`}
                       />
                       <div className="text-xs text-muted-foreground">
-                        {getAvailableQuantityDisplay(product, unitType)}
+                        {getAvailableQuantityDisplay(enhancedProduct, unitType)}
                       </div>
                       {actualQuantity !== inputQuantity && (
                         <div className="text-xs text-blue-600">
