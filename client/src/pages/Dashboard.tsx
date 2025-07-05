@@ -19,6 +19,8 @@ import {
 } from "lucide-react";
 import PageHeader from "@/components/layout/PageHeader";
 import WeatherWidget from "@/components/weather/WeatherWidget";
+import WeatherDashboardWidget from "@/components/dashboard/WeatherDashboardWidget";
+import HolidayDashboardWidget from "@/components/dashboard/HolidayDashboardWidget";
 import { SyncStatusWidget } from "@/components/SyncStatusWidget";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
@@ -36,7 +38,9 @@ import {
   getDashboardForecasts,
   initializeDefaultForecastModel,
   getDatabaseStatistics,
-  getRefills
+  getRefills,
+  getDashboardWeatherData,
+  getDashboardHolidayData
 } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -155,6 +159,19 @@ export default function Dashboard() {
     gcTime: 0, // Keine Zwischenspeicherung
     refetchOnMount: 'always', // Immer neu laden beim Mount
     refetchOnWindowFocus: true, // Neu laden bei Fokus
+  });
+
+  // Wetter- und Feiertagsdaten für Dashboard
+  const { data: weatherData, isLoading: isLoadingWeather } = useQuery({
+    queryKey: ['/api/dashboard/weather'],
+    queryFn: getDashboardWeatherData,
+    refetchInterval: 300000, // Alle 5 Minuten
+  });
+
+  const { data: holidayData, isLoading: isLoadingHolidays } = useQuery({
+    queryKey: ['/api/dashboard/holidays'],
+    queryFn: getDashboardHolidayData,
+    refetchInterval: 3600000, // Alle 1 Stunde
   });
 
   // Kritische Bestände für das Dashboard
@@ -728,6 +745,12 @@ export default function Dashboard() {
             )}
           </CardContent>
         </Card>
+      </div>
+
+      {/* Wetter und Feiertage/Ferien für Mitarbeiter */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <WeatherDashboardWidget className="h-full" />
+        <HolidayDashboardWidget className="h-full" />
       </div>
 
       {/* Zahlungsmethoden nach Standort und Datenbankstatistiken nebeneinander */}

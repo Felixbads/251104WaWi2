@@ -1798,6 +1798,149 @@ export async function getUpcomingHolidays(days = 7): Promise<Holiday[]> {
   return apiRequest<Holiday[]>('get', `/holidays/by-date-range?startDate=${formatDateISO(today)}&endDate=${formatDateISO(endDate)}`);
 }
 
+// Dashboard-spezifische Wetter- und Feiertagsdaten
+export interface DashboardWeatherData {
+  current: {
+    temperature: number;
+    humidity: number;
+    description: string;
+    icon: string;
+    windSpeed: number;
+    location: string;
+  };
+  forecast: Array<{
+    date: string;
+    temperature: { min: number; max: number };
+    description: string;
+    icon: string;
+  }>;
+}
+
+export interface DashboardHolidayData {
+  today: Array<{
+    id: number;
+    name: string;
+    type: 'PUBLIC_HOLIDAY' | 'SCHOOL_HOLIDAY';
+    state: string;
+    description: string;
+  }>;
+  upcoming: Array<{
+    id: number;
+    name: string;
+    date: string;
+    type: 'PUBLIC_HOLIDAY' | 'SCHOOL_HOLIDAY';
+    state: string;
+    description: string;
+    daysUntil: number;
+  }>;
+  bridgeDays: Array<{
+    date: string;
+    name: string;
+    isBridgeDay: boolean;
+    relatedHoliday: string;
+  }>;
+}
+
+export async function getDashboardWeatherData(): Promise<DashboardWeatherData> {
+  try {
+    const [currentResponse, forecastResponse] = await Promise.all([
+      fetch('/api/weather/current'),
+      fetch('/api/weather/forecast')
+    ]);
+
+    if (!currentResponse.ok || !forecastResponse.ok) {
+      throw new Error('Fehler beim Abrufen der Wetterdaten');
+    }
+
+    const current = await currentResponse.json();
+    const forecast = await forecastResponse.json();
+
+    return {
+      current: {
+        temperature: current.temperature || 0,
+        humidity: current.humidity || 0,
+        description: current.description || 'Keine Daten',
+        icon: current.icon || '01d',
+        windSpeed: current.windSpeed || 0,
+        location: current.location || 'Bad Schandau'
+      },
+      forecast: forecast.slice(0, 5).map((day: any) => ({
+        date: day.date,
+        temperature: day.temperature,
+        description: day.description,
+        icon: day.icon
+      }))
+    };
+  } catch (error) {
+    console.error('Fehler beim Abrufen der Dashboard-Wetterdaten:', error);
+    throw error;
+  }
+}
+
+export async function getDashboardHolidayData(): Promise<DashboardHolidayData> {
+  try {
+    const today = new Date();
+    const endDate = new Date();
+    endDate.setDate(today.getDate() + 30); // Nächste 30 Tage
+
+    const response = await fetch(`/api/holidays?startDate=${today.toISOString().split('T')[0]}&endDate=${endDate.toISOString().split('T')[0]}`);
+    
+    if (!response.ok) {
+      throw new Error('Fehler beim Abrufen der Feiertagsdaten');
+    }
+
+    const result = await response.json();
+    const holidays = result.success ? result.data : [];
+
+    const todayString = today.toISOString().split('T')[0];
+    
+    // Heutige Feiertage
+    const todayHolidays = holidays.filter((holiday: any) => 
+      holiday.date.split('T')[0] === todayString
+    );
+
+    // Kommende Feiertage (nächste 30 Tage)
+    const upcomingHolidays = holidays
+      .filter((holiday: any) => holiday.date.split('T')[0] > todayString)
+      .slice(0, 5)
+      .map((holiday: any) => {
+        const holidayDate = new Date(holiday.date);
+        const diffTime = holidayDate.getTime() - today.getTime();
+        const daysUntil = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        
+        return {
+          ...holiday,
+          daysUntil
+        };
+      });
+
+    // Brückentage berechnen (vereinfachte Logik)
+    const bridgeDays = holidays
+      .filter((holiday: any) => {
+        const holidayDate = new Date(holiday.date);
+        const dayOfWeek = holidayDate.getDay();
+        // Brückentag wenn Feiertag Dienstag oder Donnerstag ist
+        return dayOfWeek === 2 || dayOfWeek === 4;
+      })
+      .slice(0, 3)
+      .map((holiday: any) => ({
+        date: holiday.date,
+        name: `Brückentag für ${holiday.name}`,
+        isBridgeDay: true,
+        relatedHoliday: holiday.name
+      }));
+
+    return {
+      today: todayHolidays,
+      upcoming: upcomingHolidays,
+      bridgeDays
+    };
+  } catch (error) {
+    console.error('Fehler beim Abrufen der Dashboard-Feiertagsdaten:', error);
+    throw error;
+  }
+}
+
 // Umsatzprognose für Dashboard
 export async function getRevenueForecast(days = 7): Promise<RevenueForecast[]> {
   const today = new Date();
