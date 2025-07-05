@@ -39,7 +39,8 @@ router.get('/', async (req: Request, res: Response) => {
           ) as rn
         FROM machines m
         LEFT JOIN transactions t ON m.id = t.machine_id
-        WHERE m.vendon_id IS NOT NULL
+        WHERE m.vendon_id IS NOT NULL 
+          AND CAST(m.vendon_id AS text) != '1001'  -- Exclude demo machine
         GROUP BY m.id, m.machine_name, m.location_name, m.vendon_id
       ) best_machines
       LEFT JOIN transactions t ON best_machines.id = t.machine_id
@@ -73,7 +74,7 @@ router.get('/', async (req: Request, res: Response) => {
         daysAgo: getDaysAgo(row.last_door_open)
       } : null,
       lastAlcoholSale: null, // Will add back later after fixing types
-      todayRevenue: Number(row.today_revenue || 0),
+      todayRevenue: Number(row.today_revenue || 0) / 100, // Convert from cents to euros
       recentTransactions: [],
       status: 'ok',
       warnings: [],

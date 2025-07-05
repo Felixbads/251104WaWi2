@@ -97,29 +97,7 @@ export default function StandortStatus() {
     );
   }, [machineStatus, searchTerm]);
 
-  // Status-Verteilung für Übersicht
-  const statusCounts = useMemo(() => {
-    if (!machineStatus) return { ok: 0, warning: 0, error: 0 };
-    
-    return machineStatus.reduce((acc, machine) => {
-      acc[machine.status]++;
-      return acc;
-    }, { ok: 0, warning: 0, error: 0 });
-  }, [machineStatus]);
 
-  // MHD-Statistiken für Übersicht
-  const mhdCounts = useMemo(() => {
-    if (!machineStatus) return { expired: 0, warning: 0, total: 0 };
-    
-    return machineStatus.reduce((acc, machine) => {
-      if (machine.mhdStatus) {
-        if (machine.mhdStatus.expiredCount > 0) acc.expired++;
-        if (machine.mhdStatus.warningCount > 0) acc.warning++;
-        acc.total += machine.mhdStatus.expiredCount + machine.mhdStatus.warningCount;
-      }
-      return acc;
-    }, { expired: 0, warning: 0, total: 0 });
-  }, [machineStatus]);
 
   if (isLoading) {
     return (
@@ -166,59 +144,7 @@ export default function StandortStatus() {
         </Button>
       </div>
 
-      {/* Status-Übersicht */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <CheckCircle className="h-5 w-5 text-green-500" />
-              <div>
-                <p className="text-2xl font-bold text-green-600">{statusCounts.ok}</p>
-                <p className="text-sm text-muted-foreground">OK</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <AlertTriangle className="h-5 w-5 text-yellow-500" />
-              <div>
-                <p className="text-2xl font-bold text-yellow-600">{statusCounts.warning}</p>
-                <p className="text-sm text-muted-foreground">Warnung</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <AlertTriangle className="h-5 w-5 text-red-500" />
-              <div>
-                <p className="text-2xl font-bold text-red-600">{statusCounts.error}</p>
-                <p className="text-sm text-muted-foreground">Fehler</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        {/* MHD Alert Summary */}
-        <Card className={`${mhdCounts.expired > 0 ? 'border-red-300 bg-red-50' : mhdCounts.warning > 0 ? 'border-yellow-300 bg-yellow-50' : ''}`}>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <PackageX className={`h-5 w-5 ${mhdCounts.expired > 0 ? 'text-red-600' : mhdCounts.warning > 0 ? 'text-yellow-600' : 'text-gray-400'}`} />
-              <div>
-                <p className={`text-2xl font-bold ${mhdCounts.expired > 0 ? 'text-red-600' : mhdCounts.warning > 0 ? 'text-yellow-600' : 'text-gray-600'}`}>
-                  {mhdCounts.expired}
-                </p>
-                <p className="text-sm text-muted-foreground">MHD abgelaufen</p>
-                {mhdCounts.warning > 0 && (
-                  <p className="text-xs text-yellow-600">{mhdCounts.warning} Warnungen</p>
-                )}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+
 
       {/* Suche */}
       <div className="flex items-center space-x-2">
