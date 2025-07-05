@@ -27,7 +27,8 @@ router.get('/', (req: Request, res: Response) => {
       weeklyRevenue: 878.50,
       monthlySales: 167,
       todayRevenue: 125.50,
-      lastAlcoholSale: null
+      lastAlcoholSale: null,
+      warnings: []
     },
     {
       id: '325762', 
@@ -46,7 +47,8 @@ router.get('/', (req: Request, res: Response) => {
       weeklyRevenue: 995.10,
       monthlySales: 201,
       todayRevenue: 142.30,
-      lastAlcoholSale: null
+      lastAlcoholSale: null,
+      warnings: []
     },
     {
       id: '347989',
@@ -65,7 +67,8 @@ router.get('/', (req: Request, res: Response) => {
       weeklyRevenue: 691.25,
       monthlySales: 145,
       todayRevenue: 98.75,
-      lastAlcoholSale: null
+      lastAlcoholSale: null,
+      warnings: []
     }
   ];
 
