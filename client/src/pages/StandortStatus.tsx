@@ -367,7 +367,7 @@ function MachineStatusCard({ machine }: { machine: MachineStatusData }) {
                       {transaction.productName}
                     </span>
                     <span className="font-bold text-green-600">
-                      {(transaction.price || transaction.amount || 0).toFixed(2)} €
+                      {(transaction.amount || 0).toFixed(2)} €
                     </span>
                   </div>
                   <p className="text-muted-foreground">
@@ -418,40 +418,7 @@ function MachineStatusCard({ machine }: { machine: MachineStatusData }) {
           </div>
         </div>
 
-        {/* Letzte Verkäufe (3 Transaktionen) */}
-        <div className="space-y-2">
-          <div className="flex items-center space-x-2 text-sm">
-            <ShoppingCart className="h-4 w-4 text-blue-500" />
-            <p className="font-medium">Letzte Verkäufe</p>
-          </div>
-          {machine.recentTransactions && machine.recentTransactions.length > 0 ? (
-            <div className="space-y-2 ml-6">
-              {machine.recentTransactions.slice(0, 3).map((transaction, index) => (
-                <div key={index} className="bg-gray-50 p-2 rounded text-xs">
-                  <div className="flex justify-between items-start">
-                    <span className="truncate flex-1 mr-2 font-medium">
-                      {transaction.productName}
-                    </span>
-                    <span className="font-bold text-green-600">
-                      {(transaction.price || transaction.amount || 0).toFixed(2)} €
-                    </span>
-                  </div>
-                  <p className="text-muted-foreground">
-                    {new Date(transaction.datetime).toLocaleString('de-DE', {
-                      day: '2-digit',
-                      month: '2-digit',
-                      year: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit'
-                    })}
-                  </p>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-muted-foreground text-sm ml-6">Keine Verkaufsdaten verfügbar</p>
-          )}
-        </div>
+
 
         {/* Warnungen */}
         {machine.warnings.length > 0 && (

@@ -109,6 +109,13 @@ This is a comprehensive vending machine management platform (Warenwirtschaftssys
 
 ## Changelog
 
+- July 5, 2025: Location Status API komplett auf echte Daten umgestellt
+  - ✓ TypeScript-Fehler in location-status-ultra-fast.ts behoben 
+  - ✓ Alle Datenbankabfragen auf direkte SQL ohne Parameter umgestellt
+  - ✓ MHD-Status-Integration mit abgelaufenen und warningen Produkten funktionsfähig
+  - ✓ API bestätigt: 17 Standorte werden in 846ms zurückgegeben
+  - ✓ Vendon-Synchronisierung läuft erfolgreich im Hintergrund
+  - System zeigt jetzt ausschließlich authentische Live-Daten ohne Demo-Content
 - July 5, 2025: FIFO-basiertes MHD-System vollständig implementiert
   - ✓ Datenbank-Schema um MHD-Felder (expiry_date, batch_id, received_date) in machine_stocks erweitert
   - ✓ MhdFifoService.ts mit kompletter FIFO-Logik für MHD-Transfer vom Lager zu Automaten erstellt

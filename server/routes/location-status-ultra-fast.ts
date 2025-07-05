@@ -46,7 +46,7 @@ router.get('/', async (req: Request, res: Response) => {
         
         -- Last door opening for THIS machine  
         (SELECT MAX(e1.datetime) FROM events e1 
-         WHERE e1.machine_id = best_machines.machine_id AND e1.event_type = 'R') as last_door_open,
+         WHERE e1.machine_id = best_machines.machine_id AND e1.event_type = 'A') as last_door_open,
         
         -- Last alcohol sale for THIS machine
         (SELECT MAX(t4.datetime) FROM transactions t4 
@@ -74,40 +74,99 @@ router.get('/', async (req: Request, res: Response) => {
       ORDER BY best_machines.machine_name
     `);
 
-    const machineStatusData = result.rows.map((row: any) => ({
-      id: row.id,
-      machineName: row.machine_name,
-      location: row.location_name,
-      lastRefill: row.last_refill ? {
-        datetime: new Date(row.last_refill).toISOString(),
-        operator: row.last_operator || 'Unbekannt',
-        daysAgo: getDaysAgo(row.last_refill)
-      } : null,
-      lastSale: row.last_sale ? {
-        datetime: new Date(row.last_sale).toISOString(),
-        daysAgo: getDaysAgo(row.last_sale)
-      } : null,
-      lastCashlessSale: row.last_cashless_sale ? {
-        datetime: new Date(row.last_cashless_sale).toISOString(),
-        paymentMethod: 'CARD',
-        daysAgo: getDaysAgo(row.last_cashless_sale)
-      } : null,
-      lastDoorOpen: row.last_door_open ? {
-        datetime: new Date(row.last_door_open).toISOString(),
-        daysAgo: getDaysAgo(row.last_door_open)
-      } : null,
-      lastAlcoholSale: row.last_alcohol_sale ? {
-        datetime: new Date(row.last_alcohol_sale).toISOString(),
-        productName: row.last_alcohol_product || 'Unbekannt',
-        daysAgo: getDaysAgo(row.last_alcohol_sale)
-      } : null,
-      todayRevenue: Number(row.today_revenue || 0), // Already in euros
-      recentTransactions: [],
-      status: 'ok',
-      warnings: [],
-      warningCount: 0,
-      earliestExpiry: null,
-      alertLevel: 'ok'
+    // Get recent transactions for each machine
+    const machineStatusData = await Promise.all(result.rows.map(async (row: any) => {
+      // Fetch recent transactions for this machine
+      const recentTransactionsResult = await db.execute(
+        `SELECT datetime, product_name, price as amount 
+         FROM transactions 
+         WHERE machine_id = ${row.machine_id} 
+         ORDER BY datetime DESC 
+         LIMIT 3`
+      );
+
+      const recentTransactions = recentTransactionsResult.rows.map((txn: any) => ({
+        datetime: new Date(txn.datetime).toISOString(),
+        productName: txn.product_name || 'Unbekannt',
+        amount: Number(txn.amount || 0)
+      }));
+
+      // Check for expired products in this machine
+      const expiredProductsResult = await db.execute(
+        `SELECT COUNT(*) as expired_count, 
+                MIN(expiry_date) as earliest_expiry
+         FROM machine_stocks 
+         WHERE machine_id = ${row.machine_id} 
+           AND expiry_date IS NOT NULL 
+           AND expiry_date < CURRENT_DATE`
+      );
+
+      const warningProductsResult = await db.execute(
+        `SELECT COUNT(*) as warning_count
+         FROM machine_stocks 
+         WHERE machine_id = ${row.machine_id} 
+           AND expiry_date IS NOT NULL 
+           AND expiry_date < CURRENT_DATE + INTERVAL '7 days'
+           AND expiry_date >= CURRENT_DATE`
+      );
+
+      const expiredData = expiredProductsResult.rows[0];
+      const warningData = warningProductsResult.rows[0];
+      const expiredCount = Number(expiredData?.expired_count || 0);
+      const warningCount = Number(warningData?.warning_count || 0);
+      
+      let mhdStatus = {
+        expiredCount,
+        warningCount,
+        earliestExpiry: expiredData?.earliest_expiry ? String(expiredData.earliest_expiry) : null,
+        alertLevel: expiredCount > 0 ? 'expired' as const : warningCount > 0 ? 'warning' as const : 'ok' as const
+      };
+
+      // Determine overall status and warnings
+      let status = 'ok';
+      let warnings = [];
+      
+      if (expiredCount > 0) {
+        status = 'error';
+        warnings.push(`${expiredCount} abgelaufene Produkte`);
+      } else if (warningCount > 0) {
+        status = 'warning';
+        warnings.push(`${warningCount} Produkte laufen bald ab`);
+      }
+
+      return {
+        id: row.id,
+        machineName: row.machine_name,
+        location: row.location_name,
+        lastRefill: row.last_refill ? {
+          datetime: new Date(row.last_refill).toISOString(),
+          operator: row.last_operator || 'Unbekannt',
+          daysAgo: getDaysAgo(row.last_refill)
+        } : null,
+        lastSale: row.last_sale ? {
+          datetime: new Date(row.last_sale).toISOString(),
+          daysAgo: getDaysAgo(row.last_sale)
+        } : null,
+        lastCashlessSale: row.last_cashless_sale ? {
+          datetime: new Date(row.last_cashless_sale).toISOString(),
+          paymentMethod: 'CARD',
+          daysAgo: getDaysAgo(row.last_cashless_sale)
+        } : null,
+        lastDoorOpen: row.last_door_open ? {
+          datetime: new Date(row.last_door_open).toISOString(),
+          daysAgo: getDaysAgo(row.last_door_open)
+        } : null,
+        lastAlcoholSale: row.last_alcohol_sale ? {
+          datetime: new Date(row.last_alcohol_sale).toISOString(),
+          productName: row.last_alcohol_product || 'Unbekannt',
+          daysAgo: getDaysAgo(row.last_alcohol_sale)
+        } : null,
+        todayRevenue: Number(row.today_revenue || 0), // Already in euros
+        recentTransactions,
+        status: status as 'ok' | 'warning' | 'error',
+        warnings,
+        mhdStatus
+      };
     }));
     
 
