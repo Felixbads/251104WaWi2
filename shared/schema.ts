@@ -2370,7 +2370,7 @@ export const inventoryTransfers = pgTable("inventory_transfers", {
 export const inventoryTransferItems = pgTable("inventory_transfer_items", {
   id: serial("id").primaryKey(),
   transferId: integer("transfer_id").notNull().references(() => inventoryTransfers.id),
-  productId: varchar("product_id", { length: 50 }).notNull(), 
+  productId: integer("product_id").notNull().references(() => products.id), 
   productName: varchar("product_name", { length: 255 }).notNull(),
   quantity: integer("quantity").notNull(),
   reason: varchar("reason", { length: 100 }),
