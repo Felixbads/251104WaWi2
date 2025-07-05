@@ -48,6 +48,7 @@ import suppliersProductsRouter from './routes/suppliers-products';
 import resilientSyncRouter from './routes/resilientSync';
 import photosRouter from './routes/photos';
 import { getSuppliersSchedules } from './routes/suppliers-schedules';
+import inventoryMovementsRouter from './routes/inventoryMovements';
 import { MhdFifoService } from './services/mhdFifoService';
 import warehouseProductsRouter from './routes/warehouseProducts';
 
@@ -4155,6 +4156,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use(`${API_PREFIX}/inventory-batches`, inventoryBatchesRouter);
   app.use(`${API_PREFIX}/inventory-counts`, inventoryCountBatchesRouter);
   app.use(`${API_PREFIX}/warehouse-movements`, warehouseMovementsRouter);
+  app.use(`${API_PREFIX}/inventory-movements`, inventoryMovementsRouter);
   app.use(`${API_PREFIX}/warehouses`, warehousesRouter); // Neue Route für /api/warehouses
   
   // Registriere Inventar-API Router für Warehouse-Statistiken

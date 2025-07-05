@@ -35,6 +35,16 @@ import {
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { Calendar } from "lucide-react";
 
 // Types
 interface Warehouse {
@@ -150,6 +160,12 @@ export default function WarenbewegungNewPage() {
           status: item.status
         }));
     }
+  });
+
+  // Get inventory movements for transaction history
+  const { data: inventoryMovements, isLoading: movementsLoading } = useQuery({
+    queryKey: ['/api/inventory-movements'],
+    select: (data: any[]) => data.slice(0, 100) // Limit to 100 recent movements
   });
 
   // Mutation for transfer
@@ -349,9 +365,10 @@ export default function WarenbewegungNewPage() {
     <div className="container mx-auto py-6">
       <Tabs defaultValue="umlagerung" value={activeTab} onValueChange={handleTabChange}>
         <div className="mb-6">
-          <TabsList className="grid w-full max-w-md grid-cols-2">
+          <TabsList className="grid w-full max-w-2xl grid-cols-3">
             <TabsTrigger value="umlagerung">Warenumlagerung</TabsTrigger>
             <TabsTrigger value="entnahme">Warenentnahme</TabsTrigger>
+            <TabsTrigger value="transaktionen">Umlagerungs-Transaktionen</TabsTrigger>
           </TabsList>
         </div>
 
@@ -715,6 +732,94 @@ export default function WarenbewegungNewPage() {
               </Card>
             </div>
           </div>
+        </TabsContent>
+
+        {/* Umlagerungs-Transaktionen Tab Content */}
+        <TabsContent value="transaktionen">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Calendar className="h-6 w-6" />
+                Umlagerungs-Transaktionen
+              </CardTitle>
+              <CardDescription>
+                Chronologische Auflistung aller Warenbewegungen und -transfers zwischen Lagern.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {movementsLoading ? (
+                <div className="h-40 flex items-center justify-center">
+                  <LoadingSpinner />
+                </div>
+              ) : inventoryMovements && inventoryMovements.length > 0 ? (
+                <div className="border rounded-lg">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Datum</TableHead>
+                        <TableHead>Produkt</TableHead>
+                        <TableHead>Typ</TableHead>
+                        <TableHead>Menge</TableHead>
+                        <TableHead>Von Lager</TableHead>
+                        <TableHead>Nach Lager/Automat</TableHead>
+                        <TableHead>Beschreibung</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {inventoryMovements.map(movement => (
+                        <TableRow key={movement.id}>
+                          <TableCell>
+                            {new Date(movement.createdAt).toLocaleDateString('de-DE', {
+                              day: '2-digit',
+                              month: '2-digit',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </TableCell>
+                          <TableCell>
+                            <div className="font-medium">{movement.productName}</div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="secondary">
+                              {movement.displayType || movement.movementType || 'Bewegung'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <span className="font-mono">{movement.quantity}</span>
+                          </TableCell>
+                          <TableCell>
+                            {movement.sourceWarehouseId ? `Lager ${movement.sourceWarehouseId}` : '-'}
+                          </TableCell>
+                          <TableCell>
+                            {movement.destinationWarehouseId 
+                              ? `Lager ${movement.destinationWarehouseId}` 
+                              : movement.machineId
+                                ? `Automat ${movement.machineId}`
+                                : '-'
+                            }
+                          </TableCell>
+                          <TableCell>
+                            <div className="text-sm text-muted-foreground">
+                              {movement.displayDescription || movement.notes || 'Warenbewegung'}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              ) : (
+                <Alert>
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle>Keine Transaktionen</AlertTitle>
+                  <AlertDescription>
+                    Es wurden noch keine Umlagerungs-Transaktionen gefunden.
+                  </AlertDescription>
+                </Alert>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
     </div>
