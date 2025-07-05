@@ -95,10 +95,7 @@ router.get('/', async (req: Request, res: Response) => {
       lastDoorOpen: row.last_door_open ? {
         datetime: new Date(row.last_door_open).toISOString(),
         daysAgo: getDaysAgo(row.last_door_open)
-      } : (row.last_refill ? {
-        datetime: new Date(row.last_refill).toISOString(),
-        daysAgo: getDaysAgo(row.last_refill)
-      } : null),
+      } : null,
       lastAlcoholSale: row.last_alcohol_sale ? {
         datetime: new Date(row.last_alcohol_sale).toISOString(),
         productName: row.last_alcohol_product || 'Unbekannt',
