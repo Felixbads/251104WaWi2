@@ -1,0 +1,48 @@
+Hier ist ein vollständiger Prompt für eine Programmier-KI oder Systemanalyse:
+
+⸻
+
+Prompt: Analyse und Neugestaltung des Bestellprozesses in der App
+
+Analysiere bitte das aktuelle Konzept für die Erstellung und Verwaltung von Bestellungen. Ziel ist es, den Bestellprozess so weiterzuentwickeln, dass er effizient, übersichtlich und praxisnah gestaltet ist.
+
+Anforderungen an den optimierten Bestellprozess:
+	1.	Produkt- und Lagerübersicht während der Bestellung
+Beim Anlegen einer neuen Bestellung soll ersichtlich sein:
+	•	Aktueller Lagerbestand des jeweiligen Produkts.
+	•	Prognostizierte Verkaufsmenge für das jeweilige Produkt über einen frei einstellbaren Zeitraum (z. B. 7, 14 oder 30 Tage).
+	•	Der Zeitraum für die Bedarfsberechnung kann in der Bestellung individuell festgelegt werden.
+	2.	Warenkorbmodell für Bestellungen
+	•	Die Übersicht einer Bestellung ähnelt einem klassischen Warenkorb.
+	•	Es werden angezeigt:
+	•	Lieferant
+	•	Einstellbarer Liefertermin
+	•	Einstellbarer Lieferort (Abholung oder Lieferung)
+	•	Alle aktuell zur Bestellung hinzugefügten Produkte
+	•	Produkte können beliebig entfernt oder ergänzt werden.
+	•	Je Position kann ein Kommentar hinterlegt werden (z. B. besondere Wünsche).
+	•	Es kann je Bestellung definiert werden, ob Preise mitübertragen werden sollen.
+	•	Der Lieferort wird automatisch aus den Stammdaten übernommen, kann aber überschrieben werden.
+	3.	Versand der Bestellung
+	•	Vor dem Versand kann die generierte E-Mail an den Lieferanten bei Bedarf angepasst werden.
+	•	Danach wird die Bestellung in den Status Versendet überführt.
+	4.	Wareneingang nach Lieferung
+	•	Die Bestellung wechselt automatisch in den nächsten Zustand Wareneingang.
+	•	Es kann angegeben werden, wie viele Einheiten je Produkt tatsächlich geliefert wurden.
+	•	Für jede Position wird ein MHD (Mindesthaltbarkeitsdatum) erfasst.
+	•	Vorschlag für das MHD: Lieferdatum + Haltbarkeitsdauer aus den Produktstammdaten (z. B. +14 Tage oder +2 Monate).
+	•	Diese Chargen mit zugehörigem MHD werden automatisch dem entsprechenden Lager zugewiesen.
+	5.	Lagerintegration
+	•	Bei späterer Entnahme von Produkten aus dem Lager (z. B. zur Automatenbestückung) ist nachvollziehbar:
+	•	Aus welcher Bestellung und Charge die Produkte stammen.
+	•	Welches MHD für das Produkt gilt.
+	•	Rückverfolgbarkeit von Charge zu Bestellung und Lagerstandort ist gewährleistet.
+
+Zusätzliche Hinweise:
+	•	Prüfe, ob alle notwendigen Datenfelder in den Stammdaten für Haltbarkeitsangaben und Standardlieferorte vorhanden und gepflegt sind.
+	•	Der gesamte Prozess soll möglichst flüssig in einem Workflow abbildbar sein, ohne Medienbruch.
+	•	Die Umsetzung soll modular erfolgen, sodass künftige Erweiterungen (z. B. automatisierte Bestellvorschläge, Lieferverfolgung) problemlos möglich sind.
+
+⸻
+
+Möchtest du zusätzlich eine visuelle Mockup-Beschreibung oder einen Testfall für diesen Workflow haben?
