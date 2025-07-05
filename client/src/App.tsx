@@ -79,6 +79,7 @@ import BestellungV2 from "@/pages/BestellungV2"; // Neue Bestellung 2.0 Seite
 // BestellungV3 wurde entfernt
 import OrderDetail from "@/pages/OrderDetail";
 import OrderReceipt from "@/pages/OrderReceipt";
+import EnhancedOrdering from "@/pages/EnhancedOrdering";
 import SupplierPortal from "@/pages/SupplierPortal";
 import Inventory from "@/pages/Inventory";
 import LagerPage from "@/pages/LagerPage";
@@ -286,6 +287,13 @@ function AuthenticatedRouter() {
         <Route path="/bestellungen/neu-v2" component={props => (
           <ApprovedUserRoute>
             <BestellungV2 {...props} />
+          </ApprovedUserRoute>
+        )} />
+
+        {/* Enhanced ordering process with smart cart and forecasting */}
+        <Route path="/bestellungen/enhanced" component={props => (
+          <ApprovedUserRoute>
+            <EnhancedOrdering {...props} />
           </ApprovedUserRoute>
         )} />
 

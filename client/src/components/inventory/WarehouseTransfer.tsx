@@ -73,7 +73,7 @@ const transferFormSchema = z.object({
 
 // Schema für die Produkt-Transfer-Einträge
 const productTransferSchema = z.object({
-  productId: z.number(),
+  productId: z.union([z.number().positive(), z.string().transform(val => parseInt(val, 10))]).refine(val => val > 0, 'Produkt-ID ist erforderlich'),
   quantity: z.number().min(0),
 });
 

@@ -10,7 +10,7 @@ const router = Router();
 
 // Schema zur Validierung einer Produktübertragung
 const productTransferSchema = z.object({
-  productId: z.number().positive('Produkt-ID muss eine positive Zahl sein'),
+  productId: z.union([z.number().positive(), z.string().transform(val => parseInt(val, 10))]).refine(val => val > 0, 'Produkt-ID muss eine positive Zahl sein'),
   quantity: z.number().positive('Menge muss größer als 0 sein')
 });
 

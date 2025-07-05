@@ -133,9 +133,10 @@ const newOrderSchema = z.object({
 
 // Schema für Bestellposition
 const orderItemSchema = z.object({
-  productId: z.number({
-    required_error: "Bitte wählen Sie ein Produkt aus"
-  }).nullable(), // Erlaubt null-Wert
+  productId: z.union([
+    z.number().positive(),
+    z.string().transform(val => parseInt(val, 10))
+  ]).refine(val => val > 0, "Bitte wählen Sie ein Produkt aus").nullable(), // Erlaubt null-Wert
   quantity: z.number({
     required_error: "Bitte geben Sie eine Menge an"
   }).min(1, {
