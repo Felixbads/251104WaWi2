@@ -33,23 +33,53 @@ export default function EnhancedOrdering() {
   const [showOrderingProcess, setShowOrderingProcess] = useState(false);
 
   // Fetch suppliers
-  const { data: suppliers = [], isLoading: loadingSuppliers } = useQuery({
+  const { data: suppliers = [], isLoading: loadingSuppliers, error: suppliersError } = useQuery({
     queryKey: ['/api/suppliers'],
-    select: (data: any[]) => data.filter(s => s.status === 'active')
+    select: (response: any) => {
+      console.log('Suppliers API response:', response);
+      // API response is { data: [...] }, so we need to access response.data
+      const supplierData = response.data || response;
+      const activeSuppliers = supplierData.filter((s: any) => s.status === 'active');
+      console.log('Active suppliers after filter:', activeSuppliers);
+      return activeSuppliers;
+    }
   });
 
   // Fetch warehouses/locations
-  const { data: warehouses = [], isLoading: loadingWarehouses } = useQuery({
+  const { data: warehouses = [], isLoading: loadingWarehouses, error: warehousesError } = useQuery({
     queryKey: ['/api/warehouses'],
-    select: (data: any[]) => data.filter(w => w.status === 'active')
+    select: (response: any) => {
+      console.log('Warehouses API response:', response);
+      // API response is { data: [...] }, so we need to access response.data
+      const warehouseData = response.data || response;
+      const activeWarehouses = warehouseData.filter((w: any) => w.status === 'active');
+      console.log('Active warehouses after filter:', activeWarehouses);
+      return activeWarehouses;
+    }
   });
+
+  // Debug logging for suppliers and warehouses
+  useEffect(() => {
+    console.log('Enhanced Ordering - Current state:', {
+      suppliers: suppliers,
+      warehouses: warehouses,
+      selectedSupplier: selectedSupplier,
+      selectedWarehouse: selectedWarehouse,
+      loadingSuppliers: loadingSuppliers,
+      loadingWarehouses: loadingWarehouses,
+      suppliersError: suppliersError,
+      warehousesError: warehousesError
+    });
+  }, [suppliers, warehouses, selectedSupplier, selectedWarehouse, loadingSuppliers, loadingWarehouses, suppliersError, warehousesError]);
 
   // Auto-select if only one supplier/warehouse
   useEffect(() => {
     if (suppliers.length === 1 && !selectedSupplier) {
+      console.log('Auto-selecting single supplier:', suppliers[0]);
       setSelectedSupplier(suppliers[0]);
     }
     if (warehouses.length === 1 && !selectedWarehouse) {
+      console.log('Auto-selecting single warehouse:', warehouses[0]);
       setSelectedWarehouse(warehouses[0]);
     }
   }, [suppliers, warehouses, selectedSupplier, selectedWarehouse]);
