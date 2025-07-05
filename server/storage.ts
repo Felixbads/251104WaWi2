@@ -2777,18 +2777,21 @@ export class DatabaseStorage implements IStorage {
       }
       
       // Enhanced query to get detailed information including door openings, revenue, and recent transactions
+      // Use DISTINCT ON to select only one machine per vendon_id (the one with most recent activity)
       const statusQuery = `
-        SELECT 
+        SELECT DISTINCT ON (m.vendon_id)
           m.id,
           m.machine_name,
           m.location_name,
+          m.vendon_id,
           r.datetime as last_refill_date,
           r.operator as last_refill_operator,
           t.datetime as last_sale_date,
           tc.datetime as last_cashless_date,
           tc.payment_method as last_cashless_method,
           e.datetime as last_door_open_date,
-          COALESCE(today_revenue.revenue, 0) as today_revenue
+          COALESCE(today_revenue.revenue, 0) as today_revenue,
+          COALESCE(r.datetime, '1900-01-01'::timestamp) as refill_priority
         FROM machines m
         LEFT JOIN LATERAL (
           SELECT datetime, operator 
@@ -2808,7 +2811,7 @@ export class DatabaseStorage implements IStorage {
           SELECT datetime, payment_method 
           FROM transactions 
           WHERE machine_id = m.id 
-          AND payment_method != 'cash'
+          AND payment_method != 'CASH'
           ORDER BY datetime DESC 
           LIMIT 1
         ) tc ON true
@@ -2828,7 +2831,8 @@ export class DatabaseStorage implements IStorage {
           WHERE DATE(t.datetime) = CURRENT_DATE
           GROUP BY t.machine_id
         ) today_revenue ON m.id = today_revenue.machine_id
-        ORDER BY m.location_name, m.machine_name
+        WHERE m.vendon_id IS NOT NULL
+        ORDER BY m.vendon_id, refill_priority DESC, m.id DESC
         LIMIT 20
       `;
       

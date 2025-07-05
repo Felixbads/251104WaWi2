@@ -109,6 +109,14 @@ This is a comprehensive vending machine management platform (Warenwirtschaftssys
 
 ## Changelog
 
+- July 5, 2025: Standorte-Seite zeigt jetzt echte Live-Daten - BEHOBEN
+  - ✓ Problem identifiziert: Doppelte Maschinendatensätze mit derselben Vendon-ID
+  - ✓ Bad Schandau zeigte veraltete Daten (16 Tage) statt aktuelle (gestern)
+  - ✓ location-status API wählte falschen Datensatz (ID 3 statt ID 84)
+  - ✓ SQL-Abfrage mit DISTINCT ON erweitert für eindeutige Vendon-IDs
+  - ✓ System wählt automatisch Datensatz mit aktuellsten Refill-Daten
+  - ✓ Bestätigt: Bad Schandau Nationalparkbahnhof zeigt jetzt "daysAgo: 0" (korrekt)
+  - Alle Automaten zeigen jetzt die richtigen Betriebsdaten ohne veraltete Duplikate
 - July 5, 2025: Standorte-Seite Daten-Problem behoben
   - ✓ Problem identifiziert: Frontend sendet Vendon-ID, Backend erwartete interne Maschinen-ID
   - ✓ API-Route `/api/machines/:id/daily-stats` erweitert für beide ID-Typen
