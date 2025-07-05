@@ -2173,36 +2173,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get products
-  app.get(`${API_PREFIX}/products`, async (req: Request, res: Response) => {
+  // Get price history for a product
+  app.get(`${API_PREFIX}/products/:productId/price-history`, async (req: Request, res: Response) => {
     try {
-      const limit = req.query.limit ? parseInt(req.query.limit as string) : 200;
-      const offset = req.query.offset ? parseInt(req.query.offset as string) : 0;
-      const category = req.query.category as string | undefined;
-      const search = req.query.search as string | undefined;
-      const supplierId = req.query.supplierId ? parseInt(req.query.supplierId as string) : undefined;
+      const productId = parseInt(req.params.productId);
       
-      console.log("[DEBUG] /api/products - Query parameters:", { 
-        limit, offset, category, search, supplierId, 
-        rawSupplierId: req.query.supplierId
-      });
+      if (isNaN(productId)) {
+        return res.status(400).json({ error: "Invalid product ID" });
+      }
       
-      const products = await storage.getProducts({
-        limit,
-        offset,
-        category,
-        search,
-        supplierId
-      });
-      res.json(products);
+      // Get all purchase conditions for this product with supplier information
+      const purchaseConditions = await storage.getPurchaseConditionsByProduct(productId);
+      
+      // Format the data for price history display
+      const priceHistory = purchaseConditions.map(condition => ({
+        date: condition.validFrom,
+        price: condition.pricePerUnit,
+        supplier: condition.supplierName,
+        minimumQuantity: condition.minimumQuantity,
+        discount: condition.discountPercentage,
+        notes: condition.notes
+      }));
+      
+      // Sort by date (most recent first)
+      priceHistory.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      
+      res.json(priceHistory);
     } catch (error) {
-      console.error("Error fetching products:", error);
+      console.error(`Error fetching price history for product ${req.params.productId}:`, error);
       res.status(500).json({ 
-        error: "Failed to fetch products", 
-        details: error instanceof Error ? error.message : String(error) 
+        error: "Failed to fetch price history", 
+        details: error instanceof Error ? error.message : String(error)
       });
     }
   });
+
   
   // Produkt-Export als Excel
   app.get(`${API_PREFIX}/products/export`, async (req: Request, res: Response) => {

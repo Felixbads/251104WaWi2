@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, Edit, Package, Package2, Info, Image, BarChart3, TrendingUp, Truck, Leaf } from 'lucide-react';
+import { ArrowLeft, Edit, Package, Package2, Info, Image, BarChart3, TrendingUp, Truck, Leaf, Calculator } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Product } from '@shared/schema';
 import { ProductEditDialog } from '@/components/ProductEditDialog';
@@ -13,6 +13,7 @@ import { apiRequest } from '@/lib/queryClient';
 import ProductInventoryView from '@/components/product/ProductInventoryView';
 import ProductSalesView from '@/components/product/ProductSalesView';
 import ProductAnalyticsView from '@/components/product/ProductAnalyticsView';
+import ProductPurchaseConditionsView from '@/components/product/ProductPurchaseConditionsView';
 import { PurchaseConditionsDisplay } from '@/components/PurchaseConditionsDisplay';
 
 export default function ProductDetail() {
@@ -130,6 +131,10 @@ export default function ProductDetail() {
             <TabsTrigger value="analytics" className="flex items-center gap-1 px-3 py-2 text-xs sm:text-sm whitespace-nowrap">
               <BarChart3 className="h-3 w-3 sm:h-4 sm:w-4" />
               <span>Analyse</span>
+            </TabsTrigger>
+            <TabsTrigger value="purchase-conditions" className="flex items-center gap-1 px-3 py-2 text-xs sm:text-sm whitespace-nowrap">
+              <Calculator className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span>Einkaufsbedingungen</span>
             </TabsTrigger>
           </TabsList>
         </div>
@@ -491,6 +496,11 @@ export default function ProductDetail() {
         {/* Analytics Tab with Charts */}
         <TabsContent value="analytics" className="space-y-6 mt-6">
           <ProductAnalyticsView productId={parseInt(id!)} productName={product.productName} />
+        </TabsContent>
+
+        {/* Purchase Conditions Tab */}
+        <TabsContent value="purchase-conditions" className="space-y-6 mt-6">
+          <ProductPurchaseConditionsView productId={parseInt(id!)} productName={product.productName} />
         </TabsContent>
       </Tabs>
 

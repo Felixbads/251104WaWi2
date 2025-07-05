@@ -2822,7 +2822,7 @@ export class DatabaseStorage implements IStorage {
           FROM transactions t
           JOIN products p ON p.vendon_id = t.product_id::text OR p.product_name = t.product_name
           WHERE t.machine_id = m.id 
-          AND p.is_alcoholic = true
+          AND p."isAlcoholic" = true
           ORDER BY t.datetime DESC 
           LIMIT 1
         ) ta ON true
