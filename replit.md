@@ -109,6 +109,16 @@ This is a comprehensive vending machine management platform (Warenwirtschaftssys
 
 ## Changelog
 
+- July 5, 2025: FIFO-basiertes MHD-System vollständig implementiert
+  - ✓ Datenbank-Schema um MHD-Felder (expiry_date, batch_id, received_date) in machine_stocks erweitert
+  - ✓ MhdFifoService.ts mit kompletter FIFO-Logik für MHD-Transfer vom Lager zu Automaten erstellt
+  - ✓ First In First Out (FIFO) Prinzip: Älteste Chargen werden zuerst an Automaten übertragen
+  - ✓ Integration in bestehenden Refill-Prozess (/api/refills/:id/process) implementiert
+  - ✓ Automatische MHD-Übertragung bei jeder Nachfüllung mit Batch-Rückverfolgung
+  - ✓ Test-Endpoint (/api/mhd-fifo/test) für Validierung der FIFO-Funktionalität erstellt
+  - ✓ Ablaufende Produkte-Erkennung mit konfigurierbaren Vorlaufzeiten implementiert
+  - ✓ TypeScript-Kompatibilität mit DatabaseClient-Interface sichergestellt
+  - System folgt kompletten Workflow: Wareneingang → Lagerung mit MHD → FIFO-Transfer → Automatenbestand
 - July 5, 2025: Location-Status Route auf echte Daten umgestellt
   - ✓ Vollständige Entfernung aller statischen Demo-Daten aus location-status API
   - ✓ Raw SQL-Implementation für echte Datenbankabfragen implementiert

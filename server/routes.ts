@@ -48,6 +48,7 @@ import suppliersProductsRouter from './routes/suppliers-products';
 import resilientSyncRouter from './routes/resilientSync';
 import photosRouter from './routes/photos';
 import { getSuppliersSchedules } from './routes/suppliers-schedules';
+import { MhdFifoService } from './services/mhdFifoService';
 
 // Hilfsfunktion zum Gruppieren der Transaktionen nach Zeitraum
 function groupTransactionsByPeriod(transactions, period) {
@@ -199,6 +200,53 @@ export function sendWebSocketMessage(type: string, data: any) {
 export async function registerRoutes(app: Express): Promise<Server> {
   // HTTP-Server für Express erstellen
   const httpServer = createServer(app);
+  
+  // MHD FIFO Service initialisieren
+  const mhdFifoService = new MhdFifoService(rawDb);
+  
+  // Test-Endpoint für MHD FIFO System
+  app.get(`${API_PREFIX}/mhd-fifo/test`, async (req: Request, res: Response) => {
+    try {
+      console.log('[MHD_FIFO_TEST] Starting MHD FIFO system test');
+      
+      // Erstelle Testdaten für ein häufiges Produkt
+      const testProductVendonId = '8';  // Oppacher Classic PET - sehr häufig
+      const testWarehouseId = 1;
+      
+      await mhdFifoService.createTestMhdData(testWarehouseId, testProductVendonId);
+      
+      // Prüfe ablaufende Produkte für alle Automaten
+      const machinesResult = await rawDb.query('SELECT id, machine_name FROM machines LIMIT 5');
+      const testResults = [];
+      
+      for (const machine of machinesResult.rows) {
+        const expiringProducts = await mhdFifoService.getExpiringProducts(machine.id, 30);
+        testResults.push({
+          machineId: machine.id,
+          machineName: machine.machine_name,
+          expiringProducts: expiringProducts.length
+        });
+      }
+      
+      res.json({
+        success: true,
+        message: 'MHD FIFO System erfolgreich getestet',
+        testData: {
+          productTested: testProductVendonId,
+          warehouseTested: testWarehouseId,
+          machineResults: testResults
+        }
+      });
+      
+    } catch (error) {
+      console.error('[MHD_FIFO_TEST] Error:', error);
+      res.status(500).json({
+        success: false,
+        error: 'MHD FIFO Test fehlgeschlagen',
+        details: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
   
   // Register product inventory routes FIRST to avoid conflicts
   
@@ -4650,6 +4698,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
           DO UPDATE SET quantity = $3, updated_at = NOW()
         `, [warehouseId, productId, newStock]);
         
+        // **MHD FIFO TRANSFER: Übertrage MHD-Daten vom Lager zum Automaten**
+        try {
+          const stockId = detail.extra_data?.stock_id || null;
+          console.log(`[MHD_FIFO] Starting MHD transfer for product ${detail.vendon_product_id}, quantity: ${quantity}`);
+          
+          const mhdTransfers = await mhdFifoService.transferMhdFromWarehouse(
+            refill.machine_id,
+            detail.vendon_product_id,
+            quantity,
+            warehouseId,
+            stockId
+          );
+          
+          console.log(`[MHD_FIFO] Successfully transferred MHD data: ${mhdTransfers.length} batches processed`);
+          
+          // Log MHD Transfer Details
+          for (const transfer of mhdTransfers) {
+            console.log(`[MHD_FIFO] Batch ${transfer.batchId}: ${transfer.quantityUsed} units with expiry ${transfer.expiryDate}`);
+          }
+          
+        } catch (mhdError) {
+          console.error(`[MHD_FIFO] Error in MHD transfer for product ${detail.vendon_product_id}:`, mhdError);
+          // Continue with regular inventory movement even if MHD transfer fails
+        }
+
         // Inventarbewegung erstellen
         await rawDb.query(`
           INSERT INTO inventory_movements (

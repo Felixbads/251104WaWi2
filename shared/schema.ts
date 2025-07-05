@@ -778,6 +778,10 @@ export const machineStocks = pgTable("machine_stocks", {
   quantity: integer("quantity").default(0),                      // Aktuelle Menge
   status: text("status").default("active"),                      // Status
   lastFilled: timestamp("last_filled"),                          // Letzte Auffüllung
+  // MHD-System: FIFO-Tracking
+  expiryDate: date("expiry_date"),                               // MHD von inventory_batches übertragen
+  batchId: integer("batch_id").references(() => inventoryBatches.id), // Referenz zur ursprünglichen Charge
+  receivedDate: timestamp("received_date"),                      // Wann in Automat eingefüllt (für FIFO)
   // Speichere alle Rohdaten als JSON
   rawData: text("raw_data"),                                     // Alle Rohdaten der API-Antwort
   lastSync: timestamp("last_sync"),                              // Letzte Synchronisation
