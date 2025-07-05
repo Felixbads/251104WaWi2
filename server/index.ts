@@ -47,7 +47,7 @@ import { startPhotoServer } from './photoServer';
 import interAppApiRouter from './routes/inter-app-api';
 import suppliersFastRouter from './routes/suppliers-fast';
 import supplierDiscountsRouter from './routes/supplier-discounts';
-import locationStatusRouter from './routes/location-status-optimized';
+import locationStatusRouter from './routes/location-status-ultra-fast';
 
 const app = express();
 
@@ -893,6 +893,10 @@ Elbsandstein Proviant & Quartier GmbH`;
   const ordersRouter = (await import('./routes/orders')).default;
   app.use('/api/orders', ordersRouter);
   console.log('[SERVER] Orders router mounted successfully');
+  
+  // Register location status router BEFORE registerRoutes to prevent conflicts
+  app.use('/api/location-status', locationStatusRouter);
+  console.log('[SERVER] Location status router mounted BEFORE registerRoutes');
   
   const server = await registerRoutes(app);
 
@@ -2227,9 +2231,8 @@ Elbsandstein Proviant & Quartier GmbH`;
   app.use('/api/suppliers-fast', suppliersFastRouter);
   app.use('/api/support-tickets', supportTicketsRouter);
   
-  // Location status router will be registered below
-
-  app.use('/api/location-status', locationStatusRouter);
+  // Location status router already registered above before registerRoutes
+  // app.use('/api/location-status', locationStatusRouter); // MOVED ABOVE
 
   // Register enhanced order copy router
   const enhancedOrderCopyRouter = (await import('./routes/enhanced-order-copy')).default;

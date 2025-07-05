@@ -3961,7 +3961,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use(`${API_PREFIX}/database-viewer`, databaseViewerRoutes);
   app.use(`${API_PREFIX}/database`, databaseRouter);
   app.use(`${API_PREFIX}/admin`, adminRouter);
-  app.use(`${API_PREFIX}/location-status`, locationStatusRouter);
+  // app.use(`${API_PREFIX}/location-status`, locationStatusRouter); // Moved above registerRoutes() for priority
   app.use(`${API_PREFIX}/sync`, syncRouter);
   app.use(`${API_PREFIX}/products`, productInventoryRouter);
   
