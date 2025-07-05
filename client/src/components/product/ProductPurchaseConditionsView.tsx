@@ -460,7 +460,7 @@ export default function ProductPurchaseConditionsView({ productId, productName }
                         ) : (
                           <div className="flex items-center gap-1">
                             <Euro className="h-4 w-4" />
-                            <span className="font-medium">{condition.pricePerUnit.toFixed(2)}</span>
+                            <span className="font-medium">{(condition.pricePerUnit || 0).toFixed(2)}</span>
                           </div>
                         )}
                       </td>

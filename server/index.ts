@@ -47,6 +47,7 @@ import { startPhotoServer } from './photoServer';
 import interAppApiRouter from './routes/inter-app-api';
 import suppliersFastRouter from './routes/suppliers-fast';
 import supplierDiscountsRouter from './routes/supplier-discounts';
+import locationStatusRouter from './routes/location-status';
 
 const app = express();
 
@@ -2223,6 +2224,9 @@ Elbsandstein Proviant & Quartier GmbH`;
   app.use('/api/supplier-analytics', supplierAnalyticsRouter);
   app.use('/api/suppliers-fast', suppliersFastRouter);
   app.use('/api/support-tickets', supportTicketsRouter);
+  
+  // Register location status router
+  app.use('/api/location-status', locationStatusRouter);
 
   // Register enhanced order copy router
   const enhancedOrderCopyRouter = (await import('./routes/enhanced-order-copy')).default;
