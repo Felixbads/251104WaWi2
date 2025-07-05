@@ -109,6 +109,16 @@ This is a comprehensive vending machine management platform (Warenwirtschaftssys
 
 ## Changelog
 
+- July 5, 2025: Alkohol-Tracking-System vollständig implementiert
+  - ✓ Datenbank-Schema mit isAlcoholic-Spalte erweitert
+  - ✓ Backend SQL-Abfragen für Alkohol-Verkaufs-Tracking implementiert
+  - ✓ Frontend UI mit "Letzter Alkoholverkauf" Anzeige und Wine-Icon erstellt
+  - ✓ ProductDataEntry.tsx mit Alkohol-Checkbox für Produktkategorisierung ergänzt
+  - ✓ API-Endpoints um lastAlcoholSale Datenfeld erweitert
+  - ✓ TypeScript-Interfaces für Alkohol-Verkaufsdaten aktualisiert
+  - ✓ 3 alkoholische Produkte identifiziert und markiert (Kraxler Vollbier, Sächsisches Schmuggler Bier, KEKILA Glühwein)
+  - ✓ 19 historische Alkohol-Verkäufe in Transaktionsdaten gefunden
+  - System ist vollständig funktionsfähig und zeigt Alkohol-Verkäufe mit Produktname und Zeitstempel an
 - July 5, 2025: Standorte-Seite zeigt jetzt echte Live-Daten - BEHOBEN
   - ✓ Problem identifiziert: Doppelte Maschinendatensätze mit derselben Vendon-ID
   - ✓ Bad Schandau zeigte veraltete Daten (16 Tage) statt aktuelle (gestern)

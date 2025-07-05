@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { Save, Search, Upload } from "lucide-react";
@@ -51,6 +52,7 @@ interface Product {
   isLocal?: boolean | null;
   isVegan?: boolean | null;
   isVegetarian?: boolean | null;
+  isAlcoholic?: boolean | null;
   certifications?: string | null;
   ingredients?: string | null;
   allergens?: string | null;
@@ -312,6 +314,7 @@ export default function ProductDataEntry() {
                 <th className="text-left p-2 font-medium w-32">Gebindegröße</th>
                 <th className="text-left p-2 font-medium w-48">Inhaltsstoffe</th>
                 <th className="text-left p-2 font-medium w-48">Allergene</th>
+                <th className="text-left p-2 font-medium w-20">Alkohol</th>
                 <th className="text-left p-2 font-medium w-20">Upload</th>
               </tr>
             </thead>
@@ -439,6 +442,17 @@ export default function ProductDataEntry() {
                       className="w-full p-1 border rounded resize-none h-16 text-xs"
                       rows={2}
                     />
+                  </td>
+                  
+                  {/* Alkohol Checkbox */}
+                  <td className="p-2 w-20">
+                    <div className="flex items-center justify-center">
+                      <Checkbox
+                        id={`alcohol-${product.id}`}
+                        checked={getCurrentValue(product, 'isAlcoholic') === true}
+                        onCheckedChange={(checked) => handleFieldChange(product.id, 'isAlcoholic', checked === true)}
+                      />
+                    </div>
                   </td>
                   
                   {/* Foto Upload */}

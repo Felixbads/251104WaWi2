@@ -2789,6 +2789,8 @@ export class DatabaseStorage implements IStorage {
           t.datetime as last_sale_date,
           tc.datetime as last_cashless_date,
           tc.payment_method as last_cashless_method,
+          ta.datetime as last_alcohol_sale_date,
+          ta.product_name as last_alcohol_product_name,
           e.datetime as last_door_open_date,
           COALESCE(today_revenue.revenue, 0) as today_revenue,
           COALESCE(r.datetime, '1900-01-01'::timestamp) as refill_priority
@@ -2815,6 +2817,15 @@ export class DatabaseStorage implements IStorage {
           ORDER BY datetime DESC 
           LIMIT 1
         ) tc ON true
+        LEFT JOIN LATERAL (
+          SELECT datetime, product_name 
+          FROM transactions t
+          JOIN products p ON p.vendon_id = t.product_id::text OR p.product_name = t.product_name
+          WHERE t.machine_id = m.id 
+          AND p.is_alcoholic = true
+          ORDER BY t.datetime DESC 
+          LIMIT 1
+        ) ta ON true
         LEFT JOIN LATERAL (
           SELECT datetime 
           FROM events 
@@ -2864,31 +2875,44 @@ export class DatabaseStorage implements IStorage {
       });
 
       const locationStatusData = machines.map(machine => {
-        // Calculate days ago
+        // Calculate days ago with timezone-corrected calculation
         const now = new Date();
+        const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        
         let refillDaysAgo = null;
         let saleDaysAgo = null;
         let cashlessDaysAgo = null;
+        let alcoholSaleDaysAgo = null;
         let doorOpenDaysAgo = null;
         
         if (machine.last_refill_date) {
           const refillDate = new Date(machine.last_refill_date);
-          refillDaysAgo = Math.floor((now.getTime() - refillDate.getTime()) / (1000 * 60 * 60 * 24));
+          const refillMidnight = new Date(refillDate.getFullYear(), refillDate.getMonth(), refillDate.getDate());
+          refillDaysAgo = Math.floor((todayMidnight.getTime() - refillMidnight.getTime()) / (1000 * 60 * 60 * 24));
         }
         
         if (machine.last_sale_date) {
           const saleDate = new Date(machine.last_sale_date);
-          saleDaysAgo = Math.floor((now.getTime() - saleDate.getTime()) / (1000 * 60 * 60 * 24));
+          const saleMidnight = new Date(saleDate.getFullYear(), saleDate.getMonth(), saleDate.getDate());
+          saleDaysAgo = Math.floor((todayMidnight.getTime() - saleMidnight.getTime()) / (1000 * 60 * 60 * 24));
         }
         
         if (machine.last_cashless_date) {
           const cashlessDate = new Date(machine.last_cashless_date);
-          cashlessDaysAgo = Math.floor((now.getTime() - cashlessDate.getTime()) / (1000 * 60 * 60 * 24));
+          const cashlessMidnight = new Date(cashlessDate.getFullYear(), cashlessDate.getMonth(), cashlessDate.getDate());
+          cashlessDaysAgo = Math.floor((todayMidnight.getTime() - cashlessMidnight.getTime()) / (1000 * 60 * 60 * 24));
+        }
+        
+        if (machine.last_alcohol_sale_date) {
+          const alcoholSaleDate = new Date(machine.last_alcohol_sale_date);
+          const alcoholMidnight = new Date(alcoholSaleDate.getFullYear(), alcoholSaleDate.getMonth(), alcoholSaleDate.getDate());
+          alcoholSaleDaysAgo = Math.floor((todayMidnight.getTime() - alcoholMidnight.getTime()) / (1000 * 60 * 60 * 24));
         }
         
         if (machine.last_door_open_date) {
           const doorOpenDate = new Date(machine.last_door_open_date);
-          doorOpenDaysAgo = Math.floor((now.getTime() - doorOpenDate.getTime()) / (1000 * 60 * 60 * 24));
+          const doorMidnight = new Date(doorOpenDate.getFullYear(), doorOpenDate.getMonth(), doorOpenDate.getDate());
+          doorOpenDaysAgo = Math.floor((todayMidnight.getTime() - doorMidnight.getTime()) / (1000 * 60 * 60 * 24));
         }
         
         // Get MHD status for this machine (highest priority)
@@ -2952,6 +2976,11 @@ export class DatabaseStorage implements IStorage {
             datetime: machine.last_cashless_date,
             paymentMethod: machine.last_cashless_method || 'card',
             daysAgo: cashlessDaysAgo
+          } : null,
+          lastAlcoholSale: machine.last_alcohol_sale_date ? {
+            datetime: machine.last_alcohol_sale_date,
+            productName: machine.last_alcohol_product_name || 'Alkoholisches Getränk',
+            daysAgo: alcoholSaleDaysAgo
           } : null,
           lastDoorOpen: machine.last_door_open_date ? {
             datetime: machine.last_door_open_date,

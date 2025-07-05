@@ -331,6 +331,7 @@ export const products = pgTable("products", {
   isLocal: boolean("is_local"), // Within 50km radius
   isVegan: boolean("is_vegan"),
   isVegetarian: boolean("is_vegetarian"),
+  isAlcoholic: boolean("is_alcoholic"), // Enthält Alkohol
   sustainabilityScore: real("sustainability_score"), // 0-100 calculated score
   certifications: text("certifications"), // JSON array: ["bio", "fairtrade", "regional"]
   
