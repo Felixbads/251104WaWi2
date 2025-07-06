@@ -910,8 +910,6 @@ export default function Orders() {
                   </div>
                 </TableCell>
               </TableRow>
-
-                  </TableRow>
               ))
             ) : (
               <TableRow>
