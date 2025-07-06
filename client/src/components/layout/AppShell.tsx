@@ -22,6 +22,7 @@ interface MenuItem {
 export const menuItems = {
   overview: [
     { title: 'Dashboard', icon: <Home className="h-5 w-5 mr-3" />, path: '/' },
+    { title: 'Wirtschaftlichkeit', icon: <BarChart2 className="h-5 w-5 mr-3" />, path: '/auswertungen' },
     { title: 'Standorte', icon: <BarChart4 className="h-5 w-5 mr-3" />, path: '/standort-status' },
     { title: 'Produkte', icon: <ShoppingBag className="h-5 w-5 mr-3" />, path: '/produkte' },
     { title: 'Lieferanten', icon: <Truck className="h-5 w-5 mr-3" />, path: '/lieferanten' },
@@ -37,7 +38,7 @@ export const menuItems = {
     { title: 'Neue Bestellungen', icon: <Package className="h-5 w-5 mr-3" />, path: '/bestellungen/neu' },
   ] as MenuItem[],
   analysis: [
-    { title: 'Auswertung', icon: <BarChart2 className="h-5 w-5 mr-3" />, path: '/auswertungen' },
+    { title: 'Wirtschaftlichkeit', icon: <BarChart2 className="h-5 w-5 mr-3" />, path: '/auswertungen' },
     { title: 'Erweiterte Auswertung', icon: <PieChart className="h-5 w-5 mr-3" />, path: '/erweiterte-analyse' },
     { title: 'Standort-Analyse', icon: <PieChart className="h-5 w-5 mr-3" />, path: '/standort-analyse' },
     { title: 'Umsatzerwartungen', icon: <BarChart4 className="h-5 w-5 mr-3" />, path: '/revenue-expectations' },
