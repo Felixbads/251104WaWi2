@@ -54,6 +54,7 @@ import inventoryMovementsRouter from './routes/inventoryMovements';
 import { MhdFifoService } from './services/mhdFifoService';
 import warehouseProductsRouter from './routes/warehouseProducts';
 import seasonalBackwardSyncRouter from './routes/seasonalBackwardSync';
+import stockoutDetectionRouter from './routes/stockoutDetection';
 
 // Hilfsfunktion zum Gruppieren der Transaktionen nach Zeitraum
 function groupTransactionsByPeriod(transactions, period) {
@@ -4529,6 +4530,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Registriere Seasonal Backward Sync Routen (Phase 2: Saisonale Anreicherung)
   app.use(`${API_PREFIX}/seasonal-backward-sync`, seasonalBackwardSyncRouter);
+  
+  // Registriere Stockout Detection Routen
+  app.use(`${API_PREFIX}/stockout-detection`, stockoutDetectionRouter);
   
   // Registriere E-Mail-Routen (CRITICAL FIX: Das war bisher nicht registriert!)
   app.use(`${API_PREFIX}`, emailRouter);
