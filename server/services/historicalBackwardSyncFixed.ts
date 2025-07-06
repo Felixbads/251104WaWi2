@@ -439,16 +439,41 @@ export class HistoricalBackwardSync {
   }
 
   /**
-   * Save transaction to database
+   * Save transaction to database with seasonal enrichment
    */
   private async saveTransaction(transaction: any): Promise<boolean> {
+    const datetime = new Date(transaction.datetime * 1000);
+    
+    // Calculate seasonal data if enabled
+    let seasonalData: any = {};
+    if (this.config.enableSeasonalEnrichment) {
+      seasonalData = {
+        week_of_year: this.getWeekOfYear(datetime),
+        day_of_year: this.getDayOfYear(datetime),
+        month_of_year: datetime.getMonth() + 1,
+        quarter_of_year: Math.ceil((datetime.getMonth() + 1) / 3),
+        weekday_number: this.getWeekdayNumber(datetime),
+        season: this.getSeason(datetime),
+        is_holiday: await this.isHoliday(datetime),
+        is_vacation: await this.isVacation(datetime),
+        tourist_season: this.isTouristSeason(datetime),
+        school_in_session: !await this.isVacation(datetime),
+        seasonal_enrichment_source: 'historical_backward_sync',
+        seasonal_enrichment_date: new Date()
+      };
+    }
+
     const query = `
       INSERT INTO transactions (
         vendon_id, machine_id, machine_name, datetime, transaction_dt, registered_dt,
         product_name, selection, stock_id, quantity, price, price_vat, currency,
-        payment_method, payment_type, source, extra_data
+        payment_method, payment_type, source, extra_data,
+        week_of_year, day_of_year, month_of_year, quarter_of_year, weekday_number,
+        season, is_holiday, is_vacation, tourist_season, school_in_session,
+        seasonal_enrichment_source, seasonal_enrichment_date
       ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17,
+        $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29
       )
       ON CONFLICT (vendon_id) DO NOTHING
       RETURNING id
@@ -458,7 +483,7 @@ export class HistoricalBackwardSync {
       transaction.transaction_id?.toString(),
       transaction.machine_id,
       transaction.machine_name,
-      new Date(transaction.datetime * 1000),
+      datetime,
       transaction.transaction_dt ? new Date(transaction.transaction_dt * 1000) : null,
       transaction.registered_dt ? new Date(transaction.registered_dt * 1000) : null,
       transaction.name || transaction.product_name,
@@ -471,7 +496,20 @@ export class HistoricalBackwardSync {
       transaction.payment_method,
       transaction.payment_type,
       'historical_backward_sync',
-      JSON.stringify(transaction)
+      JSON.stringify(transaction),
+      // Seasonal fields
+      seasonalData.week_of_year || null,
+      seasonalData.day_of_year || null,
+      seasonalData.month_of_year || null,
+      seasonalData.quarter_of_year || null,
+      seasonalData.weekday_number || null,
+      seasonalData.season || null,
+      seasonalData.is_holiday || false,
+      seasonalData.is_vacation || false,
+      seasonalData.tourist_season || false,
+      seasonalData.school_in_session !== undefined ? seasonalData.school_in_session : true,
+      seasonalData.seasonal_enrichment_source || null,
+      seasonalData.seasonal_enrichment_date || null
     ];
 
     try {
@@ -532,6 +570,22 @@ export class HistoricalBackwardSync {
     if (month >= 3 && month <= 5) return 'spring';
     if (month >= 6 && month <= 8) return 'summer';
     return 'autumn';
+  }
+
+  /**
+   * Get weekday number (1=Monday, 7=Sunday)
+   */
+  private getWeekdayNumber(date: Date): number {
+    const day = date.getDay();
+    return day === 0 ? 7 : day; // Convert Sunday from 0 to 7
+  }
+
+  /**
+   * Check if date is in tourist season (May to October)
+   */
+  private isTouristSeason(date: Date): boolean {
+    const month = date.getMonth() + 1;
+    return month >= 5 && month <= 10;
   }
 
   private async isHoliday(date: Date): Promise<boolean> {

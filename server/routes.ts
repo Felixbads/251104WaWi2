@@ -53,6 +53,7 @@ import inventoryTransfersRouter from './routes/inventoryTransfers';
 import inventoryMovementsRouter from './routes/inventoryMovements';
 import { MhdFifoService } from './services/mhdFifoService';
 import warehouseProductsRouter from './routes/warehouseProducts';
+import seasonalBackwardSyncRouter from './routes/seasonalBackwardSync';
 
 // Hilfsfunktion zum Gruppieren der Transaktionen nach Zeitraum
 function groupTransactionsByPeriod(transactions, period) {
@@ -4525,6 +4526,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Registriere Vendon historischer Import Routen
   app.use(`${API_PREFIX}/vendon/historical-import`, vendonHistoricalImportRouter);
+  
+  // Registriere Seasonal Backward Sync Routen (Phase 2: Saisonale Anreicherung)
+  app.use(`${API_PREFIX}/seasonal-backward-sync`, seasonalBackwardSyncRouter);
   
   // Registriere E-Mail-Routen (CRITICAL FIX: Das war bisher nicht registriert!)
   app.use(`${API_PREFIX}`, emailRouter);

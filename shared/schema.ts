@@ -564,6 +564,39 @@ export const transactions = pgTable("transactions", {
   processingStatus: text("processing_status").default("pending"), // Verarbeitungsstatus: pending, processed, error
   processingError: text("processing_error"),                   // Fehlermeldung bei der Verarbeitung
   
+  // ===== SAISONALE PROGNOSE-FELDER (Phase 2) =====
+  // Kalender-Kontextfelder für saisonale Analyse
+  weekOfYear: integer("week_of_year"),                        // Kalenderwoche (1-53)
+  dayOfYear: integer("day_of_year"),                          // Tag des Jahres (1-366)
+  monthOfYear: integer("month_of_year"),                      // Monat des Jahres (1-12)
+  quarterOfYear: integer("quarter_of_year"),                  // Quartal des Jahres (1-4)
+  weekdayNumber: integer("weekday_number"),                   // Wochentag (1=Montag, 7=Sonntag)
+  season: text("season"),                                     // Jahreszeit: spring, summer, autumn, winter
+  
+  // Feiertags- und Ferienkontext
+  isHoliday: boolean("is_holiday").default(false),           // Ist ein Feiertag
+  holidayName: text("holiday_name"),                          // Name des Feiertags
+  holidayType: text("holiday_type"),                          // Art des Feiertags (national, regional, religious)
+  isVacation: boolean("is_vacation").default(false),         // Sind Schulferien
+  vacationType: text("vacation_type"),                        // Art der Ferien (summer, winter, easter, etc.)
+  isBridgeDay: boolean("is_bridge_day").default(false),      // Ist ein Brückentag
+  
+  // Wetter-Kontext (zur Analyse von Wettereinflüssen)
+  weatherCondition: text("weather_condition"),               // Wetterbedingung (sunny, rainy, cloudy, etc.)
+  temperature: real("temperature"),                           // Temperatur in Celsius
+  humidity: real("humidity"),                                 // Luftfeuchtigkeit in %
+  precipitation: real("precipitation"),                       // Niederschlag in mm
+  windSpeed: real("wind_speed"),                              // Windgeschwindigkeit in km/h
+  
+  // Event- und Sonderkontext
+  eventType: text("event_type"),                              // Besondere Events (festival, market, tourist_season)
+  touristSeason: boolean("tourist_season").default(false),   // Ist Touristen-Hochsaison
+  schoolInSession: boolean("school_in_session").default(true), // Sind Schulen geöffnet
+  
+  // Saisonale Enrichment-Metadaten
+  seasonalEnrichmentSource: text("seasonal_enrichment_source"), // Quelle der saisonalen Daten
+  seasonalEnrichmentDate: timestamp("seasonal_enrichment_date"), // Wann wurden saisonale Daten hinzugefügt
+  
   // Datensatz-Tracking
   createdAt: timestamp("created_at").defaultNow(),            // Wann wurde der Datensatz erstellt
 }, (table) => {
