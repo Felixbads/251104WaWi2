@@ -7,12 +7,17 @@
 
 import { Router, Request, Response } from 'express';
 import { EnhancedVendonHistoryImporter } from '../services/enhancedVendonHistoryImporter';
+import { HistoricalBackwardSync } from '../services/historicalBackwardSyncFixed';
 import { db, rawDb } from '../db';
 import { syncLogs, syncState } from '@shared/schema';
 import { eq, desc, and, gte, lte } from 'drizzle-orm';
 import { z } from 'zod';
 
 const router = Router();
+
+// Global instances for managing sync processes
+let globalEnhancedImporter: EnhancedVendonHistoryImporter | null = null;
+let globalBackwardSync: HistoricalBackwardSync | null = null;
 
 // Validation schemas
 const importRequestSchema = z.object({
@@ -23,6 +28,15 @@ const importRequestSchema = z.object({
   requestDelayMs: z.number().min(0).max(10000).optional(),
   retryDelayMs: z.number().min(1000).max(60000).optional(),
   maxRetries: z.number().min(1).max(10).optional()
+});
+
+const backwardSyncRequestSchema = z.object({
+  targetStartYear: z.number().min(2020).max(new Date().getFullYear()).optional(),
+  batchSize: z.number().min(1).max(100).optional(),
+  requestDelay: z.number().min(500).max(10000).optional(),
+  enableSeasonalEnrichment: z.boolean().optional(),
+  adaptiveTimeWindows: z.boolean().optional(),
+  logLevel: z.enum(['minimal', 'detailed', 'debug']).optional()
 });
 
 /**
@@ -372,6 +386,172 @@ router.get('/statistics', async (req: Request, res: Response) => {
     res.status(500).json({
       success: false,
       error: 'Failed to get import statistics',
+      details: error instanceof Error ? error.message : String(error)
+    });
+  }
+});
+
+/**
+ * POST /api/enhanced-vendon-import/backward-sync/start
+ * Start historical backward synchronization
+ */
+router.post('/backward-sync/start', async (req: Request, res: Response) => {
+  try {
+    console.log('Historical backward sync request received:', req.body);
+
+    // Validate request body
+    const validationResult = backwardSyncRequestSchema.safeParse(req.body);
+    if (!validationResult.success) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid request parameters',
+        details: validationResult.error.errors
+      });
+    }
+
+    // Check if backward sync is already running
+    if (globalBackwardSync) {
+      const status = globalBackwardSync.getStatus();
+      if (status.isRunning) {
+        return res.status(409).json({
+          success: false,
+          error: 'Historical backward sync is already running',
+          currentStatus: status
+        });
+      }
+    }
+
+    const options = validationResult.data;
+
+    // Create new backward sync instance
+    globalBackwardSync = new HistoricalBackwardSync({
+      targetStartYear: options.targetStartYear || 2020,
+      batchSize: options.batchSize || 100,
+      requestDelay: options.requestDelay || 1000,
+      enableSeasonalEnrichment: options.enableSeasonalEnrichment !== false,
+      adaptiveTimeWindows: options.adaptiveTimeWindows !== false,
+      logLevel: options.logLevel || 'detailed'
+    });
+
+    console.log(`Starting historical backward sync to year ${options.targetStartYear || 2020}`);
+
+    // Start the backward sync process asynchronously
+    const syncPromise = globalBackwardSync.startBackwardSync();
+
+    // Return immediately with status
+    res.json({
+      success: true,
+      message: 'Historical backward synchronization started',
+      targetStartYear: options.targetStartYear || 2020,
+      enableSeasonalEnrichment: options.enableSeasonalEnrichment !== false,
+      estimatedDuration: 'Will depend on data volume and historical range'
+    });
+
+    // Handle the sync result asynchronously
+    syncPromise.catch((error: any) => {
+      console.error('Historical backward sync failed:', error);
+    });
+
+  } catch (error: any) {
+    console.error('Error starting historical backward sync:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to start historical backward sync',
+      details: error instanceof Error ? error.message : String(error)
+    });
+  }
+});
+
+/**
+ * POST /api/enhanced-vendon-import/backward-sync/stop
+ * Stop historical backward synchronization
+ */
+router.post('/backward-sync/stop', async (req: Request, res: Response) => {
+  try {
+    if (!globalBackwardSync) {
+      return res.status(404).json({
+        success: false,
+        error: 'No backward sync process found'
+      });
+    }
+
+    await globalBackwardSync.stopBackwardSync();
+
+    res.json({
+      success: true,
+      message: 'Historical backward synchronization stopped'
+    });
+
+  } catch (error: any) {
+    console.error('Error stopping backward sync:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to stop backward sync',
+      details: error instanceof Error ? error.message : String(error)
+    });
+  }
+});
+
+/**
+ * GET /api/enhanced-vendon-import/backward-sync/status
+ * Get backward sync status and progress
+ */
+router.get('/backward-sync/status', async (req: Request, res: Response) => {
+  try {
+    if (!globalBackwardSync) {
+      return res.json({
+        success: true,
+        isRunning: false,
+        message: 'No backward sync process found'
+      });
+    }
+
+    const status = globalBackwardSync.getStatus();
+
+    res.json({
+      success: true,
+      ...status
+    });
+
+  } catch (error: any) {
+    console.error('Error getting backward sync status:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get backward sync status',
+      details: error instanceof Error ? error.message : String(error)
+    });
+  }
+});
+
+/**
+ * GET /api/enhanced-vendon-import/backward-sync/history
+ * Get historical backward sync logs
+ */
+router.get('/backward-sync/history', async (req: Request, res: Response) => {
+  try {
+    const limit = parseInt(req.query.limit as string) || 20;
+    
+    const syncLogs = await rawDb.query(`
+      SELECT 
+        id, sync_type, sync_status, start_date, end_date,
+        items_found, items_saved, duplicates, errors,
+        duration_seconds, error_message, created_at
+      FROM sync_logs 
+      WHERE sync_type = 'historical_backward_sync'
+      ORDER BY created_at DESC 
+      LIMIT $1
+    `, [limit]);
+
+    res.json({
+      success: true,
+      syncHistory: syncLogs.rows
+    });
+
+  } catch (error: any) {
+    console.error('Error getting backward sync history:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get backward sync history',
       details: error instanceof Error ? error.message : String(error)
     });
   }
