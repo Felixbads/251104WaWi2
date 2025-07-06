@@ -58,8 +58,8 @@ export default function Wirtschaftlichkeit() {
   const [startDate, setStartDate] = useState(format(subDays(new Date(), 30), 'yyyy-MM-dd'));
   const [endDate, setEndDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [groupBy, setGroupBy] = useState<'machine' | 'product' | 'location' | 'total'>('product');
-  const [selectedMachine, setSelectedMachine] = useState<string>('');
-  const [selectedProduct, setSelectedProduct] = useState<string>('');
+  const [selectedMachine, setSelectedMachine] = useState<string>('all');
+  const [selectedProduct, setSelectedProduct] = useState<string>('all');
 
   // Profitability Data Query
   const { data: profitabilityData, isLoading: profitabilityLoading } = useQuery<{
@@ -74,8 +74,8 @@ export default function Wirtschaftlichkeit() {
         startDate,
         endDate,
         groupBy,
-        ...(selectedMachine && { machineId: selectedMachine }),
-        ...(selectedProduct && { productId: selectedProduct })
+        ...(selectedMachine && selectedMachine !== 'all' && { machineId: selectedMachine }),
+        ...(selectedProduct && selectedProduct !== 'all' && { productId: selectedProduct })
       });
       
       const response = await fetch(`/api/profitability/overview?${params}`);
@@ -199,7 +199,7 @@ export default function Wirtschaftlichkeit() {
                   <SelectValue placeholder="Alle Automaten" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Alle Automaten</SelectItem>
+                  <SelectItem value="all">Alle Automaten</SelectItem>
                   {machines.map((machine) => (
                     <SelectItem key={machine.id} value={machine.id.toString()}>
                       {machine.name || `Automat ${machine.id}`}
@@ -218,8 +218,8 @@ export default function Wirtschaftlichkeit() {
                   <SelectValue placeholder="Alle Produkte" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Alle Produkte</SelectItem>
-                  {products.map((product) => (
+                  <SelectItem value="all">Alle Produkte</SelectItem>
+                  {products.map((product: any) => (
                     <SelectItem key={product.id} value={product.id.toString()}>
                       {product.name}
                     </SelectItem>

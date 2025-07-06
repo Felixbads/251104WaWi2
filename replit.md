@@ -109,13 +109,15 @@ This is a comprehensive vending machine management platform (Warenwirtschaftssys
 
 ## Changelog
 
-- July 6, 2025: Dedicated Wirtschaftlichkeitsseite implementiert mit korrigierter Navigation
+- July 6, 2025: Wirtschaftlichkeit page moved to ANALYSE section and runtime errors fixed
   - ✓ Neue eigenständige Wirtschaftlichkeitsseite (/wirtschaftlichkeit) mit fokussierter Umsatz-minus-Kosten-Darstellung
   - ✓ Navigation reorganisiert: "💰 Wirtschaftlichkeit" im Hauptmenü, "Auswertung" im Analyse-Bereich
   - ✓ Bestehende ProfitabilityAnalysis-Seite in Analyse-Bereich als "Auswertung" verschoben
   - ✓ Neue Seite fokussiert ausschließlich auf echte Gewinnberechnungen mit vereinfachter Benutzeroberfläche
   - ✓ Backend-API (profitability-simple.ts) mit echten Gewinnberechnungen bestätigt funktionsfähig
   - ✓ Klare Trennung zwischen allgemeiner Auswertung und spezifischer Wirtschaftlichkeitsanalyse
+  - ✓ 65 Produkte mit echten Verkaufszahlen und Gewinnspannen über API verfügbar
+  - System bietet jetzt separate, zielgerichtete Wirtschaftlichkeitsauswertung nach Benutzerwunsch
   - ✓ 65 Produkte mit echten Verkaufszahlen und Gewinnspannen über API verfügbar
   - System bietet jetzt separate, zielgerichtete Wirtschaftlichkeitsauswertung nach Benutzerwunsch
 - July 5, 2025: Umfassende Enhanced Ordering System Implementation abgeschlossen
