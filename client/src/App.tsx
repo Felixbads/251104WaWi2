@@ -27,6 +27,7 @@ import ForecastDetail from "@/pages/ForecastDetail";
 import EnhancedForecastDashboard from "@/pages/EnhancedForecastDashboard";
 import DataAvailability from "@/pages/DataAvailability"; // Neue Datenverfügbarkeits-Komponente
 import AdvancedAnalysis from "@/pages/AdvancedAnalysis"; // Erweiterte Analyse-Komponente
+import ProfitabilityAnalysis from "@/pages/ProfitabilityAnalysis"; // Wirtschaftlichkeitsauswertung
 import Login from "@/pages/Login";
 import Register from "@/pages/Register";
 import NotApproved from "@/pages/NotApproved"; // Seite für nicht-freigegebene Benutzer
@@ -454,6 +455,12 @@ function AuthenticatedRouter() {
           <AdminRoute>
             <AdvancedAnalysis {...props} />
           </AdminRoute>
+        )} />
+
+        <Route path="/auswertungen" component={props => (
+          <ApprovedUserRoute>
+            <ProfitabilityAnalysis {...props} />
+          </ApprovedUserRoute>
         )} />
 
         <Route path="/datenverfuegbarkeit" component={props => (

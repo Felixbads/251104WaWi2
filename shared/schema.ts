@@ -2598,6 +2598,77 @@ export const insertSupportTicketSchema = createInsertSchema(supportTickets).omit
 export type InsertSupportTicket = z.infer<typeof insertSupportTicketSchema>;
 export type SupportTicket = typeof supportTickets.$inferSelect;
 
+// ========================== STANDORTKOSTEN ===========================
+
+// Standortkosten-Tabelle für laufende Betriebskosten pro Standort/Automat
+export const locationCosts = pgTable("location_costs", {
+  id: serial("id").primaryKey(),
+  
+  // Standort/Maschine
+  locationId: integer("location_id").references(() => locations.id),
+  machineId: integer("machine_id").references(() => machines.id),
+  locationName: text("location_name").notNull(), // Redundante Speicherung für Performance
+  machineName: text("machine_name"), // Redundante Speicherung für Performance
+  
+  // Kostenart
+  costType: text("cost_type").notNull(), // z.B. "strom", "miete", "telemetrie", "kartenzahlung", "wartung"
+  costName: text("cost_name").notNull(), // Bezeichnung der Kostenart (z.B. "Stromkosten", "Standortmiete")
+  
+  // Betrag
+  amountNet: real("amount_net").notNull(), // Netto-Betrag
+  amountGross: real("amount_gross").notNull(), // Brutto-Betrag
+  vatRate: real("vat_rate").default(19), // MwSt-Satz in Prozent
+  currency: text("currency").default("EUR"), // Währung
+  
+  // Zeitraum
+  validFrom: date("valid_from").notNull(), // Gültig ab
+  validTo: date("valid_to"), // Gültig bis (null = unbefristet)
+  billingCycle: text("billing_cycle").default("monthly"), // "monthly", "quarterly", "yearly", "one_time"
+  
+  // Beschreibung und Kategorie
+  description: text("description"), // Beschreibung der Kosten
+  category: text("category"), // Kategorie (z.B. "energie", "infrastruktur", "service")
+  
+  // Status
+  isActive: boolean("is_active").default(true), // Ist die Kostenposition aktiv
+  isAutoDeducted: boolean("is_auto_deducted").default(true), // Automatisch in Wirtschaftlichkeitsberechnung einbeziehen
+  
+  // Metadaten
+  supplier: text("supplier"), // Anbieter/Lieferant der Dienstleistung
+  contractNumber: text("contract_number"), // Vertragsnummer
+  notes: text("notes"), // Zusätzliche Notizen
+  
+  // Audit
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  createdBy: integer("created_by").references(() => users.id),
+});
+
+export const insertLocationCostSchema = createInsertSchema(locationCosts).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertLocationCost = z.infer<typeof insertLocationCostSchema>;
+export type LocationCost = typeof locationCosts.$inferSelect;
+
+// Relation für Standortkosten
+export const locationCostRelations = relations(locationCosts, ({ one }) => ({
+  location: one(locations, {
+    fields: [locationCosts.locationId],
+    references: [locations.id],
+  }),
+  machine: one(machines, {
+    fields: [locationCosts.machineId], 
+    references: [machines.id],
+  }),
+  creator: one(users, {
+    fields: [locationCosts.createdBy],
+    references: [users.id],
+  }),
+}));
+
 export const allRelations = {
   orderRelations,
   orderItemRelations,
@@ -2616,4 +2687,5 @@ export const allRelations = {
   refillBatchMovementsRelations,
   productBatchRelations,
   productMovementRelations,
+  locationCostRelations,
 };
