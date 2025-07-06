@@ -118,18 +118,25 @@ export default function Wirtschaftlichkeit() {
                    (productsResponse?.products && Array.isArray(productsResponse.products)) ? productsResponse.products :
                    [];
 
-  const formatCurrency = (value: number) => {
+  const formatCurrency = (value: number | null | undefined) => {
+    if (value === null || value === undefined || isNaN(value)) {
+      return '€0,00';
+    }
     return new Intl.NumberFormat('de-DE', {
       style: 'currency',
       currency: 'EUR'
     }).format(value);
   };
 
-  const formatPercent = (value: number) => {
+  const formatPercent = (value: number | null | undefined) => {
+    if (value === null || value === undefined || isNaN(value)) {
+      return '0,0%';
+    }
     return `${value.toFixed(1)}%`;
   };
 
-  const getProfitColor = (profit: number) => {
+  const getProfitColor = (profit: number | null | undefined) => {
+    if (profit === null || profit === undefined || isNaN(profit)) return 'text-gray-600';
     if (profit > 0) return 'text-green-600';
     if (profit < 0) return 'text-red-600';
     return 'text-gray-600';
