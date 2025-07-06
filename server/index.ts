@@ -1283,9 +1283,9 @@ Elbsandstein Proviant & Quartier GmbH`;
           COALESCE(oi.total_price, 0) as total_price,
           COALESCE(oi.quantity, 1) as quantity,
           COALESCE(oi.vat_rate, p.vat, 19) as vat_rate,
-          -- Berechne Gebinde-basierte Mengen
+          -- Berechne Gebinde-basierte Mengen (sicher für Text-Package-Sizes)
           CASE 
-            WHEN p.package_size IS NOT NULL AND p.package_size::integer > 0 
+            WHEN p.package_size IS NOT NULL AND p.package_size ~ '^[0-9]+$' AND p.package_size::integer > 0 
             THEN CEIL(COALESCE(oi.quantity, 1)::float / p.package_size::integer) * p.package_size::integer
             ELSE COALESCE(oi.quantity, 1)
           END as package_quantity,
