@@ -1,0 +1,27 @@
+Prompt: Analyse & Verbesserung der historischen Vendon-Datenabfrage für saisonale Prognosen
+
+Bitte analysiere umfassend, warum die Abfrage und Speicherung historischer Transaktionsdaten aus dem Vendon-System bisher nicht erfolgreich war, insbesondere für zurückliegende Zeiträume, die für saisonale Vorhersagen (z. B. wetter-, ferien- oder eventbasierte Prognosen) essenziell sind.
+
+Berücksichtige dabei folgende Punkte:
+	1.	Bestehender Abrufmechanismus:
+	•	Welcher Code ist aktuell aktiv, um Vendon-Daten abzurufen?
+	•	Welche API-Endpunkte und Parameter werden genutzt?
+	•	Welche Einschränkungen hat Vendon (z. B. Maximalabfrage von 100 Transaktionen pro Request)?
+	•	Wo werden die Daten gespeichert? (Tabellenstruktur, Datenbank)
+	2.	Historische Rückwärtssuche ermöglichen:
+	•	Stelle sicher, dass zeitlich rückwärts (z. B. ab heute zurück bis 2020) Daten abrufbar sind.
+	•	Implementiere ggf. eine Schleife, die zeitlich gestaffelte Abfragen durchführt – z. B. in Tages- oder Wochenintervallen, ohne je mehr als 100 Transaktionen pro API-Call zu überschreiten.
+	3.	Fehlertoleranz und Logging:
+	•	Füge ausführliches Logging hinzu (z. B. wenn ein Zeitbereich fehlschlägt oder keine Daten liefert).
+	•	Prüfe auf typische API-Fehler wie „rate limit exceeded“, „invalid timestamp“ oder „timeout“.
+	4.	Datenqualität sicherstellen:
+	•	Werden beim Abruf alle relevanten Daten gespeichert? (z. B. Transaktionszeitpunkt, Standort, Produkt-ID, Menge, Preis, Pfand, Zahlungsmittel)
+	•	Stimmen Zeitstempel und Zeitzeitzone? (UTC vs. lokale Zeit)
+	5.	Vorschlag für inkrementellen historischen Abruf:
+	•	Starte rückwärts vom heutigen Tag.
+	•	Wähle einen Startzeitpunkt und erweitere das Intervall nur so lange, bis exakt 100 Transaktionen gefunden wurden.
+	•	Setze dann das neue Intervall ab der letzten bekannten Transaktion +1 Sekunde, um doppelte Daten zu vermeiden.
+	•	Wiederhole dies bis zum gewünschten Startjahr.
+	6.	Integration in saisonale Prognoselogik:
+	•	Stelle sicher, dass die gespeicherten historischen Transaktionen korrekt mit Kalenderdaten, Wetterdaten, Feiertagen und Ferien verknüpfbar sind.
+	•	Speichere ggf. zusätzlich ein Feld wie „Woche im Jahr“, um saisonale Vergleichsanalysen zu erleichtern.
