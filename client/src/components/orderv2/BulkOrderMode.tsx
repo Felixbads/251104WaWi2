@@ -330,7 +330,7 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
   // Create order mutation
   const createOrderMutation = useMutation({
     mutationFn: async (orderData: any) => {
-      return apiRequest('/api/orders/bulk', orderData, 'POST');
+      return apiRequest('/api/bulk-orders/bulk', orderData, 'POST');
     },
     onSuccess: (data) => {
       toast({

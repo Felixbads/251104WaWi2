@@ -182,18 +182,39 @@ router.get('/forecast/bulk/:supplierId/:weeks', async (req, res) => {
             sp.id as product_id,
             sp.product_name,
             COUNT(t.id) as total_sales,
-            COALESCE(COUNT(t.id)::float / 4, 0) as avg_weekly_sales
+            -- Use 8 weeks of data for better accuracy
+            COALESCE(COUNT(t.id)::float / 8, 0) as avg_weekly_sales,
+            -- Calculate recent trend (last 4 weeks vs previous 4 weeks)
+            COUNT(CASE WHEN t.datetime >= ${subWeeks(new Date(), 4).toISOString()} THEN 1 END) as recent_sales,
+            COUNT(CASE WHEN t.datetime >= ${subWeeks(new Date(), 8).toISOString()} 
+                       AND t.datetime < ${subWeeks(new Date(), 4).toISOString()} THEN 1 END) as older_sales
           FROM supplier_products sp
           LEFT JOIN transactions t ON LOWER(TRIM(t.product_name)) = LOWER(TRIM(sp.product_name))
-            AND t.datetime >= ${subWeeks(new Date(), 4).toISOString()}
+            AND t.datetime >= ${subWeeks(new Date(), 8).toISOString()}
           GROUP BY sp.id, sp.product_name
         )
         SELECT 
           hs.product_id,
           hs.product_name,
           hs.avg_weekly_sales,
-          CAST(hs.avg_weekly_sales * ${forecastWeeks} AS INTEGER) as forecasted_demand,
-          'medium' as confidence_level
+          -- Enhanced forecast calculation with trend adjustment
+          CAST(
+            CASE 
+              -- If we have good data for trend analysis
+              WHEN hs.older_sales > 0 THEN
+                hs.avg_weekly_sales * ${forecastWeeks} * 
+                -- Apply trend multiplier (recent vs older sales)
+                GREATEST(0.5, LEAST(2.0, (hs.recent_sales::float / GREATEST(1, hs.older_sales))))
+              -- Fallback to simple average with conservative estimate for bulk orders
+              ELSE hs.avg_weekly_sales * ${forecastWeeks} * 1.1
+            END AS INTEGER
+          ) as forecasted_demand,
+          -- Confidence based on data quality and trend stability
+          CASE 
+            WHEN hs.total_sales >= 20 AND hs.older_sales > 0 THEN 'high'
+            WHEN hs.total_sales >= 10 THEN 'medium'
+            ELSE 'low'
+          END as confidence_level
         FROM historical_sales hs
         WHERE hs.avg_weekly_sales > 0
         ORDER BY hs.avg_weekly_sales DESC
