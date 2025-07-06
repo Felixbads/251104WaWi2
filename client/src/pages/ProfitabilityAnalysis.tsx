@@ -81,10 +81,10 @@ export default function ProfitabilityAnalysis() {
   const [period, setPeriod] = useState<'day' | 'week' | 'month'>('day');
   const [startDate, setStartDate] = useState(format(subDays(new Date(), 30), 'yyyy-MM-dd'));
   const [endDate, setEndDate] = useState(format(new Date(), 'yyyy-MM-dd'));
-  const [groupBy, setGroupBy] = useState<'machine' | 'product' | 'location' | 'total'>('total');
+  const [groupBy, setGroupBy] = useState<'machine' | 'product' | 'location' | 'total'>('product');
   const [selectedMachine, setSelectedMachine] = useState<string>('');
   const [selectedProduct, setSelectedProduct] = useState<string>('');
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState('details');
 
   // State für neue Standortkosten
   const [showAddCostForm, setShowAddCostForm] = useState(false);
