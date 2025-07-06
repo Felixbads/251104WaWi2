@@ -48,44 +48,32 @@ interface ProfitabilityData {
   avgSalePrice: number;
 }
 
-interface ProfitabilitySummary {
+interface SummaryData {
   totalRevenueNet: number;
+  totalRevenueGross: number;
+  totalDepositRevenue: number;
   totalPurchaseCost: number;
   totalOperatingCosts: number;
-  totalCosts: number;
   totalNetProfit: number;
-  roiPercent: number;
   profitMarginPercent: number;
-  activeMachines: number;
-  activeProducts: number;
+  roiPercent: number;
   totalTransactions: number;
-  avgTransactionValue: number;
+  totalQuantity: number;
 }
 
 interface LocationCost {
   id: number;
-  locationId?: number;
-  machineId?: number;
   locationName: string;
-  machineName?: string;
   costType: string;
   costName: string;
   amountNet: number;
   amountGross: number;
   vatRate: number;
-  currency: string;
+  billingCycle: string;
   validFrom: string;
   validTo?: string;
-  billingCycle: string;
+  category: string;
   description?: string;
-  category?: string;
-  isActive: boolean;
-  isAutoDeducted: boolean;
-  supplier?: string;
-  contractNumber?: string;
-  notes?: string;
-  createdAt: string;
-  createdByName?: string;
 }
 
 export default function ProfitabilityAnalysis() {
@@ -115,6 +103,12 @@ export default function ProfitabilityAnalysis() {
 
   const queryClient = useQueryClient();
 
+  // Quick period setter
+  const setQuickPeriod = (days: number) => {
+    setStartDate(format(subDays(new Date(), days), 'yyyy-MM-dd'));
+    setEndDate(format(new Date(), 'yyyy-MM-dd'));
+  };
+
   // Query für Hauptauswertung
   const { data: profitabilityData, isLoading: isLoadingData } = useQuery({
     queryKey: ['/api/profitability/overview', { period, startDate, endDate, groupBy, machineId: selectedMachine, productId: selectedProduct }],
@@ -139,32 +133,11 @@ export default function ProfitabilityAnalysis() {
     },
   });
 
-  // Query für Zusammenfassung
-  const { data: summaryData } = useQuery({
-    queryKey: ['/api/profitability/summary', { period, startDate, endDate }],
-    queryFn: async () => {
-      const params = new URLSearchParams({
-        period,
-        startDate,
-        endDate,
-      });
-      
-      const response = await fetch(`/api/profitability/summary?${params}`);
-      const result = await response.json();
-      
-      if (!result.success) {
-        throw new Error(result.message);
-      }
-      
-      return result.data as ProfitabilitySummary;
-    },
-  });
-
   // Query für Standortkosten
-  const { data: locationCosts } = useQuery({
-    queryKey: ['/api/profitability/costs'],
+  const { data: locationCosts, isLoading: isLoadingCosts } = useQuery({
+    queryKey: ['/api/profitability/location-costs'],
     queryFn: async () => {
-      const response = await fetch('/api/profitability/costs');
+      const response = await fetch('/api/profitability/location-costs');
       const result = await response.json();
       
       if (!result.success) {
@@ -176,14 +149,12 @@ export default function ProfitabilityAnalysis() {
   });
 
   // Mutation für neue Standortkosten
-  const addCostMutation = useMutation({
-    mutationFn: async (costData: any) => {
-      const response = await fetch('/api/profitability/costs', {
+  const addLocationCostMutation = useMutation({
+    mutationFn: async (data: any) => {
+      const response = await fetch('/api/profitability/location-costs', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(costData),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
       });
       
       const result = await response.json();
@@ -195,7 +166,7 @@ export default function ProfitabilityAnalysis() {
       return result.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/profitability/costs'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/profitability/location-costs'] });
       setShowAddCostForm(false);
       setNewCost({
         locationName: '',
@@ -212,13 +183,25 @@ export default function ProfitabilityAnalysis() {
     },
   });
 
-  // Schnellfilter-Funktionen
-  const setQuickPeriod = (days: number) => {
-    setEndDate(format(new Date(), 'yyyy-MM-dd'));
-    setStartDate(format(subDays(new Date(), days), 'yyyy-MM-dd'));
-  };
+  // Berechne Zusammenfassung
+  const summaryData: SummaryData | null = profitabilityData ? {
+    totalRevenueNet: profitabilityData.reduce((sum, item) => sum + item.revenueNet, 0),
+    totalRevenueGross: profitabilityData.reduce((sum, item) => sum + item.revenueGross, 0),
+    totalDepositRevenue: profitabilityData.reduce((sum, item) => sum + item.depositRevenue, 0),
+    totalPurchaseCost: profitabilityData.reduce((sum, item) => sum + item.purchaseCostNet, 0),
+    totalOperatingCosts: profitabilityData.reduce((sum, item) => sum + item.operatingCostsNet, 0),
+    totalNetProfit: profitabilityData.reduce((sum, item) => sum + item.netProfit, 0),
+    profitMarginPercent: profitabilityData.length > 0 ? 
+      (profitabilityData.reduce((sum, item) => sum + item.netProfit, 0) / 
+       profitabilityData.reduce((sum, item) => sum + item.revenueNet, 0)) * 100 : 0,
+    roiPercent: profitabilityData.length > 0 ? 
+      (profitabilityData.reduce((sum, item) => sum + item.netProfit, 0) / 
+       profitabilityData.reduce((sum, item) => sum + item.purchaseCostNet + item.operatingCostsNet, 0)) * 100 : 0,
+    totalTransactions: profitabilityData.reduce((sum, item) => sum + item.transactionCount, 0),
+    totalQuantity: profitabilityData.reduce((sum, item) => sum + item.quantitySold, 0),
+  } : null;
 
-  // Formatierung von Währungsbeträgen
+  // Hilfsfunktionen
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('de-DE', {
       style: 'currency',
@@ -226,7 +209,6 @@ export default function ProfitabilityAnalysis() {
     }).format(amount);
   };
 
-  // Formatierung von Prozenten
   const formatPercent = (percent: number) => {
     return new Intl.NumberFormat('de-DE', {
       style: 'percent',
@@ -235,17 +217,12 @@ export default function ProfitabilityAnalysis() {
     }).format(percent / 100);
   };
 
-  // Handling für neuen Kosteneintrag
-  const handleAddCost = () => {
-    const amountNet = parseFloat(newCost.amountNet);
-    const vatRate = parseFloat(newCost.vatRate);
-    const amountGross = amountNet * (1 + vatRate / 100);
-
-    addCostMutation.mutate({
+  const handleAddLocationCost = () => {
+    addLocationCostMutation.mutate({
       ...newCost,
-      amountNet,
-      amountGross,
-      vatRate,
+      amountNet: parseFloat(newCost.amountNet),
+      amountGross: parseFloat(newCost.amountGross),
+      vatRate: parseFloat(newCost.vatRate),
     });
   };
 
@@ -333,9 +310,9 @@ export default function ProfitabilityAnalysis() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="total">Gesamt</SelectItem>
-                  <SelectItem value="machine">Je Automat</SelectItem>
-                  <SelectItem value="product">Je Produkt</SelectItem>
-                  <SelectItem value="location">Je Standort</SelectItem>
+                  <SelectItem value="machine">Nach Automat</SelectItem>
+                  <SelectItem value="product">Nach Produkt</SelectItem>
+                  <SelectItem value="location">Nach Standort</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -361,15 +338,16 @@ export default function ProfitabilityAnalysis() {
         </CardContent>
       </Card>
 
+      {/* Tabs für Wirtschaftlichkeitsauswertung */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="overview">Übersicht</TabsTrigger>
-          <TabsTrigger value="details">Detailauswertung</TabsTrigger>
-          <TabsTrigger value="costs">Standortkosten</TabsTrigger>
+          <TabsTrigger value="details">Details</TabsTrigger>
+          <TabsTrigger value="location-costs">Standortkosten</TabsTrigger>
         </TabsList>
 
         {/* Übersicht Tab */}
-        <TabsContent value="overview" className="space-y-6">
+        <TabsContent value="overview" className="space-y-4">
           {summaryData && (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <Card>
@@ -378,11 +356,9 @@ export default function ProfitabilityAnalysis() {
                   <Euro className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold text-green-600">
-                    {formatCurrency(summaryData.totalRevenueNet)}
-                  </div>
+                  <div className="text-2xl font-bold">{formatCurrency(summaryData.totalRevenueNet)}</div>
                   <p className="text-xs text-muted-foreground">
-                    {summaryData.totalTransactions} Transaktionen
+                    Brutto: {formatCurrency(summaryData.totalRevenueGross)}
                   </p>
                 </CardContent>
               </Card>
@@ -394,9 +370,9 @@ export default function ProfitabilityAnalysis() {
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold text-red-600">
-                    {formatCurrency(summaryData.totalCosts)}
+                    {formatCurrency(summaryData.totalPurchaseCost + summaryData.totalOperatingCosts)}
                   </div>
-                  <div className="text-xs text-muted-foreground">
+                  <div className="text-xs text-muted-foreground space-y-1">
                     <div>Einkauf: {formatCurrency(summaryData.totalPurchaseCost)}</div>
                     <div>Betrieb: {formatCurrency(summaryData.totalOperatingCosts)}</div>
                   </div>
@@ -451,14 +427,11 @@ export default function ProfitabilityAnalysis() {
           </Alert>
         </TabsContent>
 
-        {/* Detailauswertung Tab */}
+        {/* Details Tab */}
         <TabsContent value="details" className="space-y-6">
           <Card>
             <CardHeader>
               <CardTitle>Detailauswertung</CardTitle>
-              <CardDescription>
-                Detaillierte Gewinn- und Verlustrechnung nach Automaten und Produkten
-              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               {/* Auswahl zwischen Automat und Produkt-Ansicht */}
@@ -514,39 +487,37 @@ export default function ProfitabilityAnalysis() {
                           </tr>
                         </thead>
                         <tbody>
-                          {profitabilityData.slice(0, 20).map((item, index) => (
-                            <tr key={index} className="border-b hover:bg-muted/30">
-                              <td className="p-4 font-medium">
-                                {groupBy === 'machine' ? (
-                                  <div>
-                                    <div className="font-medium">{item.machineName}</div>
-                                    <div className="text-sm text-muted-foreground">{item.locationName}</div>
-                                  </div>
-                                ) : (
-                                  <div className="font-medium">{item.productName}</div>
+                          {profitabilityData.map((item, index) => (
+                            <tr key={index} className="border-b">
+                              <td className="h-12 px-4 align-middle">
+                                <div className="font-medium">
+                                  {groupBy === 'machine' ? item.machineName : item.productName}
+                                </div>
+                                {groupBy === 'machine' && item.locationName && (
+                                  <div className="text-sm text-muted-foreground">{item.locationName}</div>
                                 )}
                               </td>
-                              <td className="p-4 text-right font-mono">
+                              <td className="h-12 px-4 text-right align-middle">
                                 {formatCurrency(item.revenueGross)}
                               </td>
-                              <td className="p-4 text-right font-mono">
+                              <td className="h-12 px-4 text-right align-middle">
                                 {formatCurrency(item.revenueNet)}
                               </td>
-                              <td className="p-4 text-right font-mono">
+                              <td className="h-12 px-4 text-right align-middle">
                                 {formatCurrency(item.depositRevenue)}
                               </td>
-                              <td className="p-4 text-right font-mono">
+                              <td className="h-12 px-4 text-right align-middle text-red-600">
                                 {formatCurrency(item.purchaseCostNet)}
                               </td>
-                              <td className="p-4 text-right font-mono">
+                              <td className="h-12 px-4 text-right align-middle text-red-600">
                                 {formatCurrency(item.operatingCostsNet)}
                               </td>
-                              <td className={`p-4 text-right font-mono font-bold ${
+                              <td className={`h-12 px-4 text-right align-middle font-medium ${
                                 item.netProfit >= 0 ? 'text-green-600' : 'text-red-600'
                               }`}>
                                 {formatCurrency(item.netProfit)}
                               </td>
-                              <td className={`p-4 text-right font-mono ${
+                              <td className={`h-12 px-4 text-right align-middle ${
                                 item.profitMarginPercent >= 0 ? 'text-green-600' : 'text-red-600'
                               }`}>
                                 {formatPercent(item.profitMarginPercent)}
@@ -555,16 +526,10 @@ export default function ProfitabilityAnalysis() {
                           ))}
                         </tbody>
                       </table>
-                      
-                      {profitabilityData.length > 20 && (
-                        <div className="p-4 text-center text-sm text-muted-foreground border-t">
-                          Zeige die ersten 20 von {profitabilityData.length} Einträgen
-                        </div>
-                      )}
                     </div>
                   ) : (
-                    <div className="text-center py-8">
-                      <p className="text-muted-foreground">Keine Daten für den ausgewählten Zeitraum gefunden</p>
+                    <div className="text-center py-8 text-muted-foreground">
+                      Keine Daten für den gewählten Zeitraum verfügbar
                     </div>
                   )}
                 </>
@@ -574,190 +539,194 @@ export default function ProfitabilityAnalysis() {
         </TabsContent>
 
         {/* Standortkosten Tab */}
-        <TabsContent value="costs" className="space-y-6">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Laufende Standortkosten</h2>
-            <Button onClick={() => setShowAddCostForm(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              Kostenstelle hinzufügen
-            </Button>
-          </div>
+        <TabsContent value="location-costs" className="space-y-6">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle>Standortkosten verwalten</CardTitle>
+              <Button onClick={() => setShowAddCostForm(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Neue Kosten hinzufügen
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {isLoadingCosts ? (
+                <div className="text-center py-8">Lade Standortkosten...</div>
+              ) : (
+                <div className="space-y-4">
+                  {locationCosts && locationCosts.length > 0 ? (
+                    <div className="rounded-md border">
+                      <table className="w-full">
+                        <thead className="bg-muted/50">
+                          <tr className="border-b">
+                            <th className="h-12 px-4 text-left align-middle font-medium">Standort</th>
+                            <th className="h-12 px-4 text-left align-middle font-medium">Kostenart</th>
+                            <th className="h-12 px-4 text-left align-middle font-medium">Bezeichnung</th>
+                            <th className="h-12 px-4 text-right align-middle font-medium">Betrag (Netto)</th>
+                            <th className="h-12 px-4 text-right align-middle font-medium">Betrag (Brutto)</th>
+                            <th className="h-12 px-4 text-center align-middle font-medium">Abrechnungszyklus</th>
+                            <th className="h-12 px-4 text-center align-middle font-medium">Gültig ab</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {locationCosts.map((cost) => (
+                            <tr key={cost.id} className="border-b">
+                              <td className="h-12 px-4 align-middle">{cost.locationName}</td>
+                              <td className="h-12 px-4 align-middle">
+                                <Badge variant="outline">{cost.costType}</Badge>
+                              </td>
+                              <td className="h-12 px-4 align-middle">{cost.costName}</td>
+                              <td className="h-12 px-4 text-right align-middle">
+                                {formatCurrency(cost.amountNet)}
+                              </td>
+                              <td className="h-12 px-4 text-right align-middle">
+                                {formatCurrency(cost.amountGross)}
+                              </td>
+                              <td className="h-12 px-4 text-center align-middle">
+                                <Badge>{cost.billingCycle}</Badge>
+                              </td>
+                              <td className="h-12 px-4 text-center align-middle">
+                                {format(new Date(cost.validFrom), 'dd.MM.yyyy', { locale: de })}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-muted-foreground">
+                      Noch keine Standortkosten erfasst
+                    </div>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
-          {/* Formular für neue Kosten */}
+          {/* Formular für neue Standortkosten */}
           {showAddCostForm && (
             <Card>
               <CardHeader>
-                <CardTitle>Neue Kostenstelle hinzufügen</CardTitle>
+                <CardTitle>Neue Standortkosten hinzufügen</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="locationName">Standortname *</Label>
+                    <Label htmlFor="locationName">Standort</Label>
                     <Input
+                      placeholder="Standortname"
                       value={newCost.locationName}
-                      onChange={(e) => setNewCost({ ...newCost, locationName: e.target.value })}
-                      placeholder="z.B. Bad Schandau Nationalparkbahnhof"
+                      onChange={(e) => setNewCost({...newCost, locationName: e.target.value})}
                     />
                   </div>
-                  
                   <div>
-                    <Label htmlFor="costType">Kostenart *</Label>
-                    <Select value={newCost.costType} onValueChange={(value) => setNewCost({ ...newCost, costType: value })}>
+                    <Label htmlFor="costType">Kostenart</Label>
+                    <Select value={newCost.costType} onValueChange={(value) => setNewCost({...newCost, costType: value})}>
                       <SelectTrigger>
-                        <SelectValue placeholder="Wählen Sie eine Kostenart" />
+                        <SelectValue placeholder="Kostenart wählen" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="strom">Strom</SelectItem>
-                        <SelectItem value="miete">Miete</SelectItem>
-                        <SelectItem value="telemetrie">Telemetrie</SelectItem>
-                        <SelectItem value="kartenzahlung">Kartenzahlungsmodul</SelectItem>
-                        <SelectItem value="wartung">Wartung</SelectItem>
-                        <SelectItem value="versicherung">Versicherung</SelectItem>
-                        <SelectItem value="sonstiges">Sonstiges</SelectItem>
+                        <SelectItem value="rent">Miete</SelectItem>
+                        <SelectItem value="utilities">Nebenkosten</SelectItem>
+                        <SelectItem value="maintenance">Wartung</SelectItem>
+                        <SelectItem value="insurance">Versicherung</SelectItem>
+                        <SelectItem value="other">Sonstige</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
+                </div>
 
-                  <div>
-                    <Label htmlFor="costName">Kostenbezeichnung *</Label>
-                    <Input
-                      value={newCost.costName}
-                      onChange={(e) => setNewCost({ ...newCost, costName: e.target.value })}
-                      placeholder="z.B. Stromkosten EnBW"
-                    />
-                  </div>
+                <div>
+                  <Label htmlFor="costName">Bezeichnung</Label>
+                  <Input
+                    placeholder="z.B. Standplatzmiete, Stromkosten, etc."
+                    value={newCost.costName}
+                    onChange={(e) => setNewCost({...newCost, costName: e.target.value})}
+                  />
+                </div>
 
+                <div className="grid grid-cols-3 gap-4">
                   <div>
-                    <Label htmlFor="amountNet">Netto-Betrag (EUR) *</Label>
+                    <Label htmlFor="amountNet">Betrag (Netto)</Label>
                     <Input
                       type="number"
                       step="0.01"
+                      placeholder="0.00"
                       value={newCost.amountNet}
-                      onChange={(e) => setNewCost({ ...newCost, amountNet: e.target.value })}
+                      onChange={(e) => setNewCost({...newCost, amountNet: e.target.value})}
                     />
                   </div>
-
                   <div>
-                    <Label htmlFor="vatRate">MwSt-Satz (%)</Label>
+                    <Label htmlFor="amountGross">Betrag (Brutto)</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      placeholder="0.00"
+                      value={newCost.amountGross}
+                      onChange={(e) => setNewCost({...newCost, amountGross: e.target.value})}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="vatRate">MwSt. %</Label>
                     <Input
                       type="number"
                       value={newCost.vatRate}
-                      onChange={(e) => setNewCost({ ...newCost, vatRate: e.target.value })}
+                      onChange={(e) => setNewCost({...newCost, vatRate: e.target.value})}
                     />
                   </div>
+                </div>
 
+                <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="billingCycle">Abrechnungszyklus</Label>
-                    <Select value={newCost.billingCycle} onValueChange={(value) => setNewCost({ ...newCost, billingCycle: value })}>
+                    <Select value={newCost.billingCycle} onValueChange={(value) => setNewCost({...newCost, billingCycle: value})}>
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
+                        <SelectItem value="daily">Täglich</SelectItem>
+                        <SelectItem value="weekly">Wöchentlich</SelectItem>
                         <SelectItem value="monthly">Monatlich</SelectItem>
                         <SelectItem value="quarterly">Quartalsweise</SelectItem>
                         <SelectItem value="yearly">Jährlich</SelectItem>
-                        <SelectItem value="one_time">Einmalig</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
-
                   <div>
                     <Label htmlFor="validFrom">Gültig ab</Label>
                     <Input
                       type="date"
                       value={newCost.validFrom}
-                      onChange={(e) => setNewCost({ ...newCost, validFrom: e.target.value })}
-                    />
-                  </div>
-
-                  <div>
-                    <Label htmlFor="category">Kategorie</Label>
-                    <Select value={newCost.category} onValueChange={(value) => setNewCost({ ...newCost, category: value })}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Optional" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="energie">Energie</SelectItem>
-                        <SelectItem value="infrastruktur">Infrastruktur</SelectItem>
-                        <SelectItem value="service">Service</SelectItem>
-                        <SelectItem value="wartung">Wartung</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div>
-                    <Label htmlFor="description">Beschreibung</Label>
-                    <Input
-                      value={newCost.description}
-                      onChange={(e) => setNewCost({ ...newCost, description: e.target.value })}
-                      placeholder="Optionale Beschreibung"
+                      onChange={(e) => setNewCost({...newCost, validFrom: e.target.value})}
                     />
                   </div>
                 </div>
 
+                <div>
+                  <Label htmlFor="description">Beschreibung (optional)</Label>
+                  <Input
+                    placeholder="Zusätzliche Informationen"
+                    value={newCost.description}
+                    onChange={(e) => setNewCost({...newCost, description: e.target.value})}
+                  />
+                </div>
+
                 <div className="flex gap-2">
-                  <Button onClick={handleAddCost} disabled={addCostMutation.isPending}>
-                    {addCostMutation.isPending ? 'Speichere...' : 'Kostenstelle speichern'}
+                  <Button 
+                    onClick={handleAddLocationCost}
+                    disabled={addLocationCostMutation.isPending}
+                  >
+                    {addLocationCostMutation.isPending ? 'Speichere...' : 'Speichern'}
                   </Button>
-                  <Button variant="outline" onClick={() => setShowAddCostForm(false)}>
+                  <Button 
+                    variant="outline" 
+                    onClick={() => setShowAddCostForm(false)}
+                  >
                     Abbrechen
                   </Button>
                 </div>
               </CardContent>
             </Card>
           )}
-
-          {/* Liste der vorhandenen Kosten */}
-          <div className="space-y-3">
-            {locationCosts && locationCosts.length > 0 ? (
-              locationCosts.map((cost) => (
-                <Card key={cost.id}>
-                  <CardContent className="pt-6">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-4">
-                        <div>
-                          <div className="font-medium">{cost.costName}</div>
-                          <div className="text-sm text-muted-foreground">
-                            {cost.locationName} • {cost.costType}
-                          </div>
-                        </div>
-                        <Badge variant="outline">
-                          {cost.billingCycle === 'monthly' ? 'Monatlich' : 
-                           cost.billingCycle === 'yearly' ? 'Jährlich' :
-                           cost.billingCycle === 'quarterly' ? 'Quartalsweise' : 'Einmalig'}
-                        </Badge>
-                        {cost.category && (
-                          <Badge variant="secondary">{cost.category}</Badge>
-                        )}
-                      </div>
-                      <div className="text-right">
-                        <div className="text-lg font-bold">
-                          {formatCurrency(cost.amountNet)}
-                        </div>
-                        <div className="text-sm text-muted-foreground">
-                          netto • {formatCurrency(cost.amountGross)} brutto
-                        </div>
-                      </div>
-                    </div>
-                    {cost.description && (
-                      <div className="mt-2 text-sm text-muted-foreground">
-                        {cost.description}
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              ))
-            ) : (
-              <Card>
-                <CardContent className="text-center py-8">
-                  <p className="text-muted-foreground">Noch keine Standortkosten angelegt.</p>
-                  <p className="text-sm text-muted-foreground mt-2">
-                    Fügen Sie laufende Kosten wie Strom, Miete oder Telemetrie hinzu.
-                  </p>
-                </CardContent>
-              </Card>
-            )}
-          </div>
         </TabsContent>
       </Tabs>
     </div>
