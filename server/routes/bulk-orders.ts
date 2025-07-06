@@ -243,6 +243,11 @@ router.get('/forecast/bulk/:supplierId/:weeks', async (req, res) => {
 
 // Create bulk order
 router.post('/bulk', async (req, res) => {
+  console.log('=== BULK ORDER POST REQUEST START ===');
+  console.log('Request body received:', JSON.stringify(req.body, null, 2));
+  console.log('Content-Type:', req.headers['content-type']);
+  console.log('Authorization header present:', !!req.headers.authorization);
+  
   try {
     const {
       supplierId,
@@ -256,9 +261,20 @@ router.post('/bulk', async (req, res) => {
       totalValue
     } = req.body;
 
+    console.log('Extracted fields:');
+    console.log('- supplierId:', supplierId, typeof supplierId);
+    console.log('- items:', items ? `Array with ${items.length} items` : 'undefined/null');
+    console.log('- First item:', items && items[0] ? JSON.stringify(items[0]) : 'none');
+
     if (!supplierId || !items || items.length === 0) {
+      console.log('Validation failed:');
+      console.log('- supplierId check:', !!supplierId);
+      console.log('- items check:', !!items);
+      console.log('- items.length check:', items ? items.length : 'N/A');
       return res.status(400).json({ error: 'Supplier ID and items are required' });
     }
+    
+    console.log('Validation passed, proceeding with order creation...');
 
     // Get supplier information
     const supplier = await db.select().from(suppliers).where(eq(suppliers.id, supplierId)).limit(1);
@@ -297,17 +313,61 @@ router.post('/bulk', async (req, res) => {
 
     const orderId = newOrder[0].id;
 
-    // Create order items
-    const orderItemsData = items.map((item: any) => ({
-      orderId,
-      productId: item.productId,
-      quantity: item.quantity,
-      notes: item.notes || `Bulk order item - forecast based`,
-      createdAt: new Date(),
-      updatedAt: new Date()
-    }));
+    // Create order items with product data
+    const orderItemsData = [];
+    let calculatedTotal = 0;
+    
+    for (const item of items) {
+      // Get product information
+      const productQuery = sql`
+        SELECT p.id, p.product_name, p.price,
+               COALESCE(pc.unit_price, p.price) as effective_price
+        FROM products p
+        LEFT JOIN purchase_conditions pc ON p.id = pc.product_id AND pc.supplier_id = ${supplierId}
+        WHERE p.id = ${item.productId}
+        LIMIT 1
+      `;
+      
+      const productResult = await db.execute(productQuery);
+      
+      if (productResult.rows.length === 0) {
+        console.log(`Product with ID ${item.productId} not found`);
+        continue; // Skip invalid products
+      }
+      
+      const product = productResult.rows[0];
+      const unitPrice = Number(product.effective_price) || 0;
+      const itemTotal = unitPrice * item.quantity;
+      calculatedTotal += itemTotal;
+      
+      orderItemsData.push({
+        orderId,
+        productId: item.productId,
+        productName: String(product.product_name) || 'Unbekanntes Produkt',
+        unitPrice,
+        totalPrice: itemTotal,
+        quantity: item.quantity,
+        unit: 'stk',
+        vat: 19,
+        status: 'pending',
+        notes: item.notes || 'Bulk order item - forecast based',
+        itemComment: item.notes || null,
+        deliveryComment: null,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      });
+    }
+
+    if (orderItemsData.length === 0) {
+      return res.status(400).json({ error: 'No valid products found for this order' });
+    }
 
     await db.insert(orderItems).values(orderItemsData);
+    
+    // Update order total
+    await db.update(orders)
+      .set({ totalAmount: calculatedTotal })
+      .where(eq(orders.id, orderId));
 
     // Return the created order with supplier information
     const orderResponse = {
