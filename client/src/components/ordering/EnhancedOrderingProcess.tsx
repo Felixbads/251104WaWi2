@@ -347,7 +347,7 @@ export default function EnhancedOrderingProcess({
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {warehousesLoading ? (
+                  {!warehouses ? (
                     <div className="text-center py-8">Lade Lager...</div>
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -433,7 +433,7 @@ export default function EnhancedOrderingProcess({
                     </div>
                   )}
 
-                  {suppliersLoading ? (
+                  {!suppliers ? (
                     <div className="text-center py-8">Lade Lieferanten...</div>
                   ) : (
                     <div className="grid grid-cols-1 gap-4">
