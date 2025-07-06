@@ -51,7 +51,7 @@ import locationStatusRouter from './routes/location-status-ultra-fast';
 import weatherCorrectionRouter from './routes/weather-correction';
 import { retroactiveWeatherService } from './services/retroactiveWeatherCorrection';
 import enhancedOrdersRouter from './routes/enhanced-orders';
-import profitabilityRouter from './routes/profitability';
+import profitabilityRouter from './routes/profitability-simple';
 
 const app = express();
 
