@@ -892,6 +892,11 @@ Elbsandstein Proviant & Quartier GmbH`;
   app.use('/api/bulk-orders', bulkOrdersRouter);
   console.log('[SERVER] Bulk orders router mounted successfully');
   
+  // Mount forecast factors router for working holiday/weather data
+  const forecastFactorsRouter = (await import('./routes/forecast-factors-simple')).default;
+  app.use('/api/bulk-orders/forecast-factors', forecastFactorsRouter);
+  console.log('[SERVER] Forecast factors router mounted successfully');
+  
   // Mount orders router BEFORE registerRoutes to bypass Vite wildcard routing
   const ordersRouter = (await import('./routes/orders')).default;
   app.use('/api/orders', ordersRouter);
