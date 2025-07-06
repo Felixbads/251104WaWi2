@@ -453,82 +453,124 @@ export default function ProfitabilityAnalysis() {
 
         {/* Detailauswertung Tab */}
         <TabsContent value="details" className="space-y-6">
-          {isLoadingData ? (
-            <div className="text-center py-8">Lade Auswertungsdaten...</div>
-          ) : (
-            <div className="space-y-4">
-              {profitabilityData && profitabilityData.length > 0 ? (
-                profitabilityData.map((item, index) => (
-                  <Card key={index}>
-                    <CardHeader>
-                      <CardTitle className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <Calendar className="h-4 w-4" />
-                          <span>{item.period}</span>
-                          {item.machineName && (
-                            <>
-                              <Separator orientation="vertical" className="h-4" />
-                              <Zap className="h-4 w-4" />
-                              <span>{item.machineName}</span>
-                            </>
-                          )}
-                          {item.productName && (
-                            <>
-                              <Separator orientation="vertical" className="h-4" />
-                              <Package className="h-4 w-4" />
-                              <span>{item.productName}</span>
-                            </>
-                          )}
-                          {item.locationName && (
-                            <>
-                              <Separator orientation="vertical" className="h-4" />
-                              <MapPin className="h-4 w-4" />
-                              <span>{item.locationName}</span>
-                            </>
-                          )}
-                        </div>
-                        <Badge variant={item.netProfit >= 0 ? "default" : "destructive"}>
-                          {formatCurrency(item.netProfit)}
-                        </Badge>
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
-                        <div>
-                          <div className="font-medium text-green-600">Umsatz (Netto)</div>
-                          <div>{formatCurrency(item.revenueNet)}</div>
-                        </div>
-                        <div>
-                          <div className="font-medium text-red-600">Einkaufskosten</div>
-                          <div>{formatCurrency(item.purchaseCostNet)}</div>
-                        </div>
-                        <div>
-                          <div className="font-medium text-red-600">Betriebskosten</div>
-                          <div>{formatCurrency(item.operatingCostsNet)}</div>
-                        </div>
-                        <div>
-                          <div className="font-medium">Menge verkauft</div>
-                          <div>{item.quantitySold} Stück</div>
-                        </div>
-                        <div>
-                          <div className="font-medium">Marge</div>
-                          <div className={item.profitMarginPercent >= 0 ? 'text-green-600' : 'text-red-600'}>
-                            {formatPercent(item.profitMarginPercent)}
-                          </div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))
+          <Card>
+            <CardHeader>
+              <CardTitle>Detailauswertung</CardTitle>
+              <CardDescription>
+                Detaillierte Gewinn- und Verlustrechnung nach Automaten und Produkten
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Auswahl zwischen Automat und Produkt-Ansicht */}
+              <div className="flex gap-4 mb-4">
+                <Button 
+                  variant={groupBy === 'machine' ? 'default' : 'outline'}
+                  onClick={() => setGroupBy('machine')}
+                >
+                  Nach Automaten
+                </Button>
+                <Button 
+                  variant={groupBy === 'product' ? 'default' : 'outline'}
+                  onClick={() => setGroupBy('product')}
+                >
+                  Nach Produkten
+                </Button>
+              </div>
+
+              {isLoadingData ? (
+                <div className="text-center py-8">Lade Auswertungsdaten...</div>
               ) : (
-                <Card>
-                  <CardContent className="text-center py-8">
-                    <p className="text-muted-foreground">Keine Daten für den gewählten Zeitraum gefunden.</p>
-                  </CardContent>
-                </Card>
+                <>
+                  {/* Detailtabelle */}
+                  {profitabilityData && profitabilityData.length > 0 ? (
+                    <div className="rounded-md border">
+                      <table className="w-full">
+                        <thead className="bg-muted/50">
+                          <tr className="border-b">
+                            <th className="h-12 px-4 text-left align-middle font-medium">
+                              {groupBy === 'machine' ? 'Automat' : 'Produkt'}
+                            </th>
+                            <th className="h-12 px-4 text-right align-middle font-medium">
+                              Umsatz Brutto
+                            </th>
+                            <th className="h-12 px-4 text-right align-middle font-medium">
+                              Umsatz Netto
+                            </th>
+                            <th className="h-12 px-4 text-right align-middle font-medium">
+                              Pfand
+                            </th>
+                            <th className="h-12 px-4 text-right align-middle font-medium">
+                              Einkaufskosten
+                            </th>
+                            <th className="h-12 px-4 text-right align-middle font-medium">
+                              Standortkosten
+                            </th>
+                            <th className="h-12 px-4 text-right align-middle font-medium">
+                              Nettoergebnis
+                            </th>
+                            <th className="h-12 px-4 text-right align-middle font-medium">
+                              Marge %
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {profitabilityData.slice(0, 20).map((item, index) => (
+                            <tr key={index} className="border-b hover:bg-muted/30">
+                              <td className="p-4 font-medium">
+                                {groupBy === 'machine' ? (
+                                  <div>
+                                    <div className="font-medium">{item.machineName}</div>
+                                    <div className="text-sm text-muted-foreground">{item.locationName}</div>
+                                  </div>
+                                ) : (
+                                  <div className="font-medium">{item.productName}</div>
+                                )}
+                              </td>
+                              <td className="p-4 text-right font-mono">
+                                {formatCurrency(item.revenueGross)}
+                              </td>
+                              <td className="p-4 text-right font-mono">
+                                {formatCurrency(item.revenueNet)}
+                              </td>
+                              <td className="p-4 text-right font-mono">
+                                {formatCurrency(item.depositRevenue)}
+                              </td>
+                              <td className="p-4 text-right font-mono">
+                                {formatCurrency(item.purchaseCostNet)}
+                              </td>
+                              <td className="p-4 text-right font-mono">
+                                {formatCurrency(item.operatingCostsNet)}
+                              </td>
+                              <td className={`p-4 text-right font-mono font-bold ${
+                                item.netProfit >= 0 ? 'text-green-600' : 'text-red-600'
+                              }`}>
+                                {formatCurrency(item.netProfit)}
+                              </td>
+                              <td className={`p-4 text-right font-mono ${
+                                item.profitMarginPercent >= 0 ? 'text-green-600' : 'text-red-600'
+                              }`}>
+                                {formatPercent(item.profitMarginPercent)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      
+                      {profitabilityData.length > 20 && (
+                        <div className="p-4 text-center text-sm text-muted-foreground border-t">
+                          Zeige die ersten 20 von {profitabilityData.length} Einträgen
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8">
+                      <p className="text-muted-foreground">Keine Daten für den ausgewählten Zeitraum gefunden</p>
+                    </div>
+                  )}
+                </>
               )}
-            </div>
-          )}
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {/* Standortkosten Tab */}
