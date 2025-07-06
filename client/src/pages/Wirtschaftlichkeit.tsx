@@ -22,32 +22,48 @@ import { de } from 'date-fns/locale';
 interface WirtschaftlichkeitData {
   period: string;
   periodDate: string;
+  location: string;
   machineId?: number;
   machineName?: string;
-  locationName?: string;
   productId?: number;
   productName?: string;
-  revenueNet: number;
+  // Umsatz
   revenueGross: number;
+  revenueNet: number;
   depositRevenue: number;
+  // Kosten
   purchaseCostNet: number;
-  operatingCostsNet: number;
-  netProfit: number;
+  refillCosts: number; // Entnommene Produkte
+  fixedCostShare: number; // Anteiliger Fixkostenanteil
+  totalCosts: number;
+  // Ergebnis
+  grossProfit: number; // Umsatz - Wareneinsatz
+  netProfitAfterFixed: number; // Nach Fixkostenanteil
   profitMarginPercent: number;
+  isEconomical: boolean; // Ob nach Fixkosten noch positiv
+  // Mengen
   transactionCount: number;
   quantitySold: number;
+  quantityRefilled: number;
   avgSalePrice: number;
+  avgPurchasePrice: number;
 }
 
 interface SummaryData {
-  totalRevenueNet: number;
   totalRevenueGross: number;
+  totalRevenueNet: number;
   totalDepositRevenue: number;
-  totalPurchaseCost: number;
-  totalOperatingCosts: number;
-  totalNetProfit: number;
+  totalPurchaseCosts: number;
+  totalRefillCosts: number;
+  totalFixedCosts: number;
+  totalCosts: number;
+  grossProfit: number;
+  netProfitAfterFixed: number;
   profitMarginPercent: number;
   roiPercent: number;
+  economicalProducts: number;
+  totalProducts: number;
+  economicalRate: number;
   totalTransactions: number;
   totalQuantity: number;
 }
@@ -67,7 +83,7 @@ export default function Wirtschaftlichkeit() {
     data: WirtschaftlichkeitData[];
     summary: SummaryData;
   }>({
-    queryKey: ['/api/profitability/overview', { period, startDate, endDate, groupBy, selectedMachine, selectedProduct }],
+    queryKey: ['/api/enhanced-profitability/overview', { period, startDate, endDate, groupBy, selectedMachine, selectedProduct }],
     queryFn: async () => {
       const params = new URLSearchParams({
         period,
@@ -78,7 +94,7 @@ export default function Wirtschaftlichkeit() {
         ...(selectedProduct && selectedProduct !== 'all' && { productId: selectedProduct })
       });
       
-      const response = await fetch(`/api/profitability/overview?${params}`);
+      const response = await fetch(`/api/enhanced-profitability/overview?${params}`);
       if (!response.ok) {
         throw new Error('Fehler beim Laden der Wirtschaftlichkeitsdaten');
       }
@@ -233,7 +249,7 @@ export default function Wirtschaftlichkeit() {
 
       {/* Summary Cards */}
       {summary && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
           <Card>
             <CardContent className="p-6">
               <div className="flex items-center">
@@ -255,7 +271,7 @@ export default function Wirtschaftlichkeit() {
                 <div className="ml-4">
                   <p className="text-sm font-medium text-gray-600">Gesamtkosten</p>
                   <p className="text-2xl font-bold text-gray-900">
-                    {formatCurrency(summary.totalPurchaseCost + summary.totalOperatingCosts)}
+                    {formatCurrency(summary.totalPurchaseCosts + summary.totalRefillCosts + summary.totalFixedCosts)}
                   </p>
                 </div>
               </div>
@@ -265,15 +281,15 @@ export default function Wirtschaftlichkeit() {
           <Card>
             <CardContent className="p-6">
               <div className="flex items-center">
-                {summary.totalNetProfit > 0 ? (
+                {summary.netProfitAfterFixed > 0 ? (
                   <TrendingUp className="h-8 w-8 text-green-600" />
                 ) : (
                   <TrendingDown className="h-8 w-8 text-red-600" />
                 )}
                 <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Nettogewinn</p>
-                  <p className={`text-2xl font-bold ${getProfitColor(summary.totalNetProfit)}`}>
-                    {formatCurrency(summary.totalNetProfit)}
+                  <p className="text-sm font-medium text-gray-600">Nettogewinn nach Fixkosten</p>
+                  <p className={`text-2xl font-bold ${getProfitColor(summary.netProfitAfterFixed)}`}>
+                    {formatCurrency(summary.netProfitAfterFixed)}
                   </p>
                 </div>
               </div>
@@ -288,6 +304,23 @@ export default function Wirtschaftlichkeit() {
                   <p className="text-sm font-medium text-gray-600">Gewinnmarge</p>
                   <p className="text-2xl font-bold text-gray-900">
                     {formatPercent(summary.profitMarginPercent)}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center">
+                <Building2 className="h-8 w-8 text-green-600" />
+                <div className="ml-4">
+                  <p className="text-sm font-medium text-gray-600">Wirtschaftlichkeitsquote</p>
+                  <p className="text-2xl font-bold text-gray-900">
+                    {summary.economicalProducts}/{summary.totalProducts}
+                  </p>
+                  <p className="text-sm text-gray-500">
+                    {formatPercent(summary.economicalRate)} rentabel
                   </p>
                 </div>
               </div>
@@ -325,11 +358,11 @@ export default function Wirtschaftlichkeit() {
                       {groupBy === 'total' && 'Zeitraum'}
                     </th>
                     <th className="text-right py-3 px-2">Verkäufe</th>
-                    <th className="text-right py-3 px-2">Umsatz</th>
-                    <th className="text-right py-3 px-2">Einkaufskosten</th>
-                    <th className="text-right py-3 px-2">Betriebskosten</th>
-                    <th className="text-right py-3 px-2">Nettogewinn</th>
-                    <th className="text-right py-3 px-2">Marge</th>
+                    <th className="text-right py-3 px-2">Umsatz (Netto)</th>
+                    <th className="text-right py-3 px-2">Wareneinsatz</th>
+                    <th className="text-right py-3 px-2">Refill + Fixkosten</th>
+                    <th className="text-right py-3 px-2">Gewinn (nach FK)</th>
+                    <th className="text-right py-3 px-2">Wirtschaftlich</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -338,7 +371,7 @@ export default function Wirtschaftlichkeit() {
                       <td className="py-3 px-2 font-medium">
                         {groupBy === 'product' && (item.productName || 'Unbekanntes Produkt')}
                         {groupBy === 'machine' && (item.machineName || `Automat ${item.machineId}`)}
-                        {groupBy === 'location' && (item.locationName || 'Unbekannter Standort')}
+                        {groupBy === 'location' && (item.location || 'Unbekannter Standort')}
                         {groupBy === 'total' && format(new Date(item.periodDate), 'dd.MM.yyyy', { locale: de })}
                       </td>
                       <td className="text-right py-3 px-2">
@@ -353,16 +386,16 @@ export default function Wirtschaftlichkeit() {
                         -{formatCurrency(item.purchaseCostNet)}
                       </td>
                       <td className="text-right py-3 px-2 text-red-600">
-                        -{formatCurrency(item.operatingCostsNet)}
+                        -{formatCurrency(item.refillCosts + item.fixedCostShare)}
                       </td>
-                      <td className={`text-right py-3 px-2 font-bold ${getProfitColor(item.netProfit)}`}>
-                        {formatCurrency(item.netProfit)}
+                      <td className={`text-right py-3 px-2 font-bold ${getProfitColor(item.netProfitAfterFixed)}`}>
+                        {formatCurrency(item.netProfitAfterFixed)}
                       </td>
                       <td className="text-right py-3 px-2">
                         <Badge 
-                          variant={item.profitMarginPercent > 30 ? "default" : item.profitMarginPercent > 10 ? "secondary" : "destructive"}
+                          variant={item.isEconomical ? "default" : "destructive"}
                         >
-                          {formatPercent(item.profitMarginPercent)}
+                          {item.isEconomical ? "✓ Wirtschaftlich" : "✗ Unrentabel"}
                         </Badge>
                       </td>
                     </tr>
