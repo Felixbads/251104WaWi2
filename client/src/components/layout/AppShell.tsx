@@ -15,14 +15,13 @@ import { useAuth } from "@/lib";
 // Zentrale Menüdefinition für konsistente Navigation in der gesamten App
 interface MenuItem {
   title: string;
-  icon: React.ReactNode;
+  icon: React.ReactNode | null;
   path: string;
 }
 
 export const menuItems = {
   overview: [
     { title: 'Dashboard', icon: <Home className="h-5 w-5 mr-3" />, path: '/' },
-    { title: '💰 Wirtschaftlichkeit', icon: <BarChart2 className="h-5 w-5 mr-3" />, path: '/wirtschaftlichkeit' },
     { title: 'Standorte', icon: <BarChart4 className="h-5 w-5 mr-3" />, path: '/standort-status' },
     { title: 'Produkte', icon: <ShoppingBag className="h-5 w-5 mr-3" />, path: '/produkte' },
     { title: 'Lieferanten', icon: <Truck className="h-5 w-5 mr-3" />, path: '/lieferanten' },
@@ -42,6 +41,7 @@ export const menuItems = {
     { title: 'Erweiterte Auswertung', icon: <PieChart className="h-5 w-5 mr-3" />, path: '/erweiterte-analyse' },
     { title: 'Standort-Analyse', icon: <PieChart className="h-5 w-5 mr-3" />, path: '/standort-analyse' },
     { title: 'Umsatzerwartungen', icon: <BarChart4 className="h-5 w-5 mr-3" />, path: '/revenue-expectations' },
+    { title: 'Wirtschaftlichkeit', icon: null, path: '/wirtschaftlichkeit' },
   ] as MenuItem[],
   system: [
     { title: 'Benutzer', icon: <Users className="h-5 w-5 mr-3" />, path: '/benutzer' },
@@ -56,7 +56,7 @@ interface AppShellProps {
 // Sidebar Navigation Item
 const NavItem = ({ href, icon, children, isActive }: { 
   href: string; 
-  icon: React.ReactNode; 
+  icon: React.ReactNode | null; 
   children: React.ReactNode;
   isActive: boolean;
 }) => {
@@ -69,7 +69,7 @@ const NavItem = ({ href, icon, children, isActive }: {
             : "text-white hover:bg-red-800"
         }`}
       >
-        {icon}
+        {icon && icon}
         {children}
       </div>
     </Link>

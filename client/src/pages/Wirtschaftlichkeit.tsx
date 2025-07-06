@@ -92,9 +92,15 @@ export default function Wirtschaftlichkeit() {
   });
 
   // Products Query for filter
-  const { data: products } = useQuery<any[]>({
+  const { data: productsResponse } = useQuery<any>({
     queryKey: ['/api/products'],
   });
+
+  // Handle different response structures safely
+  const products = Array.isArray(productsResponse) ? productsResponse : 
+                   (productsResponse?.data && Array.isArray(productsResponse.data)) ? productsResponse.data :
+                   (productsResponse?.products && Array.isArray(productsResponse.products)) ? productsResponse.products :
+                   [];
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('de-DE', {
