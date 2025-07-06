@@ -55,6 +55,7 @@ import { MhdFifoService } from './services/mhdFifoService';
 import warehouseProductsRouter from './routes/warehouseProducts';
 import seasonalBackwardSyncRouter from './routes/seasonalBackwardSync';
 import stockoutDetectionRouter from './routes/stockoutDetection';
+import enhancedProphetForecastingRouter from './routes/enhancedProphetForecasting';
 
 // Hilfsfunktion zum Gruppieren der Transaktionen nach Zeitraum
 function groupTransactionsByPeriod(transactions, period) {
@@ -4533,6 +4534,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Registriere Stockout Detection Routen
   app.use(`${API_PREFIX}/stockout-detection`, stockoutDetectionRouter);
+  
+  // Registriere Enhanced Prophet Forecasting Routen (Phase 4)
+  app.use(`${API_PREFIX}/enhanced-prophet`, enhancedProphetForecastingRouter);
   
   // Registriere E-Mail-Routen (CRITICAL FIX: Das war bisher nicht registriert!)
   app.use(`${API_PREFIX}`, emailRouter);

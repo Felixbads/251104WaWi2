@@ -920,6 +920,11 @@ Elbsandstein Proviant & Quartier GmbH`;
   app.use('/api/location-status', locationStatusRouter);
   console.log('[SERVER] Location status router mounted BEFORE registerRoutes');
   
+  // Mount Simplified Enhanced Prophet router BEFORE registerRoutes for Phase 4 implementation
+  const enhancedProphetSimplifiedRouter = (await import('./routes/enhancedProphetSimplified')).default;
+  app.use('/api/enhanced-prophet', enhancedProphetSimplifiedRouter);
+  console.log('[SERVER] Simplified Enhanced Prophet router mounted successfully');
+  
   const server = await registerRoutes(app);
 
   // Register weather correction service AFTER registerRoutes
