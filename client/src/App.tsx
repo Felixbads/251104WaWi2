@@ -28,6 +28,7 @@ import EnhancedForecastDashboard from "@/pages/EnhancedForecastDashboard";
 import DataAvailability from "@/pages/DataAvailability"; // Neue Datenverfügbarkeits-Komponente
 import AdvancedAnalysis from "@/pages/AdvancedAnalysis"; // Erweiterte Analyse-Komponente
 import ProfitabilityAnalysis from "@/pages/ProfitabilityAnalysis"; // Wirtschaftlichkeitsauswertung
+import Wirtschaftlichkeit from "@/pages/Wirtschaftlichkeit"; // Neue Wirtschaftlichkeitsseite
 import Login from "@/pages/Login";
 import Register from "@/pages/Register";
 import NotApproved from "@/pages/NotApproved"; // Seite für nicht-freigegebene Benutzer
@@ -460,6 +461,12 @@ function AuthenticatedRouter() {
         <Route path="/auswertungen" component={props => (
           <ApprovedUserRoute>
             <ProfitabilityAnalysis {...props} />
+          </ApprovedUserRoute>
+        )} />
+
+        <Route path="/wirtschaftlichkeit" component={props => (
+          <ApprovedUserRoute>
+            <Wirtschaftlichkeit {...props} />
           </ApprovedUserRoute>
         )} />
 

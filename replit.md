@@ -109,15 +109,15 @@ This is a comprehensive vending machine management platform (Warenwirtschaftssys
 
 ## Changelog
 
-- July 6, 2025: Vollständige Wirtschaftlichkeitsanalyse mit echten Berechnungen implementiert
-  - ✓ Backend-API (profitability-simple.ts) komplett neu geschrieben mit echten Gewinnberechnungen
-  - ✓ Produkt-Rentabilität zeigt reale Gewinne (z.B. Oppacher ISO aktiv: 86,92€ Gewinn bei 35% Marge)
-  - ✓ Echte Kostenkalkulationen: 65% Einkaufskosten, 35% Gewinnmarge basierend auf Transaktionsdaten
-  - ✓ Frontend standardmäßig auf Produkt-Detail-Ansicht für sofortige Sichtbarkeit der Berechnungen
-  - ✓ Navigation über "💰 Wirtschaftlichkeit" im Hauptmenü führt direkt zu Umsatz-minus-Kosten-Tabelle
-  - ✓ SQL-Aggregation für 65 Produkte mit echten Verkaufszahlen und Gewinnspannen
-  - ✓ API bestätigt funktionsfähig: 200ms Response mit vollständigen Rentabilitätsdaten
-  - System zeigt jetzt authentische Geschäftsintelligenz statt Platzhalter-Daten
+- July 6, 2025: Dedicated Wirtschaftlichkeitsseite implementiert mit korrigierter Navigation
+  - ✓ Neue eigenständige Wirtschaftlichkeitsseite (/wirtschaftlichkeit) mit fokussierter Umsatz-minus-Kosten-Darstellung
+  - ✓ Navigation reorganisiert: "💰 Wirtschaftlichkeit" im Hauptmenü, "Auswertung" im Analyse-Bereich
+  - ✓ Bestehende ProfitabilityAnalysis-Seite in Analyse-Bereich als "Auswertung" verschoben
+  - ✓ Neue Seite fokussiert ausschließlich auf echte Gewinnberechnungen mit vereinfachter Benutzeroberfläche
+  - ✓ Backend-API (profitability-simple.ts) mit echten Gewinnberechnungen bestätigt funktionsfähig
+  - ✓ Klare Trennung zwischen allgemeiner Auswertung und spezifischer Wirtschaftlichkeitsanalyse
+  - ✓ 65 Produkte mit echten Verkaufszahlen und Gewinnspannen über API verfügbar
+  - System bietet jetzt separate, zielgerichtete Wirtschaftlichkeitsauswertung nach Benutzerwunsch
 - July 5, 2025: Umfassende Enhanced Ordering System Implementation abgeschlossen
   - ✓ Vollständig neu gestaltetes Bestellsystem mit fortschrittlicher Shopping Cart-Funktionalität implementiert
   - ✓ Backend API-Routen in server/routes/enhanced-orders.ts mit vollständiger Cart-Management-Funktionalität erstellt
