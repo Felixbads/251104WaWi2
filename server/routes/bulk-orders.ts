@@ -333,4 +333,84 @@ router.post('/bulk', async (req, res) => {
   }
 });
 
+// GET /forecast-factors/:weeks - Get forecast factors (weather, holidays) for bulk ordering
+router.get('/forecast-factors/:weeks', async (req, res) => {
+  try {
+    const weeks = parseInt(req.params.weeks);
+    if (isNaN(weeks) || weeks < 1 || weeks > 8) {
+      return res.status(400).json({ error: 'Invalid weeks parameter (1-8 allowed)' });
+    }
+
+    const startDate = new Date();
+    const endDate = new Date();
+    endDate.setDate(startDate.getDate() + (weeks * 7));
+
+    // Get holidays for the forecast period
+    const startDateStr = startDate.toISOString().split('T')[0];
+    const endDateStr = endDate.toISOString().split('T')[0];
+    
+    const holidaysQuery = sql`
+      SELECT name, date, description, state
+      FROM holidays 
+      WHERE date >= ${startDateStr} AND date <= ${endDateStr}
+      AND (state = 'SN' OR state = 'national')
+      ORDER BY date ASC
+    `;
+    
+    const holidaysResult = await db.execute(holidaysQuery);
+
+    // Get weather data for the forecast period (if available)
+    const weatherQuery = sql`
+      SELECT 
+        AVG(temperature) as avg_temp,
+        AVG(humidity) as avg_humidity,
+        STRING_AGG(DISTINCT weather_condition, ', ' ORDER BY weather_condition) as conditions
+      FROM weather_data 
+      WHERE date >= ${startDateStr} AND date <= ${endDateStr}
+      AND location = 'Bad Schandau'
+    `;
+    
+    const weatherResult = await db.execute(weatherQuery);
+
+    const weather = weatherResult.rows[0];
+    const holidays = holidaysResult.rows;
+
+    // Generate weather description
+    let weatherDescription = 'Wechselhaft, 15-25°C, vereinzelt Regen'; // Default
+    if (weather && weather.avg_temp) {
+      const temp = Math.round(Number(weather.avg_temp));
+      const tempRange = `${Math.max(temp - 5, 5)}-${temp + 5}°C`;
+      const conditions = weather.conditions || 'wechselhaft';
+      weatherDescription = `${conditions}, ${tempRange}`;
+    }
+
+    // Generate holidays description
+    let holidaysDescription = 'Keine besonderen Ereignisse';
+    if (holidays.length > 0) {
+      const holidayNames = holidays.map(h => h.name).join(', ');
+      holidaysDescription = `${holidays.length} Feiertag(e): ${holidayNames}`;
+    }
+
+    res.json({
+      weather: {
+        description: weatherDescription,
+        expected: true
+      },
+      holidays: {
+        description: holidaysDescription,
+        events: holidays.map(h => ({
+          name: h.name,
+          date: h.date,
+          description: h.description
+        }))
+      },
+      notes: "Diese Faktoren werden in der automatischen Prognose berücksichtigt"
+    });
+
+  } catch (error) {
+    console.error('Error fetching forecast factors:', error);
+    res.status(500).json({ error: 'Failed to fetch forecast factors' });
+  }
+});
+
 export default router;

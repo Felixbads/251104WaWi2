@@ -327,6 +327,16 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
     staleTime: 1000 * 60 * 5,
   });
 
+  const { data: forecastFactors, isLoading: factorsLoading } = useQuery<{
+    weather: { description: string; expected: boolean };
+    holidays: { description: string; events: Array<{ name: string; date: string; description: string }> };
+    notes: string;
+  }>({
+    queryKey: [`/api/bulk-orders/forecast-factors/${forecastWeeks}`],
+    enabled: step === 'forecast',
+    staleTime: 1000 * 60 * 5,
+  });
+
   // Create order mutation
   const createOrderMutation = useMutation({
     mutationFn: async (orderData: any) => {
@@ -798,28 +808,29 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
           {/* Weather and Holiday Context */}
           <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
             <h4 className="font-medium text-blue-900 mb-2">Prognosefaktoren für die nächsten {forecastWeeks} Wochen</h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-              <div>
-                <p className="font-medium text-blue-800">🌤️ Wetter erwartet:</p>
-                <p className="text-blue-700">
-                  {forecastWeeks === 1 ? "Überwiegend sonnig, 18-22°C" :
-                   forecastWeeks === 2 ? "Wechselhaft, 15-25°C, vereinzelt Regen" :
-                   forecastWeeks === 3 ? "Sommerlich warm, 20-28°C, wenig Niederschlag" :
-                   "Hochsommer, 22-30°C, meist trocken"}
-                </p>
+            {factorsLoading ? (
+              <div className="space-y-2">
+                <div className="h-4 bg-blue-200 animate-pulse rounded w-3/4" />
+                <div className="h-4 bg-blue-200 animate-pulse rounded w-1/2" />
               </div>
-              <div>
-                <p className="font-medium text-blue-800">🏖️ Feiertage & Urlaub:</p>
-                <p className="text-blue-700">
-                  {forecastWeeks === 1 ? "Keine Feiertage" :
-                   forecastWeeks === 2 ? "Keine besonderen Ereignisse" :
-                   forecastWeeks === 3 ? "Sommerferienzeit beginnt" :
-                   "Hauptferienzeit - erhöhter Tourismus"}
-                </p>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                <div>
+                  <p className="font-medium text-blue-800">🌤️ Wetter erwartet:</p>
+                  <p className="text-blue-700">
+                    {(forecastFactors as any)?.weather?.description || "Wechselhaft, 15-25°C, vereinzelt Regen"}
+                  </p>
+                </div>
+                <div>
+                  <p className="font-medium text-blue-800">🏖️ Feiertage & Urlaub:</p>
+                  <p className="text-blue-700">
+                    {(forecastFactors as any)?.holidays?.description || "Keine besonderen Ereignisse"}
+                  </p>
+                </div>
               </div>
-            </div>
+            )}
             <p className="text-xs text-blue-600 mt-2">
-              ℹ️ Diese Faktoren werden in der automatischen Prognose berücksichtigt
+              ℹ️ {(forecastFactors as any)?.notes || "Diese Faktoren werden in der automatischen Prognose berücksichtigt"}
             </p>
           </div>
 
