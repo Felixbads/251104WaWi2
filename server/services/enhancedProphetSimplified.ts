@@ -246,11 +246,42 @@ export class SimplifiedEnhancedProphetService {
   }
 
   /**
-   * Generiere Analytics-Zusammenfassung
+   * Identifiziere aktive Maschinen (die in den letzten 7 Tagen Transaktionen hatten)
+   */
+  private async getActiveMachineIds(): Promise<number[]> {
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    
+    const result = await pool.query(`
+      SELECT DISTINCT machine_id 
+      FROM transactions 
+      WHERE datetime >= $1 AND machine_id IS NOT NULL
+      ORDER BY machine_id
+    `, [sevenDaysAgo]);
+    
+    return result.rows.map(row => row.machine_id);
+  }
+
+  /**
+   * Generiere Analytics-Zusammenfassung (fokussiert auf aktive Maschinen)
    */
   async generateAnalytics() {
     try {
-      // Grundlegende Analytics
+      console.log('[SIMPLIFIED-PROPHET] Generiere Analytics für aktive Maschinen...');
+      
+      // Aktive Maschinen identifizieren (letzte 7 Tage)
+      const activeMachineIds = await this.getActiveMachineIds();
+      
+      if (activeMachineIds.length === 0) {
+        throw new Error('Keine aktiven Maschinen gefunden');
+      }
+      
+      console.log(`[SIMPLIFIED-PROPHET] Fokus auf ${activeMachineIds.length} aktive Maschinen:`, activeMachineIds.slice(0, 5));
+      
+      // Analytics nur für diese aktiven Maschinen (letzte 30 Tage)
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      
       const stats = await pool.query(`
         SELECT 
           COUNT(*) as total_transactions,
@@ -260,8 +291,25 @@ export class SimplifiedEnhancedProphetService {
           MIN(datetime) as earliest_transaction,
           MAX(datetime) as latest_transaction
         FROM transactions 
-        WHERE datetime >= NOW() - INTERVAL '30 days'
-      `);
+        WHERE datetime >= $1 
+        AND machine_id = ANY($2)
+      `, [thirtyDaysAgo, activeMachineIds]);
+      
+      // Zusätzlich: Top-Maschinen nach Transaktionsvolumen
+      const topMachines = await pool.query(`
+        SELECT 
+          m.machine_name,
+          m.vendon_id,
+          COUNT(t.id) as transaction_count,
+          MAX(t.datetime) as last_transaction
+        FROM machines m
+        JOIN transactions t ON m.id = t.machine_id
+        WHERE t.datetime >= $1
+        AND t.machine_id = ANY($2)
+        GROUP BY m.id, m.machine_name, m.vendon_id
+        ORDER BY transaction_count DESC
+        LIMIT 5
+      `, [thirtyDaysAgo, activeMachineIds]);
       
       return {
         success: true,
@@ -269,21 +317,33 @@ export class SimplifiedEnhancedProphetService {
           totalTransactions: parseInt(stats.rows[0].total_transactions),
           activeMachines: parseInt(stats.rows[0].active_machines),
           activeProducts: parseInt(stats.rows[0].active_products),
-          averageQuantity: parseFloat(stats.rows[0].avg_quantity || 0),
+          averageQuantity: Math.round(parseFloat(stats.rows[0].avg_quantity || 0)),
           dataRange: {
             from: stats.rows[0].earliest_transaction,
             to: stats.rows[0].latest_transaction
           }
         },
+        activeMachinesFocus: {
+          totalActiveMachines: activeMachineIds.length,
+          focusNote: 'Nur aktive Maschinen der letzten 7 Tage werden analysiert',
+          machineIds: activeMachineIds,
+          topMachines: topMachines.rows.map(row => ({
+            name: row.machine_name,
+            vendonId: row.vendon_id,
+            transactionCount: parseInt(row.transaction_count),
+            lastTransaction: row.last_transaction
+          }))
+        },
         capabilities: [
+          `Fokus auf ${activeMachineIds.length} aktive Maschinen`,
           'Wochentag-basierte Prognosen',
           'Monatliche Saisonalität',
           'Konfidenz-Bewertung',
           'Maschinen-spezifische Prognosen',
           'Produkt-spezifische Prognosen'
         ],
-        modelType: 'Vereinfachtes Enhanced Prophet System',
-        version: '1.0-simplified'
+        modelType: 'Optimiertes Enhanced Prophet System (Aktive Maschinen)',
+        version: '1.1-active-focus'
       };
     } catch (error) {
       console.error('[SIMPLIFIED-PROPHET] Analytics-Fehler:', error);
