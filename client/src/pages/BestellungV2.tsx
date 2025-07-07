@@ -772,9 +772,21 @@ const BestellungV2: React.FC = () => {
       if (result.success && result.order) {
         console.log('Bestellung erfolgreich kopiert:', result.order);
         
-        // Setze die neue Bestellungs-ID und gehe zur Bestellübersicht
+        // Setze die neue Bestellungs-ID und vollständige Bestellungsdaten
         setOrderId(result.order.id);
         setOrderNumber(result.order.orderNumber || result.order.order_number);
+        setSupplierId(result.order.supplier_id);
+        setSupplierName(result.order.supplier_name || '');
+        setWarehouseId(result.order.warehouse_id);
+        setWarehouseName(result.order.location_name || '');
+        setExistingOrderData(result.order);
+        
+        // Lade auch die kopierten Bestellpositionen
+        if (result.order.items && result.order.items.length > 0) {
+          setOrderItems(result.order.items);
+        }
+        
+        // Gehe zur Bestellübersicht mit allen kopierten Daten
         setStep('viewOrder');
         
         // URL aktualisieren um den neuen Status zu reflektieren

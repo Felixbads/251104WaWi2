@@ -1,7 +1,6 @@
 import { Router } from 'express';
 import { pool } from '../db';
 import { supplierDiscountConditions, insertSupplierDiscountConditionSchema } from '@shared/schema';
-import { eq } from 'drizzle-orm';
 
 const router = Router();
 
@@ -167,15 +166,19 @@ router.delete('/:id', async (req, res) => {
       return res.status(400).json({ error: 'Ungültige Rabattbedingung-ID' });
     }
 
-    const [deletedDiscount] = await db
-      .delete(supplierDiscountConditions)
-      .where(eq(supplierDiscountConditions.id, id))
-      .returning();
+    console.log('[SUPPLIER-DISCOUNTS] Deleting discount condition:', id);
 
-    if (!deletedDiscount) {
+    const result = await pool.query(`
+      DELETE FROM supplier_discount_conditions 
+      WHERE id = $1 
+      RETURNING *
+    `, [id]);
+
+    if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Rabattbedingung nicht gefunden' });
     }
 
+    console.log('[SUPPLIER-DISCOUNTS] Successfully deleted discount:', result.rows[0]);
     res.json({ success: true, message: 'Rabattbedingung erfolgreich gelöscht' });
   } catch (error) {
     console.error('Fehler beim Löschen der Rabattbedingung:', error);
