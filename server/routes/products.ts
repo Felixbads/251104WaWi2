@@ -7,30 +7,33 @@ const router = Router();
 router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
+    console.log('[PRODUCTS] Requesting product with ID:', id);
     
     const result = await pool.query(`
       SELECT 
         p.*,
         pc.name as category_name,
         s.company_name as supplier_name,
-        string_agg(DISTINCT pt.name, ', ') as package_types
+        pt.name as package_type_name
       FROM products p
       LEFT JOIN product_categories pc ON p.category_id = pc.id
       LEFT JOIN suppliers s ON p.supplier_id = s.id
-      LEFT JOIN product_package_types ppt ON p.id = ppt.product_id
-      LEFT JOIN package_types pt ON ppt.package_type_id = pt.id
+      LEFT JOIN package_types pt ON p.package_type_id = pt.id
       WHERE p.id = $1
-      GROUP BY p.id, pc.name, s.company_name
     `, [id]);
 
+    console.log('[PRODUCTS] Query result:', result.rows.length, 'rows found');
+
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Produkt nicht gefunden' });
+      return res.status(404).json({ error: 'Product not found' });
     }
 
-    res.json(result.rows[0]);
+    const product = result.rows[0];
+    console.log('[PRODUCTS] Returning product:', product.product_name);
+    res.json(product);
   } catch (error) {
-    console.error('Fehler beim Laden des Produkts:', error);
-    res.status(500).json({ error: 'Serverfehler beim Laden des Produkts' });
+    console.error('[PRODUCTS] Error loading product:', error);
+    res.status(500).json({ error: 'Server error loading product' });
   }
 });
 
@@ -38,13 +41,16 @@ router.get('/:id', async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     const { id } = req.params;
+    console.log('[PRODUCTS] UPDATE request for ID:', id);
+    console.log('[PRODUCTS] UPDATE body:', req.body);
+    
     const {
       product_name,
       description,
       detailed_description,
       category_id,
       package_size,
-      package_type,
+      package_type_id,
       minimum_order_quantity,
       shelf_life_days,
       ingredients,
@@ -56,6 +62,7 @@ router.put('/:id', async (req, res) => {
     // Prüfe ob Produkt existiert
     const existingProduct = await pool.query('SELECT id FROM products WHERE id = $1', [id]);
     if (existingProduct.rows.length === 0) {
+      console.log('[PRODUCTS] Product not found:', id);
       return res.status(404).json({ error: 'Produkt nicht gefunden' });
     }
 
@@ -68,7 +75,7 @@ router.put('/:id', async (req, res) => {
         detailed_description = COALESCE($4, detailed_description),
         category_id = COALESCE($5, category_id),
         package_size = COALESCE($6, package_size),
-        package_type = COALESCE($7, package_type),
+        package_type_id = COALESCE($7, package_type_id),
         minimum_order_quantity = COALESCE($8, minimum_order_quantity),
         shelf_life_days = COALESCE($9, shelf_life_days),
         ingredients = COALESCE($10, ingredients),
@@ -87,7 +94,7 @@ router.put('/:id', async (req, res) => {
       detailed_description,
       category_id,
       package_size,
-      package_type,
+      package_type_id,
       minimum_order_quantity,
       shelf_life_days,
       ingredients,
@@ -96,6 +103,7 @@ router.put('/:id', async (req, res) => {
       purchase_conditions
     ]);
 
+    console.log('[PRODUCTS] Update successful for:', result.rows[0].product_name);
     res.json({
       success: true,
       message: 'Produkt erfolgreich aktualisiert',
@@ -166,20 +174,113 @@ router.post('/:id/purchase-conditions', async (req, res) => {
       notes
     ]);
 
+    console.log('[PRODUCTS] Update successful for:', result.rows[0].product_name);
     res.json({
       success: true,
-      message: 'Einkaufsbedingung erfolgreich erstellt',
-      condition: result.rows[0]
+      product: result.rows[0],
+      message: 'Produkt erfolgreich aktualisiert'
     });
-
   } catch (error) {
-    console.error('Fehler beim Erstellen der Einkaufsbedingung:', error);
+    console.error('[PRODUCTS] Error updating product:', error);
     res.status(500).json({ 
-      error: 'Serverfehler beim Erstellen der Einkaufsbedingung',
-      details: error.message 
+      error: 'Serverfehler beim Aktualisieren des Produkts',
+      message: error.message 
     });
   }
 });
+
+// GET /api/products/:id/refill-history - Nachfüllhistorie für Produkt
+router.get('/:id/refill-history', async (req, res) => {
+  try {
+    const { id } = req.params;
+    console.log('[PRODUCTS] Fetching refill history for product ID:', id);
+    
+    const result = await pool.query(`
+      SELECT 
+        r.id,
+        r.quantity,
+        r.refill_date,
+        r.batch_id,
+        r.notes,
+        m.machine_name,
+        m.location_name
+      FROM refills r
+      JOIN machines m ON r.machine_id = m.id
+      WHERE r.product_id = $1
+      ORDER BY r.refill_date DESC
+      LIMIT 50
+    `, [id]);
+    
+    console.log('[PRODUCTS] Found', result.rows.length, 'refill records');
+    res.json(result.rows);
+  } catch (error) {
+    console.error('[PRODUCTS] Error fetching refill history:', error);
+    res.json([]); // Return empty array if table doesn't exist yet
+  }
+});
+
+// GET /api/products/:id/warehouse-inventory - Lagerbestand für Produkt
+router.get('/:id/warehouse-inventory', async (req, res) => {
+  try {
+    const { id } = req.params;
+    console.log('[PRODUCTS] Fetching warehouse inventory for product ID:', id);
+    
+    const result = await pool.query(`
+      SELECT 
+        wi.id,
+        wi.current_stock,
+        wi.minimum_stock,
+        wi.maximum_stock,
+        wi.reserved_stock,
+        wi.last_updated,
+        w.warehouse_name,
+        w.location
+      FROM warehouse_inventory wi
+      JOIN warehouses w ON wi.warehouse_id = w.id
+      WHERE wi.product_id = $1
+      AND wi.current_stock > 0
+      ORDER BY w.warehouse_name
+    `, [id]);
+    
+    console.log('[PRODUCTS] Found', result.rows.length, 'warehouse inventory records');
+    res.json({ data: result.rows });
+  } catch (error) {
+    console.error('[PRODUCTS] Error fetching warehouse inventory:', error);
+    res.json({ data: [] }); // Return empty array if table doesn't exist yet
+  }
+});
+
+// GET /api/products/:id/machine-inventory - Automatenbestand für Produkt
+router.get('/:id/machine-inventory', async (req, res) => {
+  try {
+    const { id } = req.params;
+    console.log('[PRODUCTS] Fetching machine inventory for product ID:', id);
+    
+    const result = await pool.query(`
+      SELECT 
+        ms.id,
+        ms.current_stock,
+        ms.maximum_capacity,
+        ms.last_refill,
+        ms.status,
+        m.machine_name,
+        m.location_name,
+        m.id as machine_id
+      FROM machine_stocks ms
+      JOIN machines m ON ms.machine_id = m.id
+      WHERE ms.product_id = $1
+      ORDER BY m.machine_name
+    `, [id]);
+    
+    console.log('[PRODUCTS] Found', result.rows.length, 'machine inventory records');
+    res.json({ data: result.rows });
+  } catch (error) {
+    console.error('[PRODUCTS] Error fetching machine inventory:', error);
+    res.json({ data: [] }); // Return empty array if table doesn't exist yet
+  }
+});
+
+export default router;
 
 // PUT /api/products/:productId/purchase-conditions/:conditionId - Einkaufsbedingung aktualisieren
 router.put('/:productId/purchase-conditions/:conditionId', async (req, res) => {

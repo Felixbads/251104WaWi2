@@ -88,16 +88,41 @@ export default function ProductDetail() {
   };
 
   const saveField = async (field: string) => {
-    if (!editingValues[field] && editingValues[field] !== '') return;
+    if (editingValues[field] === undefined && editingValues[field] !== 0) return;
+    
+    console.log('[PRODUCT-DETAIL] Saving field:', field, 'with value:', editingValues[field]);
     
     try {
-      await updateProductMutation.mutateAsync({
-        [field]: editingValues[field]
-      });
+      // Map frontend field names to backend field names
+      const fieldMapping = {
+        'packageTypeId': 'package_type_id',
+        'shelfLifeDays': 'shelf_life_days',
+        'packageSize': 'package_size',
+        'minOrderQuantity': 'minimum_order_quantity'
+      };
+      
+      const backendFieldName = fieldMapping[field] || field;
+      const updateData = {
+        [backendFieldName]: editingValues[field]
+      };
+      
+      console.log('[PRODUCT-DETAIL] Update data:', updateData);
+      
+      await updateProductMutation.mutateAsync(updateData);
       setEditingField(null);
       setEditingValues({});
+      
+      toast({
+        title: "Gespeichert",
+        description: "Änderung wurde erfolgreich gespeichert.",
+      });
     } catch (error) {
-      console.error('Save error:', error);
+      console.error('[PRODUCT-DETAIL] Save error:', error);
+      toast({
+        title: "Fehler",
+        description: "Fehler beim Speichern der Änderung.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -499,25 +524,27 @@ export default function ProductDetail() {
                   {/* Gebindeart */}
                   <div>
                     <Label className="text-xs sm:text-sm text-gray-500">Gebindeart</Label>
-                    {editingField === 'packageType' ? (
+                    {editingField === 'packageTypeId' ? (
                       <div className="flex gap-2 mt-1">
                         <Select
-                          value={editingValues.packageType || product.packageType || ''}
-                          onValueChange={(value) => setEditingValues({...editingValues, packageType: value})}
+                          value={editingValues.packageTypeId?.toString() || product.packageTypeId?.toString() || ''}
+                          onValueChange={(value) => setEditingValues({...editingValues, packageTypeId: parseInt(value)})}
                         >
                           <SelectTrigger className="flex-1">
                             <SelectValue placeholder="Gebindeart auswählen" />
                           </SelectTrigger>
                           <SelectContent>
-                            {packageTypes.map((type: string) => (
-                              <SelectItem key={type} value={type}>
-                                {type}
-                              </SelectItem>
-                            ))}
+                            <SelectItem value="1">Karton</SelectItem>
+                            <SelectItem value="2">Stiege</SelectItem>
+                            <SelectItem value="3">Kasten</SelectItem>
+                            <SelectItem value="4">Kiste</SelectItem>
+                            <SelectItem value="5">Stück</SelectItem>
+                            <SelectItem value="6">Pack</SelectItem>
+                            <SelectItem value="7">Palette</SelectItem>
                           </SelectContent>
                         </Select>
                         <div className="flex flex-col gap-1">
-                          <Button size="sm" onClick={() => saveField('packageType')}>
+                          <Button size="sm" onClick={() => saveField('packageTypeId')}>
                             <Save className="h-4 w-4" />
                           </Button>
                           <Button size="sm" variant="outline" onClick={cancelEdit}>
@@ -528,9 +555,9 @@ export default function ProductDetail() {
                     ) : (
                       <div className="flex items-center gap-2">
                         <p className="font-medium text-sm sm:text-base">
-                          {product.packageType || 'Nicht angegeben'}
+                          {product.package_type_name || 'Nicht angegeben'}
                         </p>
-                        <Button size="sm" variant="ghost" onClick={() => startEdit('packageType', product.packageType)}>
+                        <Button size="sm" variant="ghost" onClick={() => startEdit('packageTypeId', product.packageTypeId)}>
                           <Edit className="h-3 w-3" />
                         </Button>
                       </div>
@@ -610,33 +637,7 @@ export default function ProductDetail() {
                       <p className="font-medium text-sm sm:text-base text-blue-600">{product.costPrice.toFixed(2)} €</p>
                     </div>
                   )}
-                  <div>
-                    <Label className="text-xs sm:text-sm text-gray-500">Haltbarkeit in Tagen</Label>
-                    {editingField === 'shelfLifeDays' ? (
-                      <div className="flex gap-2 mt-1">
-                        <Input
-                          type="number"
-                          value={editingValues.shelfLifeDays || product.shelfLifeDays || ''}
-                          onChange={(e) => setEditingValues({...editingValues, shelfLifeDays: parseInt(e.target.value)})}
-                          placeholder="Haltbarkeit in Tagen eingeben..."
-                          className="flex-1"
-                        />
-                        <Button size="sm" onClick={() => saveField('shelfLifeDays')}>
-                          <Save className="h-4 w-4" />
-                        </Button>
-                        <Button size="sm" variant="outline" onClick={cancelEdit}>
-                          ✕
-                        </Button>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-2">
-                        <p className="font-medium text-sm sm:text-base">{product.shelfLifeDays || 'k.A.'}</p>
-                        <Button size="sm" variant="ghost" onClick={() => startEdit('shelfLifeDays', product.shelfLifeDays)}>
-                          <Edit className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    )}
-                  </div>
+                  {/* Haltbarkeit in Tagen bereits im anderen Bereich vorhanden - REMOVE DUPLICATE */}
                 </div>
                 
                 {/* Purchase Conditions Section */}
