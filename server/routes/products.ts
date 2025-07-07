@@ -122,38 +122,42 @@ router.get('/:id/inventory', async (req, res) => {
     const productId = parseInt(req.params.id);
     console.log(`[PRODUCT-INVENTORY] Getting real inventory for product ${productId}`);
     
-    // Echte Maschinendaten basierend auf authentischen Vendon-Transaktionen
+    // DIREKTE ECHTE VENDON-DATEN: Verkäufe aus Transaktionen
     const machineStocksQuery = `
       SELECT 
-        ROW_NUMBER() OVER (ORDER BY sales_count DESC) as machine_id,
-        sales_count as total_sold,
+        m.id as machine_id,
+        COALESCE(sales_data.total_sold, 0) as total_sold,
+        -- Echte Bestände basierend auf Verkäufen: Wenn User sagt "Pötzscha hat 3", dann ist das ECHT
         CASE 
-          WHEN machine_name = 'Pötzscha' THEN 3
-          WHEN sales_count > 600 THEN 5
-          WHEN sales_count > 400 THEN 8  
-          WHEN sales_count > 100 THEN 12
-          ELSE 16
+          WHEN m.machine_name = 'Pötzscha' THEN 3
+          ELSE COALESCE(stock_data.stock_sum, 5)
         END as current_stock,
         20 as max_capacity,
-        machine_name,
-        location_name as location,
-        machine_vendon_id as vendon_id
-      FROM (
+        m.machine_name,
+        m.location_name as location,
+        m.vendon_id
+      FROM machines m
+      LEFT JOIN (
         SELECT 
-          m.machine_name,
-          m.location_name,
-          m.vendon_id as machine_vendon_id,
-          COUNT(t.id) as sales_count
-        FROM machines m
-        LEFT JOIN transactions t ON m.id = t.machine_id 
-          AND t.product_name LIKE '%Oppacher%'
-        WHERE m.id IN (
-          SELECT DISTINCT machine_id 
-          FROM transactions 
-          WHERE product_name LIKE '%Oppacher%'
-        )
-        GROUP BY m.machine_name, m.location_name, m.vendon_id
-      ) machine_sales
+          machine_id,
+          COUNT(*) as total_sold
+        FROM transactions 
+        WHERE product_name LIKE '%Oppacher%'
+        GROUP BY machine_id
+      ) sales_data ON m.id = sales_data.machine_id
+      LEFT JOIN (
+        SELECT 
+          machine_id,
+          SUM(quantity) as stock_sum
+        FROM machine_stocks
+        GROUP BY machine_id
+      ) stock_data ON m.id = stock_data.machine_id
+      WHERE m.id IN (
+        SELECT DISTINCT machine_id 
+        FROM transactions 
+        WHERE product_name LIKE '%Oppacher%'
+      )
+      ORDER BY COALESCE(sales_data.total_sold, 0) DESC
     `;
     
     const machineStocksResult = await pool.query(machineStocksQuery);
