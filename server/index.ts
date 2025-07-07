@@ -37,6 +37,7 @@ import locationAnalysisRouter from './routes/location-analysis';
 import weatherRouter from './routes/weather.js';
 import supplierAnalyticsRouter from './routes/supplier-analytics';
 import supportTicketsRouter from './routes/support-tickets';
+import productsRouter from './routes/products';
 import { pool } from './db';
 import { db } from './db';
 import { orders } from '../shared/schema';
@@ -924,6 +925,10 @@ Elbsandstein Proviant & Quartier GmbH`;
   const enhancedProphetSimplifiedRouter = (await import('./routes/enhancedProphetSimplified')).default;
   app.use('/api/enhanced-prophet', enhancedProphetSimplifiedRouter);
   console.log('[SERVER] Simplified Enhanced Prophet router mounted successfully');
+  
+  // Mount products router BEFORE registerRoutes for refill-history and purchase-conditions APIs
+  app.use('/api/products', productsRouter);
+  console.log('[SERVER] Products router mounted successfully');
   
   const server = await registerRoutes(app);
 

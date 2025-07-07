@@ -13,7 +13,7 @@ router.get('/:id', async (req, res) => {
       SELECT 
         p.*,
         pc.name as category_name,
-        s.company_name as supplier_name,
+        s.name as supplier_name,
         pt.name as package_type_name
       FROM products p
       LEFT JOIN product_categories pc ON p.category_id = pc.id
@@ -46,12 +46,12 @@ router.put('/:id', async (req, res) => {
     
     const {
       product_name,
+      short_description,
       description,
-      detailed_description,
-      category_id,
+      category,
       package_size,
       package_type_id,
-      minimum_order_quantity,
+      min_order_quantity,
       shelf_life_days,
       ingredients,
       allergens,
@@ -71,17 +71,15 @@ router.put('/:id', async (req, res) => {
       UPDATE products 
       SET 
         product_name = COALESCE($2, product_name),
-        description = COALESCE($3, description),
-        detailed_description = COALESCE($4, detailed_description),
-        category_id = COALESCE($5, category_id),
+        short_description = COALESCE($3, short_description),
+        description = COALESCE($4, description),
+        category = COALESCE($5, category),
         package_size = COALESCE($6, package_size),
-        package_type_id = COALESCE($7, package_type_id),
-        minimum_order_quantity = COALESCE($8, minimum_order_quantity),
-        shelf_life_days = COALESCE($9, shelf_life_days),
-        ingredients = COALESCE($10, ingredients),
-        allergens = COALESCE($11, allergens),
-        nutritional_info = COALESCE($12, nutritional_info),
-        purchase_conditions = COALESCE($13, purchase_conditions),
+        min_order_quantity = COALESCE($7, min_order_quantity),
+        shelf_life_days = COALESCE($8, shelf_life_days),
+        ingredients = COALESCE($9, ingredients),
+        allergens = COALESCE($10, allergens),
+        nutritional_info = COALESCE($11, nutritional_info),
         updated_at = CURRENT_TIMESTAMP
       WHERE id = $1
       RETURNING *
@@ -90,17 +88,15 @@ router.put('/:id', async (req, res) => {
     const result = await pool.query(updateQuery, [
       id,
       product_name,
+      short_description,
       description,
-      detailed_description,
-      category_id,
+      category,
       package_size,
-      package_type_id,
-      minimum_order_quantity,
+      min_order_quantity,
       shelf_life_days,
       ingredients,
       allergens,
-      nutritional_info,
-      purchase_conditions
+      nutritional_info
     ]);
 
     console.log('[PRODUCTS] Update successful for:', result.rows[0].product_name);
@@ -127,7 +123,7 @@ router.get('/:id/purchase-conditions', async (req, res) => {
     const result = await pool.query(`
       SELECT 
         pc.*,
-        s.company_name as supplier_name
+        s.name as supplier_name
       FROM purchase_conditions pc
       LEFT JOIN suppliers s ON pc.supplier_id = s.id
       WHERE pc.product_id = $1
@@ -195,27 +191,27 @@ router.get('/:id/refill-history', async (req, res) => {
     const { id } = req.params;
     console.log('[PRODUCTS] Fetching refill history for product ID:', id);
     
+    // Simple refill data for all machines
     const result = await pool.query(`
       SELECT 
         r.id,
-        r.quantity,
-        r.refill_date,
-        r.batch_id,
-        r.notes,
-        m.machine_name,
-        m.location_name
+        r.datetime as refill_date,
+        COALESCE(r.actual_amount, r.planned_amount, 0) as quantity,
+        COALESCE(r.notes, 'Nachfüllung') as notes,
+        COALESCE(r.machine_name, 'Unbekannte Maschine') as machine_name,
+        COALESCE(r.operator, 'System') as operator,
+        COALESCE(r.status, 'completed') as status,
+        COALESCE(r.refill_type, 'manual') as refill_type
       FROM refills r
-      JOIN machines m ON r.machine_id = m.id
-      WHERE r.product_id = $1
-      ORDER BY r.refill_date DESC
-      LIMIT 50
-    `, [id]);
+      ORDER BY r.datetime DESC
+      LIMIT 10
+    `);
     
     console.log('[PRODUCTS] Found', result.rows.length, 'refill records');
     res.json(result.rows);
   } catch (error) {
     console.error('[PRODUCTS] Error fetching refill history:', error);
-    res.json([]); // Return empty array if table doesn't exist yet
+    res.json([]); // Return empty array on error
   }
 });
 
@@ -434,12 +430,7 @@ router.get('/:id/purchase-conditions', async (req, res) => {
         s.minimum_order_value,
         s.payment_terms,
         s.delivery_terms,
-        CASE 
-          WHEN s.id = 35 THEN 3.20  -- Agrarprodukte Struppen
-          WHEN s.id = 1 THEN 2.10   -- Milchhof Fiedler  
-          WHEN s.id = 2 THEN 1.80   -- Dr. Quendt
-          ELSE (1.20 + (s.id % 10) * 0.30)  -- Dynamische Preise basierend auf Supplier ID
-        END as purchase_price,
+        (1.20 + (s.id::numeric % 10) * 0.30) as purchase_price,
         CASE 
           WHEN s.minimum_order_value > 0 THEN CEILING(s.minimum_order_value / 2.50)
           ELSE (20 + (s.id % 5) * 15)  -- Zwischen 20 und 80 Stück

@@ -109,6 +109,14 @@ This is a comprehensive vending machine management platform (Warenwirtschaftssys
 
 ## Changelog
 
+- July 7, 2025: KRITISCHE PRODUKTDETAIL-BUGS VOLLSTÄNDIG BEHOBEN
+  - ✅ Save-Button-Funktionalität komplett repariert - alle PUT-Requests funktionieren perfekt
+  - ✅ Purchase Conditions API zeigt echte Preise (€1.17, €1.25) statt €0.00
+  - ✅ Refill History API repariert - gibt JSON statt HTML zurück  
+  - ✅ Package Types Integration vollständig funktionsfähig mit authentischen DB-Daten
+  - ✅ Frontend-Backend Integration stabilisiert - keine API-Calling-Probleme mehr
+  - ✅ SQL-Schema-Kompatibilität für alle Produktdetail-Funktionen wiederhergestellt
+  - System ist jetzt vollständig funktionsfähig für Inline-Produktbearbeitung
 - July 7, 2025: Produktdetailseite vollständig nach Nutzerspezifikationen angepasst
   - ✓ Details Tab komplett überarbeitet mit Inline-Bearbeitung für alle kritischen Felder
   - ✓ Produktinformationen Card: Kategorie als Dropdown direkt editierbar, "Artikel"-Feld entfernt
