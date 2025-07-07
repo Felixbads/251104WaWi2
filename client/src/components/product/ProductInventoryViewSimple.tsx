@@ -46,7 +46,7 @@ export default function ProductInventoryViewSimple({ productId, productName }: P
   const { data: refillData, isLoading: refillLoading, refetch: refetchRefills } = useQuery({
     queryKey: [`/api/products/${productId}/refills`],
     queryFn: async () => {
-      const response = await fetch(`/api/products/${productId}/refills?timeRange=30d`, {
+      const response = await fetch(`/api/products/${productId}/refill-history`, {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('authToken') || 'test'}` }
       });
       if (!response.ok) return [];

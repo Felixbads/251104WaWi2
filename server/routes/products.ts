@@ -145,7 +145,11 @@ router.get('/:id/inventory', async (req, res) => {
       SELECT 
         ROW_NUMBER() OVER (ORDER BY machine_name) as machine_id,
         total_sold::integer,
-        GREATEST(0, 20 - total_sold)::integer as current_stock,
+        CASE 
+          WHEN total_sold = 0 THEN 20
+          WHEN total_sold % 20 = 0 THEN 5  -- Nach Verkauf von 20, 40, etc. bleiben 5 übrig
+          ELSE GREATEST(5, 20 - (total_sold % 20))
+        END::integer as current_stock,
         20 as max_capacity,
         machine_name,
         location,
