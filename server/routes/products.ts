@@ -161,18 +161,17 @@ router.get('/:id/inventory', async (req, res) => {
       WHERE product_name LIKE '%Oppacher%'
     `);
     
-    // Echte Lagerdaten basierend auf Verkaufsdaten
+    // Echte Lagerdaten aus der warehouses/inventory_items Tabelle
     const warehouseStocksResult = await pool.query(`
       SELECT 
-        'Hauptlager Dresden' as warehouse_name,
-        GREATEST(15, 80 - ($1 / 8))::integer as current_stock,
-        80 as max_capacity
-      UNION ALL
-      SELECT 
-        'Lager Bad Schandau' as warehouse_name,
-        GREATEST(8, 40 - ($1 / 12))::integer as current_stock,
-        40 as max_capacity
-    `, [totalSales.rows[0]?.total_sold || 0]);
+        w.name as warehouse_name,
+        COALESCE(ii.quantity, 0) as current_stock,
+        COALESCE(w.capacity, 100) as max_capacity
+      FROM warehouses w
+      LEFT JOIN inventory_items ii ON w.id = ii.warehouse_id AND ii.product_id = $1
+      WHERE w.is_active = true
+      ORDER BY w.name ASC
+    `, [productId]);
     
     console.log(`[PRODUCT-INVENTORY] Found ${machineStocksResult.rows.length} machine stocks, ${warehouseStocksResult.rows.length} warehouse stocks`);
     
@@ -287,12 +286,7 @@ router.get('/:id/refill-history', async (req, res) => {
         COALESCE(r.status, 'completed') as status,
         COALESCE(r.refill_type, 'manual') as refill_type
       FROM refills r
-      LEFT JOIN (
-        SELECT DISTINCT ON (vendon_id) id, machine_name, vendon_id 
-        FROM machines 
-        WHERE id IN (SELECT DISTINCT machine_id FROM transactions WHERE product_name LIKE '%Oppacher%')
-        ORDER BY vendon_id, id DESC
-      ) m ON r.machine_id = m.id
+      LEFT JOIN machines m ON r.machine_id = m.id
       WHERE r.machine_id IN (
         SELECT DISTINCT machine_id FROM transactions WHERE product_name LIKE '%Oppacher%'
       )
