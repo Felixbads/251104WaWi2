@@ -121,16 +121,32 @@ export default function ProductPurchaseConditionsComprehensive({
   });
 
   // Fetch suppliers for new conditions
-  const { data: suppliers = [] } = useQuery({
+  const { data: suppliers = [], isLoading: suppliersLoading } = useQuery({
     queryKey: ['/api/suppliers-simple'],
     queryFn: async () => {
       const response = await fetch('/api/suppliers-simple', {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('authToken') || 'test'}` }
       });
       if (!response.ok) throw new Error('Failed to fetch suppliers');
-      return response.json();
+      const data = await response.json();
+      console.log('Suppliers loaded:', data.length, data);
+      return data;
     }
   });
+
+  // Sort suppliers - current supplier first, then alphabetically
+  const sortedSuppliers = React.useMemo(() => {
+    if (!suppliers || suppliers.length === 0) return [];
+    
+    const currentSupplierIds = new Set(
+      conditions.map((cond: any) => cond.supplier_id).filter(Boolean)
+    );
+    
+    const currentSuppliers = suppliers.filter((s: any) => currentSupplierIds.has(s.id));
+    const otherSuppliers = suppliers.filter((s: any) => !currentSupplierIds.has(s.id));
+    
+    return [...currentSuppliers, ...otherSuppliers];
+  }, [suppliers, conditions]);
 
   // Create new purchase condition
   const createConditionMutation = useMutation({
@@ -388,11 +404,18 @@ export default function ProductPurchaseConditionsComprehensive({
                           <SelectValue placeholder="Lieferant wählen" />
                         </SelectTrigger>
                         <SelectContent>
-                          {suppliers.map((supplier: Supplier) => (
-                            <SelectItem key={supplier.id} value={supplier.id.toString()}>
-                              {supplier.company_name || supplier.name}
+                          {sortedSuppliers.length > 0 ? sortedSuppliers.map((supplier: any, index: number) => {
+                            const isCurrentSupplier = conditions.some((cond: any) => cond.supplier_id === supplier.id);
+                            return (
+                              <SelectItem key={supplier.id} value={supplier.id.toString()}>
+                                {supplier.name} {isCurrentSupplier ? '(Aktuell)' : ''}
+                              </SelectItem>
+                            );
+                          }) : (
+                            <SelectItem value="" disabled>
+                              {suppliersLoading ? 'Laden...' : 'Keine Lieferanten verfügbar'}
                             </SelectItem>
-                          ))}
+                          )}
                         </SelectContent>
                       </Select>
                       <Button 

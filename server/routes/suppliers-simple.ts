@@ -12,13 +12,10 @@ router.get('/', async (req, res) => {
       SELECT 
         id,
         name,
+        contact_person,
         email,
-        phone,
-        payment_terms,
-        delivery_terms,
-        minimum_order_value
+        phone
       FROM suppliers 
-      WHERE active = true 
       ORDER BY name
     `);
 
