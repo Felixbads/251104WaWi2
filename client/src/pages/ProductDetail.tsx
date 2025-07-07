@@ -100,16 +100,16 @@ export default function ProductDetail() {
     console.log('[PRODUCT-DETAIL] 🔧 Full editingValues:', editingValues);
     
     try {
-      // Vollständiges Mapping zwischen Frontend- und Backend-Feldnamen
+      // Vollständiges Mapping zwischen Frontend- und Backend-Feldnamen  
+      // Alle Felder, die wirklich in der products Tabelle existieren
       const fieldMapping = {
         'packageTypeId': 'package_type_id',
-        'shelfLifeDays': 'shelf_life_days',
+        'shelfLifeDays': 'shelf_life_days', 
         'packageSize': 'package_size',
         'minOrderQuantity': 'min_order_quantity',
-        'shortDescription': 'short_description',
-        'shelfLife': 'shelf_life_days',
-        'purchaseConditions': 'purchase_conditions',
-        'nutritionalInfo': 'nutritional_info'
+        'shortDescription': 'short_description', // ✅ EXISTIERT (Zeile 364)
+        'nutritionalInfo': 'nutritional_info'    // ✅ EXISTIERT (Zeile 367)
+        // 'purchaseConditions' existiert NICHT - das ist eine separate Tabelle!
       };
       
       const backendFieldName = fieldMapping[field] || field;
@@ -665,40 +665,7 @@ export default function ProductDetail() {
                   {/* Haltbarkeit in Tagen bereits im anderen Bereich vorhanden - REMOVE DUPLICATE */}
                 </div>
                 
-                {/* Purchase Conditions Section */}
-                <div className="pt-4 border-t">
-                  <Label className="text-sm font-medium text-gray-700 mb-2">Einkaufsbedingungen</Label>
-                  {editingField === 'purchaseConditions' ? (
-                    <div className="flex gap-2 mt-1">
-                      <Textarea
-                        value={editingValues.purchaseConditions || 'Standard Lieferung'}
-                        onChange={(e) => setEditingValues({...editingValues, purchaseConditions: e.target.value})}
-                        placeholder="Nur Lieferzeit eingeben..."
-                        className="flex-1"
-                      />
-                      <div className="flex flex-col gap-1">
-                        <Button size="sm" onClick={() => saveField('purchaseConditions')}>
-                          <Save className="h-4 w-4" />
-                        </Button>
-                        <Button size="sm" variant="outline" onClick={cancelEdit}>
-                          ✕
-                        </Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex items-start gap-2">
-                      <div className="flex-1">
-                        <div>
-                          <span className="text-gray-500 text-xs sm:text-sm">Lieferzeit</span>
-                          <p className="font-medium text-sm sm:text-base">Standard Lieferung</p>
-                        </div>
-                      </div>
-                      <Button size="sm" variant="ghost" onClick={() => startEdit('purchaseConditions', 'Standard Lieferung')}>
-                        <Edit className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  )}
-                </div>
+                {/* Purchase Conditions Section - ENTFERNT: Separate Tabelle, nicht Teil der products Tabelle */}
               </CardContent>
             </Card>
           </div>
