@@ -887,6 +887,7 @@ export const purchaseConditions = pgTable("purchase_conditions", {
   isPreferred: boolean("is_preferred").default(false), // Ist dies der bevorzugte Lieferant für dieses Produkt
   notes: text("notes"), // Notizen zu dieser Einkaufsbedingung
   leadTime: integer("lead_time"), // Vorlaufzeit in Tagen
+  packagingType: text("packaging_type"), // Gebindeart (Karton, Kiste, etc.)
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

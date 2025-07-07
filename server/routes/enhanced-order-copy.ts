@@ -54,7 +54,7 @@ router.get('/orders/:id/copy-data', async (req, res) => {
         p.category,
         p.package_size,
         p.units,
-        p.vat_rate,
+        p.vat,
         p.price as current_product_price,
         pc.unit_price as purchase_price,
         pc.tax_rate as purchase_tax_rate
@@ -109,7 +109,7 @@ router.get('/orders/:id/copy-data', async (req, res) => {
         unit: item.unit || 'stk',
         totalPrice: (item.quantity || 0) * (item.unit_price || item.purchase_price || 0),
         packageSize: item.package_size || 1,
-        vatRate: item.vat_rate || item.purchase_tax_rate || 19,
+        vatRate: item.vat || item.purchase_tax_rate || 19,
         status: 'pending'
       })),
       availableWarehouses: warehousesResult.rows.map(warehouse => ({
@@ -235,7 +235,7 @@ router.post('/orders/create-from-copy', async (req, res) => {
       await pool.query(`
         INSERT INTO order_items (
           order_id, product_id, product_name, quantity, unit, 
-          unit_price, total_price, vat_rate, status,
+          unit_price, total_price, vat, status,
           created_at, updated_at
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pending', NOW(), NOW())
       `, [

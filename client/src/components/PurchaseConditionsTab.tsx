@@ -268,20 +268,33 @@ export function PurchaseConditionsTab({ supplierId, supplierName }: PurchaseCond
                   </div>
 
                   <div>
-                    <Label>Verpackungseinheit</Label>
-                    <Input
-                      value={formData.packagingUnit || ''}
-                      onChange={(e) => handleFieldChange('packagingUnit', e.target.value)}
-                      placeholder="z.B. Karton mit 6 Flaschen"
-                    />
+                    <Label>Gebindeart</Label>
+                    <Select
+                      value={formData.packagingType || ''}
+                      onValueChange={(value) => handleFieldChange('packagingType', value)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Gebindeart auswählen" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="karton">Karton</SelectItem>
+                        <SelectItem value="kiste">Kiste</SelectItem>
+                        <SelectItem value="palette">Palette</SelectItem>
+                        <SelectItem value="sack">Sack</SelectItem>
+                        <SelectItem value="einzelstueck">Einzelstück</SelectItem>
+                        <SelectItem value="bund">Bund</SelectItem>
+                        <SelectItem value="pack">Pack</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
 
                   <div>
-                    <Label>Anzahl pro Verpackung</Label>
+                    <Label>Gebindemenge</Label>
                     <Input
                       type="number"
                       value={formData.packagingQuantity || 1}
                       onChange={(e) => handleFieldChange('packagingQuantity', parseInt(e.target.value) || 1)}
+                      placeholder="z.B. 6, 12, 24"
                     />
                   </div>
 
@@ -389,6 +402,35 @@ export function PurchaseConditionsTab({ supplierId, supplierName }: PurchaseCond
                               step="0.01"
                               value={formData.taxRate || 19}
                               onChange={(e) => handleFieldChange('taxRate', parseFloat(e.target.value) || 19)}
+                            />
+                          </div>
+                          <div>
+                            <Label>Gebindeart</Label>
+                            <Select
+                              value={formData.packagingType || ''}
+                              onValueChange={(value) => handleFieldChange('packagingType', value)}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Gebindeart" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="karton">Karton</SelectItem>
+                                <SelectItem value="kiste">Kiste</SelectItem>
+                                <SelectItem value="palette">Palette</SelectItem>
+                                <SelectItem value="sack">Sack</SelectItem>
+                                <SelectItem value="einzelstueck">Einzelstück</SelectItem>
+                                <SelectItem value="bund">Bund</SelectItem>
+                                <SelectItem value="pack">Pack</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div>
+                            <Label>Gebindemenge</Label>
+                            <Input
+                              type="number"
+                              value={formData.packagingQuantity || 1}
+                              onChange={(e) => handleFieldChange('packagingQuantity', parseInt(e.target.value) || 1)}
+                              placeholder="z.B. 6, 12, 24"
                             />
                           </div>
                           <div>

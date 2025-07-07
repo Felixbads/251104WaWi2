@@ -43,6 +43,7 @@ router.put('/purchase-conditions/:id', async (req, res) => {
       minQuantity,
       packagingUnit,
       packagingQuantity,
+      packagingType,
       deliveryTime,
       validFrom,
       validTo,
@@ -62,14 +63,15 @@ router.put('/purchase-conditions/:id', async (req, res) => {
         min_quantity = $4,
         packaging_unit = $5,
         packaging_quantity = $6,
-        delivery_time = $7,
-        valid_from = $8,
-        valid_to = $9,
-        is_preferred = $10,
-        notes = $11,
-        lead_time = $12,
+        packaging_type = $7,
+        delivery_time = $8,
+        valid_from = $9,
+        valid_to = $10,
+        is_preferred = $11,
+        notes = $12,
+        lead_time = $13,
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $13
+      WHERE id = $14
       RETURNING *
     `, [
       unitPrice,
@@ -78,6 +80,7 @@ router.put('/purchase-conditions/:id', async (req, res) => {
       minQuantity,
       packagingUnit,
       packagingQuantity,
+      packagingType,
       deliveryTime,
       validFrom || null,
       validTo || null,
