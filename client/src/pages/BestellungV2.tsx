@@ -111,12 +111,10 @@ const BestellungV2: React.FC = () => {
       }
     }
     
-    // Wenn copyOrderId vorhanden ist, direkt zur Produktauswahl mit vorausgefüllten Daten
+    // Wenn copyOrderId vorhanden ist, direkt eine neue Bestellung erstellen und zur Bestellübersicht
     if (copyOrderIdParam) {
       console.log('Kopiere Bestellung:', copyOrderIdParam);
-      setOrderMode('copy');
-      setSourceOrderId(parseInt(copyOrderIdParam));
-      loadOrderForCopying(parseInt(copyOrderIdParam));
+      handleOrderCopy(parseInt(copyOrderIdParam));
     }
   }, []);
   const [warehouseId, setWarehouseId] = useState<number | null>(null);
@@ -749,6 +747,55 @@ const BestellungV2: React.FC = () => {
   const handleEditOrder = (editOrderId: number) => {
     setOrderId(editOrderId);
     setStep('sendOrder'); // Zum E-Mail-Versand-Schritt wechseln (kann angepasst werden)
+  };
+
+  // Event handler für das Kopieren einer Bestellung - direkt zur Bestellübersicht
+  const handleOrderCopy = async (sourceOrderId: number) => {
+    try {
+      console.log(`Erstelle Kopie von Bestellung ${sourceOrderId}`);
+      
+      // Bestellung kopieren über API
+      const response = await fetch(`/api/orders/${sourceOrderId}/copy`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': localStorage.getItem('auth_token') ? `Bearer ${localStorage.getItem('auth_token')}` : ''
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error('Fehler beim Kopieren der Bestellung');
+      }
+      
+      const result = await response.json();
+      
+      if (result.success && result.order) {
+        console.log('Bestellung erfolgreich kopiert:', result.order);
+        
+        // Setze die neue Bestellungs-ID und gehe zur Bestellübersicht
+        setOrderId(result.order.id);
+        setOrderNumber(result.order.orderNumber || result.order.order_number);
+        setStep('viewOrder');
+        
+        // URL aktualisieren um den neuen Status zu reflektieren
+        const newUrl = `/bestellungen/workflow?step=viewOrder&orderId=${result.order.id}`;
+        window.history.pushState({}, '', newUrl);
+        
+        toast({
+          title: "Bestellung kopiert",
+          description: `Bestellung ${result.order.orderNumber || result.order.order_number} wurde erfolgreich kopiert`
+        });
+      } else {
+        throw new Error(result.message || 'Unbekannter Fehler beim Kopieren');
+      }
+    } catch (error) {
+      console.error('Fehler beim Kopieren der Bestellung:', error);
+      toast({
+        title: "Fehler",
+        description: "Fehler beim Kopieren der Bestellung: " + error.message,
+        variant: "destructive"
+      });
+    }
   };
   
   // Event handler für Wareneingang einer Bestellung aus der Übersicht

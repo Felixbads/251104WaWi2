@@ -91,30 +91,69 @@ router.put('/:id', async (req, res) => {
       return res.status(400).json({ error: 'Ungültige Rabattbedingung-ID' });
     }
 
-    const validatedData = insertSupplierDiscountConditionSchema.partial().parse(req.body);
+    console.log('[SUPPLIER-DISCOUNTS] Updating discount condition:', req.body);
     
-    const [updatedDiscount] = await db
-      .update(supplierDiscountConditions)
-      .set({
-        ...validatedData,
-        updatedAt: new Date()
-      })
-      .where(eq(supplierDiscountConditions.id, id))
-      .returning();
+    const {
+      discountType,
+      discountPercentage,
+      discountAmount,
+      thresholdQuantity,
+      thresholdAmount,
+      maxQuantity,
+      maxAmount,
+      paymentTermsDays,
+      skontoPercentage,
+      validFrom,
+      validTo,
+      isActive,
+      priority,
+      canCombineWithOtherDiscounts,
+      description,
+      minimumOrderQuantity,
+      applicableProductCategories,
+      excludedProductIds
+    } = req.body;
 
-    if (!updatedDiscount) {
+    const result = await pool.query(`
+      UPDATE supplier_discount_conditions 
+      SET 
+        discount_type = $2,
+        description = $3,
+        discount_percentage = $4,
+        discount_amount = $5,
+        threshold_quantity = $6,
+        threshold_amount = $7,
+        max_quantity = $8,
+        max_amount = $9,
+        payment_terms_days = $10,
+        skonto_percentage = $11,
+        valid_from = $12,
+        valid_to = $13,
+        is_active = $14,
+        priority = $15,
+        can_combine_with_other_discounts = $16,
+        minimum_order_quantity = $17,
+        applicable_product_categories = $18,
+        excluded_product_ids = $19,
+        updated_at = NOW()
+      WHERE id = $1
+      RETURNING *
+    `, [
+      id, discountType, description, discountPercentage, discountAmount,
+      thresholdQuantity, thresholdAmount, maxQuantity, maxAmount,
+      paymentTermsDays, skontoPercentage, validFrom || null, validTo || null,
+      isActive, priority, canCombineWithOtherDiscounts,
+      minimumOrderQuantity, applicableProductCategories, excludedProductIds
+    ]);
+
+    if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Rabattbedingung nicht gefunden' });
     }
 
-    res.json(updatedDiscount);
+    console.log('[SUPPLIER-DISCOUNTS] Successfully updated discount:', result.rows[0]);
+    res.json(result.rows[0]);
   } catch (error) {
     console.error('Fehler beim Aktualisieren der Rabattbedingung:', error);
-    if (error.name === 'ZodError') {
-      return res.status(400).json({ 
-        error: 'Validierungsfehler', 
-        details: error.errors 
-      });
-    }
     res.status(500).json({ error: 'Fehler beim Aktualisieren der Rabattbedingung' });
   }
 });
