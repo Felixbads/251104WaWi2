@@ -40,8 +40,8 @@ export function PurchaseConditionsTab({ supplierId, supplierName }: PurchaseCond
 
   // Fetch available products for new conditions
   const { data: availableProducts = [] } = useQuery({
-    queryKey: ['products', 'available'],
-    queryFn: () => fetch('/api/products').then(res => res.json())
+    queryKey: ['suppliers', supplierId, 'available-products'],
+    queryFn: () => fetch(`/api/suppliers/${supplierId}/available-products`).then(res => res.json())
   });
 
   // Create mutation
@@ -73,7 +73,7 @@ export function PurchaseConditionsTab({ supplierId, supplierName }: PurchaseCond
   // Update mutation
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: number; data: Partial<InsertPurchaseCondition> }) =>
-      fetch(`/api/purchase-conditions/${id}`, {
+      fetch(`/api/suppliers/purchase-conditions/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)

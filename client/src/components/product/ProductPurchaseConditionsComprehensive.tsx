@@ -491,9 +491,9 @@ export default function ProductPurchaseConditionsComprehensive({
                               </SelectItem>
                             );
                           }) : (
-                            <SelectItem value="" disabled>
+                            <div className="py-2 px-3 text-sm text-muted-foreground">
                               {suppliersLoading ? 'Laden...' : 'Keine Lieferanten verfügbar'}
-                            </SelectItem>
+                            </div>
                           )}
                         </SelectContent>
                       </Select>
