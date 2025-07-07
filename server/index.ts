@@ -54,6 +54,7 @@ import locationStatusRouter from './routes/location-status-ultra-fast';
 import weatherCorrectionRouter from './routes/weather-correction';
 import { retroactiveWeatherService } from './services/retroactiveWeatherCorrection';
 import enhancedOrdersRouter from './routes/enhanced-orders';
+import enhancedEmailTemplatesRouter from './routes/enhanced-email-templates';
 import profitabilityRouter from './routes/profitability-simple';
 import enhancedProfitabilityRouter from './routes/enhanced-profitability-fixed';
 
@@ -909,6 +910,7 @@ Elbsandstein Proviant & Quartier GmbH`;
   
   // Mount enhanced orders router BEFORE registerRoutes for enhanced ordering functionality
   app.use('/api/enhanced-orders', enhancedOrdersRouter);
+  app.use('/api/enhanced-email-templates', enhancedEmailTemplatesRouter);
   console.log('[SERVER] Enhanced orders router mounted successfully');
   
   // Mount profitability analysis router for economic evaluation

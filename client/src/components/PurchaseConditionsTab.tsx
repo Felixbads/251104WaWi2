@@ -194,6 +194,13 @@ export function PurchaseConditionsTab({ supplierId, supplierName }: PurchaseCond
   };
 
   const getProductName = (productId: number) => {
+    // First check if the product name is already in the purchase conditions data
+    const conditionWithName = purchaseConditions.find((pc: any) => pc.productId === productId);
+    if (conditionWithName?.productName) {
+      return conditionWithName.productName;
+    }
+    
+    // Fallback to available products
     if (!Array.isArray(availableProducts)) {
       return `Produkt ID: ${productId}`;
     }
