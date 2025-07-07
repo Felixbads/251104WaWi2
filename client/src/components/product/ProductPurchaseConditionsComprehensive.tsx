@@ -90,6 +90,7 @@ export default function ProductPurchaseConditionsComprehensive({
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isCreateSupplierDialogOpen, setIsCreateSupplierDialogOpen] = useState(false);
   const [editingCondition, setEditingCondition] = useState<number | null>(null);
+  const [editingData, setEditingData] = useState<Partial<PurchaseCondition>>({});
   const [newCondition, setNewCondition] = useState<Partial<NewPurchaseCondition>>({
     taxRate: 19,
     minQuantity: 1,
@@ -108,6 +109,18 @@ export default function ProductPurchaseConditionsComprehensive({
     country: 'Deutschland'
   });
 
+  // Fetch product data for VAT information
+  const { data: productData } = useQuery({
+    queryKey: [`/api/products/${productId}`],
+    queryFn: async () => {
+      const response = await fetch(`/api/products/${productId}`, {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('authToken') || 'test'}` }
+      });
+      if (!response.ok) throw new Error('Failed to fetch product data');
+      return response.json();
+    }
+  });
+
   // Fetch purchase conditions for this product
   const { data: conditions = [], isLoading, refetch } = useQuery({
     queryKey: [`/api/products/${productId}/purchase-conditions`],
@@ -119,6 +132,16 @@ export default function ProductPurchaseConditionsComprehensive({
       return response.json();
     }
   });
+
+  // Set product VAT rate when available
+  React.useEffect(() => {
+    if (productData?.vat && !newCondition.taxRate) {
+      setNewCondition(prev => ({
+        ...prev,
+        taxRate: productData.vat
+      }));
+    }
+  }, [productData?.vat, newCondition.taxRate]);
 
   // Fetch suppliers for new conditions
   const { data: suppliers = [], isLoading: suppliersLoading } = useQuery({
@@ -194,6 +217,36 @@ export default function ProductPurchaseConditionsComprehensive({
     }
   });
 
+  // Update purchase condition
+  const updateConditionMutation = useMutation({
+    mutationFn: async (conditionData: { id: number } & Partial<PurchaseCondition>) => {
+      const { id, ...updateData } = conditionData;
+      const grossPrice = updateData.unit_price && updateData.tax_rate
+        ? updateData.unit_price * (1 + (updateData.tax_rate / 100))
+        : updateData.unit_price;
+      
+      const payload = {
+        ...updateData,
+        gross_price: grossPrice
+      };
+      
+      return apiRequest(`/api/products/${productId}/purchase-conditions/${id}`, payload, 'PUT');
+    },
+    onSuccess: () => {
+      toast({ title: 'Einkaufsbedingung erfolgreich aktualisiert' });
+      setEditingCondition(null);
+      setEditingData({});
+      refetch();
+    },
+    onError: (error) => {
+      console.error('Error updating purchase condition:', error);
+      toast({ 
+        title: 'Fehler beim Aktualisieren der Einkaufsbedingung', 
+        variant: 'destructive' 
+      });
+    }
+  });
+
   // Delete purchase condition
   const deleteConditionMutation = useMutation({
     mutationFn: async (conditionId: number) => {
@@ -262,6 +315,32 @@ export default function ProductPurchaseConditionsComprehensive({
     if (confirm('Sind Sie sicher, dass Sie diese Einkaufsbedingung löschen möchten?')) {
       deleteConditionMutation.mutate(conditionId);
     }
+  };
+
+  const handleEditCondition = (condition: PurchaseCondition) => {
+    setEditingCondition(condition.id);
+    setEditingData({
+      unit_price: condition.unit_price,
+      tax_rate: condition.tax_rate,
+      min_quantity: condition.min_quantity,
+      packaging_quantity: condition.packaging_quantity,
+      is_preferred: condition.is_preferred,
+      notes: condition.notes
+    });
+  };
+
+  const handleSaveEdit = () => {
+    if (editingCondition && editingData) {
+      updateConditionMutation.mutate({
+        id: editingCondition,
+        ...editingData
+      });
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingCondition(null);
+    setEditingData({});
   };
 
   const formatDate = (dateString?: string) => {
@@ -672,21 +751,69 @@ export default function ProductPurchaseConditionsComprehensive({
                         {condition.supplier_name}
                       </TableCell>
                       <TableCell>
-                        <span className="font-semibold text-green-600">
-                          {formatPrice(condition.unit_price)}
-                        </span>
+                        {editingCondition === condition.id ? (
+                          <Input
+                            type="number"
+                            step="0.01"
+                            value={editingData.unit_price || ''}
+                            onChange={(e) => setEditingData({...editingData, unit_price: parseFloat(e.target.value)})}
+                            className="w-20"
+                          />
+                        ) : (
+                          <span className="font-semibold text-green-600">
+                            {formatPrice(condition.unit_price)}
+                          </span>
+                        )}
                       </TableCell>
                       <TableCell>
-                        <span className="font-semibold">
-                          {formatPrice(condition.gross_price || condition.unit_price * (1 + (condition.tax_rate / 100)))}
-                        </span>
+                        {editingCondition === condition.id && editingData.unit_price && editingData.tax_rate ? (
+                          <span className="font-semibold">
+                            {formatPrice(editingData.unit_price * (1 + (editingData.tax_rate / 100)))}
+                          </span>
+                        ) : (
+                          <span className="font-semibold">
+                            {formatPrice(condition.gross_price || condition.unit_price * (1 + (condition.tax_rate / 100)))}
+                          </span>
+                        )}
                       </TableCell>
-                      <TableCell>{condition.tax_rate}%</TableCell>
-                      <TableCell>{condition.min_quantity}</TableCell>
                       <TableCell>
-                        {condition.packaging_unit && condition.packaging_quantity 
-                          ? `${condition.packaging_quantity} ${condition.packaging_unit}` 
-                          : '-'}
+                        {editingCondition === condition.id ? (
+                          <Input
+                            type="number"
+                            step="0.1"
+                            value={editingData.tax_rate || ''}
+                            onChange={(e) => setEditingData({...editingData, tax_rate: parseFloat(e.target.value)})}
+                            className="w-16"
+                          />
+                        ) : (
+                          `${condition.tax_rate}%`
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {editingCondition === condition.id ? (
+                          <Input
+                            type="number"
+                            value={editingData.min_quantity || ''}
+                            onChange={(e) => setEditingData({...editingData, min_quantity: parseInt(e.target.value)})}
+                            className="w-16"
+                          />
+                        ) : (
+                          condition.min_quantity
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {editingCondition === condition.id ? (
+                          <Input
+                            type="number"
+                            value={editingData.packaging_quantity || ''}
+                            onChange={(e) => setEditingData({...editingData, packaging_quantity: parseInt(e.target.value)})}
+                            className="w-16"
+                          />
+                        ) : (
+                          condition.packaging_unit && condition.packaging_quantity 
+                            ? `${condition.packaging_quantity} ${condition.packaging_unit}` 
+                            : '-'
+                        )}
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1">
@@ -711,13 +838,33 @@ export default function ProductPurchaseConditionsComprehensive({
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setEditingCondition(condition.id)}
-                          >
-                            <Edit3 className="h-3 w-3" />
-                          </Button>
+                          {editingCondition === condition.id ? (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={handleSaveEdit}
+                                disabled={updateConditionMutation.isPending}
+                              >
+                                <Save className="h-3 w-3" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={handleCancelEdit}
+                              >
+                                <X className="h-3 w-3" />
+                              </Button>
+                            </>
+                          ) : (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleEditCondition(condition)}
+                            >
+                              <Edit3 className="h-3 w-3" />
+                            </Button>
+                          )}
                           <Button
                             variant="ghost"
                             size="sm"
