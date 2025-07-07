@@ -41,8 +41,9 @@ router.get('/:id', async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    console.log('[PRODUCTS] UPDATE request for ID:', id);
-    console.log('[PRODUCTS] UPDATE body:', req.body);
+    console.log('[PRODUCTS] 🔧 PUT UPDATE request for ID:', id);
+    console.log('[PRODUCTS] 🔧 UPDATE body:', req.body);
+    console.log('[PRODUCTS] 🔧 Headers:', req.headers);
     
     const {
       product_name,

@@ -88,7 +88,9 @@ export default function ProductDetail() {
     // Korrekte Prüfung: Feld muss existieren (undefined prüfen) oder explizit gesetzt sein
     if (editingValues[field] === undefined) return;
     
-    console.log('[PRODUCT-DETAIL] Saving field:', field, 'with value:', editingValues[field]);
+    console.log('[PRODUCT-DETAIL] 🔧 Saving field:', field, 'with value:', editingValues[field]);
+    console.log('[PRODUCT-DETAIL] 🔧 Product ID:', id);
+    console.log('[PRODUCT-DETAIL] 🔧 Full editingValues:', editingValues);
     
     try {
       // Vollständiges Mapping zwischen Frontend- und Backend-Feldnamen
@@ -108,9 +110,18 @@ export default function ProductDetail() {
         [backendFieldName]: editingValues[field]
       };
       
-      console.log('[PRODUCT-DETAIL] Update data:', updateData);
+      console.log('[PRODUCT-DETAIL] 🔧 Backend field name:', backendFieldName);
+      console.log('[PRODUCT-DETAIL] 🔧 Final update data:', updateData);
+      console.log('[PRODUCT-DETAIL] 🔧 About to call updateProductMutation...');
+      console.log('[PRODUCT-DETAIL] 🔧 Mutation function will call apiRequest with:', {
+        url: `/api/products/${id}`,
+        data: updateData,
+        method: 'PUT'
+      });
       
-      await updateProductMutation.mutateAsync(updateData);
+      const result = await updateProductMutation.mutateAsync(updateData);
+      console.log('[PRODUCT-DETAIL] 🔧 Mutation result:', result);
+      
       setEditingField(null);
       setEditingValues({});
       
@@ -119,7 +130,12 @@ export default function ProductDetail() {
         description: "Änderung wurde erfolgreich gespeichert.",
       });
     } catch (error) {
-      console.error('[PRODUCT-DETAIL] Save error:', error);
+      console.error('[PRODUCT-DETAIL] 🚨 Save error:', error);
+      console.error('[PRODUCT-DETAIL] 🚨 Error details:', {
+        message: error?.message,
+        stack: error?.stack,
+        response: error?.response
+      });
       toast({
         title: "Fehler",
         description: "Fehler beim Speichern der Änderung.",
