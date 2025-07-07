@@ -34,6 +34,7 @@ interface MachineInventory {
 
 export default function ProductInventoryView({ productId, productName }: ProductInventoryViewProps) {
   const [refreshing, setRefreshing] = useState(false);
+  const [activeTab, setActiveTab] = useState('warehouse');
 
   // Fetch warehouse inventory
   const { data: warehouseInventory, isLoading: isLoadingWarehouse, refetch: refetchWarehouse, error: warehouseError } = useQuery({
@@ -71,6 +72,23 @@ export default function ProductInventoryView({ productId, productName }: Product
       const data = await response.json();
       console.log('Machine inventory received:', data);
       return data;
+    },
+    staleTime: 1000 * 60 * 5, // 5 minutes
+  });
+
+  // Fetch refill history
+  const { data: refillHistory, isLoading: isLoadingRefills } = useQuery({
+    queryKey: [`/api/products/${productId}/refill-history`],
+    queryFn: async () => {
+      const url = `/api/products/${productId}/refill-history`;
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('authToken') || 'test'}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      if (!response.ok) return []; // Return empty array if endpoint doesn't exist yet
+      return response.json();
     },
     staleTime: 1000 * 60 * 5, // 5 minutes
   });
@@ -122,25 +140,42 @@ export default function ProductInventoryView({ productId, productName }: Product
 
   return (
     <div className="space-y-6">
-      {/* Header with refresh */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-lg font-semibold">Lagerbestand für {productName}</h3>
-          <p className="text-sm text-muted-foreground">Aktuelle Bestände in Lagern und Automaten</p>
-        </div>
-        <Button 
-          variant="outline" 
-          size="sm" 
-          onClick={handleRefresh} 
-          disabled={refreshing}
-          className="gap-2"
+      {/* Tab Navigation */}
+      <div className="flex space-x-1 bg-gray-100 p-1 rounded-lg">
+        <button
+          className={`px-3 py-2 rounded-md text-sm font-medium ${
+            activeTab === 'warehouse' 
+              ? 'bg-white text-gray-900 shadow-sm' 
+              : 'text-gray-600 hover:text-gray-900'
+          }`}
+          onClick={() => setActiveTab('warehouse')}
         >
-          <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-          Aktualisieren
-        </Button>
+          Lagerbestände
+        </button>
+        <button
+          className={`px-3 py-2 rounded-md text-sm font-medium ${
+            activeTab === 'machines' 
+              ? 'bg-white text-gray-900 shadow-sm' 
+              : 'text-gray-600 hover:text-gray-900'
+          }`}
+          onClick={() => setActiveTab('machines')}
+        >
+          Automatenbestände
+        </button>
+        <button
+          className={`px-3 py-2 rounded-md text-sm font-medium ${
+            activeTab === 'refills' 
+              ? 'bg-white text-gray-900 shadow-sm' 
+              : 'text-gray-600 hover:text-gray-900'
+          }`}
+          onClick={() => setActiveTab('refills')}
+        >
+          Nachfüllhistorie
+        </button>
       </div>
 
-      {/* Warehouse Inventory */}
+      {/* Warehouse Inventory Tab */}
+      {activeTab === 'warehouse' && (
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -186,16 +221,18 @@ export default function ProductInventoryView({ productId, productName }: Product
             </div>
           )}
         </CardContent>
-      </Card>
-
-      {/* Machine Inventory */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <AlertTriangle className="h-5 w-5" />
-            Automatenbestände
-          </CardTitle>
-        </CardHeader>
+        </Card>
+      )}
+      
+      {/* Machine Inventory Tab */}
+      {activeTab === 'machines' && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5" />
+              Automatenbestände
+            </CardTitle>
+          </CardHeader>
         <CardContent>
           {(machineInventory?.data || []).length > 0 ? (
             <div className="space-y-3">
@@ -239,7 +276,55 @@ export default function ProductInventoryView({ productId, productName }: Product
             </div>
           )}
         </CardContent>
-      </Card>
+        </Card>
+      )}
+      
+      {/* Refill History Tab */}
+      {activeTab === 'refills' && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <RefreshCw className="h-5 w-5" />
+              Nachfüllhistorie
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {refillHistory && refillHistory.length > 0 ? (
+                refillHistory.map((refill: any, index: number) => (
+                  <div key={index} className="border rounded-lg p-4">
+                    <div className="flex justify-between items-start mb-2">
+                      <div>
+                        <p className="font-medium">{refill.machineName}</p>
+                        <p className="text-sm text-gray-500">
+                          {new Date(refill.refillDate).toLocaleDateString('de-DE')} um{' '}
+                          {new Date(refill.refillDate).toLocaleTimeString('de-DE', {
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </p>
+                      </div>
+                      <Badge variant="outline">
+                        {refill.quantity} nachgefüllt
+                      </Badge>
+                    </div>
+                    {refill.batchId && (
+                      <p className="text-sm text-gray-600">Charge: {refill.batchId}</p>
+                    )}
+                    {refill.notes && (
+                      <p className="text-sm text-gray-600 mt-1">{refill.notes}</p>
+                    )}
+                  </div>
+                ))
+              ) : (
+                <p className="text-gray-500 text-center py-8">
+                  Keine Nachfüllhistorie verfügbar.
+                </p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

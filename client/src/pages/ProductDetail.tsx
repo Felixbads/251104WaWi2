@@ -66,7 +66,13 @@ export default function ProductDetail() {
 
   // Lade verfügbare Kategorien
   const { data: categories = [] } = useQuery({
-    queryKey: ['/api/product-categories'],
+    queryKey: ['/api/categories/names'],
+    staleTime: 1000 * 60 * 10, // 10 Minuten
+  });
+
+  // Lade verfügbare Gebindearten
+  const { data: packageTypes = [] } = useQuery({
+    queryKey: ['/api/package-types/names'],
     staleTime: 1000 * 60 * 10, // 10 Minuten
   });
 
@@ -490,28 +496,108 @@ export default function ProductDetail() {
                     </div>
                   )}
                   
+                  {/* Gebindeart */}
+                  <div>
+                    <Label className="text-xs sm:text-sm text-gray-500">Gebindeart</Label>
+                    {editingField === 'packageType' ? (
+                      <div className="flex gap-2 mt-1">
+                        <Select
+                          value={editingValues.packageType || product.packageType || ''}
+                          onValueChange={(value) => setEditingValues({...editingValues, packageType: value})}
+                        >
+                          <SelectTrigger className="flex-1">
+                            <SelectValue placeholder="Gebindeart auswählen" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {packageTypes.map((type: string) => (
+                              <SelectItem key={type} value={type}>
+                                {type}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <div className="flex flex-col gap-1">
+                          <Button size="sm" onClick={() => saveField('packageType')}>
+                            <Save className="h-4 w-4" />
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={cancelEdit}>
+                            ✕
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium text-sm sm:text-base">
+                          {product.packageType || 'Nicht angegeben'}
+                        </p>
+                        <Button size="sm" variant="ghost" onClick={() => startEdit('packageType', product.packageType)}>
+                          <Edit className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                  
                   {/* Gebindegröße */}
                   <div>
                     <Label className="text-xs sm:text-sm text-gray-500">Gebindegröße</Label>
                     {editingField === 'packageSize' ? (
                       <div className="flex gap-2 mt-1">
                         <Input
+                          type="number"
+                          step="0.01"
                           value={editingValues.packageSize || product.packageSize || ''}
-                          onChange={(e) => setEditingValues({...editingValues, packageSize: e.target.value})}
+                          onChange={(e) => setEditingValues({...editingValues, packageSize: parseFloat(e.target.value)})}
                           placeholder="Gebindegröße eingeben..."
                           className="flex-1"
                         />
-                        <Button size="sm" onClick={() => saveField('packageSize')}>
-                          <Save className="h-4 w-4" />
-                        </Button>
-                        <Button size="sm" variant="outline" onClick={cancelEdit}>
-                          ✕
-                        </Button>
+                        <div className="flex flex-col gap-1">
+                          <Button size="sm" onClick={() => saveField('packageSize')}>
+                            <Save className="h-4 w-4" />
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={cancelEdit}>
+                            ✕
+                          </Button>
+                        </div>
                       </div>
                     ) : (
                       <div className="flex items-center gap-2">
-                        <p className="font-medium text-sm sm:text-base">{product.packageSize || 'k.A.'}</p>
+                        <p className="font-medium text-sm sm:text-base">
+                          {product.packageSize ? `${product.packageSize}` : 'Nicht angegeben'}
+                        </p>
                         <Button size="sm" variant="ghost" onClick={() => startEdit('packageSize', product.packageSize)}>
+                          <Edit className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Haltbarkeit */}
+                  <div>
+                    <Label className="text-xs sm:text-sm text-gray-500">Haltbarkeit (Tage)</Label>
+                    {editingField === 'shelfLife' ? (
+                      <div className="flex gap-2 mt-1">
+                        <Input
+                          type="number"
+                          value={editingValues.shelfLife || product.shelfLife || ''}
+                          onChange={(e) => setEditingValues({...editingValues, shelfLife: parseInt(e.target.value)})}
+                          placeholder="Haltbarkeit in Tagen..."
+                          className="flex-1"
+                        />
+                        <div className="flex flex-col gap-1">
+                          <Button size="sm" onClick={() => saveField('shelfLife')}>
+                            <Save className="h-4 w-4" />
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={cancelEdit}>
+                            ✕
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium text-sm sm:text-base">
+                          {product.shelfLife ? `${product.shelfLife} Tage` : 'Nicht angegeben'}
+                        </p>
+                        <Button size="sm" variant="ghost" onClick={() => startEdit('shelfLife', product.shelfLife)}>
                           <Edit className="h-3 w-3" />
                         </Button>
                       </div>
@@ -524,37 +610,6 @@ export default function ProductDetail() {
                       <p className="font-medium text-sm sm:text-base text-blue-600">{product.costPrice.toFixed(2)} €</p>
                     </div>
                   )}
-                  
-                  {/* Mindestbestellmenge */}
-                  <div>
-                    <Label className="text-xs sm:text-sm text-gray-500">Mindestbestellmenge</Label>
-                    {editingField === 'minOrderQuantity' ? (
-                      <div className="flex gap-2 mt-1">
-                        <Input
-                          type="number"
-                          value={editingValues.minOrderQuantity || product.minOrderQuantity || ''}
-                          onChange={(e) => setEditingValues({...editingValues, minOrderQuantity: parseInt(e.target.value)})}
-                          placeholder="Mindestbestellmenge eingeben..."
-                          className="flex-1"
-                        />
-                        <Button size="sm" onClick={() => saveField('minOrderQuantity')}>
-                          <Save className="h-4 w-4" />
-                        </Button>
-                        <Button size="sm" variant="outline" onClick={cancelEdit}>
-                          ✕
-                        </Button>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-2">
-                        <p className="font-medium text-sm sm:text-base">{product.minOrderQuantity || 'k.A.'}</p>
-                        <Button size="sm" variant="ghost" onClick={() => startEdit('minOrderQuantity', product.minOrderQuantity)}>
-                          <Edit className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                  
-                  {/* Haltbarkeit in Tagen */}
                   <div>
                     <Label className="text-xs sm:text-sm text-gray-500">Haltbarkeit in Tagen</Label>
                     {editingField === 'shelfLifeDays' ? (
@@ -590,9 +645,9 @@ export default function ProductDetail() {
                   {editingField === 'purchaseConditions' ? (
                     <div className="flex gap-2 mt-1">
                       <Textarea
-                        value={editingValues.purchaseConditions || 'Standard Lieferung, Nach Vereinbarung'}
+                        value={editingValues.purchaseConditions || 'Standard Lieferung'}
                         onChange={(e) => setEditingValues({...editingValues, purchaseConditions: e.target.value})}
-                        placeholder="Einkaufsbedingungen eingeben..."
+                        placeholder="Nur Lieferzeit eingeben..."
                         className="flex-1"
                       />
                       <div className="flex flex-col gap-1">
@@ -606,17 +661,13 @@ export default function ProductDetail() {
                     </div>
                   ) : (
                     <div className="flex items-start gap-2">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs sm:text-sm flex-1">
+                      <div className="flex-1">
                         <div>
-                          <span className="text-gray-500">Lieferzeit</span>
-                          <p className="font-medium">Standard Lieferung</p>
-                        </div>
-                        <div>
-                          <span className="text-gray-500">Zahlungsbedingungen</span>
-                          <p className="font-medium">Nach Vereinbarung</p>
+                          <span className="text-gray-500 text-xs sm:text-sm">Lieferzeit</span>
+                          <p className="font-medium text-sm sm:text-base">Standard Lieferung</p>
                         </div>
                       </div>
-                      <Button size="sm" variant="ghost" onClick={() => startEdit('purchaseConditions', 'Standard Lieferung, Nach Vereinbarung')}>
+                      <Button size="sm" variant="ghost" onClick={() => startEdit('purchaseConditions', 'Standard Lieferung')}>
                         <Edit className="h-3 w-3" />
                       </Button>
                     </div>

@@ -2287,23 +2287,32 @@ Elbsandstein Proviant & Quartier GmbH`;
   app.use('/uploads', express.static(uploadsPath));
   console.log('✓ Static file serving for uploads configured at /uploads');
 
-  // Product categories endpoint - alle verfügbaren Kategorien
+  // Register API routes BEFORE registerRoutes with dynamic imports
+  Promise.all([
+    import('./routes/products.js'),
+    import('./routes/categories.js'),
+    import('./routes/package-types.js'),
+    import('./routes/suppliers-simple.js')
+  ]).then(([products, categories, packageTypes, suppliersSimple]) => {
+    app.use('/api/products', products.default);
+    app.use('/api/categories', categories.default);
+    app.use('/api/package-types', packageTypes.default);
+    app.use('/api/suppliers-simple', suppliersSimple.default);
+    console.log('[SERVER] New API routes registered successfully');
+  }).catch(error => {
+    console.error('[SERVER] Error loading API routes:', error);
+  });
+  
+  // Legacy endpoint for backward compatibility
   app.get('/api/product-categories', async (req, res) => {
     try {
       const result = await pool.query(`
-        SELECT name, description, sort_order, is_active 
-        FROM product_categories 
-        WHERE is_active = true 
-        ORDER BY sort_order ASC, name ASC
+        SELECT name FROM product_categories WHERE is_active = true ORDER BY sort_order ASC, name ASC
       `);
-      
       res.json(result.rows.map(row => row.name));
     } catch (error) {
       console.error('Fehler beim Laden der Produktkategorien:', error);
-      res.status(500).json({ 
-        error: 'Fehler beim Laden der Produktkategorien',
-        message: error instanceof Error ? error.message : 'Unbekannter Fehler'
-      });
+      res.status(500).json({ error: 'Fehler beim Laden der Produktkategorien' });
     }
   });
 

@@ -61,6 +61,7 @@ interface EditConditionForm {
   discountPercentage: number;
   validFrom: string;
   validTo: string;
+  deliveryTime?: number;
   notes: string;
 }
 
@@ -88,6 +89,7 @@ export default function ProductPurchaseConditionsView({ productId, productName }
     pricePerUnit: 0,
     minimumQuantity: 1,
     discountPercentage: 0,
+    deliveryTime: undefined,
     validFrom: new Date().toISOString().split('T')[0],
     validTo: '',
     notes: ''
@@ -107,7 +109,7 @@ export default function ProductPurchaseConditionsView({ productId, productName }
 
   // Lade verfügbare Lieferanten
   const { data: suppliers = [] } = useQuery<Supplier[]>({
-    queryKey: ['/api/suppliers'],
+    queryKey: ['/api/suppliers-simple'],
     staleTime: 1000 * 60 * 10, // 10 Minuten
   });
 
@@ -349,6 +351,16 @@ export default function ProductPurchaseConditionsView({ productId, productName }
                   type="date"
                   value={newConditionForm.validTo}
                   onChange={(e) => setNewConditionForm({...newConditionForm, validTo: e.target.value})}
+                />
+              </div>
+              <div>
+                <Label htmlFor="newDeliveryTime">Lieferzeit (Tage)</Label>
+                <Input
+                  id="newDeliveryTime"
+                  type="number"
+                  value={newConditionForm.deliveryTime || ''}
+                  onChange={(e) => setNewConditionForm({...newConditionForm, deliveryTime: parseInt(e.target.value) || undefined})}
+                  placeholder="Lieferzeit in Tagen..."
                 />
               </div>
               <div>
