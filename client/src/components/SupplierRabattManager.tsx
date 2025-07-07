@@ -98,10 +98,35 @@ export default function SupplierRabattManager({ supplierId, supplierName }: Supp
   // Erstellen einer neuen Rabattbedingung
   const createMutation = useMutation({
     mutationFn: async (data: Partial<RabattBedingung>) => {
+      // Transformiere camelCase zu snake_case für Backend
+      const apiData = {
+        supplier_id: data.supplierId,
+        discount_type: data.discountType,
+        threshold_amount: data.thresholdAmount,
+        threshold_quantity: data.thresholdQuantity,
+        discount_percentage: data.discountPercentage,
+        discount_amount: data.discountAmount,
+        skonto_percentage: data.skontoPercentage,
+        payment_terms_days: data.paymentTermsDays,
+        valid_from: data.validFrom,
+        valid_to: data.validTo,
+        description: data.description,
+        is_active: data.isActive,
+        can_combine_with_other_discounts: data.canCombineWithOtherDiscounts,
+        priority: data.priority,
+        max_quantity: data.maxQuantity,
+        max_amount: data.maxAmount,
+        minimum_order_quantity: data.minimumOrderQuantity,
+        applicable_product_categories: data.applicableProductCategories,
+        excluded_product_ids: data.excludedProductIds
+      };
+      
+      console.log('Sending rabatt data to API:', apiData);
+      
       const response = await fetch('/api/supplier-discounts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
+        body: JSON.stringify(apiData)
       });
       if (!response.ok) {
         const error = await response.json();
@@ -136,10 +161,33 @@ export default function SupplierRabattManager({ supplierId, supplierName }: Supp
   // Aktualisieren einer Rabattbedingung
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: number; data: Partial<RabattBedingung> }) => {
+      // Transformiere camelCase zu snake_case für Backend
+      const apiData = {
+        supplier_id: data.supplierId,
+        discount_type: data.discountType,
+        threshold_amount: data.thresholdAmount,
+        threshold_quantity: data.thresholdQuantity,
+        discount_percentage: data.discountPercentage,
+        discount_amount: data.discountAmount,
+        skonto_percentage: data.skontoPercentage,
+        payment_terms_days: data.paymentTermsDays,
+        valid_from: data.validFrom,
+        valid_to: data.validTo,
+        description: data.description,
+        is_active: data.isActive,
+        can_combine_with_other_discounts: data.canCombineWithOtherDiscounts,
+        priority: data.priority,
+        max_quantity: data.maxQuantity,
+        max_amount: data.maxAmount,
+        minimum_order_quantity: data.minimumOrderQuantity,
+        applicable_product_categories: data.applicableProductCategories,
+        excluded_product_ids: data.excludedProductIds
+      };
+      
       const response = await fetch(`/api/supplier-discounts/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
+        body: JSON.stringify(apiData)
       });
       if (!response.ok) {
         const error = await response.json();

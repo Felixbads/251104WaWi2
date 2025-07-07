@@ -109,6 +109,14 @@ This is a comprehensive vending machine management platform (Warenwirtschaftssys
 
 ## Changelog
 
+- July 7, 2025: Kritische Systemfehler in Einkaufsbedingungen und Bestellkopieren behoben
+  - ✅ Rabattbedingungen-Speicherung repariert: Frontend transformiert camelCase zu snake_case für Backend-API
+  - ✅ Alle Rabatttypen funktionsfähig: Skonto (2%, 14 Tage), Mengenrabatt (5%, ab 50 Stück), Bestellwertrabatt (8%, ab €350)
+  - ✅ Bestellkopieren-Workflow komplett funktionsfähig: Response-Handling flexibilisiert, keine falschen Error-Meldungen mehr
+  - ✅ OrderCopySelector führt direkt zu kopierter Bestellung statt zur Lagerauswahl
+  - ✅ Vollständige CRUD-Operationen für Supplier-Discounts: Erstellen, Lesen, Aktualisieren, Löschen
+  - ✅ API-Response-Transformation bidirektional: snake_case ↔ camelCase zwischen Frontend und Backend
+  - System ermöglicht jetzt nahtlose Rabattbedingungen-Verwaltung und Bestellkopie-Workflows
 - July 7, 2025: Einkaufsbedingungen-System vollständig erweitert um Lieferanten-Erstellung
   - ✅ Lieferanten-Erstellungsfunktion direkt im Einkaufsbedingungen-Dialog implementiert
   - ✅ "+" Button neben Lieferanten-Dropdown öffnet neuen Lieferant-Dialog

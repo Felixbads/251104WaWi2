@@ -769,36 +769,40 @@ const BestellungV2: React.FC = () => {
       
       const result = await response.json();
       
-      if (result.success && result.order) {
-        console.log('Bestellung erfolgreich kopiert:', result.order);
+      // Die API gibt { success: true, order: {...} } zurück
+      console.log('API Response:', result);
+      
+      if (result && (result.success || result.order)) {
+        const orderData = result.order || result;
+        console.log('Bestellung erfolgreich kopiert:', orderData);
         
         // Setze die neue Bestellungs-ID und vollständige Bestellungsdaten
-        setOrderId(result.order.id);
-        setOrderNumber(result.order.orderNumber || result.order.order_number);
-        setSupplierId(result.order.supplier_id);
-        setSupplierName(result.order.supplier_name || '');
-        setWarehouseId(result.order.warehouse_id);
-        setWarehouseName(result.order.location_name || '');
-        setExistingOrderData(result.order);
+        setOrderId(orderData.id);
+        setOrderNumber(orderData.orderNumber || orderData.order_number);
+        setSupplierId(orderData.supplier_id);
+        setSupplierName(orderData.supplier_name || '');
+        setWarehouseId(orderData.warehouse_id);
+        setWarehouseName(orderData.warehouse_name || orderData.location_name || '');
+        setExistingOrderData(orderData);
         
         // Lade auch die kopierten Bestellpositionen
-        if (result.order.items && result.order.items.length > 0) {
-          setOrderItems(result.order.items);
+        if (orderData.items && orderData.items.length > 0) {
+          setOrderItems(orderData.items);
         }
         
         // Gehe zur Bestellübersicht mit allen kopierten Daten
         setStep('viewOrder');
         
         // URL aktualisieren um den neuen Status zu reflektieren
-        const newUrl = `/bestellungen/workflow?step=viewOrder&orderId=${result.order.id}`;
+        const newUrl = `/bestellungen/workflow?step=viewOrder&orderId=${orderData.id}`;
         window.history.pushState({}, '', newUrl);
         
         toast({
           title: "Bestellung kopiert",
-          description: `Bestellung ${result.order.orderNumber || result.order.order_number} wurde erfolgreich kopiert`
+          description: `Bestellung ${orderData.orderNumber || orderData.order_number} wurde erfolgreich kopiert`
         });
       } else {
-        throw new Error(result.message || 'Unbekannter Fehler beim Kopieren');
+        throw new Error(result?.message || 'Unbekannter Fehler beim Kopieren');
       }
     } catch (error) {
       console.error('Fehler beim Kopieren der Bestellung:', error);
