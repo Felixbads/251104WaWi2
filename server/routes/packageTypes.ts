@@ -20,6 +20,31 @@ router.get('/', async (req: Request, res: Response) => {
   }
 });
 
+// GET /api/package-types/names - Package Type Namen für Dropdown  
+router.get('/names', async (req: Request, res: Response) => {
+  try {
+    console.log('[PACKAGE-TYPES] Fetching package type names for dropdown');
+    
+    const packageTypes = await storage.getPackageTypes({ isActive: true });
+    
+    // Format data for frontend dropdown
+    const formattedTypes = packageTypes.map(pt => ({
+      id: pt.id,
+      name: pt.name,
+      description: pt.description
+    }));
+    
+    console.log('[PACKAGE-TYPES] Found', formattedTypes.length, 'package types');
+    res.json(formattedTypes);
+  } catch (error) {
+    console.error('[PACKAGE-TYPES] Error fetching names:', error);
+    res.status(500).json({ 
+      error: 'Fehler beim Laden der Package Type Namen',
+      details: error instanceof Error ? error.message : String(error) 
+    });
+  }
+});
+
 // GET /api/package-types/:id - Package Type nach ID abrufen
 router.get('/:id', async (req: Request, res: Response) => {
   try {

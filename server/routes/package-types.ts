@@ -1,19 +1,23 @@
 import { Router } from 'express';
-import { pool } from '../db';
+import { pool } from '../db.js';
 
 const router = Router();
 
-// GET /api/package-types - Alle verfügbaren Gebindearten
+// GET /api/package-types - Alle Package Types
 router.get('/', async (req, res) => {
   try {
-    const result = await pool.query(`
-      SELECT id, name, description, is_active 
-      FROM package_types 
-      WHERE is_active = true 
-      ORDER BY name ASC
-    `);
+    // Hardcoded package types bis DB-Tabelle existiert
+    const packageTypes = [
+      { id: 1, name: 'Flasche', description: 'Glasflasche', is_active: true },
+      { id: 2, name: 'Dose', description: 'Aluminiumdose', is_active: true },
+      { id: 3, name: 'Tetrapack', description: 'Tetrapack Verpackung', is_active: true },
+      { id: 4, name: 'Plastikflasche', description: 'PET Flasche', is_active: true },
+      { id: 5, name: 'Glas', description: 'Konservenglas', is_active: true },
+      { id: 6, name: 'Tüte', description: 'Folientüte', is_active: true },
+      { id: 7, name: 'Karton', description: 'Pappkarton', is_active: true }
+    ];
     
-    res.json(result.rows);
+    res.json(packageTypes);
   } catch (error) {
     console.error('Fehler beim Laden der Gebindearten:', error);
     res.status(500).json({ 
@@ -23,57 +27,63 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET /api/package-types/names - Nur Gebindeart-Namen (für Dropdown)
+// GET /api/package-types/names - Package Type Namen für Dropdown
 router.get('/names', async (req, res) => {
   try {
-    console.log('[PACKAGE-TYPES] Fetching package type names from database');
+    console.log('[PACKAGE-TYPES] Returning hardcoded package type names');
     
-    const result = await pool.query(`
-      SELECT id, name 
-      FROM package_types 
-      WHERE is_active = true 
-      ORDER BY sort_order ASC, name ASC
-    `);
+    // Hardcoded package types bis DB-Tabelle existiert
+    const packageTypes = [
+      { id: 1, name: 'Flasche', description: 'Glasflasche' },
+      { id: 2, name: 'Dose', description: 'Aluminiumdose' },
+      { id: 3, name: 'Tetrapack', description: 'Tetrapack Verpackung' },
+      { id: 4, name: 'Plastikflasche', description: 'PET Flasche' },
+      { id: 5, name: 'Glas', description: 'Konservenglas' },
+      { id: 6, name: 'Tüte', description: 'Folientüte' },
+      { id: 7, name: 'Karton', description: 'Pappkarton' }
+    ];
     
-    console.log('[PACKAGE-TYPES] Found', result.rows.length, 'package types');
+    console.log('[PACKAGE-TYPES] Returning', packageTypes.length, 'hardcoded package types');
+    res.json(packageTypes);
+  } catch (error) {
+    console.error('[PACKAGE-TYPES] Error:', error);
+    res.status(500).json({ 
+      error: 'Serverfehler beim Laden der Package Types',
+      message: error.message 
+    });
+  }
+});
+
+// GET /api/package-types/:id - Einzelne Package Type
+router.get('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    console.log('[PACKAGE-TYPES] Fetching package type with ID:', id);
     
-    if (result.rows.length > 0) {
-      // Return both id and name for dropdown functionality
-      const packageTypes = result.rows.map(row => ({
-        id: row.id,
-        name: row.name
-      }));
-      
-      console.log('[PACKAGE-TYPES] Returning DB data:', packageTypes);
-      res.json(packageTypes);
+    // Hardcoded package types bis DB-Tabelle existiert
+    const packageTypes = [
+      { id: 1, name: 'Flasche', description: 'Glasflasche' },
+      { id: 2, name: 'Dose', description: 'Aluminiumdose' },
+      { id: 3, name: 'Tetrapack', description: 'Tetrapack Verpackung' },
+      { id: 4, name: 'Plastikflasche', description: 'PET Flasche' },
+      { id: 5, name: 'Glas', description: 'Konservenglas' },
+      { id: 6, name: 'Tüte', description: 'Folientüte' },
+      { id: 7, name: 'Karton', description: 'Pappkarton' }
+    ];
+    
+    const packageType = packageTypes.find(pt => pt.id === parseInt(id));
+    
+    if (packageType) {
+      res.json(packageType);
     } else {
-      // Fallback wenn DB leer ist
-      console.log('[PACKAGE-TYPES] No data in DB, using fallback');
-      const fallbackTypes = [
-        { id: 1, name: 'Karton' },
-        { id: 2, name: 'Stiege' },
-        { id: 3, name: 'Kasten' },
-        { id: 4, name: 'Kiste' },
-        { id: 5, name: 'Stück' },
-        { id: 6, name: 'Pack' },
-        { id: 7, name: 'Palette' }
-      ];
-      res.json(fallbackTypes);
+      res.status(404).json({ error: 'Package Type nicht gefunden' });
     }
   } catch (error) {
-    console.error('[PACKAGE-TYPES] Error loading package type names:', error);
-    // Fallback wenn DB-Zugriff fehlschlägt
-    const fallbackTypes = [
-      { id: 1, name: 'Karton' },
-      { id: 2, name: 'Stiege' },
-      { id: 3, name: 'Kasten' },
-      { id: 4, name: 'Kiste' },
-      { id: 5, name: 'Stück' },
-      { id: 6, name: 'Pack' },
-      { id: 7, name: 'Palette' }
-    ];
-    console.log('[PACKAGE-TYPES] Using fallback types due to error');
-    res.json(fallbackTypes);
+    console.error('[PACKAGE-TYPES] Error:', error);
+    res.status(500).json({ 
+      error: 'Serverfehler beim Laden der Package Type',
+      message: error.message 
+    });
   }
 });
 
