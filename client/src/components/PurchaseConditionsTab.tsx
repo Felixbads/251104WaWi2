@@ -8,7 +8,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Plus, Edit2, Trash2, Save, X } from 'lucide-react';
+import SupplierRabattManager from './SupplierRabattManager';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import type { PurchaseCondition, InsertPurchaseCondition } from '@shared/schema';
@@ -53,46 +55,32 @@ export function PurchaseConditionsTab({ supplierId, supplierName }: PurchaseCond
         body: JSON.stringify(data)
       }).then(res => res.json()),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['purchase-conditions'] });
+      queryClient.invalidateQueries({ queryKey: ['purchase-conditions', 'supplier', supplierId] });
       setNewCondition(null);
       setFormData({});
-      toast({
-        title: "Erfolgreich",
-        description: "Einkaufsbedingung wurde erstellt"
-      });
+      toast({ title: "Erfolg", description: "Einkaufsbedingung erfolgreich erstellt" });
     },
-    onError: (error) => {
-      toast({
-        title: "Fehler",
-        description: "Einkaufsbedingung konnte nicht erstellt werden",
-        variant: "destructive"
-      });
+    onError: (error: Error) => {
+      toast({ title: "Fehler", description: error.message, variant: "destructive" });
     }
   });
 
   // Update mutation
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: number; data: Partial<InsertPurchaseCondition> }) =>
-      fetch(`/api/suppliers/purchase-conditions/${id}`, {
+      fetch(`/api/purchase-conditions/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
       }).then(res => res.json()),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['purchase-conditions'] });
+      queryClient.invalidateQueries({ queryKey: ['purchase-conditions', 'supplier', supplierId] });
       setEditingCondition(null);
       setFormData({});
-      toast({
-        title: "Erfolgreich",
-        description: "Einkaufsbedingung wurde aktualisiert"
-      });
+      toast({ title: "Erfolg", description: "Einkaufsbedingung erfolgreich aktualisiert" });
     },
-    onError: (error) => {
-      toast({
-        title: "Fehler",
-        description: "Einkaufsbedingung konnte nicht aktualisiert werden",
-        variant: "destructive"
-      });
+    onError: (error: Error) => {
+      toast({ title: "Fehler", description: error.message, variant: "destructive" });
     }
   });
 
@@ -101,109 +89,81 @@ export function PurchaseConditionsTab({ supplierId, supplierName }: PurchaseCond
     mutationFn: (id: number) =>
       fetch(`/api/purchase-conditions/${id}`, { method: 'DELETE' }).then(res => res.json()),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['purchase-conditions'] });
-      toast({
-        title: "Erfolgreich",
-        description: "Einkaufsbedingung wurde gelöscht"
-      });
+      queryClient.invalidateQueries({ queryKey: ['purchase-conditions', 'supplier', supplierId] });
+      toast({ title: "Erfolg", description: "Einkaufsbedingung erfolgreich gelöscht" });
     },
-    onError: (error) => {
-      toast({
-        title: "Fehler",
-        description: "Einkaufsbedingung konnte nicht gelöscht werden",
-        variant: "destructive"
-      });
+    onError: (error: Error) => {
+      toast({ title: "Fehler", description: error.message, variant: "destructive" });
     }
   });
 
-  const handleStartEdit = (condition: PurchaseCondition) => {
-    setEditingCondition(condition.id);
-    setFormData({
-      productId: condition.productId,
-      supplierId: condition.supplierId,
-      unitPrice: condition.unitPrice,
-      taxRate: condition.taxRate || 19,
-      grossPrice: condition.grossPrice,
-      minQuantity: condition.minQuantity || 0,
-      packagingUnit: condition.packagingUnit || '',
-      packagingQuantity: condition.packagingQuantity || 1,
-      deliveryTime: condition.deliveryTime || '',
-      isPreferred: condition.isPreferred || false,
-      notes: condition.notes || '',
-      leadTime: condition.leadTime || null
-    });
-  };
-
-  const handleSaveEdit = () => {
-    if (!editingCondition) return;
-    updateMutation.mutate({ id: editingCondition, data: formData });
-  };
-
+  // Handlers
   const handleStartNew = () => {
     setNewCondition({
       supplierId,
+      unitPrice: 0,
       taxRate: 19,
+      grossPrice: 0,
       minQuantity: 0,
       packagingQuantity: 1,
-      isPreferred: false
+      isPreferred: false,
+      leadTime: 0
     });
     setFormData({
       supplierId,
+      unitPrice: 0,
       taxRate: 19,
+      grossPrice: 0,
       minQuantity: 0,
       packagingQuantity: 1,
-      isPreferred: false
+      isPreferred: false,
+      leadTime: 0
     });
   };
 
-  const handleSaveNew = () => {
-    if (!formData.productId || !formData.unitPrice) {
-      toast({
-        title: "Validierungsfehler",
-        description: "Produkt und Einkaufspreis sind erforderlich",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    createMutation.mutate(formData as InsertPurchaseCondition);
-  };
-
-  const handleCancelEdit = () => {
-    setEditingCondition(null);
+  const handleCancelNew = () => {
     setNewCondition(null);
     setFormData({});
   };
 
-  const handleFieldChange = (field: string, value: any) => {
-    setFormData(prev => {
-      const updated = { ...prev, [field]: value };
-      
-      // Auto-calculate gross price when unit price or tax rate changes
-      if (field === 'unitPrice' || field === 'taxRate') {
-        const unitPrice = field === 'unitPrice' ? value : prev.unitPrice;
-        const taxRate = field === 'taxRate' ? value : prev.taxRate;
-        
-        if (unitPrice && taxRate) {
-          updated.grossPrice = Number((unitPrice * (1 + taxRate / 100)).toFixed(2));
-        }
-      }
-      
-      return updated;
-    });
+  const handleFieldChange = (field: keyof InsertPurchaseCondition, value: any) => {
+    const newFormData = { ...formData, [field]: value };
+    
+    // Auto-calculate gross price when unit price or tax rate changes
+    if (field === 'unitPrice' || field === 'taxRate') {
+      const unitPrice = field === 'unitPrice' ? value : (newFormData.unitPrice || 0);
+      const taxRate = field === 'taxRate' ? value : (newFormData.taxRate || 19);
+      newFormData.grossPrice = unitPrice * (1 + taxRate / 100);
+    }
+    
+    setFormData(newFormData);
+  };
+
+  const handleSaveNew = () => {
+    if (!formData.productId) {
+      toast({ title: "Fehler", description: "Bitte ein Produkt auswählen", variant: "destructive" });
+      return;
+    }
+    createMutation.mutate(formData as InsertPurchaseCondition);
+  };
+
+  const handleEdit = (condition: PurchaseCondition) => {
+    setEditingCondition(condition.id);
+    setFormData(condition);
+  };
+
+  const handleSaveEdit = () => {
+    if (editingCondition) {
+      updateMutation.mutate({ id: editingCondition, data: formData });
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingCondition(null);
+    setFormData({});
   };
 
   const getProductName = (productId: number) => {
-    // First check if the product name is already in the purchase conditions data
-    const conditionWithName = purchaseConditions.find((pc: any) => pc.productId === productId);
-    if (conditionWithName?.productName) {
-      return conditionWithName.productName;
-    }
-    
-    // Fallback to available products
-    if (!Array.isArray(availableProducts)) {
-      return `Produkt ID: ${productId}`;
-    }
     const product = availableProducts.find((p: ProductOption) => p.id === productId);
     return product?.productName || `Produkt ID: ${productId}`;
   };
@@ -215,322 +175,306 @@ export function PurchaseConditionsTab({ supplierId, supplierName }: PurchaseCond
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h3 className="text-lg font-semibold">Einkaufsbedingungen</h3>
-          <p className="text-sm text-gray-600">
-            Verwalte Preise und Bedingungen für Produkte von {supplierName}
-          </p>
-        </div>
-        <Button onClick={handleStartNew} disabled={!!newCondition || !!editingCondition}>
-          <Plus className="h-4 w-4 mr-2" />
-          Neue Bedingung
-        </Button>
+      <div>
+        <h3 className="text-lg font-semibold">Einkaufsbedingungen</h3>
+        <p className="text-sm text-gray-600">
+          Preise, Konditionen und Rabatte für {supplierName}
+        </p>
       </div>
 
-      {/* New Condition Form */}
-      {newCondition && (
-        <Card className="border-green-200 bg-green-50">
-          <CardHeader>
-            <CardTitle className="text-lg">Neue Einkaufsbedingung</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label>Produkt *</Label>
-                <Select 
-                  value={formData.productId?.toString() || ""} 
-                  onValueChange={(value) => handleFieldChange('productId', parseInt(value))}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Produkt auswählen" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableProducts && availableProducts.length > 0 ? availableProducts.map((product: ProductOption) => (
-                      <SelectItem key={product.id} value={product.id.toString()}>
-                        {product.productName}
-                      </SelectItem>
-                    )) : (
-                      <SelectItem value="none" disabled>Keine Produkte verfügbar</SelectItem>
-                    )}
-                  </SelectContent>
-                </Select>
-              </div>
+      {/* Tabs für Einkaufsbedingungen und Rabatte */}
+      <Tabs defaultValue="conditions" className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="conditions">Einkaufsbedingungen</TabsTrigger>
+          <TabsTrigger value="discounts">Rabatte & Skonto</TabsTrigger>
+        </TabsList>
 
-              <div>
-                <Label>Einkaufspreis (netto) * €</Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  value={formData.unitPrice || ''}
-                  onChange={(e) => handleFieldChange('unitPrice', parseFloat(e.target.value) || 0)}
-                />
-              </div>
+        <TabsContent value="conditions" className="space-y-6">
+          {/* Add Button */}
+          <div className="flex justify-end">
+            <Button onClick={handleStartNew} disabled={!!newCondition || !!editingCondition}>
+              <Plus className="h-4 w-4 mr-2" />
+              Neue Bedingung
+            </Button>
+          </div>
 
-              <div>
-                <Label>MwSt.-Satz %</Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  value={formData.taxRate || 19}
-                  onChange={(e) => handleFieldChange('taxRate', parseFloat(e.target.value) || 19)}
-                />
-              </div>
-
-              <div>
-                <Label>Bruttopreis €</Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  value={formData.grossPrice || ''}
-                  readOnly
-                  className="bg-gray-100"
-                />
-              </div>
-
-              <div>
-                <Label>Mindestmenge</Label>
-                <Input
-                  type="number"
-                  value={formData.minQuantity || 0}
-                  onChange={(e) => handleFieldChange('minQuantity', parseInt(e.target.value) || 0)}
-                />
-              </div>
-
-              <div>
-                <Label>Verpackungseinheit</Label>
-                <Input
-                  value={formData.packagingUnit || ''}
-                  onChange={(e) => handleFieldChange('packagingUnit', e.target.value)}
-                  placeholder="z.B. Karton mit 6 Flaschen"
-                />
-              </div>
-
-              <div>
-                <Label>Anzahl pro Verpackung</Label>
-                <Input
-                  type="number"
-                  value={formData.packagingQuantity || 1}
-                  onChange={(e) => handleFieldChange('packagingQuantity', parseInt(e.target.value) || 1)}
-                />
-              </div>
-
-              <div>
-                <Label>Lieferzeit</Label>
-                <Input
-                  value={formData.deliveryTime || ''}
-                  onChange={(e) => handleFieldChange('deliveryTime', e.target.value)}
-                  placeholder="z.B. 2-3 Tage"
-                />
-              </div>
-            </div>
-
-            <div>
-              <Label>Notizen</Label>
-              <Textarea
-                value={formData.notes || ''}
-                onChange={(e) => handleFieldChange('notes', e.target.value)}
-                rows={3}
-              />
-            </div>
-
-            <div className="flex items-center space-x-2">
-              <Switch
-                checked={formData.isPreferred || false}
-                onCheckedChange={(checked) => handleFieldChange('isPreferred', checked)}
-              />
-              <Label>Bevorzugter Lieferant für dieses Produkt</Label>
-            </div>
-
-            <div className="flex justify-end space-x-2">
-              <Button variant="outline" onClick={handleCancelEdit}>
-                <X className="h-4 w-4 mr-2" />
-                Abbrechen
-              </Button>
-              <Button onClick={handleSaveNew} disabled={createMutation.isPending}>
-                <Save className="h-4 w-4 mr-2" />
-                {createMutation.isPending ? 'Speichere...' : 'Speichern'}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Existing Conditions */}
-      <div className="grid grid-cols-1 gap-4">
-        {purchaseConditions.length === 0 ? (
-          <Card>
-            <CardContent className="p-8 text-center">
-              <p className="text-gray-500">
-                Noch keine Einkaufsbedingungen für {supplierName} definiert.
-              </p>
-              <Button onClick={handleStartNew} className="mt-4">
-                <Plus className="h-4 w-4 mr-2" />
-                Erste Bedingung erstellen
-              </Button>
-            </CardContent>
-          </Card>
-        ) : (
-          purchaseConditions.map((condition: PurchaseCondition) => (
-            <Card key={condition.id} className={editingCondition === condition.id ? 'border-blue-200 bg-blue-50' : ''}>
-              <CardContent className="p-4">
-                {editingCondition === condition.id ? (
-                  // Edit Form
-                  <div className="space-y-4">
-                    <div className="flex justify-between items-center">
-                      <h4 className="font-semibold">{getProductName(condition.productId)}</h4>
-                      <div className="flex space-x-2">
-                        <Button size="sm" onClick={handleSaveEdit} disabled={updateMutation.isPending}>
-                          <Save className="h-4 w-4 mr-1" />
-                          {updateMutation.isPending ? 'Speichere...' : 'Speichern'}
-                        </Button>
-                        <Button size="sm" variant="outline" onClick={handleCancelEdit}>
-                          <X className="h-4 w-4 mr-1" />
-                          Abbrechen
-                        </Button>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div>
-                        <Label>Einkaufspreis (netto) €</Label>
-                        <Input
-                          type="number"
-                          step="0.01"
-                          value={formData.unitPrice || ''}
-                          onChange={(e) => handleFieldChange('unitPrice', parseFloat(e.target.value) || 0)}
-                        />
-                      </div>
-                      <div>
-                        <Label>MwSt.-Satz %</Label>
-                        <Input
-                          type="number"
-                          step="0.01"
-                          value={formData.taxRate || 19}
-                          onChange={(e) => handleFieldChange('taxRate', parseFloat(e.target.value) || 19)}
-                        />
-                      </div>
-                      <div>
-                        <Label>Bruttopreis €</Label>
-                        <Input
-                          type="number"
-                          step="0.01"
-                          value={formData.grossPrice || ''}
-                          readOnly
-                          className="bg-gray-100"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <Label>Mindestmenge</Label>
-                        <Input
-                          type="number"
-                          value={formData.minQuantity || 0}
-                          onChange={(e) => handleFieldChange('minQuantity', parseInt(e.target.value) || 0)}
-                        />
-                      </div>
-                      <div>
-                        <Label>Verpackungseinheit</Label>
-                        <Input
-                          value={formData.packagingUnit || ''}
-                          onChange={(e) => handleFieldChange('packagingUnit', e.target.value)}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="flex items-center space-x-2">
-                      <Switch
-                        checked={formData.isPreferred || false}
-                        onCheckedChange={(checked) => handleFieldChange('isPreferred', checked)}
-                      />
-                      <Label>Bevorzugter Lieferant</Label>
-                    </div>
+          {/* New Condition Form */}
+          {newCondition && (
+            <Card className="border-green-200 bg-green-50">
+              <CardHeader>
+                <CardTitle className="text-lg">Neue Einkaufsbedingung</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label>Produkt *</Label>
+                    <Select
+                      value={formData.productId?.toString() || ''}
+                      onValueChange={(value) => handleFieldChange('productId', parseInt(value))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Produkt auswählen" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableProducts && availableProducts.length > 0 ? availableProducts.map((product: ProductOption) => (
+                          <SelectItem key={product.id} value={product.id.toString()}>
+                            {product.productName}
+                          </SelectItem>
+                        )) : (
+                          <SelectItem value="none" disabled>Keine Produkte verfügbar</SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
                   </div>
-                ) : (
-                  // Display Mode
-                  <div className="space-y-3">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <h4 className="font-semibold text-lg">{getProductName(condition.productId)}</h4>
-                        {condition.isPreferred && (
-                          <Badge variant="secondary" className="mt-1">Bevorzugter Lieferant</Badge>
-                        )}
-                      </div>
-                      <div className="flex space-x-2">
-                        <Button 
-                          size="sm" 
-                          variant="outline" 
-                          onClick={() => handleStartEdit(condition)}
-                          disabled={!!editingCondition || !!newCondition}
-                        >
-                          <Edit2 className="h-4 w-4 mr-1" />
-                          Bearbeiten
-                        </Button>
-                        <Button 
-                          size="sm" 
-                          variant="destructive"
-                          onClick={() => deleteMutation.mutate(condition.id)}
-                          disabled={deleteMutation.isPending}
-                        >
-                          <Trash2 className="h-4 w-4 mr-1" />
-                          Löschen
-                        </Button>
-                      </div>
-                    </div>
 
-                    <Separator />
-
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                      <div>
-                        <Label className="text-xs text-gray-500">Einkaufspreis (netto)</Label>
-                        <p className="font-semibold">{condition.unitPrice?.toFixed(2)} €</p>
-                      </div>
-                      <div>
-                        <Label className="text-xs text-gray-500">MwSt.-Satz</Label>
-                        <p>{condition.taxRate}%</p>
-                      </div>
-                      <div>
-                        <Label className="text-xs text-gray-500">Bruttopreis</Label>
-                        <p className="font-semibold">{condition.grossPrice?.toFixed(2)} €</p>
-                      </div>
-                      <div>
-                        <Label className="text-xs text-gray-500">Mindestmenge</Label>
-                        <p>{condition.minQuantity || 0}</p>
-                      </div>
-                    </div>
-
-                    {(condition.packagingUnit || condition.deliveryTime) && (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                        {condition.packagingUnit && (
-                          <div>
-                            <Label className="text-xs text-gray-500">Verpackungseinheit</Label>
-                            <p>{condition.packagingUnit}</p>
-                          </div>
-                        )}
-                        {condition.deliveryTime && (
-                          <div>
-                            <Label className="text-xs text-gray-500">Lieferzeit</Label>
-                            <p>{condition.deliveryTime}</p>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {condition.notes && (
-                      <div>
-                        <Label className="text-xs text-gray-500">Notizen</Label>
-                        <p className="text-sm">{condition.notes}</p>
-                      </div>
-                    )}
+                  <div>
+                    <Label>Einkaufspreis (netto) * €</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={formData.unitPrice || ''}
+                      onChange={(e) => handleFieldChange('unitPrice', parseFloat(e.target.value) || 0)}
+                    />
                   </div>
-                )}
+
+                  <div>
+                    <Label>MwSt.-Satz %</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={formData.taxRate || 19}
+                      onChange={(e) => handleFieldChange('taxRate', parseFloat(e.target.value) || 19)}
+                    />
+                  </div>
+
+                  <div>
+                    <Label>Bruttopreis €</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={formData.grossPrice || ''}
+                      readOnly
+                      className="bg-gray-100"
+                    />
+                  </div>
+
+                  <div>
+                    <Label>Mindestmenge</Label>
+                    <Input
+                      type="number"
+                      value={formData.minQuantity || 0}
+                      onChange={(e) => handleFieldChange('minQuantity', parseInt(e.target.value) || 0)}
+                    />
+                  </div>
+
+                  <div>
+                    <Label>Verpackungseinheit</Label>
+                    <Input
+                      value={formData.packagingUnit || ''}
+                      onChange={(e) => handleFieldChange('packagingUnit', e.target.value)}
+                      placeholder="z.B. Karton mit 6 Flaschen"
+                    />
+                  </div>
+
+                  <div>
+                    <Label>Anzahl pro Verpackung</Label>
+                    <Input
+                      type="number"
+                      value={formData.packagingQuantity || 1}
+                      onChange={(e) => handleFieldChange('packagingQuantity', parseInt(e.target.value) || 1)}
+                    />
+                  </div>
+
+                  <div>
+                    <Label>Lieferzeit (Tage)</Label>
+                    <Input
+                      type="number"
+                      value={formData.leadTime || 0}
+                      onChange={(e) => handleFieldChange('leadTime', parseInt(e.target.value) || 0)}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <Label>Gültig bis</Label>
+                  <Input
+                    type="date"
+                    value={formData.validTo || ''}
+                    onChange={(e) => handleFieldChange('validTo', e.target.value || null)}
+                  />
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="is-preferred"
+                    checked={formData.isPreferred || false}
+                    onCheckedChange={(checked) => handleFieldChange('isPreferred', checked)}
+                  />
+                  <Label htmlFor="is-preferred">Bevorzugter Lieferant</Label>
+                </div>
+
+                <div>
+                  <Label>Notizen</Label>
+                  <Textarea
+                    value={formData.notes || ''}
+                    onChange={(e) => handleFieldChange('notes', e.target.value)}
+                    placeholder="Zusätzliche Bemerkungen..."
+                    rows={3}
+                  />
+                </div>
+
+                <div className="flex justify-end space-x-2">
+                  <Button variant="outline" onClick={handleCancelNew}>
+                    <X className="h-4 w-4 mr-2" />
+                    Abbrechen
+                  </Button>
+                  <Button onClick={handleSaveNew} disabled={createMutation.isPending}>
+                    <Save className="h-4 w-4 mr-2" />
+                    {createMutation.isPending ? 'Speichere...' : 'Speichern'}
+                  </Button>
+                </div>
               </CardContent>
             </Card>
-          ))
-        )}
-      </div>
+          )}
+
+          {/* Existing Conditions */}
+          <div className="grid grid-cols-1 gap-4">
+            {purchaseConditions.length === 0 ? (
+              <Card>
+                <CardContent className="p-8 text-center">
+                  <p className="text-gray-500">
+                    Noch keine Einkaufsbedingungen für {supplierName} definiert.
+                  </p>
+                  <Button onClick={handleStartNew} className="mt-4">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Erste Bedingung erstellen
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : (
+              purchaseConditions.map((condition: PurchaseCondition) => (
+                <Card key={condition.id} className={editingCondition === condition.id ? 'border-blue-200 bg-blue-50' : ''}>
+                  <CardContent className="p-4">
+                    {editingCondition === condition.id ? (
+                      // Edit Form
+                      <div className="space-y-4">
+                        <div className="flex justify-between items-center">
+                          <h4 className="font-semibold">{getProductName(condition.productId)}</h4>
+                          <div className="flex space-x-2">
+                            <Button size="sm" onClick={handleSaveEdit} disabled={updateMutation.isPending}>
+                              <Save className="h-4 w-4 mr-1" />
+                              {updateMutation.isPending ? 'Speichere...' : 'Speichern'}
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={handleCancelEdit}>
+                              <X className="h-4 w-4 mr-1" />
+                              Abbrechen
+                            </Button>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          <div>
+                            <Label>Einkaufspreis (netto) €</Label>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              value={formData.unitPrice || ''}
+                              onChange={(e) => handleFieldChange('unitPrice', parseFloat(e.target.value) || 0)}
+                            />
+                          </div>
+                          <div>
+                            <Label>MwSt.-Satz %</Label>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              value={formData.taxRate || 19}
+                              onChange={(e) => handleFieldChange('taxRate', parseFloat(e.target.value) || 19)}
+                            />
+                          </div>
+                          <div>
+                            <Label>Mindestmenge</Label>
+                            <Input
+                              type="number"
+                              value={formData.minQuantity || 0}
+                              onChange={(e) => handleFieldChange('minQuantity', parseInt(e.target.value) || 0)}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      // Display Mode
+                      <div>
+                        <div className="flex justify-between items-start mb-4">
+                          <div>
+                            <h4 className="font-semibold text-lg">{getProductName(condition.productId)}</h4>
+                            {condition.isPreferred && <Badge className="mt-1">Bevorzugter Lieferant</Badge>}
+                          </div>
+                          <div className="flex space-x-2">
+                            <Button size="sm" variant="outline" onClick={() => handleEdit(condition)}>
+                              <Edit2 className="h-4 w-4" />
+                            </Button>
+                            <Button 
+                              size="sm" 
+                              variant="destructive" 
+                              onClick={() => deleteMutation.mutate(condition.id)}
+                              disabled={deleteMutation.isPending}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                          <div>
+                            <Label className="text-xs text-gray-500">Einkaufspreis (netto)</Label>
+                            <p className="font-medium">{condition.unitPrice?.toFixed(2)}€</p>
+                          </div>
+                          <div>
+                            <Label className="text-xs text-gray-500">Bruttopreis</Label>
+                            <p className="font-medium">{condition.grossPrice?.toFixed(2)}€</p>
+                          </div>
+                          <div>
+                            <Label className="text-xs text-gray-500">Mindestmenge</Label>
+                            <p>{condition.minQuantity || 0}</p>
+                          </div>
+                        </div>
+
+                        {(condition.packagingUnit || condition.deliveryTime) && (
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm mt-4">
+                            {condition.packagingUnit && (
+                              <div>
+                                <Label className="text-xs text-gray-500">Verpackungseinheit</Label>
+                                <p>{condition.packagingUnit}</p>
+                              </div>
+                            )}
+                            {condition.deliveryTime && (
+                              <div>
+                                <Label className="text-xs text-gray-500">Lieferzeit</Label>
+                                <p>{condition.deliveryTime}</p>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {condition.notes && (
+                          <div className="mt-4">
+                            <Label className="text-xs text-gray-500">Notizen</Label>
+                            <p className="text-sm">{condition.notes}</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              ))
+            )}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="discounts" className="space-y-6">
+          <SupplierRabattManager supplierId={supplierId} supplierName={supplierName} />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
