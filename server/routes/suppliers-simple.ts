@@ -9,14 +9,14 @@ router.get('/', async (req, res) => {
     const result = await pool.query(`
       SELECT 
         id, 
-        company_name,
+        name as company_name,
         contact_person,
         email,
         phone,
-        is_active
+        status as is_active
       FROM suppliers 
-      WHERE is_active = true 
-      ORDER BY company_name ASC
+      WHERE status = 'active' 
+      ORDER BY name ASC
     `);
     
     res.json(result.rows);

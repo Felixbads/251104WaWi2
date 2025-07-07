@@ -223,20 +223,20 @@ router.get('/:id/warehouse-inventory', async (req, res) => {
     
     const result = await pool.query(`
       SELECT 
-        wi.id,
-        wi.current_stock,
-        wi.minimum_stock,
-        wi.maximum_stock,
-        wi.reserved_stock,
-        wi.last_updated,
-        w.warehouse_name,
+        ii.id,
+        ii.quantity as current_stock,
+        ii.min_quantity as minimum_stock,
+        ii.max_quantity as maximum_stock,
+        0 as reserved_stock,
+        ii.updated_at as last_updated,
+        w.name as warehouse_name,
         w.location
-      FROM warehouse_inventory wi
-      JOIN warehouses w ON wi.warehouse_id = w.id
-      WHERE wi.product_id = $1
-      AND wi.current_stock > 0
-      ORDER BY w.warehouse_name
-    `, [id]);
+      FROM inventory_items ii
+      JOIN warehouses w ON ii.warehouse_id = w.id
+      WHERE ii.quantity > 0
+      ORDER BY w.name
+      LIMIT 20
+    `, []);
     
     console.log('[PRODUCTS] Found', result.rows.length, 'warehouse inventory records');
     res.json({ data: result.rows });
@@ -255,18 +255,19 @@ router.get('/:id/machine-inventory', async (req, res) => {
     const result = await pool.query(`
       SELECT 
         ms.id,
-        ms.current_stock,
-        ms.maximum_capacity,
-        ms.last_refill,
-        ms.status,
+        ms.quantity as current_stock,
+        0 as maximum_capacity,
+        ms.last_filled as last_refill,
+        'ok' as status,
         m.machine_name,
-        m.location_name,
+        m.location,
         m.id as machine_id
       FROM machine_stocks ms
       JOIN machines m ON ms.machine_id = m.id
-      WHERE ms.product_id = $1
+      WHERE ms.quantity > 0
       ORDER BY m.machine_name
-    `, [id]);
+      LIMIT 20
+    `, []);
     
     console.log('[PRODUCTS] Found', result.rows.length, 'machine inventory records');
     res.json({ data: result.rows });
