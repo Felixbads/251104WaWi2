@@ -484,18 +484,13 @@ export default function ProductDetail() {
                   {editingField === 'shortDescription' ? (
                     <div className="flex gap-2 mt-1">
                       <Textarea
-                        value={editingValues.shortDescription || product.shortDescription || ''}
+                        value={editingValues.shortDescription || product.short_description || ''}
                         onChange={(e) => setEditingValues({...editingValues, shortDescription: e.target.value})}
                         placeholder="Kurzbeschreibung eingeben..."
                         className="flex-1"
                       />
                       <div className="flex flex-col gap-1">
-                        <Button size="sm" onClick={() => {
-                          console.log('[SAVE-BUTTON] 🔘 shortDescription button clicked');
-                          console.log('[SAVE-BUTTON] 🔘 Current editingValues:', editingValues);
-                          console.log('[SAVE-BUTTON] 🔘 shortDescription value:', editingValues.shortDescription);
-                          saveField('shortDescription');
-                        }}>
+                        <Button size="sm" onClick={() => saveField('shortDescription')}>
                           <Save className="h-4 w-4" />
                         </Button>
                         <Button size="sm" variant="outline" onClick={cancelEdit}>
@@ -506,9 +501,9 @@ export default function ProductDetail() {
                   ) : (
                     <div className="flex items-start gap-2">
                       <p className="font-medium text-sm sm:text-base whitespace-pre-line flex-1">
-                        {product.shortDescription || 'Keine Kurzbeschreibung vorhanden'}
+                        {product.short_description || 'Keine Kurzbeschreibung vorhanden'}
                       </p>
-                      <Button size="sm" variant="ghost" onClick={() => startEdit('shortDescription', product.shortDescription)}>
+                      <Button size="sm" variant="ghost" onClick={() => startEdit('shortDescription', product.short_description)}>
                         <Edit className="h-3 w-3" />
                       </Button>
                     </div>
@@ -617,7 +612,7 @@ export default function ProductDetail() {
                         <Input
                           type="number"
                           step="0.01"
-                          value={editingValues.packageSize || product.packageSize || ''}
+                          value={editingValues.packageSize || product.package_size || ''}
                           onChange={(e) => setEditingValues({...editingValues, packageSize: e.target.value})}
                           placeholder="Gebindegröße eingeben..."
                           className="flex-1"
@@ -639,9 +634,9 @@ export default function ProductDetail() {
                     ) : (
                       <div className="flex items-center gap-2">
                         <p className="font-medium text-sm sm:text-base">
-                          {product.packageSize ? `${product.packageSize}` : 'Nicht angegeben'}
+                          {product.package_size ? `${product.package_size}` : 'Nicht angegeben'}
                         </p>
-                        <Button size="sm" variant="ghost" onClick={() => startEdit('packageSize', product.packageSize)}>
+                        <Button size="sm" variant="ghost" onClick={() => startEdit('packageSize', product.package_size)}>
                           <Edit className="h-3 w-3" />
                         </Button>
                       </div>
@@ -655,7 +650,7 @@ export default function ProductDetail() {
                       <div className="flex gap-2 mt-1">
                         <Input
                           type="number"
-                          value={editingValues.shelfLifeDays || product.shelfLifeDays || ''}
+                          value={editingValues.shelfLifeDays || product.shelf_life_days || ''}
                           onChange={(e) => setEditingValues({...editingValues, shelfLifeDays: e.target.value})}
                           placeholder="Haltbarkeit in Tagen..."
                           className="flex-1"
@@ -672,9 +667,9 @@ export default function ProductDetail() {
                     ) : (
                       <div className="flex items-center gap-2">
                         <p className="font-medium text-sm sm:text-base">
-                          {product.shelfLifeDays ? `${product.shelfLifeDays} Tage` : 'Nicht angegeben'}
+                          {product.shelf_life_days ? `${product.shelf_life_days} Tage` : 'Nicht angegeben'}
                         </p>
-                        <Button size="sm" variant="ghost" onClick={() => startEdit('shelfLifeDays', product.shelfLifeDays)}>
+                        <Button size="sm" variant="ghost" onClick={() => startEdit('shelfLifeDays', product.shelf_life_days)}>
                           <Edit className="h-3 w-3" />
                         </Button>
                       </div>
@@ -774,7 +769,7 @@ export default function ProductDetail() {
                 {editingField === 'nutritionalInfo' ? (
                   <div className="flex gap-2 mt-1">
                     <Textarea
-                      value={editingValues.nutritionalInfo || product.nutritionalInfo || ''}
+                      value={editingValues.nutritionalInfo || product.nutritional_info || ''}
                       onChange={(e) => setEditingValues({...editingValues, nutritionalInfo: e.target.value})}
                       placeholder="Nährwerttabelle eingeben..."
                       className="flex-1 min-h-[100px]"
@@ -791,15 +786,15 @@ export default function ProductDetail() {
                 ) : (
                   <div className="flex items-start gap-2">
                     <div className="flex-1">
-                      {product.nutritionalInfo ? (
+                      {product.nutritional_info ? (
                         <div className="mt-2 p-3 bg-gray-50 rounded border text-xs sm:text-sm">
-                          <pre className="whitespace-pre-wrap font-mono">{product.nutritionalInfo}</pre>
+                          <pre className="whitespace-pre-wrap font-mono">{product.nutritional_info}</pre>
                         </div>
                       ) : (
                         <p className="font-medium text-sm sm:text-base text-gray-500">Keine Nährwerttabelle vorhanden</p>
                       )}
                     </div>
-                    <Button size="sm" variant="ghost" onClick={() => startEdit('nutritionalInfo', product.nutritionalInfo)}>
+                    <Button size="sm" variant="ghost" onClick={() => startEdit('nutritionalInfo', product.nutritional_info)}>
                       <Edit className="h-3 w-3" />
                     </Button>
                   </div>
