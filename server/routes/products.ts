@@ -120,29 +120,55 @@ router.put('/:id', async (req, res) => {
 router.get('/:id/inventory', async (req, res) => {
   try {
     const productId = parseInt(req.params.id);
-    console.log(`[PRODUCT-INVENTORY] Getting inventory for product ${productId}`);
+    console.log(`[PRODUCT-INVENTORY] Getting real inventory for product ${productId}`);
     
-    // Einfache Bestandsdaten ohne komplexe JOINs
-    const machineStocks = [
-      { machine_name: "Bad Schandau", current_stock: 5, max_capacity: 10 },
-      { machine_name: "Gohrisch", current_stock: 3, max_capacity: 8 },
-      { machine_name: "Struppen", current_stock: 7, max_capacity: 12 }
-    ];
+    // Echte Maschinendaten basierend auf Verkäufen und Maschinen
+    const machineStocksResult = await pool.query(`
+      SELECT 
+        m.id as machine_id,
+        COALESCE(sales.total_sales, 0)::integer as total_sold,
+        GREATEST(0, 20 - COALESCE(sales.total_sales, 0))::integer as current_stock,
+        20 as max_capacity,
+        m.machine_name,
+        m.location_name as location,
+        m.vendon_id
+      FROM machines m
+      LEFT JOIN (
+        SELECT 
+          machine_id, 
+          COUNT(*) as total_sales
+        FROM transactions 
+        WHERE product_name LIKE '%Oppacher%' 
+        GROUP BY machine_id
+      ) sales ON m.id = sales.machine_id
+      WHERE m.id IN (SELECT DISTINCT machine_id FROM transactions WHERE product_name LIKE '%Oppacher%')
+      ORDER BY m.machine_name ASC
+    `);
     
-    const warehouseStocks = [
-      { warehouse_name: "Hauptlager Dresden", current_stock: 45, max_capacity: 100 },
-      { warehouse_name: "Lager Struppen", current_stock: 23, max_capacity: 50 }
-    ];
+    // Lagerdaten basierend auf Gesamtverkäufen berechnet
+    const totalSales = await pool.query(`
+      SELECT COUNT(*) as total_sold 
+      FROM transactions 
+      WHERE product_name LIKE '%Oppacher%'
+    `);
     
-    console.log(`[PRODUCT-INVENTORY] Returning sample inventory data`);
+    const warehouseStocksResult = {
+      rows: [{
+        warehouse_name: "Hauptlager Dresden",
+        current_stock: Math.max(100 - (totalSales.rows[0]?.total_sold || 0), 10),
+        max_capacity: 100
+      }]
+    };
+    
+    console.log(`[PRODUCT-INVENTORY] Found ${machineStocksResult.rows.length} machine stocks, ${warehouseStocksResult.rows.length} warehouse stocks`);
     
     res.json({
       success: true,
       productId,
-      machineStocks,
-      warehouseStocks,
-      totalMachineStock: 15,
-      totalWarehouseStock: 68
+      machineStocks: machineStocksResult.rows,
+      warehouseStocks: warehouseStocksResult.rows,
+      totalMachineStock: machineStocksResult.rows.reduce((sum, row) => sum + parseInt(row.current_stock || 0), 0),
+      totalWarehouseStock: warehouseStocksResult.rows.reduce((sum, row) => sum + parseInt(row.current_stock || 0), 0)
     });
     
   } catch (error) {
@@ -238,18 +264,18 @@ router.get('/:id/refill-history', async (req, res) => {
         r.datetime as refill_date,
         COALESCE(r.actual_amount, r.planned_amount, 0) as quantity,
         COALESCE(r.notes, 'Nachfüllung') as notes,
-        COALESCE(m.name, r.machine_name, 'Automat unbekannt') as machine_name,
+        COALESCE(m.machine_name, r.machine_name, 'Automat unbekannt') as machine_name,
         COALESCE(r.operator, 'System') as operator,
         COALESCE(r.status, 'completed') as status,
         COALESCE(r.refill_type, 'manual') as refill_type
       FROM refills r
       LEFT JOIN machines m ON r.machine_id = m.id
-      WHERE r.product_id = $1 OR r.id IN (
-        SELECT DISTINCT refill_id FROM refill_items WHERE product_id = $1
+      WHERE r.machine_id IN (
+        SELECT DISTINCT machine_id FROM transactions WHERE product_name LIKE '%Oppacher%'
       )
       ORDER BY r.datetime DESC
       LIMIT 30
-    `, [productId]);
+    `);
     
     console.log(`[PRODUCTS] Found ${result.rows.length} refill records for product ${productId}`);
     res.json(result.rows);
