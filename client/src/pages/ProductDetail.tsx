@@ -143,6 +143,10 @@ export default function ProductDetail() {
       const result = await updateProductMutation.mutateAsync(updateData);
       console.log('[PRODUCT-DETAIL] 🔧 Mutation result:', result);
       
+      // WICHTIG: Query Cache manuell invalidieren um UI-Update zu erzwingen
+      await queryClient.invalidateQueries({ queryKey: [`/api/products/${id}`] });
+      console.log('[PRODUCT-DETAIL] ✅ Query cache invalidated - UI should refresh now');
+      
       setEditingField(null);
       setEditingValues({});
       
