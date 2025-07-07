@@ -61,42 +61,41 @@ router.get('/:id/machine-inventory', async (req, res) => {
     
     console.log(`[MACHINE_INVENTORY] Found product: ${product.product_name}`);
     
-    // Simplified query to get machines that have sold this product recently
+    // Get real machine inventory data from machine_stocks table
     const query = `
-      WITH machine_sales AS (
-        SELECT 
-          t.machine_id,
-          m.machine_name as "machineName",
-          l.name as "locationName",
-          COUNT(*) as sales_count,
-          MAX(t.datetime) as last_sale
-        FROM transactions t
-        JOIN machines m ON t.machine_id = m.id
+      WITH product_machines AS (
+        SELECT DISTINCT
+          m.id as machine_id,
+          m.machine_name,
+          COALESCE(l.name, m.location, 'Standort unbekannt') as location_name,
+          ms.current_stock,
+          ms.last_refill_date
+        FROM machines m
+        LEFT JOIN machine_stocks ms ON m.id = ms.machine_id AND ms.product_id = ${productId}
         LEFT JOIN locations l ON m.location_id = l.id
-        WHERE t.product_name ILIKE '%${product.product_name}%'
-          AND t.datetime >= NOW() - INTERVAL '60 days'
-        GROUP BY t.machine_id, m.machine_name, l.name
+        WHERE m.id IN (
+          SELECT DISTINCT machine_id 
+          FROM transactions 
+          WHERE product_name ILIKE '%${product.product_name}%'
+          OR product_id = ${productId}
+        )
+        OR ms.product_id = ${productId}
       )
       SELECT 
         machine_id as "machineId",
-        "machineName",
-        "locationName",
+        machine_name as "machineName", 
+        location_name as "locationName",
+        COALESCE(current_stock, 0) as "currentStock",
+        COALESCE(last_refill_date, 'Nie befüllt') as "lastRefill",
         CASE 
-          WHEN sales_count > 20 THEN 15
-          WHEN sales_count > 10 THEN 8 
-          WHEN sales_count > 5 THEN 5
-          ELSE 2
-        END as "currentStock",
-        50 as "maxCapacity",
-        last_sale as "lastRefill",
-        CASE 
-          WHEN sales_count <= 2 THEN 'empty'
-          WHEN sales_count <= 5 THEN 'low'
+          WHEN COALESCE(current_stock, 0) = 0 THEN 'empty'
+          WHEN COALESCE(current_stock, 0) <= 3 THEN 'low'
           ELSE 'ok'
         END as status
-      FROM machine_sales
-      ORDER BY sales_count DESC, "machineName"
-      LIMIT 15
+      FROM product_machines
+      WHERE machine_id IS NOT NULL
+      ORDER BY COALESCE(current_stock, 0) DESC, machine_name
+      LIMIT 20
     `;
     
     const result = await db.execute(query);

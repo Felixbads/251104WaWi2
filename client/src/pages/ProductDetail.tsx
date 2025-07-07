@@ -211,6 +211,41 @@ export default function ProductDetail() {
     }
   };
 
+  const deletePhoto = async (photoIndex: number) => {
+    try {
+      const response = await fetch(`/api/photos/product/${id}/${photoIndex}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) throw new Error('Delete failed');
+
+      const result = await response.json();
+      
+      // Update product photos in cache
+      const updatedPhotos = result.remainingPhotos || [];
+      await updateProductMutation.mutateAsync({
+        photos: updatedPhotos,
+        photoUrl: photoIndex === -1 ? (updatedPhotos[0] || null) : product?.photoUrl // Clear main photo if deleted
+      });
+
+      toast({
+        title: "Foto gelöscht",
+        description: "Das Foto wurde erfolgreich entfernt.",
+      });
+    } catch (error) {
+      console.error('Delete error:', error);
+      toast({
+        title: "Fehler",
+        description: "Fehler beim Löschen des Fotos.",
+        variant: "destructive",
+      });
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="container py-8">
@@ -567,7 +602,7 @@ export default function ProductDetail() {
                     {editingField === 'packageTypeId' ? (
                       <div className="flex gap-2 mt-1">
                         <Select
-                          value={editingValues.packageTypeId?.toString() || product.packageTypeId?.toString() || ''}
+                          value={editingValues.packageTypeId?.toString() || product.package_type_id?.toString() || ''}
                           onValueChange={(value) => setEditingValues({...editingValues, packageTypeId: parseInt(value)})}
                         >
                           <SelectTrigger className="flex-1">
@@ -597,7 +632,7 @@ export default function ProductDetail() {
                         <p className="font-medium text-sm sm:text-base">
                           {product.package_type_name || 'Nicht angegeben'}
                         </p>
-                        <Button size="sm" variant="ghost" onClick={() => startEdit('packageTypeId', product.packageTypeId)}>
+                        <Button size="sm" variant="ghost" onClick={() => startEdit('packageTypeId', product.package_type_id)}>
                           <Edit className="h-3 w-3" />
                         </Button>
                       </div>
@@ -836,7 +871,7 @@ export default function ProductDetail() {
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4">
                   {/* Show photoUrl first (main photo) */}
                   {product.photoUrl && (
-                    <div className="aspect-square bg-gray-100 rounded border overflow-hidden relative">
+                    <div className="aspect-square bg-gray-100 rounded border overflow-hidden relative group">
                       <img 
                         src={product.photoUrl.startsWith('http') ? product.photoUrl : product.photoUrl}
                         alt={`${product.productName} - Hauptfoto`}
@@ -849,11 +884,18 @@ export default function ProductDetail() {
                       <div className="absolute top-1 left-1 bg-blue-500 text-white text-xs px-2 py-1 rounded">
                         Hauptfoto
                       </div>
+                      <button
+                        onClick={() => deletePhoto(-1)} // -1 for main photo
+                        className="absolute top-1 right-1 bg-red-500 text-white w-6 h-6 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center hover:bg-red-600"
+                        title="Foto löschen"
+                      >
+                        ✕
+                      </button>
                     </div>
                   )}
                   {/* Show additional photos from array */}
                   {product.photos && product.photos.filter(photo => photo !== product.photoUrl).map((photo, index) => (
-                    <div key={index} className="aspect-square bg-gray-100 rounded border overflow-hidden">
+                    <div key={index} className="aspect-square bg-gray-100 rounded border overflow-hidden relative group">
                       <img 
                         src={photo.startsWith('http') ? photo : photo}
                         alt={`${product.productName} - Foto ${index + 1}`}
@@ -863,6 +905,13 @@ export default function ProductDetail() {
                           target.style.display = 'none';
                         }}
                       />
+                      <button
+                        onClick={() => deletePhoto(index)}
+                        className="absolute top-1 right-1 bg-red-500 text-white w-6 h-6 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center hover:bg-red-600"
+                        title="Foto löschen"
+                      >
+                        ✕
+                      </button>
                     </div>
                   ))}
                 </div>

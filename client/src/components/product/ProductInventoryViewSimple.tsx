@@ -151,14 +151,16 @@ export default function ProductInventoryViewSimple({ productId, productName }: P
                 {machineData.map((machine: any) => (
                   <div key={machine.id} className="flex items-center justify-between p-3 border rounded-lg">
                     <div>
-                      <div className="font-medium">{machine.machine_name}</div>
-                      {machine.location && <div className="text-sm text-gray-500">{machine.location}</div>}
+                      <div className="font-medium">{machine.machineName || machine.machine_name || 'Automat unbekannt'}</div>
+                      {(machine.locationName || machine.location) && (
+                        <div className="text-sm text-gray-500">{machine.locationName || machine.location}</div>
+                      )}
                     </div>
                     <div className="text-right">
-                      <div className="text-lg font-semibold">{machine.current_stock} Stk.</div>
-                      {machine.last_refill && (
+                      <div className="text-lg font-semibold">{machine.currentStock || 0} Stk.</div>
+                      {machine.lastRefill && machine.lastRefill !== 'Nie befüllt' && (
                         <div className="text-sm text-gray-500">
-                          Befüllt: {new Date(machine.last_refill).toLocaleDateString('de-DE')}
+                          Befüllt: {new Date(machine.lastRefill).toLocaleDateString('de-DE')}
                         </div>
                       )}
                     </div>
@@ -192,10 +194,13 @@ export default function ProductInventoryViewSimple({ productId, productName }: P
                 {refillData.slice(0, 10).map((refill: any, index: number) => (
                   <div key={refill.id || index} className="flex items-center justify-between p-3 border rounded-lg">
                     <div>
-                      <div className="font-medium">{refill.machineName || refill.machine_name}</div>
+                      <div className="font-medium">{refill.machineName || refill.machine_name || 'Automat unbekannt'}</div>
                       <div className="text-sm text-gray-500">
-                        {new Date(refill.refill_date || refill.datetime).toLocaleDateString('de-DE')} um{' '}
-                        {new Date(refill.refill_date || refill.datetime).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}
+                        {refill.refill_date || refill.datetime ? (
+                          `${new Date(refill.refill_date || refill.datetime).toLocaleDateString('de-DE')} um ${new Date(refill.refill_date || refill.datetime).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}`
+                        ) : (
+                          'Datum nicht verfügbar'
+                        )}
                       </div>
                     </div>
                     <div className="text-right">

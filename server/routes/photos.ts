@@ -44,7 +44,150 @@ const upload = multer({
     fileSize: 5 * 1024 * 1024, // 5MB
     fieldNameSize: 100,
     fieldSize: 5 * 1024 * 1024,
-    files: 1
+    files: 10 // Allow multiple files
+  }
+});
+
+// Upload photos endpoint for products
+router.post('/upload', upload.array('photos', 10), async (req, res) => {
+  try {
+    console.log('[PHOTO_UPLOAD] Upload request received');
+    console.log('[PHOTO_UPLOAD] Files:', req.files);
+    console.log('[PHOTO_UPLOAD] Body:', req.body);
+    
+    const files = req.files as Express.Multer.File[];
+    const { entityType, entityId } = req.body;
+    
+    if (!files || files.length === 0) {
+      return res.status(400).json({ error: 'Keine Dateien hochgeladen' });
+    }
+    
+    if (!entityType || !entityId) {
+      return res.status(400).json({ error: 'entityType und entityId sind erforderlich' });
+    }
+    
+    const uploadedPhotos = files.map(file => {
+      const relativePath = `/uploads/products/${file.filename}`;
+      return {
+        filename: file.filename,
+        originalName: file.originalname,
+        path: relativePath,
+        url: relativePath
+      };
+    });
+    
+    // Update database with new photos
+    if (entityType === 'product') {
+      const productId = parseInt(entityId);
+      
+      // Get current photos
+      const result = await rawDb.query('SELECT photos FROM products WHERE id = $1', [productId]);
+      
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: 'Produkt nicht gefunden' });
+      }
+      
+      let currentPhotos = result.rows[0].photos || [];
+      if (typeof currentPhotos === 'string') {
+        try {
+          currentPhotos = JSON.parse(currentPhotos);
+        } catch {
+          currentPhotos = [];
+        }
+      }
+      
+      const newPhotos = [...currentPhotos, ...uploadedPhotos.map(p => p.url)];
+      
+      await rawDb.query(
+        'UPDATE products SET photos = $1 WHERE id = $2',
+        [JSON.stringify(newPhotos), productId]
+      );
+      
+      console.log(`[PHOTO_UPLOAD] Updated product ${productId} with ${uploadedPhotos.length} new photos`);
+    }
+    
+    res.json({
+      success: true,
+      photos: uploadedPhotos.map(p => p.url),
+      message: `${uploadedPhotos.length} Foto(s) erfolgreich hochgeladen`
+    });
+    
+  } catch (error) {
+    console.error('[PHOTO_UPLOAD] Error:', error);
+    res.status(500).json({ 
+      error: 'Fehler beim Hochladen der Fotos',
+      details: error instanceof Error ? error.message : String(error)
+    });
+  }
+});
+
+// Delete photo endpoint
+router.delete('/product/:productId/:photoIndex', async (req, res) => {
+  try {
+    const productId = parseInt(req.params.productId);
+    const photoIndex = parseInt(req.params.photoIndex);
+    
+    console.log(`[PHOTO_DELETE] Deleting photo ${photoIndex} for product ${productId}`);
+    
+    // Get current photos
+    const result = await rawDb.query('SELECT photos FROM products WHERE id = $1', [productId]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Produkt nicht gefunden' });
+    }
+    
+    let currentPhotos = result.rows[0].photos || [];
+    if (typeof currentPhotos === 'string') {
+      try {
+        currentPhotos = JSON.parse(currentPhotos);
+      } catch {
+        currentPhotos = [];
+      }
+    }
+    
+    if (!Array.isArray(currentPhotos)) {
+      return res.status(400).json({ error: 'Ungültiges Foto-Array' });
+    }
+    
+    if (photoIndex < 0 || photoIndex >= currentPhotos.length) {
+      return res.status(400).json({ error: 'Ungültiger Foto-Index' });
+    }
+    
+    // Remove photo from array
+    const deletedPhoto = currentPhotos[photoIndex];
+    currentPhotos.splice(photoIndex, 1);
+    
+    // Update database
+    await rawDb.query(
+      'UPDATE products SET photos = $1 WHERE id = $2',
+      [JSON.stringify(currentPhotos), productId]
+    );
+    
+    // Try to delete physical file
+    try {
+      const photoPath = path.join(process.cwd(), 'uploads', 'products', path.basename(deletedPhoto));
+      if (fs.existsSync(photoPath)) {
+        fs.unlinkSync(photoPath);
+        console.log(`[PHOTO_DELETE] Deleted file: ${photoPath}`);
+      }
+    } catch (fileError) {
+      console.warn(`[PHOTO_DELETE] Could not delete file: ${deletedPhoto}`, fileError);
+    }
+    
+    console.log(`[PHOTO_DELETE] Successfully deleted photo ${photoIndex} for product ${productId}`);
+    
+    res.json({
+      success: true,
+      message: 'Foto erfolgreich gelöscht',
+      remainingPhotos: currentPhotos
+    });
+    
+  } catch (error) {
+    console.error('[PHOTO_DELETE] Error:', error);
+    res.status(500).json({ 
+      error: 'Fehler beim Löschen des Fotos',
+      details: error instanceof Error ? error.message : String(error)
+    });
   }
 });
 

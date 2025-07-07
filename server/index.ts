@@ -2297,13 +2297,15 @@ Elbsandstein Proviant & Quartier GmbH`;
     import('./routes/products.js'),
     import('./routes/categories.js'),
     import('./routes/package-types.js'),
-    import('./routes/suppliers-simple.js')
-  ]).then(([products, categories, packageTypes, suppliersSimple]) => {
+    import('./routes/suppliers-simple.js'),
+    import('./routes/photos.js')
+  ]).then(([products, categories, packageTypes, suppliersSimple, photos]) => {
     app.use('/api/products', products.default);
     app.use('/api/categories', categories.default);
     app.use('/api/package-types', packageTypes.default);
     app.use('/api/suppliers-simple', suppliersSimple.default);
-    console.log('[SERVER] New API routes registered successfully');
+    app.use('/api/photos', photos.default);
+    console.log('[SERVER] New API routes registered successfully (including photos)');
   }).catch(error => {
     console.error('[SERVER] Error loading API routes:', error);
   });
