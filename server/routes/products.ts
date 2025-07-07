@@ -272,28 +272,18 @@ router.post('/:id/purchase-conditions', async (req, res) => {
   }
 });
 
-// GET /api/products/:id/refill-history - Nachfüllhistorie für Produkt
+// GET /api/products/:id/refill-history - Nachfüllhistorie für Produkt (100% AUTHENTISCHE DATEN)
 router.get('/:id/refill-history', async (req, res) => {
   try {
     const productId = parseInt(req.params.id);
-    console.log('[PRODUCTS] Fetching refill history for product ID:', productId);
+    console.log('[PRODUCTS] Fetching AUTHENTIC refill history for product ID:', productId);
     
-    // Get refill data with realistic quantities based on machine activity
+    // Get REAL refill data from refill_details table with actual quantities
     const result = await pool.query(`
       SELECT 
         r.id,
         r.datetime as refill_date,
-        CASE 
-          WHEN COALESCE(m.machine_name, r.machine_name) = 'Schöna' THEN 18
-          WHEN COALESCE(m.machine_name, r.machine_name) = 'Bad Schandau, Nationalparkbahnhof' THEN 15
-          WHEN COALESCE(m.machine_name, r.machine_name) = 'Gohrisch' THEN 20
-          WHEN COALESCE(m.machine_name, r.machine_name) = 'Ostrau' THEN 16
-          WHEN COALESCE(m.machine_name, r.machine_name) = 'Schmilka' THEN 19
-          WHEN COALESCE(m.machine_name, r.machine_name) = 'Pötzscha' THEN 12
-          WHEN COALESCE(m.machine_name, r.machine_name) LIKE '%Rathen%' THEN 17
-          WHEN COALESCE(m.machine_name, r.machine_name) LIKE '%Stolpen%' THEN 14
-          ELSE 15
-        END as quantity,
+        rd.quantity_added as quantity,  -- ECHTE Nachfüllmenge aus refill_details
         COALESCE(r.notes, 'Nachfüllung') as notes,
         CASE 
           WHEN m.machine_name IS NOT NULL THEN m.machine_name
@@ -302,20 +292,23 @@ router.get('/:id/refill-history', async (req, res) => {
         END as machine_name,
         COALESCE(r.operator, 'System') as operator,
         COALESCE(r.status, 'completed') as status,
-        COALESCE(r.refill_type, 'manual') as refill_type
+        COALESCE(r.refill_type, 'manual') as refill_type,
+        rd.product_id,
+        p.product_name
       FROM refills r
       LEFT JOIN machines m ON r.machine_id = m.id
-      WHERE r.machine_id IN (
-        SELECT DISTINCT machine_id FROM transactions WHERE product_name LIKE '%Oppacher%'
-      )
+      LEFT JOIN refill_details rd ON r.id = rd.refill_id
+      LEFT JOIN products p ON rd.product_id = p.id
+      WHERE rd.product_id = $1  -- ECHTE Produktfilterung
+        AND rd.quantity_added > 0  -- Nur echte Nachfüllungen
       ORDER BY r.datetime DESC
       LIMIT 30
-    `);
+    `, [productId]);
     
-    console.log(`[PRODUCTS] Found ${result.rows.length} refill records for product ${productId}`);
+    console.log(`[PRODUCTS] Found ${result.rows.length} AUTHENTIC refill records for product ${productId}`);
     res.json(result.rows);
   } catch (error) {
-    console.error('[PRODUCTS] Error fetching refill history:', error);
+    console.error('[PRODUCTS] Error fetching AUTHENTIC refill history:', error);
     res.json([]); // Return empty array on error
   }
 });
@@ -521,10 +514,11 @@ router.get('/:id/purchase-conditions', async (req, res) => {
     const { id } = req.params;
     console.log('[PRODUCTS] Loading purchase conditions for product ID:', id);
     
-    // Echte Daten aus der suppliers-Tabelle holen mit echten Preisen
+    // ECHTE Einkaufsbedingungen aus der purchase_conditions Tabelle
     const result = await pool.query(`
       SELECT 
-        s.id as supplier_id,
+        pc.id as condition_id,
+        pc.supplier_id,
         s.name as supplier_name,
         s.email as contact_email,
         s.phone as contact_phone,
@@ -536,30 +530,29 @@ router.get('/:id/purchase-conditions', async (req, res) => {
         s.minimum_order_value,
         s.payment_terms,
         s.delivery_terms,
-        (1.20 + (s.id::numeric % 10) * 0.30) as purchase_price,
-        CASE 
-          WHEN s.minimum_order_value > 0 THEN CEILING(s.minimum_order_value / 2.50)
-          ELSE (20 + (s.id % 5) * 15)  -- Zwischen 20 und 80 Stück
-        END as minimum_order_quantity,
-        COALESCE(s.delivery_days || ' Tage', '3-5 Tage') as delivery_time,
-        '2025-01-01' as valid_from,
-        '2025-12-31' as valid_to,
-        CONCAT('Lieferkonditionen für ', s.name) as notes,
-        s.id as condition_id
-      FROM suppliers s
-      ORDER BY s.name
+        pc.purchase_price,  -- ECHTE Preise aus purchase_conditions
+        pc.minimum_order_quantity,  -- ECHTE Mindestbestellmengen
+        COALESCE(pc.delivery_time, s.delivery_days || ' Tage', '3-5 Tage') as delivery_time,
+        pc.valid_from,
+        pc.valid_to,
+        pc.notes
+      FROM purchase_conditions pc
+      JOIN suppliers s ON pc.supplier_id = s.id
+      WHERE pc.product_id = $1  -- Nur Bedingungen für dieses Produkt
+        AND (pc.valid_to IS NULL OR pc.valid_to >= CURRENT_DATE)  -- Nur gültige Bedingungen
+      ORDER BY pc.purchase_price ASC
       LIMIT 10
-    `);
+    `, [productId]);
     
     console.log('[PRODUCTS] SQL query returned', result.rows.length, 'rows');
     
-    // Format data for frontend with realistic pricing
+    // Format AUTHENTIC data for frontend
     const formattedConditions = result.rows.map(row => ({
       id: row.condition_id,
       supplier_id: row.supplier_id,
       supplier_name: row.supplier_name,
-      purchase_price: parseFloat(row.purchase_price),
-      minimum_order_quantity: parseInt(row.minimum_order_quantity),
+      purchase_price: row.purchase_price ? parseFloat(row.purchase_price) : null,
+      minimum_order_quantity: row.minimum_order_quantity ? parseInt(row.minimum_order_quantity) : null,
       delivery_time: row.delivery_time,
       valid_from: row.valid_from,
       valid_to: row.valid_to,

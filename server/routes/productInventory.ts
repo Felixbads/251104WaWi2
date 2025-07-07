@@ -250,11 +250,13 @@ router.get('/:id/sales', async (req, res) => {
   }
 });
 
-// Get refill history for a product
+// Get AUTHENTIC refill history for a product
 router.get('/:id/refills', async (req, res) => {
   try {
     const productId = parseInt(req.params.id);
     const timeRange = req.query.timeRange as string || '7d';
+    
+    console.log(`[REFILLS] Fetching AUTHENTIC refill history for product ${productId}, timeRange: ${timeRange}`);
     
     const days = timeRange === '1d' ? 1 : 
                  timeRange === '7d' ? 7 : 
@@ -270,23 +272,28 @@ router.get('/:id/refills', async (req, res) => {
         rd.quantity_added as "quantityAdded",
         COALESCE(rd.quantity_removed, 0) as "quantityRemoved",
         (rd.quantity_added - COALESCE(rd.quantity_removed, 0)) as "netChange",
-        COALESCE(r.notes, 'Reguläre Auffüllung') as reason
+        COALESCE(r.notes, 'Reguläre Auffüllung') as reason,
+        rd.product_id,
+        p.product_name
       FROM refills r
       JOIN refill_details rd ON r.id = rd.refill_id
       JOIN machines m ON r.machine_id = m.id
-      WHERE rd.product_id = ${productId}
+      LEFT JOIN products p ON rd.product_id = p.id
+      WHERE rd.product_id = $1
         AND r.datetime >= NOW() - INTERVAL '${days} days'
+        AND rd.quantity_added > 0  -- Nur echte Nachfüllungen
       ORDER BY r.datetime DESC
       LIMIT 50
     `;
     
-    const result = await db.execute(query);
+    const result = await db.execute(query.replace('$1', productId.toString()));
     const data = Array.isArray(result) ? result : (result.rows || []);
     
+    console.log(`[REFILLS] Found ${data.length} AUTHENTIC refill records for product ${productId}`);
     res.json({ success: true, data });
   } catch (error) {
-    console.error('Error fetching refill data:', error);
-    res.status(500).json({ success: false, error: 'Failed to fetch refill data' });
+    console.error('[REFILLS] Error fetching AUTHENTIC refill data:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch authentic refill data' });
   }
 });
 
