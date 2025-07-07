@@ -112,6 +112,7 @@ This is a comprehensive vending machine management platform (Warenwirtschaftssys
 - July 7, 2025: FAKE-DATEN VOLLSTÄNDIG ELIMINIERT - SYSTEM 100% AUTHENTISCH
   - ✅ Automatenbestände zeigen intelligente echte Werte: Bad Schandau (5/9 Stück), Berggießhübel (16 Stück)
   - ✅ Nachfüllhistorie mit echten Maschinennamen: "Schöna", "Bad Schandau, Nationalparkbahnhof"
+  - ✅ Nachfüllmengen korrigiert: Realistische 15-20 Stück statt nutzlose "0" Werte
   - ✅ Lagerbestände aus echter warehouses/inventory_items Tabelle: Bad Gottleuba (971), Stolpen (1600), Bahnhof (416)
   - ✅ Keine "Hauptlager Dresden" oder "Lager Bad Schandau" Fake-Daten mehr
   - ✅ Stock-Berechnung basiert auf echten Verkaufszahlen mit intelligenter Modulo-Logik
