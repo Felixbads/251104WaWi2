@@ -109,6 +109,13 @@ This is a comprehensive vending machine management platform (Warenwirtschaftssys
 
 ## Changelog
 
+- July 7, 2025: KRITISCHE PRODUKTDETAIL-BUGS IDENTIFIZIERT UND IN BEARBEITUNG
+  - ✅ Refill History API: JSON Response funktioniert perfekt
+  - ✅ Purchase Conditions API: Echte Preisdaten (€1.17, €1.25) werden angezeigt  
+  - ⚠️ "Produkt nicht gefunden" Problem: ID 250616 existiert nicht (nur IDs 2-132 verfügbar)
+  - ⚠️ Products GET API liefert Server-Fehler (Schema-Problem wird behoben)
+  - ✓ SQL-Spalten-Mapping teilweise repariert (category_id → category)
+  - → Nächster Schritt: API-Fehler beheben und korrekte Produkt-Navigation
 - July 7, 2025: KRITISCHE PRODUKTDETAIL-BUGS VOLLSTÄNDIG BEHOBEN
   - ✅ Save-Button-Funktionalität komplett repariert - alle PUT-Requests funktionieren perfekt
   - ✅ Purchase Conditions API zeigt echte Preise (€1.17, €1.25) statt €0.00

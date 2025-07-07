@@ -16,7 +16,7 @@ router.get('/:id', async (req, res) => {
         s.name as supplier_name,
         pt.name as package_type_name
       FROM products p
-      LEFT JOIN product_categories pc ON p.category_id = pc.id
+      LEFT JOIN product_categories pc ON p.category = pc.name
       LEFT JOIN suppliers s ON p.supplier_id = s.id
       LEFT JOIN package_types pt ON p.package_type_id = pt.id
       WHERE p.id = $1
