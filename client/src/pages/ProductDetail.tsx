@@ -17,7 +17,7 @@ import { apiRequest } from '@/lib/queryClient';
 import ProductInventoryViewSimple from '@/components/product/ProductInventoryViewSimple';
 import ProductSalesView from '@/components/product/ProductSalesView';
 import ProductAnalyticsView from '@/components/product/ProductAnalyticsView';
-import ProductPurchaseConditionsSimple from '@/components/product/ProductPurchaseConditionsSimple';
+import ProductPurchaseConditionsComprehensive from '@/components/product/ProductPurchaseConditionsComprehensive';
 import { PurchaseConditionsDisplay } from '@/components/PurchaseConditionsDisplay';
 
 export default function ProductDetail() {
@@ -954,7 +954,7 @@ export default function ProductDetail() {
 
         {/* Purchase Conditions Tab */}
         <TabsContent value="purchase-conditions" className="space-y-6 mt-6">
-          <ProductPurchaseConditionsSimple productId={parseInt(id!)} productName={product.productName} />
+          <ProductPurchaseConditionsComprehensive productId={parseInt(id!)} productName={product.productName} />
         </TabsContent>
       </Tabs>
 

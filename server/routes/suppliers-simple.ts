@@ -3,29 +3,31 @@ import { pool } from '../db';
 
 const router = Router();
 
-// GET /api/suppliers-simple - Alle aktiven Lieferanten für Dropdowns
+// GET /api/suppliers-simple - Einfache Lieferantenliste für Dropdowns
 router.get('/', async (req, res) => {
   try {
+    console.log('[SUPPLIERS-SIMPLE] Fetching suppliers for dropdowns');
+    
     const result = await pool.query(`
       SELECT 
-        id, 
-        name as company_name,
-        contact_person,
+        id,
+        name,
         email,
         phone,
-        status as is_active
+        payment_terms,
+        delivery_terms,
+        minimum_order_value
       FROM suppliers 
-      WHERE status = 'active' 
-      ORDER BY name ASC
+      WHERE active = true 
+      ORDER BY name
     `);
-    
+
+    console.log('[SUPPLIERS-SIMPLE] Found suppliers:', result.rows.length);
     res.json(result.rows);
+
   } catch (error) {
     console.error('Fehler beim Laden der Lieferanten:', error);
-    res.status(500).json({ 
-      error: 'Fehler beim Laden der Lieferanten',
-      message: error.message 
-    });
+    res.status(500).json({ error: 'Serverfehler' });
   }
 });
 

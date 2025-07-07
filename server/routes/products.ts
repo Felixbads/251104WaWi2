@@ -230,44 +230,62 @@ router.post('/:id/purchase-conditions', async (req, res) => {
     const { id } = req.params;
     const {
       supplier_id,
-      price_per_unit,
-      minimum_quantity,
-      discount_percentage,
+      unit_price,
+      tax_rate,
+      gross_price,
+      min_quantity,
+      packaging_unit,
+      packaging_quantity,
+      delivery_time,
       valid_from,
       valid_to,
-      delivery_time,
-      notes
+      is_preferred,
+      notes,
+      lead_time
     } = req.body;
+
+    console.log('[PRODUCTS] Creating purchase condition for product:', id);
+    console.log('[PRODUCTS] Request body:', req.body);
+
+    // Calculate gross price if not provided
+    const calculatedGrossPrice = gross_price || (unit_price * (1 + (tax_rate / 100)));
 
     const result = await pool.query(`
       INSERT INTO purchase_conditions 
-      (product_id, supplier_id, price_per_unit, minimum_quantity, discount_percentage, 
-       valid_from, valid_to, delivery_time, notes)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      (product_id, supplier_id, unit_price, tax_rate, gross_price, min_quantity, 
+       packaging_unit, packaging_quantity, delivery_time, valid_from, valid_to, 
+       is_preferred, notes, lead_time, created_at, updated_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW(), NOW())
       RETURNING *
     `, [
       id,
       supplier_id,
-      price_per_unit,
-      minimum_quantity,
-      discount_percentage || 0,
-      valid_from,
-      valid_to || null,
+      unit_price,
+      tax_rate || 19,
+      calculatedGrossPrice,
+      min_quantity || 1,
+      packaging_unit,
+      packaging_quantity || 1,
       delivery_time,
-      notes
+      valid_from || null,
+      valid_to || null,
+      is_preferred || false,
+      notes,
+      lead_time || 3
     ]);
 
-    console.log('[PRODUCTS] Update successful for:', result.rows[0].product_name);
+    console.log('[PRODUCTS] Purchase condition created:', result.rows[0]);
+
     res.json({
       success: true,
-      product: result.rows[0],
-      message: 'Produkt erfolgreich aktualisiert'
+      purchaseCondition: result.rows[0]
     });
+
   } catch (error) {
-    console.error('[PRODUCTS] Error updating product:', error);
+    console.error('Fehler beim Erstellen der Einkaufsbedingung:', error);
     res.status(500).json({ 
-      error: 'Serverfehler beim Aktualisieren des Produkts',
-      message: error.message 
+      error: 'Serverfehler beim Erstellen der Einkaufsbedingung',
+      details: error.message 
     });
   }
 });

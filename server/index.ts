@@ -47,6 +47,7 @@ import { uploadPhotos } from './middleware/fileUpload';
 import { startPhotoServer } from './photoServer';
 import interAppApiRouter from './routes/inter-app-api';
 import suppliersFastRouter from './routes/suppliers-fast';
+import suppliersSimpleRouter from './routes/suppliers-simple';
 import supplierDiscountsRouter from './routes/supplier-discounts';
 import locationStatusRouter from './routes/location-status-ultra-fast';
 import weatherCorrectionRouter from './routes/weather-correction';
@@ -2303,7 +2304,7 @@ Elbsandstein Proviant & Quartier GmbH`;
     app.use('/api/products', products.default);
     app.use('/api/categories', categories.default);
     app.use('/api/package-types', packageTypes.default);
-    app.use('/api/suppliers-simple', suppliersSimple.default);
+    app.use('/api/suppliers-simple', suppliersSimpleRouter);
     app.use('/api/photos', photos.default);
     console.log('[SERVER] New API routes registered successfully (including photos)');
   }).catch(error => {
