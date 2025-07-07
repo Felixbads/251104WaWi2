@@ -27,7 +27,6 @@ import {
   CheckCircle,
   Edit
 } from 'lucide-react';
-import EnhancedOrderCopyDialog from './EnhancedOrderCopyDialog';
 
 interface OrderCopySelectorProps {
   onSelectOrder: (orderId: number) => void;
@@ -273,13 +272,12 @@ const OrderCopySelector: React.FC<OrderCopySelectorProps> = ({
                       size="sm"
                       onClick={(e) => {
                         e.stopPropagation();
-                        setOrderToCopy(order.id);
-                        setShowEnhancedCopyDialog(true);
+                        onSelectOrder(order.id);
                       }}
                       className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700"
                     >
-                      <Edit className="h-4 w-4" />
-                      Kopieren & Anpassen
+                      <Copy className="h-4 w-4" />
+                      Bestellung kopieren
                     </Button>
                   </div>
                 </CardContent>
@@ -288,38 +286,6 @@ const OrderCopySelector: React.FC<OrderCopySelectorProps> = ({
           </div>
         )}
       </CardContent>
-      
-      {/* Order Details Modal/View */}
-      {showDetails && selectedOrderId && (
-        <OrderDetailsView
-          orderId={selectedOrderId}
-          onBack={() => {
-            setShowDetails(false);
-            setSelectedOrderId(null);
-          }}
-          onCopyOrder={() => {
-            setOrderToCopy(selectedOrderId);
-            setShowEnhancedCopyDialog(true);
-            setShowDetails(false);
-          }}
-        />
-      )}
-
-      {/* Enhanced Copy Dialog */}
-      {showEnhancedCopyDialog && orderToCopy && (
-        <EnhancedOrderCopyDialog
-          isOpen={showEnhancedCopyDialog}
-          onClose={() => {
-            setShowEnhancedCopyDialog(false);
-            setOrderToCopy(null);
-          }}
-          sourceOrderId={orderToCopy}
-          onSuccess={(newOrderId) => {
-            // Navigate to new order or refresh list
-            window.location.href = `/bestellungen/workflow?orderId=${newOrderId}`;
-          }}
-        />
-      )}
     </Card>
   );
 };
