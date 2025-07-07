@@ -1370,8 +1370,8 @@ const BestellungV2: React.FC = () => {
             {orderMode === 'copy' ? (
               <OrderCopySelector
                 onSelectOrder={(orderId) => {
-                  setSourceOrderId(orderId);
-                  setStep('warehouse');
+                  // Direkt die Bestellung kopieren statt zur Lagerauswahl
+                  handleOrderCopy(orderId);
                 }}
                 onBack={() => {
                   setOrderMode('new');
