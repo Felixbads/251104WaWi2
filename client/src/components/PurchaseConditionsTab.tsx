@@ -448,7 +448,7 @@ export function PurchaseConditionsTab({ supplierId, supplierName }: PurchaseCond
                       <div>
                         <div className="flex justify-between items-start mb-4">
                           <div>
-                            <h4 className="font-semibold text-lg">{getProductName(condition.productId)}</h4>
+                            <h4 className="font-semibold text-lg">{condition.productName || `Produkt ID: ${condition.productId}`}</h4>
                             {condition.isPreferred && <Badge className="mt-1">Bevorzugter Lieferant</Badge>}
                           </div>
                           <div className="flex space-x-2">
