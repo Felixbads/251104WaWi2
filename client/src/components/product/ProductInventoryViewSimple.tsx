@@ -13,29 +13,32 @@ interface ProductInventoryViewSimpleProps {
 export default function ProductInventoryViewSimple({ productId, productName }: ProductInventoryViewSimpleProps) {
   const [activeTab, setActiveTab] = useState('warehouse');
 
-  // Fetch warehouse inventory
-  const { data: warehouseData, isLoading: warehouseLoading, refetch: refetchWarehouse } = useQuery({
-    queryKey: [`/api/products/${productId}/warehouse-inventory`],
+  // Fetch complete inventory (both warehouse and machine data)
+  const { data: inventoryData, isLoading: inventoryLoading, refetch: refetchInventory } = useQuery({
+    queryKey: [`/api/products/${productId}/inventory`],
     queryFn: async () => {
-      const response = await fetch(`/api/products/${productId}/warehouse-inventory`, {
+      console.log(`[INVENTORY] Fetching inventory for product ${productId}`);
+      const response = await fetch(`/api/products/${productId}/inventory`, {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('authToken') || 'test'}` }
       });
-      if (!response.ok) return [];
+      
+      if (!response.ok) {
+        console.error(`[INVENTORY] API error: ${response.status} ${response.statusText}`);
+        return { machineStocks: [], warehouseStocks: [] };
+      }
+      
       const data = await response.json();
-      return data.data || [];
-    }
-  });
-
-  // Fetch machine inventory  
-  const { data: machineData, isLoading: machineLoading, refetch: refetchMachine } = useQuery({
-    queryKey: [`/api/products/${productId}/machine-inventory`],
-    queryFn: async () => {
-      const response = await fetch(`/api/products/${productId}/machine-inventory`, {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('authToken') || 'test'}` }
-      });
-      if (!response.ok) return [];
-      const data = await response.json();
-      return data.data || [];
+      console.log(`[INVENTORY] Received data:`, data);
+      
+      if (!data.success) {
+        console.error(`[INVENTORY] API returned error:`, data.error);
+        return { machineStocks: [], warehouseStocks: [] };
+      }
+      
+      return {
+        machineStocks: data.machineStocks || [],
+        warehouseStocks: data.warehouseStocks || []
+      };
     }
   });
 
@@ -52,10 +55,16 @@ export default function ProductInventoryViewSimple({ productId, productName }: P
   });
 
   const handleRefresh = () => {
-    refetchWarehouse();
-    refetchMachine();
+    console.log('[INVENTORY] Manual refresh triggered');
+    refetchInventory();
     refetchRefills();
   };
+
+  // Extract data for easier access
+  const warehouseData = inventoryData?.warehouseStocks || [];
+  const machineData = inventoryData?.machineStocks || [];
+  const warehouseLoading = inventoryLoading;
+  const machineLoading = inventoryLoading;
 
   return (
     <div className="space-y-6">
@@ -105,7 +114,7 @@ export default function ProductInventoryViewSimple({ productId, productName }: P
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {warehouseLoading ? (
+            {inventoryLoading ? (
               <div className="text-center py-8">Lade Lagerbestände...</div>
             ) : warehouseData && warehouseData.length > 0 ? (
               <div className="space-y-3">
@@ -144,25 +153,23 @@ export default function ProductInventoryViewSimple({ productId, productName }: P
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {machineLoading ? (
+            {inventoryLoading ? (
               <div className="text-center py-8">Lade Automatenbestände...</div>
             ) : machineData && machineData.length > 0 ? (
               <div className="space-y-3">
-                {machineData.map((machine: any) => (
-                  <div key={machine.id} className="flex items-center justify-between p-3 border rounded-lg">
+                {machineData.map((machine: any, index: number) => (
+                  <div key={machine.machine_id || index} className="flex items-center justify-between p-3 border rounded-lg">
                     <div>
-                      <div className="font-medium">{machine.machineName || machine.machine_name || 'Automat unbekannt'}</div>
-                      {(machine.locationName || machine.location) && (
-                        <div className="text-sm text-gray-500">{machine.locationName || machine.location}</div>
+                      <div className="font-medium">{machine.machine_name || 'Automat unbekannt'}</div>
+                      {machine.location && (
+                        <div className="text-sm text-gray-500">{machine.location}</div>
                       )}
                     </div>
                     <div className="text-right">
-                      <div className="text-lg font-semibold">{machine.currentStock || 0} Stk.</div>
-                      {machine.lastRefill && machine.lastRefill !== 'Nie befüllt' && (
-                        <div className="text-sm text-gray-500">
-                          Befüllt: {new Date(machine.lastRefill).toLocaleDateString('de-DE')}
-                        </div>
-                      )}
+                      <div className="text-lg font-semibold">{machine.current_stock || 0}</div>
+                      <div className="text-sm text-gray-500">
+                        Max: {machine.max_capacity || '-'}
+                      </div>
                     </div>
                   </div>
                 ))}
