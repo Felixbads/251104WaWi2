@@ -41,10 +41,7 @@ export default function ProductDetail() {
   // Mutation zum Aktualisieren des Produkts
   const updateProductMutation = useMutation({
     mutationFn: async (updatedProduct: Partial<Product>) => {
-      return apiRequest(`/api/products/${id}`, {
-        method: 'PUT',
-        body: JSON.stringify(updatedProduct),
-      });
+      return apiRequest(`/api/products/${id}`, updatedProduct, 'PUT');
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/products/${id}`] });

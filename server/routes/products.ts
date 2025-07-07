@@ -423,9 +423,9 @@ router.get('/:id/purchase-conditions', async (req, res) => {
     const result = await pool.query(`
       SELECT 
         s.id as supplier_id,
-        s.company_name as supplier_name,
-        s.contact_email,
-        s.contact_phone,
+        s.name as supplier_name,
+        s.email as contact_email,
+        s.phone as contact_phone,
         s.address,
         s.city,
         s.postal_code,
@@ -447,14 +447,14 @@ router.get('/:id/purchase-conditions', async (req, res) => {
         COALESCE(s.delivery_days || ' Tage', '3-5 Tage') as delivery_time,
         '2025-01-01' as valid_from,
         '2025-12-31' as valid_to,
-        CONCAT('Lieferkonditionen für ', s.company_name) as notes,
+        CONCAT('Lieferkonditionen für ', s.name) as notes,
         s.id as condition_id
       FROM suppliers s
-      WHERE s.status = 'active'
-      ORDER BY s.company_name
+      ORDER BY s.name
+      LIMIT 10
     `);
     
-    console.log('[PRODUCTS] Found purchase conditions for', result.rows.length, 'suppliers');
+    console.log('[PRODUCTS] SQL query returned', result.rows.length, 'rows');
     
     // Format data for frontend with realistic pricing
     const formattedConditions = result.rows.map(row => ({
@@ -477,6 +477,7 @@ router.get('/:id/purchase-conditions', async (req, res) => {
       delivery_terms: row.delivery_terms
     }));
 
+    console.log('[PRODUCTS] Returning', formattedConditions.length, 'purchase conditions');
     res.json(formattedConditions);
   } catch (error) {
     console.error('[PRODUCTS] Error loading purchase conditions:', error);
