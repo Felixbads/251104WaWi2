@@ -75,8 +75,12 @@ export default function ProductDetail() {
 
   // Inline editing functions
   const startEdit = (field: string, currentValue: any) => {
+    console.log('[PRODUCT-DETAIL] 🔧 Starting to edit field:', field, 'with value:', currentValue);
+    console.log('[PRODUCT-DETAIL] 🔧 Current editingValues before:', editingValues);
     setEditingField(field);
-    setEditingValues({ ...editingValues, [field]: currentValue });
+    const newValues = { ...editingValues, [field]: currentValue };
+    setEditingValues(newValues);
+    console.log('[PRODUCT-DETAIL] 🔧 New editingValues:', newValues);
   };
 
   const cancelEdit = () => {
@@ -85,8 +89,11 @@ export default function ProductDetail() {
   };
 
   const saveField = async (field: string) => {
-    // Korrekte Prüfung: Feld muss existieren (undefined prüfen) oder explizit gesetzt sein
-    if (editingValues[field] === undefined) return;
+    // Prüfung: Feld muss existieren und darf nicht undefined sein
+    if (editingValues[field] === undefined || editingValues[field] === null) {
+      console.log('[PRODUCT-DETAIL] 🚨 Field value is undefined/null, skipping save for:', field);
+      return;
+    }
     
     console.log('[PRODUCT-DETAIL] 🔧 Saving field:', field, 'with value:', editingValues[field]);
     console.log('[PRODUCT-DETAIL] 🔧 Product ID:', id);
@@ -591,7 +598,7 @@ export default function ProductDetail() {
                           type="number"
                           step="0.01"
                           value={editingValues.packageSize || product.packageSize || ''}
-                          onChange={(e) => setEditingValues({...editingValues, packageSize: parseFloat(e.target.value)})}
+                          onChange={(e) => setEditingValues({...editingValues, packageSize: e.target.value})}
                           placeholder="Gebindegröße eingeben..."
                           className="flex-1"
                         />
@@ -624,7 +631,7 @@ export default function ProductDetail() {
                         <Input
                           type="number"
                           value={editingValues.shelfLifeDays || product.shelfLifeDays || ''}
-                          onChange={(e) => setEditingValues({...editingValues, shelfLifeDays: parseInt(e.target.value)})}
+                          onChange={(e) => setEditingValues({...editingValues, shelfLifeDays: e.target.value})}
                           placeholder="Haltbarkeit in Tagen..."
                           className="flex-1"
                         />
