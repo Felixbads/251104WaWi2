@@ -1,0 +1,49 @@
+Tab-Struktur für /produkte/84:
+1. Details Tab (Standardtab)
+Produktinformationen Card:
+•	Vendon-ID
+•	Produktname
+•	Kategorie (Bitte direkt als Dropdownmenü zum direkt ändern!)
+•	Artikel (bitte entfernen!) 
+•	MwSt.
+•	Verkaufspreis
+Kurzbeschreibung (falls vorhanden) (Bitte zum direkt ändern mit Speicher Button)
+Detailbeschreibung (falls vorhanden) ) (Bitte zum direkt ändern mit Speicher Button)
+Lieferanteninformationen Card:
+•	Lieferant (supplierName)
+•	Überschrift: Gebindegröße: Gebindegröße (packageSize) (Bitte zum direkt ändern mit Speicher Button)
+•	
+•	Nettopreis (costPrice)
+•	Mindestbestellmenge (minOrderQuantity) (Bitte zum direkt ändern mit Speicher Button)
+•	Haltbarkeit in Tagen (shelfLifeDays) (Bitte zum direkt ändern mit Speicher Button)
+•	Einkaufsbedingungen (Lieferzeit, Zahlungsbedingungen) (Bitte zum direkt ändern mit Speicher Button)
+Inhaltsstoffe & Eigenschaften Card:
+•	Inhaltsstoffe  (Bitte zum direkt ändern mit Speicher Button)
+•	Allergene  (Bitte zum direkt ändern mit Speicher Button)
+•	Nährwerttabelle (nutritionalInfo) (Bitte zum direkt ändern mit Speicher Button)
+•	Bio/Vegan/Vegetarisch/Lokal Badges  (bitte entfernen!)
+Produktfotos Card:
+(Bitte zum direkt ändern „Neue Fotos hochladen“ mit Speicher Button)
+•	Hauptfoto (photoUrl)
+•	Zusätzliche Fotos (photos Array)
+2. Lagerbestand Tab
+Wird von ProductInventoryView.tsx gerendert:
+•	Lagerbestände Card: Warehouse-Inventory mit Mengen, Status
+•	Automatenbestände Card: Machine-Inventory mit Füllständen Hier bitte nur die Anzahl – weil kein Maximal Bestand bekannt. 
+3. Verkäufe Tab
+Wird von ProductSalesView.tsx gerendert:
+Auffüllhistorie ist leer! Bitte überarbeiten!
+•	Verkaufsstatistiken und -verlauf
+4. Analyse Tab
+Wird von ProductAnalyticsView.tsx gerendert:
+•	Summary Cards: Gesamtverkäufe, Gesamtumsatz, Ø Preis, Aktive Automaten
+•	Verkaufsverlauf Chart: Kombinierter Umsatz/Anzahl Chart
+•	Verkäufe nach Automaten Chart: Bar Chart pro Maschine
+•	Täglicher Verkaufstrend: Line Chart
+5. Einkaufsbedingungen Tab
+Wird von ProductPurchaseConditionsView.tsx gerendert:
+•	Übersicht Card: Anzahl Lieferanten, Bester/Durchschnittspreis Bitte entfernen!
+•	Aktuelle Konditionen Tabelle: Lieferant, Preis/Einheit, Mindestmenge, Rabatt, Gültigkeitsdaten – Preis/Einheit ist leer. Warum? 
+•	Preishistorie: Chronologische Preisentwicklung
+Welchen Bereich möchtest du anpassen? Ich kann dir dann die spezifischen Änderungen vorschlagen.
+
