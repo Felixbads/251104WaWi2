@@ -43,14 +43,7 @@ export default function ProductDetail() {
     mutationFn: async (updatedProduct: Partial<Product>) => {
       return apiRequest(`/api/products/${id}`, updatedProduct, 'PUT');
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/products/${id}`] });
-      queryClient.invalidateQueries({ queryKey: ['/api/products'] });
-      toast({
-        title: "Produkt aktualisiert",
-        description: "Das Produkt wurde erfolgreich aktualisiert.",
-      });
-    },
+    // KEINE automatische Invalidierung hier - das macht saveField manuell
     onError: (error) => {
       console.error('Update error:', error);
       toast({
@@ -143,12 +136,16 @@ export default function ProductDetail() {
       const result = await updateProductMutation.mutateAsync(updateData);
       console.log('[PRODUCT-DETAIL] 🔧 Mutation result:', result);
       
-      // WICHTIG: Query Cache manuell invalidieren um UI-Update zu erzwingen
-      await queryClient.invalidateQueries({ queryKey: [`/api/products/${id}`] });
-      console.log('[PRODUCT-DETAIL] ✅ Query cache invalidated - UI should refresh now');
+      // DIREKTE Query-Cache-Aktualisierung mit den neuen Daten aus der Mutation Response
+      if (result && result.product) {
+        queryClient.setQueryData([`/api/products/${id}`], result.product);
+        console.log('[PRODUCT-DETAIL] ✅ Query cache directly updated with new product data:', result.product);
+      }
       
+      // UI-State zurücksetzen
       setEditingField(null);
       setEditingValues({});
+      console.log('[PRODUCT-DETAIL] 🔧 UI state reset - field editing cleared');
       
       toast({
         title: "Gespeichert",
