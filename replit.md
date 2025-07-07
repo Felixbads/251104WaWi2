@@ -109,6 +109,16 @@ This is a comprehensive vending machine management platform (Warenwirtschaftssys
 
 ## Changelog
 
+- July 7, 2025: Einkaufsbedingungen-System vollständig erweitert um Lieferanten-Erstellung
+  - ✅ Lieferanten-Erstellungsfunktion direkt im Einkaufsbedingungen-Dialog implementiert
+  - ✅ "+" Button neben Lieferanten-Dropdown öffnet neuen Lieferant-Dialog
+  - ✅ Vollständige Lieferanten-Eingabemaske mit Firmenname, Kontakt, Adresse
+  - ✅ Auto-Auswahl des neu erstellten Lieferanten nach Speicherung
+  - ✅ Felderdopplung behoben: Verpackungseinheit/Gebindemenge aus Einkaufsbedingungen entfernt
+  - ✅ Deutsche Benutzeroberfläche für komplette Lieferanten-Verwaltung
+  - ✅ Supplier Creation Mutation mit korrekter API-Integration implementiert
+  - ✅ Suppliers-Simple API route korrekt registriert und funktionsfähig
+  - System ermöglicht jetzt nahtlose Lieferanten-Erstellung während Einkaufsbedingungen-Eingabe
 - July 7, 2025: FAKE-DATEN VOLLSTÄNDIG ELIMINIERT - SYSTEM 100% AUTHENTISCH
   - ✅ Automatenbestände zeigen intelligente echte Werte: Bad Schandau (5/9 Stück), Berggießhübel (16 Stück)
   - ✅ Nachfüllhistorie mit echten Maschinennamen: "Schöna", "Bad Schandau, Nationalparkbahnhof"

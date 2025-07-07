@@ -88,6 +88,7 @@ export default function ProductPurchaseConditionsComprehensive({
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isCreateSupplierDialogOpen, setIsCreateSupplierDialogOpen] = useState(false);
   const [editingCondition, setEditingCondition] = useState<number | null>(null);
   const [newCondition, setNewCondition] = useState<Partial<NewPurchaseCondition>>({
     taxRate: 19,
@@ -95,6 +96,16 @@ export default function ProductPurchaseConditionsComprehensive({
     packagingQuantity: 1,
     isPreferred: false,
     leadTime: 3
+  });
+  const [newSupplier, setNewSupplier] = useState({
+    company_name: '',
+    contact_person: '',
+    email: '',
+    phone: '',
+    street: '',
+    postal_code: '',
+    city: '',
+    country: 'Deutschland'
   });
 
   // Fetch purchase conditions for this product
@@ -181,6 +192,40 @@ export default function ProductPurchaseConditionsComprehensive({
       toast({ 
         title: 'Fehler beim Löschen der Einkaufsbedingung', 
         variant: 'destructive' 
+      });
+    }
+  });
+
+  // Create new supplier
+  const createSupplierMutation = useMutation({
+    mutationFn: async (supplier: any) => {
+      return apiRequest('/api/suppliers', supplier, 'POST');
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/suppliers-simple'] });
+      setIsCreateSupplierDialogOpen(false);
+      setNewSupplier({
+        company_name: '',
+        contact_person: '',
+        email: '',
+        phone: '',
+        street: '',
+        postal_code: '',
+        city: '',
+        country: 'Deutschland'
+      });
+      // Auto-select the newly created supplier
+      setNewCondition({...newCondition, supplierId: data.id});
+      toast({
+        title: "Lieferant erstellt",
+        description: "Der Lieferant wurde erfolgreich hinzugefügt und ausgewählt."
+      });
+    },
+    onError: (error) => {
+      console.error('Error creating supplier:', error);
+      toast({
+        title: "Fehler beim Erstellen des Lieferanten",
+        variant: "destructive"
       });
     }
   });
@@ -334,21 +379,31 @@ export default function ProductPurchaseConditionsComprehensive({
                 <div className="grid grid-cols-2 gap-4 mt-4">
                   <div className="space-y-2">
                     <Label htmlFor="supplier">Lieferant</Label>
-                    <Select
-                      value={newCondition.supplierId?.toString() || ''}
-                      onValueChange={(value) => setNewCondition({...newCondition, supplierId: parseInt(value)})}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Lieferant wählen" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {suppliers.map((supplier: Supplier) => (
-                          <SelectItem key={supplier.id} value={supplier.id.toString()}>
-                            {supplier.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <div className="flex gap-2">
+                      <Select
+                        value={newCondition.supplierId?.toString() || ''}
+                        onValueChange={(value) => setNewCondition({...newCondition, supplierId: parseInt(value)})}
+                      >
+                        <SelectTrigger className="flex-1">
+                          <SelectValue placeholder="Lieferant wählen" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {suppliers.map((supplier: Supplier) => (
+                            <SelectItem key={supplier.id} value={supplier.id.toString()}>
+                              {supplier.company_name || supplier.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Button 
+                        type="button" 
+                        variant="outline" 
+                        onClick={() => setIsCreateSupplierDialogOpen(true)}
+                        className="px-3"
+                      >
+                        <Plus className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                   
                   <div className="space-y-2">
@@ -383,25 +438,7 @@ export default function ProductPurchaseConditionsComprehensive({
                     />
                   </div>
                   
-                  <div className="space-y-2">
-                    <Label htmlFor="packagingUnit">Verpackungseinheit</Label>
-                    <Input
-                      id="packagingUnit"
-                      placeholder="z.B. Karton, Palette"
-                      value={newCondition.packagingUnit || ''}
-                      onChange={(e) => setNewCondition({...newCondition, packagingUnit: e.target.value})}
-                    />
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="packagingQuantity">Stück pro Verpackung</Label>
-                    <Input
-                      id="packagingQuantity"
-                      type="number"
-                      value={newCondition.packagingQuantity || ''}
-                      onChange={(e) => setNewCondition({...newCondition, packagingQuantity: parseInt(e.target.value)})}
-                    />
-                  </div>
+
                   
                   <div className="space-y-2">
                     <Label htmlFor="deliveryTime">Lieferzeit</Label>
@@ -474,6 +511,104 @@ export default function ProductPurchaseConditionsComprehensive({
                   <Button
                     onClick={handleCreateCondition}
                     disabled={createConditionMutation.isPending}
+                  >
+                    <Save className="h-4 w-4 mr-2" />
+                    Speichern
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+            
+            {/* Supplier Creation Dialog */}
+            <Dialog open={isCreateSupplierDialogOpen} onOpenChange={setIsCreateSupplierDialogOpen}>
+              <DialogContent className="max-w-lg">
+                <DialogHeader>
+                  <DialogTitle>Neuen Lieferant erstellen</DialogTitle>
+                </DialogHeader>
+                <div className="grid gap-4 mt-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="companyName">Firmenname *</Label>
+                    <Input
+                      id="companyName"
+                      value={newSupplier.company_name}
+                      onChange={(e) => setNewSupplier({...newSupplier, company_name: e.target.value})}
+                      placeholder="z.B. Muster GmbH"
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="contactPerson">Ansprechpartner</Label>
+                    <Input
+                      id="contactPerson"
+                      value={newSupplier.contact_person}
+                      onChange={(e) => setNewSupplier({...newSupplier, contact_person: e.target.value})}
+                      placeholder="z.B. Max Mustermann"
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="email">E-Mail</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      value={newSupplier.email}
+                      onChange={(e) => setNewSupplier({...newSupplier, email: e.target.value})}
+                      placeholder="info@beispiel.de"
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="phone">Telefon</Label>
+                    <Input
+                      id="phone"
+                      value={newSupplier.phone}
+                      onChange={(e) => setNewSupplier({...newSupplier, phone: e.target.value})}
+                      placeholder="0351 123456"
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="street">Straße</Label>
+                    <Input
+                      id="street"
+                      value={newSupplier.street}
+                      onChange={(e) => setNewSupplier({...newSupplier, street: e.target.value})}
+                      placeholder="Musterstraße 123"
+                    />
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="postalCode">PLZ</Label>
+                      <Input
+                        id="postalCode"
+                        value={newSupplier.postal_code}
+                        onChange={(e) => setNewSupplier({...newSupplier, postal_code: e.target.value})}
+                        placeholder="01067"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="city">Ort</Label>
+                      <Input
+                        id="city"
+                        value={newSupplier.city}
+                        onChange={(e) => setNewSupplier({...newSupplier, city: e.target.value})}
+                        placeholder="Dresden"
+                      />
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="flex justify-end space-x-2 mt-6">
+                  <Button
+                    variant="outline"
+                    onClick={() => setIsCreateSupplierDialogOpen(false)}
+                  >
+                    Abbrechen
+                  </Button>
+                  <Button
+                    onClick={() => createSupplierMutation.mutate(newSupplier)}
+                    disabled={createSupplierMutation.isPending || !newSupplier.company_name}
                   >
                     <Save className="h-4 w-4 mr-2" />
                     Speichern
