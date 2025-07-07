@@ -51,7 +51,7 @@ export default function ProductInventoryView({ productId, productName }: Product
       if (!response.ok) throw new Error('Failed to fetch warehouse inventory');
       const data = await response.json();
       console.log('Warehouse inventory received:', data);
-      return data;
+      return data.data || [];
     },
     staleTime: 1000 * 60 * 5, // 5 minutes
   });
@@ -71,16 +71,16 @@ export default function ProductInventoryView({ productId, productName }: Product
       if (!response.ok) throw new Error('Failed to fetch machine inventory');
       const data = await response.json();
       console.log('Machine inventory received:', data);
-      return data;
+      return data.data || [];
     },
     staleTime: 1000 * 60 * 5, // 5 minutes
   });
 
   // Fetch refill history
   const { data: refillHistory, isLoading: isLoadingRefills } = useQuery({
-    queryKey: [`/api/products/${productId}/refill-history`],
+    queryKey: [`/api/products/${productId}/refills`],
     queryFn: async () => {
-      const url = `/api/products/${productId}/refill-history`;
+      const url = `/api/products/${productId}/refills?timeRange=30d`;
       const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('authToken') || 'test'}`,
@@ -184,14 +184,14 @@ export default function ProductInventoryView({ productId, productName }: Product
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {(warehouseInventory?.data || []).length > 0 ? (
+          {(warehouseInventory || []).length > 0 ? (
             <div className="space-y-3">
-              {warehouseInventory.data.map((item: InventoryItem) => {
-                const status = getStockStatus(item.quantity, item.minQuantity || 5, item.maxQuantity || 100);
+              {warehouseInventory.map((item: any) => {
+                const status = getStockStatus(item.current_stock, item.minimum_stock || 5, item.maximum_stock || 100);
                 return (
                   <div key={item.id} className="flex items-center justify-between p-3 border rounded-lg">
                     <div className="flex-1">
-                      <div className="font-medium">{item.warehouseName}</div>
+                      <div className="font-medium">{item.warehouse_name}</div>
                       {item.location && (
                         <div className="text-sm text-muted-foreground flex items-center gap-1">
                           <MapPin className="h-3 w-3" />
@@ -234,9 +234,9 @@ export default function ProductInventoryView({ productId, productName }: Product
             </CardTitle>
           </CardHeader>
         <CardContent>
-          {(machineInventory?.data || []).length > 0 ? (
+          {(machineInventory || []).length > 0 ? (
             <div className="space-y-3">
-              {machineInventory.data.map((machine: MachineInventory) => {
+              {machineInventory.map((machine: any) => {
                 const statusInfo = getMachineStatus(machine.status);
                 
                 return (

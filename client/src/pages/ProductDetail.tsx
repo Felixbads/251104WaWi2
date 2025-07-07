@@ -14,10 +14,10 @@ import { useToast } from '@/hooks/use-toast';
 import { Product } from '@shared/schema';
 import { ProductEditDialog } from '@/components/ProductEditDialog';
 import { apiRequest } from '@/lib/queryClient';
-import ProductInventoryView from '@/components/product/ProductInventoryView';
+import ProductInventoryViewSimple from '@/components/product/ProductInventoryViewSimple';
 import ProductSalesView from '@/components/product/ProductSalesView';
 import ProductAnalyticsView from '@/components/product/ProductAnalyticsView';
-import ProductPurchaseConditionsView from '@/components/product/ProductPurchaseConditionsView';
+import ProductPurchaseConditionsSimple from '@/components/product/ProductPurchaseConditionsSimple';
 import { PurchaseConditionsDisplay } from '@/components/PurchaseConditionsDisplay';
 
 export default function ProductDetail() {
@@ -875,7 +875,7 @@ export default function ProductDetail() {
 
         {/* Inventory Tab */}
         <TabsContent value="inventory" className="space-y-6 mt-6">
-          <ProductInventoryView productId={parseInt(id!)} productName={product.productName} />
+          <ProductInventoryViewSimple productId={parseInt(id!)} productName={product.productName} />
         </TabsContent>
 
         {/* Sales Tab */}
@@ -890,7 +890,7 @@ export default function ProductDetail() {
 
         {/* Purchase Conditions Tab */}
         <TabsContent value="purchase-conditions" className="space-y-6 mt-6">
-          <ProductPurchaseConditionsView productId={parseInt(id!)} productName={product.productName} />
+          <ProductPurchaseConditionsSimple productId={parseInt(id!)} productName={product.productName} />
         </TabsContent>
       </Tabs>
 

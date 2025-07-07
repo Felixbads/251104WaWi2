@@ -230,7 +230,7 @@ router.get('/:id/warehouse-inventory', async (req, res) => {
         0 as reserved_stock,
         ii.updated_at as last_updated,
         w.name as warehouse_name,
-        w.location
+        'Lager' as location
       FROM inventory_items ii
       JOIN warehouses w ON ii.warehouse_id = w.id
       WHERE ii.quantity > 0
