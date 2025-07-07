@@ -5,7 +5,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, Edit, Package, Package2, Info, Image, BarChart3, TrendingUp, Truck, Leaf, Calculator } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { ArrowLeft, Edit, Package, Package2, Info, Image, BarChart3, TrendingUp, Truck, Leaf, Calculator, Save, Upload } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Product } from '@shared/schema';
 import { ProductEditDialog } from '@/components/ProductEditDialog';
@@ -22,6 +26,11 @@ export default function ProductDetail() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  
+  // State for inline editing
+  const [editingField, setEditingField] = useState<string | null>(null);
+  const [editingValues, setEditingValues] = useState<{[key: string]: any}>({});
+  const [isUploading, setIsUploading] = useState(false);
 
   // Produktdaten abfragen
   const { data: product, isLoading, error } = useQuery<Product>({
@@ -54,6 +63,82 @@ export default function ProductDetail() {
       });
     },
   });
+
+  // Lade verfügbare Kategorien
+  const { data: categories = [] } = useQuery({
+    queryKey: ['/api/product-categories'],
+    staleTime: 1000 * 60 * 10, // 10 Minuten
+  });
+
+  // Inline editing functions
+  const startEdit = (field: string, currentValue: any) => {
+    setEditingField(field);
+    setEditingValues({ ...editingValues, [field]: currentValue });
+  };
+
+  const cancelEdit = () => {
+    setEditingField(null);
+    setEditingValues({});
+  };
+
+  const saveField = async (field: string) => {
+    if (!editingValues[field] && editingValues[field] !== '') return;
+    
+    try {
+      await updateProductMutation.mutateAsync({
+        [field]: editingValues[field]
+      });
+      setEditingField(null);
+      setEditingValues({});
+    } catch (error) {
+      console.error('Save error:', error);
+    }
+  };
+
+  const handlePhotoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+
+    setIsUploading(true);
+    try {
+      const formData = new FormData();
+      for (let i = 0; i < files.length; i++) {
+        formData.append('photos', files[i]);
+      }
+      formData.append('entityType', 'product');
+      formData.append('entityId', id!);
+
+      const response = await fetch('/api/photos/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) throw new Error('Upload failed');
+
+      const result = await response.json();
+      
+      // Update product with new photos
+      const newPhotos = result.photos || [];
+      await updateProductMutation.mutateAsync({
+        photos: [...(product?.photos || []), ...newPhotos],
+        photoUrl: product?.photoUrl || newPhotos[0]
+      });
+
+      toast({
+        title: "Fotos hochgeladen",
+        description: `${newPhotos.length} Foto(s) erfolgreich hochgeladen.`,
+      });
+    } catch (error) {
+      console.error('Upload error:', error);
+      toast({
+        title: "Fehler",
+        description: "Fehler beim Hochladen der Fotos.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploading(false);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -280,12 +365,37 @@ export default function ProductDetail() {
                     <p className="font-medium text-sm sm:text-base">{product.productName}</p>
                   </div>
                   <div>
-                    <span className="text-xs sm:text-sm text-gray-500">Kategorie</span>
-                    <p className="font-medium text-sm sm:text-base">{product.category || 'k.A.'}</p>
-                  </div>
-                  <div>
-                    <span className="text-xs sm:text-sm text-gray-500">Artikel</span>
-                    <p className="font-medium text-sm sm:text-base">{product.article || 'k.A.'}</p>
+                    <Label className="text-xs sm:text-sm text-gray-500">Kategorie</Label>
+                    {editingField === 'category' ? (
+                      <div className="flex gap-2 mt-1">
+                        <Select
+                          value={editingValues.category || product.category || ''}
+                          onValueChange={(value) => setEditingValues({...editingValues, category: value})}
+                        >
+                          <SelectTrigger className="flex-1">
+                            <SelectValue placeholder="Kategorie wählen" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {categories.map((cat: any) => (
+                              <SelectItem key={cat.id} value={cat.name}>{cat.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Button size="sm" onClick={() => saveField('category')}>
+                          <Save className="h-4 w-4" />
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={cancelEdit}>
+                          ✕
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium text-sm sm:text-base">{product.category || 'k.A.'}</p>
+                        <Button size="sm" variant="ghost" onClick={() => startEdit('category', product.category)}>
+                          <Edit className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    )}
                   </div>
                   <div>
                     <span className="text-xs sm:text-sm text-gray-500">MwSt.</span>
@@ -297,19 +407,69 @@ export default function ProductDetail() {
                   </div>
                 </div>
                 
-                {product.shortDescription && (
-                  <div className="pt-2 border-t">
-                    <span className="text-xs sm:text-sm text-gray-500">Kurzbeschreibung</span>
-                    <p className="font-medium text-sm sm:text-base whitespace-pre-line">{product.shortDescription}</p>
-                  </div>
-                )}
+                {/* Kurzbeschreibung */}
+                <div className="pt-2 border-t">
+                  <Label className="text-xs sm:text-sm text-gray-500">Kurzbeschreibung</Label>
+                  {editingField === 'shortDescription' ? (
+                    <div className="flex gap-2 mt-1">
+                      <Textarea
+                        value={editingValues.shortDescription || product.shortDescription || ''}
+                        onChange={(e) => setEditingValues({...editingValues, shortDescription: e.target.value})}
+                        placeholder="Kurzbeschreibung eingeben..."
+                        className="flex-1"
+                      />
+                      <div className="flex flex-col gap-1">
+                        <Button size="sm" onClick={() => saveField('shortDescription')}>
+                          <Save className="h-4 w-4" />
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={cancelEdit}>
+                          ✕
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-start gap-2">
+                      <p className="font-medium text-sm sm:text-base whitespace-pre-line flex-1">
+                        {product.shortDescription || 'Keine Kurzbeschreibung vorhanden'}
+                      </p>
+                      <Button size="sm" variant="ghost" onClick={() => startEdit('shortDescription', product.shortDescription)}>
+                        <Edit className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  )}
+                </div>
                 
-                {product.description && (
-                  <div className="pt-2 border-t">
-                    <span className="text-xs sm:text-sm text-gray-500">Detailbeschreibung</span>
-                    <p className="font-medium text-sm sm:text-base whitespace-pre-line">{product.description}</p>
-                  </div>
-                )}
+                {/* Detailbeschreibung */}
+                <div className="pt-2 border-t">
+                  <Label className="text-xs sm:text-sm text-gray-500">Detailbeschreibung</Label>
+                  {editingField === 'description' ? (
+                    <div className="flex gap-2 mt-1">
+                      <Textarea
+                        value={editingValues.description || product.description || ''}
+                        onChange={(e) => setEditingValues({...editingValues, description: e.target.value})}
+                        placeholder="Detailbeschreibung eingeben..."
+                        className="flex-1 min-h-[100px]"
+                      />
+                      <div className="flex flex-col gap-1">
+                        <Button size="sm" onClick={() => saveField('description')}>
+                          <Save className="h-4 w-4" />
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={cancelEdit}>
+                          ✕
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-start gap-2">
+                      <p className="font-medium text-sm sm:text-base whitespace-pre-line flex-1">
+                        {product.description || 'Keine Detailbeschreibung vorhanden'}
+                      </p>
+                      <Button size="sm" variant="ghost" onClick={() => startEdit('description', product.description)}>
+                        <Edit className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  )}
+                </div>
               </CardContent>
             </Card>
 
@@ -330,12 +490,33 @@ export default function ProductDetail() {
                     </div>
                   )}
                   
-                  {product.packageSize && (
-                    <div>
-                      <span className="text-xs sm:text-sm text-gray-500">Gebindegröße</span>
-                      <p className="font-medium text-sm sm:text-base">{product.packageSize}</p>
-                    </div>
-                  )}
+                  {/* Gebindegröße */}
+                  <div>
+                    <Label className="text-xs sm:text-sm text-gray-500">Gebindegröße</Label>
+                    {editingField === 'packageSize' ? (
+                      <div className="flex gap-2 mt-1">
+                        <Input
+                          value={editingValues.packageSize || product.packageSize || ''}
+                          onChange={(e) => setEditingValues({...editingValues, packageSize: e.target.value})}
+                          placeholder="Gebindegröße eingeben..."
+                          className="flex-1"
+                        />
+                        <Button size="sm" onClick={() => saveField('packageSize')}>
+                          <Save className="h-4 w-4" />
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={cancelEdit}>
+                          ✕
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium text-sm sm:text-base">{product.packageSize || 'k.A.'}</p>
+                        <Button size="sm" variant="ghost" onClick={() => startEdit('packageSize', product.packageSize)}>
+                          <Edit className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    )}
+                  </div>
                   
                   {product.costPrice && (
                     <div>
@@ -344,34 +525,102 @@ export default function ProductDetail() {
                     </div>
                   )}
                   
-                  {product.minOrderQuantity && (
-                    <div>
-                      <span className="text-xs sm:text-sm text-gray-500">Mindestbestellmenge</span>
-                      <p className="font-medium text-sm sm:text-base">{product.minOrderQuantity}</p>
-                    </div>
-                  )}
+                  {/* Mindestbestellmenge */}
+                  <div>
+                    <Label className="text-xs sm:text-sm text-gray-500">Mindestbestellmenge</Label>
+                    {editingField === 'minOrderQuantity' ? (
+                      <div className="flex gap-2 mt-1">
+                        <Input
+                          type="number"
+                          value={editingValues.minOrderQuantity || product.minOrderQuantity || ''}
+                          onChange={(e) => setEditingValues({...editingValues, minOrderQuantity: parseInt(e.target.value)})}
+                          placeholder="Mindestbestellmenge eingeben..."
+                          className="flex-1"
+                        />
+                        <Button size="sm" onClick={() => saveField('minOrderQuantity')}>
+                          <Save className="h-4 w-4" />
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={cancelEdit}>
+                          ✕
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium text-sm sm:text-base">{product.minOrderQuantity || 'k.A.'}</p>
+                        <Button size="sm" variant="ghost" onClick={() => startEdit('minOrderQuantity', product.minOrderQuantity)}>
+                          <Edit className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    )}
+                  </div>
                   
-                  {product.shelfLifeDays && (
-                    <div>
-                      <span className="text-xs sm:text-sm text-gray-500">Haltbarkeit (Tage)</span>
-                      <p className="font-medium text-sm sm:text-base">{product.shelfLifeDays}</p>
-                    </div>
-                  )}
+                  {/* Haltbarkeit in Tagen */}
+                  <div>
+                    <Label className="text-xs sm:text-sm text-gray-500">Haltbarkeit in Tagen</Label>
+                    {editingField === 'shelfLifeDays' ? (
+                      <div className="flex gap-2 mt-1">
+                        <Input
+                          type="number"
+                          value={editingValues.shelfLifeDays || product.shelfLifeDays || ''}
+                          onChange={(e) => setEditingValues({...editingValues, shelfLifeDays: parseInt(e.target.value)})}
+                          placeholder="Haltbarkeit in Tagen eingeben..."
+                          className="flex-1"
+                        />
+                        <Button size="sm" onClick={() => saveField('shelfLifeDays')}>
+                          <Save className="h-4 w-4" />
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={cancelEdit}>
+                          ✕
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium text-sm sm:text-base">{product.shelfLifeDays || 'k.A.'}</p>
+                        <Button size="sm" variant="ghost" onClick={() => startEdit('shelfLifeDays', product.shelfLifeDays)}>
+                          <Edit className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    )}
+                  </div>
                 </div>
                 
                 {/* Purchase Conditions Section */}
                 <div className="pt-4 border-t">
-                  <h4 className="text-sm font-medium text-gray-700 mb-2">Einkaufsbedingungen</h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs sm:text-sm">
-                    <div>
-                      <span className="text-gray-500">Lieferzeit</span>
-                      <p className="font-medium">Standard Lieferung</p>
+                  <Label className="text-sm font-medium text-gray-700 mb-2">Einkaufsbedingungen</Label>
+                  {editingField === 'purchaseConditions' ? (
+                    <div className="flex gap-2 mt-1">
+                      <Textarea
+                        value={editingValues.purchaseConditions || 'Standard Lieferung, Nach Vereinbarung'}
+                        onChange={(e) => setEditingValues({...editingValues, purchaseConditions: e.target.value})}
+                        placeholder="Einkaufsbedingungen eingeben..."
+                        className="flex-1"
+                      />
+                      <div className="flex flex-col gap-1">
+                        <Button size="sm" onClick={() => saveField('purchaseConditions')}>
+                          <Save className="h-4 w-4" />
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={cancelEdit}>
+                          ✕
+                        </Button>
+                      </div>
                     </div>
-                    <div>
-                      <span className="text-gray-500">Zahlungsbedingungen</span>
-                      <p className="font-medium">Nach Vereinbarung</p>
+                  ) : (
+                    <div className="flex items-start gap-2">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs sm:text-sm flex-1">
+                        <div>
+                          <span className="text-gray-500">Lieferzeit</span>
+                          <p className="font-medium">Standard Lieferung</p>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Zahlungsbedingungen</span>
+                          <p className="font-medium">Nach Vereinbarung</p>
+                        </div>
+                      </div>
+                      <Button size="sm" variant="ghost" onClick={() => startEdit('purchaseConditions', 'Standard Lieferung, Nach Vereinbarung')}>
+                        <Edit className="h-3 w-3" />
+                      </Button>
                     </div>
-                  </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -386,45 +635,106 @@ export default function ProductDetail() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {product.ingredients && (
-                  <div className="sm:col-span-2 lg:col-span-3">
-                    <span className="text-xs sm:text-sm text-gray-500">Inhaltsstoffe</span>
-                    <p className="font-medium text-sm sm:text-base">{product.ingredients}</p>
+              {/* Inhaltsstoffe */}
+              <div>
+                <Label className="text-xs sm:text-sm text-gray-500">Inhaltsstoffe</Label>
+                {editingField === 'ingredients' ? (
+                  <div className="flex gap-2 mt-1">
+                    <Textarea
+                      value={editingValues.ingredients || product.ingredients || ''}
+                      onChange={(e) => setEditingValues({...editingValues, ingredients: e.target.value})}
+                      placeholder="Inhaltsstoffe eingeben..."
+                      className="flex-1"
+                    />
+                    <div className="flex flex-col gap-1">
+                      <Button size="sm" onClick={() => saveField('ingredients')}>
+                        <Save className="h-4 w-4" />
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={cancelEdit}>
+                        ✕
+                      </Button>
+                    </div>
                   </div>
-                )}
-                
-                {product.allergens && (
-                  <div className="sm:col-span-2 lg:col-span-3">
-                    <span className="text-xs sm:text-sm text-gray-500">Allergene</span>
-                    <p className="font-medium text-sm sm:text-base text-red-600">{product.allergens}</p>
+                ) : (
+                  <div className="flex items-start gap-2">
+                    <p className="font-medium text-sm sm:text-base flex-1">
+                      {product.ingredients || 'Keine Inhaltsstoffe angegeben'}
+                    </p>
+                    <Button size="sm" variant="ghost" onClick={() => startEdit('ingredients', product.ingredients)}>
+                      <Edit className="h-3 w-3" />
+                    </Button>
                   </div>
                 )}
               </div>
               
-              {product.nutritionalInfo && (
-                <div className="pt-4 border-t">
-                  <span className="text-xs sm:text-sm text-gray-500">Nährwerttabelle</span>
-                  <div className="mt-2 p-3 bg-gray-50 rounded border text-xs sm:text-sm">
-                    <pre className="whitespace-pre-wrap font-mono">{product.nutritionalInfo}</pre>
+              {/* Allergene */}
+              <div>
+                <Label className="text-xs sm:text-sm text-gray-500">Allergene</Label>
+                {editingField === 'allergens' ? (
+                  <div className="flex gap-2 mt-1">
+                    <Textarea
+                      value={editingValues.allergens || product.allergens || ''}
+                      onChange={(e) => setEditingValues({...editingValues, allergens: e.target.value})}
+                      placeholder="Allergene eingeben..."
+                      className="flex-1"
+                    />
+                    <div className="flex flex-col gap-1">
+                      <Button size="sm" onClick={() => saveField('allergens')}>
+                        <Save className="h-4 w-4" />
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={cancelEdit}>
+                        ✕
+                      </Button>
+                    </div>
                   </div>
-                </div>
-              )}
+                ) : (
+                  <div className="flex items-start gap-2">
+                    <p className="font-medium text-sm sm:text-base text-red-600 flex-1">
+                      {product.allergens || 'Keine Allergene angegeben'}
+                    </p>
+                    <Button size="sm" variant="ghost" onClick={() => startEdit('allergens', product.allergens)}>
+                      <Edit className="h-3 w-3" />
+                    </Button>
+                  </div>
+                )}
+              </div>
               
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-4 border-t">
-                {Object.entries({
-                  'Bio': product.isOrganic ? 'Ja' : 'Nein',
-                  'Vegan': product.isVegan ? 'Ja' : 'Nein',
-                  'Vegetarisch': product.isVegetarian ? 'Ja' : 'Nein',
-                  'Lokal': product.isLocal ? 'Ja' : 'Nein',
-                }).map(([key, value]) => (
-                  <div key={key} className="text-center">
-                    <span className="text-xs text-gray-500 block">{key}</span>
-                    <Badge variant={value === 'Ja' ? 'default' : 'secondary'} className="text-xs">
-                      {value}
-                    </Badge>
+              {/* Nährwerttabelle */}
+              <div className="pt-4 border-t">
+                <Label className="text-xs sm:text-sm text-gray-500">Nährwerttabelle</Label>
+                {editingField === 'nutritionalInfo' ? (
+                  <div className="flex gap-2 mt-1">
+                    <Textarea
+                      value={editingValues.nutritionalInfo || product.nutritionalInfo || ''}
+                      onChange={(e) => setEditingValues({...editingValues, nutritionalInfo: e.target.value})}
+                      placeholder="Nährwerttabelle eingeben..."
+                      className="flex-1 min-h-[100px]"
+                    />
+                    <div className="flex flex-col gap-1">
+                      <Button size="sm" onClick={() => saveField('nutritionalInfo')}>
+                        <Save className="h-4 w-4" />
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={cancelEdit}>
+                        ✕
+                      </Button>
+                    </div>
                   </div>
-                ))}
+                ) : (
+                  <div className="flex items-start gap-2">
+                    <div className="flex-1">
+                      {product.nutritionalInfo ? (
+                        <div className="mt-2 p-3 bg-gray-50 rounded border text-xs sm:text-sm">
+                          <pre className="whitespace-pre-wrap font-mono">{product.nutritionalInfo}</pre>
+                        </div>
+                      ) : (
+                        <p className="font-medium text-sm sm:text-base text-gray-500">Keine Nährwerttabelle vorhanden</p>
+                      )}
+                    </div>
+                    <Button size="sm" variant="ghost" onClick={() => startEdit('nutritionalInfo', product.nutritionalInfo)}>
+                      <Edit className="h-3 w-3" />
+                    </Button>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -432,9 +742,29 @@ export default function ProductDetail() {
           {/* Photos Display */}
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center text-lg sm:text-xl">
-                <Image className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
-                Produktfotos
+              <CardTitle className="flex items-center justify-between text-lg sm:text-xl">
+                <div className="flex items-center">
+                  <Image className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
+                  Produktfotos
+                </div>
+                <div className="flex gap-2">
+                  <Button 
+                    size="sm" 
+                    onClick={() => document.getElementById('photo-upload')?.click()}
+                    disabled={isUploading}
+                  >
+                    <Upload className="h-4 w-4 mr-2" />
+                    {isUploading ? 'Hochladen...' : 'Neue Fotos hochladen'}
+                  </Button>
+                  <input
+                    id="photo-upload"
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={handlePhotoUpload}
+                    className="hidden"
+                  />
+                </div>
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -442,7 +772,7 @@ export default function ProductDetail() {
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4">
                   {/* Show photoUrl first (main photo) */}
                   {product.photoUrl && (
-                    <div className="aspect-square bg-gray-100 rounded border overflow-hidden">
+                    <div className="aspect-square bg-gray-100 rounded border overflow-hidden relative">
                       <img 
                         src={product.photoUrl.startsWith('http') ? product.photoUrl : product.photoUrl}
                         alt={`${product.productName} - Hauptfoto`}
@@ -452,6 +782,9 @@ export default function ProductDetail() {
                           target.style.display = 'none';
                         }}
                       />
+                      <div className="absolute top-1 left-1 bg-blue-500 text-white text-xs px-2 py-1 rounded">
+                        Hauptfoto
+                      </div>
                     </div>
                   )}
                   {/* Show additional photos from array */}
@@ -472,7 +805,15 @@ export default function ProductDetail() {
               ) : (
                 <div className="text-center py-8">
                   <Image className="h-8 w-8 sm:h-12 sm:w-12 mx-auto text-gray-400 mb-2" />
-                  <p className="text-gray-500 text-sm sm:text-base">Keine Produktfotos vorhanden</p>
+                  <p className="text-gray-500 text-sm sm:text-base mb-4">Keine Produktfotos vorhanden</p>
+                  <Button 
+                    variant="outline"
+                    onClick={() => document.getElementById('photo-upload')?.click()}
+                    disabled={isUploading}
+                  >
+                    <Upload className="h-4 w-4 mr-2" />
+                    Erste Fotos hochladen
+                  </Button>
                 </div>
               )}
             </CardContent>

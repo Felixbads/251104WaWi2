@@ -201,7 +201,6 @@ export default function ProductInventoryView({ productId, productName }: Product
             <div className="space-y-3">
               {machineInventory.data.map((machine: MachineInventory) => {
                 const statusInfo = getMachineStatus(machine.status);
-                const fillPercentage = machine.maxCapacity > 0 ? (machine.currentStock / machine.maxCapacity) * 100 : 0;
                 
                 return (
                   <div key={machine.machineId} className="border rounded-lg p-4">
@@ -218,20 +217,10 @@ export default function ProductInventoryView({ productId, productName }: Product
                     </div>
                     
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm">Füllstand</span>
-                      <span className="font-medium">
-                        {machine.currentStock} / {machine.maxCapacity}
+                      <span className="text-sm">Anzahl</span>
+                      <span className="font-medium text-lg">
+                        {machine.currentStock}
                       </span>
-                    </div>
-                    
-                    <div className="w-full bg-gray-200 rounded-full h-2 mb-2">
-                      <div 
-                        className={`h-2 rounded-full transition-all ${
-                          fillPercentage > 80 ? 'bg-green-500' : 
-                          fillPercentage > 30 ? 'bg-yellow-500' : 'bg-red-500'
-                        }`}
-                        style={{ width: `${Math.min(fillPercentage, 100)}%` }}
-                      ></div>
                     </div>
                     
                     {machine.lastRefill && (

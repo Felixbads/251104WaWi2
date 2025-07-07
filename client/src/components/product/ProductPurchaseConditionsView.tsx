@@ -262,8 +262,7 @@ export default function ProductPurchaseConditionsView({ productId, productName }
     return new Date(dateString).toLocaleDateString('de-DE');
   };
 
-  const bestPrice = conditions.length > 0 ? Math.min(...conditions.map(c => c.pricePerUnit)) : 0;
-  const avgPrice = conditions.length > 0 ? conditions.reduce((sum, c) => sum + c.pricePerUnit, 0) / conditions.length : 0;
+
 
   return (
     <div className="space-y-6">
@@ -382,37 +381,7 @@ export default function ProductPurchaseConditionsView({ productId, productName }
         </Dialog>
       </div>
 
-      {/* Zusammenfassung */}
-      {conditions.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Info className="h-5 w-5" />
-              Übersicht
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="text-center">
-                <p className="text-sm text-gray-500">Lieferanten verfügbar</p>
-                <p className="text-2xl font-bold">{conditions.length}</p>
-              </div>
-              <div className="text-center">
-                <p className="text-sm text-gray-500">Bester Preis</p>
-                <p className="text-2xl font-bold text-green-600">{formatCurrency(bestPrice)}</p>
-              </div>
-              <div className="text-center">
-                <p className="text-sm text-gray-500">Durchschnittspreis</p>
-                <p className="text-2xl font-bold">{formatCurrency(avgPrice)}</p>
-              </div>
-              <div className="text-center">
-                <p className="text-sm text-gray-500">Preishistorie</p>
-                <p className="text-2xl font-bold">{priceHistory.length}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+
 
       {/* Aktuelle Einkaufsbedingungen */}
       <Card>
