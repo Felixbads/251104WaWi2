@@ -85,17 +85,22 @@ export default function ProductDetail() {
   };
 
   const saveField = async (field: string) => {
-    if (editingValues[field] === undefined && editingValues[field] !== 0) return;
+    // Korrekte Prüfung: Feld muss existieren (undefined prüfen) oder explizit gesetzt sein
+    if (editingValues[field] === undefined) return;
     
     console.log('[PRODUCT-DETAIL] Saving field:', field, 'with value:', editingValues[field]);
     
     try {
-      // Map frontend field names to backend field names
+      // Vollständiges Mapping zwischen Frontend- und Backend-Feldnamen
       const fieldMapping = {
         'packageTypeId': 'package_type_id',
         'shelfLifeDays': 'shelf_life_days',
         'packageSize': 'package_size',
-        'minOrderQuantity': 'minimum_order_quantity'
+        'minOrderQuantity': 'min_order_quantity',
+        'shortDescription': 'short_description',
+        'shelfLife': 'shelf_life_days',
+        'purchaseConditions': 'purchase_conditions',
+        'nutritionalInfo': 'nutritional_info'
       };
       
       const backendFieldName = fieldMapping[field] || field;
@@ -598,17 +603,17 @@ export default function ProductDetail() {
                   {/* Haltbarkeit */}
                   <div>
                     <Label className="text-xs sm:text-sm text-gray-500">Haltbarkeit (Tage)</Label>
-                    {editingField === 'shelfLife' ? (
+                    {editingField === 'shelfLifeDays' ? (
                       <div className="flex gap-2 mt-1">
                         <Input
                           type="number"
-                          value={editingValues.shelfLife || product.shelfLife || ''}
-                          onChange={(e) => setEditingValues({...editingValues, shelfLife: parseInt(e.target.value)})}
+                          value={editingValues.shelfLifeDays || product.shelfLifeDays || ''}
+                          onChange={(e) => setEditingValues({...editingValues, shelfLifeDays: parseInt(e.target.value)})}
                           placeholder="Haltbarkeit in Tagen..."
                           className="flex-1"
                         />
                         <div className="flex flex-col gap-1">
-                          <Button size="sm" onClick={() => saveField('shelfLife')}>
+                          <Button size="sm" onClick={() => saveField('shelfLifeDays')}>
                             <Save className="h-4 w-4" />
                           </Button>
                           <Button size="sm" variant="outline" onClick={cancelEdit}>
@@ -619,9 +624,9 @@ export default function ProductDetail() {
                     ) : (
                       <div className="flex items-center gap-2">
                         <p className="font-medium text-sm sm:text-base">
-                          {product.shelfLife ? `${product.shelfLife} Tage` : 'Nicht angegeben'}
+                          {product.shelfLifeDays ? `${product.shelfLifeDays} Tage` : 'Nicht angegeben'}
                         </p>
-                        <Button size="sm" variant="ghost" onClick={() => startEdit('shelfLife', product.shelfLife)}>
+                        <Button size="sm" variant="ghost" onClick={() => startEdit('shelfLifeDays', product.shelfLifeDays)}>
                           <Edit className="h-3 w-3" />
                         </Button>
                       </div>
