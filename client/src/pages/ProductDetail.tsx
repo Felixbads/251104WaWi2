@@ -89,9 +89,23 @@ export default function ProductDetail() {
   };
 
   const saveField = async (field: string) => {
+    // ERWEITERTE DIAGNOSTIK: Alle editingValues-Inhalte anzeigen
+    console.log('[DIAGNOSTIC] 🔍 ===== SAVE FIELD DIAGNOSTIC START =====');
+    console.log('[DIAGNOSTIC] 🔍 Field requested:', field);
+    console.log('[DIAGNOSTIC] 🔍 All editingValues keys:', Object.keys(editingValues));
+    console.log('[DIAGNOSTIC] 🔍 All editingValues values:', Object.values(editingValues));
+    console.log('[DIAGNOSTIC] 🔍 Complete editingValues object:', JSON.stringify(editingValues, null, 2));
+    console.log('[DIAGNOSTIC] 🔍 Specific field value:', editingValues[field]);
+    console.log('[DIAGNOSTIC] 🔍 Field value type:', typeof editingValues[field]);
+    console.log('[DIAGNOSTIC] 🔍 Is field value undefined?', editingValues[field] === undefined);
+    console.log('[DIAGNOSTIC] 🔍 Is field value null?', editingValues[field] === null);
+    console.log('[DIAGNOSTIC] 🔍 Is field value empty string?', editingValues[field] === '');
+    console.log('[DIAGNOSTIC] 🔍 ===== SAVE FIELD DIAGNOSTIC END =====');
+
     // Prüfung: Feld muss existieren und darf nicht undefined sein
     if (editingValues[field] === undefined || editingValues[field] === null) {
       console.log('[PRODUCT-DETAIL] 🚨 Field value is undefined/null, skipping save for:', field);
+      console.log('[PRODUCT-DETAIL] 🚨 This suggests input handler is not working for field:', field);
       return;
     }
     
@@ -475,7 +489,12 @@ export default function ProductDetail() {
                         className="flex-1"
                       />
                       <div className="flex flex-col gap-1">
-                        <Button size="sm" onClick={() => saveField('shortDescription')}>
+                        <Button size="sm" onClick={() => {
+                          console.log('[SAVE-BUTTON] 🔘 shortDescription button clicked');
+                          console.log('[SAVE-BUTTON] 🔘 Current editingValues:', editingValues);
+                          console.log('[SAVE-BUTTON] 🔘 shortDescription value:', editingValues.shortDescription);
+                          saveField('shortDescription');
+                        }}>
                           <Save className="h-4 w-4" />
                         </Button>
                         <Button size="sm" variant="outline" onClick={cancelEdit}>
@@ -603,7 +622,12 @@ export default function ProductDetail() {
                           className="flex-1"
                         />
                         <div className="flex flex-col gap-1">
-                          <Button size="sm" onClick={() => saveField('packageSize')}>
+                          <Button size="sm" onClick={() => {
+                            console.log('[SAVE-BUTTON] 🔘 packageSize button clicked');
+                            console.log('[SAVE-BUTTON] 🔘 Current editingValues:', editingValues);
+                            console.log('[SAVE-BUTTON] 🔘 packageSize value:', editingValues.packageSize);
+                            saveField('packageSize');
+                          }}>
                             <Save className="h-4 w-4" />
                           </Button>
                           <Button size="sm" variant="outline" onClick={cancelEdit}>
