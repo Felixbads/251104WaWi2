@@ -940,18 +940,41 @@ router.put('/:id', async (req: Request, res: Response) => {
     
     const existingOrder = existingOrderResult[0];
     
-    // Updates vorbereiten (including new fields)
-    const updates: any = {
-      expectedDeliveryDate: updateData.expected_delivery_date || updateData.expectedDeliveryDate || existingOrder.expectedDeliveryDate,
-      deliveryLocation: updateData.delivery_location || updateData.deliveryLocation || existingOrder.deliveryLocation,
-      deliveryType: updateData.delivery_type || updateData.deliveryType || existingOrder.deliveryType || 'delivery',
-      showPricesInEmail: updateData.show_prices_in_email !== undefined ? updateData.show_prices_in_email : 
-                        updateData.showPricesInEmail !== undefined ? updateData.showPricesInEmail : 
-                        existingOrder.showPricesInEmail !== undefined ? existingOrder.showPricesInEmail : true,
-      warehouseId: updateData.warehouseId || updateData.warehouse_id || existingOrder.warehouseId,
-      notes: updateData.notes || existingOrder.notes,
-      updatedAt: new Date()
-    };
+    // Updates vorbereiten - fix field name mapping from frontend (snake_case) to database (camelCase)
+    const updates: any = {};
+    
+    // Handle optional fields with proper mapping
+    if (updateData.expected_delivery_date !== undefined || updateData.expectedDeliveryDate !== undefined) {
+      updates.expectedDeliveryDate = updateData.expected_delivery_date || updateData.expectedDeliveryDate;
+    }
+    
+    if (updateData.delivery_location !== undefined || updateData.deliveryLocation !== undefined) {
+      updates.deliveryLocation = updateData.delivery_location || updateData.deliveryLocation;
+    }
+    
+    if (updateData.delivery_type !== undefined || updateData.deliveryType !== undefined) {
+      updates.deliveryType = updateData.delivery_type || updateData.deliveryType || 'delivery';
+    }
+    
+    if (updateData.show_prices_in_email !== undefined || updateData.showPricesInEmail !== undefined) {
+      updates.showPricesInEmail = updateData.show_prices_in_email !== undefined ? updateData.show_prices_in_email : updateData.showPricesInEmail;
+    }
+    
+    if (updateData.warehouseId !== undefined || updateData.warehouse_id !== undefined) {
+      updates.warehouseId = updateData.warehouseId || updateData.warehouse_id;
+    }
+    
+    if (updateData.notes !== undefined) {
+      updates.notes = updateData.notes;
+    }
+    
+    // Always set updatedAt
+    updates.updatedAt = new Date();
+    
+    // If no updates were provided, return error
+    if (Object.keys(updates).length === 1) { // Only updatedAt
+      return res.status(400).json({ error: 'Keine Änderungen angegeben' });
+    }
     
     // In Datenbank aktualisieren
     console.log('BEFORE DATABASE UPDATE:');
