@@ -139,8 +139,7 @@ function AuthenticatedRouter() {
         <Route path="/nicht-freigegeben" component={NotApproved} />
         <Route path="/unauthorized" component={Unauthorized} />
         
-        {/* Lieferanten-Portal Route - öffentlich zugänglich */}
-        <Route path="/lieferant/:accessToken" component={SupplierPortal} />
+        {/* Lieferanten-Portal Route entfernt - wird direkt im MainRouter gehandhabt */}
 
         {/* Geschützte Routen, die Freigabe erfordern */}
         <Route path="/login">
@@ -699,14 +698,24 @@ function MainRouter() {
     );
   }
 
-  // PORTAL-ROUTE: Direkte Abfangung und Rendering
+  // PORTAL-ROUTE: Direkte Abfangung und Rendering (höchste Priorität)
   if (location.includes('/lieferant/')) {
     console.log('[MAIN-ROUTER] PORTAL ROUTE DETECTED - Direct rendering');
+    console.log('[MAIN-ROUTER] Location:', location);
     const match = location.match(/\/lieferant\/(.+)/);
     const accessToken = match ? match[1] : null;
+    console.log('[MAIN-ROUTER] Access Token extracted:', accessToken);
     
     if (accessToken) {
-      return <SupplierPortal params={{ accessToken }} />;
+      return (
+        <QueryClientProvider client={queryClient}>
+          <SupplierPortal params={{ accessToken }} />
+          <Toaster />
+        </QueryClientProvider>
+      );
+    } else {
+      console.error('[MAIN-ROUTER] No access token found in URL');
+      return <div>Portal-Zugang: Kein gültiger Token gefunden</div>;
     }
   }
 
