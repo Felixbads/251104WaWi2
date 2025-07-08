@@ -823,30 +823,22 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
             </CardHeader>
             <CardContent className="space-y-3">
               <Button 
-                onClick={async () => {
-                  console.log('E-Mail generieren geklickt');
-                  await loadEmailTemplate('standard');
-                  if (emailTemplate) {
-                    console.log('E-Mail-Vorlage geladen, öffne Dialog');
-                    setIsEmailDialogOpen(true);
-                  }
+                onClick={() => {
+                  console.log('E-Mail generieren geklickt - öffne vollständigen E-Mail Dialog');
+                  setIsEmailDialogOpen(true);
                 }} 
                 className="w-full" 
                 variant="outline"
                 disabled={isLoadingEmail}
               >
                 <Mail className="h-4 w-4 mr-2" />
-                {isLoadingEmail ? 'Lädt...' : 'E-Mail generieren'}
+                E-Mail generieren
               </Button>
               
               <Button 
-                onClick={async () => {
-                  console.log('Dringende E-Mail geklickt');
-                  await loadEmailTemplate('urgent');
-                  if (emailTemplate) {
-                    console.log('Dringende E-Mail-Vorlage geladen, öffne Dialog');
-                    setIsEmailDialogOpen(true);
-                  }
+                onClick={() => {
+                  console.log('Dringende E-Mail geklickt - öffne vollständigen E-Mail Dialog');
+                  setIsEmailDialogOpen(true);
                 }} 
                 className="w-full" 
                 variant="outline"
