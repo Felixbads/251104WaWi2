@@ -109,6 +109,19 @@ This is a comprehensive vending machine management platform (Warenwirtschaftssys
 
 ## Changelog
 
+- July 8, 2025: Professionelle 11-Punkte E-Mail-Vorlage vollständig implementiert
+  - ✅ Komplette E-Mail-Template-Überarbeitung nach vorgegebener deutscher Geschäftsbrief-Struktur
+  - ✅ 11-Abschnitte-System implementiert: Identifikation, Absender/Empfänger, Adressen, Zahlungsbedingungen, Bestellpositionen, Summenblock, Hinweise
+  - ✅ Authentische Firmendaten integriert: Elbsandstein Proviant & Quartier GmbH mit korrekten Adressen (Dresden/Bad Schandau)
+  - ✅ Vollständige HTML-Template-Generierung mit professionellem Layout und Farb-Coding
+  - ✅ Intelligente Preisanzeige-Steuerung: Tabellenspalten und Summenblock werden bei deaktivierter Preisanzeige vollständig ausgeblendet
+  - ✅ Conditional Rendering für Abhol-/Lieferaufträge mit unterschiedlicher Darstellung
+  - ✅ MwSt-Berechnung (19%) und Brutto-/Netto-Aufschlüsselung im Summenblock
+  - ✅ Automatische Artikel-Nummerierung und SKU-Generierung basierend auf Produkt-IDs
+  - ✅ Dringlichkeits-Kennzeichnung mit visuellen Hervorhebungen für Express-Bestellungen
+  - ✅ Responsive HTML-Design mit professionellem Corporate Design
+  - ✅ Integration aller authentischen Lieferanten- und Lagerdaten aus bestehender Datenbank
+  - E-Mail-System entspricht jetzt vollständig deutschen Geschäftsbrief-Standards
 - July 8, 2025: Bulk Order System Frontend-Backend Integration komplett repariert
   - ✅ Lieferantennamen-Problem behoben: supplier_name in Datenbank korrekt gesetzt auf "Agrarprodukte Struppen GmbH"
   - ✅ Enhanced Email Template API vollständig funktionsfähig: Zeigt korrekte Lieferantennamen in E-Mail-Vorlagen
