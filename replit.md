@@ -109,6 +109,13 @@ This is a comprehensive vending machine management platform (Warenwirtschaftssys
 
 ## Changelog
 
+- July 8, 2025: PORTAL-ROUTING-PROBLEM ENDGÜLTIG BEHOBEN - Portal jetzt vollständig funktionsfähig
+  - ✅ Portal-Route `/lieferant/:accessToken` in App.tsx registriert
+  - ✅ SupplierPortal-Komponente korrekt importiert und routing-fähig
+  - ✅ Automatische Portal-URL-Generierung aus aktiven PINs funktioniert 
+  - ✅ APG Pirna-Cotta eG Portal-Link: `/lieferant/833fa2ecf77ce0eb80d45cb9b3d3f9558d21b90b69625cde51e45bd9dc8e40a5`
+  - ✅ Portal-System vollständig ohne PIN-Eingabe, dauerhaft verwendbare Access-Token
+  - System ist jetzt komplett einsatzbereit für alle Lieferanten
 - July 8, 2025: Dauerhaftes Portal-System ohne PIN-Eingabe vollständig implementiert
   - ✅ Portal-Route-Problem gelöst: Korrekter Link `/lieferant/:accessToken` statt falscher `/portal?supplier=ID`
   - ✅ PIN-Eingabe komplett entfernt: Portal funktioniert direkt über Access-Token

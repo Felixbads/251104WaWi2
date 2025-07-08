@@ -135,6 +135,9 @@ function AuthenticatedRouter() {
         {/* Öffentliche Routen */}
         <Route path="/nicht-freigegeben" component={NotApproved} />
         <Route path="/unauthorized" component={Unauthorized} />
+        
+        {/* Lieferanten-Portal Route - öffentlich zugänglich */}
+        <Route path="/lieferant/:accessToken" component={SupplierPortal} />
 
         {/* Geschützte Routen, die Freigabe erfordern */}
         <Route path="/login">
