@@ -66,6 +66,9 @@ function SupplierPortalAnalytics({ supplierId, supplierName }: { supplierId: num
     enabled: !!supplierId,
   });
 
+  // Debug Ausgabe für Fehlerbehebung
+  console.log('Portal Data für Lieferant', supplierId, ':', portalData);
+
   const handleGeneratePin = async () => {
     try {
       setIsGeneratingPin(true);
@@ -112,23 +115,23 @@ function SupplierPortalAnalytics({ supplierId, supplierName }: { supplierId: num
         </CardHeader>
         <CardContent className="space-y-4">
           {/* Direkter Portal-Link - erstelle automatisch aus PINs wenn verfügbar */}
-          {(portalData?.portalUrl || (portalData?.activePins && portalData.activePins.length > 0)) && (
+          {(portalData?.data?.portalUrl || (portalData?.data?.activePins && portalData.data.activePins.length > 0)) && (
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="font-medium text-blue-900">Lieferanten-Portal</h3>
                   <p className="text-sm text-blue-700">Direkter Zugang zum sicheren Lieferanten-Portal</p>
-                  {portalData.lastAccess && (
+                  {portalData?.data?.lastAccess && (
                     <p className="text-xs text-blue-600 mt-1">
-                      Letzter Zugriff: {new Date(portalData.lastAccess).toLocaleDateString('de-DE')}
+                      Letzter Zugriff: {new Date(portalData.data.lastAccess).toLocaleDateString('de-DE')}
                     </p>
                   )}
                 </div>
                 <Button
                   onClick={() => {
-                    const portalUrl = portalData?.portalUrl || 
-                      (portalData?.activePins?.length > 0 
-                        ? `${window.location.origin}/lieferant/${portalData.activePins[0].access_token}`
+                    const portalUrl = portalData?.data?.portalUrl || 
+                      (portalData?.data?.activePins?.length > 0 
+                        ? `${window.location.origin}/lieferant/${portalData.data.activePins[0].access_token}`
                         : null);
                     if (portalUrl) window.open(portalUrl, '_blank');
                   }}
@@ -142,7 +145,7 @@ function SupplierPortalAnalytics({ supplierId, supplierName }: { supplierId: num
           )}
 
           {/* Kein Portal-Link verfügbar */}
-          {!portalData?.portalUrl && (!portalData?.activePins || portalData.activePins.length === 0) && (
+          {!portalData?.data?.portalUrl && (!portalData?.data?.activePins || portalData.data.activePins.length === 0) && (
             <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
               <div className="flex items-center justify-between">
                 <div>
