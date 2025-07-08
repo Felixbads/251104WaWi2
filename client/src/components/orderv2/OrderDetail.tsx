@@ -414,12 +414,37 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
       console.log('Order update validation passed, proceeding...');
 
       // Update order items (only if there are changes)
+      console.log('Checking if order items need updating...');
+      console.log('editingItems.length:', editingItems.length);
+      console.log('editingItems content:', editingItems);
+      
       if (editingItems.length > 0) {
-        const itemsUpdateResponse = await fetch(`/api/orders/${orderId}/items`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ items: editingItems })
-        });
+        console.log('About to update order items...');
+        
+        try {
+          console.log('About to serialize editingItems for API call...');
+          const itemsPayload = { items: editingItems };
+          console.log('Items payload structure:', Object.keys(itemsPayload));
+          
+          const serializedPayload = JSON.stringify(itemsPayload);
+          console.log('Successfully serialized items payload, length:', serializedPayload.length);
+          
+          const itemsUpdateResponse = await fetch(`/api/orders/${orderId}/items`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: serializedPayload
+          });
+          
+          console.log('Items API call completed');
+        } catch (itemsError) {
+          console.error('ERROR in order items update:', itemsError);
+          console.error('Items error details:', {
+            message: itemsError instanceof Error ? itemsError.message : 'Unknown',
+            stack: itemsError instanceof Error ? itemsError.stack : 'No stack',
+            toString: String(itemsError)
+          });
+          throw new Error(`Order items serialization failed: ${itemsError instanceof Error ? itemsError.message : String(itemsError)}`);
+        }
 
         if (itemsUpdateResponse.ok) {
           const itemsUpdateResult = await itemsUpdateResponse.json();
