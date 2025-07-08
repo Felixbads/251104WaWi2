@@ -11,7 +11,7 @@ import {
   ArrowLeft, Phone, Mail, Globe, MapPin, Building, Truck, 
   Calendar, Clock, Edit, Package, FileText, BarChart, AlertTriangle,
   RefreshCw, Download, CheckCircle, XCircle, X, Trash2, Save, Plus, Check, Search, Euro,
-  Shield, QrCode, MessageSquare
+  Shield, QrCode, MessageSquare, ExternalLink
 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
@@ -111,25 +111,36 @@ function SupplierPortalAnalytics({ supplierId, supplierName }: { supplierId: num
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {data?.portalUrl ? (
+          {/* Direkter Portal-Link - immer sichtbar */}
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-medium text-blue-900">Lieferanten-Portal</h3>
+                <p className="text-sm text-blue-700">Direkter Zugang zum sicheren Lieferanten-Portal</p>
+              </div>
+              <Button
+                onClick={() => window.open(`/portal?supplier=${supplierId}`, '_blank')}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                <ExternalLink className="h-4 w-4 mr-2" />
+                Portal öffnen
+              </Button>
+            </div>
+          </div>
+
+          {data?.portalUrl && (
             <div className="space-y-2">
-              <div className="text-sm font-medium text-muted-foreground">Portal-Link:</div>
-              <div className="bg-blue-50 p-3 rounded border flex items-center justify-between">
-                <code className="text-sm text-blue-700 break-all flex-1 mr-2">{data.portalUrl}</code>
+              <div className="text-sm font-medium text-muted-foreground">Aktiver Portal-Link mit PIN:</div>
+              <div className="bg-green-50 p-3 rounded border flex items-center justify-between">
+                <code className="text-sm text-green-700 break-all flex-1 mr-2">{data.portalUrl}</code>
                 <Button
                   size="sm"
                   variant="outline"
                   onClick={() => window.open(data.portalUrl!, '_blank')}
                 >
-                  Portal öffnen
+                  Mit PIN öffnen
                 </Button>
               </div>
-            </div>
-          ) : (
-            <div className="text-center py-6 text-muted-foreground">
-              <Shield className="h-12 w-12 mx-auto mb-2 opacity-50" />
-              <p className="text-lg font-medium">Kein aktiver Portal-Zugang</p>
-              <p className="text-sm">Generieren Sie einen PIN für den Portal-Zugang</p>
             </div>
           )}
 

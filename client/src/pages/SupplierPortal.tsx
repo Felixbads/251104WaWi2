@@ -591,85 +591,89 @@ export default function SupplierPortal() {
           <TabsContent value="bestellungen">
             <Card>
               <CardHeader>
-                <CardTitle>Bestellübersicht</CardTitle>
+                <CardTitle>Aktuelle Bestellungen</CardTitle>
                 <CardDescription>
-                  Ihre aktuellen und vergangenen Bestellungen ({orders.length} Bestellungen)
+                  Versendete und gelieferte Bestellungen ({orders.length} Bestellungen)
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  {orders.map((order) => (
-                    <div key={order.id} className="border rounded-lg p-4 space-y-4">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <h3 className="font-medium">{order.orderNumber}</h3>
-                          <p className="text-sm text-gray-600">
-                            Bestellt am: {new Date(order.orderDate).toLocaleDateString('de-DE')}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <Badge 
-                            variant={
-                              order.status === 'delivered' ? 'default' : 
-                              order.status === 'open' ? 'secondary' : 
-                              'outline'
-                            }
-                          >
-                            {order.status === 'delivered' ? 'Geliefert' : 
-                             order.status === 'open' ? 'Offen' : 
-                             order.status === 'ordered' ? 'Bestellt' : 
-                             order.status}
-                          </Badge>
-                          {order.totalAmount && (
-                            <p className="text-sm font-medium mt-1">{order.totalAmount.toFixed(2)} €</p>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                        <div>
-                          <Label className="text-gray-500">Lieferort</Label>
-                          <div className="flex items-center space-x-1">
-                            <MapPin className="h-4 w-4 text-gray-400" />
-                            <span>{order.deliveryLocation || order.locationName}</span>
+                {orders.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    <ShoppingCart className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <p className="text-lg font-medium">Keine Bestellungen gefunden</p>
+                    <p className="text-sm">Hier werden versendete und gelieferte Bestellungen angezeigt</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {orders.map((order) => (
+                      <div key={order.id} className="border rounded-lg p-4 space-y-4">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <h3 className="font-medium text-lg">{order.order_number || order.orderNumber}</h3>
+                            <p className="text-sm text-gray-600">
+                              Bestellt am: {new Date(order.created_at || order.orderDate).toLocaleDateString('de-DE')}
+                            </p>
+                            {order.delivery_date && (
+                              <p className="text-sm text-gray-600">
+                                Lieferdatum: {new Date(order.delivery_date).toLocaleDateString('de-DE')}
+                              </p>
+                            )}
+                            <p className="text-sm text-gray-600">
+                              {order.delivery_type === 'pickup' ? '🚚 Abholung' : '📦 Lieferung'} - {order.warehouse_name || order.locationName}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <Badge 
+                              variant={order.status === 'DELIVERED' || order.status === 'delivered' ? 'default' : 'secondary'}
+                              className={order.status === 'DELIVERED' || order.status === 'delivered' ? 'bg-green-600' : 'bg-blue-600'}
+                            >
+                              {order.status === 'DELIVERED' || order.status === 'delivered' ? '✓ Geliefert' : 
+                               order.status === 'SHIPPED' ? '📦 Versendet' :
+                               order.status === 'delivered' ? 'Geliefert' : 
+                               order.status === 'open' ? 'Offen' : 
+                               order.status === 'ordered' ? 'Bestellt' : 
+                               order.status}
+                            </Badge>
+                            {(order.total_amount || order.totalAmount) && (
+                              <p className="text-sm font-medium mt-2">
+                                {(order.total_amount || order.totalAmount).toFixed(2)} €
+                              </p>
+                            )}
                           </div>
                         </div>
-                        <div>
-                          <Label className="text-gray-500">Erwartete Lieferung</Label>
-                          <p>{order.expectedDeliveryDate ? new Date(order.expectedDeliveryDate).toLocaleDateString('de-DE') : 'Nicht angegeben'}</p>
-                        </div>
-                      </div>
-
-                      {order.items && order.items.length > 0 && (
-                        <div className="space-y-2">
-                          <Label className="text-gray-500">Bestellte Artikel ({order.items.length})</Label>
-                          <div className="space-y-1">
-                            {order.items.map((item) => (
-                              <div key={item.id} className="flex justify-between items-center text-sm bg-gray-50 px-3 py-2 rounded">
-                                <span>{item.productName}</span>
-                                <span className="font-medium">{item.quantity} {item.unit}</span>
-                              </div>
-                            ))}
+                        
+                        {order.items && order.items.length > 0 && (
+                          <div className="border-t pt-4">
+                            <h4 className="font-medium mb-2">Bestellpositionen:</h4>
+                            <div className="space-y-2">
+                              {order.items.map((item, index) => (
+                                <div key={item.id || index} className="flex justify-between items-center text-sm bg-gray-50 p-2 rounded">
+                                  <div className="flex-1">
+                                    <span className="font-medium">{item.product_name || item.productName}</span>
+                                    {item.sku && <span className="text-gray-500 ml-2">({item.sku})</span>}
+                                  </div>
+                                  <div className="text-right">
+                                    <span className="font-medium">{item.quantity} {item.unit || 'Stück'}</span>
+                                    {(item.unit_price || item.unitPrice) && (
+                                      <span className="text-gray-600 ml-2">à {(item.unit_price || item.unitPrice).toFixed(2)} €</span>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
                           </div>
-                        </div>
-                      )}
+                        )}
 
-                      {order.notes && (
-                        <div className="pt-3 border-t">
-                          <Label className="text-gray-500">Hinweise</Label>
-                          <p className="text-sm">{order.notes}</p>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-
-                  {orders.length === 0 && (
-                    <div className="text-center py-8 text-gray-500">
-                      <ShoppingCart className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                      <p>Noch keine Bestellungen vorhanden.</p>
-                    </div>
-                  )}
-                </div>
+                        {order.notes && (
+                          <div className="pt-3 border-t">
+                            <Label className="text-gray-500">Hinweise</Label>
+                            <p className="text-sm">{order.notes}</p>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
