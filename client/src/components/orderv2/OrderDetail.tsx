@@ -151,12 +151,29 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
       setError(null);
 
       // Load enhanced order details with packaging and VAT data
+      console.log(`Making API call to: /api/orders-direct/${orderId}`);
       const orderResponse = await fetch(`/api/orders-direct/${orderId}`);
+      console.log('Order API response status:', orderResponse.status, orderResponse.statusText);
+      
       if (!orderResponse.ok) {
         throw new Error(`Failed to load order: ${orderResponse.statusText}`);
       }
 
-      const orderData = await orderResponse.json();
+      console.log('About to parse JSON from order response...');
+      const responseText = await orderResponse.text();
+      console.log('Raw response text length:', responseText.length);
+      console.log('Response starts with:', responseText.substring(0, 200));
+      
+      let orderData;
+      try {
+        orderData = JSON.parse(responseText);
+        console.log('Successfully parsed order JSON');
+      } catch (parseError) {
+        console.error('JSON Parse Error in loadOrderData:', parseError);
+        console.error('Failed to parse response:', responseText);
+        throw new Error(`JSON parsing failed: ${parseError instanceof Error ? parseError.message : String(parseError)}`);
+      }
+      
       console.log('Loaded enhanced order data:', orderData);
       
       setOrder({
@@ -192,14 +209,30 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
     try {
       setIsLoadingItems(true);
       
+      console.log(`Making API call to: /api/order-items-direct/${orderId}`);
       const response = await fetch(`${window.location.origin}/api/order-items-direct/${orderId}`);
+      console.log('Order Items API response status:', response.status, response.statusText);
+      
       if (!response.ok) {
         throw new Error(`Failed to load order items: ${response.statusText}`);
       }
 
-      const result = await response.json();
-      const items = result.data || result;
+      console.log('About to parse JSON from order items response...');
+      const responseText = await response.text();
+      console.log('Raw items response text length:', responseText.length);
+      console.log('Items response starts with:', responseText.substring(0, 200));
       
+      let result;
+      try {
+        result = JSON.parse(responseText);
+        console.log('Successfully parsed order items JSON');
+      } catch (parseError) {
+        console.error('JSON Parse Error in loadOrderItems:', parseError);
+        console.error('Failed to parse items response:', responseText);
+        throw new Error(`JSON parsing failed in loadOrderItems: ${parseError instanceof Error ? parseError.message : String(parseError)}`);
+      }
+      
+      const items = result.data || result;
       console.log('Loading order items from API:', items);
       
       setOrderItems(items.map((item: any) => ({
@@ -383,12 +416,34 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
         }
       }
 
-      // Reload data
+      // Reload data with detailed error tracking
       console.log('Starting data reload after successful order update...');
-      await loadOrderData();
-      console.log('Order data reloaded successfully');
-      await loadOrderItems();
-      console.log('Order items reloaded successfully');
+      
+      try {
+        await loadOrderData();
+        console.log('Order data reloaded successfully');
+      } catch (dataError) {
+        console.error('ERROR in loadOrderData:', dataError);
+        console.error('loadOrderData error details:', {
+          message: dataError instanceof Error ? dataError.message : 'Unknown',
+          stack: dataError instanceof Error ? dataError.stack : 'No stack',
+          toString: String(dataError)
+        });
+        throw new Error(`Data reload failed in loadOrderData: ${dataError instanceof Error ? dataError.message : String(dataError)}`);
+      }
+      
+      try {
+        await loadOrderItems();
+        console.log('Order items reloaded successfully');
+      } catch (itemsError) {
+        console.error('ERROR in loadOrderItems:', itemsError);
+        console.error('loadOrderItems error details:', {
+          message: itemsError instanceof Error ? itemsError.message : 'Unknown',
+          stack: itemsError instanceof Error ? itemsError.stack : 'No stack',
+          toString: String(itemsError)
+        });
+        throw new Error(`Data reload failed in loadOrderItems: ${itemsError instanceof Error ? itemsError.message : String(itemsError)}`);
+      }
       
       setIsEditing(false);
       setEditingOrder(null);
