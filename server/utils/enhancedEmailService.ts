@@ -319,6 +319,22 @@ class EnhancedEmailService {
           <p>Sehr geehrter Lieferant {{supplierName}},</p>
           <p>hiermit bestellen wir folgende Artikel:</p>
           {{orderItems}}
+          <p><strong>Lieferadresse:</strong><br>
+          {{warehouseName}}<br>
+          Elbsandstein Proviant & Quartier GmbH<br>
+          Pirnaer Str. 19<br>
+          01829 Stadt Wehlen<br>
+          Deutschland</p>
+          <p>Bitte liefern Sie die Ware innerhalb der vereinbarten Lieferzeit.</p>
+          <p>Bei Fragen stehen wir Ihnen gerne zur Verfügung.</p>
+          <p>Mit freundlichen Grüßen<br>Ihr Proviantomat Team</p>`;
+        break;
+        
+      default: // standard - fallback
+        template = `<h2>Bestellung {{orderNumber}}</h2>
+          <p>Sehr geehrter Lieferant {{supplierName}},</p>
+          <p>hiermit bestellen wir folgende Artikel:</p>
+          {{orderItems}}
           <p>Lieferadresse: {{warehouseName}}, {{warehouseAddress}}</p>
           <p>Bitte liefern Sie die Ware innerhalb der vereinbarten Lieferzeit.</p>
           <p>Bei Fragen stehen wir Ihnen gerne zur Verfügung.</p>

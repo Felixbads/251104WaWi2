@@ -92,7 +92,13 @@ hiermit möchten wir folgende Bestellung aufgeben:
 Bestellnummer: ${order.orderNumber}
 Bestelldatum: ${orderDate}
 ${isPickup ? 'Gewünschter Abholtermin' : 'Gewünschter Liefertermin'}: ${deliveryDate}
-${isPickup ? 'Abholort' : 'Lieferort'}: ${order.deliveryLocation || order.warehouseName || 'Nach Absprache'}
+
+${isPickup ? 'Abholort' : 'Lieferadresse'}:
+${order.deliveryLocation || order.warehouseName || 'Elbsandstein Proviant & Quartier GmbH'}
+Pirnaer Str. 19
+01829 Stadt Wehlen
+Deutschland
+
 Lieferart: ${isPickup ? 'Abholung' : 'Lieferung'}
 
 Bestellpositionen:
@@ -140,7 +146,13 @@ bitte bearbeiten Sie diese Bestellung mit HÖCHSTER PRIORITÄT:
 Bestellnummer: ${order.orderNumber}
 Bestelldatum: ${orderDate}
 ${isPickup ? 'DRINGENDER Abholtermin' : 'DRINGENDER Liefertermin'}: ${deliveryDate}
-${isPickup ? 'Abholort' : 'Lieferort'}: ${order.deliveryLocation || order.warehouseName || 'Nach Absprache'}
+
+${isPickup ? 'Abholort' : 'Lieferadresse'}:
+${order.deliveryLocation || order.warehouseName || 'Elbsandstein Proviant & Quartier GmbH'}
+Pirnaer Str. 19
+01829 Stadt Wehlen
+Deutschland
+
 Lieferart: ${isPickup ? 'Abholung' : 'Lieferung'}
 
 DRINGENDE Bestellpositionen:

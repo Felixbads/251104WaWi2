@@ -37,7 +37,7 @@ export function createOrderItemsTable(items: any[]): string {
   if (!items || items.length === 0) {
     return '<p>Keine Positionen in dieser Bestellung.</p>';
   }
-  
+
   // HTML-Tabelle erstellen
   let tableHtml = `
     <table style="width: 100%; border-collapse: collapse; margin-top: 15px; margin-bottom: 15px;">
@@ -53,13 +53,13 @@ export function createOrderItemsTable(items: any[]): string {
       </thead>
       <tbody>
   `;
-  
+
   // Zeilen für jede Position
   items.forEach((item) => {
     const unitPrice = item.unitPrice || 0;
     const quantity = item.quantity || 0;
     const totalPrice = unitPrice * quantity;
-    
+
     tableHtml += `
       <tr>
         <td style="border: 1px solid #e5e7eb; padding: 8px;">${item.productName || 'Unbekanntes Produkt'}</td>
@@ -71,10 +71,10 @@ export function createOrderItemsTable(items: any[]): string {
       </tr>
     `;
   });
-  
+
   // Summenzeile
   const totalAmount = items.reduce((sum, item) => sum + ((item.unitPrice || 0) * (item.quantity || 0)), 0);
-  
+
   tableHtml += `
       </tbody>
       <tfoot>
@@ -93,7 +93,7 @@ export function createOrderItemsTable(items: any[]): string {
       </tfoot>
     </table>
   `;
-  
+
   return tableHtml;
 }
 
@@ -108,13 +108,55 @@ function formatCurrency(amount: number): string {
   }).format(amount);
 }
 
+function generateStandardEmailContent(order: any, items: any[], showPrices: boolean, orderDate: string, deliveryDate: string, isPickup: boolean): string {
+  let content = `Sehr geehrte Damen und Herren,
+
+hiermit möchten wir folgende Bestellung aufgeben:
+
+Bestellnummer: ${order.orderNumber}
+Bestelldatum: ${orderDate}
+${isPickup ? 'Gewünschter Abholtermin' : 'Gewünschter Liefertermin'}: ${deliveryDate}
+
+${isPickup ? 'Abholort' : 'Lieferadresse'}:
+${order.deliveryLocation || order.warehouseName || 'Elbsandstein Proviant & Quartier GmbH'}
+${order.deliveryAddress || 'Pirnaer Str. 19\n01829 Stadt Wehlen\nDeutschland'}
+
+Lieferart: ${isPickup ? 'Abholung' : 'Lieferung'}
+
+Bestellpositionen:
+`;
+  return content;
+}
+
+function generateUrgentEmailContent(order: any, items: any[], showPrices: boolean, orderDate: string, deliveryDate: string, isPickup: boolean): string {
+  let content = `*** DRINGENDE BESTELLUNG ***
+
+Sehr geehrte Damen und Herren,
+
+bitte bearbeiten Sie diese Bestellung mit HÖCHSTER PRIORITÄT:
+
+Bestellnummer: ${order.orderNumber}
+Bestelldatum: ${orderDate}
+${isPickup ? 'DRINGENDER Abholtermin' : 'DRINGENDER Liefertermin'}: ${deliveryDate}
+
+${isPickup ? 'Abholort' : 'Lieferadresse'}:
+${order.deliveryLocation || order.warehouseName || 'Elbsandstein Proviant & Quartier GmbH'}
+${order.deliveryAddress || 'Pirnaer Str. 19\n01829 Stadt Wehlen\nDeutschland'}
+
+Lieferart: ${isPickup ? 'Abholung' : 'Lieferung'}
+
+DRINGENDE Bestellpositionen:
+`;
+  return content;
+}
+
 /**
  * Erstellt eine E-Mail-Vorlage für eine Bestellung
  */
 export function createOrderEmailTemplate(order: any, supplier: any, templateType: string = 'standard'): string {
   // Template je nach Typ auswählen
   let template = '';
-  
+
   switch (templateType) {
     case 'urgent':
     case 'dringend':
@@ -126,7 +168,7 @@ export function createOrderEmailTemplate(order: any, supplier: any, templateType
         <p>Bei Fragen stehen wir Ihnen gerne zur Verfügung.</p>
         <p>Mit freundlichen Grüßen<br>Ihr Proviantomat Team</p>`;
       break;
-    
+
     case 'reorder':
     case 'nachbestellung':
       template = `<h2 style="color: #0891b2;">Nachbestellung</h2>
@@ -137,7 +179,7 @@ export function createOrderEmailTemplate(order: any, supplier: any, templateType
         <p>Bei Fragen stehen wir Ihnen gerne zur Verfügung.</p>
         <p>Mit freundlichen Grüßen<br>Ihr Proviantomat Team</p>`;
       break;
-      
+
     default: // standard
       template = `<h2>Bestellung {{orderNumber}}</h2>
         <p>Sehr geehrter Lieferant {{supplierName}},</p>
@@ -148,7 +190,7 @@ export function createOrderEmailTemplate(order: any, supplier: any, templateType
         <p>Bei Fragen stehen wir Ihnen gerne zur Verfügung.</p>
         <p>Mit freundlichen Grüßen<br>Ihr Proviantomat Team</p>`;
   }
-  
+
   // Platzhalter ersetzen
   const compiled = template
     .replace('{{supplierName}}', supplier.name || order.supplierName || 'Unbekannt')
@@ -156,7 +198,7 @@ export function createOrderEmailTemplate(order: any, supplier: any, templateType
     .replace('{{orderDate}}', formatDate(order.orderDate))
     .replace('{{warehouseName}}', order.warehouseName || 'Hauptlager')
     .replace('{{warehouseAddress}}', order.warehouseAddress || 'Keine Adresse angegeben');
-  
+
   return compiled;
 }
 
@@ -174,21 +216,21 @@ export async function sendOrderEmail(
     console.log(`[sendOrderEmail] Sende E-Mail an: ${to}`);
     console.log(`[sendOrderEmail] Von: ${from}`);
     console.log(`[sendOrderEmail] Betreff: ${subject}`);
-    
+
     // Bestellpositionen holen
     const items = await db
       .select()
       .from(orderItems)
       .where(eq(orderItems.orderId, orderId));
-    
+
     console.log(`[sendOrderEmail] ${items.length} Bestellpositionen gefunden`);
-    
+
     // Erstelle HTML-Tabelle für Bestellpositionen
     const itemsTable = createOrderItemsTable(items);
-    
+
     // Ersetze den Platzhalter in der HTML-E-Mail mit der tatsächlichen Tabelle
     const fullHtml = html.replace('{{orderItems}}', itemsTable);
-    
+
     // Entscheide, ob SendGrid oder Nodemailer verwendet werden soll
     if (process.env.SENDGRID_API_KEY) {
       console.log('[sendOrderEmail] Verwende SendGrid');
@@ -199,14 +241,14 @@ export async function sendOrderEmail(
         subject,
         html: fullHtml,
       };
-      
+
       await sgMail.send(msg);
     } else {
       console.log('[sendOrderEmail] Verwende Nodemailer');
       console.log(`[sendOrderEmail] SMTP Host: ${process.env.SMTP_HOST}`);
       console.log(`[sendOrderEmail] SMTP User: ${process.env.SMTP_USER}`);
       console.log(`[sendOrderEmail] SMTP Pass length: ${process.env.SMTP_PASS ? process.env.SMTP_PASS.length : 'Not set'}`);
-      
+
       // Nodemailer als Fallback verwenden
       const transporter = createTransport({
         host: process.env.SMTP_HOST || 'smtp.example.com',
@@ -222,21 +264,21 @@ export async function sendOrderEmail(
           servername: process.env.SMTP_HOST
         }
       });
-      
+
       console.log('[sendOrderEmail] Teste SMTP-Verbindung...');
       await transporter.verify();
       console.log('[sendOrderEmail] SMTP-Verbindung erfolgreich');
-      
+
       const result = await transporter.sendMail({
         from,
         to,
         subject,
         html: fullHtml,
       });
-      
+
       console.log(`[sendOrderEmail] E-Mail gesendet, Message ID: ${result.messageId}`);
     }
-    
+
     console.log(`E-Mail erfolgreich gesendet an: ${to}`);
     return true;
   } catch (error: any) {
@@ -265,41 +307,41 @@ export async function createAndSendOrderEmail(
       .from(orders)
       .where(eq(orders.id, orderId))
       .limit(1);
-    
+
     if (!orderResult || orderResult.length === 0) {
       throw new Error('Bestellung nicht gefunden');
     }
-    
+
     const order = orderResult[0];
-    
+
     // 2. Lieferantendaten abrufen, falls vorhanden
     let supplier = { name: order.supplierName || 'Unbekannter Lieferant' };
-    
+
     if (order.supplierId) {
       const supplierResult = await db
         .select()
         .from(suppliers)
         .where(eq(suppliers.id, order.supplierId))
         .limit(1);
-      
+
       if (supplierResult && supplierResult.length > 0) {
         supplier = supplierResult[0];
       }
     }
-    
+
     // 3. E-Mail-Inhalt erstellen (entweder angepasst oder aus Vorlage)
     let emailContent = customContent;
-    
+
     if (!emailContent) {
       emailContent = createOrderEmailTemplate(order, supplier, templateType);
     }
-    
+
     // 4. E-Mail-Betreff erstellen
     let subject = customSubject;
-    
+
     if (!subject) {
       subject = `Bestellung ${order.orderNumber} - ${order.supplierName || supplier.name}`;
-      
+
       // Spezielle Betreffzeile für verschiedene Vorlagentypen
       if (templateType === 'urgent' || templateType === 'dringend') {
         subject = `DRINGEND: ${subject}`;
@@ -307,7 +349,7 @@ export async function createAndSendOrderEmail(
         subject = `Nachbestellung: ${subject}`;
       }
     }
-    
+
     // 5. E-Mail senden
     return await sendOrderEmail(
       emailAddress,

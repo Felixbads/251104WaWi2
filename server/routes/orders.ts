@@ -117,6 +117,12 @@ hiermit bestellen wir folgende Artikel:
 {{orderItems}}
 
 Bestellnummer: ${order.orderNumber}
+Lieferadresse:
+Elbsandstein Proviant & Quartier GmbH
+Pirnaer Str. 19
+01829 Stadt Wehlen
+Deutschland
+
 Gewünschter Liefertermin: ${deliveryDate}
 
 ${order.notes ? 'Hinweise: ' + order.notes + '\n' : ''}
