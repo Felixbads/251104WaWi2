@@ -90,8 +90,8 @@ export default function PurchaseConditionForm({
     }
   });
   
-  // Extrahiere die Products-Daten aus der Response
-  const products = productsResponse?.data || [];
+  // Extrahiere die Products-Daten aus der Response (API gibt direkt ein Array zurück)
+  const products = productsResponse || [];
 
   // Produkt-Details für den ausgewählten Produkttyp
   const [selectedProductDetails, setSelectedProductDetails] = React.useState<any>(null);

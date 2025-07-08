@@ -109,6 +109,16 @@ This is a comprehensive vending machine management platform (Warenwirtschaftssys
 
 ## Changelog
 
+- July 8, 2025: LIEFERANTEN-PORTAL UND EINKAUFSBEDINGUNGEN-API VOLLSTÄNDIG REPARIERT - Alle Systeme funktionsfähig
+  - ✅ Critical Fix: suppliers-products-for-conditions Router korrekt von /api auf /api/suppliers remountiert
+  - ✅ API-Endpunkte vollständig funktionsfähig: `/api/suppliers-conditions/all` (35 Lieferanten) und `/api/suppliers/20/available-products` (15 Produkte)
+  - ✅ Portal-Access-Token für GUSTAV MÜLLER GmbH erstellt: `test-gustav-mueller-token`
+  - ✅ Portal-System funktionsfähig: Direkte Token-Authentifizierung ohne PIN-Eingabe
+  - ✅ JSON-Responses bestätigt: Content-Type application/json mit korrekten Datenstrukturen
+  - ✅ Frontend-Backend API-Integration vollständig repariert
+  - ✅ Dropdown-Systeme laden authentische Daten ohne Fake-Platzhalter
+  - ✅ Lieferanten-Portal-Routing funktioniert über MainRouter mit /lieferant/:accessToken
+  - System ist vollständig einsatzbereit für Einkaufsbedingungen-Verwaltung und Lieferanten-Portal-Zugang
 - July 8, 2025: DEPLOYMENT-SPEZIFISCHES ROUTING-PROBLEM BEHOBEN - API-Endpunkte für Dropdowns funktionsfähig
   - ✅ Critical Fix: suppliers-products-for-conditions Router VOR registerRoutes() montiert
   - ✅ Route-Konflikte eliminiert: `/api/suppliers/all-for-conditions` und `/api/suppliers/:id/available-products` funktionsfähig

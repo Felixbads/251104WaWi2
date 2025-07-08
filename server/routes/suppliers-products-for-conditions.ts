@@ -3,8 +3,8 @@ import { pool } from '../db';
 
 const router = Router();
 
-// GET /api/suppliers-conditions/all - Alle Lieferanten für Einkaufsbedingungen (für Produkt → Lieferant)
-router.get('/suppliers-conditions/all', async (req, res) => {
+// GET /api/suppliers/all-for-conditions - Alle Lieferanten für Einkaufsbedingungen (für Produkt → Lieferant)
+router.get('/all-for-conditions', async (req, res) => {
   try {
     console.log('[SUPPLIERS-PRODUCTS] Fetching all suppliers for product conditions');
     
@@ -33,9 +33,9 @@ router.get('/suppliers-conditions/all', async (req, res) => {
 });
 
 // GET /api/suppliers/:id/available-products - Alle verfügbaren Produkte für neue Einkaufsbedingungen
-router.get('/:id/available-products', async (req, res) => {
+router.get('/:supplierId/available-products', async (req, res) => {
   try {
-    const { id: supplierId } = req.params;
+    const { supplierId } = req.params;
     console.log('[SUPPLIERS-PRODUCTS] Fetching available products for supplier:', supplierId);
     
     const result = await pool.query(`
