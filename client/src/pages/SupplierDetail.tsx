@@ -111,8 +111,8 @@ function SupplierPortalAnalytics({ supplierId, supplierName }: { supplierId: num
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Direkter Portal-Link - nur anzeigen wenn verfügbar */}
-          {portalData?.portalUrl && (
+          {/* Direkter Portal-Link - erstelle automatisch aus PINs wenn verfügbar */}
+          {(portalData?.portalUrl || (portalData?.activePins && portalData.activePins.length > 0)) && (
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
               <div className="flex items-center justify-between">
                 <div>
@@ -125,7 +125,13 @@ function SupplierPortalAnalytics({ supplierId, supplierName }: { supplierId: num
                   )}
                 </div>
                 <Button
-                  onClick={() => window.open(portalData.portalUrl, '_blank')}
+                  onClick={() => {
+                    const portalUrl = portalData?.portalUrl || 
+                      (portalData?.activePins?.length > 0 
+                        ? `${window.location.origin}/lieferant/${portalData.activePins[0].access_token}`
+                        : null);
+                    if (portalUrl) window.open(portalUrl, '_blank');
+                  }}
                   className="bg-blue-600 hover:bg-blue-700"
                 >
                   <ExternalLink className="h-4 w-4 mr-2" />
@@ -136,7 +142,7 @@ function SupplierPortalAnalytics({ supplierId, supplierName }: { supplierId: num
           )}
 
           {/* Kein Portal-Link verfügbar */}
-          {!portalData?.portalUrl && (
+          {!portalData?.portalUrl && (!portalData?.activePins || portalData.activePins.length === 0) && (
             <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
               <div className="flex items-center justify-between">
                 <div>
