@@ -111,8 +111,9 @@ export default function EmailDialog({
 
       // Add order items if available
       if (orderItems.length > 0) {
-        // Check if supplier wants prices shown (default: true if not specified)
-        const showPrices = orderData?.supplier_show_prices !== false;
+        // Check if supplier wants prices shown (default: true if not specified) 
+        const showPrices = orderData?.show_prices_in_email !== false;
+        console.log(`EmailDialog: showPricesInEmail = ${showPrices}, orderData.show_prices_in_email = ${orderData?.show_prices_in_email}`);
         
         htmlContent += `
           <h3>Bestellpositionen:</h3>
