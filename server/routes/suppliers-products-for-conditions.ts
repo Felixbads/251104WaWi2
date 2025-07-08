@@ -12,7 +12,8 @@ router.get('/:id/available-products', async (req, res) => {
     const result = await pool.query(`
       SELECT 
         p.id,
-        p.product_name,
+        p.product_name as "productName",
+        p.sku,
         p.category,
         p.vat,
         p.supplier_id
