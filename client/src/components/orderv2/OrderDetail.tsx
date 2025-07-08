@@ -421,6 +421,7 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
       if (editingItems.length > 0) {
         console.log('About to update order items...');
         
+        let itemsUpdateResponse;
         try {
           console.log('About to serialize editingItems for API call...');
           const itemsPayload = { items: editingItems };
@@ -429,7 +430,7 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
           const serializedPayload = JSON.stringify(itemsPayload);
           console.log('Successfully serialized items payload, length:', serializedPayload.length);
           
-          const itemsUpdateResponse = await fetch(`/api/orders/${orderId}/items`, {
+          itemsUpdateResponse = await fetch(`/api/orders/${orderId}/items`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: serializedPayload
