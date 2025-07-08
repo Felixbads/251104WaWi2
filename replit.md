@@ -109,14 +109,16 @@ This is a comprehensive vending machine management platform (Warenwirtschaftssys
 
 ## Changelog
 
-- July 8, 2025: Portal-Link 404-Fehler behoben - System vollständig funktionsfähig
+- July 8, 2025: Dauerhaftes Portal-System ohne PIN-Eingabe vollständig implementiert
   - ✅ Portal-Route-Problem gelöst: Korrekter Link `/lieferant/:accessToken` statt falscher `/portal?supplier=ID`
-  - ✅ Portal-Link wird jetzt nur angezeigt wenn verfügbar (nach PIN-Generierung)
-  - ✅ Intelligente Portal-Verfügbarkeitsanzeige: "Kein Zugang" wenn kein aktiver PIN vorhanden
-  - ✅ Bestellübersicht im Portal mit vollständigen Bestelldetails und Status-Badges implementiert
-  - ✅ Authentische Portal-URLs aus Analytics-API statt fehlerhafter manueller Links
+  - ✅ PIN-Eingabe komplett entfernt: Portal funktioniert direkt über Access-Token
+  - ✅ Dauerhafte Portal-Links: Keine Ablaufzeiten, einmal generiert = dauerhaft gültig
+  - ✅ Direkte Authentifizierung über `/api/supplier-portal/authenticate` ohne PIN-Code
+  - ✅ Portal-Link wird nur angezeigt wenn verfügbar (nach einmaliger PIN-Generierung)
+  - ✅ "Kein Zugang" Anzeige wenn noch kein PIN generiert wurde
+  - ✅ Bestellübersicht mit vollständigen Details und Status-Badges
   - ✅ Letzter Zugriff-Anzeige für Portal-Nutzungsübersicht
-  - Portal-System funktioniert jetzt vollständig: PIN generieren → Portal-Link erscheint → sicherer Zugang mit Bestellübersicht
+  - System ist jetzt komplett nutzerfreundlich: Einmal PIN generieren → Portal-Link dauerhaft verwendbar
 - July 8, 2025: Supplier Portal Tab-System auf /lieferanten Seite vollständig implementiert
   - ✅ Neues Tab-System mit "Lieferanten-Übersicht" und "Portal-Zugang" hinzugefügt
   - ✅ Backend API-Endpunkte für Portal-Analytics implementiert (/admin/analytics/:supplierId)

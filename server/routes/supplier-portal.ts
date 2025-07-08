@@ -11,50 +11,66 @@ import { validatePin } from '../services/supplierPinService';
 const router = Router();
 
 /**
- * Verify PIN and get supplier session
- * POST /api/supplier-portal/verify-pin
+ * Direct authentication via access token (no PIN required)
+ * POST /api/supplier-portal/authenticate
  */
-router.post('/verify-pin', async (req: Request, res: Response) => {
+router.post('/authenticate', async (req: Request, res: Response) => {
   try {
-    const { accessToken, pinCode } = req.body;
+    const { accessToken } = req.body;
 
-    if (!accessToken || !pinCode) {
+    if (!accessToken) {
       return res.status(400).json({
         success: false,
-        error: 'Access Token und PIN-Code sind erforderlich'
+        error: 'Access Token ist erforderlich'
       });
     }
 
-    // Validiere PIN
-    const validation = await validatePin(accessToken, pinCode);
+    // Validiere Access Token direkt (ohne PIN)
+    const tokenQuery = `
+      SELECT 
+        supplier_id, access_token, valid_until, 
+        created_at, access_count, last_access_at, is_active
+      FROM supplier_access_pins 
+      WHERE access_token = $1 AND is_active = true
+    `;
 
-    if (validation.success && validation.data) {
-      // Update access count and last access time
-      await rawDb.query(
-        'UPDATE supplier_access_pins SET access_count = access_count + 1, last_access_at = NOW() WHERE access_token = $1',
-        [accessToken]
-      );
+    const result = await rawDb.query(tokenQuery, [accessToken]);
 
-      res.json({
-        success: true,
-        data: {
-          supplierId: validation.data.supplierId,
-          sessionToken: validation.data.sessionToken,
-          validUntil: validation.data.validUntil
-        }
-      });
-    } else {
-      res.status(401).json({
+    if (result.rows.length === 0) {
+      return res.status(401).json({
         success: false,
-        error: validation.error || 'Ungültiger PIN-Code oder Access Token'
+        error: 'Ungültiger oder abgelaufener Access Token'
       });
     }
+
+    const tokenData = result.rows[0];
+
+    // PINs sind jetzt dauerhaft gültig (kein Ablaufdatum mehr)
+
+    // Update access count and last access time
+    await rawDb.query(
+      'UPDATE supplier_access_pins SET access_count = access_count + 1, last_access_at = NOW() WHERE access_token = $1',
+      [accessToken]
+    );
+
+    // Erstelle Session Token
+    const sessionToken = `session_${accessToken}_${Date.now()}`;
+
+    res.json({
+      success: true,
+      data: {
+        supplierId: tokenData.supplier_id,
+        sessionToken: sessionToken,
+        validUntil: tokenData.valid_until,
+        accessCount: tokenData.access_count + 1
+      }
+    });
 
   } catch (error) {
-    console.error('[SUPPLIER-PORTAL] PIN verification error:', error);
+    console.error('[SUPPLIER-PORTAL] Direct authentication error:', error);
     res.status(500).json({
       success: false,
-      error: 'Serverfehler bei der PIN-Verifizierung'
+      error: 'Serverfehler bei der Authentifizierung'
     });
   }
 });

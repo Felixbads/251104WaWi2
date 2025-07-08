@@ -97,8 +97,7 @@ interface OrderItemData {
 export default function SupplierPortal() {
   const [match, params] = useRoute('/lieferant/:accessToken');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [pinCode, setPinCode] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
   const [sessionToken, setSessionToken] = useState<string | null>(null);
   const [supplierData, setSupplierData] = useState<SupplierData | null>(null);
   const [products, setProducts] = useState<ProductData[]>([]);
@@ -119,12 +118,11 @@ export default function SupplierPortal() {
   const accessToken = params?.accessToken;
 
   useEffect(() => {
-    // Prüfe, ob bereits ein Session-Token vorhanden ist
-    const savedSessionToken = localStorage.getItem('supplier_session_token');
-    if (savedSessionToken) {
-      validateSession(savedSessionToken);
+    if (accessToken) {
+      // Authentifiziere direkt mit Access Token
+      authenticateWithToken(accessToken);
     }
-  }, []);
+  }, [accessToken]);
 
   const handlePinSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -180,27 +178,32 @@ export default function SupplierPortal() {
     }
   };
 
-  const validateSession = async (token: string) => {
+  const authenticateWithToken = async (token: string) => {
     try {
-      const response = await apiRequest('/api/supplier-portal/validate-session', {
-        method: 'GET',
+      setIsLoading(true);
+      const response = await apiRequest('/api/supplier-portal/authenticate', {
+        method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`
-        }
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ accessToken: token })
       });
 
       if (response.success) {
-        setSessionToken(token);
+        const sessionToken = response.data.sessionToken;
+        setSessionToken(sessionToken);
         setIsAuthenticated(true);
-        await loadSupplierData(token);
+        localStorage.setItem('supplier_session_token', sessionToken);
+        await loadSupplierData(sessionToken);
       } else {
-        localStorage.removeItem('supplier_session_token');
+        console.error('Authentifizierung fehlgeschlagen:', response.error);
         setIsAuthenticated(false);
       }
     } catch (error) {
-      console.error('Session-Validierung fehlgeschlagen:', error);
-      localStorage.removeItem('supplier_session_token');
+      console.error('Authentifizierung fehlgeschlagen:', error);
       setIsAuthenticated(false);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -305,7 +308,6 @@ export default function SupplierPortal() {
     setSupplierData(null);
     setProducts([]);
     setOrders([]);
-    setPinCode('');
   };
 
   if (!match) {
@@ -324,7 +326,7 @@ export default function SupplierPortal() {
     );
   }
 
-  if (!isAuthenticated) {
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
         <Card className="w-full max-w-md">
@@ -332,29 +334,28 @@ export default function SupplierPortal() {
             <Shield className="h-12 w-12 text-blue-600 mx-auto mb-4" />
             <CardTitle>Lieferantenportal</CardTitle>
             <CardDescription>
-              Bitte geben Sie Ihren 4-stelligen PIN-Code ein, um auf Ihre Daten zuzugreifen.
+              Portal wird geladen...
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <form onSubmit={handlePinSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="pinCode">PIN-Code</Label>
-                <Input
-                  id="pinCode"
-                  type="text"
-                  maxLength={4}
-                  value={pinCode}
-                  onChange={(e) => setPinCode(e.target.value.replace(/\D/g, '').slice(0, 4))}
-                  placeholder="0000"
-                  className="text-center text-lg tracking-widest"
-                  required
-                />
-              </div>
-              <Button type="submit" className="w-full" disabled={isLoading || pinCode.length !== 4}>
-                {isLoading ? "Wird überprüft..." : "Anmelden"}
-              </Button>
-            </form>
+          <CardContent className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
           </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <Shield className="h-12 w-12 text-red-500 mx-auto mb-4" />
+            <CardTitle>Zugang verweigert</CardTitle>
+            <CardDescription>
+              Der Portal-Link ist ungültig oder abgelaufen. Bitte wenden Sie sich an unser Team für einen neuen Zugang.
+            </CardDescription>
+          </CardHeader>
         </Card>
       </div>
     );
