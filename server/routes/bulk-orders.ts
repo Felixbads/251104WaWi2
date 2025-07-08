@@ -253,6 +253,8 @@ router.post('/bulk', async (req, res) => {
       supplierId,
       orderType = 'bulk',
       expectedDeliveryDate,
+      deliveryType = 'delivery',
+      showPricesInEmail = true,
       notes,
       priority = 'high',
       items,
@@ -263,6 +265,8 @@ router.post('/bulk', async (req, res) => {
 
     console.log('Extracted fields:');
     console.log('- supplierId:', supplierId, typeof supplierId);
+    console.log('- deliveryType:', deliveryType);
+    console.log('- showPricesInEmail:', showPricesInEmail);
     console.log('- items:', items ? `Array with ${items.length} items` : 'undefined/null');
     console.log('- First item:', items && items[0] ? JSON.stringify(items[0]) : 'none');
 
@@ -307,7 +311,10 @@ router.post('/bulk', async (req, res) => {
       supplierId,
       status: 'draft',
       expectedDeliveryDate: expectedDeliveryDate ? new Date(expectedDeliveryDate) : null,
+      deliveryType: deliveryType,
+      showPricesInEmail: showPricesInEmail,
       notes: `${notes || ''}\n\nBulk order analysis: ${analysisWeeks} weeks, forecast: ${forecastWeeks} weeks`,
+      priority: priority,
       totalAmount: totalValue
     }).returning();
 

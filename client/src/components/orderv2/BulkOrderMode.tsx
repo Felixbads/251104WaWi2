@@ -4,6 +4,8 @@ import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import { format, subWeeks, addWeeks } from 'date-fns';
 import { de } from 'date-fns/locale';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
 
 import {
   Card,
@@ -34,6 +36,8 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Switch } from "@/components/ui/switch";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { 
   ArrowLeft, 
   TrendingUp, 
@@ -44,11 +48,14 @@ import {
   Warehouse,
   Calculator,
   Eye,
+  EyeOff,
   Plus,
   Minus,
   ChevronDown,
   ChevronRight,
-  MapPin
+  MapPin,
+  Truck,
+  Store
 } from 'lucide-react';
 
 interface BulkOrderModeProps {
@@ -286,6 +293,13 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
   const [orderQuantities, setOrderQuantities] = useState<Record<number, number>>({});
   const [expandedRows, setExpandedRows] = useState<Record<number, boolean>>({});
   const [expandedWarehouseDetails, setExpandedWarehouseDetails] = useState<Record<number, boolean>>({});
+  
+  // Order settings state
+  const [deliveryDate, setDeliveryDate] = useState<Date>(addWeeks(new Date(), 1));
+  const [deliveryType, setDeliveryType] = useState<'delivery' | 'pickup'>('delivery');
+  const [showPricesInEmail, setShowPricesInEmail] = useState<boolean>(true);
+  const [showPricesInTable, setShowPricesInTable] = useState<boolean>(true);
+  const [orderNotes, setOrderNotes] = useState<string>('');
 
   // Data queries
   const { data: suppliers, isLoading: suppliersLoading } = useQuery({
@@ -485,8 +499,10 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
       supplierId: selectedSupplierId,
       orderType: 'bulk',
       warehouseId: null, // Bulk order for main warehouse
-      expectedDeliveryDate: addWeeks(new Date(), 1).toISOString(),
-      notes: `Großbestellung für alle Lager - Analyse: ${analysisWeeks} Wochen, Prognose: ${forecastWeeks} Wochen`,
+      expectedDeliveryDate: deliveryDate.toISOString(),
+      deliveryType: deliveryType,
+      showPricesInEmail: showPricesInEmail,
+      notes: orderNotes || `Großbestellung für alle Lager - Analyse: ${analysisWeeks} Wochen, Prognose: ${forecastWeeks} Wochen`,
       priority: "high",
       items: orderItems,
       orderMode: "bulk",
@@ -834,6 +850,107 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
             </p>
           </div>
 
+          {/* Order Settings Section */}
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Calendar className="h-5 w-5" />
+                Bestelleinstellungen
+              </CardTitle>
+              <CardDescription>
+                Lieferdatum, Lieferart und weitere Einstellungen für die Bestellung
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {/* Delivery Date */}
+                <div className="space-y-2">
+                  <Label htmlFor="deliveryDate">Gewünschtes Lieferdatum</Label>
+                  <div className="relative">
+                    <DatePicker
+                      selected={deliveryDate}
+                      onChange={(date: Date) => setDeliveryDate(date)}
+                      dateFormat="dd.MM.yyyy"
+                      locale={de}
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                      placeholderText="TT.MM.JJJJ"
+                      minDate={new Date()}
+                    />
+                    <Calendar className="absolute right-3 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
+                  </div>
+                </div>
+
+                {/* Delivery Type */}
+                <div className="space-y-3">
+                  <Label>Lieferart</Label>
+                  <RadioGroup 
+                    value={deliveryType} 
+                    onValueChange={(value: 'delivery' | 'pickup') => setDeliveryType(value)}
+                    className="flex flex-col space-y-2"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="delivery" id="delivery" />
+                      <Label htmlFor="delivery" className="flex items-center gap-2 cursor-pointer">
+                        <Truck className="h-4 w-4" />
+                        Anlieferung
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="pickup" id="pickup" />
+                      <Label htmlFor="pickup" className="flex items-center gap-2 cursor-pointer">
+                        <Store className="h-4 w-4" />
+                        Abholung
+                      </Label>
+                    </div>
+                  </RadioGroup>
+                </div>
+
+                {/* Price Settings */}
+                <div className="space-y-4">
+                  <div className="space-y-3">
+                    <Label>Preisanzeige</Label>
+                    <div className="space-y-2">
+                      <div className="flex items-center space-x-2">
+                        <Switch
+                          id="showPricesInTable"
+                          checked={showPricesInTable}
+                          onCheckedChange={setShowPricesInTable}
+                        />
+                        <Label htmlFor="showPricesInTable" className="flex items-center gap-2 cursor-pointer">
+                          {showPricesInTable ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+                          Preise in Tabelle anzeigen
+                        </Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Switch
+                          id="showPricesInEmail"
+                          checked={showPricesInEmail}
+                          onCheckedChange={setShowPricesInEmail}
+                        />
+                        <Label htmlFor="showPricesInEmail" className="flex items-center gap-2 cursor-pointer">
+                          {showPricesInEmail ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+                          Preise in E-Mail anzeigen
+                        </Label>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Order Notes */}
+              <div className="mt-6 space-y-2">
+                <Label htmlFor="orderNotes">Zusätzliche Notizen zur Bestellung</Label>
+                <textarea
+                  id="orderNotes"
+                  value={orderNotes}
+                  onChange={(e) => setOrderNotes(e.target.value)}
+                  placeholder="Besondere Anweisungen, Lieferzeiten, oder andere wichtige Informationen..."
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 min-h-[80px] resize-y"
+                />
+              </div>
+            </CardContent>
+          </Card>
+
           {forecastLoading ? (
             <div className="space-y-4">
               {[1, 2, 3, 4, 5].map(i => (
@@ -849,7 +966,7 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
                     <TableHead>Prognose {forecastWeeks}W</TableHead>
                     <TableHead>Empfehlung</TableHead>
                     <TableHead>Bestellmenge</TableHead>
-                    <TableHead>Gesamt</TableHead>
+                    {showPricesInTable && <TableHead>Gesamt</TableHead>}
                     <TableHead>Standorte</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -908,7 +1025,7 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
                               </Button>
                             </div>
                           </TableCell>
-                          <TableCell>{totalCost.toFixed(2)} €</TableCell>
+                          {showPricesInTable && <TableCell>{totalCost.toFixed(2)} €</TableCell>}
                           <TableCell>
                             <Button
                               variant="ghost"
@@ -926,7 +1043,7 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
                         
                         {isExpanded && quantity > 0 && (
                           <TableRow className="bg-gray-50">
-                            <TableCell colSpan={6} className="p-0">
+                            <TableCell colSpan={showPricesInTable ? 6 : 5} className="p-0">
                               <ForecastLocationBreakdown 
                                 productId={item.productId} 
                                 totalQuantity={quantity} 
@@ -939,7 +1056,7 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
                     );
                   }) : (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={showPricesInTable ? 6 : 5} className="text-center py-8 text-muted-foreground">
                         Keine Prognosedaten verfügbar
                       </TableCell>
                     </TableRow>
