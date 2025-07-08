@@ -612,8 +612,7 @@ function AuthenticatedRouter() {
           </AdminRoute>
         )} />
 
-        {/* Supplier Portal - SEPARATE from main application, no authentication required */}
-        <Route path="/lieferant/:accessToken" component={SupplierPortal} />
+        {/* Supplier Portal Route entfernt - bereits oben registriert */}
 
         <Route path="/:rest*" component={(props: any) => {
           const rest = props.params?.rest;

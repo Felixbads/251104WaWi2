@@ -117,11 +117,20 @@ export default function SupplierPortal() {
 
   const accessToken = params?.accessToken;
 
+  // Debug-Ausgabe für Routing
+  console.log('SupplierPortal gerendert mit:', { match, params, accessToken });
+
   useEffect(() => {
-    if (accessToken) {
-      // Authentifiziere direkt mit Access Token
-      authenticateWithToken(accessToken);
+    console.log('useEffect triggered with accessToken:', accessToken);
+    if (!accessToken) {
+      console.error('Kein Access-Token gefunden im URL-Parameter');
+      setIsLoading(false);
+      return;
     }
+
+    console.log('Access-Token gefunden:', accessToken);
+    // Authentifiziere direkt mit Access Token
+    authenticateWithToken(accessToken);
   }, [accessToken]);
 
   const handlePinSubmit = async (e: React.FormEvent) => {
