@@ -726,7 +726,9 @@ router.get('/admin/analytics/:supplierId', async (req: Request, res: Response) =
     const feedbackResult = await rawDb.query(feedbackQuery, [supplierId]);
 
     // Get supplier portal access URL
-    const baseUrl = process.env.BASE_URL || 'https://your-replit-app.replit.app';
+    const baseUrl = process.env.BASE_URL || 
+                   (process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : 
+                   'https://your-replit-app.replit.app');
     const activePins = pinsResult.rows;
     let portalUrl = null;
     
