@@ -123,6 +123,9 @@ function AuthenticatedRouter() {
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
   const [location] = useLocation();
+  
+  // DEBUG: Log current location and user status
+  console.log('[APP-ROUTER] AuthenticatedRouter rendered:', { location, user: user?.email, isAdmin });
 
   // Da wir bereits direkte Weiterleitungen im Login-Prozess haben,
   // ist keine weitere Umleitung für "/" und "/login" nötig
@@ -137,7 +140,12 @@ function AuthenticatedRouter() {
         <Route path="/unauthorized" component={Unauthorized} />
         
         {/* Lieferanten-Portal Route - öffentlich zugänglich */}
-        <Route path="/lieferant/:accessToken" component={SupplierPortal} />
+        <Route path="/lieferant/:accessToken">
+          {(params) => {
+            console.log('PORTAL ROUTE MATCHED:', params);
+            return <SupplierPortal />;
+          }}
+        </Route>
 
         {/* Geschützte Routen, die Freigabe erfordern */}
         <Route path="/login">
@@ -629,6 +637,9 @@ import PublicRoute from "@/pages/PublicRoute";
 function PublicRouter() {
   // Beim Rendern überprüfen wir die aktuelle URL 
   const [location] = useLocation();
+  
+  // DEBUG: Log public router usage
+  console.log('[APP-ROUTER] PublicRouter rendered:', { location });
 
   return (
     <Switch>
@@ -649,6 +660,7 @@ import ErrorBoundary from "@/components/ErrorBoundary";
 
 // Haupt-App-Komponente
 function App() {
+  console.log('[APP] App component rendered');
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
@@ -666,7 +678,16 @@ function App() {
 // Haupt-Router, der zwischen authentifizierten und öffentlichen Routen entscheidet
 function MainRouter() {
   const { isAuthenticated, user, isLoading } = useAuth();
-  console.log("Auth status:", { isAuthenticated, user });
+  const [location] = useLocation();
+  
+  // DEBUG: Erweiterte Router-Diagnose
+  console.log('[APP-ROUTER] MainRouter decisions:', { 
+    location, 
+    isAuthenticated, 
+    isLoading, 
+    user: user?.email,
+    isPortalRoute: location.includes('/lieferant/') 
+  });
 
   // Hier entfernen wir die automatische Weiterleitung, um mehrfache Weiterleitungen zu vermeiden
   // Die Navigation wird durch den Router basierend auf isAuthenticated gesteuert

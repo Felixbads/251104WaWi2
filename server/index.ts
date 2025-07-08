@@ -61,6 +61,19 @@ import enhancedProfitabilityRouter from './routes/enhanced-profitability-fixed';
 
 const app = express();
 
+// DEBUG: Portal-Route-Logging vor allen anderen Middlewares
+app.use((req, res, next) => {
+  if (req.path.includes('/lieferant/')) {
+    console.log('[SERVER-DEBUG] Portal route accessed:', {
+      path: req.path,
+      originalUrl: req.originalUrl,
+      method: req.method,
+      accept: req.headers.accept
+    });
+  }
+  next();
+});
+
 // Optimized location status route with authentic database data will be registered below
 
 // INTER-APP API ENDPOINTS - MUST BE FIRST TO BYPASS ALL MIDDLEWARE
