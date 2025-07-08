@@ -201,24 +201,50 @@ export default function SupplierPortal({ params: routeParams }: { params?: { acc
     try {
       setIsLoading(true);
       console.log('Sending authentication request with token:', token);
-      const response = await apiRequest('/api/supplier-portal/authenticate', {
+      
+      // Direct fetch instead of apiRequest to bypass potential issues
+      const response = await fetch('/api/supplier-portal/authenticate', {
         method: 'POST',
-        body: { accessToken: token }
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ accessToken: token })
       });
 
-      if (response.success) {
-        const sessionToken = response.data.sessionToken;
+      console.log('Response status:', response.status);
+      const data = await response.json();
+      console.log('Response data:', data);
+
+      if (data.success) {
+        const sessionToken = data.data.sessionToken;
         setSessionToken(sessionToken);
         setIsAuthenticated(true);
         localStorage.setItem('supplier_session_token', sessionToken);
         await loadSupplierData(sessionToken);
+        
+        toast({
+          title: "Erfolgreich angemeldet",
+          description: "Willkommen in Ihrem Lieferantenportal!"
+        });
       } else {
-        console.error('Authentifizierung fehlgeschlagen:', response.error);
+        console.error('Authentifizierung fehlgeschlagen:', data.error);
         setIsAuthenticated(false);
+        
+        toast({
+          title: "Authentifizierung fehlgeschlagen",
+          description: data.error || "Unbekannter Fehler",
+          variant: "destructive"
+        });
       }
     } catch (error) {
       console.error('Authentifizierung fehlgeschlagen:', error);
       setIsAuthenticated(false);
+      
+      toast({
+        title: "Verbindungsfehler",
+        description: "Verbindung zum Portal fehlgeschlagen.",
+        variant: "destructive"
+      });
     } finally {
       setIsLoading(false);
     }
@@ -226,20 +252,22 @@ export default function SupplierPortal({ params: routeParams }: { params?: { acc
 
   const loadSupplierData = async (token: string) => {
     try {
+      console.log('Loading supplier data with token:', token.substring(0, 10) + '...');
+      
       // Parallel laden von Lieferanten-, Produkt- und Bestelldaten
       const [supplierResponse, productsResponse, ordersResponse] = await Promise.all([
-        apiRequest('/api/supplier-portal/supplier-data', {
+        fetch('/api/supplier-portal/supplier-data', {
           method: 'GET',
           headers: { 'Authorization': `Bearer ${token}` }
-        }),
-        apiRequest('/api/supplier-portal/products', {
+        }).then(res => res.json()),
+        fetch('/api/supplier-portal/products', {
           method: 'GET',
           headers: { 'Authorization': `Bearer ${token}` }
-        }),
-        apiRequest('/api/supplier-portal/orders', {
+        }).then(res => res.json()),
+        fetch('/api/supplier-portal/orders', {
           method: 'GET',
           headers: { 'Authorization': `Bearer ${token}` }
-        })
+        }).then(res => res.json())
       ]);
 
       if (supplierResponse.success) {
