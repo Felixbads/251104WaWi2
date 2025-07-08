@@ -345,6 +345,126 @@ router.get('/supplier/:supplierId/orders', async (req: Request, res: Response) =
 });
 
 /**
+ * Get supplier portal analytics for admin view
+ * GET /api/supplier-portal/admin/analytics/:supplierId
+ */
+router.get('/admin/analytics/:supplierId', async (req: Request, res: Response) => {
+  try {
+    const supplierId = parseInt(req.params.supplierId);
+
+    if (isNaN(supplierId)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Ungültige Lieferant-ID'
+      });
+    }
+
+    // Get active PINs for this supplier
+    const pinsQuery = `
+      SELECT 
+        id, pin_code, access_token, valid_until, created_at,
+        access_count, last_access_at, created_by_order_number,
+        session_expires_at
+      FROM supplier_access_pins 
+      WHERE supplier_id = $1 AND is_active = true
+      ORDER BY created_at DESC
+    `;
+
+    // Get feedback/change requests from this supplier
+    const feedbackQuery = `
+      SELECT 
+        id, feedback_type, entity_type, entity_id, field_name,
+        current_value, suggested_value, comment, priority, status,
+        admin_response, contact_email, contact_phone, created_at,
+        reviewed_at, reviewed_by
+      FROM supplier_feedback 
+      WHERE supplier_id = $1
+      ORDER BY created_at DESC
+      LIMIT 50
+    `;
+
+    const [pinsResult, feedbackResult] = await Promise.all([
+      rawDb.query(pinsQuery, [supplierId]),
+      rawDb.query(feedbackQuery, [supplierId])
+    ]);
+
+    // Get supplier portal access URL
+    const baseUrl = process.env.BASE_URL || 'https://your-replit-app.replit.app';
+    const activePins = pinsResult.rows;
+    let portalUrl = null;
+    
+    if (activePins.length > 0) {
+      portalUrl = `${baseUrl}/lieferant/${activePins[0].access_token}`;
+    }
+
+    res.json({
+      success: true,
+      data: {
+        activePins: activePins,
+        feedback: feedbackResult.rows,
+        portalUrl,
+        lastAccess: activePins.length > 0 ? activePins[0].last_access_at : null,
+        totalAccess: activePins.reduce((sum, pin) => sum + (pin.access_count || 0), 0)
+      }
+    });
+
+  } catch (error) {
+    console.error('[SUPPLIER-PORTAL] Admin analytics error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Fehler beim Laden der Portal-Analytics'
+    });
+  }
+});
+
+/**
+ * Generate new PIN for supplier (admin function)
+ * POST /api/supplier-portal/admin/generate-pin/:supplierId
+ */
+router.post('/admin/generate-pin/:supplierId', async (req: Request, res: Response) => {
+  try {
+    const supplierId = parseInt(req.params.supplierId);
+    const { orderId, orderNumber } = req.body;
+
+    if (isNaN(supplierId)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Ungültige Lieferant-ID'
+      });
+    }
+
+    // Import and use the PIN service
+    const { createSupplierPin } = await import('../services/supplierPinService');
+    const result = await createSupplierPin(supplierId, orderId);
+
+    if (result.success && result.data) {
+      res.json({
+        success: true,
+        data: {
+          pinCode: result.data.pinCode,
+          accessUrl: result.data.accessUrl,
+          qrCodeDataUrl: result.data.qrCodeDataUrl,
+          validUntil: result.data.validUntil,
+          orderNumber: orderNumber || `MANUAL-${Date.now()}`
+        }
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: result.error || 'PIN konnte nicht generiert werden'
+      });
+    }
+
+  } catch (error) {
+    console.error('[SUPPLIER-PORTAL] Admin PIN generation error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Serverfehler beim Generieren des PINs'
+    });
+  }
+});
+
+/**
  * Submit change request
  * POST /api/supplier-portal/change-request
  */
