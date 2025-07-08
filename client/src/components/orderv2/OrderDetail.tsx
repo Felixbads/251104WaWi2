@@ -386,18 +386,32 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
       console.log('FRONTEND: Full request body:', JSON.stringify(requestBody, null, 2));
 
       // Update order details including warehouse information
+      console.log('About to make backend API call for order update...');
       const orderUpdateResponse = await fetch(`/api/orders/${orderId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(requestBody)
       });
 
-      const orderUpdateResult = await orderUpdateResponse.json();
+      console.log('Backend API call completed, response status:', orderUpdateResponse.status);
+      console.log('About to parse order update response JSON...');
+      
+      let orderUpdateResult;
+      try {
+        orderUpdateResult = await orderUpdateResponse.json();
+        console.log('Successfully parsed order update response JSON');
+      } catch (parseError) {
+        console.error('Error parsing order update response JSON:', parseError);
+        throw new Error(`Failed to parse order update response: ${parseError instanceof Error ? parseError.message : String(parseError)}`);
+      }
+      
       console.log('Order update response:', orderUpdateResult);
 
       if (!orderUpdateResponse.ok || orderUpdateResult.error) {
         throw new Error(`Failed to update order: ${orderUpdateResult.error || 'Unknown error'}`);
       }
+      
+      console.log('Order update validation passed, proceeding...');
 
       // Update order items (only if there are changes)
       if (editingItems.length > 0) {
@@ -445,11 +459,17 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
         throw new Error(`Data reload failed in loadOrderItems: ${itemsError instanceof Error ? itemsError.message : String(itemsError)}`);
       }
       
+      console.log('About to set editing states to false...');
       setIsEditing(false);
-      setEditingOrder(null);
-      setEditingItems([]);
+      console.log('setIsEditing(false) completed');
       
-      console.log('Order saved successfully');
+      setEditingOrder(null);
+      console.log('setEditingOrder(null) completed');
+      
+      setEditingItems([]);
+      console.log('setEditingItems([]) completed');
+      
+      console.log('Order saved successfully - all operations completed');
     } catch (error) {
       console.error('Error saving changes:', error);
       console.error('Error details:', {
