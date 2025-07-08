@@ -447,9 +447,29 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
           throw new Error(`Order items serialization failed: ${itemsError instanceof Error ? itemsError.message : String(itemsError)}`);
         }
 
+        console.log('About to process items update response...');
+        console.log('itemsUpdateResponse.ok:', itemsUpdateResponse.ok);
+        console.log('itemsUpdateResponse.status:', itemsUpdateResponse.status);
+        
         if (itemsUpdateResponse.ok) {
-          const itemsUpdateResult = await itemsUpdateResponse.json();
-          console.log('Items update response:', itemsUpdateResult);
+          console.log('About to parse items update response JSON...');
+          try {
+            const responseText = await itemsUpdateResponse.text();
+            console.log('Items response text:', responseText.substring(0, 200), '...');
+            console.log('Items response text length:', responseText.length);
+            
+            const itemsUpdateResult = JSON.parse(responseText);
+            console.log('Successfully parsed items update JSON');
+            console.log('Items update response:', itemsUpdateResult);
+          } catch (parseError) {
+            console.error('ERROR parsing items update response JSON:', parseError);
+            console.error('Parse error details:', {
+              message: parseError instanceof Error ? parseError.message : 'Unknown',
+              stack: parseError instanceof Error ? parseError.stack : 'No stack',
+              toString: String(parseError)
+            });
+            throw new Error(`Items response JSON parse failed: ${parseError instanceof Error ? parseError.message : String(parseError)}`);
+          }
         } else {
           const errorText = await itemsUpdateResponse.text();
           console.warn('Failed to update order items, but continuing:', errorText);
