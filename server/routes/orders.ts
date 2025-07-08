@@ -945,7 +945,13 @@ router.put('/:id', async (req: Request, res: Response) => {
     
     // Handle optional fields with proper mapping
     if (updateData.expected_delivery_date !== undefined || updateData.expectedDeliveryDate !== undefined) {
-      updates.expectedDeliveryDate = updateData.expected_delivery_date || updateData.expectedDeliveryDate;
+      const dateValue = updateData.expected_delivery_date || updateData.expectedDeliveryDate;
+      // Convert string date to Date object if needed
+      if (typeof dateValue === 'string' && dateValue) {
+        updates.expectedDeliveryDate = new Date(dateValue);
+      } else if (dateValue instanceof Date) {
+        updates.expectedDeliveryDate = dateValue;
+      }
     }
     
     if (updateData.delivery_location !== undefined || updateData.deliveryLocation !== undefined) {
@@ -1006,7 +1012,7 @@ router.put('/:id', async (req: Request, res: Response) => {
     console.error('Error type:', typeof error);
     console.error('Error message:', error instanceof Error ? error.message : String(error));
     console.error('Error stack:', error instanceof Error ? error.stack : 'No stack');
-    console.error('Order ID:', orderId);
+    console.error('Order ID:', id);
     console.error('Update data received:', JSON.stringify(updateData, null, 2));
     res.status(500).json({ error: 'Fehler beim Aktualisieren der Bestellung', details: error instanceof Error ? error.message : String(error) });
   }
