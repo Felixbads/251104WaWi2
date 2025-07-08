@@ -356,25 +356,28 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
         })
       });
 
-      const orderUpdateResult = await orderUpdateResponse.text();
+      const orderUpdateResult = await orderUpdateResponse.json();
       console.log('Order update response:', orderUpdateResult);
 
-      if (!orderUpdateResponse.ok) {
-        throw new Error(`Failed to update order: ${orderUpdateResult}`);
+      if (!orderUpdateResponse.ok || orderUpdateResult.error) {
+        throw new Error(`Failed to update order: ${orderUpdateResult.error || 'Unknown error'}`);
       }
 
-      // Update order items
-      const itemsUpdateResponse = await fetch(`/api/orders/${orderId}/items`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items: editingItems })
-      });
+      // Update order items (only if there are changes)
+      if (editingItems.length > 0) {
+        const itemsUpdateResponse = await fetch(`/api/orders/${orderId}/items`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ items: editingItems })
+        });
 
-      const itemsUpdateResult = await itemsUpdateResponse.text();
-      console.log('Items update response:', itemsUpdateResult);
-
-      if (!itemsUpdateResponse.ok) {
-        console.warn('Failed to update order items, but continuing:', itemsUpdateResult);
+        if (itemsUpdateResponse.ok) {
+          const itemsUpdateResult = await itemsUpdateResponse.json();
+          console.log('Items update response:', itemsUpdateResult);
+        } else {
+          const errorText = await itemsUpdateResponse.text();
+          console.warn('Failed to update order items, but continuing:', errorText);
+        }
       }
 
       // Reload data
