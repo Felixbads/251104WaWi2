@@ -10,7 +10,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   ArrowLeft, Phone, Mail, Globe, MapPin, Building, Truck, 
   Calendar, Clock, Edit, Package, FileText, BarChart, AlertTriangle,
-  RefreshCw, Download, CheckCircle, XCircle, X, Trash2, Save, Plus, Check, Search, Euro
+  RefreshCw, Download, CheckCircle, XCircle, X, Trash2, Save, Plus, Check, Search, Euro,
+  Shield, QrCode, MessageSquare
 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
@@ -47,6 +48,243 @@ import { SupplierEditDialog } from "@/components/SupplierEditDialog";
 import { PurchaseConditionsTab } from "@/components/PurchaseConditionsTab";
 import SupplierDiscountManager from "@/components/SupplierDiscountManager";
 import { apiRequest } from "@/lib/queryClient";
+
+interface SupplierPortalData {
+  activePins: any[];
+  feedback: any[];
+  portalUrl: string | null;
+  lastAccess: string | null;
+  totalAccess: number;
+}
+
+// Portal Analytics Component for individual supplier details
+function SupplierPortalAnalytics({ supplierId, supplierName }: { supplierId: number; supplierName: string }) {
+  const [isGeneratingPin, setIsGeneratingPin] = useState(false);
+
+  const { data: portalData, isLoading, refetch } = useQuery<{ success: boolean; data: SupplierPortalData }>({
+    queryKey: [`/api/supplier-portal/admin/analytics/${supplierId}`],
+    enabled: !!supplierId,
+  });
+
+  const handleGeneratePin = async () => {
+    try {
+      setIsGeneratingPin(true);
+      const response = await fetch(`/api/supplier-portal/admin/generate-pin/${supplierId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderNumber: `MANUAL-${Date.now()}` })
+      });
+
+      if (response.ok) {
+        refetch();
+      }
+    } catch (error) {
+      console.error('Error generating PIN:', error);
+    } finally {
+      setIsGeneratingPin(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        {[1, 2, 3].map(i => (
+          <div key={i} className="h-20 bg-gray-100 rounded animate-pulse" />
+        ))}
+      </div>
+    );
+  }
+
+  const data = portalData?.data;
+
+  return (
+    <div className="space-y-6">
+      {/* Portal Access Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Shield className="h-5 w-5" />
+            Portal-Zugang für {supplierName}
+          </CardTitle>
+          <CardDescription>
+            Verwalten Sie den sicheren Portal-Zugang für diesen Lieferanten
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {data?.portalUrl ? (
+            <div className="space-y-2">
+              <div className="text-sm font-medium text-muted-foreground">Portal-Link:</div>
+              <div className="bg-blue-50 p-3 rounded border flex items-center justify-between">
+                <code className="text-sm text-blue-700 break-all flex-1 mr-2">{data.portalUrl}</code>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => window.open(data.portalUrl!, '_blank')}
+                >
+                  Portal öffnen
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-6 text-muted-foreground">
+              <Shield className="h-12 w-12 mx-auto mb-2 opacity-50" />
+              <p className="text-lg font-medium">Kein aktiver Portal-Zugang</p>
+              <p className="text-sm">Generieren Sie einen PIN für den Portal-Zugang</p>
+            </div>
+          )}
+
+          <Button
+            onClick={handleGeneratePin}
+            disabled={isGeneratingPin}
+            className="w-full"
+            size="lg"
+          >
+            <QrCode className="h-4 w-4 mr-2" />
+            {isGeneratingPin ? 'Generiere PIN...' : 'Neuen PIN generieren'}
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* PIN Information */}
+      {data?.activePins && data.activePins.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <QrCode className="h-5 w-5" />
+              Aktive PINs ({data.activePins.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {data.activePins.map((pin: any) => (
+                <div key={pin.id} className="border rounded-lg p-4 space-y-3">
+                  <div className="flex justify-between items-center">
+                    <div className="font-mono text-xl font-bold text-green-600">
+                      PIN: {pin.pin_code}
+                    </div>
+                    <Badge variant="outline" className="text-sm">
+                      Gültig bis: {new Date(pin.valid_until).toLocaleDateString('de-DE')}
+                    </Badge>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <span className="text-muted-foreground">Zugriffe:</span>
+                      <span className="ml-1 font-medium">{pin.access_count || 0}</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Erstellt:</span>
+                      <span className="ml-1">{new Date(pin.created_at).toLocaleDateString('de-DE')}</span>
+                    </div>
+                  </div>
+                  {pin.last_access_at && (
+                    <div className="text-sm text-blue-600 bg-blue-50 p-2 rounded">
+                      <strong>Letzter Zugriff:</strong> {new Date(pin.last_access_at).toLocaleString('de-DE')}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <div className="grid md:grid-cols-2 gap-6">
+        {/* Access Statistics */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Clock className="h-5 w-5" />
+              Zugriffs-Statistiken
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="text-center">
+                <div className="text-3xl font-bold text-blue-600">{data?.totalAccess || 0}</div>
+                <div className="text-sm text-muted-foreground">Gesamt-Zugriffe</div>
+              </div>
+              <div className="text-center">
+                <div className="text-lg font-bold text-green-600">
+                  {data?.lastAccess ? new Date(data.lastAccess).toLocaleDateString('de-DE') : 'Noch nie'}
+                </div>
+                <div className="text-sm text-muted-foreground">Letzter Zugriff</div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Quick Info */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Portal-Information</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">Status:</span>
+              <Badge variant={data?.portalUrl ? "default" : "secondary"}>
+                {data?.portalUrl ? "Aktiv" : "Inaktiv"}
+              </Badge>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">Aktive PINs:</span>
+              <span className="font-medium">{data?.activePins?.length || 0}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">Offene Rückmeldungen:</span>
+              <span className="font-medium">{data?.feedback?.length || 0}</span>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Feedback Overview */}
+      {data?.feedback && data.feedback.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <MessageSquare className="h-5 w-5" />
+              Lieferanten-Rückmeldungen ({data.feedback.length})
+            </CardTitle>
+            <CardDescription>
+              Änderungsanfragen und Feedback von diesem Lieferanten
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4 max-h-96 overflow-y-auto">
+              {data.feedback.map((feedback: any) => (
+                <div key={feedback.id} className="border rounded-lg p-4 space-y-3">
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1">
+                      <div className="font-medium text-lg">{feedback.feedback_type}</div>
+                      <div className="text-sm text-muted-foreground">
+                        {feedback.entity_type} • {feedback.field_name}
+                      </div>
+                    </div>
+                    <Badge variant={
+                      feedback.status === 'completed' ? 'default' : 
+                      feedback.status === 'in_progress' ? 'secondary' : 'outline'
+                    }>
+                      {feedback.status === 'completed' ? 'Erledigt' :
+                       feedback.status === 'in_progress' ? 'In Bearbeitung' : 'Offen'}
+                    </Badge>
+                  </div>
+                  {feedback.comment && (
+                    <div className="bg-gray-50 p-3 rounded border-l-4 border-blue-500">
+                      <p className="text-sm italic">"{feedback.comment}"</p>
+                    </div>
+                  )}
+                  <div className="text-xs text-muted-foreground border-t pt-2">
+                    Eingereicht am: {new Date(feedback.created_at).toLocaleString('de-DE')}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
 
 
 
@@ -927,6 +1165,10 @@ export default function SupplierDetail() {
               <Mail className="h-3 w-3 sm:h-4 sm:w-4" />
               <span>E-Mail</span>
             </TabsTrigger>
+            <TabsTrigger value="portal" className="flex items-center gap-1 px-2 py-2 text-xs sm:text-sm whitespace-nowrap">
+              <Shield className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span>Portal</span>
+            </TabsTrigger>
           </TabsList>
         </div>
         
@@ -1454,6 +1696,14 @@ export default function SupplierDetail() {
               supplierName={supplier?.name || ''} 
             />
           </div>
+        </TabsContent>
+        
+        {/* Portal Tab */}
+        <TabsContent value="portal" className="space-y-6">
+          <SupplierPortalAnalytics 
+            supplierId={parseInt(id!)} 
+            supplierName={supplier?.name || 'Unbekannter Lieferant'} 
+          />
         </TabsContent>
       </Tabs>
 
