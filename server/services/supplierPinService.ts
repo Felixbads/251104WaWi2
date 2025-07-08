@@ -40,10 +40,13 @@ export async function createSupplierPin(supplierId: number, orderId?: number, or
     const accessToken = generateAccessToken();
     const sessionToken = crypto.randomBytes(32).toString('hex');
     
-    // PIN-Gültigkeit: permanent = null, sonst 24 Stunden
-    let validUntil = null;
-    if (!permanent) {
-      validUntil = new Date();
+    // PIN-Gültigkeit: für Portal-System dauerhaft bis 2030, sonst 24 Stunden
+    let validUntil = new Date();
+    if (permanent) {
+      // Portal-System: Dauerhaft gültig bis 2030
+      validUntil = new Date('2030-12-31T23:59:59Z');
+    } else {
+      // Normale PINs: 24 Stunden
       validUntil.setHours(validUntil.getHours() + 24);
     }
     

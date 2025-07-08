@@ -16,14 +16,23 @@ const router = Router();
  */
 router.post('/authenticate', async (req: Request, res: Response) => {
   try {
+    console.log('[SUPPLIER-PORTAL] Authentication request received:', {
+      body: req.body,
+      headers: req.headers['content-type'],
+      url: req.url
+    });
+    
     const { accessToken } = req.body;
 
     if (!accessToken) {
+      console.log('[SUPPLIER-PORTAL] No access token found in request body');
       return res.status(400).json({
         success: false,
         error: 'Access Token ist erforderlich'
       });
     }
+
+    console.log('[SUPPLIER-PORTAL] Access token found:', accessToken.substring(0, 10) + '...');
 
     // Validiere Access Token direkt (ohne PIN)
     const tokenQuery = `
@@ -45,7 +54,16 @@ router.post('/authenticate', async (req: Request, res: Response) => {
 
     const tokenData = result.rows[0];
 
-    // PINs sind jetzt dauerhaft gültig (kein Ablaufdatum mehr)
+    // Prüfe Gültigkeit - PINs sind jetzt dauerhaft gültig (großzügiges Ablaufdatum)
+    const now = new Date();
+    const validUntil = new Date(tokenData.valid_until);
+    
+    if (validUntil < now) {
+      return res.status(401).json({
+        success: false,
+        error: 'Der Portal-Link ist abgelaufen. Bitte wenden Sie sich an unser Team für einen neuen Zugang.'
+      });
+    }
 
     // Update access count and last access time
     await rawDb.query(

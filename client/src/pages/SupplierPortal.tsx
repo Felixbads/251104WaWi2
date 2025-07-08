@@ -121,7 +121,14 @@ export default function SupplierPortal({ params: routeParams }: { params?: { acc
   const accessToken = finalParams?.accessToken;
 
   // Debug-Ausgabe für Routing
-  console.log('SupplierPortal gerendert mit:', { match, params, routeParams, finalParams, accessToken });
+  console.log('SupplierPortal gerendert mit:', { 
+    match, 
+    params, 
+    routeParams, 
+    finalParams, 
+    accessToken,
+    location: window.location.pathname 
+  });
 
   useEffect(() => {
     console.log('useEffect triggered with accessToken:', accessToken);
@@ -193,12 +200,10 @@ export default function SupplierPortal({ params: routeParams }: { params?: { acc
   const authenticateWithToken = async (token: string) => {
     try {
       setIsLoading(true);
+      console.log('Sending authentication request with token:', token);
       const response = await apiRequest('/api/supplier-portal/authenticate', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ accessToken: token })
+        body: { accessToken: token }
       });
 
       if (response.success) {
