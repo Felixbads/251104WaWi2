@@ -41,6 +41,7 @@ import ApprovedUserRoute from "@/components/auth/ApprovedUserRoute"; // Route f�
 import { InventoryCartProvider } from "@/components/inventory/InventoryCartContext";
 import InterAppConnections from "@/pages/InterAppConnections";
 import SupplierPortal from "@/pages/SupplierPortal";
+import SupplierPortalNew from "@/pages/SupplierPortalNew";
 
 /**
  * HOC, der eine geschützte Route mit Benutzerfreigabe-Prüfung erstellt
@@ -709,7 +710,7 @@ function MainRouter() {
     if (accessToken) {
       return (
         <QueryClientProvider client={queryClient}>
-          <SupplierPortal params={{ accessToken }} />
+          <SupplierPortalNew />
           <Toaster />
         </QueryClientProvider>
       );

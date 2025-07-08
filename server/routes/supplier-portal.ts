@@ -951,4 +951,122 @@ router.post('/admin/create-all-portals', async (req: Request, res: Response) => 
   }
 });
 
+// GET /api/supplier-portal/purchase-conditions - Einkaufsbedingungen abrufen
+router.get('/purchase-conditions', async (req, res) => {
+  const sessionToken = req.headers.authorization?.replace('Bearer ', '');
+  
+  if (!sessionToken) {
+    return jsonResponse(res, 401, {
+      success: false,
+      error: 'Session Token erforderlich'
+    });
+  }
+
+  try {
+    const supplierId = await validateSession(sessionToken);
+    
+    if (!supplierId) {
+      return jsonResponse(res, 401, {
+        success: false,
+        error: 'Ungültige Session'
+      });
+    }
+
+    const client = await pool.connect();
+    
+    try {
+      // Hole alle Einkaufsbedingungen für diesen Lieferanten
+      const result = await client.query(`
+        SELECT 
+          id, supplier_id as "supplierId", product_id as "productId", 
+          discount_type as "discountType", discount_percentage as "discountPercentage",
+          discount_amount as "discountAmount", threshold_quantity as "thresholdQuantity", 
+          threshold_amount as "thresholdAmount", max_quantity as "maxQuantity", 
+          max_amount as "maxAmount", payment_terms_days as "paymentTermsDays", 
+          skonto_percentage as "skontoPercentage", valid_from as "validFrom", 
+          valid_until as "validUntil", description, status, created_at, updated_at
+        FROM supplier_discount_conditions 
+        WHERE supplier_id = $1
+        ORDER BY created_at DESC
+      `, [supplierId]);
+
+      return jsonResponse(res, 200, {
+        success: true,
+        data: result.rows
+      });
+      
+    } finally {
+      client.release();
+    }
+    
+  } catch (error) {
+    console.error('Fehler beim Abrufen der Einkaufsbedingungen:', error);
+    return jsonResponse(res, 500, {
+      success: false,
+      error: 'Interner Serverfehler'
+    });
+  }
+});
+
+// GET /api/supplier-portal/order-items - Bestellpositionen abrufen
+router.get('/order-items', async (req, res) => {
+  const sessionToken = req.headers.authorization?.replace('Bearer ', '');
+  
+  if (!sessionToken) {
+    return jsonResponse(res, 401, {
+      success: false,
+      error: 'Session Token erforderlich'
+    });
+  }
+
+  try {
+    const supplierId = await validateSession(sessionToken);
+    
+    if (!supplierId) {
+      return jsonResponse(res, 401, {
+        success: false,
+        error: 'Ungültige Session'
+      });
+    }
+
+    const client = await pool.connect();
+    
+    try {
+      // Hole alle Bestellpositionen für Bestellungen dieses Lieferanten
+      const result = await client.query(`
+        SELECT 
+          oi.id, oi.order_id as "orderId", oi.product_id as "productId",
+          oi.product_name as "productName", oi.sku, oi.supplier_sku as "supplierSku",
+          oi.quantity, oi.unit, oi.quantity_delivered as "quantityDelivered",
+          oi.unit_price as "unitPrice", oi.total_price as "totalPrice",
+          oi.vat_rate as "vatRate", oi.vat_amount as "vatAmount",
+          oi.discount, oi.discount_amount as "discountAmount",
+          oi.position_number as "positionNumber", oi.status,
+          oi.notes, oi.item_comment as "itemComment", 
+          oi.delivery_comment as "deliveryComment",
+          o.order_number as "orderNumber", o.order_date as "orderDate"
+        FROM order_items oi
+        INNER JOIN orders o ON oi.order_id = o.id
+        WHERE o.supplier_id = $1
+        ORDER BY o.order_date DESC, oi.position_number ASC
+      `, [supplierId]);
+
+      return jsonResponse(res, 200, {
+        success: true,
+        data: result.rows
+      });
+      
+    } finally {
+      client.release();
+    }
+    
+  } catch (error) {
+    console.error('Fehler beim Abrufen der Bestellpositionen:', error);
+    return jsonResponse(res, 500, {
+      success: false,
+      error: 'Interner Serverfehler'
+    });
+  }
+});
+
 export default router;
