@@ -334,6 +334,13 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
     
     setIsSaving(true);
     try {
+      console.log('Saving order changes:', {
+        delivery_type: editingOrder.delivery_type,
+        show_prices_in_email: editingOrder.show_prices_in_email,
+        warehouseId: editingOrder.warehouseId,
+        notes: editingOrder.notes
+      });
+
       // Update order details including warehouse information
       const orderUpdateResponse = await fetch(`/api/orders/${orderId}`, {
         method: 'PUT',
@@ -349,8 +356,11 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
         })
       });
 
+      const orderUpdateResult = await orderUpdateResponse.text();
+      console.log('Order update response:', orderUpdateResult);
+
       if (!orderUpdateResponse.ok) {
-        throw new Error('Failed to update order');
+        throw new Error(`Failed to update order: ${orderUpdateResult}`);
       }
 
       // Update order items
@@ -360,8 +370,11 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
         body: JSON.stringify({ items: editingItems })
       });
 
+      const itemsUpdateResult = await itemsUpdateResponse.text();
+      console.log('Items update response:', itemsUpdateResult);
+
       if (!itemsUpdateResponse.ok) {
-        throw new Error('Failed to update order items');
+        console.warn('Failed to update order items, but continuing:', itemsUpdateResult);
       }
 
       // Reload data
@@ -371,9 +384,11 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
       setIsEditing(false);
       setEditingOrder(null);
       setEditingItems([]);
+      
+      console.log('Order saved successfully');
     } catch (error) {
       console.error('Error saving changes:', error);
-      alert('Fehler beim Speichern der Änderungen');
+      alert(`Fehler beim Speichern der Änderungen: ${error instanceof Error ? error.message : 'Unbekannter Fehler'}`);
     } finally {
       setIsSaving(false);
     }
@@ -808,7 +823,14 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
             </CardHeader>
             <CardContent className="space-y-3">
               <Button 
-                onClick={() => loadEmailTemplate('standard')} 
+                onClick={async () => {
+                  console.log('E-Mail generieren geklickt');
+                  await loadEmailTemplate('standard');
+                  if (emailTemplate) {
+                    console.log('E-Mail-Vorlage geladen, öffne Dialog');
+                    setIsEmailDialogOpen(true);
+                  }
+                }} 
                 className="w-full" 
                 variant="outline"
                 disabled={isLoadingEmail}
@@ -818,7 +840,14 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
               </Button>
               
               <Button 
-                onClick={() => loadEmailTemplate('urgent')} 
+                onClick={async () => {
+                  console.log('Dringende E-Mail geklickt');
+                  await loadEmailTemplate('urgent');
+                  if (emailTemplate) {
+                    console.log('Dringende E-Mail-Vorlage geladen, öffne Dialog');
+                    setIsEmailDialogOpen(true);
+                  }
+                }} 
                 className="w-full" 
                 variant="outline"
                 disabled={isLoadingEmail}

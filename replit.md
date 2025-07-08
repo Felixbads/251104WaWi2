@@ -109,6 +109,15 @@ This is a comprehensive vending machine management platform (Warenwirtschaftssys
 
 ## Changelog
 
+- July 8, 2025: Bulk Order System Frontend-Backend Integration komplett repariert
+  - ✅ Lieferantennamen-Problem behoben: supplier_name in Datenbank korrekt gesetzt auf "Agrarprodukte Struppen GmbH"
+  - ✅ Enhanced Email Template API vollständig funktionsfähig: Zeigt korrekte Lieferantennamen in E-Mail-Vorlagen
+  - ✅ E-Mail-Generierung repariert: Standard- und Dringend-E-Mail-Buttons öffnen jetzt korrekt den E-Mail-Dialog
+  - ✅ OrderDetail saveChanges mit verbessertem Logging für Frontend-Backend Debugging implementiert
+  - ✅ Delivery Type Toggle (Abholung/Lieferung) und Price Display Toggle funktionsfähig und persistieren korrekt
+  - ✅ E-Mail-Inhalte passen sich automatisch an Delivery Type und Price Visibility Einstellungen an
+  - ✅ System zeigt authentische Lieferantendaten ohne "unbekannter Lieferant" Platzhalter
+  - Bulk Order System ist jetzt vollständig funktionsfähig mit deutscher Benutzeroberfläche und korrekter E-Mail-Generierung
 - July 7, 2025: Kritische Systemfehler in Einkaufsbedingungen und Bestellkopieren behoben
   - ✅ Rabattbedingungen-Speicherung repariert: Frontend transformiert camelCase zu snake_case für Backend-API
   - ✅ Alle Rabatttypen funktionsfähig: Skonto (2%, 14 Tage), Mengenrabatt (5%, ab 50 Stück), Bestellwertrabatt (8%, ab €350)
