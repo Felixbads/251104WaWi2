@@ -795,18 +795,18 @@ app.get('/orders-data', (req, res) => {
           const productName = item.product_name || `Produkt-ID ${item.product_id}`;
           const unit = item.product_unit || item.unit || 'Stk';
           
+          // Nur echte Artikelnummer verwenden oder leer lassen
+          const supplierSku = item.supplier_sku || '';
+          
           itemsTableRows += `
-            <tr style="border-bottom: 1px solid #e5e7eb;">
-              <td style="padding: 8px; text-align: center;">${index + 1}</td>
-              <td style="padding: 8px;">P${item.product_id || 'N/A'}</td>
-              <td style="padding: 8px;">SKU-${item.product_id || 'N/A'}</td>
-              <td style="padding: 8px; font-weight: bold;">${productName}</td>
-              <td style="padding: 8px; text-align: center;">${quantity}</td>
+            <tr>
+              <td style="padding: 8px; text-align: left;">${index + 1}</td>
+              <td style="padding: 8px; text-align: left;">${item.product_id || ''}</td>
+              <td style="padding: 8px; text-align: left;">${productName}</td>
+              <td style="padding: 8px; text-align: left;">${supplierSku}</td>
+              <td style="padding: 8px; text-align: center;">${quantity.toFixed(2)}</td>
               <td style="padding: 8px; text-align: center;">${unit}</td>
-              ${showPrices ? `
-                <td style="padding: 8px; text-align: right;">${unitPrice.toFixed(2)} €</td>
-                <td style="padding: 8px; text-align: right; font-weight: bold;">${itemTotal.toFixed(2)} €</td>
-              ` : ''}
+              ${showPrices ? `<td style="padding: 8px; text-align: right;">${itemTotal.toFixed(2)} €</td>` : ''}
             </tr>
           `;
         });
@@ -820,14 +820,14 @@ app.get('/orders-data', (req, res) => {
           
           summenBlock = `
             <!-- 10. SUMMENBLOCK -->
-            <div style="margin: 30px 0; background: #f8fafc; padding: 20px; border-left: 4px solid #2563eb;">
-              <h3 style="margin: 0 0 15px 0; color: #2563eb;">Summenblock</h3>
+            <div style="margin: 30px 0; padding: 20px; border: 1px solid #000;">
+              <h3 style="margin: 0 0 15px 0; color: #000; border-bottom: 1px solid #000; padding-bottom: 5px;">Summenblock</h3>
               <table style="width: 100%; max-width: 400px; margin-left: auto;">
-                <tr><td style="padding: 5px; border-bottom: 1px solid #e5e7eb;"><strong>Zwischensumme netto:</strong></td>
-                    <td style="padding: 5px; text-align: right; border-bottom: 1px solid #e5e7eb;">${nettoTotal.toFixed(2)} €</td></tr>
-                <tr><td style="padding: 5px; border-bottom: 1px solid #e5e7eb;">Umsatzsteuer (19%):</td>
-                    <td style="padding: 5px; text-align: right; border-bottom: 1px solid #e5e7eb;">${vatAmount.toFixed(2)} €</td></tr>
-                <tr style="background: #2563eb; color: white;"><td style="padding: 8px; font-weight: bold;">Gesamtsumme brutto:</td>
+                <tr><td style="padding: 5px; border-bottom: 1px solid #000;"><strong>Zwischensumme netto:</strong></td>
+                    <td style="padding: 5px; text-align: right; border-bottom: 1px solid #000;">${nettoTotal.toFixed(2)} €</td></tr>
+                <tr><td style="padding: 5px; border-bottom: 1px solid #000;">Umsatzsteuer (19%):</td>
+                    <td style="padding: 5px; text-align: right; border-bottom: 1px solid #000;">${vatAmount.toFixed(2)} €</td></tr>
+                <tr style="background: #000; color: white;"><td style="padding: 8px; font-weight: bold;">Gesamtsumme brutto:</td>
                     <td style="padding: 8px; text-align: right; font-weight: bold;">${bruttoTotal.toFixed(2)} €</td></tr>
               </table>
             </div>
@@ -835,150 +835,84 @@ app.get('/orders-data', (req, res) => {
         }
         
         return `
-          <div style="font-family: Arial, sans-serif; font-size: 11pt; line-height: 1.4; color: #333; max-width: 800px;">
+          <div style="font-family: 'Skog', Arial, sans-serif; font-size: 10pt; line-height: 1.3; color: #000; max-width: 800px; padding: 20px;">
             
-            <!-- HEADER -->
-            <div style="text-align: center; margin-bottom: 30px; border-bottom: 2px solid #2563eb; padding-bottom: 15px;">
-              <h1 style="margin: 0; color: #2563eb; font-size: 18pt;">${isUrgent ? '🚨 DRINGENDE BESTELLUNG' : 'BESTELLUNG'}</h1>
-              <p style="margin: 5px 0; font-weight: bold; font-size: 14pt;">${orderNumber}</p>
-              ${isUrgent ? '<p style="margin: 0; color: #dc2626; font-weight: bold;">BITTE UM BEVORZUGTE BEARBEITUNG!</p>' : ''}
-            </div>
-
-            <!-- 1. IDENTIFIKATION -->
-            <table style="width: 100%; margin-bottom: 20px; border-collapse: collapse;">
+            <!-- HEADER wie im PDF -->
+            <table style="width: 100%; margin-bottom: 30px; border-collapse: collapse;">
               <tr>
-                <td style="width: 50%; vertical-align: top; padding-right: 20px;">
-                  <h3 style="margin: 0 0 10px 0; color: #2563eb; border-bottom: 1px solid #e5e7eb; padding-bottom: 5px;">1. Identifikation</h3>
-                  <table style="width: 100%;">
-                    <tr><td style="width: 40%; padding: 2px 0;"><strong>Bestellnummer:</strong></td><td>${orderNumber}</td></tr>
-                    <tr><td style="padding: 2px 0;"><strong>Bestelldatum:</strong></td><td>${orderDate}</td></tr>
-                    <tr><td style="padding: 2px 0;"><strong>Lieferanten-Nr.:</strong></td><td>${order.supplier_id}</td></tr>
-                    <tr><td style="padding: 2px 0;"><strong>Bestelltyp:</strong></td><td>${isPickup ? 'Abholauftrag' : orderType}</td></tr>
-                    <tr><td style="padding: 2px 0;"><strong>Bearbeiter:</strong></td><td>Felix Zschoge</td></tr>
-                    <tr><td style="padding: 2px 0;"><strong>E-Mail:</strong></td><td>felix@proviantomat.de</td></tr>
-                    <tr><td style="padding: 2px 0;"><strong>Telefon:</strong></td><td>+49 173 4385330</td></tr>
+                <td style="width: 65%; vertical-align: top;">
+                  <p style="margin: 0; font-size: 9pt;">Elbsandstein Proviant & Quartier GmbH | Seifhennersdorfer Str. 14 | 01099 Dresden</p>
+                  <div style="margin: 20px 0 30px 0;">
+                    <p style="margin: 0; font-weight: bold;">${order.supplier_name || 'Unbekannter Lieferant'}</p>
+                    ${order.supplier_address ? `<p style="margin: 0;">${order.supplier_address}</p>` : ''}
+                    ${order.supplier_city ? `<p style="margin: 0;">${order.supplier_city}</p>` : ''}
+                  </div>
+                </td>
+                <td style="width: 35%; vertical-align: top; text-align: right;">
+                  <div style="text-align: right;">
+                    <p style="margin: 0; font-weight: bold;">Elbsandstein Proviant & Quartier GmbH</p>
+                    <p style="margin: 0;">Seifhennersdorfer Str. 14</p>
+                    <p style="margin: 0;">01099 Dresden</p>
+                    <p style="margin: 10px 0 0 0;">Telefon: +49173 4385330</p>
+                  </div>
+                </td>
+              </tr>
+            </table>
+
+            <!-- BESTELLHEADER -->
+            <h1 style="margin: 30px 0 20px 0; font-family: 'Skog', Arial, sans-serif; font-size: 16pt; font-weight: bold;">${isUrgent ? 'DRINGENDE BESTELLUNG' : 'Bestellung'} ${orderNumber}</h1>
+
+            <!-- BESTELLDETAILS TABELLE -->
+            <table style="width: 100%; margin-bottom: 30px; border-collapse: collapse;">
+              <tr>
+                <td style="width: 50%; vertical-align: top; padding-right: 30px;">
+                  <table style="width: 100%; font-size: 10pt;">
+                    <tr><td style="padding: 2px 0; width: 40%;"><strong>Lieferanten-Nr.:</strong></td><td>${order.supplier_id}</td></tr>
+                    <tr><td style="padding: 2px 0;"><strong>Bestell-Typ:</strong></td><td>${isPickup ? 'Abholauftrag' : 'Standardbestellung'}</td></tr>
                   </table>
                 </td>
-                <td style="width: 50%; vertical-align: top; padding-left: 20px;">
-                  <h3 style="margin: 0 0 10px 0; color: #2563eb; border-bottom: 1px solid #e5e7eb; padding-bottom: 5px;">6. Geplantes Lieferdatum</h3>
-                  <p style="margin: 0; font-weight: bold; color: #059669; font-size: 14pt;">${deliveryDate}</p>
-                  ${isPickup ? '<p style="margin: 5px 0 0 0; color: #dc2626;"><strong>Abholung durch Auftraggeber</strong></p>' : ''}
+                <td style="width: 50%; vertical-align: top;">
+                  <table style="width: 100%; font-size: 10pt;">
+                    <tr><td style="padding: 2px 0; width: 40%;"><strong>Bestelldatum:</strong></td><td>${orderDate}</td></tr>
+                    <tr><td style="padding: 2px 0;"><strong>Bearbeiter:</strong></td><td>Felix Zschoge</td></tr>
+                    <tr><td style="padding: 2px 0;"><strong>E-Mail:</strong></td><td>felix@proviantomat.de</td></tr>
+                    <tr><td style="padding: 2px 0;"><strong>Geplantes Lieferdatum:</strong></td><td>${deliveryDate}</td></tr>
+                  </table>
                 </td>
               </tr>
             </table>
 
-            <!-- 2. ABSENDER / BESTELLER & 3. EMPFÄNGER / LIEFERANT -->
-            <table style="width: 100%; margin-bottom: 20px; border-collapse: collapse;">
-              <tr>
-                <td style="width: 50%; vertical-align: top; padding-right: 20px;">
-                  <h3 style="margin: 0 0 10px 0; color: #2563eb; border-bottom: 1px solid #e5e7eb; padding-bottom: 5px;">2. Absender / Besteller</h3>
-                  <div style="background: #f8fafc; padding: 15px; border-left: 3px solid #2563eb;">
-                    <p style="margin: 0; font-weight: bold; font-size: 12pt;">Elbsandstein Proviant & Quartier GmbH</p>
-                    <p style="margin: 2px 0;">Seifhennersdorfer Str. 14</p>
-                    <p style="margin: 2px 0;">01099 Dresden</p>
-                    <p style="margin: 8px 0 2px 0; font-size: 10pt;">USt-ID: DE353367134</p>
-                    <p style="margin: 2px 0; font-size: 10pt;">Steuernr.: 202/108/12394</p>
-                  </div>
-                </td>
-                <td style="width: 50%; vertical-align: top; padding-left: 20px;">
-                  <h3 style="margin: 0 0 10px 0; color: #2563eb; border-bottom: 1px solid #e5e7eb; padding-bottom: 5px;">3. Empfänger / Lieferant</h3>
-                  <div style="background: #fef3c7; padding: 15px; border-left: 3px solid #f59e0b;">
-                    <p style="margin: 0; font-weight: bold; font-size: 12pt;">${order.supplier_name || 'Unbekannter Lieferant'}</p>
-                    ${order.supplier_address ? `<p style="margin: 2px 0;">${order.supplier_address}</p>` : ''}
-                    ${order.supplier_contact ? `<p style="margin: 8px 0 2px 0; font-size: 10pt;">Kontakt: ${order.supplier_contact}</p>` : ''}
-                    ${order.supplier_phone ? `<p style="margin: 2px 0; font-size: 10pt;">Tel: ${order.supplier_phone}</p>` : ''}
-                  </div>
-                </td>
-              </tr>
-            </table>
+            <!-- ADRESSEN -->
+            <p style="margin: 20px 0; font-size: 10pt;"><strong>Rechnungsadresse:</strong> Elbsandstein Proviant & Quartier GmbH | Am Bahnhof 5 | 01814 Bad Schandau</p>
+            <p style="margin: 0 0 30px 0; font-size: 10pt;"><strong>Lieferadresse:</strong> ${isPickup ? 'Abholung durch Auftraggeber' : 'Elbsandstein Proviant & Quartier GmbH | Am Bahnhof 5 | 01814 Bad Schandau'}</p>
 
-            <!-- 4. RECHNUNGSADRESSE & 5. LIEFERADRESSE -->
-            <table style="width: 100%; margin-bottom: 20px; border-collapse: collapse;">
-              <tr>
-                <td style="width: 50%; vertical-align: top; padding-right: 20px;">
-                  <h3 style="margin: 0 0 10px 0; color: #2563eb; border-bottom: 1px solid #e5e7eb; padding-bottom: 5px;">4. Rechnungsadresse</h3>
-                  <div style="background: #ecfdf5; padding: 15px; border-left: 3px solid #059669;">
-                    <p style="margin: 0; font-weight: bold;">Elbsandstein Proviant & Quartier GmbH</p>
-                    <p style="margin: 2px 0;">Am Bahnhof 5</p>
-                    <p style="margin: 2px 0;">01814 Bad Schandau</p>
-                  </div>
-                </td>
-                <td style="width: 50%; vertical-align: top; padding-left: 20px;">
-                  <h3 style="margin: 0 0 10px 0; color: #2563eb; border-bottom: 1px solid #e5e7eb; padding-bottom: 5px;">5. Lieferadresse</h3>
-                  <div style="background: ${isPickup ? '#fef2f2' : '#ecfdf5'}; padding: 15px; border-left: 3px solid ${isPickup ? '#dc2626' : '#059669'};">
-                    ${isPickup ? 
-                      `<p style="margin: 0; font-weight: bold; color: #dc2626;">Abholung durch Auftraggeber</p>
-                       <p style="margin: 2px 0;">am ${deliveryDate}</p>` :
-                      `<p style="margin: 0; font-weight: bold;">${order.delivery_location || 'Am Bahnhof 5'}</p>
-                       <p style="margin: 2px 0;">01814 Bad Schandau</p>`
-                    }
-                  </div>
-                </td>
-              </tr>
+            <!-- BESTELLPOSITIONEN TABELLE -->
+            <table style="width: 100%; border-collapse: collapse; margin: 30px 0;">
+              <thead>
+                <tr>
+                  <th style="padding: 8px; border-bottom: 1px solid #000; text-align: left; font-weight: bold;">Pos.</th>
+                  <th style="padding: 8px; border-bottom: 1px solid #000; text-align: left; font-weight: bold;">Art.-Nr.</th>
+                  <th style="padding: 8px; border-bottom: 1px solid #000; text-align: left; font-weight: bold;">Bezeichnung</th>
+                  <th style="padding: 8px; border-bottom: 1px solid #000; text-align: left; font-weight: bold;">Art.-Nr. Lieferant</th>
+                  <th style="padding: 8px; border-bottom: 1px solid #000; text-align: center; font-weight: bold;">Menge</th>
+                  <th style="padding: 8px; border-bottom: 1px solid #000; text-align: center; font-weight: bold;">Einheit</th>
+                  ${showPrices ? `<th style="padding: 8px; border-bottom: 1px solid #000; text-align: right; font-weight: bold;">Preis</th>` : ''}
+                </tr>
+              </thead>
+              <tbody>
+                ${itemsTableRows}
+              </tbody>
             </table>
-
-            <!-- 7. ZAHLUNGSKONDITIONEN & 8. LIEFERBEDINGUNGEN -->
-            <table style="width: 100%; margin-bottom: 20px; border-collapse: collapse;">
-              <tr>
-                <td style="width: 50%; vertical-align: top; padding-right: 20px;">
-                  <h3 style="margin: 0 0 10px 0; color: #2563eb; border-bottom: 1px solid #e5e7eb; padding-bottom: 5px;">7. Zahlungskonditionen</h3>
-                  <p style="margin: 0; padding: 15px; background: #f1f5f9; border-left: 3px solid #64748b;">${paymentTerms}</p>
-                </td>
-                <td style="width: 50%; vertical-align: top; padding-left: 20px;">
-                  <h3 style="margin: 0 0 10px 0; color: #2563eb; border-bottom: 1px solid #e5e7eb; padding-bottom: 5px;">8. Lieferbedingungen</h3>
-                  <div style="padding: 15px; background: #f1f5f9; border-left: 3px solid #64748b;">
-                    <p style="margin: 0;">${isPickup ? 'Abholung beim Lieferanten' : 'Lieferung frei Haus'}</p>
-                    <p style="margin: 5px 0 0 0;">Ansprechpartner: Felix Zschoge</p>
-                    <p style="margin: 0;">Tel: +49 173 4385330</p>
-                  </div>
-                </td>
-              </tr>
-            </table>
-
-            <!-- 9. BESTELLPOSITIONEN -->
-            <div style="margin: 30px 0;">
-              <h3 style="margin: 0 0 15px 0; color: #2563eb; border-bottom: 1px solid #e5e7eb; padding-bottom: 5px;">9. Bestellpositionen</h3>
-              <table style="width: 100%; border-collapse: collapse; border: 1px solid #e5e7eb;">
-                <thead style="background: #f8fafc;">
-                  <tr>
-                    <th style="padding: 12px 8px; border-bottom: 2px solid #e5e7eb; text-align: center;">Pos.</th>
-                    <th style="padding: 12px 8px; border-bottom: 2px solid #e5e7eb;">Art.-Nr. intern</th>
-                    <th style="padding: 12px 8px; border-bottom: 2px solid #e5e7eb;">Art.-Nr. Lieferant</th>
-                    <th style="padding: 12px 8px; border-bottom: 2px solid #e5e7eb;">Bezeichnung</th>
-                    <th style="padding: 12px 8px; border-bottom: 2px solid #e5e7eb; text-align: center;">Menge</th>
-                    <th style="padding: 12px 8px; border-bottom: 2px solid #e5e7eb; text-align: center;">Einheit</th>
-                    ${showPrices ? `
-                      <th style="padding: 12px 8px; border-bottom: 2px solid #e5e7eb; text-align: right;">Einzelpreis netto (€)</th>
-                      <th style="padding: 12px 8px; border-bottom: 2px solid #e5e7eb; text-align: right;">Gesamtpreis netto (€)</th>
-                    ` : ''}
-                  </tr>
-                </thead>
-                <tbody>
-                  ${itemsTableRows}
-                </tbody>
-              </table>
-            </div>
 
             ${summenBlock}
 
-            <!-- 11. SONSTIGE HINWEISE -->
-            <div style="margin: 30px 0; background: #fefce8; padding: 20px; border-left: 4px solid #eab308;">
-              <h3 style="margin: 0 0 15px 0; color: #92400e;">11. Sonstige Hinweise</h3>
-              <p style="margin: 0;">
-                ${isUrgent ? 'DRINGENDE BESTELLUNG: Wir benötigen die Lieferung so schnell wie möglich. ' : ''}
-                Bitte bestätigen Sie den Erhalt dieser Bestellung und teilen Sie uns den voraussichtlichen Liefertermin mit.
-                ${order.notes ? `<br><br><strong>Besondere Hinweise:</strong> ${order.notes}` : ''}
-              </p>
-            </div>
+            ${isUrgent ? '<p style="margin: 20px 0; font-weight: bold;">DRINGENDE BESTELLUNG: Wir benötigen die Lieferung so schnell wie möglich.</p>' : ''}
+            ${order.notes ? `<p style="margin: 20px 0;"><strong>Besondere Hinweise:</strong> ${order.notes}</p>` : ''}
 
-            <!-- ABSCHLUSS -->
-            <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
-              <p style="margin: 0;">Mit freundlichen Grüßen</p>
-              <p style="margin: 5px 0 0 0; font-weight: bold;">Elbsandstein Proviant & Quartier GmbH</p>
-              <p style="margin: 15px 0 0 0; font-size: 10pt; color: #666;">
-                Felix Zschoge • felix@proviantomat.de • +49 173 4385330<br>
-                Diese E-Mail wurde automatisch generiert.
-              </p>
+            <!-- FOOTER -->
+            <div style="margin-top: 50px; padding-top: 20px; border-top: 1px solid #000; text-align: center; font-size: 9pt;">
+              <p style="margin: 0;"><strong>Proviantomat • Elbsandstein Proviant & Quartier GmbH • Seifhennersdorfer Str. 14 • 01099 Dresden</strong></p>
+              <p style="margin: 5px 0 0 0;">Umsatzssteuernr. DE353367134 • Steuernr. 202/108/12394</p>
             </div>
           </div>
         `;
