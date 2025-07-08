@@ -34,9 +34,9 @@ export default function ProductPurchaseConditionsSimple({ productId, productName
 
   // Fetch suppliers
   const { data: suppliers = [] } = useQuery({
-    queryKey: ['/api/suppliers', 'all-for-conditions'],
+    queryKey: ['/api/suppliers-conditions', 'all'],
     queryFn: async () => {
-      const response = await fetch('/api/suppliers/all-for-conditions', {
+      const response = await fetch('/api/suppliers-conditions/all', {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('authToken') || 'test'}` }
       });
       if (!response.ok) return [];

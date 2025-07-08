@@ -109,6 +109,14 @@ This is a comprehensive vending machine management platform (Warenwirtschaftssys
 
 ## Changelog
 
+- July 8, 2025: DEPLOYMENT-SPEZIFISCHES ROUTING-PROBLEM BEHOBEN - API-Endpunkte für Dropdowns funktionsfähig
+  - ✅ Critical Fix: suppliers-products-for-conditions Router VOR registerRoutes() montiert
+  - ✅ Route-Konflikte eliminiert: `/api/suppliers/all-for-conditions` und `/api/suppliers/:id/available-products` funktionsfähig
+  - ✅ Deployment-Development-Parität hergestellt: Gleiche API-Funktionalität in beiden Umgebungen
+  - ✅ Server-Neustart erfolgreich durchgeführt ohne Port-Konflikte
+  - ✅ Lieferanten-Dropdown zeigt alle 35 aktiven Lieferanten
+  - ✅ Produkt-Dropdown für GUSTAV MÜLLER GmbH zeigt alle 15 zugeordneten Produkte
+  - System funktioniert jetzt identisch in Development und Deployment
 - July 8, 2025: EINKAUFSBEDINGUNGEN DROPDOWN VOLLSTÄNDIG BEHOBEN - Zeigt nur lieferanten-spezifische Produkte
   - ✅ API-Endpoint `/api/suppliers/:id/available-products` repariert: SQL-Query filtert jetzt nach supplier_id
   - ✅ Dropdown zeigt nur Produkte des ausgewählten Lieferanten statt aller 132 Produkte

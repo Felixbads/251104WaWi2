@@ -3,8 +3,8 @@ import { pool } from '../db';
 
 const router = Router();
 
-// GET /api/suppliers/all-for-conditions - Alle Lieferanten für Einkaufsbedingungen (für Produkt → Lieferant)
-router.get('/all-for-conditions', async (req, res) => {
+// GET /api/suppliers-conditions/all - Alle Lieferanten für Einkaufsbedingungen (für Produkt → Lieferant)
+router.get('/suppliers-conditions/all', async (req, res) => {
   try {
     console.log('[SUPPLIERS-PRODUCTS] Fetching all suppliers for product conditions');
     

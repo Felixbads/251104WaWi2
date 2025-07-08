@@ -109,7 +109,12 @@ export default function ProductPurchaseConditionsView({ productId, productName }
 
   // Lade verfügbare Lieferanten
   const { data: suppliers = [] } = useQuery<Supplier[]>({
-    queryKey: ['/api/suppliers-simple'],
+    queryKey: ['/api/suppliers-conditions', 'all'],
+    queryFn: async () => {
+      const response = await fetch('/api/suppliers-conditions/all');
+      if (!response.ok) throw new Error('Failed to fetch suppliers');
+      return response.json();
+    },
     staleTime: 1000 * 60 * 10, // 10 Minuten
   });
 

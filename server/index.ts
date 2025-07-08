@@ -2538,27 +2538,10 @@ app.get('/orders-data', (req, res) => {
   app.use('/uploads', express.static(uploadsPath));
   console.log('✓ Static file serving for uploads configured at /uploads');
 
-  // Register API routes BEFORE registerRoutes with dynamic imports
-  Promise.all([
-    import('./routes/products.js'),
-    import('./routes/categories.js'),
-    import('./routes/package-types.js'),
-    import('./routes/suppliers-simple.js'),
-    import('./routes/suppliers-products-for-conditions.js'),
-    import('./routes/photos.js'),
-    import('./routes/enhanced-email-templates.js')
-  ]).then(([products, categories, packageTypes, suppliersSimple, suppliersProductsForConditions, photos, enhancedEmailTemplates]) => {
-    app.use('/api/products', products.default);
-    app.use('/api/categories', categories.default);
-    app.use('/api/package-types', packageTypes.default);
-    app.use('/api/suppliers-simple', suppliersSimple.default);
-    app.use('/api/suppliers', suppliersProductsForConditions.default);
-    app.use('/api/photos', photos.default);
-    app.use('/api/enhanced-email-templates', enhancedEmailTemplates.default);
-    console.log('[SERVER] New API routes registered successfully (including suppliers-products-for-conditions)');
-  }).catch(error => {
-    console.error('[SERVER] Error loading API routes:', error);
-  });
+  // Register critical suppliers API routes BEFORE registerRoutes to avoid conflicts
+  const suppliersProductsForConditionsRouter = (await import('./routes/suppliers-products-for-conditions')).default;
+  app.use('/api', suppliersProductsForConditionsRouter);
+  console.log('[SERVER] Suppliers-products-for-conditions router mounted at /api BEFORE registerRoutes');
   
   // Legacy endpoint for backward compatibility
   app.get('/api/product-categories', async (req, res) => {
