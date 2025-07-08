@@ -1,0 +1,66 @@
+Prompt: Lieferantenseite mit PIN-Verifizierung, Stammdatenübersicht und Änderungsmöglichkeit
+
+Ziel:
+Erstelle eine individuelle Lieferantenseite, die über einen sicheren Link und PIN erreichbar ist. Auf dieser Seite findet der Lieferant alle relevanten Informationen zu sich selbst, seinen Produkten und Bestellungen. Außerdem kann er Änderungswünsche direkt über ein Kommentarfeld übermitteln.
+
+⸻
+
+1. Zugriff & Verifizierung
+	•	Mit jeder Bestellung erhält der Lieferant:
+	•	Einen QR-Code
+	•	Einen individuellen Link
+	•	Einen vierstelligen PIN-Code
+	•	Der Link führt zu einer passwortgeschützten Seite.
+	•	Nach erfolgreicher PIN-Eingabe wird die personalisierte Lieferantenseite angezeigt.
+
+⸻
+
+2. Inhalte der Lieferantenseite (nach PIN-Verifizierung)
+
+a) Lieferanten-Stammdaten
+	•	Name, Adresse, Ansprechpartner, Kommunikationsdaten
+	•	Kurzbeschreibung des Lieferanten
+	•	Logo oder Foto des Betriebs (wenn vorhanden)
+
+b) Produktübersicht (alle dem Lieferanten zugeordneten Produkte)
+
+Je Produkt werden angezeigt:
+	•	Systeminterne Produktnummer
+	•	Eigene Produkt-Referenznummer des Lieferanten (editierbar)
+	•	Artikelbezeichnung
+	•	Einheit / Gebindegröße (z. B. Kiste à 20 Flaschen)
+	•	Beschreibungstext
+	•	Kurzbeschreibung
+	•	Produktfotos (eine Galerie oder Hauptbild)
+	•	Inhaltsstoffe
+	•	Allergene
+	•	MHD (sofern hinterlegt)
+	•	Mehrwertsteuersatz
+
+c) Bestellübersicht
+	•	Alle aktuellen und vergangenen Bestellungen
+	•	Je Bestellung:
+	•	Bestellnummer
+	•	Bestelldatum
+	•	Lieferdatum
+	•	Bestellte Artikel mit Mengenangabe
+	•	ggf. Status der Lieferung
+
+⸻
+
+3. Änderungs- und Rückmeldefunktion
+	•	Der Lieferant kann zu jedem Datenpunkt (z. B. Adresse, Produktbeschreibung, Gebindegröße, eigene Referenznummer etc.) eine Korrektur oder Anmerkung hinterlassen.
+	•	Das geschieht über ein Kommentarfeld direkt bei der jeweiligen Position.
+	•	Diese Rückmeldungen werden nicht automatisch übernommen, sondern:
+	•	Als strukturierte Nachricht per E-Mail an eine definierte Systemadresse (z. B. admin@...) geschickt.
+	•	Die E-Mail enthält: Lieferant, betroffener Bereich (z. B. Produkt XY), alte Daten, neue Eingabe, Kommentar.
+
+⸻
+
+4. Technische Anforderungen
+	•	PIN-Verifizierung ist serverseitig umzusetzen (keine Sichtbarkeit des PIN-Codes im Frontend).
+	•	Die PIN ist nur zeitlich begrenzt gültig oder nur für den einmaligen Zugriff verwendbar.
+	•	Die Seite ist vollständig mobiloptimiert (Responsive Design).
+	•	Datenfelder zur eigenen Referenznummer des Lieferanten sind editierbar, werden aber nur als Vorschlag übermittelt, nicht direkt gespeichert.
+	•	Datenschutz und Zugriffsschutz beachten (z. B. PIN wird nicht in URL übertragen).
+	•	Optional: Nach einmaliger Verifizierung kann ein Session-Token gesetzt werden, um innerhalb eines bestimmten Zeitraums ohne erneute PIN-Eingabe auf die Seite zuzugreifen.
