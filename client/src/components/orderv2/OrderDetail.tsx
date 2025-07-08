@@ -384,8 +384,11 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
       }
 
       // Reload data
+      console.log('Starting data reload after successful order update...');
       await loadOrderData();
+      console.log('Order data reloaded successfully');
       await loadOrderItems();
+      console.log('Order items reloaded successfully');
       
       setIsEditing(false);
       setEditingOrder(null);
@@ -394,7 +397,17 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
       console.log('Order saved successfully');
     } catch (error) {
       console.error('Error saving changes:', error);
-      alert(`Fehler beim Speichern der Änderungen: ${error instanceof Error ? error.message : 'Unbekannter Fehler'}`);
+      console.error('Error details:', {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : 'No stack trace',
+        toString: String(error)
+      });
+      
+      // More specific error message
+      const errorMessage = error instanceof Error ? error.message : 
+                          (typeof error === 'object' && error !== null ? JSON.stringify(error) : String(error));
+      
+      alert(`Fehler beim Speichern der Änderungen: ${errorMessage}`);
     } finally {
       setIsSaving(false);
     }
