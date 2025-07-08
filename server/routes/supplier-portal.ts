@@ -399,10 +399,22 @@ router.get('/admin/analytics/:supplierId', async (req: Request, res: Response) =
       LIMIT 50
     `;
 
-    const [pinsResult, feedbackResult] = await Promise.all([
-      rawDb.query(pinsQuery, [supplierId]),
-      rawDb.query(feedbackQuery, [supplierId])
-    ]);
+    let pinsResult = await rawDb.query(pinsQuery, [supplierId]);
+
+    // Wenn kein PIN existiert, erstelle automatisch einen dauerhaften PIN
+    if (pinsResult.rows.length === 0) {
+      console.log(`[SUPPLIER-PORTAL] Erstelle automatisch dauerhaften PIN für Lieferant ${supplierId}`);
+      
+      const { createSupplierPin } = await import('../services/supplierPinService');
+      const pinResult = await createSupplierPin(supplierId, null, 'AUTO_GENERATED', true);
+      
+      if (pinResult.success) {
+        // PIN erfolgreich erstellt, lade die Daten erneut
+        pinsResult = await rawDb.query(pinsQuery, [supplierId]);
+      }
+    }
+
+    const feedbackResult = await rawDb.query(feedbackQuery, [supplierId]);
 
     // Get supplier portal access URL
     const baseUrl = process.env.BASE_URL || 'https://your-replit-app.replit.app';
@@ -555,6 +567,77 @@ router.post('/change-request', async (req: Request, res: Response) => {
     res.status(500).json({
       success: false,
       error: 'Fehler beim Übermitteln der Änderungsanfrage'
+    });
+  }
+});
+
+/**
+ * Create automatic portal access for ALL suppliers
+ * POST /api/supplier-portal/admin/create-all-portals
+ */
+router.post('/admin/create-all-portals', async (req: Request, res: Response) => {
+  try {
+    // Hole alle Lieferanten
+    const suppliersResult = await rawDb.query(
+      'SELECT id, name FROM suppliers WHERE id IS NOT NULL'
+    );
+
+    const { createSupplierPin } = await import('../services/supplierPinService');
+    const results = [];
+
+    for (const supplier of suppliersResult.rows) {
+      // Prüfe ob bereits ein aktiver PIN existiert
+      const existingPin = await rawDb.query(
+        'SELECT id FROM supplier_access_pins WHERE supplier_id = $1 AND is_active = true',
+        [supplier.id]
+      );
+
+      if (existingPin.rows.length === 0) {
+        console.log(`[SUPPLIER-PORTAL] Erstelle automatischen Portal-Zugang für Lieferant ${supplier.id} (${supplier.name})`);
+        
+        const pinResult = await createSupplierPin(supplier.id, null, 'AUTO_SYSTEM', true);
+        
+        if (pinResult.success) {
+          results.push({
+            supplierId: supplier.id,
+            supplierName: supplier.name,
+            success: true,
+            accessToken: pinResult.data?.accessToken
+          });
+        } else {
+          results.push({
+            supplierId: supplier.id,
+            supplierName: supplier.name,
+            success: false,
+            error: pinResult.error
+          });
+        }
+      } else {
+        results.push({
+          supplierId: supplier.id,
+          supplierName: supplier.name,
+          success: true,
+          message: 'Portal bereits vorhanden'
+        });
+      }
+    }
+
+    res.json({
+      success: true,
+      data: {
+        totalSuppliers: suppliersResult.rows.length,
+        created: results.filter(r => r.success && !r.message).length,
+        existing: results.filter(r => r.message).length,
+        errors: results.filter(r => !r.success).length,
+        results
+      }
+    });
+
+  } catch (error) {
+    console.error('[SUPPLIER-PORTAL] Error creating all portals:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Fehler beim Erstellen der Portal-Zugänge'
     });
   }
 });

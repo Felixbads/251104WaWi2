@@ -23,14 +23,14 @@ export function generateAccessToken(): string {
 /**
  * Erstellt einen neuen PIN-Zugang für einen Lieferanten
  */
-export async function createSupplierPin(supplierId: number, orderId?: number): Promise<{
+export async function createSupplierPin(supplierId: number, orderId?: number, orderNumber?: string, permanent: boolean = false): Promise<{
   success: boolean;
   data?: {
     pinCode: string;
     accessUrl: string;
     qrCodeDataUrl: string;
     accessToken: string;
-    validUntil: Date;
+    validUntil: Date | null;
   };
   error?: string;
 }> {
@@ -40,9 +40,12 @@ export async function createSupplierPin(supplierId: number, orderId?: number): P
     const accessToken = generateAccessToken();
     const sessionToken = crypto.randomBytes(32).toString('hex');
     
-    // PIN ist 24 Stunden gültig
-    const validUntil = new Date();
-    validUntil.setHours(validUntil.getHours() + 24);
+    // PIN-Gültigkeit: permanent = null, sonst 24 Stunden
+    let validUntil = null;
+    if (!permanent) {
+      validUntil = new Date();
+      validUntil.setHours(validUntil.getHours() + 24);
+    }
     
     // Session läuft nach 8 Stunden ab
     const sessionExpiresAt = new Date();
