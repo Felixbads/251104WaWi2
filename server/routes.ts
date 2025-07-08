@@ -47,6 +47,7 @@ import interAppApiRouter from './routes/inter-app-api';
 import suppliersProductsRouter from './routes/suppliers-products';
 import resilientSyncRouter from './routes/resilientSync';
 import photosRouter from './routes/photos';
+import supplierPortalRouter from './routes/supplier-portal';
 import { getSuppliersSchedules } from './routes/suppliers-schedules';
 import packageTypesRouter from './routes/packageTypes';
 import inventoryTransfersRouter from './routes/inventoryTransfers';

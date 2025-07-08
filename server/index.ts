@@ -1121,6 +1121,11 @@ app.get('/orders-data', (req, res) => {
     }
   });
 
+  // Mount supplier portal router FIRST to prevent Vite middleware conflicts
+  const supplierPortalRouter = (await import('./routes/supplier-portal')).default;
+  app.use('/api/supplier-portal', supplierPortalRouter);
+  console.log('[SERVER] Supplier portal router mounted successfully (FIRST PRIORITY)');
+
   // Mount simple email router BEFORE registerRoutes to avoid conflicts
   console.log('[SERVER] Mounting simple email router at /api');
   app.use('/api', simpleEmailRouter);
@@ -1168,6 +1173,8 @@ app.get('/orders-data', (req, res) => {
   // Mount products router BEFORE registerRoutes for refill-history and purchase-conditions APIs
   app.use('/api/products', productsRouter);
   console.log('[SERVER] Products router mounted successfully');
+  
+
   
   const server = await registerRoutes(app);
 

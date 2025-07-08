@@ -270,16 +270,29 @@ export default function SupplierPortal({ params: routeParams }: { params?: { acc
         }).then(res => res.json())
       ]);
 
+      console.log('Supplier response:', supplierResponse);
+      console.log('Products response:', productsResponse);
+      console.log('Orders response:', ordersResponse);
+
       if (supplierResponse.success) {
+        console.log('Setting supplier data:', supplierResponse.data);
         setSupplierData(supplierResponse.data);
+      } else {
+        console.error('Supplier data loading failed:', supplierResponse);
       }
 
       if (productsResponse.success) {
+        console.log('Setting products:', productsResponse.data);
         setProducts(productsResponse.data);
+      } else {
+        console.error('Products loading failed:', productsResponse);
       }
 
       if (ordersResponse.success) {
+        console.log('Setting orders:', ordersResponse.data);
         setOrders(ordersResponse.data);
+      } else {
+        console.error('Orders loading failed:', ordersResponse);
       }
     } catch (error) {
       console.error('Fehler beim Laden der Daten:', error);
@@ -456,7 +469,7 @@ export default function SupplierPortal({ params: routeParams }: { params?: { acc
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                  {supplierData && (
+                  {supplierData ? (
                     <>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div className="space-y-4">
@@ -548,6 +561,11 @@ export default function SupplierPortal({ params: routeParams }: { params?: { acc
                         </div>
                       )}
                     </>
+                  ) : (
+                    <div className="text-center py-8">
+                      <p className="text-gray-500">Lieferantendaten werden geladen...</p>
+                      <p className="text-xs text-gray-400 mt-2">Debug: supplierData = {JSON.stringify(supplierData)}</p>
+                    </div>
                   )}
                 </CardContent>
               </Card>

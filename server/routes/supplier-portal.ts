@@ -10,6 +10,20 @@ import { validatePin } from '../services/supplierPinService';
 
 const router = Router();
 
+// Helper function to ensure JSON content type for all responses
+const jsonResponse = (res: Response, statusCode: number = 200, data: any) => {
+  res.setHeader('Content-Type', 'application/json');
+  res.status(statusCode).json(data);
+};
+
+/**
+ * Simple test endpoint
+ * GET /api/supplier-portal/test
+ */
+router.get('/test', (req: Request, res: Response) => {
+  jsonResponse(res, 200, { success: true, message: 'Supplier portal router is working!' });
+});
+
 /**
  * Direct authentication via access token (no PIN required)
  * POST /api/supplier-portal/authenticate
@@ -89,6 +103,94 @@ router.post('/authenticate', async (req: Request, res: Response) => {
     res.status(500).json({
       success: false,
       error: 'Serverfehler bei der Authentifizierung'
+    });
+  }
+});
+
+/**
+ * Get supplier data (frontend-compatible endpoint)
+ * GET /api/supplier-portal/supplier-data
+ */
+router.get('/supplier-data', async (req: Request, res: Response) => {
+  try {
+    const sessionToken = req.headers.authorization?.replace('Bearer ', '');
+
+    if (!sessionToken) {
+      return res.status(401).json({
+        success: false,
+        error: 'Session Token erforderlich'
+      });
+    }
+
+    // Extract supplier ID from session token
+    const sessionCheck = await rawDb.query(
+      `SELECT sp.supplier_id, sp.session_expires_at 
+       FROM supplier_access_pins sp 
+       WHERE sp.session_token = $1 AND sp.is_active = true`,
+      [sessionToken]
+    );
+
+    if (sessionCheck.rows.length === 0) {
+      return res.status(401).json({
+        success: false,
+        error: 'Ungültige Session'
+      });
+    }
+
+    const session = sessionCheck.rows[0];
+    const supplierId = session.supplier_id;
+    
+    if (new Date(session.session_expires_at) < new Date()) {
+      return res.status(401).json({
+        success: false,
+        error: 'Session abgelaufen'
+      });
+    }
+
+    // Get supplier data
+    const supplierQuery = `
+      SELECT 
+        id,
+        name,
+        contact_person as "contactPerson",
+        phone,
+        email,
+        website,
+        address,
+        city,
+        postal_code as "postalCode",
+        country,
+        short_description as "shortDescription",
+        description,
+        photos,
+        payment_terms as "paymentTerms",
+        delivery_terms as "deliveryTerms",
+        minimum_order_value as "minimumOrderValue",
+        delivery_days as "deliveryDays",
+        tax_id as "taxId"
+      FROM suppliers 
+      WHERE id = $1 AND status = 'active'
+    `;
+
+    const supplierResult = await rawDb.query(supplierQuery, [supplierId]);
+
+    if (supplierResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Lieferant nicht gefunden'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: supplierResult.rows[0]
+    });
+
+  } catch (error) {
+    console.error('[SUPPLIER-PORTAL] Supplier data error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Fehler beim Laden der Lieferantendaten'
     });
   }
 });
@@ -181,6 +283,91 @@ router.get('/supplier/:supplierId', async (req: Request, res: Response) => {
 });
 
 /**
+ * Get supplier products (frontend-compatible endpoint)
+ * GET /api/supplier-portal/products
+ */
+router.get('/products', async (req: Request, res: Response) => {
+  try {
+    const sessionToken = req.headers.authorization?.replace('Bearer ', '');
+
+    if (!sessionToken) {
+      return res.status(401).json({
+        success: false,
+        error: 'Session Token erforderlich'
+      });
+    }
+
+    // Extract supplier ID from session token
+    const sessionCheck = await rawDb.query(
+      `SELECT sp.supplier_id, sp.session_expires_at 
+       FROM supplier_access_pins sp 
+       WHERE sp.session_token = $1 AND sp.is_active = true`,
+      [sessionToken]
+    );
+
+    if (sessionCheck.rows.length === 0) {
+      return res.status(401).json({
+        success: false,
+        error: 'Ungültige Session'
+      });
+    }
+
+    const session = sessionCheck.rows[0];
+    const supplierId = session.supplier_id;
+    
+    if (new Date(session.session_expires_at) < new Date()) {
+      return res.status(401).json({
+        success: false,
+        error: 'Session abgelaufen'
+      });
+    }
+
+    // Get products for this supplier
+    const productsQuery = `
+      SELECT 
+        p.id,
+        p.product_name as "productName",
+        p.description,
+        p.short_description as "shortDescription",
+        p.category,
+        p.sku,
+        p.supplier_sku as "supplierSku",
+        p.article_supplier as "articleSupplier",
+        p.package_size as "packageSize",
+        p.package_quantity as "packageQuantity",
+        p.base_unit_name as "baseUnitName",
+        p.shelf_life_days as "shelfLifeDays",
+        p.min_order_quantity as "minOrderQuantity",
+        p.vat,
+        p.ingredients,
+        p.allergens,
+        p.nutritional_info as "nutritionalInfo",
+        p.photos,
+        p.barcode,
+        p.status
+      FROM products p
+      JOIN purchase_conditions pc ON p.id = pc.product_id
+      WHERE pc.supplier_id = $1 AND p.status = 'active'
+      ORDER BY p.product_name
+    `;
+
+    const productsResult = await rawDb.query(productsQuery, [supplierId]);
+
+    res.json({
+      success: true,
+      data: productsResult.rows
+    });
+
+  } catch (error) {
+    console.error('[SUPPLIER-PORTAL] Products error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Fehler beim Laden der Produkte'
+    });
+  }
+});
+
+/**
  * Get supplier products
  * GET /api/supplier-portal/supplier/:supplierId/products
  */
@@ -253,6 +440,110 @@ router.get('/supplier/:supplierId/products', async (req: Request, res: Response)
     res.status(500).json({
       success: false,
       error: 'Fehler beim Laden der Produktdaten'
+    });
+  }
+});
+
+/**
+ * Get supplier orders (frontend-compatible endpoint)
+ * GET /api/supplier-portal/orders
+ */
+router.get('/orders', async (req: Request, res: Response) => {
+  try {
+    const sessionToken = req.headers.authorization?.replace('Bearer ', '');
+
+    if (!sessionToken) {
+      return res.status(401).json({
+        success: false,
+        error: 'Session Token erforderlich'
+      });
+    }
+
+    // Extract supplier ID from session token
+    const sessionCheck = await rawDb.query(
+      `SELECT sp.supplier_id, sp.session_expires_at 
+       FROM supplier_access_pins sp 
+       WHERE sp.session_token = $1 AND sp.is_active = true`,
+      [sessionToken]
+    );
+
+    if (sessionCheck.rows.length === 0) {
+      return res.status(401).json({
+        success: false,
+        error: 'Ungültige Session'
+      });
+    }
+
+    const session = sessionCheck.rows[0];
+    const supplierId = session.supplier_id;
+    
+    if (new Date(session.session_expires_at) < new Date()) {
+      return res.status(401).json({
+        success: false,
+        error: 'Session abgelaufen'
+      });
+    }
+
+    // Get orders for this supplier
+    const ordersQuery = `
+      SELECT 
+        o.id,
+        o.order_number as "orderNumber",
+        o.status,
+        o.order_date as "orderDate",
+        o.expected_delivery_date as "expectedDeliveryDate",
+        o.actual_delivery_date as "actualDeliveryDate",
+        o.total_amount as "totalAmount",
+        w.name as "locationName",
+        o.delivery_location as "deliveryLocation",
+        o.notes,
+        o.priority
+      FROM orders o
+      LEFT JOIN warehouses w ON o.warehouse_id = w.id
+      WHERE o.supplier_id = $1
+      ORDER BY o.order_date DESC
+      LIMIT 50
+    `;
+
+    const ordersResult = await rawDb.query(ordersQuery, [supplierId]);
+
+    // Get order items for each order
+    const ordersWithItems = [];
+    for (const order of ordersResult.rows) {
+      const itemsQuery = `
+        SELECT 
+          oi.id,
+          oi.product_name as "productName",
+          oi.quantity,
+          oi.unit,
+          oi.unit_price as "unitPrice",
+          oi.total_price as "totalPrice",
+          oi.quantity_delivered as "quantityDelivered",
+          p.sku,
+          p.supplier_sku as "supplierSku"
+        FROM order_items oi
+        LEFT JOIN products p ON oi.product_id = p.id
+        WHERE oi.order_id = $1
+      `;
+
+      const itemsResult = await rawDb.query(itemsQuery, [order.id]);
+      
+      ordersWithItems.push({
+        ...order,
+        items: itemsResult.rows
+      });
+    }
+
+    res.json({
+      success: true,
+      data: ordersWithItems
+    });
+
+  } catch (error) {
+    console.error('[SUPPLIER-PORTAL] Orders error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Fehler beim Laden der Bestellungen'
     });
   }
 });
