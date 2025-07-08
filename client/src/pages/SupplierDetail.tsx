@@ -111,38 +111,48 @@ function SupplierPortalAnalytics({ supplierId, supplierName }: { supplierId: num
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Direkter Portal-Link - immer sichtbar */}
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="font-medium text-blue-900">Lieferanten-Portal</h3>
-                <p className="text-sm text-blue-700">Direkter Zugang zum sicheren Lieferanten-Portal</p>
-              </div>
-              <Button
-                onClick={() => window.open(`/portal?supplier=${supplierId}`, '_blank')}
-                className="bg-blue-600 hover:bg-blue-700"
-              >
-                <ExternalLink className="h-4 w-4 mr-2" />
-                Portal öffnen
-              </Button>
-            </div>
-          </div>
-
-          {data?.portalUrl && (
-            <div className="space-y-2">
-              <div className="text-sm font-medium text-muted-foreground">Aktiver Portal-Link mit PIN:</div>
-              <div className="bg-green-50 p-3 rounded border flex items-center justify-between">
-                <code className="text-sm text-green-700 break-all flex-1 mr-2">{data.portalUrl}</code>
+          {/* Direkter Portal-Link - nur anzeigen wenn verfügbar */}
+          {portalData?.portalUrl && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-medium text-blue-900">Lieferanten-Portal</h3>
+                  <p className="text-sm text-blue-700">Direkter Zugang zum sicheren Lieferanten-Portal</p>
+                  {portalData.lastAccess && (
+                    <p className="text-xs text-blue-600 mt-1">
+                      Letzter Zugriff: {new Date(portalData.lastAccess).toLocaleDateString('de-DE')}
+                    </p>
+                  )}
+                </div>
                 <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => window.open(data.portalUrl!, '_blank')}
+                  onClick={() => window.open(portalData.portalUrl, '_blank')}
+                  className="bg-blue-600 hover:bg-blue-700"
                 >
-                  Mit PIN öffnen
+                  <ExternalLink className="h-4 w-4 mr-2" />
+                  Portal öffnen
                 </Button>
               </div>
             </div>
           )}
+
+          {/* Kein Portal-Link verfügbar */}
+          {!portalData?.portalUrl && (
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-medium text-gray-700">Lieferanten-Portal</h3>
+                  <p className="text-sm text-gray-600">Noch kein aktiver Portal-Zugang vorhanden</p>
+                  <p className="text-xs text-gray-500 mt-1">Generieren Sie zuerst einen PIN-Code</p>
+                </div>
+                <Button variant="outline" disabled>
+                  <Shield className="h-4 w-4 mr-2" />
+                  Kein Zugang
+                </Button>
+              </div>
+            </div>
+          )}
+
+
 
           <Button
             onClick={handleGeneratePin}
