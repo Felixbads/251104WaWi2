@@ -954,13 +954,21 @@ router.put('/:id', async (req: Request, res: Response) => {
     };
     
     // In Datenbank aktualisieren
+    console.log('BEFORE DATABASE UPDATE:');
+    console.log('Order ID:', orderId);
+    console.log('Updates object:', JSON.stringify(updates, null, 2));
+    
     const updatedOrderResult = await db
       .update(orders)
       .set(updates)
       .where(eq(orders.id, orderId))
       .returning();
     
+    console.log('DATABASE UPDATE RESULT:', updatedOrderResult);
+    console.log('Result length:', updatedOrderResult?.length);
+    
     if (!updatedOrderResult || updatedOrderResult.length === 0) {
+      console.error('DATABASE UPDATE FAILED - no rows returned');
       return res.status(500).json({ error: 'Fehler beim Aktualisieren der Bestellung' });
     }
     
