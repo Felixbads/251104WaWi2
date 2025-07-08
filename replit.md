@@ -109,6 +109,14 @@ This is a comprehensive vending machine management platform (Warenwirtschaftssys
 
 ## Changelog
 
+- July 8, 2025: EINKAUFSBEDINGUNGEN DROPDOWN VOLLSTÄNDIG BEHOBEN - Zeigt nur lieferanten-spezifische Produkte
+  - ✅ API-Endpoint `/api/suppliers/:id/available-products` repariert: SQL-Query filtert jetzt nach supplier_id
+  - ✅ Dropdown zeigt nur Produkte des ausgewählten Lieferanten statt aller 132 Produkte
+  - ✅ GUSTAV MÜLLER GmbH (ID: 20) zeigt korrekt nur 15 zugeordnete Produkte
+  - ✅ Backend-Frontend Feld-Namen-Kompatibilität behoben: productName statt product_name
+  - ✅ Server erfolgreich neugestartet für vollständige Implementierung der Änderungen
+  - ✅ SQL-Query mit WHERE-Klausel und Parameter-Bindung für sichere Datenbankabfragen
+  - System ermöglicht jetzt präzise Einkaufsbedingungen-Erstellung nur für lieferanten-spezifische Produkte
 - July 8, 2025: DATENBANKSCHEMA-DOKUMENTATION ERSTELLT - Vollständige strukturierte Übersicht aller Datenmodelle
   - ✅ Umfassende Dokumentation der 5 Hauptentitäten erstellt: Lieferanten, Produkte, Einkaufsbedingungen, Bestellungen, Bestellpositionen
   - ✅ Strukturierte Markdown-Datei mit logischer Gruppierung aller Datenbankfelder

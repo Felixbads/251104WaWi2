@@ -18,12 +18,13 @@ router.get('/:id/available-products', async (req, res) => {
         p.vat,
         p.supplier_id
       FROM products p
-      WHERE p.id IS NOT NULL
+      WHERE p.supplier_id = $1
         AND p.product_name IS NOT NULL
         AND p.product_name != ''
+        AND p.status = 'active'
       ORDER BY p.product_name ASC
       LIMIT 1000
-    `);
+    `, [supplierId]);
     
     console.log('[SUPPLIERS-PRODUCTS] Found', result.rows.length, 'available products');
     res.json(result.rows);
