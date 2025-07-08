@@ -4790,5 +4790,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Package Types API für Gebinde-System
   app.use(`${API_PREFIX}/package-types`, packageTypesRouter);
 
+  // Supplier Portal API (separate, secure routes for suppliers)
+  const supplierPortalRoutes = (await import('./routes/supplier-portal')).default;
+  app.use(`${API_PREFIX}/supplier-portal`, supplierPortalRoutes);
+
+  // Supplier PIN Generator API
+  const supplierPinGeneratorRoutes = (await import('./routes/supplier-pin-generator')).default;
+  app.use(`${API_PREFIX}/supplier-pin`, supplierPinGeneratorRoutes);
+
   return httpServer;
 }

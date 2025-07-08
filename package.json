@@ -50,6 +50,7 @@
     "@types/node-cron": "^3.0.11",
     "@types/nodemailer": "^6.4.17",
     "@types/pg": "^8.11.11",
+    "@types/qrcode": "^1.5.5",
     "axios": "^1.8.4",
     "bcryptjs": "^3.0.2",
     "class-variance-authority": "^0.7.0",

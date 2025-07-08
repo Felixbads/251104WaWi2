@@ -1,808 +1,801 @@
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { useLocation } from "wouter";
-import { format } from "date-fns";
-import { de } from "date-fns/locale";
+/**
+ * Lieferantenportal - Sichere Zugangsseite für Lieferanten
+ * 
+ * Features:
+ * - PIN-Verifizierung
+ * - Lieferanten-Stammdaten
+ * - Produktübersicht
+ * - Bestellhistorie
+ * - Kommentarsystem für Änderungswünsche
+ */
 
-// UI Komponenten
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { 
-  Card, 
-  CardContent, 
-  CardDescription, 
-  CardFooter, 
-  CardHeader, 
-  CardTitle 
-} from "@/components/ui/card";
-import {
-  Table,
-  TableHeader,
-  TableBody,
-  TableHead,
-  TableRow,
-  TableCell
-} from "@/components/ui/table";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Separator } from "@/components/ui/separator";
-import { Badge } from "@/components/ui/badge";
-import { Textarea } from "@/components/ui/textarea";
-import { Calendar } from "@/components/ui/calendar";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { useToast } from "@/hooks/use-toast";
+import { useState, useEffect } from 'react';
+import { useRoute } from 'wouter';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Badge } from '@/components/ui/badge';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { toast } from '@/hooks/use-toast';
+import { Shield, Building2, Package, ShoppingCart, MessageSquare, Clock, MapPin, Phone, Mail, Globe, AlertCircle } from 'lucide-react';
+import { apiRequest } from '@/lib/queryClient';
 
-// Icons
-import {
-  ArrowLeft,
-  Boxes,
-  Building2,
-  CalendarIcon,
-  Check,
-  CheckCircle2,
-  CircleHelp,
-  ClipboardList,
-  ExternalLink,
-  FileCheck,
-  Mail,
-  Info,
-  Loader2,
-  LucideIcon,
-  Package,
-  Search,
-  Truck,
-  User,
-  Calendar as CalendarIcon2
-} from "lucide-react";
+interface SupplierData {
+  id: number;
+  name: string;
+  contactPerson?: string;
+  phone?: string;
+  email?: string;
+  website?: string;
+  address?: string;
+  city?: string;
+  postalCode?: string;
+  country?: string;
+  shortDescription?: string;
+  description?: string;
+  photos?: string[];
+  paymentTerms?: string;
+  deliveryTerms?: string;
+  minimumOrderValue?: number;
+  deliveryDays?: string;
+  taxId?: string;
+}
 
-// Mock data for demo
-const mockOrders = [
-  {
-    id: 1,
-    orderNumber: "B-2025-001",
-    customerName: "Nationale Parkverwaltung Sächsische Schweiz",
-    status: "received", // new, received, processed, shipped, completed, rejected
-    createdAt: "2025-03-25T10:30:00Z",
-    updatedAt: "2025-03-27T14:15:00Z",
-    dueDate: "2025-04-05T00:00:00Z",
-    totalItems: 7,
-    totalAmount: 452.80,
-    shippingAddress: {
-      name: "Hauptlager Dresden",
-      street: "Hauptstraße 123",
-      postalCode: "01307",
-      city: "Dresden",
-      country: "Deutschland"
-    },
-    notes: "Bitte vor 12 Uhr liefern, danach ist das Lager nur eingeschränkt besetzt.",
-    items: [
-      {
-        id: 1,
-        productId: 12,
-        productName: "Wehlener Pudding vers. Sorten",
-        sku: "WEH-PUD-001",
-        supplierSku: "F-PUD-01",
-        quantity: 24,
-        unit: "stk",
-        unitPrice: 1.25,
-        totalPrice: 30.00
-      },
-      {
-        id: 2,
-        productId: 15,
-        productName: "Wehl'ner Wehlrad min. 150g ver. Sorten",
-        sku: "WEH-KAS-002",
-        supplierSku: "F-KAS-02",
-        quantity: 15,
-        unit: "stk",
-        unitPrice: 4.50,
-        totalPrice: 67.50
-      },
-      {
-        id: 3,
-        productId: 18,
-        productName: "Wehlner Milch 0,5l",
-        sku: "WEH-MIL-003",
-        supplierSku: "F-MIL-03",
-        quantity: 120,
-        unit: "stk",
-        unitPrice: 0.95,
-        totalPrice: 114.00
-      }
-    ]
-  },
-  {
-    id: 2,
-    orderNumber: "B-2025-002",
-    customerName: "Nationale Parkverwaltung Sächsische Schweiz",
-    status: "new",
-    createdAt: "2025-03-30T11:45:00Z",
-    updatedAt: "2025-03-30T11:45:00Z",
-    dueDate: "2025-04-10T00:00:00Z",
-    totalItems: 3,
-    totalAmount: 230.50,
-    shippingAddress: {
-      name: "Lager Bad Schandau",
-      street: "Elbstraße 5",
-      postalCode: "01814",
-      city: "Bad Schandau",
-      country: "Deutschland"
-    },
-    notes: "",
-    items: [
-      {
-        id: 1,
-        productId: 25,
-        productName: "Dresdner Kaffee Premium (1kg)",
-        sku: "DRS-KAF-001",
-        supplierSku: "K-DRS-001",
-        quantity: 5,
-        unit: "kg",
-        unitPrice: 24.90,
-        totalPrice: 124.50
-      },
-      {
-        id: 2,
-        productId: 26,
-        productName: "Bio Tee Sächsische Kräuter",
-        sku: "DRS-TEE-002",
-        supplierSku: "T-BIO-002",
-        quantity: 30,
-        unit: "pkg",
-        unitPrice: 3.55,
-        totalPrice: 106.50
-      }
-    ]
-  }
-];
+interface ProductData {
+  id: number;
+  productName: string;
+  description?: string;
+  shortDescription?: string;
+  category?: string;
+  sku?: string;
+  supplierSku?: string;
+  articleSupplier?: string;
+  packageSize?: string;
+  packageQuantity?: number;
+  baseUnitName?: string;
+  shelfLifeDays?: number;
+  minOrderQuantity?: number;
+  vat?: number;
+  ingredients?: string;
+  allergens?: string;
+  nutritionalInfo?: string;
+  photos?: string[];
+  barcode?: string;
+  status?: string;
+}
 
-// Format helpers 
-const formatDate = (dateString: string) => {
-  const date = new Date(dateString);
-  return format(date, "dd.MM.yyyy", { locale: de });
-};
+interface OrderData {
+  id: number;
+  orderNumber: string;
+  status: string;
+  orderDate: string;
+  expectedDeliveryDate?: string;
+  actualDeliveryDate?: string;
+  totalAmount?: number;
+  locationName?: string;
+  deliveryLocation?: string;
+  notes?: string;
+  priority?: string;
+  items: OrderItemData[];
+}
 
-const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat("de-DE", {
-    style: "currency",
-    currency: "EUR",
-    minimumFractionDigits: 2
-  }).format(amount);
-};
-
-const getStatusBadge = (status: string) => {
-  switch (status) {
-    case "new":
-      return <Badge className="bg-blue-100 text-blue-800">Neu</Badge>;
-    case "received":
-      return <Badge className="bg-purple-100 text-purple-800">Eingegangen</Badge>;
-    case "processed":
-      return <Badge className="bg-yellow-100 text-yellow-800">In Bearbeitung</Badge>;
-    case "shipped":
-      return <Badge className="bg-cyan-100 text-cyan-800">Versandt</Badge>;
-    case "completed":
-      return <Badge className="bg-green-100 text-green-800">Abgeschlossen</Badge>;
-    case "rejected":
-      return <Badge className="bg-red-100 text-red-800">Abgelehnt</Badge>;
-    default:
-      return <Badge>{status}</Badge>;
-  }
-};
+interface OrderItemData {
+  id: number;
+  productName: string;
+  quantity: number;
+  unit: string;
+  unitPrice?: number;
+  totalPrice?: number;
+  quantityDelivered?: number;
+  sku?: string;
+  supplierSku?: string;
+}
 
 export default function SupplierPortal() {
-  const [location, navigate] = useLocation();
-  const { toast } = useToast();
-  
-  // State
-  const [activeTab, setActiveTab] = useState("dashboard");
-  const [selectedOrder, setSelectedOrder] = useState<any>(null);
-  const [showOrderDetail, setShowOrderDetail] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [trackingNumber, setTrackingNumber] = useState("");
-  const [shippingDate, setShippingDate] = useState<Date | undefined>(undefined);
-  const [processingNote, setProcessingNote] = useState("");
-  
-  // Query for orders
-  const { data: orders, isLoading } = useQuery({
-    queryKey: ["supplierOrders"],
-    queryFn: () => Promise.resolve(mockOrders),
-    staleTime: 1000 * 60 // 1 minute
+  const [match, params] = useRoute('/lieferant/:accessToken');
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [pinCode, setPinCode] = useState('');
+  const [sessionToken, setSessionToken] = useState<string | null>(null);
+  const [supplierData, setSupplierData] = useState<SupplierData | null>(null);
+  const [products, setProducts] = useState<ProductData[]>([]);
+  const [orders, setOrders] = useState<OrderData[]>([]);
+  const [feedbackData, setFeedbackData] = useState({
+    feedbackType: 'general' as 'supplier_data' | 'product_data' | 'order_data' | 'general',
+    entityType: 'supplier' as 'supplier' | 'product' | 'order' | undefined,
+    entityId: undefined as number | undefined,
+    fieldName: '',
+    currentValue: '',
+    suggestedValue: '',
+    comment: '',
+    priority: 'medium' as 'low' | 'medium' | 'high',
+    contactEmail: '',
+    contactPhone: ''
   });
-  
-  // Filter orders based on search and status
-  const filteredOrders = orders ? orders.filter(order => {
-    const matchesSearch = 
-      searchTerm === "" || 
-      order.orderNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.customerName.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesStatus = statusFilter === "all" || order.status === statusFilter;
-    
-    return matchesSearch && matchesStatus;
-  }) : [];
-  
-  // Handle order click
-  const handleOrderClick = (order: any) => {
-    setSelectedOrder(order);
-    setShowOrderDetail(true);
-    
-    // Initialize processing note and shipping information
-    if (order.status === "received") {
-      setProcessingNote(order.notes || "");
-      setShippingDate(undefined);
-      setTrackingNumber("");
+
+  const accessToken = params?.accessToken;
+
+  useEffect(() => {
+    // Prüfe, ob bereits ein Session-Token vorhanden ist
+    const savedSessionToken = localStorage.getItem('supplier_session_token');
+    if (savedSessionToken) {
+      validateSession(savedSessionToken);
     }
-  };
-  
-  // Handle status update
-  const handleUpdateStatus = (newStatus: string) => {
-    if (!selectedOrder) return;
+  }, []);
+
+  const handlePinSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     
-    // In a real implementation, make an API call to update the status
-    toast({
-      title: "Status aktualisiert",
-      description: `Bestellung ${selectedOrder.orderNumber} wurde auf "${newStatus}" aktualisiert.`,
-    });
-    
-    // Close the order detail view
-    setShowOrderDetail(false);
-  };
-  
-  // Handle shipping
-  const handleShipOrder = () => {
-    if (!selectedOrder) return;
-    
-    if (!shippingDate) {
+    if (!accessToken || !pinCode) {
       toast({
         title: "Fehler",
-        description: "Bitte wählen Sie ein Versanddatum aus.",
+        description: "Bitte geben Sie Ihren 4-stelligen PIN-Code ein.",
         variant: "destructive"
       });
       return;
     }
-    
-    if (!trackingNumber) {
+
+    setIsLoading(true);
+
+    try {
+      const response = await apiRequest('/api/supplier-portal/verify-pin', {
+        method: 'POST',
+        body: {
+          accessToken,
+          pinCode
+        }
+      });
+
+      if (response.success) {
+        setSessionToken(response.sessionToken);
+        setIsAuthenticated(true);
+        localStorage.setItem('supplier_session_token', response.sessionToken);
+        
+        // Lade Lieferantendaten
+        await loadSupplierData(response.sessionToken);
+        
+        toast({
+          title: "Erfolgreich angemeldet",
+          description: "Willkommen in Ihrem Lieferantenportal!"
+        });
+      } else {
+        toast({
+          title: "Anmeldung fehlgeschlagen",
+          description: response.error || "Ungültiger PIN-Code",
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      console.error('PIN-Verifizierung fehlgeschlagen:', error);
       toast({
         title: "Fehler",
-        description: "Bitte geben Sie eine Tracking-Nummer ein.",
+        description: "Ein unerwarteter Fehler ist aufgetreten. Bitte versuchen Sie es erneut.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const validateSession = async (token: string) => {
+    try {
+      const response = await apiRequest('/api/supplier-portal/validate-session', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.success) {
+        setSessionToken(token);
+        setIsAuthenticated(true);
+        await loadSupplierData(token);
+      } else {
+        localStorage.removeItem('supplier_session_token');
+        setIsAuthenticated(false);
+      }
+    } catch (error) {
+      console.error('Session-Validierung fehlgeschlagen:', error);
+      localStorage.removeItem('supplier_session_token');
+      setIsAuthenticated(false);
+    }
+  };
+
+  const loadSupplierData = async (token: string) => {
+    try {
+      // Parallel laden von Lieferanten-, Produkt- und Bestelldaten
+      const [supplierResponse, productsResponse, ordersResponse] = await Promise.all([
+        apiRequest('/api/supplier-portal/supplier-data', {
+          method: 'GET',
+          headers: { 'Authorization': `Bearer ${token}` }
+        }),
+        apiRequest('/api/supplier-portal/products', {
+          method: 'GET',
+          headers: { 'Authorization': `Bearer ${token}` }
+        }),
+        apiRequest('/api/supplier-portal/orders', {
+          method: 'GET',
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+      ]);
+
+      if (supplierResponse.success) {
+        setSupplierData(supplierResponse.data);
+      }
+
+      if (productsResponse.success) {
+        setProducts(productsResponse.data);
+      }
+
+      if (ordersResponse.success) {
+        setOrders(ordersResponse.data);
+      }
+    } catch (error) {
+      console.error('Fehler beim Laden der Daten:', error);
+      toast({
+        title: "Fehler",
+        description: "Daten konnten nicht geladen werden.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleFeedbackSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!sessionToken || !feedbackData.comment.trim()) {
+      toast({
+        title: "Fehler",
+        description: "Bitte füllen Sie alle Pflichtfelder aus.",
         variant: "destructive"
       });
       return;
     }
-    
-    // In a real implementation, make an API call to update the status and shipping info
-    toast({
-      title: "Bestellung versendet",
-      description: `Bestellung ${selectedOrder.orderNumber} wurde als versendet markiert.`,
-    });
-    
-    // Close the order detail view
-    setShowOrderDetail(false);
-  };
-  
-  // Handle processing
-  const handleProcessOrder = () => {
-    if (!selectedOrder) return;
-    
-    // In a real implementation, make an API call to update the status
-    toast({
-      title: "Bestellung in Bearbeitung",
-      description: `Bestellung ${selectedOrder.orderNumber} wird bearbeitet.`,
-    });
-    
-    // Close the order detail view
-    setShowOrderDetail(false);
-  };
-  
-  // Back to orders list
-  const handleBackToList = () => {
-    setShowOrderDetail(false);
-    setSelectedOrder(null);
-  };
-  
-  // Dashboard cards
-  const dashboardCards = [
-    {
-      title: "Neue Bestellungen",
-      icon: Mail,
-      value: orders ? orders.filter(o => o.status === "new").length : 0,
-      color: "bg-blue-100 text-blue-800",
-      link: () => setStatusFilter("new")
-    },
-    {
-      title: "In Bearbeitung",
-      icon: ClipboardList,
-      value: orders ? orders.filter(o => o.status === "processed").length : 0,
-      color: "bg-yellow-100 text-yellow-800",
-      link: () => setStatusFilter("processed")
-    },
-    {
-      title: "Versandt",
-      icon: Truck,
-      value: orders ? orders.filter(o => o.status === "shipped").length : 0,
-      color: "bg-cyan-100 text-cyan-800",
-      link: () => setStatusFilter("shipped")
-    },
-    {
-      title: "Abgeschlossen",
-      icon: CheckCircle2,
-      value: orders ? orders.filter(o => o.status === "completed").length : 0,
-      color: "bg-green-100 text-green-800",
-      link: () => setStatusFilter("completed")
+
+    try {
+      const response = await apiRequest('/api/supplier-portal/feedback', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${sessionToken}` },
+        body: feedbackData
+      });
+
+      if (response.success) {
+        toast({
+          title: "Feedback übermittelt",
+          description: "Ihr Feedback wurde erfolgreich übermittelt. Wir werden es zeitnah bearbeiten."
+        });
+
+        // Reset form
+        setFeedbackData({
+          feedbackType: 'general',
+          entityType: undefined,
+          entityId: undefined,
+          fieldName: '',
+          currentValue: '',
+          suggestedValue: '',
+          comment: '',
+          priority: 'medium',
+          contactEmail: '',
+          contactPhone: ''
+        });
+      } else {
+        toast({
+          title: "Fehler",
+          description: response.error || "Feedback konnte nicht übermittelt werden.",
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      console.error('Feedback-Übermittlung fehlgeschlagen:', error);
+      toast({
+        title: "Fehler",
+        description: "Ein unerwarteter Fehler ist aufgetreten.",
+        variant: "destructive"
+      });
     }
-  ];
-  
-  // Render supplier portal
-  return (
-    <div className="container py-8">
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-3xl font-bold">Lieferantenportal</h1>
-          <p className="text-muted-foreground">
-            Willkommen im Lieferantenportal der Nationalen Parkverwaltung Sächsische Schweiz
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <Button variant="outline" className="gap-1.5">
-            <CircleHelp className="h-4 w-4" />
-            Hilfe
-          </Button>
-          <Button className="gap-1.5">
-            <User className="h-4 w-4" />
-            Mein Konto
-          </Button>
-        </div>
+  };
+
+  const logout = () => {
+    localStorage.removeItem('supplier_session_token');
+    setIsAuthenticated(false);
+    setSessionToken(null);
+    setSupplierData(null);
+    setProducts([]);
+    setOrders([]);
+    setPinCode('');
+  };
+
+  if (!match) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <Shield className="h-12 w-12 text-red-500 mx-auto mb-4" />
+            <CardTitle>Ungültiger Zugangslink</CardTitle>
+            <CardDescription>
+              Der von Ihnen verwendete Link ist ungültig oder abgelaufen.
+            </CardDescription>
+          </CardHeader>
+        </Card>
       </div>
-      
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="mb-6">
-          <TabsTrigger value="dashboard" className="gap-1.5">
-            <Boxes className="h-4 w-4" />
-            <span>Dashboard</span>
-          </TabsTrigger>
-          <TabsTrigger value="orders" className="gap-1.5">
-            <FileText className="h-4 w-4" />
-            <span>Bestellungen</span>
-          </TabsTrigger>
-          <TabsTrigger value="products" className="gap-1.5">
-            <Package className="h-4 w-4" />
-            <span>Produkte</span>
-          </TabsTrigger>
-        </TabsList>
-        
-        {/* Dashboard Tab */}
-        <TabsContent value="dashboard">
-          {/* Dashboard Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6 mb-8">
-            {dashboardCards.map((card, index) => (
-              <Card key={index} className="relative overflow-hidden">
-                <div className={`absolute top-0 left-0 w-1 h-full ${card.color.split(' ')[0]}`}></div>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-lg">{card.title}</CardTitle>
-                </CardHeader>
-                <CardContent className="pb-2">
-                  <div className="flex justify-between items-center">
-                    <p className="text-3xl font-bold">{card.value}</p>
-                    <card.icon className={`h-8 w-8 ${card.color}`} />
-                  </div>
-                </CardContent>
-                <CardFooter>
-                  <Button 
-                    variant="ghost" 
-                    className="text-sm p-0 h-auto" 
-                    onClick={() => {
-                      setActiveTab("orders");
-                      card.link();
-                    }}
-                  >
-                    Details anzeigen
-                    <ExternalLink className="h-3.5 w-3.5 ml-1" />
-                  </Button>
-                </CardFooter>
-              </Card>
-            ))}
-          </div>
-          
-          {/* Recent Orders */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Neueste Bestellungen</CardTitle>
-              <CardDescription>Die letzten Bestellungen, die eingegangen sind</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {isLoading ? (
-                <div className="flex justify-center py-8">
-                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                </div>
-              ) : orders && orders.length > 0 ? (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Bestellnummer</TableHead>
-                      <TableHead>Datum</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Betrag</TableHead>
-                      <TableHead>Aktion</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {orders.slice(0, 5).map((order) => (
-                      <TableRow key={order.id}>
-                        <TableCell className="font-medium">{order.orderNumber}</TableCell>
-                        <TableCell>{formatDate(order.createdAt)}</TableCell>
-                        <TableCell>{getStatusBadge(order.status)}</TableCell>
-                        <TableCell>{formatCurrency(order.totalAmount)}</TableCell>
-                        <TableCell>
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            onClick={() => handleOrderClick(order)}
-                          >
-                            Details
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              ) : (
-                <div className="text-center py-8">
-                  <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
-                  <h3 className="text-lg font-medium mb-1">Keine Bestellungen vorhanden</h3>
-                  <p className="text-muted-foreground">
-                    Derzeit sind keine Bestellungen verfügbar.
-                  </p>
-                </div>
-              )}
-            </CardContent>
-            <CardFooter>
-              <Button 
-                variant="outline" 
-                onClick={() => setActiveTab("orders")}
-                className="w-full"
-              >
-                Alle Bestellungen anzeigen
-              </Button>
-            </CardFooter>
-          </Card>
-        </TabsContent>
-        
-        {/* Orders Tab */}
-        <TabsContent value="orders">
-          {!showOrderDetail ? (
-            <Card>
-              <CardHeader>
-                <CardTitle>Bestellungen</CardTitle>
-                <CardDescription>Verwalten Sie Ihre Bestellungen</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                {/* Search and Filters */}
-                <div className="flex flex-col md:flex-row gap-4">
-                  <div className="relative flex-grow">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                    <Input
-                      placeholder="Bestellungen suchen..."
-                      className="pl-10"
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                    />
-                  </div>
-                  
-                  <div className="flex gap-2">
-                    <select
-                      className="rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                      value={statusFilter}
-                      onChange={(e) => setStatusFilter(e.target.value)}
-                    >
-                      <option value="all">Alle Status</option>
-                      <option value="new">Neu</option>
-                      <option value="received">Eingegangen</option>
-                      <option value="processed">In Bearbeitung</option>
-                      <option value="shipped">Versandt</option>
-                      <option value="completed">Abgeschlossen</option>
-                      <option value="rejected">Abgelehnt</option>
-                    </select>
-                  </div>
-                </div>
-                
-                {/* Orders List */}
-                {isLoading ? (
-                  <div className="flex justify-center py-8">
-                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                  </div>
-                ) : filteredOrders.length > 0 ? (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Bestellnummer</TableHead>
-                        <TableHead>Kunde</TableHead>
-                        <TableHead>Datum</TableHead>
-                        <TableHead>Fällig</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Betrag</TableHead>
-                        <TableHead>Aktion</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredOrders.map((order) => (
-                        <TableRow key={order.id}>
-                          <TableCell className="font-medium">{order.orderNumber}</TableCell>
-                          <TableCell>{order.customerName}</TableCell>
-                          <TableCell>{formatDate(order.createdAt)}</TableCell>
-                          <TableCell>{formatDate(order.dueDate)}</TableCell>
-                          <TableCell>{getStatusBadge(order.status)}</TableCell>
-                          <TableCell>{formatCurrency(order.totalAmount)}</TableCell>
-                          <TableCell>
-                            <Button 
-                              variant="ghost" 
-                              size="sm"
-                              onClick={() => handleOrderClick(order)}
-                            >
-                              Details
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                ) : (
-                  <div className="text-center py-8">
-                    <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
-                    <h3 className="text-lg font-medium mb-1">Keine Bestellungen gefunden</h3>
-                    <p className="text-muted-foreground">
-                      Für die aktuelle Suche wurden keine Bestellungen gefunden.
-                    </p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="space-y-6">
-              {/* Order Detail Header */}
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div className="flex items-center gap-2">
-                  <Button variant="outline" size="icon" onClick={handleBackToList}>
-                    <ArrowLeft className="h-4 w-4" />
-                  </Button>
-                  <div>
-                    <h1 className="text-2xl font-bold">Bestellung #{selectedOrder.orderNumber}</h1>
-                    <p className="text-muted-foreground flex items-center gap-2">
-                      <CalendarIcon2 className="h-4 w-4" />
-                      {formatDate(selectedOrder.createdAt)}
-                      {getStatusBadge(selectedOrder.status)}
-                    </p>
-                  </div>
-                </div>
-                
-                <div className="flex gap-2">
-                  {selectedOrder.status === "new" && (
-                    <Button onClick={() => handleUpdateStatus("received")}>
-                      <Check className="h-4 w-4 mr-2" />
-                      Bestellung bestätigen
-                    </Button>
-                  )}
-                  
-                  {selectedOrder.status === "received" && (
-                    <Button onClick={handleProcessOrder}>
-                      <ClipboardList className="h-4 w-4 mr-2" />
-                      In Bearbeitung nehmen
-                    </Button>
-                  )}
-                  
-                  {selectedOrder.status === "processed" && (
-                    <Button onClick={() => setShowOrderDetail(true)}>
-                      <Truck className="h-4 w-4 mr-2" />
-                      Als versandt markieren
-                    </Button>
-                  )}
-                </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <Shield className="h-12 w-12 text-blue-600 mx-auto mb-4" />
+            <CardTitle>Lieferantenportal</CardTitle>
+            <CardDescription>
+              Bitte geben Sie Ihren 4-stelligen PIN-Code ein, um auf Ihre Daten zuzugreifen.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handlePinSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="pinCode">PIN-Code</Label>
+                <Input
+                  id="pinCode"
+                  type="text"
+                  maxLength={4}
+                  value={pinCode}
+                  onChange={(e) => setPinCode(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                  placeholder="0000"
+                  className="text-center text-lg tracking-widest"
+                  required
+                />
               </div>
-              
-              {/* Order Details */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <Card className="md:col-span-2">
-                  <CardHeader>
-                    <CardTitle>Bestelldetails</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-6">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="w-[40%]">Produkt</TableHead>
-                          <TableHead>Menge</TableHead>
-                          <TableHead>Einzelpreis</TableHead>
-                          <TableHead>Gesamtpreis</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {selectedOrder.items.map((item: any) => (
-                          <TableRow key={item.id}>
-                            <TableCell className="font-medium">
-                              {item.productName}
-                              {item.supplierSku && (
-                                <div className="text-xs text-muted-foreground">
-                                  Lieferanten-Nr: {item.supplierSku}
-                                </div>
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              {item.quantity} {item.unit}
-                            </TableCell>
-                            <TableCell>
-                              {formatCurrency(item.unitPrice)}
-                            </TableCell>
-                            <TableCell>
-                              {formatCurrency(item.totalPrice)}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                        <TableRow>
-                          <TableCell colSpan={3} className="text-right font-medium">
-                            Gesamtsumme:
-                          </TableCell>
-                          <TableCell className="font-bold">
-                            {formatCurrency(selectedOrder.totalAmount)}
-                          </TableCell>
-                        </TableRow>
-                      </TableBody>
-                    </Table>
-                    
-                    {selectedOrder.notes && (
-                      <div>
-                        <h3 className="text-sm font-medium text-muted-foreground mb-1">Anmerkungen</h3>
-                        <p className="text-sm whitespace-pre-line">{selectedOrder.notes}</p>
-                      </div>
-                    )}
-                    
-                    {/* Processing Form */}
-                    {selectedOrder.status === "received" && (
-                      <div className="space-y-4 pt-4 border-t">
-                        <h3 className="font-medium">Bestellung bearbeiten</h3>
-                        <div className="space-y-2">
-                          <label className="text-sm font-medium">Bearbeitungshinweise</label>
-                          <Textarea
-                            value={processingNote}
-                            onChange={(e) => setProcessingNote(e.target.value)}
-                            placeholder="Interne Hinweise zur Bearbeitung..."
-                          />
-                        </div>
-                        <div className="flex justify-end">
-                          <Button onClick={handleProcessOrder}>
-                            <ClipboardList className="h-4 w-4 mr-2" />
-                            In Bearbeitung nehmen
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-                    
-                    {/* Shipping Form */}
-                    {selectedOrder.status === "processed" && (
-                      <div className="space-y-4 pt-4 border-t">
-                        <h3 className="font-medium">Versandinformationen</h3>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <label className="text-sm font-medium">Tracking-Nummer</label>
-                            <Input
-                              value={trackingNumber}
-                              onChange={(e) => setTrackingNumber(e.target.value)}
-                              placeholder="z.B. DHL12345678"
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <label className="text-sm font-medium">Versanddatum</label>
-                            <Popover>
-                              <PopoverTrigger asChild>
-                                <Button
-                                  variant="outline"
-                                  className="w-full justify-start text-left font-normal"
-                                >
-                                  <CalendarIcon className="mr-2 h-4 w-4" />
-                                  {shippingDate ? (
-                                    format(shippingDate, "PPP", { locale: de })
-                                  ) : (
-                                    <span>Datum auswählen</span>
-                                  )}
-                                </Button>
-                              </PopoverTrigger>
-                              <PopoverContent className="w-auto p-0">
-                                <Calendar
-                                  mode="single"
-                                  selected={shippingDate}
-                                  onSelect={setShippingDate}
-                                  initialFocus
-                                />
-                              </PopoverContent>
-                            </Popover>
-                          </div>
-                        </div>
-                        <div className="flex justify-end">
-                          <Button onClick={handleShipOrder}>
-                            <Truck className="h-4 w-4 mr-2" />
-                            Als versandt markieren
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-                
-                <div className="space-y-6">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <Building2 className="h-5 w-5" />
-                        <span>Lieferadresse</span>
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-4">
-                        <div>
-                          <h3 className="font-medium text-lg">{selectedOrder.shippingAddress.name}</h3>
-                          <p className="text-sm text-muted-foreground">
-                            {selectedOrder.customerName}
-                          </p>
-                        </div>
-                        
-                        <Separator />
-                        
-                        <div className="space-y-1 text-sm">
-                          <p>{selectedOrder.shippingAddress.street}</p>
-                          <p>{selectedOrder.shippingAddress.postalCode} {selectedOrder.shippingAddress.city}</p>
-                          <p>{selectedOrder.shippingAddress.country}</p>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                  
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <Info className="h-5 w-5" />
-                        <span>Hilfe & Support</span>
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-3 text-sm">
-                        <p>
-                          Bei Fragen zu dieser Bestellung wenden Sie sich bitte an:
-                        </p>
-                        <p className="font-medium">Einkaufsabteilung</p>
-                        <p>einkauf@nationalpark-saechsische-schweiz.de</p>
-                        <p>+49 (0) 35022 / 900-123</p>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
+              <Button type="submit" className="w-full" disabled={isLoading || pinCode.length !== 4}>
+                {isLoading ? "Wird überprüft..." : "Anmelden"}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <div className="bg-white shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center py-4">
+            <div className="flex items-center space-x-3">
+              <Shield className="h-8 w-8 text-blue-600" />
+              <div>
+                <h1 className="text-xl font-semibold text-gray-900">Lieferantenportal</h1>
+                <p className="text-sm text-gray-500">{supplierData?.name}</p>
               </div>
             </div>
-          )}
-        </TabsContent>
-        
-        {/* Products Tab */}
-        <TabsContent value="products">
-          <Card>
-            <CardHeader>
-              <CardTitle>Produkte</CardTitle>
-              <CardDescription>
-                Ihre Produktkatalog
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="text-center py-12">
-                <Package className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                <h3 className="text-lg font-medium mb-1">Coming Soon</h3>
-                <p className="text-muted-foreground">
-                  Die Produktkatalogverwaltung wird in einem zukünftigen Update implementiert.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+            <Button variant="outline" onClick={logout}>
+              Abmelden
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <Tabs defaultValue="stammdaten" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="stammdaten" className="flex items-center space-x-2">
+              <Building2 className="h-4 w-4" />
+              <span>Stammdaten</span>
+            </TabsTrigger>
+            <TabsTrigger value="produkte" className="flex items-center space-x-2">
+              <Package className="h-4 w-4" />
+              <span>Produkte</span>
+            </TabsTrigger>
+            <TabsTrigger value="bestellungen" className="flex items-center space-x-2">
+              <ShoppingCart className="h-4 w-4" />
+              <span>Bestellungen</span>
+            </TabsTrigger>
+            <TabsTrigger value="feedback" className="flex items-center space-x-2">
+              <MessageSquare className="h-4 w-4" />
+              <span>Änderungen</span>
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="stammdaten">
+            <div className="grid gap-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Lieferanten-Stammdaten</CardTitle>
+                  <CardDescription>
+                    Hier sehen Sie Ihre aktuellen Stammdaten. Bei Änderungswünschen nutzen Sie bitte den "Änderungen" Tab.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {supplierData && (
+                    <>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-4">
+                          <div>
+                            <Label className="text-sm font-medium text-gray-500">Firmenname</Label>
+                            <p className="text-base font-medium">{supplierData.name}</p>
+                          </div>
+                          <div>
+                            <Label className="text-sm font-medium text-gray-500">Ansprechpartner</Label>
+                            <p className="text-base">{supplierData.contactPerson || 'Nicht angegeben'}</p>
+                          </div>
+                          <div>
+                            <Label className="text-sm font-medium text-gray-500">Kurzbeschreibung</Label>
+                            <p className="text-base">{supplierData.shortDescription || 'Nicht angegeben'}</p>
+                          </div>
+                        </div>
+                        <div className="space-y-4">
+                          <div>
+                            <Label className="text-sm font-medium text-gray-500">Adresse</Label>
+                            <p className="text-base">
+                              {supplierData.address && (
+                                <>
+                                  {supplierData.address}<br />
+                                  {supplierData.postalCode} {supplierData.city}<br />
+                                  {supplierData.country}
+                                </>
+                              )}
+                              {!supplierData.address && 'Nicht angegeben'}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-6 border-t">
+                        <div className="flex items-center space-x-3">
+                          <Phone className="h-5 w-5 text-gray-400" />
+                          <div>
+                            <Label className="text-sm font-medium text-gray-500">Telefon</Label>
+                            <p className="text-base">{supplierData.phone || 'Nicht angegeben'}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-3">
+                          <Mail className="h-5 w-5 text-gray-400" />
+                          <div>
+                            <Label className="text-sm font-medium text-gray-500">E-Mail</Label>
+                            <p className="text-base">{supplierData.email || 'Nicht angegeben'}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-3">
+                          <Globe className="h-5 w-5 text-gray-400" />
+                          <div>
+                            <Label className="text-sm font-medium text-gray-500">Website</Label>
+                            <p className="text-base">
+                              {supplierData.website ? (
+                                <a href={supplierData.website} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                                  {supplierData.website}
+                                </a>
+                              ) : (
+                                'Nicht angegeben'
+                              )}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {(supplierData.paymentTerms || supplierData.deliveryTerms || supplierData.minimumOrderValue) && (
+                        <div className="pt-6 border-t">
+                          <h3 className="text-lg font-medium mb-4">Geschäftsbedingungen</h3>
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            {supplierData.paymentTerms && (
+                              <div>
+                                <Label className="text-sm font-medium text-gray-500">Zahlungsbedingungen</Label>
+                                <p className="text-base">{supplierData.paymentTerms}</p>
+                              </div>
+                            )}
+                            {supplierData.deliveryTerms && (
+                              <div>
+                                <Label className="text-sm font-medium text-gray-500">Lieferbedingungen</Label>
+                                <p className="text-base">{supplierData.deliveryTerms}</p>
+                              </div>
+                            )}
+                            {supplierData.minimumOrderValue && (
+                              <div>
+                                <Label className="text-sm font-medium text-gray-500">Mindestbestellwert</Label>
+                                <p className="text-base">{supplierData.minimumOrderValue.toFixed(2)} €</p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="produkte">
+            <Card>
+              <CardHeader>
+                <CardTitle>Produktübersicht</CardTitle>
+                <CardDescription>
+                  Alle Ihre Produkte im System ({products.length} Artikel)
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {products.map((product) => (
+                    <div key={product.id} className="border rounded-lg p-4 space-y-3">
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1">
+                          <h3 className="font-medium">{product.productName}</h3>
+                          <p className="text-sm text-gray-600 mt-1">{product.shortDescription}</p>
+                        </div>
+                        <div className="text-right">
+                          <Badge variant={product.status === 'active' ? 'default' : 'secondary'}>
+                            {product.status === 'active' ? 'Aktiv' : 'Inaktiv'}
+                          </Badge>
+                        </div>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                        <div>
+                          <Label className="text-gray-500">Systemnummer</Label>
+                          <p className="font-mono">{product.id}</p>
+                        </div>
+                        <div>
+                          <Label className="text-gray-500">Eigene Referenz</Label>
+                          <p className="font-mono">{product.supplierSku || product.articleSupplier || 'Nicht vergeben'}</p>
+                        </div>
+                        <div>
+                          <Label className="text-gray-500">Gebindegröße</Label>
+                          <p>{product.packageSize || `${product.packageQuantity || 1} ${product.baseUnitName || 'Stück'}`}</p>
+                        </div>
+                        <div>
+                          <Label className="text-gray-500">MwSt</Label>
+                          <p>{product.vat}%</p>
+                        </div>
+                      </div>
+
+                      {(product.ingredients || product.allergens) && (
+                        <div className="pt-3 border-t space-y-2">
+                          {product.ingredients && (
+                            <div>
+                              <Label className="text-gray-500">Inhaltsstoffe</Label>
+                              <p className="text-sm">{product.ingredients}</p>
+                            </div>
+                          )}
+                          {product.allergens && (
+                            <div>
+                              <Label className="text-gray-500">Allergene</Label>
+                              <p className="text-sm text-orange-600">{product.allergens}</p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {product.shelfLifeDays && (
+                        <div className="flex items-center space-x-2 text-sm">
+                          <Clock className="h-4 w-4 text-gray-400" />
+                          <span className="text-gray-600">MHD: {product.shelfLifeDays} Tage</span>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+
+                  {products.length === 0 && (
+                    <div className="text-center py-8 text-gray-500">
+                      <Package className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                      <p>Noch keine Produkte im System erfasst.</p>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="bestellungen">
+            <Card>
+              <CardHeader>
+                <CardTitle>Bestellübersicht</CardTitle>
+                <CardDescription>
+                  Ihre aktuellen und vergangenen Bestellungen ({orders.length} Bestellungen)
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {orders.map((order) => (
+                    <div key={order.id} className="border rounded-lg p-4 space-y-4">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <h3 className="font-medium">{order.orderNumber}</h3>
+                          <p className="text-sm text-gray-600">
+                            Bestellt am: {new Date(order.orderDate).toLocaleDateString('de-DE')}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <Badge 
+                            variant={
+                              order.status === 'delivered' ? 'default' : 
+                              order.status === 'open' ? 'secondary' : 
+                              'outline'
+                            }
+                          >
+                            {order.status === 'delivered' ? 'Geliefert' : 
+                             order.status === 'open' ? 'Offen' : 
+                             order.status === 'ordered' ? 'Bestellt' : 
+                             order.status}
+                          </Badge>
+                          {order.totalAmount && (
+                            <p className="text-sm font-medium mt-1">{order.totalAmount.toFixed(2)} €</p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <Label className="text-gray-500">Lieferort</Label>
+                          <div className="flex items-center space-x-1">
+                            <MapPin className="h-4 w-4 text-gray-400" />
+                            <span>{order.deliveryLocation || order.locationName}</span>
+                          </div>
+                        </div>
+                        <div>
+                          <Label className="text-gray-500">Erwartete Lieferung</Label>
+                          <p>{order.expectedDeliveryDate ? new Date(order.expectedDeliveryDate).toLocaleDateString('de-DE') : 'Nicht angegeben'}</p>
+                        </div>
+                      </div>
+
+                      {order.items && order.items.length > 0 && (
+                        <div className="space-y-2">
+                          <Label className="text-gray-500">Bestellte Artikel ({order.items.length})</Label>
+                          <div className="space-y-1">
+                            {order.items.map((item) => (
+                              <div key={item.id} className="flex justify-between items-center text-sm bg-gray-50 px-3 py-2 rounded">
+                                <span>{item.productName}</span>
+                                <span className="font-medium">{item.quantity} {item.unit}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {order.notes && (
+                        <div className="pt-3 border-t">
+                          <Label className="text-gray-500">Hinweise</Label>
+                          <p className="text-sm">{order.notes}</p>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+
+                  {orders.length === 0 && (
+                    <div className="text-center py-8 text-gray-500">
+                      <ShoppingCart className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                      <p>Noch keine Bestellungen vorhanden.</p>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="feedback">
+            <Card>
+              <CardHeader>
+                <CardTitle>Änderungen und Rückmeldungen</CardTitle>
+                <CardDescription>
+                  Teilen Sie uns Korrekturen oder Anmerkungen zu Ihren Daten mit. Diese werden nicht automatisch übernommen, sondern per E-Mail an uns übermittelt.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleFeedbackSubmit} className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <Label htmlFor="feedbackType">Art der Rückmeldung</Label>
+                      <Select 
+                        value={feedbackData.feedbackType} 
+                        onValueChange={(value: any) => setFeedbackData(prev => ({ ...prev, feedbackType: value }))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="supplier_data">Lieferanten-Stammdaten</SelectItem>
+                          <SelectItem value="product_data">Produktdaten</SelectItem>
+                          <SelectItem value="order_data">Bestellungen</SelectItem>
+                          <SelectItem value="general">Allgemeine Anmerkung</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="priority">Priorität</Label>
+                      <Select 
+                        value={feedbackData.priority} 
+                        onValueChange={(value: any) => setFeedbackData(prev => ({ ...prev, priority: value }))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="low">Niedrig</SelectItem>
+                          <SelectItem value="medium">Mittel</SelectItem>
+                          <SelectItem value="high">Hoch</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <Label htmlFor="currentValue">Aktueller Wert (optional)</Label>
+                      <Input
+                        id="currentValue"
+                        value={feedbackData.currentValue}
+                        onChange={(e) => setFeedbackData(prev => ({ ...prev, currentValue: e.target.value }))}
+                        placeholder="Der aktuell gespeicherte Wert"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="suggestedValue">Vorgeschlagener Wert (optional)</Label>
+                      <Input
+                        id="suggestedValue"
+                        value={feedbackData.suggestedValue}
+                        onChange={(e) => setFeedbackData(prev => ({ ...prev, suggestedValue: e.target.value }))}
+                        placeholder="Der neue, korrekte Wert"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="comment">Kommentar / Beschreibung *</Label>
+                    <Textarea
+                      id="comment"
+                      value={feedbackData.comment}
+                      onChange={(e) => setFeedbackData(prev => ({ ...prev, comment: e.target.value }))}
+                      placeholder="Beschreiben Sie hier die gewünschten Änderungen oder Ihre Anmerkungen..."
+                      rows={4}
+                      required
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <Label htmlFor="contactEmail">E-Mail für Rückfragen (optional)</Label>
+                      <Input
+                        id="contactEmail"
+                        type="email"
+                        value={feedbackData.contactEmail}
+                        onChange={(e) => setFeedbackData(prev => ({ ...prev, contactEmail: e.target.value }))}
+                        placeholder="ihre@email.de"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="contactPhone">Telefon für Rückfragen (optional)</Label>
+                      <Input
+                        id="contactPhone"
+                        type="tel"
+                        value={feedbackData.contactPhone}
+                        onChange={(e) => setFeedbackData(prev => ({ ...prev, contactPhone: e.target.value }))}
+                        placeholder="+49 123 456789"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex items-start space-x-2">
+                    <AlertCircle className="h-5 w-5 text-amber-500 mt-0.5" />
+                    <div className="text-sm text-gray-600">
+                      <p>Ihre Rückmeldung wird per E-Mail an unser Team übermittelt und zeitnah bearbeitet. 
+                      Änderungen werden nicht automatisch im System übernommen, sondern nach Prüfung manuell eingepflegt.</p>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end">
+                    <Button type="submit" disabled={!feedbackData.comment.trim()}>
+                      Feedback übermitteln
+                    </Button>
+                  </div>
+                </form>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      </div>
     </div>
   );
 }

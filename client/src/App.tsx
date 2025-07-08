@@ -40,6 +40,7 @@ import AdminRoute from "@/components/auth/AdminRoute"; // Route nur für Admins
 import ApprovedUserRoute from "@/components/auth/ApprovedUserRoute"; // Route für genehmigte Benutzer
 import { InventoryCartProvider } from "@/components/inventory/InventoryCartContext";
 import InterAppConnections from "@/pages/InterAppConnections";
+import SupplierPortal from "@/pages/SupplierPortal";
 
 /**
  * HOC, der eine geschützte Route mit Benutzerfreigabe-Prüfung erstellt
@@ -82,7 +83,6 @@ import BestellungV2 from "@/pages/BestellungV2"; // Neue Bestellung 2.0 Seite
 import OrderDetail from "@/pages/OrderDetail";
 import OrderReceipt from "@/pages/OrderReceipt";
 import EnhancedOrdering from "@/pages/EnhancedOrdering";
-import SupplierPortal from "@/pages/SupplierPortal";
 import Inventory from "@/pages/Inventory";
 import LagerPage from "@/pages/LagerPage";
 import Lagerhaltung from "@/pages/Lagerhaltung";
@@ -608,6 +608,9 @@ function AuthenticatedRouter() {
             <VendonSync {...props} />
           </AdminRoute>
         )} />
+
+        {/* Supplier Portal - SEPARATE from main application, no authentication required */}
+        <Route path="/lieferant/:accessToken" component={SupplierPortal} />
 
         <Route path="/:rest*" component={(props: any) => {
           const rest = props.params?.rest;

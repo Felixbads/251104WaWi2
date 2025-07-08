@@ -985,6 +985,111 @@ export const insertSupplierDiscountConditionSchema = createInsertSchema(supplier
 export type InsertSupplierDiscountCondition = z.infer<typeof insertSupplierDiscountConditionSchema>;
 export type SupplierDiscountCondition = typeof supplierDiscountConditions.$inferSelect;
 
+// Supplier Access Pins Tabelle - PIN-Verifizierung für Lieferantenzugriff
+export const supplierAccessPins = pgTable("supplier_access_pins", {
+  id: serial("id").primaryKey(),
+  
+  // Verknüpfung zur Bestellung und Lieferant
+  orderId: integer("order_id").references(() => orders.id, { onDelete: "cascade" }),
+  supplierId: integer("supplier_id").notNull().references(() => suppliers.id, { onDelete: "cascade" }),
+  
+  // PIN-Informationen
+  pinCode: text("pin_code").notNull(), // Vierstelliger PIN-Code
+  accessToken: text("access_token").notNull().unique(), // Eindeutiger Zugangstoken für URL
+  
+  // Gültigkeit und Status
+  validFrom: timestamp("valid_from").defaultNow().notNull(),
+  validUntil: timestamp("valid_until").notNull(),
+  isActive: boolean("is_active").default(true),
+  
+  // Zugriffsverfolgung
+  accessCount: integer("access_count").default(0), // Wie oft wurde der PIN verwendet
+  lastAccessAt: timestamp("last_access_at"),
+  createdByOrderNumber: text("created_by_order_number"), // Bestellnummer für Referenz
+  
+  // Session-Management
+  sessionToken: text("session_token"), // Temporärer Session-Token nach erfolgreicher PIN-Eingabe
+  sessionExpiresAt: timestamp("session_expires_at"),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertSupplierAccessPinSchema = createInsertSchema(supplierAccessPins)
+  .omit({
+    id: true,
+    createdAt: true,
+    updatedAt: true,
+    accessCount: true,
+    lastAccessAt: true,
+  })
+  .extend({
+    pinCode: z.string().length(4, "PIN muss 4-stellig sein").regex(/^\d{4}$/, "PIN muss nur Zahlen enthalten"),
+    validUntil: z.union([
+      z.date(),
+      z.string().transform((str) => new Date(str))
+    ]),
+  });
+
+export type InsertSupplierAccessPin = z.infer<typeof insertSupplierAccessPinSchema>;
+export type SupplierAccessPin = typeof supplierAccessPins.$inferSelect;
+
+// Supplier Feedback Tabelle - Kommentarsystem für Lieferantenrückmeldungen
+export const supplierFeedback = pgTable("supplier_feedback", {
+  id: serial("id").primaryKey(),
+  
+  // Verknüpfung
+  supplierId: integer("supplier_id").notNull().references(() => suppliers.id, { onDelete: "cascade" }),
+  accessPinId: integer("access_pin_id").references(() => supplierAccessPins.id, { onDelete: "set null" }),
+  
+  // Art der Rückmeldung
+  feedbackType: text("feedback_type").notNull(), // 'supplier_data', 'product_data', 'order_data', 'general'
+  entityType: text("entity_type"), // 'supplier', 'product', 'order'
+  entityId: integer("entity_id"), // ID des betroffenen Objekts
+  
+  // Feldspezifische Rückmeldung
+  fieldName: text("field_name"), // Name des Feldes (z.B. 'productName', 'address')
+  currentValue: text("current_value"), // Aktueller Wert
+  suggestedValue: text("suggested_value"), // Vorgeschlagener neuer Wert
+  
+  // Kommentar und Details
+  comment: text("comment").notNull(), // Hauptkommentar des Lieferanten
+  priority: text("priority").default("medium"), // 'low', 'medium', 'high'
+  
+  // Status-Tracking
+  status: text("status").default("pending"), // 'pending', 'reviewed', 'implemented', 'rejected'
+  adminResponse: text("admin_response"), // Antwort des Administrators
+  reviewedBy: integer("reviewed_by").references(() => users.id),
+  reviewedAt: timestamp("reviewed_at"),
+  
+  // Kontaktinformationen
+  contactEmail: text("contact_email"), // E-Mail für Rückfragen
+  contactPhone: text("contact_phone"), // Telefon für Rückfragen
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertSupplierFeedbackSchema = createInsertSchema(supplierFeedback)
+  .omit({
+    id: true,
+    createdAt: true,
+    updatedAt: true,
+    reviewedAt: true,
+    reviewedBy: true,
+  })
+  .extend({
+    feedbackType: z.enum(['supplier_data', 'product_data', 'order_data', 'general']),
+    entityType: z.enum(['supplier', 'product', 'order']).optional(),
+    priority: z.enum(['low', 'medium', 'high']).optional(),
+    status: z.enum(['pending', 'reviewed', 'implemented', 'rejected']).optional(),
+    comment: z.string().min(10, "Kommentar muss mindestens 10 Zeichen lang sein"),
+    contactEmail: z.string().email("Ungültige E-Mail-Adresse").optional().or(z.literal("")),
+  });
+
+export type InsertSupplierFeedback = z.infer<typeof insertSupplierFeedbackSchema>;
+export type SupplierFeedback = typeof supplierFeedback.$inferSelect;
+
 export const productsRelations = relations(products, ({ one, many }) => ({
   supplier: one(suppliers, {
     fields: [products.supplierId],
