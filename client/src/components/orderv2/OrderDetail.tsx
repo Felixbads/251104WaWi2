@@ -334,26 +334,29 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
     
     setIsSaving(true);
     try {
-      console.log('Saving order changes:', {
+      const requestBody = {
+        warehouseId: editingOrder.warehouseId,
+        warehouse_name: editingOrder.warehouse_name,
+        expected_delivery_date: editingOrder.expected_delivery_date,
+        delivery_location: editingOrder.delivery_location,
+        delivery_type: editingOrder.delivery_type,
+        show_prices_in_email: editingOrder.show_prices_in_email,
+        notes: editingOrder.notes
+      };
+      
+      console.log('FRONTEND: Saving order changes:', {
         delivery_type: editingOrder.delivery_type,
         show_prices_in_email: editingOrder.show_prices_in_email,
         warehouseId: editingOrder.warehouseId,
         notes: editingOrder.notes
       });
+      console.log('FRONTEND: Full request body:', JSON.stringify(requestBody, null, 2));
 
       // Update order details including warehouse information
       const orderUpdateResponse = await fetch(`/api/orders/${orderId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          warehouseId: editingOrder.warehouseId,
-          warehouse_name: editingOrder.warehouse_name,
-          expected_delivery_date: editingOrder.expected_delivery_date,
-          delivery_location: editingOrder.delivery_location,
-          delivery_type: editingOrder.delivery_type,
-          show_prices_in_email: editingOrder.show_prices_in_email,
-          notes: editingOrder.notes
-        })
+        body: JSON.stringify(requestBody)
       });
 
       const orderUpdateResult = await orderUpdateResponse.json();

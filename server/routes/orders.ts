@@ -971,8 +971,13 @@ router.put('/:id', async (req: Request, res: Response) => {
       order: updatedOrderResult[0]
     });
   } catch (error) {
-    console.error('Fehler beim Aktualisieren der Bestellung:', error);
-    res.status(500).json({ error: 'Fehler beim Aktualisieren der Bestellung' });
+    console.error('DETAILED ERROR beim Aktualisieren der Bestellung:');
+    console.error('Error type:', typeof error);
+    console.error('Error message:', error instanceof Error ? error.message : String(error));
+    console.error('Error stack:', error instanceof Error ? error.stack : 'No stack');
+    console.error('Order ID:', orderId);
+    console.error('Update data received:', JSON.stringify(updateData, null, 2));
+    res.status(500).json({ error: 'Fehler beim Aktualisieren der Bestellung', details: error instanceof Error ? error.message : String(error) });
   }
 });
 
