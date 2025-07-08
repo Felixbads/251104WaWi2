@@ -85,8 +85,15 @@ router.post('/authenticate', async (req: Request, res: Response) => {
       [accessToken]
     );
 
-    // Erstelle Session Token
-    const sessionToken = `session_${accessToken}_${Date.now()}`;
+    // Generiere einfaches Session Token (mit Math.random für Kompatibilität)
+    const sessionToken = Math.random().toString(36).substring(2) + Math.random().toString(36).substring(2) + Math.random().toString(36).substring(2);
+    const sessionExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 Stunden
+
+    // Update PIN mit Session-Token und Ablaufzeit
+    await rawDb.query(
+      'UPDATE supplier_access_pins SET session_token = $1, session_expires_at = $2 WHERE access_token = $3',
+      [sessionToken, sessionExpiry, accessToken]
+    );
 
     res.json({
       success: true,
