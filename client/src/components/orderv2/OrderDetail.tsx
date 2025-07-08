@@ -140,6 +140,7 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
   const [showAddItemDialog, setShowAddItemDialog] = useState(false);
   const [showPricesInEmail, setShowPricesInEmail] = useState(true);
   const [availableProducts, setAvailableProducts] = useState<any[]>([]);
+  const [availableWarehouses, setAvailableWarehouses] = useState<any[]>([]);
   const [isSaving, setIsSaving] = useState(false);
 
   const loadOrderData = async () => {
@@ -221,7 +222,8 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
     try {
       setIsLoadingEmail(true);
       
-      const response = await fetch(`${window.location.origin}/api/orders/${orderId}/email-template?type=${templateType}`);
+      // Use the enhanced email endpoint with price visibility settings
+      const response = await fetch(`${window.location.origin}/api/enhanced-email-templates/order/${orderId}?template=${templateType}&showPrices=${showPricesInEmail}`);
       if (!response.ok) {
         throw new Error(`Failed to load email template: ${response.statusText}`);
       }
@@ -231,7 +233,8 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
 
     } catch (error) {
       console.error('Error loading email template:', error);
-      setError(error instanceof Error ? error.message : 'Fehler beim Laden der E-Mail-Vorlage');
+      // Fallback to basic email dialog
+      setIsEmailDialogOpen(true);
     } finally {
       setIsLoadingEmail(false);
     }
@@ -247,6 +250,7 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
     if (!order) return;
     setEditingOrder({
       ...order,
+      warehouseId: order.warehouseId || order.warehouse_id || null,
       expected_delivery_date: order.expected_delivery_date || '',
       delivery_location: order.delivery_location || order.warehouse_name || '',
       notes: order.notes || ''
@@ -255,8 +259,9 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
     setShowPricesInEmail(order.supplier_show_prices !== false);
     setIsEditing(true);
     
-    // Lade verfügbare Produkte für den Lieferanten
+    // Lade verfügbare Produkte für den Lieferanten und Lager
     loadAvailableProducts();
+    loadAvailableWarehouses();
   };
 
   const cancelEditing = () => {
@@ -276,6 +281,18 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
       }
     } catch (error) {
       console.error('Error loading available products:', error);
+    }
+  };
+
+  const loadAvailableWarehouses = async () => {
+    try {
+      const response = await fetch('/api/warehouses');
+      if (response.ok) {
+        const warehouses = await response.json();
+        setAvailableWarehouses(warehouses.data || warehouses || []);
+      }
+    } catch (error) {
+      console.error('Error loading available warehouses:', error);
     }
   };
 
@@ -310,11 +327,13 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
     
     setIsSaving(true);
     try {
-      // Update order details (ohne showPricesInEmail - wird über Supplier gesteuert)
+      // Update order details including warehouse information
       const orderUpdateResponse = await fetch(`/api/orders/${orderId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          warehouseId: editingOrder.warehouseId,
+          warehouse_name: editingOrder.warehouse_name,
           expected_delivery_date: editingOrder.expected_delivery_date,
           delivery_location: editingOrder.delivery_location,
           notes: editingOrder.notes
@@ -509,7 +528,32 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-600">Lager</label>
-                  <p className="text-sm">{order.warehouse_name}</p>
+                  {isEditing ? (
+                    <Select
+                      value={editingOrder?.warehouseId?.toString() || ''}
+                      onValueChange={(value) => {
+                        const selectedWarehouse = availableWarehouses.find(w => w.id.toString() === value);
+                        setEditingOrder((prev: any) => prev ? {
+                          ...prev, 
+                          warehouseId: parseInt(value),
+                          warehouse_name: selectedWarehouse?.name || 'Unbekanntes Lager'
+                        } : null);
+                      }}
+                    >
+                      <SelectTrigger className="mt-1">
+                        <SelectValue placeholder="Lager auswählen" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableWarehouses.map((warehouse) => (
+                          <SelectItem key={warehouse.id} value={warehouse.id.toString()}>
+                            {warehouse.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <p className="text-sm">{order.warehouse_name}</p>
+                  )}
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-600">Bestelldatum</label>

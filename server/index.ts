@@ -2302,15 +2302,17 @@ Elbsandstein Proviant & Quartier GmbH`;
     import('./routes/categories.js'),
     import('./routes/package-types.js'),
     import('./routes/suppliers-simple.js'),
-    import('./routes/photos.js')
-  ]).then(([products, categories, packageTypes, suppliersSimple, photos]) => {
+    import('./routes/photos.js'),
+    import('./routes/enhanced-email-templates.js')
+  ]).then(([products, categories, packageTypes, suppliersSimple, photos, enhancedEmailTemplates]) => {
     app.use('/api/products', products.default);
     app.use('/api/categories', categories.default);
     app.use('/api/package-types', packageTypes.default);
     app.use('/api/suppliers-simple', suppliersSimpleRouter);
-  app.use('/api/suppliers', suppliersProductsForConditionsRouter);
+    app.use('/api/suppliers', suppliersProductsForConditionsRouter);
     app.use('/api/photos', photos.default);
-    console.log('[SERVER] New API routes registered successfully (including photos)');
+    app.use('/api/enhanced-email-templates', enhancedEmailTemplates.default);
+    console.log('[SERVER] New API routes registered successfully (including enhanced email templates)');
   }).catch(error => {
     console.error('[SERVER] Error loading API routes:', error);
   });
