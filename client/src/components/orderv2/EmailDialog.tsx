@@ -56,154 +56,51 @@ export default function EmailDialog({
     try {
       setIsLoading(true);
 
-      // Try to load order data and create comprehensive email template
-      let orderData = null;
-      try {
-        const orderResponse = await fetch(`/api/orders-direct/${orderId}`);
-        if (orderResponse.ok) {
-          orderData = await orderResponse.json();
-        }
-      } catch (error) {
-        console.log('Could not load order data, using basic template');
-      }
-
-      // Load order items
-      let orderItems = [];
-      try {
-        const itemsResponse = await fetch(`/api/order-items-direct/${orderId}`);
-        if (itemsResponse.ok) {
-          const itemsData = await itemsResponse.json();
-          orderItems = itemsData.data || [];
-        }
-      } catch (error) {
-        console.log('Could not load order items');
-      }
-
-      // Create comprehensive email template
-      const subject = `Bestellung ${orderNumber || orderId} - ${supplierName}`;
+      // Lade das neue 11-Punkte-Professionelle E-Mail-Template von der Backend-API
+      console.log(`[EmailDialog] Lade professionelles Template für Bestellung ${orderId}...`);
       
-      // Build detailed HTML content
-      let htmlContent = `
-        <h2>Neue Bestellung</h2>
-        <p>Sehr geehrte Damen und Herren,</p>
-        <p>hiermit erhalten Sie eine neue Bestellung mit der Nummer <strong>${orderNumber || orderId}</strong>.</p>
-        
-        <h3>Bestelldetails:</h3>
-        <table border="1" cellpadding="8" cellspacing="0" style="border-collapse: collapse; width: 100%;">
-          <tr style="background-color: #f5f5f5;">
-            <td><strong>Bestellnummer:</strong></td>
-            <td>${orderNumber || orderId}</td>
-          </tr>
-          <tr>
-            <td><strong>Lieferant:</strong></td>
-            <td>${supplierName}</td>
-          </tr>
-          <tr>
-            <td><strong>Lager:</strong></td>
-            <td>${orderData?.warehouse_name || 'Nicht angegeben'}</td>
-          </tr>
-          <tr>
-            <td><strong>Gewünschter Liefertermin:</strong></td>
-            <td>${orderData?.expected_delivery_date ? new Date(orderData.expected_delivery_date).toLocaleDateString('de-DE') : 'Nicht angegeben'}</td>
-          </tr>
-        </table>
-      `;
-
-      // Add order items if available
-      if (orderItems.length > 0) {
-        // Check if supplier wants prices shown (default: true if not specified) 
-        const showPrices = orderData?.show_prices_in_email !== false;
-        console.log(`EmailDialog: showPricesInEmail = ${showPrices}, orderData.show_prices_in_email = ${orderData?.show_prices_in_email}`);
-        
-        htmlContent += `
-          <h3>Bestellpositionen:</h3>
-          <table border="1" cellpadding="8" cellspacing="0" style="border-collapse: collapse; width: 100%;">
-            <thead>
-              <tr style="background-color: #f5f5f5;">
-                <th>Artikel</th>
-                <th>Menge</th>
-                <th>Einheit</th>
-                ${showPrices ? '<th>Einzelpreis</th><th>Gesamtpreis</th>' : ''}
-              </tr>
-            </thead>
-            <tbody>
-        `;
-        
-        let totalAmount = 0;
-        orderItems.forEach((item: any) => {
-          const itemTotal = item.total_price || (item.quantity * item.unit_price);
-          totalAmount += itemTotal;
-          htmlContent += `
-            <tr>
-              <td>${item.product_name || 'Unbekanntes Produkt'}</td>
-              <td>${item.quantity || 0}</td>
-              <td>${item.unit || 'Stk'}</td>
-              ${showPrices ? `<td>${item.unit_price ? item.unit_price.toFixed(2) + ' €' : 'N/A'}</td><td>${itemTotal ? itemTotal.toFixed(2) + ' €' : 'N/A'}</td>` : ''}
-            </tr>
-          `;
-        });
-        
-        if (showPrices) {
-          htmlContent += `
-            <tr style="background-color: #f5f5f5; font-weight: bold;">
-              <td colspan="3">Gesamtsumme:</td>
-              <td colspan="2">${totalAmount.toFixed(2)} €</td>
-            </tr>
-          `;
-        }
-        
-        htmlContent += `
-            </tbody>
-          </table>
-        `;
+      const templateResponse = await fetch(`/api/orders/${orderId}/email-template?type=standard`);
+      if (!templateResponse.ok) {
+        throw new Error(`Template-API-Fehler: ${templateResponse.status}`);
       }
-
-      htmlContent += `
-        <h3>Weitere Informationen:</h3>
-        <p>Bei Fragen zur Bestellung stehen wir Ihnen gerne zur Verfügung.</p>
-        <p>Mit freundlichen Grüßen<br>
-        Ihr Proviantomat-Team</p>
-        
-        <hr>
-        <p style="font-size: 12px; color: #666;">
-        Proviantomat<br>
-        E-Mail: einkauf@proviantomat.de<br>
-        Diese E-Mail wurde automatisch generiert.
-        </p>
-      `;
-
-      setEmailData(prev => ({
-        ...prev,
-        subject: subject,
-        htmlContent: htmlContent,
-      }));
-
-      // Use supplier email from order data if available
-      const supplierEmail = orderData?.supplier_email || '';
-      console.log('Setting supplier email from order data:', supplierEmail);
       
-      setEmailData(prev => ({
-        ...prev,
-        to: supplierEmail || 'test@example.com',
-        cc: 'andreas@proviantomat.de, einkauf@proviantomat.de',
-      }));
+      const templateData = await templateResponse.json();
+      console.log(`[EmailDialog] Professionelles Template geladen:`, templateData);
+      
+      // Setze Template-Daten aus der Backend-API
+      setEmailData({
+        to: supplierEmail || templateData.supplierEmail || '',
+        cc: 'andreas@proviantomat.de,einkauf@proviantomat.de',
+        bcc: '',
+        subject: templateData.subject || `Bestellung ${orderNumber} - Elbsandstein Proviant & Quartier GmbH`,
+        htmlContent: templateData.content || 'Fehler beim Laden des Templates'
+      });
+
+      console.log(`[EmailDialog] Template geladen - Subject: ${templateData.subject}`);
+      console.log(`[EmailDialog] Template geladen - Content-Länge: ${templateData.content?.length || 0} Zeichen`);
 
     } catch (error) {
-      console.error('Error loading email template:', error);
+      console.error('[EmailDialog] Fehler beim Laden des Templates:', error);
       
-      // Set minimal fallback data even on error
-      setEmailData(prev => ({
-        ...prev,
-        subject: `Bestellung ${orderNumber || orderId}`,
-        htmlContent: '<p>Bestellung wurde erstellt.</p>',
-        to: 'test@example.com',
-        cc: 'andreas@proviantomat.de, einkauf@proviantomat.de',
-      }));
-      
+      // Fallback für einfaches Template
+      setEmailData({
+        to: supplierEmail || '',
+        cc: 'andreas@proviantomat.de,einkauf@proviantomat.de',
+        bcc: '',
+        subject: `Bestellung ${orderNumber} - ${supplierName}`,
+        htmlContent: `
+          <h2>Neue Bestellung</h2>
+          <p>Sehr geehrte Damen und Herren,</p>
+          <p>hiermit erhalten Sie eine neue Bestellung mit der Nummer <strong>${orderNumber}</strong>.</p>
+          <p>Bitte bestätigen Sie den Erhalt dieser Bestellung.</p>
+          <p>Mit freundlichen Grüßen<br>Elbsandstein Proviant & Quartier GmbH</p>
+        `
+      });
+
       toast({
-        title: "Warnung",
-        description: "E-Mail-Vorlage konnte nicht vollständig geladen werden. Basisvorlage wird verwendet.",
-        variant: "destructive",
+        title: "Template-Warnung",
+        description: "Professionelles Template konnte nicht geladen werden. Einfaches Template wird verwendet.",
+        variant: "destructive"
       });
     } finally {
       setIsLoading(false);
@@ -263,253 +160,149 @@ export default function EmailDialog({
       console.error('Error sending email:', error);
       toast({
         title: "Fehler",
-        description: error instanceof Error ? error.message : "Fehler beim Senden der E-Mail",
+        description: error instanceof Error ? error.message : "E-Mail konnte nicht gesendet werden",
         variant: "destructive",
       });
+      onSendEmail(false);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleInputChange = (field: string, value: string) => {
-    setEmailData(prev => ({
-      ...prev,
-      [field]: value,
-    }));
-  };
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Mail className="w-5 h-5" />
-            E-Mail senden - Bestellung {orderNumber || orderId}
+            <Mail className="h-5 w-5" />
+            E-Mail senden - Bestellung {orderNumber}
           </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
-          {/* Template Selection */}
-          <div className="space-y-4">
-            <div className="flex items-center space-x-2">
-              <Switch
-                id="useTemplate"
-                checked={useTemplate}
-                onCheckedChange={setUseTemplate}
+          {/* E-Mail Empfänger-Felder */}
+          <div className="grid grid-cols-1 gap-4">
+            <div>
+              <Label htmlFor="to">An *</Label>
+              <Input
+                id="to"
+                type="email"
+                value={emailData.to}
+                onChange={(e) => setEmailData(prev => ({ ...prev, to: e.target.value }))}
+                placeholder="lieferant@example.com"
+                disabled={isLoading}
               />
-              <Label htmlFor="useTemplate">
-                E-Mail-Vorlage verwenden
-              </Label>
             </div>
             
-            {useTemplate && availableTemplates.length > 0 && (
-              <div className="space-y-2">
-                <Label htmlFor="templateSelect">Vorlage auswählen</Label>
-                <Select
-                  value={selectedTemplate?.id?.toString() || ''}
-                  onValueChange={(value) => {
-                    const template = availableTemplates.find((t: any) => t.id.toString() === value);
-                    setSelectedTemplate(template);
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Vorlage auswählen..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableTemplates.map((template: any) => (
-                      <SelectItem key={template.id} value={template.id.toString()}>
-                        {template.name} {template.isDefault ? '(Standard)' : ''} - {template.templateType === 'urgent' ? 'DRINGEND' : 'Normal'}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {selectedTemplate && (
-                  <p className="text-sm text-muted-foreground">
-                    {selectedTemplate.description || 'Keine Beschreibung verfügbar'}
-                  </p>
-                )}
+            <div>
+              <Label htmlFor="cc">CC</Label>
+              <Input
+                id="cc"
+                type="email"
+                value={emailData.cc}
+                onChange={(e) => setEmailData(prev => ({ ...prev, cc: e.target.value }))}
+                placeholder="cc@example.com"
+                disabled={isLoading}
+              />
+            </div>
+            
+            <div>
+              <Label htmlFor="bcc">BCC</Label>
+              <Input
+                id="bcc"
+                type="email"
+                value={emailData.bcc}
+                onChange={(e) => setEmailData(prev => ({ ...prev, bcc: e.target.value }))}
+                placeholder="bcc@example.com"
+                disabled={isLoading}
+              />
+            </div>
+            
+            <div>
+              <Label htmlFor="subject">Betreff *</Label>
+              <Input
+                id="subject"
+                value={emailData.subject}
+                onChange={(e) => setEmailData(prev => ({ ...prev, subject: e.target.value }))}
+                placeholder="Betreff der E-Mail"
+                disabled={isLoading}
+              />
+            </div>
+          </div>
+
+          {/* Template Tabs */}
+          <Tabs defaultValue="preview" className="w-full">
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="preview" className="flex items-center gap-2">
+                <Eye className="h-4 w-4" />
+                Vorschau
+              </TabsTrigger>
+              <TabsTrigger value="edit" className="flex items-center gap-2">
+                <Mail className="h-4 w-4" />
+                Bearbeiten
+              </TabsTrigger>
+              <TabsTrigger value="html" className="flex items-center gap-2">
+                <Code className="h-4 w-4" />
+                HTML-Code
+              </TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="preview" className="mt-4">
+              <div className="border rounded-lg p-4 bg-white min-h-[400px] max-h-[500px] overflow-y-auto">
+                <div dangerouslySetInnerHTML={{ __html: emailData.htmlContent }} />
               </div>
-            )}
-          </div>
-
-          {/* Recipient */}
-          <div className="space-y-2">
-            <Label htmlFor="to">An (E-Mail-Adresse) *</Label>
-            <Input
-              id="to"
-              type="email"
-              value={emailData.to}
-              onChange={(e) => handleInputChange('to', e.target.value)}
-              placeholder="lieferant@beispiel.de"
-              required
-            />
-          </div>
-
-          {/* CC */}
-          <div className="space-y-2">
-            <Label htmlFor="cc">CC (optional)</Label>
-            <Input
-              id="cc"
-              type="text"
-              value={emailData.cc}
-              onChange={(e) => handleInputChange('cc', e.target.value)}
-              placeholder="andreas@proviantomat.de, einkauf@proviantomat.de"
-            />
-            <p className="text-sm text-muted-foreground">
-              Mehrere E-Mail-Adressen durch Komma trennen
-            </p>
-          </div>
-
-          {/* BCC */}
-          <div className="space-y-2">
-            <Label htmlFor="bcc">BCC (optional)</Label>
-            <Input
-              id="bcc"
-              type="email"
-              value={emailData.bcc}
-              onChange={(e) => handleInputChange('bcc', e.target.value)}
-              placeholder="bcc@beispiel.de"
-            />
-          </div>
-
-          {/* Subject */}
-          <div className="space-y-2">
-            <Label htmlFor="subject">Betreff *</Label>
-            <Input
-              id="subject"
-              value={emailData.subject}
-              onChange={(e) => handleInputChange('subject', e.target.value)}
-              placeholder="Bestellung vom [Datum]"
-              required
-            />
-          </div>
-
-          {/* HTML Preview and Edit Section */}
-          <div className="space-y-2">
-            <Label>E-Mail-Inhalt</Label>
-            <Tabs value={previewTab} onValueChange={setPreviewTab} className="w-full">
-              <TabsList className="grid w-full grid-cols-3">
-                <TabsTrigger value="preview" className="flex items-center gap-2">
-                  <Eye className="w-4 h-4" />
-                  Vorschau
-                </TabsTrigger>
-                <TabsTrigger value="edit" className="flex items-center gap-2">
-                  <Code className="w-4 h-4" />
-                  Bearbeiten
-                </TabsTrigger>
-                <TabsTrigger value="html" className="flex items-center gap-2">
-                  <Code className="w-4 h-4" />
-                  HTML-Code
-                </TabsTrigger>
-              </TabsList>
-              <TabsContent value="preview" className="mt-2">
-                <div className="border rounded-md p-4 bg-white min-h-[300px] max-h-[400px] overflow-y-auto">
-                  {emailData.htmlContent ? (
-                    <div 
-                      dangerouslySetInnerHTML={{ __html: emailData.htmlContent }}
-                      className="prose prose-sm max-w-none"
-                    />
-                  ) : (
-                    <p className="text-muted-foreground italic">E-Mail-Inhalt wird automatisch generiert basierend auf der Bestellung</p>
-                  )}
-                </div>
-              </TabsContent>
-              <TabsContent value="edit" className="mt-2">
-                <div className="space-y-2">
-                  <Textarea
-                    id="emailContentEdit"
-                    value={emailData.htmlContent}
-                    onChange={(e) => handleInputChange('htmlContent', e.target.value)}
-                    placeholder="E-Mail-Text hier bearbeiten..."
-                    rows={12}
-                    className="font-mono text-sm"
-                  />
-                  <p className="text-sm text-muted-foreground">
-                    Sie können den E-Mail-Text hier direkt bearbeiten. HTML-Tags sind erlaubt.
-                  </p>
-                </div>
-              </TabsContent>
-              <TabsContent value="html" className="mt-2">
-                <div className="border rounded-md p-4 bg-gray-50 min-h-[300px] max-h-[400px] overflow-y-auto">
-                  <pre className="text-xs font-mono whitespace-pre-wrap break-words">
-                    {emailData.htmlContent || '<!-- E-Mail-Inhalt wird automatisch generiert -->'}
-                  </pre>
-                </div>
-              </TabsContent>
-            </Tabs>
-          </div>
-
-          {/* Custom Content (only if not using template) */}
-          {!useTemplate && (
-            <div className="space-y-2">
-              <Label>E-Mail-Inhalt (HTML) (optional)</Label>
-              <Tabs value={editTab} onValueChange={setEditTab} className="w-full">
-                <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="edit" className="flex items-center gap-2">
-                    <Code className="w-4 h-4" />
-                    Bearbeiten
-                  </TabsTrigger>
-                  <TabsTrigger value="preview" className="flex items-center gap-2">
-                    <Eye className="w-4 h-4" />
-                    HTML-Vorschau
-                  </TabsTrigger>
-                </TabsList>
-                <TabsContent value="edit" className="mt-2">
-                  <Textarea
-                    id="htmlContent"
-                    value={emailData.htmlContent}
-                    onChange={(e) => handleInputChange('htmlContent', e.target.value)}
-                    placeholder="Benutzerdefinierter E-Mail-Inhalt..."
-                    rows={10}
-                    className="font-mono text-sm"
-                  />
-                  <p className="text-sm text-muted-foreground mt-2">
-                    Leer lassen, um die Standard-Vorlage zu verwenden
-                  </p>
-                </TabsContent>
-                <TabsContent value="preview" className="mt-2">
-                  <div className="border rounded-md p-4 bg-white min-h-[250px] max-h-[350px] overflow-y-auto">
-                    {emailData.htmlContent ? (
-                      <div 
-                        dangerouslySetInnerHTML={{ __html: emailData.htmlContent }}
-                        className="prose prose-sm max-w-none"
-                      />
-                    ) : (
-                      <p className="text-muted-foreground italic">Kein Inhalt vorhanden - Standard-Vorlage wird verwendet</p>
-                    )}
-                  </div>
-                </TabsContent>
-              </Tabs>
-            </div>
-          )}
-
-          {/* Order Info */}
-          <div className="bg-muted p-4 rounded-lg">
-            <h4 className="font-medium mb-2">Bestellinformationen</h4>
-            <div className="text-sm space-y-1">
-              <p><strong>Lieferant:</strong> {supplierName || 'Unbekannt'}</p>
-              <p><strong>Bestellnummer:</strong> {orderNumber || orderId}</p>
-              <p><strong>E-Mail:</strong> {supplierEmail || 'Nicht angegeben'}</p>
-            </div>
-          </div>
+            </TabsContent>
+            
+            <TabsContent value="edit" className="mt-4">
+              <div>
+                <Label htmlFor="content">E-Mail Inhalt</Label>
+                <Textarea
+                  id="content"
+                  value={emailData.htmlContent}
+                  onChange={(e) => setEmailData(prev => ({ ...prev, htmlContent: e.target.value }))}
+                  className="min-h-[400px] font-mono text-sm"
+                  placeholder="E-Mail-Inhalt..."
+                  disabled={isLoading}
+                />
+              </div>
+            </TabsContent>
+            
+            <TabsContent value="html" className="mt-4">
+              <div>
+                <Label htmlFor="html">HTML-Quellcode</Label>
+                <Textarea
+                  id="html"
+                  value={emailData.htmlContent}
+                  onChange={(e) => setEmailData(prev => ({ ...prev, htmlContent: e.target.value }))}
+                  className="min-h-[400px] font-mono text-xs"
+                  placeholder="HTML-Quellcode..."
+                  disabled={isLoading}
+                />
+              </div>
+            </TabsContent>
+          </Tabs>
         </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isLoading}>
+        <DialogFooter className="flex justify-between">
+          <Button 
+            variant="outline" 
+            onClick={() => onOpenChange(false)}
+            disabled={isLoading}
+          >
             Abbrechen
           </Button>
-          <Button onClick={handleSendEmail} disabled={isLoading}>
+          
+          <Button 
+            onClick={handleSendEmail}
+            disabled={isLoading}
+            className="flex items-center gap-2"
+          >
             {isLoading ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Wird gesendet...
-              </>
+              <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
-              <>
-                <Send className="w-4 h-4 mr-2" />
-                E-Mail senden
-              </>
+              <Send className="h-4 w-4" />
             )}
+            E-Mail senden
           </Button>
         </DialogFooter>
       </DialogContent>
