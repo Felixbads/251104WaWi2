@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Package, Mail, FileText, AlertCircle, ArrowLeft, Edit3, Plus, Trash2, Save, X, CalendarDays, MapPin, MessageCircle } from "lucide-react";
+import { Loader2, Package, Mail, FileText, AlertCircle, ArrowLeft, Edit3, Plus, Trash2, Save, X, CalendarDays, MapPin, MessageCircle, Truck, Home } from "lucide-react";
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import EmailDialog from './EmailDialog';
@@ -57,7 +57,9 @@ interface Order {
   total_amount: number;
   expected_delivery_date?: string;
   delivery_location?: string;
+  delivery_type?: 'pickup' | 'delivery';
   supplier_show_prices?: boolean;
+  show_prices_in_email?: boolean;
   notes?: string;
   items: OrderItem[];
   itemsByVat?: VatGroup[];
@@ -222,8 +224,11 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
     try {
       setIsLoadingEmail(true);
       
-      // Use the enhanced email endpoint with price visibility settings
-      const response = await fetch(`${window.location.origin}/api/enhanced-email-templates/order/${orderId}?template=${templateType}&showPrices=${showPricesInEmail}`);
+      // Use the enhanced email endpoint with price visibility and delivery type settings
+      const currentOrder = editingOrder || order;
+      const finalShowPrices = currentOrder?.show_prices_in_email !== false;
+      const deliveryType = currentOrder?.delivery_type || 'delivery';
+      const response = await fetch(`${window.location.origin}/api/enhanced-email-templates/order/${orderId}?template=${templateType}&showPrices=${finalShowPrices}&deliveryType=${deliveryType}`);
       if (!response.ok) {
         throw new Error(`Failed to load email template: ${response.statusText}`);
       }
@@ -253,6 +258,8 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
       warehouseId: order.warehouseId || order.warehouse_id || null,
       expected_delivery_date: order.expected_delivery_date || '',
       delivery_location: order.delivery_location || order.warehouse_name || '',
+      delivery_type: order.delivery_type || 'delivery',
+      show_prices_in_email: order.show_prices_in_email !== false,
       notes: order.notes || ''
     });
     setEditingItems([...orderItems]);
@@ -336,6 +343,8 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
           warehouse_name: editingOrder.warehouse_name,
           expected_delivery_date: editingOrder.expected_delivery_date,
           delivery_location: editingOrder.delivery_location,
+          delivery_type: editingOrder.delivery_type,
+          show_prices_in_email: editingOrder.show_prices_in_email,
           notes: editingOrder.notes
         })
       });
@@ -600,15 +609,82 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
                 )}
               </div>
               
-              {/* Preisanzeige Status - nur lesbar */}
-              <div className="flex items-center space-x-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                <div className={`w-3 h-3 rounded-full ${showPricesInEmail ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                <span className="text-sm text-blue-800">
-                  Preise in E-Mails: <strong>{showPricesInEmail ? 'Aktiviert' : 'Deaktiviert'}</strong>
-                </span>
-                <span className="text-xs text-blue-600">
-                  (wird über Lieferant-Einstellungen gesteuert)
-                </span>
+              {/* Lieferart - bearbeitbar */}
+              <div>
+                <label className="text-sm font-medium text-gray-600">Lieferart</label>
+                {isEditing ? (
+                  <div className="flex gap-6 mt-2">
+                    <label className="flex items-center space-x-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="delivery_type"
+                        value="delivery"
+                        checked={editingOrder?.delivery_type === 'delivery'}
+                        onChange={(e) => setEditingOrder((prev: any) => prev ? {...prev, delivery_type: e.target.value} : null)}
+                        className="w-4 h-4 text-blue-600"
+                      />
+                      <Truck className="h-4 w-4" />
+                      <span>Lieferung</span>
+                    </label>
+                    <label className="flex items-center space-x-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="delivery_type"
+                        value="pickup"
+                        checked={editingOrder?.delivery_type === 'pickup'}
+                        onChange={(e) => setEditingOrder((prev: any) => prev ? {...prev, delivery_type: e.target.value} : null)}
+                        className="w-4 h-4 text-blue-600"
+                      />
+                      <Home className="h-4 w-4" />
+                      <span>Abholung</span>
+                    </label>
+                  </div>
+                ) : (
+                  <div className="flex items-center space-x-2 mt-1">
+                    {order.delivery_type === 'pickup' ? (
+                      <>
+                        <Home className="h-4 w-4 text-blue-600" />
+                        <span className="text-sm">Abholung</span>
+                      </>
+                    ) : (
+                      <>
+                        <Truck className="h-4 w-4 text-green-600" />
+                        <span className="text-sm">Lieferung</span>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Preisanzeige in E-Mails - bearbeitbar */}
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <div className={`w-3 h-3 rounded-full ${(isEditing ? editingOrder?.show_prices_in_email : order.show_prices_in_email) !== false ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                    <span className="text-sm font-medium text-blue-800">
+                      Preise in E-Mails
+                    </span>
+                  </div>
+                  {isEditing ? (
+                    <label className="inline-flex items-center">
+                      <input
+                        type="checkbox"
+                        checked={editingOrder?.show_prices_in_email !== false}
+                        onChange={(e) => setEditingOrder((prev: any) => prev ? {...prev, show_prices_in_email: e.target.checked} : null)}
+                        className="w-4 h-4 text-blue-600 rounded"
+                      />
+                    </label>
+                  ) : (
+                    <Badge variant={order.show_prices_in_email !== false ? "default" : "secondary"}>
+                      {order.show_prices_in_email !== false ? 'Aktiviert' : 'Deaktiviert'}
+                    </Badge>
+                  )}
+                </div>
+                {!isEditing && (
+                  <span className="text-xs text-blue-600 mt-1 block">
+                    (kann in der Bearbeitung geändert werden)
+                  </span>
+                )}
               </div>
               
               {/* Notizen - bearbeitbar */}

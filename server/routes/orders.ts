@@ -940,10 +940,15 @@ router.put('/:id', async (req: Request, res: Response) => {
     
     const existingOrder = existingOrderResult[0];
     
-    // Updates vorbereiten (only basic fields for now)
+    // Updates vorbereiten (including new fields)
     const updates: any = {
       expectedDeliveryDate: updateData.expected_delivery_date || updateData.expectedDeliveryDate || existingOrder.expectedDeliveryDate,
       deliveryLocation: updateData.delivery_location || updateData.deliveryLocation || existingOrder.deliveryLocation,
+      deliveryType: updateData.delivery_type || updateData.deliveryType || existingOrder.deliveryType || 'delivery',
+      showPricesInEmail: updateData.show_prices_in_email !== undefined ? updateData.show_prices_in_email : 
+                        updateData.showPricesInEmail !== undefined ? updateData.showPricesInEmail : 
+                        existingOrder.showPricesInEmail !== undefined ? existingOrder.showPricesInEmail : true,
+      warehouseId: updateData.warehouseId || updateData.warehouse_id || existingOrder.warehouseId,
       notes: updateData.notes || existingOrder.notes,
       updatedAt: new Date()
     };

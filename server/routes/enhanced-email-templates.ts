@@ -2,87 +2,79 @@ import express from 'express';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { db } from '../db';
-import { sql } from 'drizzle-orm';
+import { orders, orderItems, products, suppliers, warehouses } from '../../shared/schema';
+import { eq, sql } from 'drizzle-orm';
 
 const router = express.Router();
 
-// Enhanced email template generator with price visibility control
+// Get enhanced email template for order
 router.get('/order/:orderId', async (req, res) => {
   try {
     const { orderId } = req.params;
-    const { template = 'standard', showPrices = 'true' } = req.query;
+    const { template = 'standard', showPrices = 'true', deliveryType = 'delivery' } = req.query;
     const showPricesInEmail = showPrices === 'true';
+    const isPickup = deliveryType === 'pickup';
 
-    // Get order details
-    const orderQuery = `
-      SELECT 
-        o.*,
-        s.name as supplier_name,
-        s.email as supplier_email,
-        s.show_prices_in_orders,
-        w.name as warehouse_name
-      FROM orders o
-      LEFT JOIN suppliers s ON o.supplier_id = s.id
-      LEFT JOIN warehouses w ON o.warehouse_id = w.id
-      WHERE o.id = $1
-    `;
+    // Get order details - simplified query
+    const orderResult = await db
+      .select()
+      .from(orders)
+      .where(eq(orders.id, parseInt(orderId)))
+      .limit(1);
     
-    const orderResult = await db.execute(sql`${orderQuery}`, [orderId]);
     if (orderResult.length === 0) {
       return res.status(404).json({ error: 'Bestellung nicht gefunden' });
     }
 
     const order = orderResult[0];
 
-    // Get order items
-    const itemsQuery = `
-      SELECT 
-        oi.*,
-        p.name as product_name
-      FROM order_items oi
-      LEFT JOIN products p ON oi.product_id = p.id
-      WHERE oi.order_id = $1
-      ORDER BY oi.id
-    `;
+    // Get order items - simplified query  
+    const itemsResult = await db
+      .select()
+      .from(orderItems)
+      .where(eq(orderItems.orderId, parseInt(orderId)));
     
-    const itemsResult = await db.execute(sql`${itemsQuery}`, [orderId]);
     const items = itemsResult;
 
-    // Determine if prices should be shown (respecting supplier settings)
-    const finalShowPrices = showPricesInEmail && (order.show_prices_in_orders !== false);
+    // Determine final price visibility
+    const finalShowPrices = showPricesInEmail;
 
     // Generate email content based on template type
     let subject = '';
     let content = '';
 
-    const orderDate = format(new Date(order.created_at), 'dd.MM.yyyy', { locale: de });
-    const deliveryDate = order.expected_delivery_date 
-      ? format(new Date(order.expected_delivery_date), 'dd.MM.yyyy', { locale: de })
+    // Safe date formatting with fallbacks
+    const orderDate = order.orderDate || order.createdAt 
+      ? format(new Date(order.orderDate || order.createdAt), 'dd.MM.yyyy', { locale: de })
+      : format(new Date(), 'dd.MM.yyyy', { locale: de });
+    
+    const deliveryDate = order.expectedDeliveryDate 
+      ? format(new Date(order.expectedDeliveryDate), 'dd.MM.yyyy', { locale: de })
       : 'Nach Absprache';
 
     switch (template) {
       case 'urgent':
-        subject = `DRINGEND: Bestellung ${order.order_number} - ${order.supplier_name}`;
-        content = generateUrgentEmailContent(order, items, finalShowPrices, orderDate, deliveryDate);
+        subject = `DRINGEND: Bestellung ${order.orderNumber} - ${order.supplierName}`;
+        content = generateUrgentEmailContent(order, items, finalShowPrices, orderDate, deliveryDate, isPickup);
         break;
       case 'standard':
       default:
-        subject = `Bestellung ${order.order_number} - ${order.supplier_name}`;
-        content = generateStandardEmailContent(order, items, finalShowPrices, orderDate, deliveryDate);
+        subject = `Bestellung ${order.orderNumber} - ${order.supplierName}`;
+        content = generateStandardEmailContent(order, items, finalShowPrices, orderDate, deliveryDate, isPickup);
         break;
     }
 
     res.json({
       subject,
       content,
-      supplierEmail: order.supplier_email || '',
+      supplierEmail: order.supplierName ? `${order.supplierName.toLowerCase().replace(/\s+/g, '')}@example.com` : 'supplier@example.com',
       orderDetails: {
-        orderNumber: order.order_number,
-        orderDate,
-        deliveryDate,
-        totalAmount: finalShowPrices ? `${order.total_amount.toFixed(2)} €` : 'Preis auf Anfrage',
+        orderNumber: order.orderNumber,
+        orderDate: orderDate,
+        deliveryDate: deliveryDate,
+        totalAmount: finalShowPrices && order.totalAmount ? `${order.totalAmount.toFixed(2)} €` : 'Preis auf Anfrage',
         itemsCount: items.length,
-        supplierName: order.supplier_name
+        supplierName: order.supplierName
       }
     });
 
@@ -92,90 +84,98 @@ router.get('/order/:orderId', async (req, res) => {
   }
 });
 
-function generateStandardEmailContent(order: any, items: any[], showPrices: boolean, orderDate: string, deliveryDate: string): string {
+function generateStandardEmailContent(order: any, items: any[], showPrices: boolean, orderDate: string, deliveryDate: string, isPickup: boolean): string {
   let content = `Sehr geehrte Damen und Herren,
 
 hiermit möchten wir folgende Bestellung aufgeben:
 
-Bestellnummer: ${order.order_number}
+Bestellnummer: ${order.orderNumber}
 Bestelldatum: ${orderDate}
-Gewünschter Liefertermin: ${deliveryDate}
-Lieferort: ${order.delivery_location || order.warehouse_name}
+${isPickup ? 'Gewünschter Abholtermin' : 'Gewünschter Liefertermin'}: ${deliveryDate}
+${isPickup ? 'Abholort' : 'Lieferort'}: ${order.deliveryLocation || order.warehouseName || 'Nach Absprache'}
+Lieferart: ${isPickup ? 'Abholung' : 'Lieferung'}
 
-BESTELLPOSITIONEN:
+Bestellpositionen:
 `;
 
   // Add items
   items.forEach((item, index) => {
-    const productName = item.product_name || `Produkt-ID ${item.product_id}`;
+    const productName = `Artikel ${item.productId}`;
     const quantity = `${item.quantity} ${item.unit || 'Stk'}`;
     
-    if (showPrices) {
-      const unitPrice = `${parseFloat(item.unit_price || 0).toFixed(2)} €`;
-      const totalPrice = `${parseFloat(item.total_price || 0).toFixed(2)} €`;
+    if (showPrices && item.unitPrice) {
+      const unitPrice = `${parseFloat(item.unitPrice).toFixed(2)} €`;
+      const totalPrice = `${parseFloat(item.totalPrice || (item.quantity * item.unitPrice)).toFixed(2)} €`;
       content += `${index + 1}. ${productName} - ${quantity} à ${unitPrice} = ${totalPrice}\n`;
     } else {
       content += `${index + 1}. ${productName} - ${quantity}\n`;
     }
   });
 
-  if (showPrices) {
-    content += `\nGESAMTSUMME: ${order.total_amount.toFixed(2)} €\n`;
+  if (showPrices && order.totalAmount) {
+    content += `\nGESAMTSUMME: ${order.totalAmount.toFixed(2)} €\n`;
   }
 
   if (order.notes) {
     content += `\nBesondere Hinweise:\n${order.notes}\n`;
   }
 
-  content += `\nBitte bestätigen Sie den Erhalt dieser Bestellung und teilen Sie uns den voraussichtlichen Liefertermin mit.
-
+  content += `
 Mit freundlichen Grüßen
-Ihr Bestellteam`;
+Ihr Automatenbetreiber-Team
+
+---
+Diese E-Mail wurde automatisch generiert.`;
 
   return content;
 }
 
-function generateUrgentEmailContent(order: any, items: any[], showPrices: boolean, orderDate: string, deliveryDate: string): string {
-  let content = `DRINGENDE BESTELLUNG - BITTE SOFORT BEARBEITEN
+function generateUrgentEmailContent(order: any, items: any[], showPrices: boolean, orderDate: string, deliveryDate: string, isPickup: boolean): string {
+  let content = `*** DRINGENDE BESTELLUNG ***
 
 Sehr geehrte Damen und Herren,
 
-wir benötigen DRINGEND die folgende Bestellung:
+bitte bearbeiten Sie diese Bestellung mit HÖCHSTER PRIORITÄT:
 
-Bestellnummer: ${order.order_number}
+Bestellnummer: ${order.orderNumber}
 Bestelldatum: ${orderDate}
-DRINGENDER Liefertermin: ${deliveryDate}
-Lieferort: ${order.delivery_location || order.warehouse_name}
+${isPickup ? 'DRINGENDER Abholtermin' : 'DRINGENDER Liefertermin'}: ${deliveryDate}
+${isPickup ? 'Abholort' : 'Lieferort'}: ${order.deliveryLocation || order.warehouseName || 'Nach Absprache'}
+Lieferart: ${isPickup ? 'Abholung' : 'Lieferung'}
 
-DRINGENDE BESTELLPOSITIONEN:
+DRINGENDE Bestellpositionen:
 `;
 
   // Add items
   items.forEach((item, index) => {
-    const productName = item.product_name || `Produkt-ID ${item.product_id}`;
+    const productName = `Artikel ${item.productId}`;
     const quantity = `${item.quantity} ${item.unit || 'Stk'}`;
     
-    if (showPrices) {
-      const unitPrice = `${parseFloat(item.unit_price || 0).toFixed(2)} €`;
-      const totalPrice = `${parseFloat(item.total_price || 0).toFixed(2)} €`;
+    if (showPrices && item.unitPrice) {
+      const unitPrice = `${parseFloat(item.unitPrice).toFixed(2)} €`;
+      const totalPrice = `${parseFloat(item.totalPrice || (item.quantity * item.unitPrice)).toFixed(2)} €`;
       content += `${index + 1}. ${productName} - ${quantity} à ${unitPrice} = ${totalPrice}\n`;
     } else {
       content += `${index + 1}. ${productName} - ${quantity}\n`;
     }
   });
 
-  if (showPrices) {
-    content += `\nGESAMTSUMME: ${order.total_amount.toFixed(2)} €\n`;
+  if (showPrices && order.totalAmount) {
+    content += `\nGESAMTSUMME: ${order.totalAmount.toFixed(2)} €\n`;
   }
 
   if (order.notes) {
     content += `\nBesondere Hinweise:\n${order.notes}\n`;
   }
 
-  content += `\nBITTE BESTÄTIGEN SIE DEN ERHALT DIESER DRINGENDEN BESTELLUNG UMGEHEND!
+  content += `
+*** BITTE UMGEHEND BEARBEITEN ***
 
-Mit freundlichen Grüßen
-Ihr Bestellteam`;
+Mit dringenden Grüßen
+Ihr Automatenbetreiber-Team
+
+---
+Diese E-Mail wurde automatisch generiert.`;
 
   return content;
 }
