@@ -542,6 +542,7 @@ export function PurchaseConditionsTab({ supplierId, supplierName }: PurchaseCond
             </Card>
           ))
         )}
+          </div>
         </TabsContent>
 
         <TabsContent value="discounts" className="space-y-6">
