@@ -139,12 +139,25 @@ function AuthenticatedRouter() {
         <Route path="/nicht-freigegeben" component={NotApproved} />
         <Route path="/unauthorized" component={Unauthorized} />
         
-        {/* Lieferanten-Portal Route - öffentlich zugänglich */}
+        {/* TEST: Einfache Portal-Route */}
         <Route path="/lieferant/:accessToken">
           {(params) => {
-            console.log('PORTAL ROUTE MATCHED:', params);
-            return <SupplierPortal />;
+            console.log('[PORTAL-ROUTE] Route matched! Params:', params);
+            return (
+              <div className="p-8">
+                <h1 className="text-2xl font-bold">PORTAL FUNKTIONIERT!</h1>
+                <p>Access Token: {params.accessToken}</p>
+                <SupplierPortal />
+              </div>
+            );
           }}
+        </Route>
+        
+        {/* Backup Portal Route für Debugging */}
+        <Route path="/portal-test">
+          <div className="p-8">
+            <h1 className="text-2xl font-bold text-green-600">Portal Test Route funktioniert!</h1>
+          </div>
         </Route>
 
         {/* Geschützte Routen, die Freigabe erfordern */}
@@ -702,6 +715,12 @@ function MainRouter() {
         </div>
       </div>
     );
+  }
+
+  // KRITISCH: Portal-Route-Umleitung VOR Authentifizierung-Check
+  if (location.includes('/lieferant/')) {
+    console.log('[MAIN-ROUTER] PORTAL ROUTE DETECTED - Forwarding to PublicRouter');
+    return <PublicRouter />;
   }
 
   return isAuthenticated ? <AuthenticatedRouter /> : <PublicRouter />;
