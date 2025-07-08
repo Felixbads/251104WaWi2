@@ -46,6 +46,7 @@ import nodemailer from 'nodemailer';
 import { uploadPhotos } from './middleware/fileUpload';
 import { startPhotoServer } from './photoServer';
 import interAppApiRouter from './routes/inter-app-api';
+import { sendEmail } from './utils/emailService';
 import suppliersFastRouter from './routes/suppliers-fast';
 import suppliersSimpleRouter from './routes/suppliers-simple';
 import suppliersProductsForConditionsRouter from './routes/suppliers-products-for-conditions';
@@ -1054,6 +1055,55 @@ app.get('/orders-data', (req, res) => {
         success: false,
         error: 'Fehler beim Senden der E-Mail',
         details: error.message
+      });
+    }
+  });
+
+  // Direct email test endpoint - mounted early to avoid Vite conflicts
+  app.post('/test-email-direct', async (req, res) => {
+    console.log('[DirectEmailTest] Email test requested');
+    
+    try {
+      const { to, subject, content } = req.body;
+      
+      if (!to || !subject || !content) {
+        return res.status(400).json({
+          success: false,
+          error: 'Missing required fields: to, subject, content'
+        });
+      }
+
+      const result = await sendEmail({
+        to,
+        from: process.env.SMTP_FROM || 'einkauf@proviantomat.de',
+        subject,
+        html: content,
+        text: content.replace(/<[^>]*>/g, '') // Strip HTML for text version
+      });
+
+      if (result) {
+        console.log('[DirectEmailTest] Email sent successfully');
+        return res.json({
+          success: true,
+          message: 'E-Mail erfolgreich gesendet',
+          to,
+          subject,
+          timestamp: new Date().toISOString()
+        });
+      } else {
+        console.error('[DirectEmailTest] Email sending failed');
+        return res.status(500).json({
+          success: false,
+          error: 'Fehler beim Senden der E-Mail'
+        });
+      }
+      
+    } catch (error) {
+      console.error('[DirectEmailTest] Error:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Serverfehler beim E-Mail-Versand',
+        details: error instanceof Error ? error.message : 'Unbekannt'
       });
     }
   });
