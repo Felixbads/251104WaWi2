@@ -1160,6 +1160,70 @@ router.delete('/:orderId/items/:itemId', async (req: Request, res: Response) => 
   }
 });
 
+// BULK UPDATE für Bestellpositionen - KRITISCHE FEHLENDE ROUTE
+router.put('/:id/items', async (req: Request, res: Response) => {
+  try {
+    const orderId = parseInt(req.params.id);
+    const { items } = req.body;
+    
+    console.log(`PUT /api/orders/${orderId}/items - Bulk-Update für ${items?.length || 0} Bestellpositionen...`);
+    
+    if (isNaN(orderId) || !items || !Array.isArray(items)) {
+      res.setHeader('Content-Type', 'application/json');
+      return res.status(400).json({ 
+        error: 'Ungültige Daten', 
+        message: 'Bestell-ID oder Items-Array ist ungültig' 
+      });
+    }
+    
+    // Use database transaction for bulk update
+    let updatedCount = 0;
+    
+    for (const item of items) {
+      const { id, quantity, unitPrice, totalPrice } = item;
+      
+      if (!id || isNaN(parseInt(id))) {
+        console.warn(`Überspringe Item ohne gültige ID:`, item);
+        continue;
+      }
+      
+      try {
+        await db
+          .update(orderItems)
+          .set({
+            quantity: quantity || 1,
+            unitPrice: unitPrice || 0,
+            totalPrice: totalPrice || (quantity || 1) * (unitPrice || 0),
+            updatedAt: new Date()
+          })
+          .where(and(eq(orderItems.id, parseInt(id)), eq(orderItems.orderId, orderId)));
+        
+        console.log(`Updated item ${id}: ${quantity} @ ${unitPrice} = ${totalPrice}`);
+        updatedCount++;
+      } catch (itemError) {
+        console.error(`Fehler beim Update von Item ${id}:`, itemError);
+      }
+    }
+    
+    console.log(`Bulk-Update für Bestellung ${orderId} erfolgreich - ${updatedCount} Items aktualisiert`);
+    
+    res.setHeader('Content-Type', 'application/json');
+    return res.json({ 
+      success: true, 
+      message: `${updatedCount} Bestellpositionen erfolgreich aktualisiert`,
+      updatedItems: updatedCount
+    });
+    
+  } catch (error) {
+    console.error('Fehler beim Bulk-Update der Bestellpositionen:', error);
+    res.setHeader('Content-Type', 'application/json');
+    return res.status(500).json({ 
+      error: 'Datenbankfehler beim Bulk-Update', 
+      message: error instanceof Error ? error.message : 'Unbekannter Fehler' 
+    });
+  }
+});
+
 // Bestellung aktualisieren (PATCH für Legacy)
 router.patch('/orders/:id', async (req: Request, res: Response) => {
   try {
