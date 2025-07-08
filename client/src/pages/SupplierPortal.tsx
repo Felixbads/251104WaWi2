@@ -94,8 +94,11 @@ interface OrderItemData {
   supplierSku?: string;
 }
 
-export default function SupplierPortal() {
+export default function SupplierPortal({ params: routeParams }: { params?: { accessToken: string } }) {
   const [match, params] = useRoute('/lieferant/:accessToken');
+  
+  // Use direct params if provided, otherwise use route params
+  const finalParams = routeParams || params;
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [sessionToken, setSessionToken] = useState<string | null>(null);
@@ -115,10 +118,10 @@ export default function SupplierPortal() {
     contactPhone: ''
   });
 
-  const accessToken = params?.accessToken;
+  const accessToken = finalParams?.accessToken;
 
   // Debug-Ausgabe für Routing
-  console.log('SupplierPortal gerendert mit:', { match, params, accessToken });
+  console.log('SupplierPortal gerendert mit:', { match, params, routeParams, finalParams, accessToken });
 
   useEffect(() => {
     console.log('useEffect triggered with accessToken:', accessToken);
