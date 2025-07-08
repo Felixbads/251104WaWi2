@@ -645,6 +645,78 @@ app.get('/orders-data', (req, res) => {
     }
   });
 
+  // Bulk Update für Bestellpositionen - KRITISCHE FEHLENDE ROUTE
+  app.put('/api/orders/:id/items', async (req, res) => {
+    try {
+      const orderId = parseInt(req.params.id);
+      const { items } = req.body;
+      
+      console.log(`PUT /api/orders/${orderId}/items - Bulk-Update für ${items?.length || 0} Bestellpositionen...`);
+      
+      if (isNaN(orderId) || !items || !Array.isArray(items)) {
+        return res.status(400).json({ 
+          error: 'Ungültige Daten', 
+          message: 'Bestell-ID oder Items-Array ist ungültig' 
+        });
+      }
+      
+      // Start transaction
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        
+        for (const item of items) {
+          const { id, quantity, unitPrice, totalPrice } = item;
+          
+          if (!id || isNaN(parseInt(id))) {
+            console.warn(`Überspringe Item ohne gültige ID:`, item);
+            continue;
+          }
+          
+          await client.query(`
+            UPDATE order_items 
+            SET 
+              quantity = $1,
+              unit_price = $2,
+              total_price = $3,
+              updated_at = NOW()
+            WHERE id = $4 AND order_id = $5
+          `, [
+            quantity || 1,
+            unitPrice || 0,
+            totalPrice || (quantity || 1) * (unitPrice || 0),
+            parseInt(id),
+            orderId
+          ]);
+          
+          console.log(`Updated item ${id}: ${quantity} @ ${unitPrice} = ${totalPrice}`);
+        }
+        
+        await client.query('COMMIT');
+        console.log(`Bulk-Update für Bestellung ${orderId} erfolgreich - ${items.length} Items aktualisiert`);
+        
+        return res.json({ 
+          success: true, 
+          message: `${items.length} Bestellpositionen erfolgreich aktualisiert`,
+          updatedItems: items.length
+        });
+        
+      } catch (updateError) {
+        await client.query('ROLLBACK');
+        throw updateError;
+      } finally {
+        client.release();
+      }
+      
+    } catch (error) {
+      console.error('Fehler beim Bulk-Update der Bestellpositionen:', error);
+      return res.status(500).json({ 
+        error: 'Datenbankfehler beim Bulk-Update', 
+        message: error instanceof Error ? error.message : 'Unbekannter Fehler' 
+      });
+    }
+  });
+
   // Email Template Endpunkt mit echten Lieferantendaten
   app.get('/api/orders/:id/email-template', async (req, res) => {
     try {
