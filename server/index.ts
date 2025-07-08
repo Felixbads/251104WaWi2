@@ -768,9 +768,12 @@ app.get('/orders-data', (req, res) => {
         new Date(order.expected_delivery_date).toLocaleDateString('de-DE') : 
         'Noch nicht festgelegt';
       
-      // Bestellpositionen formatieren
+      // Bestellpositionen formatieren - RESPEKTIERT show_prices_in_email FLAG
       let itemsList = '';
       let totalAmount = 0;
+      const showPrices = order.show_prices_in_email !== false;
+      
+      console.log(`E-Mail-Template für Bestellung ${orderId}: showPricesInEmail = ${showPrices}`);
       
       itemsResult.rows.forEach(item => {
         const unitPrice = parseFloat(item.unit_price || 0);
@@ -781,10 +784,18 @@ app.get('/orders-data', (req, res) => {
         const productName = item.product_name || `Produkt-ID ${item.product_id}`;
         const unit = item.product_unit || item.unit || 'Stk';
         
-        itemsList += `• ${quantity} ${unit} ${productName} (${unitPrice.toFixed(2)} € je ${unit} = ${itemTotal.toFixed(2)} €)\n`;
+        if (showPrices) {
+          // MIT Preisen (Standard)
+          itemsList += `• ${quantity} ${unit} ${productName} (${unitPrice.toFixed(2)} € je ${unit} = ${itemTotal.toFixed(2)} €)\n`;
+        } else {
+          // OHNE Preise (wenn explizit deaktiviert)
+          itemsList += `• ${quantity} ${unit} ${productName}\n`;
+        }
       });
       
-      // Template-spezifische Inhalte
+      // Template-spezifische Inhalte - MIT/OHNE Preise
+      const totalLine = showPrices ? `Gesamtwert: ${totalAmount.toFixed(2)} €\n` : '';
+      
       switch (templateType) {
         case 'urgent':
         case 'dringend':
@@ -796,12 +807,10 @@ DRINGENDE BESTELLUNG - Bitte um bevorzugte Bearbeitung!
 hiermit bestellen wir dringend folgende Artikel:
 
 ${itemsList}
-
 Bestellnummer: ${orderNumber}
 Bestelldatum: ${orderDate}
 Gewünschter Liefertermin: ${deliveryDate}
-Gesamtwert: ${totalAmount.toFixed(2)} €
-
+${totalLine}
 Wir benötigen die Lieferung so schnell wie möglich. Bitte bestätigen Sie den Erhalt dieser Bestellung und teilen Sie uns den voraussichtlichen Liefertermin mit.
 
 Bei Rückfragen erreichen Sie uns jederzeit.
@@ -818,12 +827,10 @@ Elbsandstein Proviant & Quartier GmbH`;
 hiermit bestellen wir erneut nach:
 
 ${itemsList}
-
 Bestellnummer: ${orderNumber}
 Bestelldatum: ${orderDate}
 Gewünschter Liefertermin: ${deliveryDate}
-Gesamtwert: ${totalAmount.toFixed(2)} €
-
+${totalLine}
 Bitte liefern Sie die aufgeführten Artikel gemäß unserer üblichen Konditionen.
 
 Mit freundlichen Grüßen
@@ -837,12 +844,10 @@ Elbsandstein Proviant & Quartier GmbH`;
 hiermit bestellen wir folgende Artikel:
 
 ${itemsList}
-
 Bestellnummer: ${orderNumber}
 Bestelldatum: ${orderDate}
 Gewünschter Liefertermin: ${deliveryDate}
-Gesamtwert: ${totalAmount.toFixed(2)} €
-
+${totalLine}
 Bitte bestätigen Sie den Erhalt dieser Bestellung und teilen Sie uns mit, wann wir mit der Lieferung rechnen können.
 
 Mit freundlichen Grüßen
