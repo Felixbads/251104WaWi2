@@ -2540,8 +2540,8 @@ app.get('/orders-data', (req, res) => {
 
   // Register critical suppliers API routes BEFORE registerRoutes to avoid conflicts
   const suppliersProductsForConditionsRouter = (await import('./routes/suppliers-products-for-conditions')).default;
-  app.use('/api/suppliers', suppliersProductsForConditionsRouter);
-  console.log('[SERVER] Suppliers-products-for-conditions router mounted at /api/suppliers BEFORE registerRoutes');
+  app.use('/api/suppliers-conditions', suppliersProductsForConditionsRouter);
+  console.log('[SERVER] Suppliers-products-for-conditions router mounted at /api/suppliers-conditions BEFORE registerRoutes');
   
   // Legacy endpoint for backward compatibility
   app.get('/api/product-categories', async (req, res) => {

@@ -3,8 +3,8 @@ import { pool } from '../db';
 
 const router = Router();
 
-// GET /api/suppliers/all-for-conditions - Alle Lieferanten für Einkaufsbedingungen (für Produkt → Lieferant)
-router.get('/all-for-conditions', async (req, res) => {
+// GET /api/suppliers-conditions/all - Alle Lieferanten für Einkaufsbedingungen (für Produkt → Lieferant)
+router.get('/all', async (req, res) => {
   try {
     console.log('[SUPPLIERS-PRODUCTS] Fetching all suppliers for product conditions');
     
@@ -32,11 +32,16 @@ router.get('/all-for-conditions', async (req, res) => {
   }
 });
 
-// GET /api/suppliers/:id/available-products - Alle verfügbaren Produkte für neue Einkaufsbedingungen
+// GET /api/suppliers/:supplierId/available-products - Alle verfügbaren Produkte für neue Einkaufsbedingungen
 router.get('/:supplierId/available-products', async (req, res) => {
   try {
     const { supplierId } = req.params;
     console.log('[SUPPLIERS-PRODUCTS] Fetching available products for supplier:', supplierId);
+    
+    // Validierung der Supplier-ID
+    if (!supplierId || supplierId === 'all-for-conditions') {
+      return res.status(400).json({ error: 'Invalid supplier ID' });
+    }
     
     const result = await pool.query(`
       SELECT 

@@ -81,10 +81,10 @@ export default function PurchaseConditionForm({
 }: PurchaseConditionFormProps) {
   // Produkte für diesen Lieferanten laden
   const { data: productsResponse, isLoading: isProductsLoading } = useQuery({
-    queryKey: ['/api/suppliers', supplierId, 'available-products'],
+    queryKey: ['/api/suppliers-conditions', supplierId, 'available-products'],
     enabled: !!supplierId,
     queryFn: async () => {
-      const response = await fetch(`/api/suppliers/${supplierId}/available-products`);
+      const response = await fetch(`/api/suppliers-conditions/${supplierId}/available-products`);
       if (!response.ok) throw new Error('Failed to fetch products');
       return response.json();
     }

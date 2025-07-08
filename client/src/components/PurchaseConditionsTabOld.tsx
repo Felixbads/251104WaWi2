@@ -42,8 +42,8 @@ export function PurchaseConditionsTab({ supplierId, supplierName }: PurchaseCond
 
   // Fetch available products for new conditions
   const { data: availableProducts = [] } = useQuery({
-    queryKey: ['suppliers', supplierId, 'available-products'],
-    queryFn: () => fetch(`/api/suppliers/${supplierId}/available-products`).then(res => res.json())
+    queryKey: ['suppliers-conditions', supplierId, 'available-products'],
+    queryFn: () => fetch(`/api/suppliers-conditions/${supplierId}/available-products`).then(res => res.json())
   });
 
   // Create mutation
