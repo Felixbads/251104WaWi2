@@ -109,6 +109,13 @@ This is a comprehensive vending machine management platform (Warenwirtschaftssys
 
 ## Changelog
 
+- July 8, 2025: DATENBANKSCHEMA-DOKUMENTATION ERSTELLT - Vollständige strukturierte Übersicht aller Datenmodelle
+  - ✅ Umfassende Dokumentation der 5 Hauptentitäten erstellt: Lieferanten, Produkte, Einkaufsbedingungen, Bestellungen, Bestellpositionen
+  - ✅ Strukturierte Markdown-Datei mit logischer Gruppierung aller Datenbankfelder
+  - ✅ Deutsche Bezeichnungen mit klaren Beschreibungen für alle Attribute
+  - ✅ Benutzerfreundliche Kategorisierung: Grunddaten, Zahlungsbedingungen, Medien, Preise, Status, Notizen
+  - ✅ Vollständige Referenzdokumentation für Entwicklung und Wartung des Systems
+  - System verfügt jetzt über komplette technische Dokumentation aller Datenstrukturen
 - July 8, 2025: PORTAL-ROUTING-PROBLEM ENDGÜLTIG BEHOBEN - Portal jetzt vollständig funktionsfähig
   - ✅ Portal-Route `/lieferant/:accessToken` in App.tsx registriert
   - ✅ SupplierPortal-Komponente korrekt importiert und routing-fähig
