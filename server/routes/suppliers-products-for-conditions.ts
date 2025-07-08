@@ -3,6 +3,35 @@ import { pool } from '../db';
 
 const router = Router();
 
+// GET /api/suppliers/all-for-conditions - Alle Lieferanten für Einkaufsbedingungen (für Produkt → Lieferant)
+router.get('/all-for-conditions', async (req, res) => {
+  try {
+    console.log('[SUPPLIERS-PRODUCTS] Fetching all suppliers for product conditions');
+    
+    const result = await pool.query(`
+      SELECT 
+        s.id,
+        s.name,
+        s.email,
+        s.phone,
+        s.city,
+        s.status
+      FROM suppliers s
+      WHERE s.status = 'active'
+        AND s.name IS NOT NULL
+        AND s.name != ''
+      ORDER BY s.name ASC
+      LIMIT 200
+    `);
+    
+    console.log('[SUPPLIERS-PRODUCTS] Found', result.rows.length, 'suppliers');
+    res.json(result.rows);
+  } catch (error) {
+    console.error('[SUPPLIERS-PRODUCTS] Error fetching suppliers:', error);
+    res.status(500).json({ error: 'Server error fetching suppliers' });
+  }
+});
+
 // GET /api/suppliers/:id/available-products - Alle verfügbaren Produkte für neue Einkaufsbedingungen
 router.get('/:id/available-products', async (req, res) => {
   try {

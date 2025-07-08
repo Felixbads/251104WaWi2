@@ -145,9 +145,9 @@ export default function ProductPurchaseConditionsComprehensive({
 
   // Fetch suppliers for new conditions
   const { data: suppliers = [], isLoading: suppliersLoading } = useQuery({
-    queryKey: ['/api/suppliers-simple'],
+    queryKey: ['/api/suppliers', 'all-for-conditions'],
     queryFn: async () => {
-      const response = await fetch('/api/suppliers-simple', {
+      const response = await fetch('/api/suppliers/all-for-conditions', {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('authToken') || 'test'}` }
       });
       if (!response.ok) throw new Error('Failed to fetch suppliers');
