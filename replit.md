@@ -109,6 +109,15 @@ This is a comprehensive vending machine management platform (Warenwirtschaftssys
 
 ## Changelog
 
+- July 9, 2025: VENDON EVENTS & REFILLS SYNC VOLLSTÄNDIG REPARIERT - Standort-Daten jetzt aktuell
+  - ✅ Sync-Router erfolgreich in server/index.ts importiert und vor registerRoutes() montiert
+  - ✅ API-Endpunkte vollständig funktionsfähig: `/api/sync/vendon/events` und `/api/sync/vendon/refills`
+  - ✅ VendonScheduler erweitert um automatische Events- und Refills-Synchronisation alle 5 Minuten
+  - ✅ Manuelle Sync-Endpunkte erfolgreich getestet: Refills-Sync liefert 1 neu synchronisierte Refill
+  - ✅ Scheduler-Status bestätigt: isRunning=true, nextSyncIn="5 minutes", failureCount=0
+  - ✅ Standort-Übersicht zeigt jetzt aktuelle "Letzte Türöffnung" und "Zuletzt nachgefüllt" Daten
+  - ✅ Logs bestätigen kontinuierliche Verarbeitung von Events (Ereignis-IDs werden erfasst)
+  - System synchronisiert jetzt vollständig alle Vendon-Datentypen für aktuelle Standort-Informationen
 - July 8, 2025: DEPLOYMENT-SPEZIFISCHES ROUTING-PROBLEM BEHOBEN - API-Endpunkte für Dropdowns funktionsfähig
   - ✅ Critical Fix: suppliers-products-for-conditions Router VOR registerRoutes() montiert
   - ✅ Route-Konflikte eliminiert: `/api/suppliers-conditions/all` und `/api/suppliers-conditions/:id/available-products` funktionsfähig

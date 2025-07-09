@@ -59,8 +59,8 @@ class VendonScheduler {
     try {
       console.log('Starting scheduled Vendon sync...');
 
-      // Use regular sync for frequent updates
-      const result = await vendonSync.syncTransactions(
+      // 1. Sync transactions
+      const transactionResult = await vendonSync.syncTransactions(
         undefined, // startDate - will use last 7 days by default
         undefined, // endDate - will use current time
         500, // batchSize
@@ -68,14 +68,38 @@ class VendonScheduler {
         false // forceUpdate
       );
 
-      console.log('Scheduled sync completed:', result.message);
+      console.log('Transaction sync completed:', transactionResult.message);
+
+      // 2. Sync events (for door openings)
+      try {
+        const eventsResult = await vendonSync.syncEvents(
+          new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // 7 days back
+          new Date(), // now
+          100 // batchSize
+        );
+        console.log('Events sync completed:', eventsResult.message);
+      } catch (eventsError) {
+        console.error('Events sync failed:', eventsError);
+      }
+
+      // 3. Sync refills (for refill data)
+      try {
+        const refillsResult = await vendonSync.syncRefills(
+          new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // 7 days back
+          new Date(), // now
+          100 // batchSize
+        );
+        console.log('Refills sync completed:', refillsResult.message);
+      } catch (refillsError) {
+        console.error('Refills sync failed:', refillsError);
+      }
 
       // Reset failure count on success
       this.failureCount = 0;
       this.lastSyncTime = new Date();
 
       // If we got very few transactions, try ultra-robust sync
-      if (result.message.includes('0 neu') || result.message.includes('0 new')) {
+      if (transactionResult.message.includes('0 neu') || transactionResult.message.includes('0 new')) {
         console.log('No new transactions found, trying ultra-robust sync...');
         
         try {

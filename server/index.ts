@@ -60,6 +60,7 @@ import profitabilityRouter from './routes/profitability-simple';
 import enhancedProfitabilityRouter from './routes/enhanced-profitability-fixed';
 import { recurringOrdersRouter } from './routes/recurring-orders';
 import { recurringOrderCronService } from './services/recurringOrderCron';
+import syncRouter from './routes/sync';
 
 const app = express();
 
@@ -1180,7 +1181,9 @@ app.get('/orders-data', (req, res) => {
   app.use('/api/recurring-orders', recurringOrdersRouter);
   console.log('[SERVER] Recurring orders router mounted successfully');
   
-
+  // Mount sync router BEFORE registerRoutes for Vendon sync functionality
+  app.use('/api/sync', syncRouter);
+  console.log('[SERVER] Sync router mounted at /api/sync BEFORE registerRoutes');
   
   const server = await registerRoutes(app);
 

@@ -174,6 +174,74 @@ router.post('/vendon/transactions', async (req: Request, res: Response) => {
   }
 });
 
+// Vendon events sync endpoint (for door openings)
+router.post('/vendon/events', async (req: Request, res: Response) => {
+  try {
+    console.log('🔄 Starting Vendon events sync...');
+    
+    const { startDate, endDate, batchSize = 100 } = req.body;
+    
+    // Default to last 7 days if no dates provided
+    let effectiveStartDate: Date = startDate ? new Date(startDate) : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    let effectiveEndDate: Date = endDate ? new Date(endDate) : new Date();
+    
+    const result = await vendonSync.syncEvents(
+      effectiveStartDate,
+      effectiveEndDate,
+      batchSize
+    );
+    
+    console.log('✅ Vendon events sync completed:', result);
+    
+    res.json({
+      status: result.status,
+      message: result.message,
+      syncLogId: result.syncLogId
+    });
+  } catch (error) {
+    console.error('❌ Vendon events sync failed:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Vendon events sync failed',
+      details: error instanceof Error ? error.message : String(error)
+    });
+  }
+});
+
+// Vendon refills sync endpoint (for refill data)
+router.post('/vendon/refills', async (req: Request, res: Response) => {
+  try {
+    console.log('🔄 Starting Vendon refills sync...');
+    
+    const { startDate, endDate, batchSize = 100 } = req.body;
+    
+    // Default to last 7 days if no dates provided
+    let effectiveStartDate: Date = startDate ? new Date(startDate) : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    let effectiveEndDate: Date = endDate ? new Date(endDate) : new Date();
+    
+    const result = await vendonSync.syncRefills(
+      effectiveStartDate,
+      effectiveEndDate,
+      batchSize
+    );
+    
+    console.log('✅ Vendon refills sync completed:', result);
+    
+    res.json({
+      status: result.status,
+      message: result.message,
+      syncLogId: result.syncLogId
+    });
+  } catch (error) {
+    console.error('❌ Vendon refills sync failed:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Vendon refills sync failed',
+      details: error instanceof Error ? error.message : String(error)
+    });
+  }
+});
+
 // Recovery progress endpoint for detailed gap analysis
 router.get('/recovery-progress', async (req: Request, res: Response) => {
   try {
