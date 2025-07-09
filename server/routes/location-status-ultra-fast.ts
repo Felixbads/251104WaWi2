@@ -47,7 +47,7 @@ router.get('/', async (req: Request, res: Response) => {
         -- Last door opening for THIS machine  
         (SELECT MAX(e1.datetime) FROM events e1 
          WHERE e1.machine_id = best_machines.machine_id 
-         AND (e1.event_name = 'Automatentür geöffnet' OR e1.event_name LIKE '%tür%öffnet%' OR e1.event_name LIKE '%door%open%')) as last_door_open,
+         AND e1.event_name = 'Automatentüre offen') as last_door_open,
         
         -- Last alcohol sale for THIS machine
         (SELECT MAX(t4.datetime) FROM transactions t4 

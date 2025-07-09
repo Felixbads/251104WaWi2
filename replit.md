@@ -109,6 +109,14 @@ This is a comprehensive vending machine management platform (Warenwirtschaftssys
 
 ## Changelog
 
+- July 9, 2025: DOOR OPENING EVENTS KORREKT BEHOBEN - Zeigt jetzt aktuelle Türöffnungen statt veraltete Juni-Daten
+  - ✅ Critical Fix: Door opening query korrigiert von "Automatentür geöffnet" zu "Automatentüre offen"  
+  - ✅ Letzte Türöffnung jetzt korrekt: Heute 14:58:37 (Burg Stolpen) statt falsches Datum 22. Juni
+  - ✅ SyncStatusWidget-Crash vollständig behoben durch korrekte API-Feld-Struktur (count + totalCount)
+  - ✅ Events-Synchronisation funktional mit 107 Events und korrekter Türstatus-Erfassung
+  - ✅ Türereignisse werden jetzt mit dem korrekten Event-Namen "Automatentüre offen" erfasst
+  - ✅ Standort-Status zeigt authentische aktuelle Türöffnungen statt veraltete Platzhalter-Daten
+  - System erfasst jetzt präzise alle aktuellen Türöffnungs-Ereignisse mit korrekten Zeitstempeln
 - July 9, 2025: VENDON EVENTS & REFILLS SYNC VOLLSTÄNDIG REPARIERT - Standort-Daten jetzt aktuell
   - ✅ Sync-Router erfolgreich in server/index.ts importiert und vor registerRoutes() montiert
   - ✅ API-Endpunkte vollständig funktionsfähig: `/api/sync/vendon/events` und `/api/sync/vendon/refills`
