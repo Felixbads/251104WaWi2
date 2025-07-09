@@ -2808,6 +2808,213 @@ export const locationCostRelations = relations(locationCosts, ({ one }) => ({
   }),
 }));
 
+// ================================ Wiederkehrende Bestellungen ================================
+
+// Wiederkehrende Bestellungen-Konfigurationstabelle
+export const recurringOrders = pgTable("recurring_orders", {
+  id: serial("id").primaryKey(),
+  
+  // Identifikation und Benennung
+  name: text("name").notNull(), // Name der wiederkehrenden Bestellung (z.B. "Bäckerei Montag")
+  description: text("description"), // Beschreibung
+  
+  // Lieferant und Lager
+  supplierId: integer("supplier_id").notNull().references(() => suppliers.id), // Lieferant
+  supplierName: text("supplier_name").notNull(), // Name des Lieferanten (für Redundanz)
+  warehouseId: integer("warehouse_id").notNull().references(() => warehouses.id), // Ziel-Lager
+  warehouseName: text("warehouse_name").notNull(), // Name des Lagers (für Redundanz)
+  
+  // Intervall-Konfiguration
+  interval: text("interval").notNull(), // "weekly", "biweekly", "triweekly", "monthly"
+  intervalValue: integer("interval_value").default(1), // z.B. 1 = jede Woche, 2 = alle 2 Wochen
+  weekday: text("weekday"), // "monday", "tuesday", etc. (für wöchentliche Bestellungen)
+  dayOfMonth: integer("day_of_month"), // Tag des Monats (für monatliche Bestellungen)
+  
+  // Zeitraum
+  startDate: date("start_date").notNull(), // Startdatum der wiederkehrenden Bestellung
+  endDate: date("end_date"), // Enddatum (optional, null = unbegrenzt)
+  nextExecutionDate: date("next_execution_date").notNull(), // Nächster Ausführungstermin
+  
+  // Status und Steuerung
+  isActive: boolean("is_active").default(true), // Ist die wiederkehrende Bestellung aktiv
+  isAutoGenerate: boolean("is_auto_generate").default(true), // Automatische Generierung aktiviert
+  
+  // Kategorie und Filterung
+  category: text("category"), // Kategorie (z.B. "Milchprodukte", "Obst") für Filterung
+  tags: text("tags"), // JSON-Array von Tags für bessere Organisation
+  
+  // Bestelleinstellungen
+  priority: text("priority").default("normal"), // "low", "normal", "high", "urgent"
+  deliveryType: text("delivery_type").default("delivery"), // "delivery" oder "pickup"
+  deliveryLocation: text("delivery_location"), // Lieferort (überschreibbar)
+  
+  // Automatisierung
+  autoCreateInGoods: boolean("auto_create_in_goods").default(true), // Automatisch in Wareneingang erstellen
+  requiresApproval: boolean("requires_approval").default(false), // Benötigt Genehmigung vor Generierung
+  
+  // Statistiken
+  totalExecutions: integer("total_executions").default(0), // Anzahl der Ausführungen
+  lastExecutionDate: date("last_execution_date"), // Letzte Ausführung
+  lastOrderId: integer("last_order_id").references(() => orders.id), // Letzte generierte Bestellung
+  
+  // Metadaten
+  notes: text("notes"), // Notizen
+  createdBy: integer("created_by").notNull().references(() => users.id), // Erstellt von
+  createdByName: text("created_by_name").notNull(), // Name des Erstellers
+  
+  // Audit
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertRecurringOrderSchema = createInsertSchema(recurringOrders).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  totalExecutions: true,
+  lastExecutionDate: true,
+  lastOrderId: true,
+});
+
+export type InsertRecurringOrder = z.infer<typeof insertRecurringOrderSchema>;
+export type RecurringOrder = typeof recurringOrders.$inferSelect;
+
+// Wiederkehrende Bestellpositionen-Tabelle
+export const recurringOrderItems = pgTable("recurring_order_items", {
+  id: serial("id").primaryKey(),
+  
+  // Zuordnung zur wiederkehrenden Bestellung
+  recurringOrderId: integer("recurring_order_id").notNull().references(() => recurringOrders.id),
+  
+  // Produkt-Informationen
+  productId: integer("product_id").notNull().references(() => products.id), // Produkt-ID
+  productName: text("product_name").notNull(), // Produktname (für Redundanz)
+  sku: text("sku"), // Artikelnummer
+  supplierSku: text("supplier_sku"), // Lieferanten-Artikelnummer
+  
+  // Mengen und Einheiten
+  quantity: integer("quantity").notNull().default(1), // Standard-Bestellmenge
+  unit: text("unit").default("stk"), // Einheit (Stück, Kiste, Palette, etc.)
+  
+  // Preise (können sich ändern, daher Snapshot)
+  unitPrice: real("unit_price"), // Einzelpreis (optional, für Kalkulation)
+  totalPrice: real("total_price"), // Gesamtpreis (Menge * Einzelpreis)
+  
+  // Position und Status
+  positionNumber: integer("position_number"), // Position in der Bestellung (1, 2, 3, ...)
+  isActive: boolean("is_active").default(true), // Ist diese Position aktiv
+  
+  // Notizen
+  notes: text("notes"), // Notizen zur Position
+  itemComment: text("item_comment"), // Kommentar pro Position
+  
+  // Audit
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertRecurringOrderItemSchema = createInsertSchema(recurringOrderItems).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  totalPrice: true, // wird automatisch berechnet
+});
+
+export type InsertRecurringOrderItem = z.infer<typeof insertRecurringOrderItemSchema>;
+export type RecurringOrderItem = typeof recurringOrderItems.$inferSelect;
+
+// Ausführungsprotokoll für wiederkehrende Bestellungen
+export const recurringOrderExecutions = pgTable("recurring_order_executions", {
+  id: serial("id").primaryKey(),
+  
+  // Referenzen
+  recurringOrderId: integer("recurring_order_id").notNull().references(() => recurringOrders.id),
+  orderId: integer("order_id").references(() => orders.id), // Generierte Bestellung (kann null sein bei Fehlern)
+  
+  // Ausführung
+  scheduledDate: date("scheduled_date").notNull(), // Geplantes Datum der Ausführung
+  executedAt: timestamp("executed_at"), // Tatsächlicher Ausführungszeitpunkt
+  nextScheduledDate: date("next_scheduled_date"), // Nächster geplanter Ausführungstermin
+  
+  // Status
+  status: text("status").notNull().default("pending"), // "pending", "success", "failed", "skipped"
+  executionType: text("execution_type").default("automatic"), // "automatic", "manual", "retry"
+  
+  // Ergebnis
+  success: boolean("success").default(false), // War die Ausführung erfolgreich
+  errorMessage: text("error_message"), // Fehlermeldung bei gescheiterten Ausführungen
+  orderNumber: text("order_number"), // Bestellnummer der generierten Bestellung
+  
+  // Statistiken
+  itemCount: integer("item_count").default(0), // Anzahl der Bestellpositionen
+  totalAmount: real("total_amount").default(0), // Gesamtbetrag der generierten Bestellung
+  
+  // Verarbeitung
+  processingDurationMs: integer("processing_duration_ms"), // Verarbeitungsdauer in Millisekunden
+  retryCount: integer("retry_count").default(0), // Anzahl der Wiederholungsversuche
+  
+  // Metadaten
+  metadata: text("metadata"), // JSON-Metadaten (für erweiterte Informationen)
+  notes: text("notes"), // Notizen zur Ausführung
+  
+  // Audit
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertRecurringOrderExecutionSchema = createInsertSchema(recurringOrderExecutions).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertRecurringOrderExecution = z.infer<typeof insertRecurringOrderExecutionSchema>;
+export type RecurringOrderExecution = typeof recurringOrderExecutions.$inferSelect;
+
+// Relationen für wiederkehrende Bestellungen
+export const recurringOrderRelations = relations(recurringOrders, ({ many, one }) => ({
+  items: many(recurringOrderItems),
+  executions: many(recurringOrderExecutions),
+  supplier: one(suppliers, {
+    fields: [recurringOrders.supplierId],
+    references: [suppliers.id],
+  }),
+  warehouse: one(warehouses, {
+    fields: [recurringOrders.warehouseId],
+    references: [warehouses.id],
+  }),
+  creator: one(users, {
+    fields: [recurringOrders.createdBy],
+    references: [users.id],
+  }),
+  lastOrder: one(orders, {
+    fields: [recurringOrders.lastOrderId],
+    references: [orders.id],
+  }),
+}));
+
+export const recurringOrderItemRelations = relations(recurringOrderItems, ({ one }) => ({
+  recurringOrder: one(recurringOrders, {
+    fields: [recurringOrderItems.recurringOrderId],
+    references: [recurringOrders.id],
+  }),
+  product: one(products, {
+    fields: [recurringOrderItems.productId],
+    references: [products.id],
+  }),
+}));
+
+export const recurringOrderExecutionRelations = relations(recurringOrderExecutions, ({ one }) => ({
+  recurringOrder: one(recurringOrders, {
+    fields: [recurringOrderExecutions.recurringOrderId],
+    references: [recurringOrders.id],
+  }),
+  order: one(orders, {
+    fields: [recurringOrderExecutions.orderId],
+    references: [orders.id],
+  }),
+}));
+
 export const allRelations = {
   orderRelations,
   orderItemRelations,
@@ -2827,4 +3034,7 @@ export const allRelations = {
   productBatchRelations,
   productMovementRelations,
   locationCostRelations,
+  recurringOrderRelations,
+  recurringOrderItemRelations,
+  recurringOrderExecutionRelations,
 };

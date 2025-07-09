@@ -113,6 +113,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { getOrders, getOrder, getSuppliers, getProducts, getLocations, updateOrder } from "@/lib/api";
 import ReceiveOrderDialog from "@/components/orders/ReceiveOrderDialog";
+import RecurringOrdersTab from "@/components/RecurringOrdersTab";
 
 // Demo-Daten für Bestellungen
 // Diese würden normalerweise aus der API kommen
@@ -658,6 +659,7 @@ export default function Orders() {
   const [isGoodsReceiptOpen, setIsGoodsReceiptOpen] = useState(false);
   const [selectedOrderForReceipt, setSelectedOrderForReceipt] = useState<any>(null);
   const [activeTab, setActiveTab] = useState("items");
+  const [activeMainTab, setActiveMainTab] = useState("orders");
   
   // Filter-Formular
   const filterForm = useForm<FilterValues>({
@@ -761,159 +763,175 @@ export default function Orders() {
   // Render
   return (
     <div className="container max-w-7xl mx-auto py-6 px-4 md:px-6 space-y-6">
-      {/* Einheitliche Filter- und Aktionsleiste */}
-      <div className="w-full mb-6 flex justify-between">
-        {/* Linke Seite: Suchfeld */}
-        <div className="relative flex-1 mr-4">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            type="search"
-            value={filterForm.getValues("search") || ""}
-            placeholder="Nach Bestellungen suchen..."
-            className="pl-8 h-9 w-full"
-            onChange={(e) => filterForm.setValue("search", e.target.value)}
-          />
-        </div>
-        
-        {/* Rechte Seite: Aktionen */}
-        <div className="flex items-center gap-2">
-          <Button asChild variant="default">
-            <Link to="/bestellungen/neu-v2">
-              <Plus className="h-4 w-4 mr-2" />
-              Neue Bestellung
-            </Link>
-          </Button>
-          
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline">
-                <Download className="h-4 w-4 mr-2" />
-                Exportieren
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent>
-              <DropdownMenuItem onClick={() => exportOrder("csv")}>
-                Als CSV exportieren
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => exportOrder("excel")}>
-                Als Excel exportieren
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => exportOrder("pdf")}>
-                Als PDF exportieren
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </div>
-      
-      {/* Filter-Sektion */}
-      <OrderFilter 
-        filterForm={filterForm} 
-        onResetFilter={resetFilter} 
-      />
-      
-      {/* Vereinfachte Bestellungs-Tabelle */}
-      <Card className="overflow-hidden">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-[180px]">Bestellnummer</TableHead>
-              <TableHead>Lieferant</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Datum</TableHead>
-              <TableHead>Liefertermin</TableHead>
-              <TableHead>Priorität / Aktionen</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {ordersLoading ? (
-              <TableRow>
-                <TableCell colSpan={6} className="text-center py-8">
-                  <div className="flex items-center justify-center">
-                    <Loader2 className="h-6 w-6 animate-spin mr-2" />
-                    <span>Bestellungen werden geladen...</span>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ) : orders && orders.length > 0 ? (
-              orders.map((order) => {
-                // Navigation basierend auf dem Status der Bestellung
-                const handleRowClick = () => {
-                  if (order.status === 'draft') {
-                    // Bei Entwurf direkt zur Bestellübersicht
-                    setLocation(`/bestellungen/${order.id}`);
-                  } else if (order.status === 'sent' || order.status === 'partially_received') {
-                    // Bei "gesendet" direkt zum Wareneingang
-                    setLocation(`/bestellungen/${order.id}/wareneingang`);
-                  } else {
-                    // Für alle anderen Zustände zur normalen Detailseite
-                    setLocation(`/bestellungen/${order.id}`);
-                  }
-                };
+      {/* Hauptnavigation mit Tabs */}
+      <div className="w-full">
+        <Tabs value={activeMainTab} onValueChange={setActiveMainTab} className="w-full">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="orders">Bestellungen</TabsTrigger>
+            <TabsTrigger value="recurring">Wiederkehrende Bestellungen</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="orders" className="space-y-6 mt-6">
+            {/* Einheitliche Filter- und Aktionsleiste */}
+            <div className="w-full mb-6 flex justify-between">
+              {/* Linke Seite: Suchfeld */}
+              <div className="relative flex-1 mr-4">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  type="search"
+                  value={filterForm.getValues("search") || ""}
+                  placeholder="Nach Bestellungen suchen..."
+                  className="pl-8 h-9 w-full"
+                  onChange={(e) => filterForm.setValue("search", e.target.value)}
+                />
+              </div>
+              
+              {/* Rechte Seite: Aktionen */}
+              <div className="flex items-center gap-2">
+                <Button asChild variant="default">
+                  <Link to="/bestellungen/neu-v2">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Neue Bestellung
+                  </Link>
+                </Button>
                 
-                return (
-                  <TableRow 
-                    key={order.id} 
-                    onClick={handleRowClick}
-                    className="cursor-pointer hover:bg-muted/50 transition-colors"
-                  >
-                    <TableCell className="font-medium">
-                      {order.orderNumber}
-                    </TableCell>
-                    <TableCell>{order.supplierName}</TableCell>
-                    <TableCell>
-                      <OrderStatusBadge status={order.status} />
-                    </TableCell>
-                    <TableCell>
-                      {order.orderDate && isValid(parseISO(order.orderDate)) 
-                        ? format(parseISO(order.orderDate), 'dd.MM.yyyy')
-                        : '-'}
-                    </TableCell>
-                    <TableCell>
-                      {order.expectedDeliveryDate && isValid(parseISO(order.expectedDeliveryDate)) 
-                        ? format(parseISO(order.expectedDeliveryDate), 'dd.MM.yyyy')
-                        : '-'}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Badge 
-                          variant={order.priority === 'high' || order.priority === 'urgent' ? 'destructive' : 'outline'} 
-                          className={order.priority === 'normal' ? 'bg-blue-100 text-blue-800 border-blue-300' : ''}
-                        >
-                          {priorityMap[order.priority as keyof typeof priorityMap]?.label || order.priority}
-                        </Badge>
-                        <CopyOrderButton 
-                          orderId={order.id} 
-                          orderNumber={order.orderNumber}
-                          size="sm"
-                          variant="ghost"
-                        />
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                );
-              })
-            ) : (
-              <TableRow>
-                <TableCell colSpan={6} className="text-center py-8">
-                  <div className="flex flex-col items-center justify-center gap-2">
-                    <PackageOpen className="h-8 w-8 text-muted-foreground" />
-                    <span>Keine Bestellungen gefunden</span>
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => setLocation('/bestellungen/neu')}
-                    >
-                      <Plus className="h-4 w-4 mr-2" />
-                      Neue Bestellung
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline">
+                      <Download className="h-4 w-4 mr-2" />
+                      Exportieren
                     </Button>
-                  </div>
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </Card>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent>
+                    <DropdownMenuItem onClick={() => exportOrder("csv")}>
+                      Als CSV exportieren
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => exportOrder("excel")}>
+                      Als Excel exportieren
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => exportOrder("pdf")}>
+                      Als PDF exportieren
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            </div>
+            
+            {/* Filter-Sektion */}
+            <OrderFilter 
+              filterForm={filterForm} 
+              onResetFilter={resetFilter} 
+            />
+            
+            {/* Vereinfachte Bestellungs-Tabelle */}
+            <Card className="overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[180px]">Bestellnummer</TableHead>
+                    <TableHead>Lieferant</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Datum</TableHead>
+                    <TableHead>Liefertermin</TableHead>
+                    <TableHead>Priorität / Aktionen</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {ordersLoading ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center py-8">
+                        <div className="flex items-center justify-center">
+                          <Loader2 className="h-6 w-6 animate-spin mr-2" />
+                          <span>Bestellungen werden geladen...</span>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ) : orders && orders.length > 0 ? (
+                    orders.map((order) => {
+                      // Navigation basierend auf dem Status der Bestellung
+                      const handleRowClick = () => {
+                        if (order.status === 'draft') {
+                          // Bei Entwurf direkt zur Bestellübersicht
+                          setLocation(`/bestellungen/${order.id}`);
+                        } else if (order.status === 'sent' || order.status === 'partially_received') {
+                          // Bei "gesendet" direkt zum Wareneingang
+                          setLocation(`/bestellungen/${order.id}/wareneingang`);
+                        } else {
+                          // Für alle anderen Zustände zur normalen Detailseite
+                          setLocation(`/bestellungen/${order.id}`);
+                        }
+                      };
+                      
+                      return (
+                        <TableRow 
+                          key={order.id} 
+                          onClick={handleRowClick}
+                          className="cursor-pointer hover:bg-muted/50 transition-colors"
+                        >
+                          <TableCell className="font-medium">
+                            {order.orderNumber}
+                          </TableCell>
+                          <TableCell>{order.supplierName}</TableCell>
+                          <TableCell>
+                            <OrderStatusBadge status={order.status} />
+                          </TableCell>
+                          <TableCell>
+                            {order.orderDate && isValid(parseISO(order.orderDate)) 
+                              ? format(parseISO(order.orderDate), 'dd.MM.yyyy')
+                              : '-'}
+                          </TableCell>
+                          <TableCell>
+                            {order.expectedDeliveryDate && isValid(parseISO(order.expectedDeliveryDate)) 
+                              ? format(parseISO(order.expectedDeliveryDate), 'dd.MM.yyyy')
+                              : '-'}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <Badge 
+                                variant={order.priority === 'high' || order.priority === 'urgent' ? 'destructive' : 'outline'} 
+                                className={order.priority === 'normal' ? 'bg-blue-100 text-blue-800 border-blue-300' : ''}
+                              >
+                                {priorityMap[order.priority as keyof typeof priorityMap]?.label || order.priority}
+                              </Badge>
+                              <CopyOrderButton 
+                                orderId={order.id} 
+                                orderNumber={order.orderNumber}
+                                size="sm"
+                                variant="ghost"
+                              />
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center py-8">
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <PackageOpen className="h-8 w-8 text-muted-foreground" />
+                          <span>Keine Bestellungen gefunden</span>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => setLocation('/bestellungen/neu')}
+                          >
+                            <Plus className="h-4 w-4 mr-2" />
+                            Neue Bestellung
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="recurring" className="mt-6">
+            <RecurringOrdersTab />
+          </TabsContent>
+        </Tabs>
+      </div>
       
       {/* Dialog: Bestellungsdetails */}
       <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>

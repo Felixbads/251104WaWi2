@@ -58,6 +58,8 @@ import enhancedOrdersRouter from './routes/enhanced-orders';
 import enhancedEmailTemplatesRouter from './routes/enhanced-email-templates';
 import profitabilityRouter from './routes/profitability-simple';
 import enhancedProfitabilityRouter from './routes/enhanced-profitability-fixed';
+import { recurringOrdersRouter } from './routes/recurring-orders';
+import { recurringOrderCronService } from './services/recurringOrderCron';
 
 const app = express();
 
@@ -1174,6 +1176,10 @@ app.get('/orders-data', (req, res) => {
   app.use('/api/products', productsRouter);
   console.log('[SERVER] Products router mounted successfully');
   
+  // Mount recurring orders router BEFORE registerRoutes for automated recurring orders functionality
+  app.use('/api/recurring-orders', recurringOrdersRouter);
+  console.log('[SERVER] Recurring orders router mounted successfully');
+  
 
   
   const server = await registerRoutes(app);
@@ -1185,6 +1191,10 @@ app.get('/orders-data', (req, res) => {
   // Start daily weather correction cron job
   retroactiveWeatherService.scheduleDailyCorrection();
   console.log('[SERVER] Daily weather correction cron job started (6:00 AM)');
+  
+  // Start recurring orders cron service for automated order generation
+  recurringOrderCronService.start();
+  console.log('[SERVER] Recurring orders cron service started (daily 6:00 AM)');
 
   // Direct email endpoint that bypasses all routing conflicts
   app.post('/email-send-direct/:orderId', async (req, res) => {
