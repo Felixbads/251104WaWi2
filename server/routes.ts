@@ -57,6 +57,7 @@ import warehouseProductsRouter from './routes/warehouseProducts';
 import seasonalBackwardSyncRouter from './routes/seasonalBackwardSync';
 import stockoutDetectionRouter from './routes/stockoutDetection';
 import enhancedProphetForecastingRouter from './routes/enhancedProphetForecasting';
+import inventoryItemsUnassignedRouter from './routes/inventory-items-unassigned';
 
 // Hilfsfunktion zum Gruppieren der Transaktionen nach Zeitraum
 function groupTransactionsByPeriod(transactions, period) {
@@ -4532,6 +4533,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Registriere Seasonal Backward Sync Routen (Phase 2: Saisonale Anreicherung)
   app.use(`${API_PREFIX}/seasonal-backward-sync`, seasonalBackwardSyncRouter);
+  
+  // Registriere Inventory Items Unassigned Routen für Charge-Auto-Fill
+  app.use(`${API_PREFIX}/inventory-items`, inventoryItemsUnassignedRouter);
   
   // Registriere Stockout Detection Routen
   app.use(`${API_PREFIX}/stockout-detection`, stockoutDetectionRouter);

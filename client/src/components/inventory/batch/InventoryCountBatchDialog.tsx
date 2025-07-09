@@ -91,10 +91,37 @@ export default function InventoryCountBatchDialog({
   
   // Neue State für die Menge der Charge
   const [batchQuantity, setBatchQuantity] = useState<number>(1);
+  const [isAutoFilling, setIsAutoFilling] = useState(false);
   
-  // Wir verwenden jetzt die importierte Funktion aus CreateAndLinkBatchHandler.ts
-  // für eine konsistente Batch-Nummern-Generierung im ganzen System
-
+  // Funktion zum automatischen Ausfüllen der Charge-Menge basierend auf unzugeordneten Produkten
+  const autoFillBatchQuantity = async () => {
+    if (!selectedItem || !warehouseId) return;
+    
+    setIsAutoFilling(true);
+    try {
+      const response = await fetch(
+        `/api/inventory-items/unassigned-quantity?productId=${selectedItem.productId}&warehouseId=${warehouseId}`
+      );
+      
+      if (response.ok) {
+        const data = await response.json();
+        const unassignedQuantity = data.unassignedQuantity || 0;
+        setBatchQuantity(unassignedQuantity);
+        
+        toast({
+          title: "Menge automatisch ausgefüllt",
+          description: `${unassignedQuantity} nicht zugeordnete Artikel gefunden`,
+        });
+      } else {
+        console.warn('Fehler beim Abrufen der nicht zugeordneten Menge');
+      }
+    } catch (error) {
+      console.error('Fehler beim Auto-Fill:', error);
+    } finally {
+      setIsAutoFilling(false);
+    }
+  };
+  
   // Bei Öffnen des Dialogs den aktuellen Batch setzen und eine neue Chargennummer generieren
   useEffect(() => {
     if (open && selectedItem) {
@@ -111,6 +138,16 @@ export default function InventoryCountBatchDialog({
       setBatchQuantity(selectedItem.expectedQuantity || 1);
     }
   }, [open, selectedItem]);
+  
+  // Auto-Fill der Charge-Menge wenn MHD gesetzt wird
+  useEffect(() => {
+    if (expiryDate && selectedItem && warehouseId) {
+      // Automatisches Ausfüllen nur wenn noch keine spezifische Menge gesetzt wurde
+      if (batchQuantity === 1 || batchQuantity === (selectedItem.expectedQuantity || 1)) {
+        autoFillBatchQuantity();
+      }
+    }
+  }, [expiryDate, selectedItem, warehouseId]);
 
   // Formatiert ein Datum für die Anzeige
   const formatBatchDate = (dateStr: string | null) => {
@@ -693,14 +730,31 @@ export default function InventoryCountBatchDialog({
                     <label className="block text-sm font-medium mb-1">
                       Menge der Charge
                     </label>
-                    <Input
-                      type="number"
-                      min="1"
-                      max={selectedItem?.countedQuantity ?? selectedItem?.expectedQuantity}
-                      value={batchQuantity}
-                      onChange={(e) => setBatchQuantity(parseInt(e.target.value) || 1)}
-                      placeholder="Anzahl eingeben"
-                    />
+                    <div className="flex space-x-2">
+                      <Input
+                        type="number"
+                        min="1"
+                        max={selectedItem?.countedQuantity ?? selectedItem?.expectedQuantity}
+                        value={batchQuantity}
+                        onChange={(e) => setBatchQuantity(parseInt(e.target.value) || 1)}
+                        placeholder="Anzahl eingeben"
+                        className="flex-1"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={autoFillBatchQuantity}
+                        disabled={isAutoFilling}
+                        className="flex-shrink-0"
+                      >
+                        {isAutoFilling ? (
+                          <CircleAlert className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <PlusCircle className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
                     <div className="flex justify-between items-center mt-1">
                       <p className="text-xs text-muted-foreground">
                         Anzahl der Produkte in dieser Charge
@@ -710,6 +764,12 @@ export default function InventoryCountBatchDialog({
                           Max verfügbar: {selectedItem.countedQuantity ?? selectedItem.expectedQuantity}
                         </p>
                       )}
+                    </div>
+                    <div className="mt-1">
+                      <p className="text-xs text-gray-500">
+                        <PlusCircle className="h-3 w-3 inline mr-1" />
+                        Auto-Fill: Automatisches Ausfüllen mit nicht zugeordneten Produkten
+                      </p>
                     </div>
                   </div>
                   

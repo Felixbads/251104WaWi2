@@ -222,6 +222,9 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
   const [editedCounts, setEditedCounts] = useState<{[key: number]: number | null}>({});
   const [editedNotes, setEditedNotes] = useState<{[key: number]: string}>({});
   const [showBatchDialog, setShowBatchDialog] = useState(false);
+  // Neue State-Variablen für Gebinde-Eingabe
+  const [packageCounts, setPackageCounts] = useState<{[key: number]: number | null}>({});
+  const [individualCounts, setIndividualCounts] = useState<{[key: number]: number | null}>({});
   const [selectedItem, setSelectedItem] = useState<InventoryCountItem | null>(null);
   const [availableBatches, setAvailableBatches] = useState<ProductBatch[]>([]);
   const [expandedItems, setExpandedItems] = useState<{[key: number]: boolean}>({});
@@ -243,6 +246,36 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
   // Local storage key for persisting data
   const localStorageKey = `inventur_${id}_data`;
   
+  // Funktion zur Berechnung der Gesamtmenge basierend auf Gebinden und Einzelartikeln
+  const calculateTotalQuantity = (itemId: number, product?: Product) => {
+    const packageCount = packageCounts[itemId] || 0;
+    const individualCount = individualCounts[itemId] || 0;
+    const packageSize = product?.packageQuantity || 1; // Standardwert 1 falls keine Gebindegröße definiert
+    
+    const totalFromPackages = packageCount * packageSize;
+    const total = totalFromPackages + individualCount;
+    
+    return {
+      totalFromPackages,
+      individualCount,
+      total
+    };
+  };
+  
+  // Funktion zum Automatischen Ausfüllen der MHD-Menge
+  const autoFillBatchQuantity = async (productId: number, warehouseId: number) => {
+    try {
+      const response = await fetch(`/api/inventory-items/unassigned-quantity?productId=${productId}&warehouseId=${warehouseId}`);
+      if (response.ok) {
+        const data = await response.json();
+        return data.unassignedQuantity || 0;
+      }
+    } catch (error) {
+      console.warn('Fehler beim Abrufen der nicht zugeordneten Menge:', error);
+    }
+    return 0;
+  };
+  
   // Load data from localStorage on mount
   useEffect(() => {
     try {
@@ -251,6 +284,8 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
         const parsedData = JSON.parse(savedData);
         setEditedCounts(parsedData.editedCounts || {});
         setEditedNotes(parsedData.editedNotes || {});
+        setPackageCounts(parsedData.packageCounts || {});
+        setIndividualCounts(parsedData.individualCounts || {});
         console.log('Gespeicherte Inventurdaten geladen:', parsedData);
       }
     } catch (error) {
@@ -258,13 +293,16 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
     }
   }, [localStorageKey]);
   
-  // Save data to localStorage whenever editedCounts or editedNotes change
+  // Save data to localStorage whenever any counts or notes change
   useEffect(() => {
-    if (Object.keys(editedCounts).length > 0 || Object.keys(editedNotes).length > 0) {
+    if (Object.keys(editedCounts).length > 0 || Object.keys(editedNotes).length > 0 || 
+        Object.keys(packageCounts).length > 0 || Object.keys(individualCounts).length > 0) {
       try {
         const dataToSave = {
           editedCounts,
           editedNotes,
+          packageCounts,
+          individualCounts,
           lastSaved: new Date().toISOString()
         };
         localStorage.setItem(localStorageKey, JSON.stringify(dataToSave));
@@ -273,7 +311,7 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
         console.warn('Fehler beim lokalen Speichern:', error);
       }
     }
-  }, [editedCounts, editedNotes, localStorageKey]);
+  }, [editedCounts, editedNotes, packageCounts, individualCounts, localStorageKey]);
 
   // Lade Inventurdaten
   const { 
@@ -2286,8 +2324,8 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
           {(currentStatus === 'in_progress' || currentStatus === 'open') && (
             <>
               <Button 
-                variant="default"
-                className="bg-blue-600 hover:bg-blue-700 text-white"
+                variant="outline"
+                className="border-blue-500 text-blue-600 hover:bg-blue-50"
                 onClick={() => saveInventurMutation.mutate()}
                 disabled={saveInventurMutation.isPending}
               >
@@ -2296,7 +2334,7 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
                 ) : (
                   <Save className="h-4 w-4 mr-2" />
                 )}
-                Speichern
+                Zwischenspeichern
               </Button>
               
               <Button 
@@ -2305,7 +2343,7 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
                 onClick={() => setShowCompleteDialog(true)}
               >
                 <CheckCircle2 className="h-4 w-4 mr-2" />
-                Abschließen
+                Inventur beenden
               </Button>
               
               <Button 
@@ -2674,29 +2712,92 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
                           </TableCell>
                           <TableCell className="text-center">
                             {currentStatus === 'pending' || currentStatus === 'in_progress' || currentStatus === 'open' ? (
-                              <div className="flex justify-center items-center space-x-2">
-                                <Input
-                                  type="number" 
-                                  min="0"
-                                  value={editedCounts[item.id] !== undefined ? editedCounts[item.id] ?? '' : countedQuantity ?? ''}
-                                  onChange={(e) => {
-                                    const count = e.target.value === '' ? null : Math.max(0, parseInt(e.target.value) || 0);
-                                    setEditedCounts({ ...editedCounts, [item.id]: count });
-                                  }}
-                                  className="w-20 text-center"
-                                />
-                                <Button 
-                                  variant="outline" 
-                                  size="sm"
-                                  onClick={() => {
-                                    if (editedCounts[item.id] !== undefined) {
-                                      handleSetCount(item.id, editedCounts[item.id]);
-                                    }
-                                  }}
-                                  className="flex-shrink-0"
-                                >
-                                  <Save className="h-4 w-4" />
-                                </Button>
+                              <div className="space-y-3">
+                                {/* Gebinde-Eingabe */}
+                                {item.product?.packageQuantity && item.product.packageQuantity > 1 && (
+                                  <div className="space-y-2 p-2 bg-blue-50 rounded border">
+                                    <div className="text-xs font-medium text-blue-800">
+                                      Gebinde ({item.product.packageQuantity} {item.product?.baseUnitName || 'Stk.'} pro Gebinde)
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                      <Input
+                                        type="number" 
+                                        min="0"
+                                        placeholder="Anzahl Gebinde"
+                                        value={packageCounts[item.id] ?? ''}
+                                        onChange={(e) => {
+                                          const count = e.target.value === '' ? null : Math.max(0, parseInt(e.target.value) || 0);
+                                          setPackageCounts({ ...packageCounts, [item.id]: count });
+                                          
+                                          // Automatische Berechnung der Gesamtmenge
+                                          const calculation = calculateTotalQuantity(item.id, item.product);
+                                          calculation.total = (count || 0) * (item.product?.packageQuantity || 1) + (individualCounts[item.id] || 0);
+                                          setEditedCounts({ ...editedCounts, [item.id]: calculation.total });
+                                        }}
+                                        className="w-20 text-center"
+                                      />
+                                      <span className="text-xs text-muted-foreground">
+                                        = {(packageCounts[item.id] || 0) * (item.product?.packageQuantity || 1)} {item.product?.baseUnitName || 'Stk.'}
+                                      </span>
+                                    </div>
+                                  </div>
+                                )}
+                                
+                                {/* Einzelartikel-Eingabe */}
+                                <div className="space-y-2 p-2 bg-green-50 rounded border">
+                                  <div className="text-xs font-medium text-green-800">
+                                    Zusätzliche Einzelartikel
+                                  </div>
+                                  <div className="flex items-center space-x-2">
+                                    <Input
+                                      type="number" 
+                                      min="0"
+                                      placeholder="Einzelne Stück"
+                                      value={individualCounts[item.id] ?? ''}
+                                      onChange={(e) => {
+                                        const count = e.target.value === '' ? null : Math.max(0, parseInt(e.target.value) || 0);
+                                        setIndividualCounts({ ...individualCounts, [item.id]: count });
+                                        
+                                        // Automatische Berechnung der Gesamtmenge
+                                        const calculation = calculateTotalQuantity(item.id, item.product);
+                                        calculation.total = (packageCounts[item.id] || 0) * (item.product?.packageQuantity || 1) + (count || 0);
+                                        setEditedCounts({ ...editedCounts, [item.id]: calculation.total });
+                                      }}
+                                      className="w-20 text-center"
+                                    />
+                                    <span className="text-xs text-muted-foreground">Stk.</span>
+                                  </div>
+                                </div>
+                                
+                                {/* Gesamtmenge und Speichern */}
+                                <div className="space-y-2 p-2 bg-gray-50 rounded border">
+                                  <div className="text-xs font-medium text-gray-800">Gesamtmenge</div>
+                                  <div className="flex justify-center items-center space-x-2">
+                                    <Input
+                                      type="number" 
+                                      min="0"
+                                      value={editedCounts[item.id] !== undefined ? editedCounts[item.id] ?? '' : countedQuantity ?? ''}
+                                      onChange={(e) => {
+                                        const count = e.target.value === '' ? null : Math.max(0, parseInt(e.target.value) || 0);
+                                        setEditedCounts({ ...editedCounts, [item.id]: count });
+                                      }}
+                                      className="w-24 text-center font-bold"
+                                    />
+                                    <span className="text-sm font-medium">{item.product?.unit || 'Stk.'}</span>
+                                    <Button 
+                                      variant="outline" 
+                                      size="sm"
+                                      onClick={() => {
+                                        if (editedCounts[item.id] !== undefined) {
+                                          handleSetCount(item.id, editedCounts[item.id]);
+                                        }
+                                      }}
+                                      className="flex-shrink-0"
+                                    >
+                                      <Save className="h-4 w-4" />
+                                    </Button>
+                                  </div>
+                                </div>
                               </div>
                             ) : (
                               <span>{countedQuantity !== null ? `${countedQuantity} ${item.product?.unit || 'Stk.'}` : '-'}</span>
