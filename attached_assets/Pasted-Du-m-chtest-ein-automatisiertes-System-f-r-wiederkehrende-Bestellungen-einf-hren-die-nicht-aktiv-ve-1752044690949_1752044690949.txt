@@ -1,0 +1,60 @@
+Du möchtest ein automatisiertes System für wiederkehrende Bestellungen einführen, die nicht aktiv versendet werden, sondern automatisch im Wareneingang auftauchen und nur noch kontrolliert bzw. gebucht werden müssen. Ich fasse das gewünschte Verhalten und die nötige Analyse und Erweiterung in einem strukturierten Vorschlag zusammen, den du auch als Prompt oder Anforderung weitergeben kannst:
+
+⸻
+
+🔍 Analyse & Erweiterungsvorschlag für wiederkehrende Bestellungen (Wareneingang-gesteuert)
+
+Ist-Analyse:
+	•	Aktuell gibt es keine explizite Funktion, die wiederkehrende Bestellungen automatisiert erzeugt, ohne dass sie aktiv versendet werden.
+	•	Bestellungen werden manuell erstellt, an Lieferanten versendet und durchlaufen dann ggf. den Wareneingangsprozess.
+	•	Lieferungen, die regelmäßig eintreffen, müssen jedes Mal erneut manuell erfasst oder als Bestellung angelegt werden – was unnötig Aufwand erzeugt.
+
+⸻
+
+🛠️ Ziel: Neue Funktion „Wiederkehrende Bestellung (intern)“
+
+Funktionsweise:
+	•	Wiederkehrende Bestellungen werden im System automatisch erzeugt, basierend auf einem definierten Intervall.
+	•	Sie werden nicht verschickt, sondern landen direkt unter „Wareneingang“ zur Prüfung und Buchung.
+	•	Die Funktion ist lieferantenspezifisch und erlaubt die Auswahl von Produkten, Lagerort und Intervall.
+
+Einstellbar unter:
+	•	Neue Bestellung → neuer Reiter oder Option: „Wiederkehrende Bestellung erstellen“
+
+Felder zur Konfiguration:
+	1.	Name der wiederkehrenden Bestellung (z. B. „Bäckerei Montag“)
+	2.	Lieferant
+	3.	Zugehöriges Lager
+	4.	Produktauswahl (inkl. Mengen)
+	5.	Startdatum
+	6.	Intervall:
+	•	Wöchentlich (mit Wochentag)
+	•	Zweiwöchentlich
+	•	Dreiwöchentlich
+	•	Monatlich (z. B. jeder 1. Dienstag)
+	7.	Kategorie-Auswahl: (z. B. „Milchprodukte“, „Obst“, zur Filterung)
+	8.	Aktiv/Deaktiviert-Status
+	9.	Optional: Notizfeld für Besonderheiten
+
+⸻
+
+📦 Automatischer Ablauf (Cron-basiert):
+	•	An jedem definierten Bestelltag erzeugt das System automatisch eine neue Bestellung.
+	•	Diese Bestellung wird nicht versendet, sondern erscheint direkt:
+	•	Unter Neue Bestellungen → Reiter: Wiederkehrende Bestellungen
+	•	Und gleichzeitig unter Wareneingang, markiert als „geplant eingetroffen“ oder „zu prüfen“
+
+⸻
+
+📋 Vorteile:
+	•	Keine doppelte Arbeit bei bekannten regelmäßigen Lieferanten.
+	•	Automatisierung und Übersicht über eingehende Ware ohne aktives Bestellen.
+	•	Minimierung von Fehlern durch standardisierte Mengen und Inhalte.
+	•	Übersichtlichkeit durch eigenen Bereich für wiederkehrende Bestellungen.
+
+⸻
+
+🧪 Nächste Schritte (technisch):
+	1.	Prüfen, ob im aktuellen Datenmodell bereits ein Intervall-Feld für Bestellungen existiert oder ergänzt werden muss.
+	2.	Wareneingang so anpassen, dass automatisch generierte Bestellungen klar gekennzeichnet sind.
+	3.	Optional: Reporting oder Benachrichtigung, wenn eine wiederkehrende Lieferung nicht gebucht wurde.
