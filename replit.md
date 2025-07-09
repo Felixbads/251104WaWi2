@@ -116,6 +116,8 @@ This is a comprehensive vending machine management platform (Warenwirtschaftssys
   - ✅ Events-Synchronisation funktional mit 107 Events und korrekter Türstatus-Erfassung
   - ✅ Türereignisse werden jetzt mit dem korrekten Event-Namen "Automatentüre offen" erfasst
   - ✅ Standort-Status zeigt authentische aktuelle Türöffnungen statt veraltete Platzhalter-Daten
+  - ✅ Refill-Automatisierung bestätigt funktionsfähig: Alle 5 Minuten automatische Synchronisation mit Vendon API
+  - ✅ Drei neue Refills erfolgreich synchronisiert: Pfaffendorf, Rathen, Bad Schandau (alle Andreas Buschbeck)
   - System erfasst jetzt präzise alle aktuellen Türöffnungs-Ereignisse mit korrekten Zeitstempeln
 - July 9, 2025: VENDON EVENTS & REFILLS SYNC VOLLSTÄNDIG REPARIERT - Standort-Daten jetzt aktuell
   - ✅ Sync-Router erfolgreich in server/index.ts importiert und vor registerRoutes() montiert
