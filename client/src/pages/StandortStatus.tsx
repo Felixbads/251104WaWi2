@@ -273,7 +273,7 @@ function MachineStatusCard({ machine }: { machine: MachineStatusData }) {
           </div>
         </div>
 
-        {/* Letzte Türöffnung */}
+        {/* Letzte Türöffnung - NUR echte Türöffnungs-Events */}
         <div className="flex items-center space-x-2 text-sm">
           <DoorOpen className="h-4 w-4 text-orange-500" />
           <div className="flex-1">
@@ -293,23 +293,11 @@ function MachineStatusCard({ machine }: { machine: MachineStatusData }) {
                   })}
                 </p>
               </div>
-            ) : machine.lastRefill ? (
-              <div>
-                <p className="text-muted-foreground">
-                  {formatDaysAgo(machine.lastRefill.daysAgo)} (bei Füllung)
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {new Date(machine.lastRefill.datetime).toLocaleString('de-DE', {
-                    day: '2-digit',
-                    month: '2-digit',
-                    year: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit'
-                  })}
-                </p>
-              </div>
             ) : (
-              <p className="text-muted-foreground">Keine Daten</p>
+              <div>
+                <p className="text-muted-foreground">Keine echte Türöffnung</p>
+                <p className="text-xs text-muted-foreground">in den letzten 7 Tagen</p>
+              </div>
             )}
           </div>
         </div>
