@@ -65,15 +65,50 @@ router.get('/status', async (req: Request, res: Response) => {
 
     const gaps = gapAnalysis.rows.filter((row: any) => row.status !== 'complete');
 
+    // Get events stats
+    const eventsStats = await rawDb.query(`
+      SELECT 
+        COUNT(*) as total_events,
+        MAX(datetime) as last_event
+      FROM events 
+      WHERE datetime >= NOW() - INTERVAL '24 hours'
+    `);
+    
+    const eventsData = eventsStats.rows[0];
+
+    // Get refills stats
+    const refillsStats = await rawDb.query(`
+      SELECT 
+        COUNT(*) as total_refills,
+        MAX(datetime) as last_refill
+      FROM refills 
+      WHERE datetime >= NOW() - INTERVAL '24 hours'
+    `);
+    
+    const refillsData = refillsStats.rows[0];
+
+    // Get products count
+    const productsStats = await rawDb.query(`
+      SELECT COUNT(*) as total_products FROM products
+    `);
+    
+    const productsData = productsStats.rows[0];
+
     const response = {
       machines: {
         status: 'completed',
-        lastSync: stats.latest_date,
-        totalTransactions: parseInt(stats.total_transactions) || 0
+        lastSync: stats.latest_date ? new Date(stats.latest_date).getTime() : 0,
+        count: parseInt(stats.total_transactions) || 0
+      },
+      products: {
+        status: 'completed',
+        lastSync: Date.now(),
+        count: parseInt(productsData.total_products) || 0
       },
       transactions: {
         status: recentData.recent_count > 0 ? 'active' : 'stale',
-        lastSync: recentData.last_transaction,
+        lastSync: recentData.last_transaction ? new Date(recentData.last_transaction).getTime() : 0,
+        count: parseInt(stats.total_transactions) || 0,
         recentCount: parseInt(recentData.recent_count) || 0,
         totalCount: parseInt(stats.total_transactions) || 0,
         dateRange: {
@@ -81,6 +116,30 @@ router.get('/status', async (req: Request, res: Response) => {
           latest: stats.latest_date,
           daysWithData: parseInt(stats.days_with_data) || 0
         }
+      },
+      refills: {
+        status: refillsData.total_refills > 0 ? 'completed' : 'stale',
+        lastSync: refillsData.last_refill ? new Date(refillsData.last_refill).getTime() : 0,
+        count: parseInt(refillsData.total_refills) || 0
+      },
+      events: {
+        status: eventsData.total_events > 0 ? 'completed' : 'stale',
+        lastSync: eventsData.last_event ? new Date(eventsData.last_event).getTime() : 0,
+        count: parseInt(eventsData.total_events) || 0
+      },
+      stocks: {
+        status: 'completed',
+        lastSync: Date.now(),
+        count: 0
+      },
+      historicalSync: {
+        inProgress: false,
+        currentDate: '',
+        targetDate: '',
+        progress: 0,
+        completedMonths: [],
+        totalTransactions: parseInt(stats.total_transactions) || 0,
+        processingTimeMin: 0
       },
       recovery: {
         totalGaps: gaps.length,
