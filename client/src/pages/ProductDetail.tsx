@@ -17,7 +17,7 @@ import { apiRequest } from '@/lib/queryClient';
 import ProductInventoryViewSimple from '@/components/product/ProductInventoryViewSimple';
 import ProductSalesView from '@/components/product/ProductSalesView';
 import ProductAnalyticsView from '@/components/product/ProductAnalyticsView';
-import ProductPurchaseConditionsComprehensive from '@/components/product/ProductPurchaseConditionsComprehensive';
+import UnifiedPurchaseConditionsManager from '@/components/purchase-conditions/UnifiedPurchaseConditionsManager';
 import { PurchaseConditionsDisplay } from '@/components/PurchaseConditionsDisplay';
 
 export default function ProductDetail() {
@@ -292,7 +292,7 @@ export default function ProductDetail() {
           </Button>
           <div>
             <h1 className="text-3xl font-bold">
-              {product.productName || product.name || `Produkt #${product.id}` || 'Unbenanntes Produkt'}
+              {product.productName || product.product_name || `Produkt #${product.id}` || 'Unbenanntes Produkt'}
             </h1>
             <p className="text-gray-600">
               {product.sku && `SKU: ${product.sku}`}
@@ -471,7 +471,7 @@ export default function ProductDetail() {
                   </div>
                   <div>
                     <span className="text-xs sm:text-sm text-gray-500">Produktname</span>
-                    <p className="font-medium text-sm sm:text-base">{product.productName}</p>
+                    <p className="font-medium text-sm sm:text-base">{product.product_name}</p>
                   </div>
                   <div>
                     <Label className="text-xs sm:text-sm text-gray-500">Kategorie</Label>
@@ -957,7 +957,11 @@ export default function ProductDetail() {
 
         {/* Purchase Conditions Tab */}
         <TabsContent value="purchase-conditions" className="space-y-6 mt-6">
-          <ProductPurchaseConditionsComprehensive productId={parseInt(id!)} productName={product.productName} />
+          <UnifiedPurchaseConditionsManager 
+            mode="product"
+            entityId={parseInt(id!)}
+            entityName={product.product_name || `Produkt #${product.id}`}
+          />
         </TabsContent>
       </Tabs>
 

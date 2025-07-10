@@ -45,7 +45,7 @@ import { Supplier } from "../../../shared/schema";
 import PurchaseConditionForm from "@/components/forms/PurchaseConditionForm";
 import SupplierEmailTemplates from "@/components/suppliers/SupplierEmailTemplates";
 import { SupplierEditDialog } from "@/components/SupplierEditDialog";
-import { PurchaseConditionsTab } from "@/components/PurchaseConditionsTab";
+import UnifiedPurchaseConditionsManager from "@/components/purchase-conditions/UnifiedPurchaseConditionsManager";
 import SupplierDiscountManager from "@/components/SupplierDiscountManager";
 import { apiRequest } from "@/lib/queryClient";
 
@@ -1688,9 +1688,10 @@ export default function SupplierDetail() {
         
         {/* Einkaufsbedingungen Tab */}
         <TabsContent value="purchaseConditions">
-          <PurchaseConditionsTab 
-            supplierId={parseInt(id!)} 
-            supplierName={supplier.name}
+          <UnifiedPurchaseConditionsManager 
+            mode="supplier"
+            entityId={parseInt(id!)} 
+            entityName={supplier.name}
           />
         </TabsContent>
 
