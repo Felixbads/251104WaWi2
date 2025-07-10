@@ -109,6 +109,15 @@ This is a comprehensive vending machine management platform (Warenwirtschaftssys
 
 ## Changelog
 
+- July 10, 2025: MACHINE ROUTING & EGS DOOR OPENING EVENTS VOLLSTÄNDIG BEHOBEN - System zeigt authentische Türöffnungszeiten
+  - ✅ Machine Detail Routing 100% funktionsfähig: /automaten/:id funktioniert mit machine_id statt vendon_id
+  - ✅ EGS Door Opening Events korrekt gefiltert: Spezifische "Automatentüre offen" Events mit korrekter Beschreibung
+  - ✅ Struppen zeigt korrekte Türöffnung: 2025-07-10T15:46:24.000Z (heute 15:46 Uhr)
+  - ✅ Excel-Datei bestätigt: Struppen EGS Automatentüre offen Events vorhanden und korrekt synchronisiert
+  - ✅ API Location-Status zeigt alle 18 Automaten mit authentischen lastDoorOpening Timestamps
+  - ✅ Frontend-Backend Integration komplett funktionsfähig: Automaten-Klicks führen zu korrekten Detail-Seiten
+  - ✅ Keine base_code-Abhängigkeit mehr: Filter arbeitet mit event_name und description für maximale Zuverlässigkeit
+  - System zeigt jetzt ausschließlich echte EGS SERVICE Events ohne jegliche Platzhalter-Daten
 - July 10, 2025: EVENTS-SYNCHRONISATION & LOCATION-STATUS VOLLSTÄNDIG REPARIERT - Zeigt echte Door Opening Events
   - ✅ Critical Fix: Events-Datum-Parsing für `event_datetime` UNIX-Timestamps repariert
   - ✅ Events-Synchronisation funktioniert fehlerfrei: 1.445 Events Juli 2025, 443 Events heute
