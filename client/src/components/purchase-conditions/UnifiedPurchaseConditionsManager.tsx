@@ -277,7 +277,7 @@ export default function UnifiedPurchaseConditionsManager({
       taxRate: 19,
       minQuantity: 0,
       minQuantityUnit: 'individual',
-      packagingUnit: '',
+      packagingUnit: 'Stück',
       packagingQuantity: 1,
       depositPerUnit: 0,
       validFrom: format(new Date(), 'yyyy-MM-dd'),
@@ -383,13 +383,9 @@ export default function UnifiedPurchaseConditionsManager({
       return;
     }
     
+    // Set default packaging unit if empty
     if (!formData.packagingUnit) {
-      toast({
-        title: "Validierungsfehler", 
-        description: "Bitte wählen Sie eine Gebindeart aus.",
-        variant: "destructive",
-      });
-      return;
+      setFormData(prev => ({ ...prev, packagingUnit: 'Stück' }));
     }
     
     const dataToSave = {
@@ -889,11 +885,7 @@ export default function UnifiedPurchaseConditionsManager({
               <X className="h-4 w-4 mr-2" />
               Abbrechen
             </Button>
-            <Button onClick={() => {
-              console.log('[BUTTON-CLICK] Speichern button clicked!');
-              alert('BUTTON CLICKED!');
-              handleSave();
-            }} disabled={saveMutation.isPending}>
+            <Button onClick={handleSave} disabled={saveMutation.isPending}>
               <Save className="h-4 w-4 mr-2" />
               {saveMutation.isPending ? 'Speichert...' : 'Speichern'}
             </Button>
