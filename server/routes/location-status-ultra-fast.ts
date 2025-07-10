@@ -65,7 +65,14 @@ router.get('/', async (req: Request, res: Response) => {
           m.id as machine_id, m.machine_name, m.location_name, m.vendon_id,
           ROW_NUMBER() OVER (
             PARTITION BY CAST(m.vendon_id AS text) 
-            ORDER BY COALESCE((SELECT MAX(t.datetime) FROM transactions t WHERE t.machine_id = m.id), '1970-01-01'::timestamp) DESC
+            ORDER BY 
+              -- Prioritize machines with recent events (like door openings)
+              COALESCE((SELECT MAX(e.datetime) FROM events e WHERE e.machine_id = m.id), '1970-01-01'::timestamp) DESC,
+              -- Then by recent transactions
+              COALESCE((SELECT MAX(t.datetime) FROM transactions t WHERE t.machine_id = m.id), '1970-01-01'::timestamp) DESC,
+              -- Finally prefer actual names over placeholder names
+              CASE WHEN m.machine_name LIKE '*%' THEN 1 ELSE 0 END,
+              m.id DESC
           ) as rn
         FROM machines m
         WHERE m.vendon_id IS NOT NULL 

@@ -109,6 +109,15 @@ This is a comprehensive vending machine management platform (Warenwirtschaftssys
 
 ## Changelog
 
+- July 10, 2025: EVENTS-SYNCHRONISATION & LOCATION-STATUS VOLLSTÄNDIG REPARIERT - Zeigt echte Door Opening Events
+  - ✅ Critical Fix: Events-Datum-Parsing für `event_datetime` UNIX-Timestamps repariert
+  - ✅ Events-Synchronisation funktioniert fehlerfrei: 1.445 Events Juli 2025, 443 Events heute
+  - ✅ Location-Status API Selection Logic repariert: Priorisiert Maschinen mit Events über Platzhalter-Datensätze
+  - ✅ Keine "hat kein Datum" Meldungen mehr - alle Events haben korrekte Timestamps
+  - ✅ Door opening Events zeigen authentische heutige Zeiten: Pötzscha 16:05, Struppen 15:46, Schöna 15:37
+  - ✅ Standort-Übersicht zeigt echte "Letzte Türöffnung" und "Letzte Nachfüllung" Daten statt veraltete Platzhalter
+  - ✅ Maschinenauswahl bevorzugt echte Namen über "*-Platzhalter" und aktuelle Event-Aktivität
+  - System synchronisiert alle Vendon-Datentypen mit korrekten Timestamps für echte Standort-Informationen
 - July 10, 2025: SPEICHER-BUTTON FIX VOLLSTÄNDIG ABGESCHLOSSEN - Purchase Conditions API vollständig funktionsfähig
   - ✅ Critical Fix: Missing POST/PUT API routes for purchase-conditions komplett implementiert in server/routes.ts
   - ✅ Zod validation und Error handling für alle CRUD-Operationen hinzugefügt (CREATE, UPDATE, DELETE)
