@@ -106,14 +106,20 @@ export default function InventoryCountBatchDialog({
       if (response.ok) {
         const data = await response.json();
         const unassignedQuantity = data.unassignedQuantity || 0;
-        setBatchQuantity(unassignedQuantity);
+        // Setze die maximale verfügbare Menge
+        const maxQuantity = Math.max(unassignedQuantity, selectedItem.expectedQuantity || 0);
+        setBatchQuantity(maxQuantity);
         
-        toast({
-          title: "Menge automatisch ausgefüllt",
-          description: `${unassignedQuantity} nicht zugeordnete Artikel gefunden`,
-        });
+        console.log(`Auto-Fill für Produkt ${selectedItem.productId}: ${unassignedQuantity} nicht zugeordnet, ${selectedItem.expectedQuantity} erwartet`);
+        
+        if (unassignedQuantity > 0) {
+          toast({
+            title: "Menge automatisch ausgefüllt",
+            description: `${unassignedQuantity} nicht zugeordnete Artikel gefunden`,
+          });
+        }
       } else {
-        console.warn('Fehler beim Abrufen der nicht zugeordneten Menge');
+        console.warn('Fehler beim Abrufen der nicht zugeordneten Menge - Response nicht OK');
       }
     } catch (error) {
       console.error('Fehler beim Auto-Fill:', error);

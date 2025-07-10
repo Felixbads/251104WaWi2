@@ -2723,11 +2723,12 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
                           <TableCell className="text-center">
                             {currentStatus === 'pending' || currentStatus === 'in_progress' || currentStatus === 'open' ? (
                               <div className="space-y-3">
-                                {/* Gebinde-Eingabe */}
-                                {item.product?.packageQuantity && item.product.packageQuantity > 1 && (
-                                  <div className="space-y-2 p-2 bg-blue-50 rounded border">
+                                {/* Grid-Layout für nebeneinander liegende Eingaben */}
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                                  {/* Gebinde-Eingabe - immer angezeigt */}
+                                  <div className="space-y-2 p-3 bg-blue-50 rounded border">
                                     <div className="text-xs font-medium text-blue-800">
-                                      Gebinde ({item.product.packageQuantity} {item.product?.baseUnitName || 'Stk.'} pro Gebinde)
+                                      Gebinde ({item.product?.packageQuantity || 6} {item.product?.baseUnitName || 'Stk.'} pro Gebinde)
                                     </div>
                                     <div className="flex items-center space-x-2">
                                       <Input
@@ -2740,42 +2741,44 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
                                           setPackageCounts({ ...packageCounts, [item.id]: count });
                                           
                                           // Automatische Berechnung der Gesamtmenge
+                                          const packageQuantity = item.product?.packageQuantity || 6;
                                           const calculation = calculateTotalQuantity(item.id, item.product);
-                                          calculation.total = (count || 0) * (item.product?.packageQuantity || 1) + (individualCounts[item.id] || 0);
+                                          calculation.total = (count || 0) * packageQuantity + (individualCounts[item.id] || 0);
                                           setEditedCounts({ ...editedCounts, [item.id]: calculation.total });
                                         }}
                                         className="w-20 text-center"
                                       />
                                       <span className="text-xs text-muted-foreground">
-                                        = {(packageCounts[item.id] || 0) * (item.product?.packageQuantity || 1)} {item.product?.baseUnitName || 'Stk.'}
+                                        = {(packageCounts[item.id] || 0) * (item.product?.packageQuantity || 6)} {item.product?.baseUnitName || 'Stk.'}
                                       </span>
                                     </div>
                                   </div>
-                                )}
-                                
-                                {/* Einzelartikel-Eingabe */}
-                                <div className="space-y-2 p-2 bg-green-50 rounded border">
-                                  <div className="text-xs font-medium text-green-800">
-                                    Zusätzliche Einzelartikel
-                                  </div>
-                                  <div className="flex items-center space-x-2">
-                                    <Input
-                                      type="number" 
-                                      min="0"
-                                      placeholder="Einzelne Stück"
-                                      value={individualCounts[item.id] ?? ''}
-                                      onChange={(e) => {
-                                        const count = e.target.value === '' ? null : Math.max(0, parseInt(e.target.value) || 0);
-                                        setIndividualCounts({ ...individualCounts, [item.id]: count });
-                                        
-                                        // Automatische Berechnung der Gesamtmenge
-                                        const calculation = calculateTotalQuantity(item.id, item.product);
-                                        calculation.total = (packageCounts[item.id] || 0) * (item.product?.packageQuantity || 1) + (count || 0);
-                                        setEditedCounts({ ...editedCounts, [item.id]: calculation.total });
-                                      }}
-                                      className="w-20 text-center"
-                                    />
-                                    <span className="text-xs text-muted-foreground">Stk.</span>
+                                  
+                                  {/* Einzelartikel-Eingabe */}
+                                  <div className="space-y-2 p-3 bg-green-50 rounded border">
+                                    <div className="text-xs font-medium text-green-800">
+                                      Zusätzliche Einzelartikel
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                      <Input
+                                        type="number" 
+                                        min="0"
+                                        placeholder="Einzelne Stück"
+                                        value={individualCounts[item.id] ?? ''}
+                                        onChange={(e) => {
+                                          const count = e.target.value === '' ? null : Math.max(0, parseInt(e.target.value) || 0);
+                                          setIndividualCounts({ ...individualCounts, [item.id]: count });
+                                          
+                                          // Automatische Berechnung der Gesamtmenge
+                                          const packageQuantity = item.product?.packageQuantity || 6;
+                                          const calculation = calculateTotalQuantity(item.id, item.product);
+                                          calculation.total = (packageCounts[item.id] || 0) * packageQuantity + (count || 0);
+                                          setEditedCounts({ ...editedCounts, [item.id]: calculation.total });
+                                        }}
+                                        className="w-20 text-center"
+                                      />
+                                      <span className="text-xs text-muted-foreground">Stk.</span>
+                                    </div>
                                   </div>
                                 </div>
                                 
