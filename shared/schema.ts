@@ -879,8 +879,10 @@ export const purchaseConditions = pgTable("purchase_conditions", {
   taxRate: real("tax_rate").default(19), // Standardmäßig 19% MwSt
   grossPrice: real("gross_price"), // Brutto-Preis (berechnet aus unitPrice und taxRate)
   minQuantity: integer("min_quantity").default(0),
+  minQuantityUnit: text("min_quantity_unit").default("individual"), // "individual" oder "package" - Mindestmenge bezieht sich auf Einzelprodukte oder Gebinde
   packagingUnit: text("packaging_unit"), // Beschreibung der Verpackungseinheit (z.B. "Karton mit 6 Flaschen")
   packagingQuantity: integer("packaging_quantity").default(1), // Anzahl der Einheiten pro Verpackung
+  depositPerUnit: real("deposit_per_unit").default(0), // Pfand je Artikel (steuerfrei)
   deliveryTime: text("delivery_time"), // Lieferzeit (z.B. "2-3 Tage")
   validFrom: timestamp("valid_from"), // Gültigkeit von
   validTo: timestamp("valid_to"), // Gültigkeit bis

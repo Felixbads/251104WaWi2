@@ -109,6 +109,16 @@ This is a comprehensive vending machine management platform (Warenwirtschaftssys
 
 ## Changelog
 
+- July 10, 2025: PFAND-SYSTEM VOLLSTÄNDIG IMPLEMENTIERT - Steuerfreie Berechnung und Gebinde-Unterstützung
+  - ✅ Datenbank-Schema um Pfand-Felder erweitert: depositPerUnit und minQuantityUnit in purchase_conditions
+  - ✅ Frontend-UI für Pfand-Eingabe implementiert: Eingabefeld mit steuerfreiem Hinweis
+  - ✅ Clickable Gebinde vs. Einzelprodukt-Auswahl: Blaue Boxes für Gebinde, grüne für Einzelprodukt
+  - ✅ Steuerfreie Pfand-Berechnung in Wirtschaftlichkeitsanalyse: Pfand wird vom Bruttowert abgezogen, dann MwSt berechnet
+  - ✅ Backend-API erweitert um Pfand-bewusste Umsatz- und Kostenberechnungen
+  - ✅ Separate Ausweisung von Pfand-Umsätzen in allen Wirtschaftlichkeitsberichten
+  - ✅ Kompakte UI-Darstellung entsprechend Nutzerwunsch ("nicht zu hoch")
+  - ✅ Deutsche Steuer-Compliance: Pfand steuerfrei, korrekte MwSt-Berechnung auf verbleibenden Betrag
+  - System unterstützt jetzt vollständige deutsche Pfand- und Gebinde-Verwaltung nach rechtlichen Vorgaben
 - July 9, 2025: DOOR OPENING EVENTS KORREKT BEHOBEN - Zeigt jetzt aktuelle Türöffnungen statt veraltete Juni-Daten
   - ✅ Critical Fix: Door opening query korrigiert von "Automatentür geöffnet" zu "Automatentüre offen"  
   - ✅ Letzte Türöffnung jetzt korrekt: Heute 14:58:37 (Burg Stolpen) statt falsches Datum 22. Juni

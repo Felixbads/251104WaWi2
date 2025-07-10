@@ -35,7 +35,11 @@ const purchaseConditionSchema = z.object({
   minQuantity: z.coerce.number().min(1, {
     message: "Mindestmenge muss mindestens 1 sein",
   }),
+  minQuantityUnit: z.enum(["individual", "package"]).default("individual"),
   packagingUnit: z.string().optional(),
+  depositPerUnit: z.coerce.number().min(0, {
+    message: "Pfand muss mindestens 0 sein",
+  }).default(0),
   deliveryTime: z.string().optional(),
   validFrom: z.date().nullable().optional(),
   validTo: z.date().nullable().optional(),
@@ -72,7 +76,9 @@ export function PurchaseConditionForm({
           ...existingCondition,
           validFrom: existingCondition.validFrom ? new Date(existingCondition.validFrom) : null,
           validTo: existingCondition.validTo ? new Date(existingCondition.validTo) : null,
-          taxRate: existingCondition.taxRate || 19
+          taxRate: existingCondition.taxRate || 19,
+          minQuantityUnit: existingCondition.minQuantityUnit || "individual",
+          depositPerUnit: existingCondition.depositPerUnit || 0,
         }
       : {
           productId,
@@ -80,7 +86,9 @@ export function PurchaseConditionForm({
           unitPrice: 0,
           taxRate: 19,
           minQuantity: 1,
+          minQuantityUnit: "individual",
           packagingUnit: "",
+          depositPerUnit: 0,
           deliveryTime: "",
           validFrom: new Date(),
           validTo: null,
@@ -158,6 +166,8 @@ export function PurchaseConditionForm({
         packagingUnit: data.packagingUnit || "Stück",
         packagingQuantity: data.packagingQuantity || 1,
         minQuantity: typeof data.minQuantity === 'string' ? parseInt(data.minQuantity) : (data.minQuantity || 0),
+        minQuantityUnit: data.minQuantityUnit || "individual",
+        depositPerUnit: typeof data.depositPerUnit === 'string' ? parseFloat(data.depositPerUnit) : (data.depositPerUnit || 0),
         validFrom: dateValidFrom.toISOString(),
         validTo: dateValidTo ? dateValidTo.toISOString() : undefined,
         notes: data.notes || "",
@@ -306,6 +316,70 @@ export function PurchaseConditionForm({
               Automatisch berechnet aus Netto-Preis und MwSt-Satz
             </div>
           </div>
+        </div>
+
+        {/* Pfand und Mindestmenge-Einheit */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Pfand je Artikel */}
+          <FormField
+            control={form.control}
+            name="depositPerUnit"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Pfand je Artikel (€)</FormLabel>
+                <FormControl>
+                  <Input type="number" step="0.01" min="0" placeholder="0.00" {...field} />
+                </FormControl>
+                <FormDescription>
+                  Pfand pro Artikel (steuerfrei)
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          {/* Mindestmenge-Einheit */}
+          <FormField
+            control={form.control}
+            name="minQuantityUnit"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Mindestbestellmenge bezieht sich auf</FormLabel>
+                <FormControl>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => field.onChange("individual")}
+                      className={`px-3 py-2 rounded-md border transition-colors text-sm ${
+                        field.value === "individual" 
+                          ? "bg-green-100 border-green-500 text-green-700" 
+                          : "bg-gray-50 border-gray-300 hover:bg-gray-100"
+                      }`}
+                    >
+                      Einzelprodukt
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => field.onChange("package")}
+                      className={`px-3 py-2 rounded-md border transition-colors text-sm ${
+                        field.value === "package" 
+                          ? "bg-blue-100 border-blue-500 text-blue-700" 
+                          : "bg-gray-50 border-gray-300 hover:bg-gray-100"
+                      }`}
+                    >
+                      Gebinde
+                    </button>
+                  </div>
+                </FormControl>
+                <FormDescription>
+                  {field.value === "individual" 
+                    ? "Mindestmenge bezieht sich auf einzelne Artikel" 
+                    : "Mindestmenge bezieht sich auf ganze Gebinde"}
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

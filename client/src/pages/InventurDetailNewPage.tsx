@@ -2723,93 +2723,91 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
                           <TableCell className="text-center">
                             {currentStatus === 'pending' || currentStatus === 'in_progress' || currentStatus === 'open' ? (
                               <div className="space-y-3">
-                                {/* Grid-Layout für nebeneinander liegende Eingaben */}
-                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                                  {/* Gebinde-Eingabe - immer angezeigt */}
-                                  <div className="space-y-2 p-3 bg-blue-50 rounded border">
+                                {/* Kompakte Grid-Layout für nebeneinander liegende Eingaben */}
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
+                                  {/* Gebinde-Eingabe - zeigt echte packageQuantity */}
+                                  <div className="space-y-1 p-2 bg-blue-50 rounded border">
                                     <div className="text-xs font-medium text-blue-800">
-                                      Gebinde ({item.product?.packageQuantity || 6} {item.product?.baseUnitName || 'Stk.'} pro Gebinde)
+                                      Gebinde ({item.product?.packageQuantity || 20} Stk. pro Gebinde)
                                     </div>
-                                    <div className="flex items-center space-x-2">
+                                    <div className="flex items-center space-x-1">
                                       <Input
                                         type="number" 
                                         min="0"
-                                        placeholder="Anzahl Gebinde"
+                                        placeholder="Anzahl"
                                         value={packageCounts[item.id] ?? ''}
                                         onChange={(e) => {
                                           const count = e.target.value === '' ? null : Math.max(0, parseInt(e.target.value) || 0);
                                           setPackageCounts({ ...packageCounts, [item.id]: count });
                                           
                                           // Automatische Berechnung der Gesamtmenge
-                                          const packageQuantity = item.product?.packageQuantity || 6;
+                                          const packageQuantity = item.product?.packageQuantity || 20;
                                           const calculation = calculateTotalQuantity(item.id, item.product);
                                           calculation.total = (count || 0) * packageQuantity + (individualCounts[item.id] || 0);
                                           setEditedCounts({ ...editedCounts, [item.id]: calculation.total });
                                         }}
-                                        className="w-20 text-center"
+                                        className="w-16 text-center text-sm"
                                       />
                                       <span className="text-xs text-muted-foreground">
-                                        = {(packageCounts[item.id] || 0) * (item.product?.packageQuantity || 6)} {item.product?.baseUnitName || 'Stk.'}
+                                        = {(packageCounts[item.id] || 0) * (item.product?.packageQuantity || 20)} Stk.
                                       </span>
                                     </div>
                                   </div>
                                   
                                   {/* Einzelartikel-Eingabe */}
-                                  <div className="space-y-2 p-3 bg-green-50 rounded border">
+                                  <div className="space-y-1 p-2 bg-green-50 rounded border">
                                     <div className="text-xs font-medium text-green-800">
                                       Zusätzliche Einzelartikel
                                     </div>
-                                    <div className="flex items-center space-x-2">
+                                    <div className="flex items-center space-x-1">
                                       <Input
                                         type="number" 
                                         min="0"
-                                        placeholder="Einzelne Stück"
+                                        placeholder="Einzeln"
                                         value={individualCounts[item.id] ?? ''}
                                         onChange={(e) => {
                                           const count = e.target.value === '' ? null : Math.max(0, parseInt(e.target.value) || 0);
                                           setIndividualCounts({ ...individualCounts, [item.id]: count });
                                           
                                           // Automatische Berechnung der Gesamtmenge
-                                          const packageQuantity = item.product?.packageQuantity || 6;
+                                          const packageQuantity = item.product?.packageQuantity || 20;
                                           const calculation = calculateTotalQuantity(item.id, item.product);
                                           calculation.total = (packageCounts[item.id] || 0) * packageQuantity + (count || 0);
                                           setEditedCounts({ ...editedCounts, [item.id]: calculation.total });
                                         }}
-                                        className="w-20 text-center"
+                                        className="w-16 text-center text-sm"
                                       />
                                       <span className="text-xs text-muted-foreground">Stk.</span>
                                     </div>
                                   </div>
                                 </div>
                                 
-                                {/* Gesamtmenge und Speichern */}
-                                <div className="space-y-2 p-2 bg-gray-50 rounded border">
-                                  <div className="text-xs font-medium text-gray-800">Gesamtmenge</div>
-                                  <div className="flex justify-center items-center space-x-2">
-                                    <Input
-                                      type="number" 
-                                      min="0"
-                                      value={editedCounts[item.id] !== undefined ? editedCounts[item.id] ?? '' : countedQuantity ?? ''}
-                                      onChange={(e) => {
-                                        const count = e.target.value === '' ? null : Math.max(0, parseInt(e.target.value) || 0);
-                                        setEditedCounts({ ...editedCounts, [item.id]: count });
-                                      }}
-                                      className="w-24 text-center font-bold"
-                                    />
-                                    <span className="text-sm font-medium">{item.product?.unit || 'Stk.'}</span>
-                                    <Button 
-                                      variant="outline" 
-                                      size="sm"
-                                      onClick={() => {
-                                        if (editedCounts[item.id] !== undefined) {
-                                          handleSetCount(item.id, editedCounts[item.id]);
-                                        }
-                                      }}
-                                      className="flex-shrink-0"
-                                    >
-                                      <Save className="h-4 w-4" />
-                                    </Button>
-                                  </div>
+                                {/* Kompakte Gesamtmenge und Speichern */}
+                                <div className="flex items-center justify-center space-x-2 p-2 bg-gray-50 rounded border">
+                                  <span className="text-xs text-gray-600">Gesamt:</span>
+                                  <Input
+                                    type="number" 
+                                    min="0"
+                                    value={editedCounts[item.id] !== undefined ? editedCounts[item.id] ?? '' : countedQuantity ?? ''}
+                                    onChange={(e) => {
+                                      const count = e.target.value === '' ? null : Math.max(0, parseInt(e.target.value) || 0);
+                                      setEditedCounts({ ...editedCounts, [item.id]: count });
+                                    }}
+                                    className="w-20 text-center font-bold text-sm"
+                                  />
+                                  <span className="text-xs text-gray-600">{item.product?.unit || 'Stk.'}</span>
+                                  <Button 
+                                    variant="outline" 
+                                    size="sm"
+                                    onClick={() => {
+                                      if (editedCounts[item.id] !== undefined) {
+                                        handleSetCount(item.id, editedCounts[item.id]);
+                                      }
+                                    }}
+                                    className="h-8 w-8 p-0"
+                                  >
+                                    <Save className="h-3 w-3" />
+                                  </Button>
                                 </div>
                               </div>
                             ) : (

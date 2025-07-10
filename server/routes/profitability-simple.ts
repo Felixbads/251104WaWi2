@@ -30,7 +30,7 @@ router.get('/overview', async (req, res) => {
     let query;
     
     if (groupBy === 'product') {
-      // PRODUKTRENTABILITÄT
+      // PRODUKTRENTABILITÄT mit Pfand-bewusster Berechnung
       query = `
         SELECT 
           t.product_name as item_name,
@@ -38,12 +38,25 @@ router.get('/overview', async (req, res) => {
           COUNT(t.id) as transaction_count,
           SUM(t.quantity) as quantity_sold,
           SUM(t.price * t.quantity) as revenue_gross,
-          SUM(CASE 
-            WHEN t.price_wo_vat IS NOT NULL THEN t.price_wo_vat * t.quantity
-            ELSE (t.price / 1.19) * t.quantity
-          END) as revenue_net,
+          -- Pfand-bewusste Netto-Berechnung
+          SUM(
+            CASE 
+              WHEN pc.deposit_per_unit IS NOT NULL AND pc.deposit_per_unit > 0 THEN
+                -- Pfand vom Bruttopreis abziehen, dann MwSt berechnen
+                ((t.price - COALESCE(pc.deposit_per_unit, 0)) / (1 + (t.vat / 100.0)) + COALESCE(pc.deposit_per_unit, 0)) * t.quantity
+              WHEN t.price_wo_vat IS NOT NULL THEN 
+                t.price_wo_vat * t.quantity
+              ELSE 
+                (t.price / 1.19) * t.quantity
+            END
+          ) as revenue_net,
+          -- Pfand-Umsatz separat ausweisen (steuerfrei)
+          SUM(COALESCE(pc.deposit_per_unit, 0) * t.quantity) as deposit_revenue,
           AVG(t.price) as avg_sale_price
         FROM transactions t
+        LEFT JOIN products p ON LOWER(TRIM(p.product_name)) = LOWER(TRIM(t.product_name))
+        LEFT JOIN purchase_conditions pc ON p.id = pc.product_id 
+          AND pc.is_preferred = true
         WHERE t.datetime >= $1 AND t.datetime <= $2
           AND t.product_name IS NOT NULL
         GROUP BY t.product_name
@@ -52,7 +65,7 @@ router.get('/overview', async (req, res) => {
         LIMIT 100
       `;
     } else if (groupBy === 'machine') {
-      // MASCHINENRENTABILITÄT
+      // MASCHINENRENTABILITÄT mit Pfand-bewusster Berechnung
       query = `
         SELECT 
           COALESCE(m.machine_name, 'Unbekannte Maschine') as item_name,
@@ -60,13 +73,26 @@ router.get('/overview', async (req, res) => {
           COUNT(t.id) as transaction_count,
           SUM(t.quantity) as quantity_sold,
           SUM(t.price * t.quantity) as revenue_gross,
-          SUM(CASE 
-            WHEN t.price_wo_vat IS NOT NULL THEN t.price_wo_vat * t.quantity
-            ELSE (t.price / 1.19) * t.quantity
-          END) as revenue_net,
+          -- Pfand-bewusste Netto-Berechnung für Maschinen
+          SUM(
+            CASE 
+              WHEN pc.deposit_per_unit IS NOT NULL AND pc.deposit_per_unit > 0 THEN
+                -- Pfand vom Bruttopreis abziehen, dann MwSt berechnen
+                ((t.price - COALESCE(pc.deposit_per_unit, 0)) / (1 + (t.vat / 100.0)) + COALESCE(pc.deposit_per_unit, 0)) * t.quantity
+              WHEN t.price_wo_vat IS NOT NULL THEN 
+                t.price_wo_vat * t.quantity
+              ELSE 
+                (t.price / 1.19) * t.quantity
+            END
+          ) as revenue_net,
+          -- Pfand-Umsatz separat ausweisen (steuerfrei)
+          SUM(COALESCE(pc.deposit_per_unit, 0) * t.quantity) as deposit_revenue,
           AVG(t.price) as avg_sale_price
         FROM transactions t
         LEFT JOIN machines m ON t.machine_id = m.id
+        LEFT JOIN products p ON LOWER(TRIM(p.product_name)) = LOWER(TRIM(t.product_name))
+        LEFT JOIN purchase_conditions pc ON p.id = pc.product_id 
+          AND pc.is_preferred = true
         WHERE t.datetime >= $1 AND t.datetime <= $2
         GROUP BY m.machine_name, m.id
         HAVING COUNT(t.id) >= 1
@@ -74,7 +100,7 @@ router.get('/overview', async (req, res) => {
         LIMIT 50
       `;
     } else {
-      // TAGESÜBERSICHT
+      // TAGESÜBERSICHT mit Pfand-bewusster Berechnung
       query = `
         SELECT 
           DATE(t.datetime)::text as item_name,
@@ -82,12 +108,25 @@ router.get('/overview', async (req, res) => {
           COUNT(t.id) as transaction_count,
           SUM(t.quantity) as quantity_sold,
           SUM(t.price * t.quantity) as revenue_gross,
-          SUM(CASE 
-            WHEN t.price_wo_vat IS NOT NULL THEN t.price_wo_vat * t.quantity
-            ELSE (t.price / 1.19) * t.quantity
-          END) as revenue_net,
+          -- Pfand-bewusste Netto-Berechnung für Tage
+          SUM(
+            CASE 
+              WHEN pc.deposit_per_unit IS NOT NULL AND pc.deposit_per_unit > 0 THEN
+                -- Pfand vom Bruttopreis abziehen, dann MwSt berechnen
+                ((t.price - COALESCE(pc.deposit_per_unit, 0)) / (1 + (t.vat / 100.0)) + COALESCE(pc.deposit_per_unit, 0)) * t.quantity
+              WHEN t.price_wo_vat IS NOT NULL THEN 
+                t.price_wo_vat * t.quantity
+              ELSE 
+                (t.price / 1.19) * t.quantity
+            END
+          ) as revenue_net,
+          -- Pfand-Umsatz separat ausweisen (steuerfrei)
+          SUM(COALESCE(pc.deposit_per_unit, 0) * t.quantity) as deposit_revenue,
           AVG(t.price) as avg_sale_price
         FROM transactions t
+        LEFT JOIN products p ON LOWER(TRIM(p.product_name)) = LOWER(TRIM(t.product_name))
+        LEFT JOIN purchase_conditions pc ON p.id = pc.product_id 
+          AND pc.is_preferred = true
         WHERE t.datetime >= $1 AND t.datetime <= $2
         GROUP BY DATE(t.datetime)
         ORDER BY DATE(t.datetime) DESC
@@ -101,10 +140,13 @@ router.get('/overview', async (req, res) => {
     
     const data = result.rows.map((row: any) => {
       const revenueNet = Number(row.revenue_net || 0);
-      // Einfache Kalkulationen
-      const purchaseCost = revenueNet * 0.65; // 65% Einkaufskosten
+      const depositRevenue = Number(row.deposit_revenue || 0);
+      const revenueNetWithoutDeposit = revenueNet - depositRevenue;
+      
+      // Einfache Kalkulationen mit Pfand-Bewusstsein
+      const purchaseCost = revenueNetWithoutDeposit * 0.65; // 65% Einkaufskosten nur auf Netto ohne Pfand
       const locationCost = groupBy === 'machine' ? 14 : 0; // 14€ Standortkosten pro Woche
-      const netProfit = revenueNet * 0.35 - locationCost; // 35% Marge minus Standortkosten
+      const netProfit = revenueNetWithoutDeposit * 0.35 - locationCost + depositRevenue; // 35% Marge + Pfand (steuerfrei)
       
       return {
         period: row.item_name,
@@ -114,7 +156,8 @@ router.get('/overview', async (req, res) => {
         locationName: groupBy === 'machine' ? row.item_name : null,
         revenueNet,
         revenueGross: Number(row.revenue_gross || 0),
-        depositRevenue: 0,
+        depositRevenue,
+        revenueNetWithoutDeposit,
         purchaseCostNet: purchaseCost,
         operatingCostsNet: locationCost,
         netProfit,
@@ -156,13 +199,26 @@ router.get('/summary', async (req, res) => {
         COUNT(DISTINCT COALESCE(m.id, t.machine_id))::integer as active_machines,
         COUNT(DISTINCT t.product_name)::integer as active_products,
         SUM(t.price * t.quantity)::numeric as total_revenue_gross,
-        SUM(CASE 
-          WHEN t.price_wo_vat IS NOT NULL THEN t.price_wo_vat * t.quantity
-          ELSE (t.price / 1.19) * t.quantity
-        END)::numeric as total_revenue_net,
+        -- Pfand-bewusste Netto-Berechnung für Summary
+        SUM(
+          CASE 
+            WHEN pc.deposit_per_unit IS NOT NULL AND pc.deposit_per_unit > 0 THEN
+              -- Pfand vom Bruttopreis abziehen, dann MwSt berechnen
+              ((t.price - COALESCE(pc.deposit_per_unit, 0)) / (1 + (t.vat / 100.0)) + COALESCE(pc.deposit_per_unit, 0)) * t.quantity
+            WHEN t.price_wo_vat IS NOT NULL THEN 
+              t.price_wo_vat * t.quantity
+            ELSE 
+              (t.price / 1.19) * t.quantity
+          END
+        )::numeric as total_revenue_net,
+        -- Gesamtes Pfand separat
+        SUM(COALESCE(pc.deposit_per_unit, 0) * t.quantity)::numeric as total_deposit_revenue,
         AVG(t.price)::numeric as avg_transaction_value
       FROM transactions t
       LEFT JOIN machines m ON t.machine_id = m.id
+      LEFT JOIN products p ON LOWER(TRIM(p.product_name)) = LOWER(TRIM(t.product_name))
+      LEFT JOIN purchase_conditions pc ON p.id = pc.product_id 
+        AND pc.is_preferred = true
       WHERE t.datetime >= $1 AND t.datetime <= $2
     `;
 
@@ -170,13 +226,19 @@ router.get('/summary', async (req, res) => {
     const summary = result.rows[0];
 
     const totalRevenue = Number(summary.total_revenue_net || 0);
-    const totalCosts = totalRevenue * 0.65; // 65% Einkaufskosten
-    const totalProfit = totalRevenue * 0.35; // 35% Gewinnmarge
+    const totalDepositRevenue = Number(summary.total_deposit_revenue || 0);
+    const totalRevenueWithoutDeposit = totalRevenue - totalDepositRevenue;
+    
+    // Pfand-bewusste Kostenberechnung
+    const totalCosts = totalRevenueWithoutDeposit * 0.65; // 65% Einkaufskosten nur auf Netto ohne Pfand
+    const totalProfit = totalRevenueWithoutDeposit * 0.35 + totalDepositRevenue; // 35% Marge + Pfand (steuerfrei)
 
     const data = {
       // Umsätze
       totalRevenueNet: totalRevenue,
       totalRevenueGross: Number(summary.total_revenue_gross || 0),
+      totalDepositRevenue,
+      totalRevenueWithoutDeposit,
       
       // Kosten
       totalPurchaseCost: totalCosts,
