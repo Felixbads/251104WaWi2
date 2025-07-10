@@ -21,7 +21,7 @@ router.get('/', async (req: Request, res: Response) => {
     // Corrected SQL: get individual machine data with proper per-machine aggregation
     const result = await db.execute(`
       SELECT 
-        CAST(best_machines.vendon_id AS text) as id,
+        best_machines.machine_id as id,
         best_machines.machine_name,
         best_machines.location_name,
         best_machines.machine_id,
@@ -44,10 +44,12 @@ router.get('/', async (req: Request, res: Response) => {
         (SELECT r2.operator FROM refills r2 WHERE r2.machine_id = best_machines.machine_id 
          ORDER BY r2.datetime DESC LIMIT 1) as last_operator,
         
-        -- Last door opening for THIS machine  
+        -- Last door opening for THIS machine - Spezifische Türöffnungs-Events  
         (SELECT MAX(e1.datetime) FROM events e1 
          WHERE e1.machine_id = best_machines.machine_id 
-         AND e1.event_name = 'Automatentüre offen') as last_door_open,
+         AND e1.event_name = 'Automatentüre offen'
+         AND e1.description = 'Türsystem/Automatengehäuse Automatentüre in Stellung offen'
+         AND e1.datetime >= NOW() - INTERVAL '7 days') as last_door_open,
         
         -- Last alcohol sale for THIS machine
         (SELECT MAX(t4.datetime) FROM transactions t4 
@@ -66,8 +68,8 @@ router.get('/', async (req: Request, res: Response) => {
           ROW_NUMBER() OVER (
             PARTITION BY CAST(m.vendon_id AS text) 
             ORDER BY 
-              -- Prioritize machines with recent events (like door openings)
-              COALESCE((SELECT MAX(e.datetime) FROM events e WHERE e.machine_id = m.id), '1970-01-01'::timestamp) DESC,
+              -- Prioritize machines with recent door opening events
+              COALESCE((SELECT MAX(e.datetime) FROM events e WHERE e.machine_id = m.id AND e.event_name = 'Automatentüre offen' AND e.description = 'Türsystem/Automatengehäuse Automatentüre in Stellung offen'), '1970-01-01'::timestamp) DESC,
               -- Then by recent transactions
               COALESCE((SELECT MAX(t.datetime) FROM transactions t WHERE t.machine_id = m.id), '1970-01-01'::timestamp) DESC,
               -- Finally prefer actual names over placeholder names
