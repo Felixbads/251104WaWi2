@@ -211,7 +211,7 @@ export default function UnifiedPurchaseConditionsManager({
         packagingQuantity: data.packagingQuantity,
         depositPerUnit: data.depositPerUnit,
         validFrom: data.validFrom,
-        validTo: data.validTo || null,
+        validTo: data.validTo || undefined,
         isPreferred: data.isPreferred,
         leadTime: data.leadTime,
         deliveryTime: data.deliveryTime,

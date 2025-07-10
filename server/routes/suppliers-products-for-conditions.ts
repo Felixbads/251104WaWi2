@@ -13,6 +13,8 @@ router.get('/all-for-conditions', async (req, res) => {
       SELECT 
         s.id,
         s.name,
+        s.name as "companyName",
+        s.name as "company_name",
         s.email,
         s.phone,
         s.city,
