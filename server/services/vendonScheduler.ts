@@ -59,35 +59,35 @@ class VendonScheduler {
     try {
       console.log('Starting scheduled Vendon sync...');
 
-      // 1. Sync transactions
+      // 1. Sync transactions - nur letzte 6 Stunden für aktuelle Daten
       const transactionResult = await vendonSync.syncTransactions(
-        undefined, // startDate - will use last 7 days by default
-        undefined, // endDate - will use current time
-        500, // batchSize
-        2000, // maxTransactions
+        new Date(Date.now() - 6 * 60 * 60 * 1000), // nur letzte 6 Stunden
+        new Date(), // jetzt
+        200, // kleinere Batch-Größe für aktuellere Synchronisierung
+        1000, // weniger Transaktionen pro Durchlauf
         false // forceUpdate
       );
 
       console.log('Transaction sync completed:', transactionResult.message);
 
-      // 2. Sync events (for door openings)
+      // 2. Sync events (for door openings) - nur letzte 2 Stunden
       try {
         const eventsResult = await vendonSync.syncEvents(
-          new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // 7 days back
-          new Date(), // now
-          100 // batchSize
+          new Date(Date.now() - 2 * 60 * 60 * 1000), // nur letzte 2 Stunden
+          new Date(), // jetzt
+          50 // kleinere Batch-Größe
         );
         console.log('Events sync completed:', eventsResult.message);
       } catch (eventsError) {
         console.error('Events sync failed:', eventsError);
       }
 
-      // 3. Sync refills (for refill data)
+      // 3. Sync refills (for refill data) - nur letzte 4 Stunden
       try {
         const refillsResult = await vendonSync.syncRefills(
-          new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // 7 days back
-          new Date(), // now
-          100 // batchSize
+          new Date(Date.now() - 4 * 60 * 60 * 1000), // nur letzte 4 Stunden
+          new Date(), // jetzt
+          50 // kleinere Batch-Größe
         );
         console.log('Refills sync completed:', refillsResult.message);
       } catch (refillsError) {
