@@ -32,8 +32,8 @@ const purchaseConditionSchema = z.object({
   taxRate: z.coerce.number().min(0, {
     message: "MwSt-Satz muss mindestens 0 sein",
   }).default(19),
-  minQuantity: z.coerce.number().min(1, {
-    message: "Mindestmenge muss mindestens 1 sein",
+  minQuantity: z.coerce.number().min(0, {
+    message: "Mindestmenge muss mindestens 0 sein",
   }),
   minQuantityUnit: z.enum(["individual", "package"]).default("individual"),
   packagingUnit: z.string().optional(),
@@ -85,7 +85,7 @@ export function PurchaseConditionForm({
           supplierId,
           unitPrice: 0,
           taxRate: 19,
-          minQuantity: 1,
+          minQuantity: 0,
           minQuantityUnit: "individual",
           packagingUnit: "",
           depositPerUnit: 0,

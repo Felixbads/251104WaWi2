@@ -291,10 +291,13 @@ export default function ProductDetail() {
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
-            <h1 className="text-3xl font-bold">{product.productName}</h1>
+            <h1 className="text-3xl font-bold">
+              {product.productName || product.name || `Produkt #${product.id}` || 'Unbenanntes Produkt'}
+            </h1>
             <p className="text-gray-600">
               {product.sku && `SKU: ${product.sku}`}
               {product.supplierSku && ` • Lieferanten-Nr.: ${product.supplierSku}`}
+              {product.category && ` • ${product.category}`}
             </p>
           </div>
         </div>
