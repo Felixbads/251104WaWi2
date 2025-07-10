@@ -1574,29 +1574,25 @@ export class VendonSyncService {
             
             // Datetime aus verschiedenen möglichen Formaten konvertieren
             let eventDate: Date;
-            if (event.datetime) {
-              if (typeof event.datetime === 'number') {
+            const dateField = event.event_datetime || event.datetime || event.received_at || event.timestamp;
+            
+            if (dateField) {
+              if (typeof dateField === 'number') {
                 // Unix-Timestamp (Sekunden oder Millisekunden)
                 eventDate = new Date(
-                  event.datetime > 1577836800000 // Wenn > 01.01.2020 in Millisekunden
-                    ? event.datetime // Ist bereits in Millisekunden
-                    : event.datetime * 1000 // Konvertiere Sekunden zu Millisekunden
+                  dateField > 1577836800000 // Wenn > 01.01.2020 in Millisekunden
+                    ? dateField // Ist bereits in Millisekunden
+                    : dateField * 1000 // Konvertiere Sekunden zu Millisekunden
                 );
               } else {
                 // String-Datum
-                eventDate = new Date(event.datetime);
+                eventDate = new Date(dateField);
               }
-            } else if (event.timestamp) {
-              // Falls datetime nicht vorhanden, aber timestamp
-              if (typeof event.timestamp === 'number') {
-                eventDate = new Date(
-                  event.timestamp > 1577836800000 // Wenn > 01.01.2020 in Millisekunden
-                    ? event.timestamp // Ist bereits in Millisekunden
-                    : event.timestamp * 1000 // Konvertiere Sekunden zu Millisekunden
-                );
-              } else {
-                // String-Timestamp
-                eventDate = new Date(event.timestamp);
+              
+              // Validiere das Datum
+              if (isNaN(eventDate.getTime())) {
+                console.warn(`Ereignis ${event.id} hat ungültiges Datum: ${dateField}. Verwende aktuelles Datum.`);
+                eventDate = new Date();
               }
             } else {
               console.warn(`Ereignis ${event.id} hat kein Datum. Verwende aktuelles Datum.`);
