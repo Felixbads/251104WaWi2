@@ -48,7 +48,7 @@ router.get('/', async (req: Request, res: Response) => {
         (SELECT MAX(e1.datetime) FROM events e1 
          WHERE e1.machine_id = best_machines.machine_id 
          AND e1.event_name = 'Automatentüre offen'
-         AND e1.description = 'Türsystem/Automatengehäuse Automatentüre in Stellung offen'
+         AND e1.description LIKE '%Automatentüre in Stellung offen%'
          AND e1.datetime >= NOW() - INTERVAL '7 days') as last_door_open,
         
         -- Last alcohol sale for THIS machine
@@ -69,7 +69,7 @@ router.get('/', async (req: Request, res: Response) => {
             PARTITION BY CAST(m.vendon_id AS text) 
             ORDER BY 
               -- Prioritize machines with recent door opening events
-              COALESCE((SELECT MAX(e.datetime) FROM events e WHERE e.machine_id = m.id AND e.event_name = 'Automatentüre offen' AND e.description = 'Türsystem/Automatengehäuse Automatentüre in Stellung offen'), '1970-01-01'::timestamp) DESC,
+              COALESCE((SELECT MAX(e.datetime) FROM events e WHERE e.machine_id = m.id AND e.event_name = 'Automatentüre offen' AND e.description LIKE '%Automatentüre in Stellung offen%'), '1970-01-01'::timestamp) DESC,
               -- Then by recent transactions
               COALESCE((SELECT MAX(t.datetime) FROM transactions t WHERE t.machine_id = m.id), '1970-01-01'::timestamp) DESC,
               -- Finally prefer actual names over placeholder names

@@ -109,6 +109,13 @@ This is a comprehensive vending machine management platform (Warenwirtschaftssys
 
 ## Changelog
 
+- July 10, 2025: KRITISCHER VENDON API-STRUKTUR-WANDEL IDENTIFIZIERT - base_code nicht mehr verfügbar
+  - ⚠️ BREAKING CHANGE: Vendon API sendet keine base_code Werte mehr (alle NULL statt "EGS")
+  - ✅ Excel-Datei zeigt EGS Events um 17:16, aber API-Synchronisation nur bis 16:51
+  - ✅ Türöffnungs-Erkennung auf LIKE-Pattern umgestellt (nicht mehr base_code abhängig)
+  - ✅ Manual-Fix für fehlende 17:16 Struppen-Event temporär implementiert
+  - ⚠️ Events-Synchronisation muss überarbeitet werden: Vendon API-Struktur geändert
+  - System erkennt jetzt EGS-Events ohne base_code durch description-Pattern-Matching
 - July 10, 2025: MACHINE ROUTING & EGS DOOR OPENING EVENTS VOLLSTÄNDIG BEHOBEN - System zeigt authentische Türöffnungszeiten
   - ✅ Machine Detail Routing 100% funktionsfähig: /automaten/:id funktioniert mit machine_id statt vendon_id
   - ✅ EGS Door Opening Events korrekt gefiltert: Spezifische "Automatentüre offen" Events mit korrekter Beschreibung
