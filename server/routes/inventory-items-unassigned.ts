@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { db } from '../db';
+import { pool } from '../db';
 
 const router = Router();
 
@@ -16,7 +16,7 @@ router.get('/unassigned-quantity', async (req, res) => {
     }
     
     // SQL-Abfrage um nicht zugeordnete Mengen zu ermitteln
-    const result = await db.query(`
+    const result = await pool.query(`
       SELECT 
         COALESCE(ii.quantity, 0) - COALESCE(
           (SELECT SUM(pb.current_quantity) 

@@ -61,6 +61,7 @@ import enhancedProfitabilityRouter from './routes/enhanced-profitability-fixed';
 import { recurringOrdersRouter } from './routes/recurring-orders';
 import { recurringOrderCronService } from './services/recurringOrderCron';
 import syncRouter from './routes/sync';
+import inventoryItemsUnassignedRouter from './routes/inventory-items-unassigned';
 
 const app = express();
 
@@ -1445,6 +1446,9 @@ app.get('/orders-data', (req, res) => {
 
   // Register inventory-count-batches router
   app.use('/api/inventory-counts', inventoryCountBatchesRouter);
+  
+  // Register inventory-items-unassigned router
+  app.use('/api/inventory-items', inventoryItemsUnassignedRouter);
   
   // Register removed products router
   app.use('/api/removed-products', removedProductsRouter);

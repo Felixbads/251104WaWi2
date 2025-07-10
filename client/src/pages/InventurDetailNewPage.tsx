@@ -110,6 +110,11 @@ interface Product {
   archived?: boolean;
   createdAt?: string;
   updatedAt?: string;
+  // Package/Container fields
+  packageQuantity?: number;
+  packageSize?: string;
+  packageTypeId?: number;
+  baseUnitName?: string;
 }
 
 interface Warehouse {
@@ -418,7 +423,12 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
     onSuccess: () => {
       setAutoSaveStatus('saved');
       setLastSaveTime(new Date());
-      setEditedCounts({});
+      // FIXED: Don't clear editedCounts to prevent values from disappearing
+      // setEditedCounts({});
+      
+      // Invalidate queries to refresh data
+      queryClient.invalidateQueries({ queryKey: [`/api/inventory-counts/${id}/items`] });
+      
       setTimeout(() => setAutoSaveStatus('idle'), 2000);
     },
     onError: () => {

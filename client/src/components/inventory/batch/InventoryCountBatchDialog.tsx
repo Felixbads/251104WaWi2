@@ -134,10 +134,15 @@ export default function InventoryCountBatchDialog({
       // Setze auch das Default-Ablaufdatum
       setExpiryDate(new Date(getDefaultExpiryDate()));
       
-      // Setze Standardmenge auf verfügbaren Lagerbestand (expectedQuantity)
-      setBatchQuantity(selectedItem.expectedQuantity || 1);
+      // Automatisch verfügbare Menge laden und setzen
+      if (activeTab === 'new') {
+        autoFillBatchQuantity();
+      } else {
+        // Setze Standardmenge auf verfügbaren Lagerbestand (expectedQuantity)
+        setBatchQuantity(selectedItem.expectedQuantity || 1);
+      }
     }
-  }, [open, selectedItem]);
+  }, [open, selectedItem, activeTab]);
   
   // Auto-Fill der Charge-Menge wenn MHD gesetzt wird
   useEffect(() => {
