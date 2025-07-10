@@ -142,6 +142,8 @@ router.get('/', async (req: Request, res: Response) => {
         warnings.push(`${warningCount} Produkte laufen bald ab`);
       }
 
+
+
       return {
         id: row.id,
         machineName: row.machine_name,
@@ -160,7 +162,7 @@ router.get('/', async (req: Request, res: Response) => {
           paymentMethod: 'CARD',
           daysAgo: getDaysAgo(row.last_cashless_sale)
         } : null,
-        lastDoorOpen: row.last_door_open ? {
+        lastDoorOpening: row.last_door_open ? {
           datetime: new Date(row.last_door_open).toISOString(),
           daysAgo: getDaysAgo(row.last_door_open)
         } : null,
