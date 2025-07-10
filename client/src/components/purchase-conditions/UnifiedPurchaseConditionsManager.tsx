@@ -163,9 +163,9 @@ export default function UnifiedPurchaseConditionsManager({
 
   // Lieferanten laden (für Produktmodus)
   const { data: suppliers = [] } = useQuery({
-    queryKey: ['/api/suppliers-conditions', 'all'],
+    queryKey: ['/api/suppliers/all-for-conditions'],
     queryFn: async () => {
-      const response = await fetch('/api/suppliers-conditions/all', {
+      const response = await fetch('/api/suppliers/all-for-conditions', {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('authToken') || 'test'}` }
       });
       if (!response.ok) return [];
@@ -742,13 +742,29 @@ export default function UnifiedPurchaseConditionsManager({
                     />
                   </div>
                   <div>
-                    <Label htmlFor="packagingUnit">Einheit</Label>
-                    <Input
-                      id="packagingUnit"
-                      value={formData.packagingUnit}
-                      onChange={(e) => setFormData(prev => ({ ...prev, packagingUnit: e.target.value }))}
-                      placeholder="Stück, Liter, kg..."
-                    />
+                    <Label htmlFor="packagingUnit">Gebindeart</Label>
+                    <Select 
+                      value={formData.packagingUnit} 
+                      onValueChange={(value) => setFormData(prev => ({ ...prev, packagingUnit: value }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Gebindeart wählen" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Stück">Stück</SelectItem>
+                        <SelectItem value="Karton">Karton</SelectItem>
+                        <SelectItem value="Palette">Palette</SelectItem>
+                        <SelectItem value="Kiste">Kiste</SelectItem>
+                        <SelectItem value="Bund">Bund</SelectItem>
+                        <SelectItem value="Pack">Pack</SelectItem>
+                        <SelectItem value="Tray">Tray</SelectItem>
+                        <SelectItem value="Liter">Liter</SelectItem>
+                        <SelectItem value="kg">kg</SelectItem>
+                        <SelectItem value="Box">Box</SelectItem>
+                        <SelectItem value="Sack">Sack</SelectItem>
+                        <SelectItem value="Fass">Fass</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
               </CardContent>
