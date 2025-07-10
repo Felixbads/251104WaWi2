@@ -45,7 +45,7 @@ interface MachineStatusData {
     productName: string;
     daysAgo: number;
   } | null;
-  lastDoorOpen?: {
+  lastDoorOpening?: {
     datetime: string;
     daysAgo: number;
   } | null;
@@ -278,13 +278,13 @@ function MachineStatusCard({ machine }: { machine: MachineStatusData }) {
           <DoorOpen className="h-4 w-4 text-orange-500" />
           <div className="flex-1">
             <p className="font-medium">Letzte Türöffnung</p>
-            {machine.lastDoorOpen ? (
+            {machine.lastDoorOpening ? (
               <div>
                 <p className="text-muted-foreground">
-                  {formatDaysAgo(machine.lastDoorOpen.daysAgo)}
+                  {formatDaysAgo(machine.lastDoorOpening.daysAgo)}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  {new Date(machine.lastDoorOpen.datetime).toLocaleString('de-DE', {
+                  {new Date(machine.lastDoorOpening.datetime).toLocaleString('de-DE', {
                     day: '2-digit',
                     month: '2-digit',
                     year: 'numeric',
