@@ -367,10 +367,39 @@ export default function UnifiedPurchaseConditionsManager({
   };
 
   const handleSave = () => {
-    saveMutation.mutate({
+    console.log('[PURCHASE-CONDITIONS] handleSave called');
+    console.log('[PURCHASE-CONDITIONS] formData:', formData);
+    console.log('[PURCHASE-CONDITIONS] editingCondition:', editingCondition);
+    console.log('[PURCHASE-CONDITIONS] mode:', mode);
+    console.log('[PURCHASE-CONDITIONS] entityId:', entityId);
+    
+    // Validation check
+    if (!formData.unitPrice || formData.unitPrice <= 0) {
+      toast({
+        title: "Validierungsfehler",
+        description: "Bitte geben Sie einen gültigen Nettopreis ein.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (!formData.packagingUnit) {
+      toast({
+        title: "Validierungsfehler", 
+        description: "Bitte wählen Sie eine Gebindeart aus.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    const dataToSave = {
       ...formData,
       id: editingCondition?.id
-    });
+    };
+    
+    console.log('[PURCHASE-CONDITIONS] Sending data:', dataToSave);
+    
+    saveMutation.mutate(dataToSave);
   };
 
   const handleDelete = (conditionId: number) => {
@@ -860,7 +889,11 @@ export default function UnifiedPurchaseConditionsManager({
               <X className="h-4 w-4 mr-2" />
               Abbrechen
             </Button>
-            <Button onClick={handleSave} disabled={saveMutation.isPending}>
+            <Button onClick={() => {
+              console.log('[BUTTON-CLICK] Speichern button clicked!');
+              alert('BUTTON CLICKED!');
+              handleSave();
+            }} disabled={saveMutation.isPending}>
               <Save className="h-4 w-4 mr-2" />
               {saveMutation.isPending ? 'Speichert...' : 'Speichern'}
             </Button>
