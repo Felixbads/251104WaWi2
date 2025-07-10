@@ -1186,6 +1186,10 @@ app.get('/orders-data', (req, res) => {
   app.use('/api/sync', syncRouter);
   console.log('[SERVER] Sync router mounted at /api/sync BEFORE registerRoutes');
   
+  // Mount suppliers-products-for-conditions router BEFORE registerRoutes for purchase conditions dropdown functionality
+  app.use('/api/suppliers', suppliersProductsForConditionsRouter);
+  console.log('[SERVER] Suppliers-products-for-conditions router mounted at /api/suppliers BEFORE registerRoutes');
+  
   const server = await registerRoutes(app);
 
   // Register weather correction service AFTER registerRoutes
@@ -2555,10 +2559,7 @@ app.get('/orders-data', (req, res) => {
   app.use('/uploads', express.static(uploadsPath));
   console.log('✓ Static file serving for uploads configured at /uploads');
 
-  // Register critical suppliers API routes BEFORE registerRoutes to avoid conflicts
-  const suppliersProductsForConditionsRouter = (await import('./routes/suppliers-products-for-conditions')).default;
-  app.use('/api/suppliers-conditions', suppliersProductsForConditionsRouter);
-  console.log('[SERVER] Suppliers-products-for-conditions router mounted at /api/suppliers-conditions BEFORE registerRoutes');
+
   
   // Legacy endpoint for backward compatibility
   app.get('/api/product-categories', async (req, res) => {

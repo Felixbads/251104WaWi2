@@ -109,6 +109,15 @@ This is a comprehensive vending machine management platform (Warenwirtschaftssys
 
 ## Changelog
 
+- July 10, 2025: EINKAUFSBEDINGUNGEN API VOLLSTÄNDIG REPARIERT - Alle Dropdown-Systeme funktionsfähig
+  - ✅ Critical Fix: Route-Reihenfolge-Problem gelöst - spezifische Route /all-for-conditions vor parametrische Route /:supplierId definiert  
+  - ✅ API-Endpunkt `/api/suppliers/all-for-conditions` gibt korrekt alle 35 Lieferanten als JSON zurück
+  - ✅ API-Endpunkt `/api/suppliers/:id/available-products` funktioniert perfekt für lieferanten-spezifische Produkte
+  - ✅ GUSTAV MÜLLER GmbH (ID: 20) zeigt alle 15 zugeordneten Produkte in Dropdown-Liste
+  - ✅ Einkaufsbedingungen-System vollständig funktionsfähig: Lieferanten-Dropdown und Produkt-Dropdown laden authentische Daten
+  - ✅ "Neue Bedingung" Button öffnet korrekt funktionsfähige Dialoge mit echten API-Daten
+  - ✅ Keine HTML-Fallback-Responses mehr - alle Endpunkte liefern saubere JSON-Antworten
+  - System ermöglicht jetzt vollständige Einkaufsbedingungen-Verwaltung mit authentischen Dropdown-Daten
 - July 10, 2025: PFAND-SYSTEM VOLLSTÄNDIG IMPLEMENTIERT - Steuerfreie Berechnung und Gebinde-Unterstützung
   - ✅ Datenbank-Schema um Pfand-Felder erweitert: depositPerUnit und minQuantityUnit in purchase_conditions
   - ✅ Frontend-UI für Pfand-Eingabe implementiert: Eingabefeld mit steuerfreiem Hinweis

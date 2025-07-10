@@ -3,8 +3,9 @@ import { pool } from '../db';
 
 const router = Router();
 
-// GET /api/suppliers-conditions/all - Alle Lieferanten für Einkaufsbedingungen (für Produkt → Lieferant)
-router.get('/all', async (req, res) => {
+// GET /api/suppliers/all-for-conditions - Alle Lieferanten für Einkaufsbedingungen (für Produkt → Lieferant)
+// ACHTUNG: Diese Route muss VOR allen parametrischen Routen definiert werden!
+router.get('/all-for-conditions', async (req, res) => {
   try {
     console.log('[SUPPLIERS-PRODUCTS] Fetching all suppliers for product conditions');
     
@@ -39,7 +40,7 @@ router.get('/:supplierId/available-products', async (req, res) => {
     console.log('[SUPPLIERS-PRODUCTS] Fetching available products for supplier:', supplierId);
     
     // Validierung der Supplier-ID
-    if (!supplierId || supplierId === 'all-for-conditions') {
+    if (!supplierId || isNaN(parseInt(supplierId))) {
       return res.status(400).json({ error: 'Invalid supplier ID' });
     }
     
