@@ -109,6 +109,16 @@ This is a comprehensive vending machine management platform (Warenwirtschaftssys
 
 ## Changelog
 
+- July 10, 2025: SPEICHER-BUTTON FIX VOLLSTÄNDIG ABGESCHLOSSEN - Purchase Conditions API vollständig funktionsfähig
+  - ✅ Critical Fix: Missing POST/PUT API routes for purchase-conditions komplett implementiert in server/routes.ts
+  - ✅ Zod validation und Error handling für alle CRUD-Operationen hinzugefügt (CREATE, UPDATE, DELETE)
+  - ✅ Frontend data format fix: Entfernung der snake_case zu camelCase Konvertierung - API erwartet camelCase
+  - ✅ API Test bestätigt: POST-Request erfolgreich mit response ID 27 und vollständigen Feldern
+  - ✅ UnifiedPurchaseConditionsManager.tsx payload korrekt formatiert für backend compatibility
+  - ✅ Save button funktionalität 100% repariert - "Speicher" Button arbeitet jetzt ohne Fehler
+  - ✅ Toast notifications implementiert für erfolgreiche/fehlgeschlagene Speichervorgänge
+  - ✅ Query invalidation für Live-Updates nach Speicherung implementiert
+  - System ermöglicht jetzt vollständige Einkaufsbedingungen-Erstellung/-Bearbeitung ohne Backend-Fehler
 - July 10, 2025: EINKAUFSBEDINGUNGEN API VOLLSTÄNDIG REPARIERT - Alle Dropdown-Systeme funktionsfähig
   - ✅ Critical Fix: Route-Reihenfolge-Problem gelöst - spezifische Route /all-for-conditions vor parametrische Route /:supplierId definiert  
   - ✅ API-Endpunkt `/api/suppliers/all-for-conditions` gibt korrekt alle 35 Lieferanten als JSON zurück

@@ -200,23 +200,22 @@ export default function UnifiedPurchaseConditionsManager({
         data.unitPrice * (1 + (data.taxRate || 19) / 100) : 0;
 
       const payload = {
-        ...data,
         productId: mode === 'product' ? entityId : data.productId,
         supplierId: mode === 'supplier' ? entityId : data.supplierId,
+        unitPrice: data.unitPrice,
+        taxRate: data.taxRate,
         grossPrice,
-        // Transformiere camelCase zu snake_case für Backend
-        unit_price: data.unitPrice,
-        tax_rate: data.taxRate,
-        min_quantity: data.minQuantity,
-        min_quantity_unit: data.minQuantityUnit,
-        packaging_unit: data.packagingUnit,
-        packaging_quantity: data.packagingQuantity,
-        deposit_per_unit: data.depositPerUnit,
-        valid_from: data.validFrom,
-        valid_to: data.validTo || null,
-        is_preferred: data.isPreferred,
-        lead_time: data.leadTime,
-        delivery_time: data.deliveryTime
+        minQuantity: data.minQuantity,
+        minQuantityUnit: data.minQuantityUnit,
+        packagingUnit: data.packagingUnit,
+        packagingQuantity: data.packagingQuantity,
+        depositPerUnit: data.depositPerUnit,
+        validFrom: data.validFrom,
+        validTo: data.validTo || null,
+        isPreferred: data.isPreferred,
+        leadTime: data.leadTime,
+        deliveryTime: data.deliveryTime,
+        notes: data.notes
       };
 
       const response = await fetch(url, {
