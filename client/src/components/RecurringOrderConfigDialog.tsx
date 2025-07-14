@@ -139,6 +139,15 @@ export default function RecurringOrderConfigDialog({
       return;
     }
 
+    // Sicherstellen dass suppliers und warehouses Arrays sind
+    const suppliersArray = Array.isArray(suppliers) ? suppliers : [];
+    const warehousesArray = Array.isArray(warehouses) ? warehouses : [];
+
+    console.log('Suppliers array:', suppliersArray);
+    console.log('Warehouses array:', warehousesArray);
+    console.log('Selected supplier ID:', formData.supplierId);
+    console.log('Selected warehouse ID:', formData.warehouseId);
+
     // Bereite Daten für Speicherung vor
     const saveData = {
       ...formData,
@@ -146,10 +155,18 @@ export default function RecurringOrderConfigDialog({
       tags: formData.tags || null,
       supplierId: parseInt(formData.supplierId),
       warehouseId: parseInt(formData.warehouseId),
-      supplierName: suppliers.find(s => s.id === parseInt(formData.supplierId))?.name || '',
-      warehouseName: warehouses.find(w => w.id === parseInt(formData.warehouseId))?.name || ''
+      supplierName: suppliersArray.find(s => s.id === parseInt(formData.supplierId))?.name || '',
+      warehouseName: warehousesArray.find(w => w.id === parseInt(formData.warehouseId))?.name || '',
+      // Standardwerte für erforderliche Felder setzen
+      orderType: formData.orderType || 'shipping',
+      interval: formData.interval || 'weekly',
+      intervalValue: formData.intervalValue || 1,
+      isActive: formData.isActive !== undefined ? formData.isActive : true,
+      priority: formData.priority || 'normal',
+      forecastEnabled: formData.forecastEnabled || false
     };
 
+    console.log('Saving data:', saveData);
     onSave(saveData);
   };
 

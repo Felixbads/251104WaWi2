@@ -62,12 +62,12 @@ export default function RecurringOrdersTab() {
   // Query für Lieferanten und Lager - BEHOBEN: Korrekte API-Endpunkte
   const { data: suppliers = [] } = useQuery({
     queryKey: ['/api/suppliers/all-for-conditions'],
-    queryFn: () => apiRequest('/api/suppliers/all-for-conditions').then(res => res)
+    queryFn: () => apiRequest('/api/suppliers/all-for-conditions').then(res => Array.isArray(res) ? res : [])
   });
 
   const { data: warehouses = [] } = useQuery({
     queryKey: ['/api/warehouses'],
-    queryFn: () => apiRequest('/api/warehouses').then(res => res)
+    queryFn: () => apiRequest('/api/warehouses').then(res => Array.isArray(res) ? res : [])
   });
 
   // Query für ausstehende Wareneingänge
