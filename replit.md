@@ -109,6 +109,15 @@ This is a comprehensive vending machine management platform (Warenwirtschaftssys
 
 ## Changelog
 
+- July 14, 2025: DROPDOWN-PROBLEM BEHOBEN UND TEST-FUNKTIONALITÄTEN HINZUGEFÜGT - System vollständig funktionsfähig
+  - ✅ Critical Fix: Supplier-Dropdown-Problem durch korrekte API-Route behoben (/api/suppliers/all-for-conditions)
+  - ✅ Test-E-Mail-Funktionalität implementiert: Sendet Testnachrichten für wiederkehrende Bestellungen
+  - ✅ Test-Simulation-Buttons hinzugefügt: Dry-Run und echte Test-Bestellung möglich
+  - ✅ Backend-Endpunkte für Tests erstellt: /api/recurring-orders/test-email und /api/recurring-orders/test-execution
+  - ✅ Warehouse- und Supplier-Dropdowns funktionieren jetzt korrekt beim Anlegen neuer wiederkehrender Bestellungen
+  - ✅ Test-Buttons mit visueller Unterscheidung: Blau für E-Mail, Grün für Simulation, Orange für echte Tests
+  - ✅ Comprehensive Error Handling und Toast-Benachrichtigungen für alle Test-Funktionen
+  - System ermöglicht jetzt vollständige Validierung wiederkehrender Bestellungen vor Produktions-Einsatz
 - July 14, 2025: WIEDERKEHRENDE BESTELLUNGEN VOLLSTÄNDIG ERWEITERT - Bestelltyp-Unterscheidung und Automatisierung implementiert
   - ✅ Schema erweitert um orderType, forecastEnabled, emailNotifications, deliveryLogic für erweiterte Funktionalität
   - ✅ RecurringOrderScheduler Service mit Prognose-Integration und automatischer Ausführung

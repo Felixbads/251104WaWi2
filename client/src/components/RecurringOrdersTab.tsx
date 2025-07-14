@@ -59,10 +59,10 @@ export default function RecurringOrdersTab() {
     refetchInterval: 30000 // Alle 30 Sekunden aktualisieren
   });
 
-  // Query für Lieferanten und Lager
+  // Query für Lieferanten und Lager - BEHOBEN: Korrekte API-Endpunkte
   const { data: suppliers = [] } = useQuery({
-    queryKey: ['/api/suppliers'],
-    queryFn: () => apiRequest('/api/suppliers').then(res => res)
+    queryKey: ['/api/suppliers/all-for-conditions'],
+    queryFn: () => apiRequest('/api/suppliers/all-for-conditions').then(res => res)
   });
 
   const { data: warehouses = [] } = useQuery({
@@ -125,6 +125,49 @@ export default function RecurringOrdersTab() {
         description: "Die wiederkehrende Bestellung wurde manuell ausgeführt."
       });
       queryClient.invalidateQueries({ queryKey: ['/api/recurring-orders'] });
+    }
+  });
+
+  // TEST-FUNKTIONALITÄTEN HINZUGEFÜGT
+  const testEmailMutation = useMutation({
+    mutationFn: ({ id, email }: { id: number; email: string }) => 
+      apiRequest('/api/recurring-orders/test-email', { 
+        method: 'POST', 
+        body: { recurringOrderId: id, recipientEmail: email }
+      }),
+    onSuccess: (data) => {
+      toast({
+        title: "Test-E-Mail gesendet",
+        description: data.message
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Test-E-Mail Fehler",
+        description: error?.message || "Fehler beim Senden der Test-E-Mail",
+        variant: "destructive"
+      });
+    }
+  });
+
+  const testExecutionMutation = useMutation({
+    mutationFn: ({ id, dryRun }: { id: number; dryRun: boolean }) => 
+      apiRequest('/api/recurring-orders/test-execution', { 
+        method: 'POST', 
+        body: { recurringOrderId: id, dryRun }
+      }),
+    onSuccess: (data) => {
+      toast({
+        title: dryRun ? "Test-Simulation erfolgreich" : "Test-Bestellung erstellt",
+        description: data.message
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Test-Ausführung Fehler",
+        description: error?.message || "Fehler bei der Test-Ausführung",
+        variant: "destructive"
+      });
     }
   });
 
@@ -403,7 +446,7 @@ export default function RecurringOrdersTab() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <div className="flex gap-1">
+                      <div className="flex gap-1 flex-wrap">
                         <Button
                           variant="outline"
                           size="sm"
@@ -418,6 +461,33 @@ export default function RecurringOrdersTab() {
                           disabled={executeOrderMutation.isPending}
                         >
                           Ausführen
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => testEmailMutation.mutate({ id: order.id, email: 'test@example.com' })}
+                          disabled={testEmailMutation.isPending}
+                          className="text-blue-600"
+                        >
+                          📧 Test-E-Mail
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => testExecutionMutation.mutate({ id: order.id, dryRun: true })}
+                          disabled={testExecutionMutation.isPending}
+                          className="text-green-600"
+                        >
+                          🧪 Test-Sim
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => testExecutionMutation.mutate({ id: order.id, dryRun: false })}
+                          disabled={testExecutionMutation.isPending}
+                          className="text-orange-600"
+                        >
+                          🚀 Test-Real
                         </Button>
                       </div>
                     </TableCell>

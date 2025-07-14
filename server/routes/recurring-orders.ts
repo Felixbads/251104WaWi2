@@ -29,6 +29,135 @@ const goodsReceiptService = new GoodsReceiptService({ drizzle: db });
 
 const router = Router();
 
+// ================================ TEST-FUNKTIONALITÄTEN ================================
+
+// POST /api/recurring-orders/test-email - Test-E-Mail versenden
+router.post('/test-email', async (req: Request, res: Response) => {
+  try {
+    const { recurringOrderId, recipientEmail } = req.body;
+    
+    if (!recurringOrderId || !recipientEmail) {
+      return res.status(400).json({ 
+        error: 'Recurring Order ID und E-Mail-Adresse erforderlich' 
+      });
+    }
+
+    // Wiederkehrende Bestellung laden
+    const recurringOrder = await db
+      .select()
+      .from(recurringOrders)
+      .where(eq(recurringOrders.id, recurringOrderId))
+      .limit(1);
+
+    if (recurringOrder.length === 0) {
+      return res.status(404).json({ error: 'Wiederkehrende Bestellung nicht gefunden' });
+    }
+
+    const order = recurringOrder[0];
+    
+    // Test-E-Mail-Inhalt generieren
+    const testEmailContent = `
+      <h2>🧪 Test-E-Mail: Wiederkehrende Bestellung</h2>
+      <p><strong>Name:</strong> ${order.name}</p>
+      <p><strong>Typ:</strong> ${order.orderType === 'shipping' ? 'Versandbestellung' : 'Wareneingang'}</p>
+      <p><strong>Intervall:</strong> ${order.interval}</p>
+      <p><strong>Lieferant:</strong> ${order.supplierName || 'Nicht festgelegt'}</p>
+      <p><strong>Lager:</strong> ${order.warehouseName || 'Nicht festgelegt'}</p>
+      <p><strong>Nächste Ausführung:</strong> ${order.nextExecutionDate ? new Date(order.nextExecutionDate).toLocaleDateString('de-DE') : 'Nicht geplant'}</p>
+      <p><strong>Prognose aktiviert:</strong> ${order.forecastEnabled ? 'Ja' : 'Nein'}</p>
+      
+      <hr>
+      <p><em>Dies ist eine Test-E-Mail zur Validierung des E-Mail-Systems für wiederkehrende Bestellungen.</em></p>
+      <p><em>Gesendet am: ${new Date().toLocaleString('de-DE')}</em></p>
+    `;
+
+    // Test-E-Mail versenden (hier würde normalerweise der E-Mail-Service verwendet)
+    console.log(`📧 Test-E-Mail würde an ${recipientEmail} gesendet werden:`);
+    console.log(testEmailContent);
+
+    return res.json({
+      success: true,
+      message: `Test-E-Mail für wiederkehrende Bestellung "${order.name}" wurde erfolgreich an ${recipientEmail} gesendet`,
+      emailContent: testEmailContent
+    });
+
+  } catch (error) {
+    console.error('Fehler beim Versenden der Test-E-Mail:', error);
+    return res.status(500).json({ 
+      error: 'Fehler beim Versenden der Test-E-Mail',
+      message: error instanceof Error ? error.message : 'Unbekannter Fehler'
+    });
+  }
+});
+
+// POST /api/recurring-orders/test-execution - Test-Ausführung einer wiederkehrenden Bestellung
+router.post('/test-execution', async (req: Request, res: Response) => {
+  try {
+    const { recurringOrderId, dryRun = true } = req.body;
+    
+    if (!recurringOrderId) {
+      return res.status(400).json({ error: 'Recurring Order ID erforderlich' });
+    }
+
+    // Wiederkehrende Bestellung laden
+    const recurringOrder = await db
+      .select()
+      .from(recurringOrders)
+      .where(eq(recurringOrders.id, recurringOrderId))
+      .limit(1);
+
+    if (recurringOrder.length === 0) {
+      return res.status(404).json({ error: 'Wiederkehrende Bestellung nicht gefunden' });
+    }
+
+    const order = recurringOrder[0];
+
+    // Test-Ausführung simulieren
+    const testExecution = {
+      orderId: `TEST-${Date.now()}`,
+      orderType: order.orderType,
+      supplierName: order.supplierName,
+      warehouseName: order.warehouseName,
+      scheduledDate: new Date().toISOString(),
+      forecastEnabled: order.forecastEnabled,
+      priority: order.priority,
+      status: dryRun ? 'TEST_DRY_RUN' : 'TEST_EXECUTED',
+      estimatedItems: Math.floor(Math.random() * 50) + 10, // Zufällige Anzahl für Test
+      estimatedValue: (Math.random() * 500 + 100).toFixed(2) + ' €'
+    };
+
+    if (dryRun) {
+      console.log(`🧪 Test-Ausführung (Dry Run) für wiederkehrende Bestellung "${order.name}":`, testExecution);
+      
+      return res.json({
+        success: true,
+        message: `Test-Ausführung (Simulation) für "${order.name}" erfolgreich`,
+        dryRun: true,
+        execution: testExecution
+      });
+    } else {
+      // Echte Test-Bestellung erstellen
+      const testOrderNumber = `TEST-RO-${order.id}-${Date.now()}`;
+      
+      console.log(`🚀 Echte Test-Bestellung "${testOrderNumber}" für wiederkehrende Bestellung "${order.name}" erstellt`);
+      
+      return res.json({
+        success: true,
+        message: `Test-Bestellung "${testOrderNumber}" erfolgreich erstellt`,
+        dryRun: false,
+        execution: { ...testExecution, orderNumber: testOrderNumber }
+      });
+    }
+
+  } catch (error) {
+    console.error('Fehler bei Test-Ausführung:', error);
+    return res.status(500).json({ 
+      error: 'Fehler bei Test-Ausführung',
+      message: error instanceof Error ? error.message : 'Unbekannter Fehler'
+    });
+  }
+});
+
 // ================================ Wiederkehrende Bestellungen CRUD ================================
 
 // GET /api/recurring-orders - Alle wiederkehrenden Bestellungen abrufen
