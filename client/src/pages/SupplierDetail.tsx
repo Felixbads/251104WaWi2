@@ -89,7 +89,7 @@ function SupplierInlineEditCard({ supplier, onUpdate }: { supplier: any; onUpdat
     label: string; 
     field: string; 
     value: any; 
-    type?: "input" | "textarea" | "email" | "url";
+    type?: "input" | "textarea" | "email" | "url" | "tel";
     icon?: any;
   }) => {
     const isEditing = editingField === field;
@@ -114,6 +114,7 @@ function SupplierInlineEditCard({ supplier, onUpdate }: { supplier: any; onUpdat
                   value={editValues[field] || ''}
                   onChange={(e) => setEditValues({ ...editValues, [field]: e.target.value })}
                   className="flex-1"
+                  placeholder={type === "tel" ? "+49 123 456-789" : undefined}
                 />
               )}
               <div className="flex gap-1">
@@ -159,12 +160,12 @@ function SupplierInlineEditCard({ supplier, onUpdate }: { supplier: any; onUpdat
 
   return (
     <div className="space-y-6">
-      {/* Kontaktinformationen */}
+      {/* Grundinformationen */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Building className="h-5 w-5" />
-            Kontaktinformationen
+            Grundinformationen
           </CardTitle>
           <CardDescription>
             Klicken Sie auf das Bearbeiten-Symbol, um Felder direkt zu bearbeiten
@@ -177,6 +178,18 @@ function SupplierInlineEditCard({ supplier, onUpdate }: { supplier: any; onUpdat
             value={supplier.name}
             icon={<Building className="h-4 w-4 text-muted-foreground" />}
           />
+        </CardContent>
+      </Card>
+
+      {/* Kontaktinformationen */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Phone className="h-5 w-5" />
+            Kontaktinformationen
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
           <EditableField
             label="Ansprechpartner"
             field="contactPerson"
@@ -186,6 +199,7 @@ function SupplierInlineEditCard({ supplier, onUpdate }: { supplier: any; onUpdat
             label="Telefon"
             field="phone"
             value={supplier.phone}
+            type="tel"
             icon={<Phone className="h-4 w-4 text-muted-foreground" />}
           />
           <EditableField
@@ -237,67 +251,63 @@ function SupplierInlineEditCard({ supplier, onUpdate }: { supplier: any; onUpdat
         </CardContent>
       </Card>
 
-      {/* Geschäftsbedingungen */}
+      {/* Beschreibungen */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <FileText className="h-5 w-5" />
-            Geschäftsbedingungen
+            Beschreibungen
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
           <EditableField
-            label="Zahlungsbedingungen"
-            field="paymentTerms"
-            value={supplier.paymentTerms}
+            label="Kurzbeschreibung"
+            field="shortDescription"
+            value={supplier.shortDescription}
             type="textarea"
           />
           <EditableField
-            label="Lieferbedingungen"
-            field="deliveryTerms"
-            value={supplier.deliveryTerms}
+            label="Detailbeschreibung"
+            field="description"
+            value={supplier.description}
             type="textarea"
-          />
-          <EditableField
-            label="Liefertage"
-            field="deliveryDays"
-            value={supplier.deliveryDays}
-          />
-          <EditableField
-            label="Mindestbestellwert"
-            field="minimumOrderValue"
-            value={supplier.minimumOrderValue}
           />
         </CardContent>
       </Card>
 
-      {/* Weitere Informationen */}
+      {/* Bilder und Medien */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Package className="h-5 w-5" />
+            Bilder und Medien
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-center h-32 border-2 border-dashed border-gray-300 rounded-lg">
+            <div className="text-center">
+              <Package className="h-8 w-8 mx-auto text-gray-400 mb-2" />
+              <p className="text-sm text-gray-500">Lieferanten-Bilder hochladen</p>
+              <Button variant="outline" size="sm" className="mt-2">
+                <Plus className="h-4 w-4 mr-2" />
+                Bilder hinzufügen
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Notizen */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <FileText className="h-5 w-5" />
-            Weitere Informationen
+            Interne Notizen
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-2">
+        <CardContent>
           <EditableField
-            label="Steuernummer/USt-ID"
-            field="taxId"
-            value={supplier.taxId}
-          />
-          <EditableField
-            label="Bankverbindung"
-            field="bankDetails"
-            value={supplier.bankDetails}
-            type="textarea"
-          />
-          <EditableField
-            label="Kontonummer"
-            field="accountNumber"
-            value={supplier.accountNumber}
-          />
-          <EditableField
-            label="Anmerkungen"
+            label="Notizen"
             field="notes"
             value={supplier.notes}
             type="textarea"

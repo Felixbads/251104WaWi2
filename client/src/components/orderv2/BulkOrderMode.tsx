@@ -285,7 +285,7 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
   const queryClient = useQueryClient();
 
   // State management
-  const [step, setStep] = useState<'supplier' | 'warehouse' | 'inventory' | 'analysis' | 'forecast' | 'order'>('supplier');
+  const [step, setStep] = useState<'supplier' | 'inventory' | 'analysis' | 'forecast' | 'order'>('supplier');
   const [selectedSupplierId, setSelectedSupplierId] = useState<number | null>(null);
   const [selectedSupplierName, setSelectedSupplierName] = useState<string>('');
   const [selectedWarehouseId, setSelectedWarehouseId] = useState<number | null>(null);
@@ -396,7 +396,7 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
     
     setSelectedSupplierId(supplierId);
     setSelectedSupplierName(supplierName);
-    setStep('warehouse');
+    setStep('inventory'); // Skip warehouse selection, go directly to inventory
   };
 
   // Handle warehouse selection
@@ -544,86 +544,7 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
     createOrderMutation.mutate(orderData);
   };
 
-  // Render warehouse selection step
-  const renderWarehouseSelection = () => (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Warehouse className="h-5 w-5" />
-          Lager für Bestellung auswählen <span className="text-red-500">*</span>
-        </CardTitle>
-        <CardDescription>
-          Wählen Sie das Lager aus, das die Bestellung erhalten soll
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        {warehousesLoading ? (
-          <div className="space-y-4">
-            {[1, 2, 3].map(i => (
-              <div key={i} className="h-20 bg-muted animate-pulse rounded-lg" />
-            ))}
-          </div>
-        ) : (
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {(warehouses as any)?.data?.map((warehouse: any) => (
-                <Card 
-                  key={warehouse.id} 
-                  className={`cursor-pointer transition-all hover:shadow-md ${
-                    selectedWarehouseId === warehouse.id ? 'ring-2 ring-primary' : ''
-                  }`}
-                  onClick={() => handleWarehouseSelect(warehouse.id, warehouse.name)}
-                >
-                  <CardContent className="p-4">
-                    <div className="flex items-start gap-3">
-                      <div className={`p-2 rounded-lg ${
-                        selectedWarehouseId === warehouse.id ? 'bg-primary text-primary-foreground' : 'bg-muted'
-                      }`}>
-                        <Store className="h-4 w-4" />
-                      </div>
-                      <div className="flex-1">
-                        <h3 className="font-semibold">{warehouse.name}</h3>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          {warehouse.location || 'Standort nicht angegeben'}
-                        </p>
-                        {warehouse.address && (
-                          <p className="text-xs text-muted-foreground mt-1">
-                            {warehouse.address}
-                          </p>
-                        )}
-                      </div>
-                      {selectedWarehouseId === warehouse.id && (
-                        <div className="text-primary">
-                          ✓
-                        </div>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              )) || []}
-            </div>
-            
-
-            
-            <div className="flex justify-between">
-              <Button variant="outline" onClick={() => setStep('supplier')}>
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Zurück
-              </Button>
-              <Button 
-                onClick={() => setStep('inventory')}
-                disabled={!selectedWarehouseId}
-                className={!selectedWarehouseId ? 'opacity-50 cursor-not-allowed' : ''}
-              >
-                Weiter zu Bestandsübersicht
-                <Warehouse className="ml-2 h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
+  // Warehouse selection now handled in the order form
 
   // Render supplier selection step
   const renderSupplierSelection = () => (
@@ -973,6 +894,53 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
               </CardDescription>
             </CardHeader>
             <CardContent>
+              {/* Warehouse Selection - Now in the order form as requested */}
+              <div className="mb-6 p-4 border border-orange-200 bg-orange-50 rounded-lg">
+                <div className="space-y-3">
+                  <Label className="text-base font-semibold flex items-center gap-2">
+                    <Warehouse className="h-5 w-5" />
+                    Ziellager für Bestellung auswählen <span className="text-red-500">*</span>
+                  </Label>
+                  {warehousesLoading ? (
+                    <div className="h-20 bg-muted animate-pulse rounded-lg" />
+                  ) : (
+                    <Select 
+                      value={selectedWarehouseId?.toString() || ''} 
+                      onValueChange={(value) => {
+                        const warehouseId = parseInt(value);
+                        const warehouse = (warehouses as any)?.data?.find((w: any) => w.id === warehouseId);
+                        if (warehouse) {
+                          setSelectedWarehouseId(warehouseId);
+                          setSelectedWarehouseName(warehouse.name);
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Wählen Sie ein Lager aus..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(warehouses as any)?.data?.map((warehouse: any) => (
+                          <SelectItem key={warehouse.id} value={warehouse.id.toString()}>
+                            <div className="flex items-center gap-2">
+                              <Store className="h-4 w-4" />
+                              <span>{warehouse.name}</span>
+                              {warehouse.location && (
+                                <span className="text-sm text-muted-foreground">({warehouse.location})</span>
+                              )}
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                  {!selectedWarehouseId && (
+                    <p className="text-sm text-orange-600">
+                      Bitte wählen Sie ein Lager aus, bevor Sie die Bestellung erstellen.
+                    </p>
+                  )}
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {/* Delivery Date */}
                 <div className="space-y-2">
@@ -1194,7 +1162,7 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
                   </Button>
                   <Button 
                     onClick={handleCreateOrder}
-                    disabled={createOrderMutation.isPending || totals.totalItems === 0}
+                    disabled={createOrderMutation.isPending || totals.totalItems === 0 || !selectedWarehouseId}
                   >
                     {createOrderMutation.isPending ? "Erstelle..." : "Bestellung erstellen"}
                     <ShoppingCart className="ml-2 h-4 w-4" />
@@ -1227,15 +1195,15 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
         <div className="flex items-center space-x-4">
           {[
             { key: 'supplier', label: 'Lieferant', icon: Package },
-            { key: 'warehouse', label: 'Lager', icon: Store },
             { key: 'inventory', label: 'Bestand', icon: Warehouse },
             { key: 'analysis', label: 'Analyse', icon: BarChart3 },
             { key: 'forecast', label: 'Prognose', icon: Calculator },
+            { key: 'order', label: 'Bestellung', icon: ShoppingCart },
           ].map(({ key, label, icon: Icon }, index) => (
             <div key={key} className="flex items-center">
               <div className={`flex items-center justify-center w-8 h-8 rounded-full ${
                 step === key ? 'bg-primary text-primary-foreground' : 
-                ['supplier', 'warehouse', 'inventory', 'analysis', 'forecast'].indexOf(step) > index ? 'bg-green-500 text-white' : 'bg-muted'
+                ['supplier', 'inventory', 'analysis', 'forecast', 'order'].indexOf(step) > index ? 'bg-green-500 text-white' : 'bg-muted'
               }`}>
                 <Icon className="h-4 w-4" />
               </div>
@@ -1249,7 +1217,6 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
       </div>
 
       {step === 'supplier' && renderSupplierSelection()}
-      {step === 'warehouse' && renderWarehouseSelection()}
       {step === 'inventory' && renderInventoryOverview()}
       {step === 'analysis' && renderSalesAnalysis()}
       {step === 'forecast' && renderForecastAndOrder()}
