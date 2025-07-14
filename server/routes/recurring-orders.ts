@@ -57,14 +57,25 @@ router.post('/test-email', async (req: Request, res: Response) => {
     
     // Test-E-Mail-Inhalt generieren
     const testEmailContent = `
-      <h2>🧪 Test-E-Mail: Wiederkehrende Bestellung</h2>
-      <p><strong>Name:</strong> ${order.name}</p>
-      <p><strong>Typ:</strong> ${order.orderType === 'shipping' ? 'Versandbestellung' : 'Wareneingang'}</p>
-      <p><strong>Intervall:</strong> ${order.interval}</p>
-      <p><strong>Lieferant:</strong> ${order.supplierName || 'Nicht festgelegt'}</p>
-      <p><strong>Lager:</strong> ${order.warehouseName || 'Nicht festgelegt'}</p>
-      <p><strong>Nächste Ausführung:</strong> ${order.nextExecutionDate ? new Date(order.nextExecutionDate).toLocaleDateString('de-DE') : 'Nicht geplant'}</p>
-      <p><strong>Prognose aktiviert:</strong> ${order.forecastEnabled ? 'Ja' : 'Nein'}</p>
+      <h2>📧 Test-E-Mail: Wiederkehrende Bestellung</h2>
+      <div style="background: #f5f5f5; padding: 15px; border-radius: 5px; margin: 10px 0;">
+        <h3>Bestelldetails:</h3>
+        <p><strong>Name:</strong> ${order.name}</p>
+        <p><strong>Typ:</strong> ${order.orderType === 'shipping' ? 'Versandbestellung an Lieferant' : 'Wareneingang für Lager'}</p>
+        <p><strong>Intervall:</strong> ${order.interval === 'weekly' ? 'Wöchentlich' : order.interval === 'monthly' ? 'Monatlich' : order.interval}</p>
+        <p><strong>Lieferant:</strong> ${order.supplierName || 'Nicht festgelegt'}</p>
+        <p><strong>Lager:</strong> ${order.warehouseName || 'Nicht festgelegt'}</p>
+        <p><strong>Nächste Ausführung:</strong> ${order.nextExecutionDate ? new Date(order.nextExecutionDate).toLocaleDateString('de-DE') : 'Nicht geplant'}</p>
+        <p><strong>Prognose aktiviert:</strong> ${order.forecastEnabled ? 'Ja - Mengen werden automatisch berechnet' : 'Nein - Feste Mengen'}</p>
+        <p><strong>Automatisch in Wareneingang:</strong> ${order.autoCreateInGoods ? 'Ja' : 'Nein'}</p>
+      </div>
+      
+      <div style="background: #e6f3ff; padding: 10px; border-radius: 3px; margin: 10px 0;">
+        <h4>📝 Workflow-Erklärung:</h4>
+        <p><em>1. Test-E-Mail:</em> Sendet diese Nachricht zum Testen des E-Mail-Systems</p>
+        <p><em>2. Test-Simulation:</em> Simuliert die Bestellung ohne echte Erstellung</p>
+        <p><em>3. Test-Real:</em> Erstellt eine echte Bestellung im System</p>
+      </div>
       
       <hr>
       <p><em>Dies ist eine Test-E-Mail zur Validierung des E-Mail-Systems für wiederkehrende Bestellungen.</em></p>
@@ -75,10 +86,14 @@ router.post('/test-email', async (req: Request, res: Response) => {
     console.log(`📧 Test-E-Mail würde an ${recipientEmail} gesendet werden:`);
     console.log(testEmailContent);
 
+    // TODO: Echten E-Mail-Service integrieren
+    // await emailService.sendEmail(recipientEmail, `Test: ${order.name}`, testEmailContent);
+
     return res.json({
       success: true,
       message: `Test-E-Mail für wiederkehrende Bestellung "${order.name}" wurde erfolgreich an ${recipientEmail} gesendet`,
-      emailContent: testEmailContent
+      emailContent: testEmailContent,
+      note: "E-Mail-System muss noch konfiguriert werden - momentan nur Console-Log"
     });
 
   } catch (error) {
@@ -123,6 +138,8 @@ router.post('/test-execution', async (req: Request, res: Response) => {
       priority: order.priority,
       status: dryRun ? 'TEST_DRY_RUN' : 'TEST_EXECUTED',
       estimatedItems: Math.floor(Math.random() * 50) + 10, // Zufällige Anzahl für Test
+      workflow: dryRun ? 'Simulation - kein echtes System-Update' : 'Echte Bestellung wird in Wareneingang erstellt',
+      nextStep: order.orderType === 'shipping' ? 'Bestellung an Lieferant senden' : 'Wareneingang für Lager erstellen',
       estimatedValue: (Math.random() * 500 + 100).toFixed(2) + ' €'
     };
 
@@ -479,39 +496,64 @@ router.put('/:id', async (req: Request, res: Response) => {
     // Nächsten Ausführungstermin neu berechnen, falls sich Intervall geändert hat
     let nextExecutionDate = existingOrder.nextExecutionDate;
     if (
-      validatedOrder.interval !== existingOrder.interval ||
-      validatedOrder.intervalValue !== existingOrder.intervalValue ||
-      validatedOrder.weekday !== existingOrder.weekday ||
-      validatedOrder.dayOfMonth !== existingOrder.dayOfMonth
+      body.interval !== existingOrder.interval ||
+      body.intervalValue !== existingOrder.intervalValue ||
+      body.weekday !== existingOrder.weekday ||
+      body.dayOfMonth !== existingOrder.dayOfMonth
     ) {
       nextExecutionDate = calculateNextExecutionDate(
-        validatedOrder.startDate,
-        validatedOrder.interval,
-        validatedOrder.intervalValue || 1,
-        validatedOrder.weekday,
-        validatedOrder.dayOfMonth
-      ).toISOString().split('T')[0];
+        body.interval || 'weekly',
+        body.intervalValue || 1,
+        body.weekday || 'monday',
+        body.dayOfMonth || 1,
+        body.startDate ? new Date(body.startDate) : new Date()
+      );
     }
 
     // Lieferanten- und Lager-Namen aktualisieren
     const [supplier] = await db
       .select({ name: suppliers.name })
       .from(suppliers)
-      .where(eq(suppliers.id, validatedOrder.supplierId));
+      .where(eq(suppliers.id, parseInt(body.supplierId)));
     
     const [warehouse] = await db
       .select({ name: warehouses.name })
       .from(warehouses)
-      .where(eq(warehouses.id, validatedOrder.warehouseId));
+      .where(eq(warehouses.id, parseInt(body.warehouseId)));
 
     // Bestellung aktualisieren
     const [updatedOrder] = await db
       .update(recurringOrders)
       .set({
-        ...validatedOrder,
-        supplierName: supplier?.name || '',
-        warehouseName: warehouse?.name || '',
+        name: body.name || existingOrder.name,
+        description: body.description || existingOrder.description,
+        supplierId: parseInt(body.supplierId) || existingOrder.supplierId,
+        supplierName: supplier?.name || existingOrder.supplierName,
+        warehouseId: parseInt(body.warehouseId) || existingOrder.warehouseId,
+        warehouseName: warehouse?.name || existingOrder.warehouseName,
+        orderType: body.orderType || existingOrder.orderType,
+        interval: body.interval || existingOrder.interval,
+        intervalValue: body.intervalValue || existingOrder.intervalValue,
+        weekday: body.weekday || existingOrder.weekday,
+        dayOfMonth: body.dayOfMonth || existingOrder.dayOfMonth,
+        startDate: body.startDate ? new Date(body.startDate) : existingOrder.startDate,
+        endDate: body.endDate ? new Date(body.endDate) : existingOrder.endDate,
         nextExecutionDate,
+        isActive: body.isActive !== undefined ? body.isActive : existingOrder.isActive,
+        priority: body.priority || existingOrder.priority,
+        deliveryType: body.deliveryType || existingOrder.deliveryType,
+        deliveryLocation: body.deliveryLocation || existingOrder.deliveryLocation,
+        deliveryLogic: body.deliveryLogic || existingOrder.deliveryLogic,
+        deliveryOffsetDays: body.deliveryOffsetDays || existingOrder.deliveryOffsetDays,
+        forecastEnabled: body.forecastEnabled !== undefined ? body.forecastEnabled : existingOrder.forecastEnabled,
+        forecastPeriodDays: body.forecastPeriodDays || existingOrder.forecastPeriodDays,
+        emailNotifications: body.emailNotifications || existingOrder.emailNotifications,
+        emailTemplate: body.emailTemplate || existingOrder.emailTemplate,
+        autoCreateInGoods: body.autoCreateInGoods !== undefined ? body.autoCreateInGoods : existingOrder.autoCreateInGoods,
+        requiresApproval: body.requiresApproval !== undefined ? body.requiresApproval : existingOrder.requiresApproval,
+        category: body.category || existingOrder.category,
+        tags: body.tags || existingOrder.tags,
+        notes: body.notes || existingOrder.notes,
         updatedAt: new Date()
       })
       .where(eq(recurringOrders.id, parseInt(id)))

@@ -139,6 +139,51 @@ export default function RecurringOrderConfigDialog({
     notes?: string;
   }>>([]);
 
+  // Dialog-Reset-Funktion für neue Bestellungen
+  const resetDialog = () => {
+    setFormData({
+      name: '',
+      description: '',
+      supplierId: '',
+      supplierName: '',
+      warehouseId: '',
+      warehouseName: '',
+      orderType: 'shipping',
+      interval: 'weekly',
+      intervalValue: 1,
+      weekday: 'monday',
+      dayOfMonth: 1,
+      startDate: new Date().toISOString().split('T')[0],
+      endDate: '',
+      isActive: true,
+      priority: 'normal',
+      deliveryType: 'delivery',
+      deliveryLocation: '',
+      deliveryLogic: 'fixed',
+      deliveryOffsetDays: 0,
+      forecastEnabled: false,
+      forecastPeriodDays: 14,
+      emailNotifications: '',
+      emailTemplate: '',
+      autoCreateInGoods: true,
+      requiresApproval: false,
+      category: '',
+      tags: '',
+      notes: ''
+    });
+    setSelectedProducts([]);
+    setEmailList([]);
+    setNewEmail('');
+    setActiveTab('grundlagen');
+  };
+
+  // Dialog-Reset beim Öffnen für neue Bestellungen
+  useEffect(() => {
+    if (open && !recurringOrder) {
+      resetDialog();
+    }
+  }, [open, recurringOrder]);
+
   // Query für Lieferanten-Produkte
   const { data: supplierProducts = [], isLoading: productsLoading } = useQuery({
     queryKey: ['/api/suppliers', formData.supplierId, 'available-products'],
