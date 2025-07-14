@@ -55,11 +55,7 @@ const SupplierInformationTab: React.FC<SupplierInformationTabProps> = ({ supplie
   const updateSupplierMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
       console.log('Sending supplier update:', data);
-      return await apiRequest(`/api/suppliers/${supplierId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
+      return await apiRequest(`/api/suppliers/${supplierId}`, data, 'PUT');
     },
     onSuccess: () => {
       toast({
