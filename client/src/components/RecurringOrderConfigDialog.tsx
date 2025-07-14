@@ -41,16 +41,42 @@ export default function RecurringOrderConfigDialog({
 }: RecurringOrderConfigDialogProps) {
   const { toast } = useToast();
 
-  // DIREKTE API-CALLS IM DIALOG - PROBLEM-BEHEBUNG
-  const { data: apiSuppliers = [] } = useQuery({
+  // DIREKTE API-CALLS IM DIALOG - PROBLEM-BEHEBUNG MIT DEBUGGING
+  const { data: apiSuppliers = [], isLoading: suppliersLoading, error: suppliersError } = useQuery({
     queryKey: ['/api/suppliers/all-for-conditions'],
-    queryFn: () => apiRequest('/api/suppliers/all-for-conditions', { method: 'GET' }),
+    queryFn: async () => {
+      console.log('🔍 SUPPLIERS API CALL STARTING...');
+      try {
+        const result = await apiRequest('/api/suppliers/all-for-conditions', { method: 'GET' });
+        console.log('✅ SUPPLIERS API SUCCESS:', result);
+        console.log('📊 SUPPLIERS TYPE:', typeof result);
+        console.log('📊 SUPPLIERS IS ARRAY:', Array.isArray(result));
+        console.log('📊 SUPPLIERS LENGTH:', result?.length);
+        return result;
+      } catch (error) {
+        console.error('❌ SUPPLIERS API ERROR:', error);
+        throw error;
+      }
+    },
     enabled: open // Nur laden wenn Dialog offen ist
   });
 
-  const { data: apiWarehouses = [] } = useQuery({
+  const { data: apiWarehouses = [], isLoading: warehousesLoading, error: warehousesError } = useQuery({
     queryKey: ['/api/warehouses'],
-    queryFn: () => apiRequest('/api/warehouses', { method: 'GET' }),
+    queryFn: async () => {
+      console.log('🔍 WAREHOUSES API CALL STARTING...');
+      try {
+        const result = await apiRequest('/api/warehouses', { method: 'GET' });
+        console.log('✅ WAREHOUSES API SUCCESS:', result);
+        console.log('📊 WAREHOUSES TYPE:', typeof result);
+        console.log('📊 WAREHOUSES IS ARRAY:', Array.isArray(result));
+        console.log('📊 WAREHOUSES LENGTH:', result?.length);
+        return result;
+      } catch (error) {
+        console.error('❌ WAREHOUSES API ERROR:', error);
+        throw error;
+      }
+    },
     enabled: open // Nur laden wenn Dialog offen ist
   });
 
@@ -200,13 +226,21 @@ export default function RecurringOrderConfigDialog({
     setEmailList(prev => prev.filter(e => e !== email));
   };
 
-  // Debug-Informationen ausgeben
-  console.log('RecurringOrderConfigDialog - API Suppliers:', apiSuppliers);
-  console.log('RecurringOrderConfigDialog - API Warehouses:', apiWarehouses);
-  console.log('RecurringOrderConfigDialog - Final Suppliers:', suppliers);
-  console.log('RecurringOrderConfigDialog - Final Warehouses:', warehouses);
-  console.log('RecurringOrderConfigDialog - suppliers length:', suppliers?.length);
-  console.log('RecurringOrderConfigDialog - warehouses length:', warehouses?.length);
+  // DETAILLIERTE DEBUG-INFORMATIONEN
+  console.log('🔍 DIALOG DEBUG REPORT:');
+  console.log('  Dialog Open:', open);
+  console.log('  Suppliers Loading:', suppliersLoading);
+  console.log('  Warehouses Loading:', warehousesLoading);
+  console.log('  Suppliers Error:', suppliersError);
+  console.log('  Warehouses Error:', warehousesError);
+  console.log('  API Suppliers Raw:', apiSuppliers);
+  console.log('  API Warehouses Raw:', apiWarehouses);
+  console.log('  Props Suppliers:', propsSuppliers);
+  console.log('  Props Warehouses:', propsWarehouses);
+  console.log('  Final Suppliers:', suppliers);
+  console.log('  Final Warehouses:', warehouses);
+  console.log('  Final Suppliers Length:', suppliers?.length);
+  console.log('  Final Warehouses Length:', warehouses?.length);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
