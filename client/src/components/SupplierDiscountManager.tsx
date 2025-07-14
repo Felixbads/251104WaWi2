@@ -112,10 +112,32 @@ export default function SupplierDiscountManager({ supplierId }: SupplierDiscount
   // Erstellen einer neuen Rabattbedingung
   const createMutation = useMutation({
     mutationFn: async (data: z.infer<typeof supplierDiscountSchema>) => {
+      // Transformiere camelCase zu snake_case für Backend
+      const apiData = {
+        supplier_id: data.supplierId,
+        discount_type: data.discountType,
+        description: data.description,
+        discount_percentage: data.discountPercentage,
+        discount_amount: data.discountAmount,
+        threshold_quantity: data.thresholdQuantity,
+        threshold_amount: data.thresholdAmount,
+        max_quantity: data.maxQuantity,
+        payment_terms_days: data.paymentTermsDays,
+        skonto_percentage: data.skontoPercentage,
+        minimum_order_quantity: data.minimumOrderQuantity,
+        applicable_product_categories: data.applicableProductCategories,
+        excluded_product_ids: data.excludedProductIds,
+        valid_from: data.validFrom,
+        valid_to: data.validTo,
+        priority: data.priority,
+        is_active: data.isActive,
+        can_combine_with_other_discounts: data.canCombineWithOtherDiscounts
+      };
+      
       const response = await fetch('/api/supplier-discounts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
+        body: JSON.stringify(apiData),
       });
       if (!response.ok) throw new Error('Fehler beim Erstellen der Rabattbedingung');
       return response.json();
@@ -133,10 +155,32 @@ export default function SupplierDiscountManager({ supplierId }: SupplierDiscount
   // Aktualisieren einer Rabattbedingung
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: number; data: z.infer<typeof supplierDiscountSchema> }) => {
+      // Transformiere camelCase zu snake_case für Backend
+      const apiData = {
+        supplier_id: data.supplierId,
+        discount_type: data.discountType,
+        description: data.description,
+        discount_percentage: data.discountPercentage,
+        discount_amount: data.discountAmount,
+        threshold_quantity: data.thresholdQuantity,
+        threshold_amount: data.thresholdAmount,
+        max_quantity: data.maxQuantity,
+        payment_terms_days: data.paymentTermsDays,
+        skonto_percentage: data.skontoPercentage,
+        minimum_order_quantity: data.minimumOrderQuantity,
+        applicable_product_categories: data.applicableProductCategories,
+        excluded_product_ids: data.excludedProductIds,
+        valid_from: data.validFrom,
+        valid_to: data.validTo,
+        priority: data.priority,
+        is_active: data.isActive,
+        can_combine_with_other_discounts: data.canCombineWithOtherDiscounts
+      };
+      
       const response = await fetch(`/api/supplier-discounts/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
+        body: JSON.stringify(apiData),
       });
       if (!response.ok) throw new Error('Fehler beim Aktualisieren der Rabattbedingung');
       return response.json();
@@ -175,12 +219,12 @@ export default function SupplierDiscountManager({ supplierId }: SupplierDiscount
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          supplierId,
-          orderValue: 1000,
-          orderQuantity: 50,
-          paymentTermsDays: 14,
-          productCategories: ['Getränke'],
-          productIds: []
+          supplier_id: supplierId,
+          order_value: 1000,
+          order_quantity: 50,
+          payment_terms_days: 14,
+          product_categories: ['Getränke'],
+          product_ids: []
         }),
       });
       
