@@ -328,18 +328,71 @@ export default function OrderDetail() {
                 
                 <div>
                   <h3 className="text-sm font-medium text-muted-foreground mb-3">Bestellübersicht</h3>
-                  <div className="bg-muted/50 p-3 rounded-md">
-                    <div className="flex justify-between mb-2">
-                      <span className="text-sm">Anzahl Positionen:</span>
-                      <span className="font-medium">{orderItems.length}</span>
+                  <div className="space-y-4">
+                    {/* Lieferung Information */}
+                    <div className="bg-blue-50 p-3 rounded-md border border-blue-200">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Package className="h-4 w-4 text-blue-600" />
+                        <span className="font-medium text-blue-900">Lieferung an</span>
+                      </div>
+                      <div className="text-sm space-y-1">
+                        <div><span className="font-medium">Lager:</span> {order.warehouseName || order.warehouse_name || 'Unbekanntes Lager'}</div>
+                        <div><span className="font-medium">Liefertermin:</span> {formatDate(order.expectedDeliveryDate || order.expected_delivery_date) || 'Nicht angegeben'}</div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">Art:</span>
+                          {order.delivery_type === 'pickup' ? (
+                            <span className="inline-flex items-center gap-1 text-blue-700">
+                              <Package className="h-3 w-3" />
+                              Abholung
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-green-700">
+                              <Package className="h-3 w-3" />
+                              Lieferung
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                    <div className="flex justify-between mb-2">
-                      <span className="text-sm">Gesamtmenge:</span>
-                      <span className="font-medium">{totalQuantity} Stück</span>
+
+                    {/* Bestellte Produkte */}
+                    <div className="bg-gray-50 p-3 rounded-md border">
+                      <div className="flex items-center gap-2 mb-3">
+                        <Package className="h-4 w-4 text-gray-600" />
+                        <span className="font-medium text-gray-900">Bestellte Produkte ({orderItems.length})</span>
+                      </div>
+                      <div className="space-y-2 max-h-32 overflow-y-auto">
+                        {orderItems.length === 0 ? (
+                          <p className="text-sm text-gray-500">Keine Positionen gefunden</p>
+                        ) : (
+                          orderItems.map((item: any, index: number) => (
+                            <div key={item.id || index} className="flex justify-between items-center text-sm">
+                              <span className="flex-1 font-medium text-gray-800">
+                                {item.productName || item.product_name || `Produkt ${index + 1}`}
+                              </span>
+                              <span className="text-gray-600">
+                                {item.quantity || 0} {item.unit || 'Stk'}
+                              </span>
+                            </div>
+                          ))
+                        )}
+                      </div>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm">Gesamtbetrag:</span>
-                      <span className="font-medium text-lg">{formatCurrency(totalAmount)}</span>
+
+                    {/* Zusammenfassung */}
+                    <div className="bg-muted/50 p-3 rounded-md">
+                      <div className="flex justify-between mb-2">
+                        <span className="text-sm">Anzahl Positionen:</span>
+                        <span className="font-medium">{orderItems.length}</span>
+                      </div>
+                      <div className="flex justify-between mb-2">
+                        <span className="text-sm">Gesamtmenge:</span>
+                        <span className="font-medium">{totalQuantity} Stück</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sm">Gesamtbetrag:</span>
+                        <span className="font-medium text-lg">{formatCurrency(totalAmount)}</span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -360,8 +413,13 @@ export default function OrderDetail() {
                   <div className="text-lg font-medium">{order.supplierName || order.supplier_name || 'Unbekannter Lieferant'}</div>
                 </div>
                 <div>
-                  <h3 className="text-sm font-medium text-muted-foreground mb-1">Lager</h3>
-                  <div className="text-sm">{order.warehouseName || order.warehouse_name || order.locationName || order.location_name || 'Unbekannt'}</div>
+                  <h3 className="text-sm font-medium text-muted-foreground mb-1">Ziel-Lager</h3>
+                  <div className="text-sm font-medium text-blue-700">{order.warehouseName || order.warehouse_name || order.locationName || order.location_name || 'Unbekanntes Lager'}</div>
+                  {(order.expectedDeliveryDate || order.expected_delivery_date) && (
+                    <div className="text-xs text-muted-foreground mt-1">
+                      Liefertermin: {formatDate(order.expectedDeliveryDate || order.expected_delivery_date)}
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
