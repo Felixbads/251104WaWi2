@@ -25,6 +25,7 @@ interface WeeklyForecast {
   week4: number;
   total_4weeks: number;
   confidence: number;
+  week1_to_week2_change_percent: number;
 }
 
 export default function ProductForecastDashboard() {
@@ -185,7 +186,8 @@ export default function ProductForecastDashboard() {
                     <th className="text-right py-2 px-2">Woche 2</th>
                     <th className="text-right py-2 px-2">Woche 3</th>
                     <th className="text-right py-2 px-2">Woche 4</th>
-                    <th className="text-right py-2 pl-4">Total</th>
+                    <th className="text-right py-2 px-2">Total</th>
+                    <th className="text-right py-2 pl-4">Woche 1→2 Trend</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -200,7 +202,18 @@ export default function ProductForecastDashboard() {
                       <td className="text-right py-2 px-2">{forecast.week2}</td>
                       <td className="text-right py-2 px-2">{forecast.week3}</td>
                       <td className="text-right py-2 px-2">{forecast.week4}</td>
-                      <td className="text-right py-2 pl-4 font-semibold">{forecast.total_4weeks}</td>
+                      <td className="text-right py-2 px-2 font-semibold">{forecast.total_4weeks}</td>
+                      <td className="text-right py-2 pl-4">
+                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                          forecast.week1_to_week2_change_percent > 5 
+                            ? 'bg-green-100 text-green-800' 
+                            : forecast.week1_to_week2_change_percent < -5
+                              ? 'bg-red-100 text-red-800'
+                              : 'bg-gray-100 text-gray-800'
+                        }`}>
+                          {forecast.week1_to_week2_change_percent > 0 ? '+' : ''}{forecast.week1_to_week2_change_percent?.toFixed(1) || '0.0'}%
+                        </span>
+                      </td>
                     </tr>
                   ))}
                 </tbody>

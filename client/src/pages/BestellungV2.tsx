@@ -1757,6 +1757,28 @@ const BestellungV2: React.FC = () => {
         );
         
       case 'sendOrder':
+        // Critical Safety Check: Ensure order is saved before allowing email
+        if (!orderId || (!existingOrderData && !createOrderMutation.isSuccess)) {
+          return (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Bestellung nicht gespeichert</AlertTitle>
+              <AlertDescription>
+                Die Bestellung muss erst vollständig gespeichert werden, bevor sie versendet werden kann.
+                <div className="mt-2">
+                  <Button 
+                    variant="outline" 
+                    onClick={() => setStep('viewOrder')}
+                    size="sm"
+                  >
+                    Zurück zur Bestellübersicht
+                  </Button>
+                </div>
+              </AlertDescription>
+            </Alert>
+          );
+        }
+        
         return (
           <>
             <div className="mb-4">

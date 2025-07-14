@@ -528,7 +528,16 @@ export function registerForecastRoutes(app: Express): void {
           COALESCE(SUM(CASE WHEN week_period = 'week3' THEN weekly_total END), 0) as week3,
           COALESCE(SUM(CASE WHEN week_period = 'week4' THEN weekly_total END), 0) as week4,
           COALESCE(SUM(weekly_total), 0) as total_4weeks,
-          AVG(avg_confidence) as confidence
+          AVG(avg_confidence) as confidence,
+          -- Calculate percentage change from week 1 to week 2
+          CASE 
+            WHEN COALESCE(SUM(CASE WHEN week_period = 'week1' THEN weekly_total END), 0) = 0 THEN 0
+            ELSE ROUND(
+              ((COALESCE(SUM(CASE WHEN week_period = 'week2' THEN weekly_total END), 0) - 
+                COALESCE(SUM(CASE WHEN week_period = 'week1' THEN weekly_total END), 0))::numeric / 
+               COALESCE(SUM(CASE WHEN week_period = 'week1' THEN weekly_total END), 1)::numeric) * 100, 1
+            )
+          END as week1_to_week2_change_percent
         FROM weekly_aggregates
         GROUP BY product_name
         HAVING SUM(weekly_total) > 0

@@ -95,23 +95,27 @@ const AdditionalInfoForm: React.FC<AdditionalInfoFormProps> = ({
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        {/* Expected Delivery Date */}
+        {/* Dynamic Delivery/Pickup Date with validation */}
         <div className="space-y-2">
-          <label className="text-sm font-medium">Erwartetes Lieferdatum</label>
+          <label className="text-sm font-medium">
+            {additionalInfo.deliveryType === 'pickup' ? 'Abholdatum' : 
+             additionalInfo.deliveryType === 'delivery' ? 'Lieferdatum' : 
+             'Liefer- oder Abholdatum'} <span className="text-red-500">*</span>
+          </label>
           <Popover>
             <PopoverTrigger asChild>
               <Button
                 variant="outline"
                 className={cn(
                   "w-full justify-start text-left font-normal",
-                  !additionalInfo.expectedDeliveryDate && "text-muted-foreground"
+                  !additionalInfo.expectedDeliveryDate && "text-muted-foreground border-red-300"
                 )}
               >
                 <CalendarIcon className="mr-2 h-4 w-4" />
                 {additionalInfo.expectedDeliveryDate ? (
                   format(additionalInfo.expectedDeliveryDate, 'PPP', { locale: de })
                 ) : (
-                  <span>Datum auswählen</span>
+                  <span className="text-red-500">Datum auswählen (Pflichtfeld)</span>
                 )}
               </Button>
             </PopoverTrigger>
@@ -125,23 +129,30 @@ const AdditionalInfoForm: React.FC<AdditionalInfoFormProps> = ({
               />
             </PopoverContent>
           </Popover>
+          {!additionalInfo.expectedDeliveryDate && (
+            <p className="text-sm text-red-500">Bitte wählen Sie ein Datum aus.</p>
+          )}
         </div>
         
-        {/* Delivery Type */}
+        {/* Delivery Type - Mandatory */}
         <div className="space-y-2">
-          <label className="text-sm font-medium">Lieferart</label>
+          <label className="text-sm font-medium">Lieferart <span className="text-red-500">*</span></label>
           <Select
             value={additionalInfo.deliveryType}
             onValueChange={handleDeliveryTypeChange}
+            required
           >
-            <SelectTrigger>
-              <SelectValue placeholder="Lieferart auswählen" />
+            <SelectTrigger className={cn(!additionalInfo.deliveryType && "border-red-300")}>
+              <SelectValue placeholder="Lieferart auswählen (Pflichtfeld)" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="delivery">Anlieferung</SelectItem>
               <SelectItem value="pickup">Abholung</SelectItem>
             </SelectContent>
           </Select>
+          {!additionalInfo.deliveryType && (
+            <p className="text-sm text-red-500">Bitte wählen Sie eine Lieferart aus.</p>
+          )}
         </div>
 
         {/* Display delivery information */}
@@ -205,8 +216,19 @@ const AdditionalInfoForm: React.FC<AdditionalInfoFormProps> = ({
             Zurück
           </Button>
           <Button 
-            onClick={onNext}
+            onClick={() => {
+              // Validate mandatory fields before proceeding
+              if (!additionalInfo.expectedDeliveryDate || !additionalInfo.deliveryType) {
+                return; // Button remains inactive
+              }
+              onNext();
+            }}
             type="button"
+            disabled={!additionalInfo.expectedDeliveryDate || !additionalInfo.deliveryType}
+            className={cn(
+              (!additionalInfo.expectedDeliveryDate || !additionalInfo.deliveryType) && 
+              "opacity-50 cursor-not-allowed"
+            )}
           >
             Weiter
           </Button>
