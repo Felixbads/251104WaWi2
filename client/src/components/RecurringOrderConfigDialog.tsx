@@ -893,7 +893,7 @@ export default function RecurringOrderConfigDialog({
                 </div>
 
                 {formData.forecastEnabled && (
-                  <div className="space-y-3 p-3 bg-blue-50 rounded-lg">
+                  <div className="space-y-4 p-4 bg-blue-50 rounded-lg">
                     <div>
                       <Label htmlFor="forecastPeriod">Prognosezeitraum</Label>
                       <Select 
@@ -911,10 +911,87 @@ export default function RecurringOrderConfigDialog({
                         </SelectContent>
                       </Select>
                     </div>
-                    
+
+                    {/* NEUE PROGNOSE-ANWENDUNG AUSWAHL */}
+                    <div className="space-y-3">
+                      <Label>Prognose anwenden auf:</Label>
+                      <div className="space-y-2">
+                        <div className="flex items-center space-x-2">
+                          <input
+                            type="radio"
+                            id="forecast-selected"
+                            name="forecastScope"
+                            checked={selectedProducts.length > 0}
+                            onChange={() => {}}
+                            className="w-4 h-4 text-blue-600"
+                          />
+                          <Label htmlFor="forecast-selected" className="flex-1">
+                            <div>
+                              <div className="font-medium">Nur ausgewählte Produkte ({selectedProducts.length})</div>
+                              <div className="text-sm text-muted-foreground">
+                                Prognose wird nur für die im Warenkorb ausgewählten Produkte berechnet
+                              </div>
+                            </div>
+                          </Label>
+                        </div>
+                        
+                        <div className="flex items-center space-x-2">
+                          <input
+                            type="radio"
+                            id="forecast-all"
+                            name="forecastScope"
+                            checked={selectedProducts.length === 0}
+                            onChange={() => {}}
+                            className="w-4 h-4 text-blue-600"
+                          />
+                          <Label htmlFor="forecast-all" className="flex-1">
+                            <div>
+                              <div className="font-medium">Alle Lieferanten-Produkte</div>
+                              <div className="text-sm text-muted-foreground">
+                                Prognose für alle verfügbaren Produkte des Lieferanten
+                              </div>
+                            </div>
+                          </Label>
+                        </div>
+                      </div>
+                    </div>
+
+                    {selectedProducts.length > 0 && (
+                      <div className="p-3 bg-green-100 rounded-lg">
+                        <div className="flex items-center gap-2 mb-2">
+                          <ShoppingCart className="w-4 h-4 text-green-600" />
+                          <span className="text-sm font-medium text-green-900">
+                            Prognose für {selectedProducts.length} ausgewählte Produkte
+                          </span>
+                        </div>
+                        <div className="text-xs text-green-700 space-y-1">
+                          {selectedProducts.slice(0, 3).map(product => (
+                            <div key={product.productId}>• {product.productName}</div>
+                          ))}
+                          {selectedProducts.length > 3 && (
+                            <div>• ... und {selectedProducts.length - 3} weitere</div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
                     <div className="text-xs text-blue-700">
                       <AlertTriangle className="w-4 h-4 inline mr-1" />
-                      Die Prognose überschreibt die Standard-Bestellmengen bei ausreichender Datenqualität.
+                      Die Prognose überschreibt die manuell eingegebenen Mengen bei ausreichender Datenqualität.
+                    </div>
+                  </div>
+                )}
+
+                {!formData.forecastEnabled && selectedProducts.length > 0 && (
+                  <div className="p-3 bg-gray-50 rounded-lg">
+                    <div className="flex items-center gap-2 mb-1">
+                      <ShoppingCart className="w-4 h-4 text-gray-600" />
+                      <span className="text-sm font-medium text-gray-900">
+                        Manuelle Produktauswahl ({selectedProducts.length} Produkte)
+                      </span>
+                    </div>
+                    <div className="text-xs text-gray-700">
+                      Die ausgewählten Produkte werden mit den eingegebenen Mengen bestellt.
                     </div>
                   </div>
                 )}
@@ -989,13 +1066,91 @@ export default function RecurringOrderConfigDialog({
           </TabsContent>
         </Tabs>
 
-        <div className="flex justify-end gap-2 pt-4">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Abbrechen
-          </Button>
-          <Button onClick={handleSave}>
-            {recurringOrder ? 'Speichern' : 'Erstellen'}
-          </Button>
+        <div className="flex justify-between items-center gap-2 pt-4">
+          {/* TEST-BUTTONS FÜR PRODUKTSPEZIFISCHE PROGNOSE */}
+          <div className="flex gap-2">
+            {formData.forecastEnabled && selectedProducts.length > 0 && (
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={async () => {
+                  try {
+                    const testData = {
+                      productIds: selectedProducts.map(p => p.productId),
+                      periodDays: formData.forecastPeriodDays || 14,
+                      warehouseId: formData.warehouseId,
+                      supplierId: formData.supplierId
+                    };
+                    
+                    const response = await apiRequest('/api/recurring-orders/test-forecast', testData, 'POST');
+                    
+                    toast({
+                      title: "Prognose-Test erfolgreich",
+                      description: `Prognose für ${selectedProducts.length} ausgewählte Produkte erstellt`,
+                      variant: "default"
+                    });
+                    
+                    console.log('🔮 Prognose-Testergebnis:', response);
+                  } catch (error) {
+                    toast({
+                      title: "Prognose-Test fehlgeschlagen",
+                      description: error.message || "Unbekannter Fehler",
+                      variant: "destructive"
+                    });
+                  }
+                }}
+                className="text-blue-600 border-blue-300"
+              >
+                <TrendingUp className="w-4 h-4 mr-1" />
+                Prognose testen
+              </Button>
+            )}
+            
+            {selectedProducts.length > 0 && (
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={async () => {
+                  try {
+                    const testData = {
+                      ...formData,
+                      items: selectedProducts,
+                      dryRun: true
+                    };
+                    
+                    const response = await apiRequest('/api/recurring-orders/test-execution', testData, 'POST');
+                    
+                    toast({
+                      title: "Bestellsimulation erfolgreich",
+                      description: `Testbestellung mit ${selectedProducts.length} Produkten simuliert`,
+                      variant: "default"
+                    });
+                    
+                    console.log('🧪 Bestellsimulation-Ergebnis:', response);
+                  } catch (error) {
+                    toast({
+                      title: "Bestellsimulation fehlgeschlagen",
+                      description: error.message || "Unbekannter Fehler",
+                      variant: "destructive"
+                    });
+                  }
+                }}
+                className="text-green-600 border-green-300"
+              >
+                <ShoppingCart className="w-4 h-4 mr-1" />
+                Bestellung testen
+              </Button>
+            )}
+          </div>
+
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
+              Abbrechen
+            </Button>
+            <Button onClick={handleSave}>
+              {recurringOrder ? 'Speichern' : 'Erstellen'}
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

@@ -262,30 +262,85 @@ class RecurringOrderScheduler {
 
   /**
    * Wendet Prognose auf Bestellpositionen an
+   * ERWEITERT: Prognose wird nur auf ausgewählte Produkte angewendet
    */
   private async applyForecastToItems(items: any[], recurringOrder: any): Promise<any[]> {
     console.log(`🔮 Wende Prognose an für ${items.length} Positionen`);
     
-    const forecastResults = await this.getForecastForProducts(
-      items.map(item => item.productId),
-      recurringOrder.forecastPeriodDays
-    );
-
-    return items.map(item => {
-      const forecast = forecastResults.find(f => f.productId === item.productId);
+    // NEUE LOGIK: Unterscheidung zwischen ausgewählten Produkten und ALL-Modus
+    if (items.length > 0) {
+      // SHOPPING CART MODUS: Prognose nur für ausgewählte Produkte
+      console.log(`📦 Shopping Cart Modus: Prognose für ${items.length} ausgewählte Produkte`);
       
-      if (forecast && forecast.confidence > 0.6) {
-        // Verwende Prognose wenn Konfidenz > 60%
-        return {
-          ...item,
-          quantity: Math.max(1, Math.round(forecast.predictedQuantity)),
-          notes: `${item.notes || ''} [Prognose: ${forecast.predictedQuantity}, Konfidenz: ${Math.round(forecast.confidence * 100)}%]`
-        };
+      const productIds = items.map(item => item.productId);
+      const forecastResults = await this.getForecastForProducts(productIds, recurringOrder.forecastPeriodDays || 14);
+      
+      return items.map(item => {
+        const forecast = forecastResults.find(f => f.productId === item.productId);
+        
+        if (forecast && forecast.confidence > 0.6) {
+          // Verwende Prognose wenn Konfidenz > 60%
+          return {
+            ...item,
+            quantity: Math.max(1, Math.round(forecast.predictedQuantity)),
+            notes: `${item.notes || ''} [Prognose: ${forecast.predictedQuantity}, Konfidenz: ${Math.round(forecast.confidence * 100)}%]`
+          };
+        }
+        
+        // Fallback auf Standardmenge (aus Shopping Cart)
+        return item;
+      });
+      
+    } else {
+      // ALL-PRODUKTE MODUS: Prognose für alle Lieferanten-Produkte (Legacy-Verhalten)
+      console.log(`🏪 All-Produkte Modus: Prognose für alle Lieferanten-Produkte`);
+      
+      // Hole alle verfügbaren Produkte des Lieferanten
+      const supplierProducts = await this.db.drizzle.execute(sql`
+        SELECT DISTINCT 
+          p.id as product_id,
+          p.name as product_name,
+          p.sku,
+          COALESCE(pc.packageSize, 1) as default_quantity,
+          COALESCE(pc.unit, 'stk') as unit,
+          COALESCE(pc.price, 0) as unit_price
+        FROM products p
+        LEFT JOIN purchase_conditions pc ON p.id = pc.productId
+        WHERE pc.supplierId = ${recurringOrder.supplierId}
+          AND p.isActive = true
+        LIMIT 50
+      `);
+      
+      if (supplierProducts.rows.length === 0) {
+        console.log('⚠️ Keine Produkte für Lieferanten-Prognose gefunden');
+        return [];
       }
       
-      // Fallback auf Standardmenge
-      return item;
-    });
+      const productIds = supplierProducts.rows.map((row: any) => row.product_id);
+      const forecastResults = await this.getForecastForProducts(productIds, recurringOrder.forecastPeriodDays || 14);
+      
+      // Erstelle Bestellpositionen basierend auf Prognose
+      return supplierProducts.rows
+        .map((row: any) => {
+          const forecast = forecastResults.find(f => f.productId === row.product_id);
+          
+          if (forecast && forecast.confidence > 0.6 && forecast.predictedQuantity > 0) {
+            return {
+              productId: row.product_id,
+              productName: row.product_name,
+              sku: row.sku || '',
+              quantity: Math.max(1, Math.round(forecast.predictedQuantity)),
+              unit: row.unit || 'stk',
+              unitPrice: row.unit_price || 0,
+              notes: `[Automatisch per Prognose: ${forecast.predictedQuantity}, Konfidenz: ${Math.round(forecast.confidence * 100)}%]`,
+              positionNumber: 0 // Wird später gesetzt
+            };
+          }
+          
+          return null;
+        })
+        .filter(item => item !== null); // Entferne null-Werte
+    }
   }
 
   /**

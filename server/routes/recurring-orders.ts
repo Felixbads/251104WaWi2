@@ -1285,4 +1285,184 @@ router.post('/goods-receipt/:orderId/process', async (req: Request, res: Respons
   }
 });
 
+// ================================ NEUE TEST-ENDPUNKTE FÜR PRODUKTSPEZIFISCHE PROGNOSE ================================
+
+// POST /api/recurring-orders/test-forecast - Test der produktspezifischen Prognose
+router.post('/test-forecast', async (req: Request, res: Response) => {
+  try {
+    const { productIds, periodDays = 14, warehouseId, supplierId } = req.body;
+    
+    if (!productIds || !Array.isArray(productIds) || productIds.length === 0) {
+      return res.status(400).json({ 
+        error: 'Produkt-IDs erforderlich für Prognose-Test' 
+      });
+    }
+
+    console.log(`🔮 Prognose-Test für ${productIds.length} ausgewählte Produkte:`, productIds);
+
+    // Lade Produktdaten für bessere Ausgabe
+    const products = await db
+      .select({ id: products.id, name: products.name })
+      .from(products)
+      .where(sql`id = ANY(${productIds})`);
+
+    // Simuliere Prognose-Berechnung (vereinfacht)
+    const forecastResults = [];
+    for (const productId of productIds) {
+      const product = products.find(p => p.id === productId);
+      
+      // Hole historische Verkaufsdaten
+      const historicalData = await db.execute(sql`
+        SELECT 
+          DATE(datetime) as sale_date,
+          SUM(quantity) as daily_quantity
+        FROM transactions 
+        WHERE product_id = ${productId}
+          AND datetime >= CURRENT_DATE - INTERVAL '30 days'
+        GROUP BY DATE(datetime)
+        ORDER BY sale_date
+      `);
+
+      let predictedQuantity = 10; // Fallback
+      let confidence = 0.3;
+      
+      if (historicalData.rows.length > 0) {
+        const totalQuantity = historicalData.rows.reduce((sum: number, row: any) => 
+          sum + (row.daily_quantity || 0), 0
+        );
+        const avgDaily = totalQuantity / historicalData.rows.length;
+        predictedQuantity = Math.max(1, Math.round(avgDaily * periodDays));
+        confidence = historicalData.rows.length >= 7 ? 0.8 : 0.5;
+      }
+
+      forecastResults.push({
+        productId,
+        productName: product?.name || `Produkt ${productId}`,
+        historicalDataPoints: historicalData.rows.length,
+        predictedQuantity,
+        confidence: Math.round(confidence * 100),
+        periodDays,
+        note: confidence > 0.6 ? 'Zuverlässige Prognose' : 'Begrenzte Datenlage'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: `Prognose-Test für ${productIds.length} Produkte erfolgreich`,
+      testType: 'forecast',
+      data: {
+        forecast: forecastResults,
+        summary: {
+          totalProducts: productIds.length,
+          reliableForecasts: forecastResults.filter(f => f.confidence > 60).length,
+          periodDays,
+          warehouseId,
+          supplierId
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Fehler beim Prognose-Test:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Fehler beim Prognose-Test',
+      error: error instanceof Error ? error.message : 'Unbekannter Fehler'
+    });
+  }
+});
+
+// POST /api/recurring-orders/test-execution - Test der Bestellsimulation mit produktspezifischen Daten
+router.post('/test-execution', async (req: Request, res: Response) => {
+  try {
+    const { items, dryRun = true, ...formData } = req.body;
+    
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ 
+        error: 'Produktliste erforderlich für Bestellsimulation' 
+      });
+    }
+
+    console.log(`🧪 Bestellsimulation (dryRun: ${dryRun}) für ${items.length} Produkte`);
+
+    // Simuliere Bestellerstellung
+    const simulatedOrder = {
+      orderNumber: `SIM-${new Date().toISOString().split('T')[0]}-${Math.floor(Math.random() * 1000)}`,
+      supplierId: formData.supplierId,
+      supplierName: formData.supplierName || 'Test-Lieferant',
+      warehouseId: formData.warehouseId,
+      warehouseName: formData.warehouseName || 'Test-Lager',
+      status: dryRun ? 'simulation' : 'draft',
+      orderDate: new Date().toISOString(),
+      totalAmount: 0,
+      itemCount: items.length,
+      items: []
+    };
+
+    let totalAmount = 0;
+    const processedItems = items.map((item, index) => {
+      const itemTotal = (item.unitPrice || 0) * (item.quantity || 1);
+      totalAmount += itemTotal;
+
+      return {
+        positionNumber: index + 1,
+        productId: item.productId,
+        productName: item.productName,
+        quantity: item.quantity || 1,
+        unit: item.unit || 'stk',
+        unitPrice: item.unitPrice || 0,
+        totalPrice: itemTotal,
+        notes: item.notes || null,
+        isSelectedProduct: true // Markierung für produktspezifische Auswahl
+      };
+    });
+
+    simulatedOrder.totalAmount = totalAmount;
+    simulatedOrder.items = processedItems;
+
+    // Prognose-Integration testen wenn aktiviert
+    let forecastInfo = null;
+    if (formData.forecastEnabled) {
+      forecastInfo = {
+        enabled: true,
+        periodDays: formData.forecastPeriodDays || 14,
+        appliedToProducts: items.length,
+        mode: 'selected_products_only',
+        note: 'Prognose wird nur auf ausgewählte Produkte angewendet'
+      };
+    }
+
+    res.json({
+      success: true,
+      message: `Bestellsimulation für ${items.length} ausgewählte Produkte erfolgreich`,
+      testType: 'execution',
+      isDryRun: dryRun,
+      data: {
+        simulatedOrder,
+        forecastInfo,
+        productSelection: {
+          selectedProducts: items.length,
+          mode: 'shopping_cart',
+          totalValue: totalAmount.toFixed(2) + ' €'
+        },
+        configurationSummary: {
+          orderType: formData.orderType || 'shipping',
+          interval: formData.interval || 'weekly',
+          deliveryType: formData.deliveryType || 'delivery',
+          forecastEnabled: formData.forecastEnabled || false,
+          emailNotifications: formData.emailNotifications ? JSON.parse(formData.emailNotifications).length : 0
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Fehler bei der Bestellsimulation:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Fehler bei der Bestellsimulation',
+      error: error instanceof Error ? error.message : 'Unbekannter Fehler'
+    });
+  }
+});
+
 export { router as recurringOrdersRouter, executeRecurringOrder };
