@@ -59,15 +59,15 @@ export default function RecurringOrdersTab() {
     refetchInterval: 30000 // Alle 30 Sekunden aktualisieren
   });
 
-  // Query für Lieferanten und Lager - BEHOBEN: Korrekte API-Endpunkte
+  // Query für Lieferanten und Lager - KORRIGIERT: GET-Methode verwenden
   const { data: suppliers = [] } = useQuery({
     queryKey: ['/api/suppliers/all-for-conditions'],
-    queryFn: () => apiRequest('/api/suppliers/all-for-conditions').then(res => Array.isArray(res) ? res : [])
+    queryFn: () => apiRequest('/api/suppliers/all-for-conditions', { method: 'GET' }).then(res => Array.isArray(res) ? res : [])
   });
 
   const { data: warehouses = [] } = useQuery({
     queryKey: ['/api/warehouses'],
-    queryFn: () => apiRequest('/api/warehouses').then(res => Array.isArray(res) ? res : [])
+    queryFn: () => apiRequest('/api/warehouses', { method: 'GET' }).then(res => Array.isArray(res) ? res : [])
   });
 
   // Query für ausstehende Wareneingänge

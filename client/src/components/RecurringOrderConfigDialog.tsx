@@ -181,6 +181,12 @@ export default function RecurringOrderConfigDialog({
     setEmailList(prev => prev.filter(e => e !== email));
   };
 
+  // Debug-Informationen ausgeben
+  console.log('RecurringOrderConfigDialog - Suppliers:', suppliers);
+  console.log('RecurringOrderConfigDialog - Warehouses:', warehouses);
+  console.log('RecurringOrderConfigDialog - suppliers length:', suppliers?.length);
+  console.log('RecurringOrderConfigDialog - warehouses length:', warehouses?.length);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
@@ -188,6 +194,9 @@ export default function RecurringOrderConfigDialog({
           <DialogTitle>
             {recurringOrder ? 'Wiederkehrende Bestellung bearbeiten' : 'Neue wiederkehrende Bestellung'}
           </DialogTitle>
+          <div className="text-sm text-gray-500">
+            Debug: {suppliers?.length || 0} Lieferanten, {warehouses?.length || 0} Lager geladen
+          </div>
         </DialogHeader>
 
         <Tabs defaultValue="basic" className="w-full">
@@ -230,7 +239,7 @@ export default function RecurringOrderConfigDialog({
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="supplier">Lieferant *</Label>
+                    <Label htmlFor="supplier">Lieferant * ({suppliers?.length || 0} verfügbar)</Label>
                     <Select value={formData.supplierId} onValueChange={(value) => 
                       setFormData(prev => ({ ...prev, supplierId: value }))
                     }>
@@ -238,17 +247,19 @@ export default function RecurringOrderConfigDialog({
                         <SelectValue placeholder="Lieferant auswählen" />
                       </SelectTrigger>
                       <SelectContent>
-                        {suppliers.map(supplier => (
+                        {Array.isArray(suppliers) && suppliers.length > 0 ? suppliers.map(supplier => (
                           <SelectItem key={supplier.id} value={supplier.id.toString()}>
                             {supplier.name}
                           </SelectItem>
-                        ))}
+                        )) : (
+                          <SelectItem value="loading" disabled>Lädt Lieferanten...</SelectItem>
+                        )}
                       </SelectContent>
                     </Select>
                   </div>
 
                   <div>
-                    <Label htmlFor="warehouse">Lager *</Label>
+                    <Label htmlFor="warehouse">Lager * ({warehouses?.length || 0} verfügbar)</Label>
                     <Select value={formData.warehouseId} onValueChange={(value) => 
                       setFormData(prev => ({ ...prev, warehouseId: value }))
                     }>
@@ -256,11 +267,13 @@ export default function RecurringOrderConfigDialog({
                         <SelectValue placeholder="Lager auswählen" />
                       </SelectTrigger>
                       <SelectContent>
-                        {warehouses.map(warehouse => (
+                        {Array.isArray(warehouses) && warehouses.length > 0 ? warehouses.map(warehouse => (
                           <SelectItem key={warehouse.id} value={warehouse.id.toString()}>
                             {warehouse.name}
                           </SelectItem>
-                        ))}
+                        )) : (
+                          <SelectItem value="loading" disabled>Lädt Lager...</SelectItem>
+                        )}
                       </SelectContent>
                     </Select>
                   </div>
