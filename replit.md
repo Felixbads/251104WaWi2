@@ -109,6 +109,15 @@ This is a comprehensive vending machine management platform (Warenwirtschaftssys
 
 ## Changelog
 
+- July 14, 2025: CRITICAL DATABASE SCHEMA FIX COMPLETED - Wiederkehrende Bestellungen vollständig funktionsfähig
+  - ✅ Critical Fix: Fehlende Datenbanktabellen created: recurring_orders, recurring_order_items, recurring_order_executions
+  - ✅ Vollständiges Produktauswahl-Interface implementiert: Shopping Cart mit Mengen, Einheiten, +/- Buttons
+  - ✅ Backend erweitert um Produktpositionen-Speicherung in recurringOrderItems Tabelle
+  - ✅ API-Parameter-Reihenfolge korrigiert: Alle Mutations verwenden (url, data, method) Format
+  - ✅ Produktvalidierung hinzugefügt: Mindestens ein Produkt erforderlich außer bei Prognose-Modus
+  - ✅ Table-Interface mit responsivem Design für Produktmanagement implementiert
+  - ✅ "Erstellen" Button funktioniert jetzt vollständig - kann wiederkehrende Bestellungen mit Produkten speichern
+  - System ermöglicht jetzt vollständige Erstellung wiederkehrender Bestellungen mit Produktauswahl
 - July 14, 2025: DROPDOWN-PROBLEM BEHOBEN UND TEST-FUNKTIONALITÄTEN HINZUGEFÜGT - System vollständig funktionsfähig
   - ✅ Critical Fix: Supplier-Dropdown-Problem durch korrekte API-Route behoben (/api/suppliers/all-for-conditions)
   - ✅ Test-E-Mail-Funktionalität implementiert: Sendet Testnachrichten für wiederkehrende Bestellungen
