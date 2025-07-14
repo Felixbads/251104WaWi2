@@ -251,6 +251,7 @@ router.post('/bulk', async (req, res) => {
   try {
     const {
       supplierId,
+      warehouseId,
       orderType = 'bulk',
       expectedDeliveryDate,
       deliveryType = 'delivery',
@@ -265,6 +266,7 @@ router.post('/bulk', async (req, res) => {
 
     console.log('Extracted fields:');
     console.log('- supplierId:', supplierId, typeof supplierId);
+    console.log('- warehouseId:', warehouseId, typeof warehouseId);
     console.log('- deliveryType:', deliveryType);
     console.log('- showPricesInEmail:', showPricesInEmail);
     console.log('- items:', items ? `Array with ${items.length} items` : 'undefined/null');
@@ -309,6 +311,7 @@ router.post('/bulk', async (req, res) => {
     const newOrder = await db.insert(orders).values({
       orderNumber,
       supplierId,
+      warehouseId: warehouseId ? parseInt(warehouseId) : null,
       status: 'draft',
       expectedDeliveryDate: expectedDeliveryDate ? new Date(expectedDeliveryDate) : null,
       deliveryType: deliveryType,

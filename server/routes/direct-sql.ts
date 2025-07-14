@@ -168,10 +168,10 @@ router.get('/orders-direct/:id', async (req, res) => {
     
     // Lagerdaten holen, wenn vorhanden
     let warehouseData = null;
-    if (orderResult.rows[0].location_id) {
+    if (orderResult.rows[0].warehouse_id) {
       const warehouseQuery = await pool.query(`
         SELECT * FROM warehouses WHERE id = $1
-      `, [orderResult.rows[0].location_id]);
+      `, [orderResult.rows[0].warehouse_id]);
       
       warehouseData = warehouseQuery.rows.length > 0 ? warehouseQuery.rows[0] : null;
     }
@@ -189,8 +189,10 @@ router.get('/orders-direct/:id', async (req, res) => {
       ...orderResult.rows[0],
       // Frontend-kompatible Feldnamen
       warehouseId: orderResult.rows[0].warehouse_id || orderResult.rows[0].location_id,
-      warehouseName: warehouseData ? warehouseData.name : (orderResult.rows[0].location_name || 'Unbekanntes Lager'),
+      warehouseName: warehouseData ? warehouseData.name : (orderResult.rows[0].location_name || 'Kein Lager zugeordnet'),
+      warehouse_name: warehouseData ? warehouseData.name : (orderResult.rows[0].location_name || 'Kein Lager zugeordnet'),
       supplierName: supplierData ? supplierData.name : (orderResult.rows[0].supplier_name || 'Unbekannter Lieferant'),
+      supplier_name: supplierData ? supplierData.name : (orderResult.rows[0].supplier_name || 'Unbekannter Lieferant'),
       supplierEmail: supplierData ? supplierData.email : (orderResult.rows[0].supplier_email || ''),
       // Bestellpositionen
       items: orderItems
