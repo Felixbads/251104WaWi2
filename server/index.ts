@@ -862,8 +862,9 @@ app.get('/orders-data', (req, res) => {
                   <p style="margin: 0; font-size: 9pt;">Elbsandstein Proviant & Quartier GmbH | Seifhennersdorfer Str. 14 | 01099 Dresden</p>
                   <div style="margin: 20px 0 30px 0;">
                     <p style="margin: 0; font-weight: bold;">${order.supplier_name || 'Unbekannter Lieferant'}</p>
-                    ${order.supplier_address ? `<p style="margin: 0;">${order.supplier_address}</p>` : ''}
-                    ${order.supplier_city ? `<p style="margin: 0;">${order.supplier_city}</p>` : ''}
+                    ${order.supplier_address || order.address ? `<p style="margin: 0;">${order.supplier_address || order.address}</p>` : ''}
+                    ${order.supplier_postal_code || order.postalCode || order.supplier_city || order.city ? `<p style="margin: 0;">${order.supplier_postal_code || order.postalCode || ''} ${order.supplier_city || order.city || ''}</p>` : ''}
+                    ${order.supplier_country || order.country ? `<p style="margin: 0;">${order.supplier_country || order.country}</p>` : ''}
                   </div>
                 </td>
                 <td style="width: 35%; vertical-align: top; text-align: right;">

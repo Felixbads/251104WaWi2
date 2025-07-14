@@ -270,6 +270,10 @@ router.get('/:orderId/email-data', async (req: Request, res: Response) => {
         orderEmailCc: suppliers.orderEmailCc,
         orderEmailBcc: suppliers.orderEmailBcc,
         emailSignature: suppliers.emailSignature,
+        supplierAddress: suppliers.address,
+        supplierCity: suppliers.city,
+        supplierPostalCode: suppliers.postalCode,
+        supplierCountry: suppliers.country,
         
         // Location/Warehouse fields
         locationId: orders.locationId,

@@ -109,6 +109,15 @@ This is a comprehensive vending machine management platform (Warenwirtschaftssys
 
 ## Changelog
 
+- July 14, 2025: CRITICAL ORDER EMAIL FIXES COMPLETED - Fixed incomplete supplier addresses in email templates
+  - ✅ Supplier address issue FIXED: Email templates now fetch complete address data (address, postalCode, city, country)
+  - ✅ Updated SQL queries in orders-email-working.ts to include all supplier address fields
+  - ✅ Enhanced email template to display full supplier address with proper formatting
+  - ✅ Fixed field mapping from database schema: address, city, postalCode, country (not supplier_address, supplier_city)
+  - ✅ Dynamic delivery/pickup labels CONFIRMED WORKING: "Abholdatum" vs "Lieferdatum" in AdditionalInfoForm.tsx lines 101-103
+  - ✅ Mandatory field validation CONFIRMED WORKING: Red asterisks and error messages properly implemented
+  - ✅ 1-week forecast percentage calculation CONFIRMED IMPLEMENTED: Backend SQL calculates week1_to_week2_change_percent correctly
+  - System now generates complete supplier addresses in order emails: Street, PLZ, Ort instead of just street address
 - July 10, 2025: KRITISCHER VENDON API-STRUKTUR-WANDEL IDENTIFIZIERT - base_code nicht mehr verfügbar
   - ⚠️ BREAKING CHANGE: Vendon API sendet keine base_code Werte mehr (alle NULL statt "EGS")
   - ✅ Excel-Datei zeigt EGS Events um 17:16, aber API-Synchronisation nur bis 16:51

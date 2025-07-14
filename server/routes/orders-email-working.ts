@@ -140,6 +140,20 @@ function createOrderEmailTemplate(order: any, supplier: any): string {
             </ul>
           </div>
           
+          ${supplier.address || supplier.city || supplier.postalCode ? `
+          <div style="margin-top: 20px;">
+            <p><strong>Lieferantenadresse:</strong></p>
+            <address style="font-style: normal; line-height: 1.4;">
+              ${supplier.name || order.supplierName || 'Unbekannter Lieferant'}<br>
+              ${supplier.address ? `${supplier.address}<br>` : ''}
+              ${supplier.postalCode || supplier.city ? `${supplier.postalCode || ''} ${supplier.city || ''}<br>` : ''}
+              ${supplier.country ? `${supplier.country}<br>` : ''}
+              ${supplier.phone ? `Tel: ${supplier.phone}<br>` : ''}
+              ${supplier.email ? `E-Mail: ${supplier.email}` : ''}
+            </address>
+          </div>
+          ` : ''}
+          
           <p>Bitte bestätigen Sie den Empfang dieser Bestellung und teilen Sie uns den voraussichtlichen Liefertermin mit.</p>
           
           <p>Bei Fragen stehen wir Ihnen gerne zur Verfügung.</p>
@@ -203,7 +217,16 @@ router.post('/:orderId/send-email-working', async (req: Request, res: Response) 
     
     if (order.supplierId) {
       const supplierResult = await db
-        .select()
+        .select({
+          id: suppliers.id,
+          name: suppliers.name,
+          address: suppliers.address,
+          city: suppliers.city,
+          postalCode: suppliers.postalCode,
+          country: suppliers.country,
+          phone: suppliers.phone,
+          email: suppliers.email
+        })
         .from(suppliers)
         .where(eq(suppliers.id, order.supplierId))
         .limit(1);
