@@ -60,6 +60,7 @@ import profitabilityRouter from './routes/profitability-simple';
 import enhancedProfitabilityRouter from './routes/enhanced-profitability-fixed';
 import { recurringOrdersRouter } from './routes/recurring-orders';
 import { recurringOrderCronService } from './services/recurringOrderCron';
+import RecurringOrderScheduler from './services/recurringOrderScheduler';
 import syncRouter from './routes/sync';
 import inventoryItemsUnassignedRouter from './routes/inventory-items-unassigned';
 

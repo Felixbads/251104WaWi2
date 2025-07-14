@@ -20,6 +20,12 @@ import {
 } from '@shared/schema';
 import { eq, desc, asc, and, sql, isNull, or, gte, lte } from 'drizzle-orm';
 import { z } from 'zod';
+import RecurringOrderScheduler from '../services/recurringOrderScheduler';
+import GoodsReceiptService from '../services/goodsReceiptService';
+
+// Services initialisieren
+const scheduler = new RecurringOrderScheduler({ drizzle: db });
+const goodsReceiptService = new GoodsReceiptService({ drizzle: db });
 
 const router = Router();
 
@@ -50,9 +56,16 @@ router.get('/', async (req: Request, res: Response) => {
         isAutoGenerate: recurringOrders.isAutoGenerate,
         category: recurringOrders.category,
         tags: recurringOrders.tags,
+        orderType: recurringOrders.orderType,
         priority: recurringOrders.priority,
         deliveryType: recurringOrders.deliveryType,
         deliveryLocation: recurringOrders.deliveryLocation,
+        deliveryLogic: recurringOrders.deliveryLogic,
+        deliveryOffsetDays: recurringOrders.deliveryOffsetDays,
+        forecastEnabled: recurringOrders.forecastEnabled,
+        forecastPeriodDays: recurringOrders.forecastPeriodDays,
+        emailNotifications: recurringOrders.emailNotifications,
+        emailTemplate: recurringOrders.emailTemplate,
         autoCreateInGoods: recurringOrders.autoCreateInGoods,
         requiresApproval: recurringOrders.requiresApproval,
         totalExecutions: recurringOrders.totalExecutions,
@@ -785,5 +798,108 @@ async function executeRecurringOrder(
     };
   }
 }
+
+// ================================ Scheduler-Steuerung ================================
+
+// GET /api/recurring-orders/scheduler/status - Scheduler-Status abrufen
+router.get('/scheduler/status', async (req: Request, res: Response) => {
+  try {
+    const status = scheduler.getStatus();
+    res.json(status);
+  } catch (error) {
+    console.error('Fehler beim Abrufen des Scheduler-Status:', error);
+    res.status(500).json({ 
+      error: 'Fehler beim Abrufen des Scheduler-Status',
+      details: error instanceof Error ? error.message : 'Unbekannter Fehler'
+    });
+  }
+});
+
+// POST /api/recurring-orders/scheduler/start - Scheduler starten
+router.post('/scheduler/start', async (req: Request, res: Response) => {
+  try {
+    scheduler.start();
+    res.json({ 
+      success: true, 
+      message: 'Scheduler erfolgreich gestartet',
+      status: scheduler.getStatus()
+    });
+  } catch (error) {
+    console.error('Fehler beim Starten des Schedulers:', error);
+    res.status(500).json({ 
+      error: 'Fehler beim Starten des Schedulers',
+      details: error instanceof Error ? error.message : 'Unbekannter Fehler'
+    });
+  }
+});
+
+// POST /api/recurring-orders/scheduler/stop - Scheduler stoppen
+router.post('/scheduler/stop', async (req: Request, res: Response) => {
+  try {
+    scheduler.stop();
+    res.json({ 
+      success: true, 
+      message: 'Scheduler erfolgreich gestoppt',
+      status: scheduler.getStatus()
+    });
+  } catch (error) {
+    console.error('Fehler beim Stoppen des Schedulers:', error);
+    res.status(500).json({ 
+      error: 'Fehler beim Stoppen des Schedulers',
+      details: error instanceof Error ? error.message : 'Unbekannter Fehler'
+    });
+  }
+});
+
+// ================================ Wareneingang-Integration ================================
+
+// GET /api/recurring-orders/goods-receipt/pending - Ausstehende Wareneingänge
+router.get('/goods-receipt/pending', async (req: Request, res: Response) => {
+  try {
+    const pendingOrders = await goodsReceiptService.getPendingGoodsReceipts();
+    res.json(pendingOrders);
+  } catch (error) {
+    console.error('Fehler beim Abrufen ausstehender Wareneingänge:', error);
+    res.status(500).json({ 
+      error: 'Fehler beim Abrufen ausstehender Wareneingänge',
+      details: error instanceof Error ? error.message : 'Unbekannter Fehler'
+    });
+  }
+});
+
+// POST /api/recurring-orders/goods-receipt/:orderId/process - Wareneingang verarbeiten
+router.post('/goods-receipt/:orderId/process', async (req: Request, res: Response) => {
+  try {
+    const orderId = parseInt(req.params.orderId);
+    if (isNaN(orderId)) {
+      return res.status(400).json({ error: 'Ungültige Order-ID' });
+    }
+
+    const { items, automatic = false } = req.body;
+
+    let result;
+    if (automatic) {
+      result = await goodsReceiptService.processAutomaticGoodsReceipt(orderId);
+    } else {
+      if (!items || !Array.isArray(items)) {
+        return res.status(400).json({ error: 'Items-Array erforderlich für manuellen Wareneingang' });
+      }
+      result = await goodsReceiptService.processManualGoodsReceipt(orderId, items);
+    }
+
+    if (result.success) {
+      res.json(result);
+    } else {
+      res.status(400).json(result);
+    }
+
+  } catch (error) {
+    console.error('Fehler bei der Wareneingang-Verarbeitung:', error);
+    res.status(500).json({ 
+      error: 'Fehler bei der Wareneingang-Verarbeitung',
+      details: error instanceof Error ? error.message : 'Unbekannter Fehler'
+    });
+  }
+});
 
 export { router as recurringOrdersRouter, executeRecurringOrder };

@@ -118,6 +118,7 @@ import RevenueExpectations from "@/pages/RevenueExpectations";
 import OrdersOverviewPage from "@/pages/OrdersOverviewPage";
 import SupportTicket from "@/pages/SupportTicket";
 import VendonSync from "@/pages/admin/VendonSync";
+import RecurringOrdersPage from "@/pages/RecurringOrdersPage";
 
 // Authentifizierte und nicht-authentifizierte Router
 function AuthenticatedRouter() {
@@ -302,6 +303,13 @@ function AuthenticatedRouter() {
         <Route path="/bestellungen/enhanced" component={props => (
           <ApprovedUserRoute>
             <EnhancedOrdering {...props} />
+          </ApprovedUserRoute>
+        )} />
+
+        {/* Wiederkehrende Bestellungen mit Automatisierung und Prognose */}
+        <Route path="/wiederkehrende-bestellungen" component={props => (
+          <ApprovedUserRoute>
+            <RecurringOrdersPage {...props} />
           </ApprovedUserRoute>
         )} />
 

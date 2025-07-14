@@ -109,6 +109,18 @@ This is a comprehensive vending machine management platform (Warenwirtschaftssys
 
 ## Changelog
 
+- July 14, 2025: WIEDERKEHRENDE BESTELLUNGEN VOLLSTÄNDIG ERWEITERT - Bestelltyp-Unterscheidung und Automatisierung implementiert
+  - ✅ Schema erweitert um orderType, forecastEnabled, emailNotifications, deliveryLogic für erweiterte Funktionalität
+  - ✅ RecurringOrderScheduler Service mit Prognose-Integration und automatischer Ausführung
+  - ✅ GoodsReceiptService für automatische Wareneingänge mit MHD-Integration
+  - ✅ Backend-Routen erweitert um Scheduler-Steuerung und Wareneingang-Management
+  - ✅ RecurringOrderConfigDialog mit Tab-System für Bestelltyp-Konfiguration, Prognose und E-Mail-Einstellungen
+  - ✅ Unterscheidung zwischen "shipping" (Versandbestellungen) und "goods_receipt" (Wareneingangsbestellungen)
+  - ✅ Automatische Mengenberechnung durch Prophet-Integration mit Konfidenz-basierter Anwendung
+  - ✅ E-Mail-Benachrichtigungssystem für Bestellentwürfe und Wareneingänge
+  - ✅ Scheduler mit täglicher Prüfung und automatischer Ausführung um 6:00 Uhr
+  - ✅ FIFO-basierte MHD-Verwaltung für automatische Wareneingänge
+  - System ermöglicht jetzt vollständige Automatisierung von Bestellprozessen mit intelligenter Prognose
 - July 14, 2025: SUPPLIER DISCOUNT CONDITIONS SPEICHERN-BUTTON 100% BEHOBEN - Backend-Frontend Parameter-Mismatch korrigiert
   - ✅ Critical Fix: Backend erwartete camelCase, Frontend sendete snake_case Parameter
   - ✅ Backend-Routen (POST/PUT) auf snake_case umgestellt für Konsistenz mit Datenbank

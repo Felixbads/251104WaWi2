@@ -1,509 +1,425 @@
-import { useState } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
-import { queryClient } from "@/lib/queryClient";
-import { format, parseISO, isValid } from "date-fns";
-import { de } from "date-fns/locale";
-import { useToast } from "@/hooks/use-toast";
+/**
+ * WIEDERKEHRENDE BESTELLUNGEN TAB-KOMPONENTE
+ * 
+ * Hauptkomponente für die Verwaltung wiederkehrender Bestellungen
+ * mit Scheduler-Steuerung und Wareneingang-Management
+ */
 
-// UI-Komponenten
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
-import {
-  Table,
-  TableHeader,
-  TableBody,
-  TableHead,
-  TableRow,
-  TableCell,
-} from "@/components/ui/table";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-
-// Icons
-import {
-  Search,
-  Plus,
-  Edit,
-  Trash2,
-  Play,
-  Pause,
-  MoreVertical,
-  CalendarCheck,
-  RefreshCw,
-  Eye,
-  Settings,
-  Clock,
-  User,
-  Building,
-} from "lucide-react";
-
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-
-import RecurringOrderForm from "./RecurringOrderForm";
-import RecurringOrderDetails from "./RecurringOrderDetails";
+import React, { useState, useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { AlertTriangle, Calendar, Clock, Mail, Package, Play, Pause, Plus, RefreshCw, TrendingUp, Truck } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { apiRequest } from '@/lib/queryClient';
+import RecurringOrderConfigDialog from './RecurringOrderConfigDialog';
 
 interface RecurringOrder {
   id: number;
   name: string;
   description?: string;
-  supplierId: number;
+  orderType: 'shipping' | 'goods_receipt';
   supplierName: string;
-  warehouseId: number;
   warehouseName: string;
   interval: string;
-  intervalValue: number;
-  weekday?: string;
-  dayOfMonth?: number;
-  startDate: string;
-  endDate?: string;
   nextExecutionDate: string;
   isActive: boolean;
-  isAutoGenerate: boolean;
-  category?: string;
+  forecastEnabled: boolean;
   priority: string;
-  deliveryType: string;
-  autoCreateInGoods: boolean;
-  requiresApproval: boolean;
   totalExecutions: number;
   lastExecutionDate?: string;
-  notes?: string;
-  createdByName: string;
-  createdAt: string;
-  updatedAt: string;
 }
 
-interface RecurringOrdersStats {
-  total: number;
-  active: number;
-  inactive: number;
+interface SchedulerStatus {
+  isRunning: boolean;
+  activeTasks: number;
+  nextCheckTime: string;
+  config: any;
 }
 
 export default function RecurringOrdersTab() {
-  const [searchTerm, setSearchTerm] = useState("");
-  const [selectedOrder, setSelectedOrder] = useState<RecurringOrder | null>(null);
-  const [showCreateDialog, setShowCreateDialog] = useState(false);
-  const [showEditDialog, setShowEditDialog] = useState(false);
-  const [showDetailsDialog, setShowDetailsDialog] = useState(false);
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+  
+  const [configDialogOpen, setConfigDialogOpen] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState<RecurringOrder | undefined>();
 
-  // Wiederkehrende Bestellungen abrufen
-  const { data: orders = [], isLoading, error } = useQuery({
-    queryKey: ["/api/recurring-orders"],
-    queryFn: async () => {
-      const response = await fetch("/api/recurring-orders");
-      if (!response.ok) {
-        throw new Error("Fehler beim Laden der wiederkehrenden Bestellungen");
-      }
-      const result = await response.json();
-      return result.data || [];
-    }
+  // Query für wiederkehrende Bestellungen
+  const { data: recurringOrders = [], isLoading: ordersLoading } = useQuery({
+    queryKey: ['/api/recurring-orders'],
+    queryFn: () => apiRequest('/api/recurring-orders').then(res => res.data)
   });
 
-  // Dashboard-Statistiken abrufen
-  const { data: dashboardStats } = useQuery({
-    queryKey: ["/api/recurring-orders/dashboard/stats"],
-    queryFn: async () => {
-      const response = await fetch("/api/recurring-orders/dashboard/stats");
-      if (!response.ok) {
-        throw new Error("Fehler beim Laden der Dashboard-Statistiken");
-      }
-      const result = await response.json();
-      return result.data;
-    }
+  // Query für Scheduler-Status
+  const { data: schedulerStatus, isLoading: statusLoading } = useQuery<SchedulerStatus>({
+    queryKey: ['/api/recurring-orders/scheduler/status'],
+    queryFn: () => apiRequest('/api/recurring-orders/scheduler/status').then(res => res),
+    refetchInterval: 30000 // Alle 30 Sekunden aktualisieren
   });
 
-  // Wiederkehrende Bestellung löschen
-  const deleteMutation = useMutation({
-    mutationFn: async (id: number) => {
-      const response = await fetch(`/api/recurring-orders/${id}`, {
-        method: "DELETE",
-      });
-      if (!response.ok) {
-        throw new Error("Fehler beim Löschen der wiederkehrenden Bestellung");
-      }
-      return response.json();
-    },
+  // Query für Lieferanten und Lager
+  const { data: suppliers = [] } = useQuery({
+    queryKey: ['/api/suppliers'],
+    queryFn: () => apiRequest('/api/suppliers').then(res => res)
+  });
+
+  const { data: warehouses = [] } = useQuery({
+    queryKey: ['/api/warehouses'],
+    queryFn: () => apiRequest('/api/warehouses').then(res => res)
+  });
+
+  // Query für ausstehende Wareneingänge
+  const { data: pendingGoodsReceipts = [] } = useQuery({
+    queryKey: ['/api/recurring-orders/goods-receipt/pending'],
+    queryFn: () => apiRequest('/api/recurring-orders/goods-receipt/pending').then(res => res)
+  });
+
+  // Mutations
+  const startSchedulerMutation = useMutation({
+    mutationFn: () => apiRequest('/api/recurring-orders/scheduler/start', { method: 'POST' }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/recurring-orders"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/recurring-orders/dashboard/stats"] });
       toast({
-        title: "Erfolg",
-        description: "Wiederkehrende Bestellung wurde gelöscht",
+        title: "Scheduler gestartet",
+        description: "Der automatische Scheduler für wiederkehrende Bestellungen wurde gestartet."
       });
+      queryClient.invalidateQueries({ queryKey: ['/api/recurring-orders/scheduler/status'] });
     },
     onError: (error) => {
       toast({
-        variant: "destructive",
         title: "Fehler",
-        description: "Fehler beim Löschen der wiederkehrenden Bestellung",
+        description: "Der Scheduler konnte nicht gestartet werden.",
+        variant: "destructive"
       });
-    },
+    }
   });
 
-  // Wiederkehrende Bestellung aktivieren/deaktivieren
-  const toggleActiveMutation = useMutation({
-    mutationFn: async ({ id, isActive }: { id: number; isActive: boolean }) => {
-      const response = await fetch(`/api/recurring-orders/${id}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ isActive }),
+  const stopSchedulerMutation = useMutation({
+    mutationFn: () => apiRequest('/api/recurring-orders/scheduler/stop', { method: 'POST' }),
+    onSuccess: () => {
+      toast({
+        title: "Scheduler gestoppt",
+        description: "Der automatische Scheduler wurde gestoppt."
       });
-      if (!response.ok) {
-        throw new Error("Fehler beim Aktualisieren der wiederkehrenden Bestellung");
+      queryClient.invalidateQueries({ queryKey: ['/api/recurring-orders/scheduler/status'] });
+    }
+  });
+
+  const deleteOrderMutation = useMutation({
+    mutationFn: (id: number) => apiRequest(`/api/recurring-orders/${id}`, { method: 'DELETE' }),
+    onSuccess: () => {
+      toast({
+        title: "Bestellung gelöscht",
+        description: "Die wiederkehrende Bestellung wurde erfolgreich gelöscht."
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/recurring-orders'] });
+    }
+  });
+
+  const executeOrderMutation = useMutation({
+    mutationFn: (id: number) => apiRequest(`/api/recurring-orders/${id}/execute`, { method: 'POST' }),
+    onSuccess: () => {
+      toast({
+        title: "Bestellung ausgeführt",
+        description: "Die wiederkehrende Bestellung wurde manuell ausgeführt."
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/recurring-orders'] });
+    }
+  });
+
+  const saveOrderMutation = useMutation({
+    mutationFn: (data: any) => {
+      if (data.id) {
+        return apiRequest(`/api/recurring-orders/${data.id}`, { 
+          method: 'PUT', 
+          body: data 
+        });
+      } else {
+        return apiRequest('/api/recurring-orders', { 
+          method: 'POST', 
+          body: data 
+        });
       }
-      return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/recurring-orders"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/recurring-orders/dashboard/stats"] });
-    },
+      toast({
+        title: "Gespeichert",
+        description: "Die wiederkehrende Bestellung wurde erfolgreich gespeichert."
+      });
+      setConfigDialogOpen(false);
+      setSelectedOrder(undefined);
+      queryClient.invalidateQueries({ queryKey: ['/api/recurring-orders'] });
+    }
   });
 
-  // Manuelle Ausführung
-  const executeMutation = useMutation({
-    mutationFn: async (id: number) => {
-      const response = await fetch(`/api/recurring-orders/${id}/execute`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          scheduledDate: new Date().toISOString().split('T')[0]
-        }),
-      });
-      if (!response.ok) {
-        throw new Error("Fehler bei der manuellen Ausführung");
-      }
-      return response.json();
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/recurring-orders"] });
-      toast({
-        title: "Erfolg",
-        description: `Bestellung erfolgreich erstellt: ${data.data.orderNumber}`,
-      });
-    },
-    onError: (error) => {
-      toast({
-        variant: "destructive",
-        title: "Fehler",
-        description: "Fehler bei der manuellen Ausführung",
-      });
-    },
-  });
-
-  // Filter für Suchbegriff
-  const filteredOrders = orders.filter((order: RecurringOrder) =>
-    order.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    order.supplierName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    order.warehouseName.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  // Status-Badge für Wiederkehrende Bestellungen
-  const getStatusBadge = (order: RecurringOrder) => {
-    if (!order.isActive) {
-      return <Badge variant="secondary">Inaktiv</Badge>;
-    }
-    if (order.requiresApproval) {
-      return <Badge variant="outline">Genehmigung erforderlich</Badge>;
-    }
-    return <Badge variant="default">Aktiv</Badge>;
+  const handleCreateNew = () => {
+    setSelectedOrder(undefined);
+    setConfigDialogOpen(true);
   };
 
-  // Prioritäts-Badge
-  const getPriorityBadge = (priority: string) => {
-    const colors = {
-      low: "bg-gray-100 text-gray-700",
-      normal: "bg-blue-100 text-blue-700",
-      high: "bg-orange-100 text-orange-700",
-      urgent: "bg-red-100 text-red-700",
-    };
-    return (
-      <Badge className={colors[priority as keyof typeof colors] || colors.normal}>
-        {priority === "low" ? "Niedrig" : 
-         priority === "normal" ? "Normal" : 
-         priority === "high" ? "Hoch" : "Dringend"}
-      </Badge>
-    );
+  const handleEdit = (order: RecurringOrder) => {
+    setSelectedOrder(order);
+    setConfigDialogOpen(true);
   };
 
-  // Intervall-Text formatieren
-  const formatInterval = (order: RecurringOrder) => {
-    const { interval, intervalValue, weekday, dayOfMonth } = order;
+  const getOrderTypeDisplay = (orderType: string) => {
+    return orderType === 'shipping' ? 'Versand' : 'Wareneingang';
+  };
+
+  const getOrderTypeBadgeVariant = (orderType: string) => {
+    return orderType === 'shipping' ? 'default' : 'secondary';
+  };
+
+  const getPriorityBadgeVariant = (priority: string) => {
+    switch (priority) {
+      case 'high': return 'destructive';
+      case 'normal': return 'default';
+      case 'low': return 'secondary';
+      default: return 'default';
+    }
+  };
+
+  const formatNextExecution = (dateStr: string) => {
+    const date = new Date(dateStr);
+    const today = new Date();
+    const diffDays = Math.ceil((date.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
     
-    switch (interval) {
-      case "weekly":
-        const weekdays = {
-          monday: "Montag", tuesday: "Dienstag", wednesday: "Mittwoch",
-          thursday: "Donnerstag", friday: "Freitag", saturday: "Samstag", sunday: "Sonntag"
-        };
-        return `Wöchentlich (${weekdays[weekday as keyof typeof weekdays] || weekday})`;
-      case "biweekly":
-        return "Alle 2 Wochen";
-      case "triweekly":
-        return "Alle 3 Wochen";
-      case "monthly":
-        return `Monatlich (${dayOfMonth}. Tag)`;
-      default:
-        return interval;
-    }
+    if (diffDays === 0) return 'Heute';
+    if (diffDays === 1) return 'Morgen';
+    if (diffDays < 0) return `Überfällig (${Math.abs(diffDays)} Tage)`;
+    return `In ${diffDays} Tagen`;
   };
 
-  if (isLoading) {
+  if (ordersLoading) {
     return (
-      <div className="flex items-center justify-center py-8">
-        <RefreshCw className="h-6 w-6 animate-spin mr-2" />
-        Laden der wiederkehrenden Bestellungen...
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="text-center py-8 text-red-600">
-        Fehler beim Laden der wiederkehrenden Bestellungen
+      <div className="flex items-center justify-center h-64">
+        <RefreshCw className="w-8 h-8 animate-spin text-muted-foreground" />
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      {/* Header und Statistiken */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Gesamt</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{dashboardStats?.statistics?.total || 0}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Aktiv</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">{dashboardStats?.statistics?.active || 0}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Inaktiv</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-gray-500">{dashboardStats?.statistics?.inactive || 0}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Nächste Woche</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-blue-600">
-              {dashboardStats?.upcomingExecutions?.length || 0}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Such- und Aktionsbereich */}
+      {/* Scheduler-Status Card */}
       <Card>
         <CardHeader>
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div className="flex items-center justify-between">
             <div>
-              <CardTitle>Wiederkehrende Bestellungen</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <Clock className="w-5 h-5" />
+                Automatisierung-Status
+              </CardTitle>
               <CardDescription>
-                Verwalten Sie automatische Bestellungen mit konfigurierbaren Intervallen
+                Scheduler für automatische Bestellausführung
               </CardDescription>
             </div>
-            <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-              <DialogTrigger asChild>
-                <Button>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Neue wiederkehrende Bestellung
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>Neue wiederkehrende Bestellung erstellen</DialogTitle>
-                  <DialogDescription>
-                    Erstellen Sie eine neue automatische Bestellung mit konfigurierbaren Intervallen
-                  </DialogDescription>
-                </DialogHeader>
-                <RecurringOrderForm 
-                  onSuccess={() => {
-                    setShowCreateDialog(false);
-                    queryClient.invalidateQueries({ queryKey: ["/api/recurring-orders"] });
-                    queryClient.invalidateQueries({ queryKey: ["/api/recurring-orders/dashboard/stats"] });
-                  }}
-                />
-              </DialogContent>
-            </Dialog>
+            <div className="flex gap-2">
+              <Button
+                variant={schedulerStatus?.isRunning ? "destructive" : "default"}
+                size="sm"
+                onClick={() => schedulerStatus?.isRunning ? stopSchedulerMutation.mutate() : startSchedulerMutation.mutate()}
+                disabled={startSchedulerMutation.isPending || stopSchedulerMutation.isPending}
+              >
+                {schedulerStatus?.isRunning ? (
+                  <>
+                    <Pause className="w-4 h-4 mr-2" />
+                    Stoppen
+                  </>
+                ) : (
+                  <>
+                    <Play className="w-4 h-4 mr-2" />
+                    Starten
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
-          {/* Suchfeld */}
-          <div className="flex items-center space-x-2 mb-4">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-              <Input
-                placeholder="Nach Name, Lieferant oder Lager suchen..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="text-center">
+              <div className="text-2xl font-bold">
+                {schedulerStatus?.isRunning ? (
+                  <Badge variant="default" className="text-green-700 bg-green-100">
+                    Aktiv
+                  </Badge>
+                ) : (
+                  <Badge variant="destructive">
+                    Gestoppt
+                  </Badge>
+                )}
+              </div>
+              <div className="text-sm text-muted-foreground">Status</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold">{schedulerStatus?.activeTasks || 0}</div>
+              <div className="text-sm text-muted-foreground">Aktive Tasks</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold">{recurringOrders.filter((o: any) => o.isActive).length}</div>
+              <div className="text-sm text-muted-foreground">Aktive Bestellungen</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold">{pendingGoodsReceipts.length}</div>
+              <div className="text-sm text-muted-foreground">Wareneingänge</div>
             </div>
           </div>
+          
+          {schedulerStatus?.nextCheckTime && (
+            <div className="mt-4 p-3 bg-blue-50 rounded-lg">
+              <div className="flex items-center gap-2 text-sm text-blue-700">
+                <Clock className="w-4 h-4" />
+                Nächste Prüfung: {schedulerStatus.nextCheckTime}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
-          {/* Tabelle der wiederkehrenden Bestellungen */}
-          {filteredOrders.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              {searchTerm ? "Keine wiederkehrenden Bestellungen gefunden" : "Noch keine wiederkehrenden Bestellungen erstellt"}
+      {/* Ausstehende Wareneingänge */}
+      {pendingGoodsReceipts.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Package className="w-5 h-5" />
+              Ausstehende Wareneingänge ({pendingGoodsReceipts.length})
+            </CardTitle>
+            <CardDescription>
+              Bestellungen, die zum Wareneingang bereit sind
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-2">
+              {pendingGoodsReceipts.map((order: any) => (
+                <div key={order.id} className="flex items-center justify-between p-3 border rounded-lg">
+                  <div>
+                    <div className="font-medium">{order.orderNumber}</div>
+                    <div className="text-sm text-muted-foreground">
+                      {order.supplierName} → {order.warehouseName}
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Badge variant="outline">
+                      {order.status}
+                    </Badge>
+                    <Button size="sm" variant="outline">
+                      Verarbeiten
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Wiederkehrende Bestellungen Table */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <RefreshCw className="w-5 h-5" />
+                Wiederkehrende Bestellungen ({recurringOrders.length})
+              </CardTitle>
+              <CardDescription>
+                Verwalten Sie automatische Bestellungen und Wareneingänge
+              </CardDescription>
+            </div>
+            <Button onClick={handleCreateNew}>
+              <Plus className="w-4 h-4 mr-2" />
+              Neue Bestellung
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {recurringOrders.length === 0 ? (
+            <div className="text-center py-8">
+              <Calendar className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+              <p className="text-muted-foreground">
+                Noch keine wiederkehrenden Bestellungen erstellt.
+              </p>
+              <Button onClick={handleCreateNew} className="mt-4">
+                Erste Bestellung erstellen
+              </Button>
             </div>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Name</TableHead>
+                  <TableHead>Typ</TableHead>
                   <TableHead>Lieferant</TableHead>
                   <TableHead>Lager</TableHead>
                   <TableHead>Intervall</TableHead>
                   <TableHead>Nächste Ausführung</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Priorität</TableHead>
-                  <TableHead>Ausführungen</TableHead>
                   <TableHead>Aktionen</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredOrders.map((order: RecurringOrder) => (
+                {recurringOrders.map((order: RecurringOrder) => (
                   <TableRow key={order.id}>
                     <TableCell>
                       <div>
                         <div className="font-medium">{order.name}</div>
-                        {order.description && (
-                          <div className="text-sm text-gray-500">{order.description}</div>
-                        )}
+                        <div className="text-sm text-muted-foreground">
+                          {order.description}
+                        </div>
                       </div>
                     </TableCell>
                     <TableCell>
-                      <div className="flex items-center space-x-2">
-                        <Building className="h-4 w-4 text-gray-400" />
-                        <span>{order.supplierName}</span>
-                      </div>
+                      <Badge variant={getOrderTypeBadgeVariant(order.orderType)}>
+                        {getOrderTypeDisplay(order.orderType)}
+                      </Badge>
                     </TableCell>
+                    <TableCell>{order.supplierName}</TableCell>
                     <TableCell>{order.warehouseName}</TableCell>
-                    <TableCell>{formatInterval(order)}</TableCell>
                     <TableCell>
-                      <div className="flex items-center space-x-2">
-                        <Clock className="h-4 w-4 text-gray-400" />
-                        <span>
-                          {isValid(parseISO(order.nextExecutionDate))
-                            ? format(parseISO(order.nextExecutionDate), "dd.MM.yyyy", { locale: de })
-                            : order.nextExecutionDate
-                          }
-                        </span>
-                      </div>
-                    </TableCell>
-                    <TableCell>{getStatusBadge(order)}</TableCell>
-                    <TableCell>{getPriorityBadge(order.priority)}</TableCell>
-                    <TableCell>
-                      <div className="text-center">
-                        {order.totalExecutions}
-                        {order.lastExecutionDate && (
-                          <div className="text-xs text-gray-500">
-                            Zuletzt: {format(parseISO(order.lastExecutionDate), "dd.MM", { locale: de })}
-                          </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline">{order.interval}</Badge>
+                        {order.forecastEnabled && (
+                          <TrendingUp className="w-4 h-4 text-blue-500" title="Prognose aktiviert" />
                         )}
                       </div>
                     </TableCell>
                     <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm">
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            onClick={() => {
-                              setSelectedOrder(order);
-                              setShowDetailsDialog(true);
-                            }}
-                          >
-                            <Eye className="h-4 w-4 mr-2" />
-                            Details anzeigen
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => {
-                              setSelectedOrder(order);
-                              setShowEditDialog(true);
-                            }}
-                          >
-                            <Edit className="h-4 w-4 mr-2" />
-                            Bearbeiten
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            onClick={() => executeMutation.mutate(order.id)}
-                            disabled={!order.isActive || executeMutation.isPending}
-                          >
-                            <Play className="h-4 w-4 mr-2" />
-                            Jetzt ausführen
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => toggleActiveMutation.mutate({ 
-                              id: order.id, 
-                              isActive: !order.isActive 
-                            })}
-                            disabled={toggleActiveMutation.isPending}
-                          >
-                            {order.isActive ? (
-                              <>
-                                <Pause className="h-4 w-4 mr-2" />
-                                Deaktivieren
-                              </>
-                            ) : (
-                              <>
-                                <Play className="h-4 w-4 mr-2" />
-                                Aktivieren
-                              </>
-                            )}
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            onClick={() => deleteMutation.mutate(order.id)}
-                            disabled={deleteMutation.isPending}
-                            className="text-red-600"
-                          >
-                            <Trash2 className="h-4 w-4 mr-2" />
-                            Löschen
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      <div className="text-sm">
+                        {order.nextExecutionDate ? 
+                          formatNextExecution(order.nextExecutionDate) : 
+                          'Nicht geplant'
+                        }
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <Badge variant={order.isActive ? "default" : "secondary"}>
+                          {order.isActive ? 'Aktiv' : 'Inaktiv'}
+                        </Badge>
+                        <Badge variant={getPriorityBadgeVariant(order.priority)}>
+                          {order.priority}
+                        </Badge>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex gap-1">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleEdit(order)}
+                        >
+                          Bearbeiten
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => executeOrderMutation.mutate(order.id)}
+                          disabled={executeOrderMutation.isPending}
+                        >
+                          Ausführen
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -513,48 +429,15 @@ export default function RecurringOrdersTab() {
         </CardContent>
       </Card>
 
-      {/* Details Dialog */}
-      <Dialog open={showDetailsDialog} onOpenChange={setShowDetailsDialog}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>
-              Details: {selectedOrder?.name}
-            </DialogTitle>
-            <DialogDescription>
-              Vollständige Informationen und Ausführungshistorie
-            </DialogDescription>
-          </DialogHeader>
-          {selectedOrder && (
-            <RecurringOrderDetails 
-              orderId={selectedOrder.id}
-              onClose={() => setShowDetailsDialog(false)}
-            />
-          )}
-        </DialogContent>
-      </Dialog>
-
-      {/* Edit Dialog */}
-      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Wiederkehrende Bestellung bearbeiten</DialogTitle>
-            <DialogDescription>
-              Ändern Sie die Einstellungen der wiederkehrenden Bestellung
-            </DialogDescription>
-          </DialogHeader>
-          {selectedOrder && (
-            <RecurringOrderForm 
-              initialData={selectedOrder}
-              onSuccess={() => {
-                setShowEditDialog(false);
-                setSelectedOrder(null);
-                queryClient.invalidateQueries({ queryKey: ["/api/recurring-orders"] });
-                queryClient.invalidateQueries({ queryKey: ["/api/recurring-orders/dashboard/stats"] });
-              }}
-            />
-          )}
-        </DialogContent>
-      </Dialog>
+      {/* Konfigurationsdialog */}
+      <RecurringOrderConfigDialog
+        open={configDialogOpen}
+        onOpenChange={setConfigDialogOpen}
+        recurringOrder={selectedOrder}
+        suppliers={suppliers}
+        warehouses={warehouses}
+        onSave={(data) => saveOrderMutation.mutate(data)}
+      />
     </div>
   );
 }

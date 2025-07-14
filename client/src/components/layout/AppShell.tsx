@@ -35,6 +35,7 @@ export const menuItems = {
     { title: 'Inventur', icon: <ClipboardCheck className="h-5 w-5 mr-3" />, path: '/inventur' },
     { title: 'Bestellungen', icon: <ShoppingCart className="h-5 w-5 mr-3" />, path: '/bestellungen' },
     { title: 'Neue Bestellungen', icon: <Package className="h-5 w-5 mr-3" />, path: '/bestellungen/neu' },
+    { title: 'Wiederkehrende Bestellungen', icon: <BarChart2 className="h-5 w-5 mr-3" />, path: '/wiederkehrende-bestellungen' },
   ] as MenuItem[],
   analysis: [
     { title: 'Auswertung', icon: <PieChart className="h-5 w-5 mr-3" />, path: '/auswertungen' },

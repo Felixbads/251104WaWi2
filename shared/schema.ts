@@ -2845,10 +2845,25 @@ export const recurringOrders = pgTable("recurring_orders", {
   category: text("category"), // Kategorie (z.B. "Milchprodukte", "Obst") für Filterung
   tags: text("tags"), // JSON-Array von Tags für bessere Organisation
   
+  // Bestelltyp-Konfiguration
+  orderType: text("order_type").notNull().default("shipping"), // "shipping" (Versandbestellung) oder "goods_receipt" (Wareneingangsbestellung)
+  
   // Bestelleinstellungen
   priority: text("priority").default("normal"), // "low", "normal", "high", "urgent"
   deliveryType: text("delivery_type").default("delivery"), // "delivery" oder "pickup"
   deliveryLocation: text("delivery_location"), // Lieferort (überschreibbar)
+  
+  // Lieferlogik
+  deliveryLogic: text("delivery_logic").default("fixed"), // "fixed" (feste Lieferwoche) oder "days_after_order" (X Tage nach Bestellung)
+  deliveryOffsetDays: integer("delivery_offset_days").default(0), // Anzahl Tage nach Bestellung (bei days_after_order)
+  
+  // Prognose-Integration
+  forecastEnabled: boolean("forecast_enabled").default(false), // Automatische Mengenberechnung durch Prognose
+  forecastPeriodDays: integer("forecast_period_days").default(14), // Prognosezeitraum in Tagen (7 oder 14 Tage)
+  
+  // E-Mail-Benachrichtigungen
+  emailNotifications: text("email_notifications"), // JSON Array von E-Mail-Adressen für Entwurfs-Benachrichtigungen
+  emailTemplate: text("email_template"), // Individuelle E-Mail-Vorlage (optional)
   
   // Automatisierung
   autoCreateInGoods: boolean("auto_create_in_goods").default(true), // Automatisch in Wareneingang erstellen
