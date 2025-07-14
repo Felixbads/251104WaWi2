@@ -61,6 +61,8 @@ import enhancedProfitabilityRouter from './routes/enhanced-profitability-fixed';
 import { recurringOrdersRouter } from './routes/recurring-orders';
 import { recurringOrderCronService } from './services/recurringOrderCron';
 import RecurringOrderScheduler from './services/recurringOrderScheduler';
+import weeklyReportRouter from './routes/weekly-report';
+import { weeklyReportCron } from './services/weeklyReportCron';
 import syncRouter from './routes/sync';
 import inventoryItemsUnassignedRouter from './routes/inventory-items-unassigned';
 
@@ -1187,6 +1189,10 @@ app.get('/orders-data', (req, res) => {
   app.use('/api/recurring-orders', recurringOrdersRouter);
   console.log('[SERVER] Recurring orders router mounted successfully');
   
+  // Mount weekly report router BEFORE registerRoutes for automated weekly email reports
+  app.use('/api/weekly-reports', weeklyReportRouter);
+  console.log('[SERVER] Weekly report router mounted successfully');
+  
   // Mount sync router BEFORE registerRoutes for Vendon sync functionality
   app.use('/api/sync', syncRouter);
   console.log('[SERVER] Sync router mounted at /api/sync BEFORE registerRoutes');
@@ -1208,6 +1214,91 @@ app.get('/orders-data', (req, res) => {
   // Start recurring orders cron service for automated order generation
   recurringOrderCronService.start();
   console.log('[SERVER] Recurring orders cron service started (daily 6:00 AM)');
+  
+  // Start weekly report cron service for automated weekly email reports
+  weeklyReportCron.start();
+  console.log('[SERVER] Weekly report cron service started (Monday 6:00 AM)');
+  
+  // IMMEDIATE TEST EMAIL ROUTE - Direct SMTP test to resolve authentication failure
+  app.post('/api/test-email-immediate', async (req, res) => {
+    console.log('[IMMEDIATE_TEST] Test email route hit');
+    
+    try {
+      const { to, subject, content } = req.body;
+      
+      // Default values for testing
+      const testTo = to || 'felix@proviantomat.de';
+      const testSubject = subject || 'Test Email - Proviantomat System';
+      const testContent = content || `
+        <h2>Test Email - Proviantomat System</h2>
+        <p>Diese E-Mail wurde um ${new Date().toLocaleString('de-DE')} gesendet.</p>
+        <p>Wenn Sie diese E-Mail erhalten, funktioniert das SMTP-System korrekt.</p>
+        <p>System-Status: Aktiv</p>
+      `;
+      
+      console.log('[IMMEDIATE_TEST] Creating SMTP transporter...');
+      
+      // Import and configure nodemailer
+      const nodemailer = await import('nodemailer');
+      const transporter = nodemailer.createTransport({
+        host: process.env.SMTP_HOST,
+        port: parseInt(process.env.SMTP_PORT || '587'),
+        secure: false, // Use STARTTLS
+        auth: {
+          user: process.env.SMTP_USER,
+          pass: process.env.SMTP_PASS,
+        },
+        tls: {
+          rejectUnauthorized: false // Allow self-signed certificates
+        },
+        debug: true, // Enable debug logging
+        logger: true // Enable logging
+      });
+      
+      console.log('[IMMEDIATE_TEST] SMTP Configuration:', {
+        host: process.env.SMTP_HOST,
+        port: process.env.SMTP_PORT,
+        user: process.env.SMTP_USER,
+        passwordSet: !!process.env.SMTP_PASS
+      });
+      
+      // Test connection
+      console.log('[IMMEDIATE_TEST] Testing SMTP connection...');
+      await transporter.verify();
+      console.log('[IMMEDIATE_TEST] SMTP connection verified successfully');
+      
+      // Send email
+      const mailOptions = {
+        from: 'proviantomat@proviantomat.de',
+        to: testTo,
+        subject: testSubject,
+        html: testContent
+      };
+      
+      console.log('[IMMEDIATE_TEST] Sending email...');
+      const result = await transporter.sendMail(mailOptions);
+      
+      console.log('[IMMEDIATE_TEST] Email sent successfully:', result.messageId);
+      
+      res.json({
+        success: true,
+        message: 'Test-E-Mail erfolgreich gesendet',
+        messageId: result.messageId,
+        to: testTo,
+        subject: testSubject,
+        timestamp: new Date().toISOString()
+      });
+      
+    } catch (error: any) {
+      console.error('[IMMEDIATE_TEST] SMTP Error:', error);
+      res.status(500).json({
+        success: false,
+        error: 'SMTP-Fehler beim Senden der Test-E-Mail',
+        details: error.message,
+        code: error.code || 'UNKNOWN'
+      });
+    }
+  });
 
   // Direct email endpoint that bypasses all routing conflicts
   app.post('/email-send-direct/:orderId', async (req, res) => {

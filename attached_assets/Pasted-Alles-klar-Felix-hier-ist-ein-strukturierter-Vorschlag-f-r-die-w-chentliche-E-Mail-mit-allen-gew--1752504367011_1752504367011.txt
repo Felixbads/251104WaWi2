@@ -1,0 +1,79 @@
+Alles klar, Felix – hier ist ein strukturierter Vorschlag für die wöchentliche E-Mail mit allen gewünschten Informationen. Die E-Mail soll automatisch jeden Montagmorgen erstellt und verschickt werden und folgende Inhalte enthalten:
+
+⸻
+
+Betreff: 🧾 Wochenüberblick: Liefertermine, Bestellbedarf & MHD-Warnungen
+
+Textkörper:
+
+Guten Morgen Felix,
+hier ist dein aktueller Wochenüberblick für den Zeitraum [Montag, 14. Juli 2025 – Sonntag, 20. Juli 2025]:
+
+⸻
+
+📦 Geplante Lieferungen diese Woche
+
+Lieferant	Geplantes Lieferdatum	Produkte
+Langfleischerei Strumpen	Mittwoch, 16.07.	Wiener, Knacker, Schinkenwürfel
+Bäckerei Rissmann	Donnerstag, 17.07.	Vollkornbrot, Brötchen, Kuchen
+Hof Micho Fiedler	Freitag, 18.07.	Frische Milch, Sahne, Joghurt
+
+
+⸻
+
+🔁 Nachbestellbedarf (kritisch)
+
+Diese Produkte sollten dringend nachbestellt werden – basierend auf dem prognostizierten Absatz in den nächsten 14 Tagen:
+
+Produkt	Lagerbestand	Prognose 2 Wochen	Differenz	Status
+Bio-Eier (10 Stk)	18	36	–18	🔴 Nachbestellen
+Joghurt Vanille	9	28	–19	🔴 Nachbestellen
+Apfelsaft 1L	5	12	–7	🟠 Engpass droht
+
+
+⸻
+
+📊 Empfohlene Nachbestellungen (nicht kritisch, aber sinnvoll)
+
+Diese Produkte könnten in Kürze knapp werden, Bestellmenge nach Bedarf anpassen:
+
+Produkt	Lagerbestand	Prognose 2 Wochen	Empfehlung
+Frisches Brot	20	18	OK – ggf. anpassen
+Bio-Käse mild	10	9	Beobachten
+
+
+⸻
+
+⏳ MHD-Warnung – Produkte mit Ablauf in den nächsten 2 Wochen
+
+Folgende Artikel laufen bis [Montag, 28. Juli 2025] ab:
+
+Produkt	MHD	Menge	Lagerort
+Frischkäse Natur	21.07.2025	6	Kühlschrank 1
+Saure Sahne 200g	18.07.2025	4	Kühlschrank 2
+Vollmilch 3,5%	15.07.2025	3	Kühlschrank 1
+
+
+⸻
+
+Hinweis:
+Alle Daten basieren auf dem aktuellen Lagerbestand und der Verkaufsprognose. Du kannst direkt über das System nachbestellen oder die Bestellvorschläge anpassen.
+
+Bei Fragen oder Anpassungswünschen an diesen Bericht – einfach kurz melden!
+
+Viele Grüße
+Dein Warenwirtschafts-Assistenzsystem
+
+⸻
+
+Nächste Schritte zur Umsetzung:
+	1.	Trigger: Automatischer Versand jeden Montag 06:00 Uhr
+	2.	Datenbasis:
+	•	Lagerbestandstabelle (inkl. MHD)
+	•	Prognose-Engine (Verkaufszahlen aus Vorwochen)
+	•	Lieferkalender
+	3.	Technisch realisierbar via:
+	•	ERP/Warenwirtschaft mit Reporting-Modul oder
+	•	Custom-Skript mit Anbindung an Lagerdatenbank und E-Mail-Versand
+
+Möchtest du jetzt den Prompt für eine Entwickler-Umsetzung oder eine Automatisierungsplattform wie Make, Zapier, n8n oder Python-Skript mit SMTP-Client?
