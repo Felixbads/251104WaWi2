@@ -47,7 +47,7 @@ export default function RecurringOrderConfigDialog({
     queryFn: async () => {
       console.log('🔍 SUPPLIERS API CALL STARTING...');
       try {
-        const result = await apiRequest('/api/suppliers/all-for-conditions', { method: 'GET' });
+        const result = await apiRequest('/api/suppliers/all-for-conditions', undefined, 'GET');
         console.log('✅ SUPPLIERS API SUCCESS:', result);
         console.log('📊 SUPPLIERS TYPE:', typeof result);
         console.log('📊 SUPPLIERS IS ARRAY:', Array.isArray(result));
@@ -66,7 +66,7 @@ export default function RecurringOrderConfigDialog({
     queryFn: async () => {
       console.log('🔍 WAREHOUSES API CALL STARTING...');
       try {
-        const result = await apiRequest('/api/warehouses', { method: 'GET' });
+        const result = await apiRequest('/api/warehouses', undefined, 'GET');
         console.log('✅ WAREHOUSES API SUCCESS:', result);
         console.log('📊 WAREHOUSES TYPE:', typeof result);
         console.log('📊 WAREHOUSES IS ARRAY:', Array.isArray(result));
