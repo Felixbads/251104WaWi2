@@ -37,6 +37,7 @@ const SupplierInformationTab: React.FC<SupplierInformationTabProps> = ({ supplie
     postalCode: supplier?.postalCode || '',
     city: supplier?.city || '',
     country: supplier?.country || 'Deutschland',
+    shortDescription: supplier?.shortDescription || '',
     description: supplier?.description || '',
     notes: supplier?.notes || '',
     taxNumber: supplier?.taxNumber || '',
@@ -186,13 +187,24 @@ const SupplierInformationTab: React.FC<SupplierInformationTabProps> = ({ supplie
             </div>
 
             <div>
-              <Label htmlFor="description">Beschreibung</Label>
+              <Label htmlFor="shortDescription">Kurzbeschreibung</Label>
+              <Textarea
+                id="shortDescription"
+                value={formData.shortDescription}
+                onChange={(e) => handleInputChange('shortDescription', e.target.value)}
+                placeholder="Kurze Beschreibung des Lieferanten..."
+                rows={2}
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="description">Detaillierte Beschreibung</Label>
               <Textarea
                 id="description"
                 value={formData.description}
                 onChange={(e) => handleInputChange('description', e.target.value)}
-                placeholder="Kurze Beschreibung des Lieferanten..."
-                rows={3}
+                placeholder="Ausführliche Beschreibung des Lieferanten..."
+                rows={4}
               />
             </div>
           </CardContent>
