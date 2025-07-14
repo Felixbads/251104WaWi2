@@ -202,16 +202,107 @@ router.post('/test-execution', async (req: Request, res: Response) => {
         execution: testExecution
       });
     } else {
-      // Echte Test-Bestellung erstellen
-      const testOrderNumber = `TEST-RO-${order.id}-${Date.now()}`;
+      // Echte Bestellung erstellen
+      const testOrderNumber = `RO-${order.id}-${Date.now()}`;
       
-      console.log(`🚀 Echte Test-Bestellung "${testOrderNumber}" für wiederkehrende Bestellung "${order.name}" erstellt`);
+      // Bestellpositionen laden
+      const orderItems = await db
+        .select()
+        .from(recurringOrderItems)
+        .where(eq(recurringOrderItems.recurringOrderId, recurringOrderId));
+
+      console.log(`🚀 Erstelle echte Bestellung "${testOrderNumber}" mit ${orderItems.length} Positionen`);
+
+      // Bestellstatus basierend auf Bestelltyp
+      let orderStatus = 'draft';
+      if (order.orderType === 'goods_receipt') {
+        // Für Wareneingang-Bestellungen (z.B. "eier") -> "Versand" Status
+        orderStatus = 'ready_for_goods_receipt';
+      }
+
+      // Bestellung in orders-Tabelle erstellen
+      const orderData = {
+        orderNumber: testOrderNumber,
+        supplierId: order.supplierId,
+        supplierName: order.supplierName,
+        locationId: order.warehouseId,
+        locationName: order.warehouseName,
+        status: orderStatus,
+        orderDate: new Date(),
+        expectedDeliveryDate: new Date(Date.now() + (order.deliveryOffsetDays || 7) * 24 * 60 * 60 * 1000),
+        totalAmount: 0, // Wird nach Erstellung der Positionen aktualisiert
+        priority: order.priority || 'normal',
+        notes: `Automatisch erstellt aus wiederkehrender Bestellung: ${order.name}`,
+        createdById: 1,
+        createdByName: 'Wiederkehrende Bestellung',
+        warehouseId: order.warehouseId,
+        deliveryType: order.deliveryType || 'pickup'
+      };
+
+      console.log('📦 Erstelle Bestellung mit Daten:', orderData);
+
+      let createdOrder;
       
+      try {
+        const newOrder = await db
+          .insert(orders)
+          .values(orderData)
+          .returning();
+
+        if (!newOrder || newOrder.length === 0) {
+          throw new Error('Keine Bestellung wurde erstellt');
+        }
+
+        createdOrder = newOrder[0];
+        console.log(`✅ Bestellung erstellt: ID ${createdOrder.id}, Status: ${orderStatus}`);
+        
+      } catch (orderError) {
+        console.error('❌ Fehler beim Erstellen der Bestellung:', orderError);
+        console.error('❌ Order-Daten:', orderData);
+        throw new Error(`Bestellung konnte nicht erstellt werden: ${orderError.message}`);
+      }
+
+      // Bestellpositionen erstellen
+      if (orderItems.length > 0) {
+        const orderItemsToInsert = orderItems.map((item, index) => ({
+          orderId: createdOrder.id,
+          productId: item.productId,
+          productName: item.productName,
+          quantity: item.quantity,
+          unit: item.unit,
+          unitPrice: 0, // Wird später gefüllt
+          totalPrice: 0, // Wird später gefüllt
+          positionNumber: index + 1,
+          notes: item.notes
+        }));
+
+        await db.insert(orderItems).values(orderItemsToInsert);
+        console.log(`✅ ${orderItems.length} Bestellpositionen erstellt`);
+      }
+
+      // Ausführung protokollieren
+      await db.insert(recurringOrderExecutions).values({
+        recurringOrderId: order.id,
+        executionDate: new Date(),
+        orderId: createdOrder.id,
+        orderNumber: testOrderNumber,
+        status: 'completed',
+        itemsCreated: orderItems.length,
+        notes: `Test-Ausführung erfolgreich - Bestellung ${testOrderNumber} erstellt`
+      });
+
       return res.json({
         success: true,
-        message: `Test-Bestellung "${testOrderNumber}" erfolgreich erstellt`,
+        message: `Bestellung "${testOrderNumber}" erfolgreich erstellt (Status: ${orderStatus})`,
         dryRun: false,
-        execution: { ...testExecution, orderNumber: testOrderNumber }
+        execution: { 
+          ...testExecution, 
+          orderNumber: testOrderNumber,
+          orderId: createdOrder.id,
+          orderStatus: orderStatus,
+          itemsCreated: orderItems.length,
+          deliveryDate: createdOrder.expectedDeliveryDate
+        }
       });
     }
 
