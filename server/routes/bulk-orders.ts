@@ -105,10 +105,12 @@ router.get('/analytics/sales/:supplierId/:weeks', async (req, res) => {
         trend_data AS (
           SELECT 
             sp.id as product_id,
-            COUNT(t.id) as recent_sales
+            COUNT(t.id) as recent_sales,
+            COUNT(CASE WHEN t.datetime >= ${subWeeks(new Date(), Math.ceil(weeks / 2)).toISOString()} THEN 1 END) as recent_period_sales,
+            COUNT(CASE WHEN t.datetime < ${subWeeks(new Date(), Math.ceil(weeks / 2)).toISOString()} THEN 1 END) as older_period_sales
           FROM supplier_products sp
           LEFT JOIN transactions t ON LOWER(TRIM(t.product_name)) = LOWER(TRIM(sp.product_name))
-            AND t.datetime >= ${subWeeks(new Date(), Math.ceil(weeks / 2)).toISOString()}
+            AND t.datetime >= ${startDate.toISOString()}
           GROUP BY sp.id
         )
         SELECT 
@@ -117,15 +119,24 @@ router.get('/analytics/sales/:supplierId/:weeks', async (req, res) => {
           sd.total_sales,
           sd.total_revenue,
           sd.avg_weekly_sales,
+          td.recent_period_sales,
+          td.older_period_sales,
           CASE 
             WHEN sd.total_sales = 0 THEN 'stable'
-            WHEN td.recent_sales > (sd.avg_weekly_sales * ${Math.ceil(weeks / 2)}) THEN 'up'
-            WHEN td.recent_sales < (sd.avg_weekly_sales * ${Math.ceil(weeks / 2)}) THEN 'down'
+            WHEN td.older_period_sales = 0 AND td.recent_period_sales > 0 THEN 'up'
+            WHEN td.recent_period_sales = 0 AND td.older_period_sales > 0 THEN 'down'
+            WHEN td.older_period_sales = 0 THEN 'stable'
+            WHEN (td.recent_period_sales::numeric / ${Math.ceil(weeks / 2)}) > (td.older_period_sales::numeric / ${Math.ceil(weeks / 2)}) THEN 'up'
+            WHEN (td.recent_period_sales::numeric / ${Math.ceil(weeks / 2)}) < (td.older_period_sales::numeric / ${Math.ceil(weeks / 2)}) THEN 'down'
             ELSE 'stable'
           END as trend_direction,
           CASE 
-            WHEN sd.avg_weekly_sales = 0 THEN 0
-            ELSE CAST(((td.recent_sales::numeric / ${Math.ceil(weeks / 2)}) - sd.avg_weekly_sales) / sd.avg_weekly_sales * 100 AS numeric(10,2))
+            WHEN td.older_period_sales = 0 OR sd.avg_weekly_sales = 0 THEN 0
+            ELSE CAST(
+              ((td.recent_period_sales::numeric / ${Math.ceil(weeks / 2)}) - 
+               (td.older_period_sales::numeric / ${Math.ceil(weeks / 2)})) / 
+              (td.older_period_sales::numeric / ${Math.ceil(weeks / 2)}) * 100 
+              AS numeric(10,1))
           END as trend_percentage
         FROM sales_data sd
         LEFT JOIN trend_data td ON sd.product_id = td.product_id
@@ -135,7 +146,7 @@ router.get('/analytics/sales/:supplierId/:weeks', async (req, res) => {
     const result = await db.execute(salesQuery);
     console.log(`Found ${result.rows.length} products with sales data`);
     
-    // Convert string values to numbers for frontend compatibility
+    // Convert string values to numbers for frontend compatibility and add debug info
     const processedRows = result.rows.map((row: any) => ({
       productId: row.product_id,
       productName: row.product_name,
@@ -143,8 +154,13 @@ router.get('/analytics/sales/:supplierId/:weeks', async (req, res) => {
       totalRevenue: Number(row.total_revenue || 0),
       avgWeeklySales: Number(row.avg_weekly_sales || 0),
       trendDirection: row.trend_direction,
-      trendPercentage: Number(row.trend_percentage || 0)
+      trendPercentage: Number(row.trend_percentage || 0),
+      // Debug info
+      recentPeriodSales: Number(row.recent_period_sales || 0),
+      olderPeriodSales: Number(row.older_period_sales || 0)
     }));
+    
+    console.log('First product trend data:', processedRows[0]);
     
     res.json(processedRows);
 
