@@ -1,0 +1,65 @@
+Hier noch einmal alle Gedanken in einer klaren, hierarchischen Struktur zusammengefasst:
+
+⸻
+
+1. Zielsetzung
+	•	Versand­bestellungen: Automatisch erzeugte wiederkehrende Bestellungen, die an den Lieferanten geschickt werden müssen.
+	•	Wareneingangs­bestellungen: Automatisch erzeugte wiederkehrende Bestellungen für Lieferanten, die ohne Auslösen einer Bestellung jede Woche liefern – diese landen direkt unter „Wareneingang“ und müssen nur noch gebucht werden.
+
+⸻
+
+2. Bestell­typen
+	1.	Versand­bestellung
+	•	Wird als Entwurf erstellt, geprüft und anschließend aktiv an den Lieferanten versendet.
+	2.	Wareneingangs­bestellung
+	•	Erscheint automatisch unter dem Tab „Wareneingang“ und durchläuft dort den Buchungs­schritt.
+	•	Kein Versand­schritt nötig, da der Lieferant die Ware proaktiv anliefert.
+
+⸻
+
+3. Konfigurations­maske „Wiederkehrende Bestellung einrichten“
+	•	Name der Bestellung
+	•	Bestelltyp: Versand / Wareneingang
+	•	Lieferant
+	•	Ziel-Lager
+	•	Produktliste + feste Mengen oder prognosebasiert
+	•	Startdatum
+	•	Rhythmus: wöchentlich (Wochentag), zwei-/drei-wöchentlich, monatlich (z. B. 1. Dienstag)
+	•	Lieferlogik:
+	•	feste Lieferwoche(n) oder
+	•	X Tage nach Bestellung
+	•	Prognose-Zeitraum: Bedarf für 7 / 14 Tage berechnen
+	•	E-Mail-Benachrichtigung: Entwurfs­fertigmeldung an definierte Adresse(n)
+	•	Aktiv/Deaktiviert
+
+⸻
+
+4. Automatisierter Ablauf
+	1.	Zeitplan-Trigger zum definierten Rhythmus
+	2.	Prognose-Modul ermittelt den voraussichtlichen Bedarf (inkl. Wetter, Feiertage, Ferien)
+	3.	Entwurfserzeugung
+	•	Versand­bestellung: Entwurf unter „Neue Bestellungen → Entwürfe (wiederkehrend)“
+	•	Wareneingang: Buchungsentwurf unter „Wareneingang“
+	4.	Benachrichtigung per E-Mail:
+„Ihr automatischer Bestellentwurf für [Lieferant] (Lager: [XY], Lieferung: [Datum]) ist bereit.“
+	5.	Manuelle Prüfung & Auslösung (bei Versand­bestellung) bzw. Buchung (bei Wareneingangs­bestellung)
+
+⸻
+
+5. Vorteile auf einen Blick
+	•	Zeitersparnis bei bekannten Lieferungen
+	•	Fehlerreduktion durch standardisierte Prozesse
+	•	Übersichtlichkeit dank eigener Tabs für Entwürfe und Wareneingang
+	•	Flexibilität durch Prognose­integration und variable Lieferlogiken
+
+⸻
+
+6. Weiter­führende Optionen
+	•	Sofort-Auslösen-Button für Entwürfe
+	•	Ampel-Anzeige (kritisch/ausreichend/Überbestand)
+	•	Individuelle Anpassung einzelner Entwürfe vor Versand
+	•	Reporting über ausgelöste vs. gebuchte wiederkehrende Bestellungen
+
+⸻
+
+So hast du auf einen Blick alle Funktionen, Konfigurations­punkte und Abläufe für beide Arten von wiederkehrenden Bestellungen – zum Versenden und direkt zum Wareneingang.
