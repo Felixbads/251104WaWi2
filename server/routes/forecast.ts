@@ -503,62 +503,119 @@ export function registerForecastRoutes(app: Express): void {
       const { db } = await import('../db');
       const { sql } = await import('drizzle-orm');
       
-      const result = await db.execute(sql`
-        WITH historical_sales AS (
+      console.log('🔮 FORECAST DEBUG - Checking for existing forecast data in database...');
+      
+      // First check if we have actual forecast data in the database
+      const existingForecastsCheck = await db.execute(sql`
+        SELECT COUNT(*) as count FROM forecasts 
+        WHERE forecast_date >= CURRENT_DATE 
+          AND forecast_date <= CURRENT_DATE + INTERVAL '28 days'
+      `);
+      
+      console.log('🔮 FORECAST DEBUG - Existing forecasts count:', existingForecastsCheck.rows[0]);
+      
+      const forecastCount = existingForecastsCheck.rows[0]?.count || 0;
+      
+      if (forecastCount > 0) {
+        console.log('🔮 FORECAST DEBUG - Using actual forecast model data from database');
+        // Use original forecast model data
+        const result = await db.execute(sql`
+          WITH weekly_aggregates AS (
+            SELECT 
+              f.product_id as product_name,
+              CASE 
+                WHEN f.forecast_date <= CURRENT_DATE + INTERVAL '7 days' THEN 'week1'
+                WHEN f.forecast_date <= CURRENT_DATE + INTERVAL '14 days' THEN 'week2'
+                WHEN f.forecast_date <= CURRENT_DATE + INTERVAL '21 days' THEN 'week3'
+                WHEN f.forecast_date <= CURRENT_DATE + INTERVAL '28 days' THEN 'week4'
+              END as week_period,
+              SUM(f.predicted_quantity) as weekly_total,
+              AVG(f.confidence) as avg_confidence
+            FROM forecasts f
+            WHERE f.forecast_date >= CURRENT_DATE 
+              AND f.forecast_date <= CURRENT_DATE + INTERVAL '28 days'
+              AND f.product_id IS NOT NULL
+            GROUP BY f.product_id, week_period
+          )
           SELECT 
-            product_id,
-            AVG(CASE WHEN datetime >= CURRENT_DATE - INTERVAL '30 days' THEN 1 ELSE 0 END) as daily_avg_sales
-          FROM transactions 
-          WHERE datetime >= CURRENT_DATE - INTERVAL '90 days'
-          GROUP BY product_id
-        ),
-        weather_holidays AS (
-          SELECT 
-            -- Week 1: Current weather tends to be more stable
-            1.0 as week1_weather_factor,
-            -- Week 2: Weather forecast with holiday/vacation effects
+            product_name,
+            COALESCE(SUM(CASE WHEN week_period = 'week1' THEN weekly_total END), 0) as week1,
+            COALESCE(SUM(CASE WHEN week_period = 'week2' THEN weekly_total END), 0) as week2,
+            COALESCE(SUM(CASE WHEN week_period = 'week3' THEN weekly_total END), 0) as week3,
+            COALESCE(SUM(CASE WHEN week_period = 'week4' THEN weekly_total END), 0) as week4,
+            COALESCE(SUM(weekly_total), 0) as total_4weeks,
+            AVG(avg_confidence) as confidence,
+            -- Calculate percentage change from week 1 to week 2
             CASE 
-              WHEN EXTRACT(month FROM CURRENT_DATE + INTERVAL '7 days') IN (6,7,8) THEN 1.3  -- Summer boost
-              WHEN EXTRACT(month FROM CURRENT_DATE + INTERVAL '7 days') IN (12,1,2) THEN 0.8  -- Winter reduction  
-              WHEN EXTRACT(dow FROM CURRENT_DATE + INTERVAL '7 days') IN (0,6) THEN 1.2      -- Weekend boost
-              ELSE 1.1  -- General positive outlook
-            END as week2_weather_factor
-        ),
-        enhanced_forecasts AS (
-          SELECT 
-            hs.product_id as product_name,
-            -- Week 1: Baseline with current patterns
-            ROUND(hs.daily_avg_sales * 7 * wh.week1_weather_factor, 1) as week1,
-            -- Week 2: Enhanced with weather/holiday factors
-            ROUND(hs.daily_avg_sales * 7 * wh.week2_weather_factor, 1) as week2,
-            -- Week 3 & 4: Seasonal trending
-            ROUND(hs.daily_avg_sales * 7 * wh.week2_weather_factor * 1.05, 1) as week3,
-            ROUND(hs.daily_avg_sales * 7 * wh.week2_weather_factor * 1.1, 1) as week4,
-            0.85 as confidence,
-            -- Realistic percentage change calculation with weather/holiday impact
-            CASE 
-              WHEN hs.daily_avg_sales = 0 THEN 0
+              WHEN COALESCE(SUM(CASE WHEN week_period = 'week1' THEN weekly_total END), 0) = 0 THEN 0
               ELSE ROUND(
-                ((wh.week2_weather_factor - wh.week1_weather_factor) / wh.week1_weather_factor) * 100, 1
+                ((COALESCE(SUM(CASE WHEN week_period = 'week2' THEN weekly_total END), 0) - 
+                  COALESCE(SUM(CASE WHEN week_period = 'week1' THEN weekly_total END), 0))::numeric / 
+                 COALESCE(SUM(CASE WHEN week_period = 'week1' THEN weekly_total END), 1)::numeric) * 100, 1
               )
             END as week1_to_week2_change_percent
-          FROM historical_sales hs
-          CROSS JOIN weather_holidays wh
-          WHERE hs.daily_avg_sales > 0
-        )
-        SELECT 
-          product_name,
-          week1,
-          week2,
-          week3,
-          week4,
-          (week1 + week2 + week3 + week4) as total_4weeks,
-          confidence,
-          week1_to_week2_change_percent
-        FROM enhanced_forecasts
-        ORDER BY (week1 + week2 + week3 + week4) DESC
-        LIMIT 20
-      `);
+          FROM weekly_aggregates
+          GROUP BY product_name
+          HAVING SUM(weekly_total) > 0
+          ORDER BY SUM(weekly_total) DESC
+          LIMIT 20
+        `);
+        console.log('🔮 FORECAST DEBUG - Forecast model results:', result.rows.length, 'products');
+        return result;
+      } else {
+        console.log('🔮 FORECAST DEBUG - No forecast data found, falling back to historical sales patterns');
+        // Fallback to historical data analysis
+        const result = await db.execute(sql`
+          WITH historical_sales AS (
+            SELECT 
+              product_id,
+              COUNT(*) as total_sales,
+              AVG(CASE WHEN datetime >= CURRENT_DATE - INTERVAL '7 days' THEN 1 ELSE 0 END) * 7 as weekly_avg_sales
+            FROM transactions 
+            WHERE datetime >= CURRENT_DATE - INTERVAL '90 days'
+            GROUP BY product_id
+            HAVING COUNT(*) > 0
+          ),
+          trend_analysis AS (
+            SELECT 
+              hs.product_id as product_name,
+              -- Week 1: Recent weekly average
+              ROUND(hs.weekly_avg_sales, 1) as week1,
+              -- Week 2: Slight seasonal variation
+              ROUND(hs.weekly_avg_sales * CASE 
+                WHEN EXTRACT(month FROM CURRENT_DATE) IN (6,7,8) THEN 1.15  -- Summer boost
+                WHEN EXTRACT(month FROM CURRENT_DATE) IN (12,1,2) THEN 0.9   -- Winter reduction  
+                ELSE 1.05  -- General growth
+              END, 1) as week2,
+              -- Week 3 & 4: Continued trend
+              ROUND(hs.weekly_avg_sales * 1.1, 1) as week3,
+              ROUND(hs.weekly_avg_sales * 1.15, 1) as week4,
+              0.75 as confidence,
+              -- Calculate realistic percentage change
+              ROUND(CASE 
+                WHEN EXTRACT(month FROM CURRENT_DATE) IN (6,7,8) THEN 15.0  -- Summer boost
+                WHEN EXTRACT(month FROM CURRENT_DATE) IN (12,1,2) THEN -10.0 -- Winter reduction  
+                ELSE 5.0  -- General growth
+              END, 1) as week1_to_week2_change_percent
+            FROM historical_sales hs
+            WHERE hs.weekly_avg_sales > 0
+          )
+          SELECT 
+            product_name,
+            week1,
+            week2,
+            week3,
+            week4,
+            (week1 + week2 + week3 + week4) as total_4weeks,
+            confidence,
+            week1_to_week2_change_percent
+          FROM trend_analysis
+          ORDER BY (week1 + week2 + week3 + week4) DESC
+          LIMIT 20
+        `);
+        console.log('🔮 FORECAST DEBUG - Historical fallback results:', result.rows.length, 'products');
+        return result;
+      }
       
       res.json(result.rows || []);
     } catch (error) {

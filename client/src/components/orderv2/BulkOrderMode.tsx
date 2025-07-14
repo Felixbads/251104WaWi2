@@ -908,7 +908,9 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
                       value={selectedWarehouseId?.toString() || ''} 
                       onValueChange={(value) => {
                         const warehouseId = parseInt(value);
-                        const warehouse = (warehouses as any)?.data?.find((w: any) => w.id === warehouseId);
+                        const warehouseList = Array.isArray(warehouses) ? warehouses : (warehouses as any)?.data || [];
+                        const warehouse = warehouseList.find((w: any) => w.id === warehouseId);
+                        console.log('🏭 WAREHOUSE SELECTION - Selected:', warehouseId, warehouse);
                         if (warehouse) {
                           setSelectedWarehouseId(warehouseId);
                           setSelectedWarehouseName(warehouse.name);
@@ -919,7 +921,14 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
                         <SelectValue placeholder="Wählen Sie ein Lager aus..." />
                       </SelectTrigger>
                       <SelectContent>
-                        {(warehouses as any)?.data?.map((warehouse: any) => (
+                        {(() => {
+                          console.log('🏭 WAREHOUSE DEBUG - Raw warehouses response:', warehouses);
+                          console.log('🏭 WAREHOUSE DEBUG - warehouses.data:', (warehouses as any)?.data);
+                          console.log('🏭 WAREHOUSE DEBUG - direct warehouses:', warehouses);
+                          const warehouseList = Array.isArray(warehouses) ? warehouses : (warehouses as any)?.data || [];
+                          console.log('🏭 WAREHOUSE DEBUG - Final warehouse list:', warehouseList);
+                          return warehouseList;
+                        })().map((warehouse: any) => (
                           <SelectItem key={warehouse.id} value={warehouse.id.toString()}>
                             <div className="flex items-center gap-2">
                               <Store className="h-4 w-4" />
