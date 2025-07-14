@@ -47,6 +47,7 @@ import SupplierEmailTemplates from "@/components/suppliers/SupplierEmailTemplate
 import { SupplierEditDialog } from "@/components/SupplierEditDialog";
 import UnifiedPurchaseConditionsManager from "@/components/purchase-conditions/UnifiedPurchaseConditionsManager";
 import SupplierDiscountManager from "@/components/SupplierDiscountManager";
+import SupplierInformationTab from "@/components/suppliers/SupplierInformationTab";
 import { apiRequest } from "@/lib/queryClient";
 
 // Inline editing component for supplier fields
@@ -1474,7 +1475,7 @@ export default function SupplierDetail() {
         
         {/* Informationen Tab */}
         <TabsContent value="info" className="space-y-6">
-          <SupplierInlineEditCard supplier={supplier} onUpdate={handleUpdateSupplier} />
+          <SupplierInformationTab supplier={supplier} supplierId={parseInt(id!)} />
         </TabsContent>
         
         {/* Produkte Tab */}
