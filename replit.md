@@ -109,6 +109,15 @@ This is a comprehensive vending machine management platform (Warenwirtschaftssys
 
 ## Changelog
 
+- July 14, 2025: SUPPLIER DISCOUNT CONDITIONS SPEICHERN-BUTTON 100% BEHOBEN - Backend-Frontend Parameter-Mismatch korrigiert
+  - ✅ Critical Fix: Backend erwartete camelCase, Frontend sendete snake_case Parameter
+  - ✅ Backend-Routen (POST/PUT) auf snake_case umgestellt für Konsistenz mit Datenbank
+  - ✅ Parameter-Extraktion korrigiert: supplier_id statt supplierId, discount_type statt discountType
+  - ✅ API-Tests bestätigt: POST (Create) und PUT (Update) funktionieren vollständig
+  - ✅ Rabattbedingungen-Speicherung funktioniert für alle Rabatttypen: Mengenrabatt, Bestellwertrabatt, Skonto
+  - ✅ Datenbank-Persistierung verifiziert: Alle Felder werden korrekt gespeichert und aktualisiert
+  - ✅ SupplierRabattManager Speicher-Button jetzt voll funktionsfähig ohne Backend-Fehler
+  - System ermöglicht jetzt vollständige Verwaltung von Lieferanten-Rabattbedingungen ohne API-Fehler
 - July 14, 2025: CRITICAL ORDER EMAIL FIXES COMPLETED - Fixed incomplete supplier addresses in email templates
   - ✅ Supplier address issue FIXED: Email templates now fetch complete address data (address, postalCode, city, country)
   - ✅ Updated SQL queries in orders-email-working.ts to include all supplier address fields

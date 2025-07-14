@@ -33,26 +33,30 @@ router.post('/', async (req, res) => {
     console.log('[SUPPLIER-DISCOUNTS] Creating new discount:', req.body);
     
     const {
-      supplierId,
-      discountType,
-      discountPercentage,
-      discountAmount,
-      thresholdQuantity,
-      thresholdAmount,
-      maxQuantity,
-      maxAmount,
-      paymentTermsDays,
-      skontoPercentage,
-      validFrom,
-      validTo,
-      isActive = true,
+      supplier_id: supplierId,
+      discount_type: discountType,
+      discount_percentage: discountPercentage,
+      discount_amount: discountAmount,
+      threshold_quantity: thresholdQuantity,
+      threshold_amount: thresholdAmount,
+      max_quantity: maxQuantity,
+      max_amount: maxAmount,
+      payment_terms_days: paymentTermsDays,
+      skonto_percentage: skontoPercentage,
+      valid_from: validFrom,
+      valid_to: validTo,
+      is_active: isActive = true,
       priority = 0,
-      canCombineWithOtherDiscounts = false,
+      can_combine_with_other_discounts: canCombineWithOtherDiscounts = false,
       description,
-      minimumOrderQuantity,
-      applicableProductCategories,
-      excludedProductIds
+      minimum_order_quantity: minimumOrderQuantity,
+      applicable_product_categories: applicableProductCategories,
+      excluded_product_ids: excludedProductIds
     } = req.body;
+
+    console.log('[SUPPLIER-DISCOUNTS] Extracted values:', {
+      supplierId, discountType, discountPercentage, description, isActive, priority
+    });
 
     const result = await pool.query(`
       INSERT INTO supplier_discount_conditions (
@@ -93,24 +97,24 @@ router.put('/:id', async (req, res) => {
     console.log('[SUPPLIER-DISCOUNTS] Updating discount condition:', req.body);
     
     const {
-      discountType,
-      discountPercentage,
-      discountAmount,
-      thresholdQuantity,
-      thresholdAmount,
-      maxQuantity,
-      maxAmount,
-      paymentTermsDays,
-      skontoPercentage,
-      validFrom,
-      validTo,
-      isActive,
+      discount_type: discountType,
+      discount_percentage: discountPercentage,
+      discount_amount: discountAmount,
+      threshold_quantity: thresholdQuantity,
+      threshold_amount: thresholdAmount,
+      max_quantity: maxQuantity,
+      max_amount: maxAmount,
+      payment_terms_days: paymentTermsDays,
+      skonto_percentage: skontoPercentage,
+      valid_from: validFrom,
+      valid_to: validTo,
+      is_active: isActive,
       priority,
-      canCombineWithOtherDiscounts,
+      can_combine_with_other_discounts: canCombineWithOtherDiscounts,
       description,
-      minimumOrderQuantity,
-      applicableProductCategories,
-      excludedProductIds
+      minimum_order_quantity: minimumOrderQuantity,
+      applicable_product_categories: applicableProductCategories,
+      excluded_product_ids: excludedProductIds
     } = req.body;
 
     const result = await pool.query(`
