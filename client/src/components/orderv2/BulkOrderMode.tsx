@@ -603,13 +603,7 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
               )) || []}
             </div>
             
-            {!selectedWarehouseId && (
-              <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-                <p className="text-sm text-red-600">
-                  <strong>Pflichtfeld:</strong> Bitte wählen Sie ein Lager für die Bestellung aus.
-                </p>
-              </div>
-            )}
+
             
             <div className="flex justify-between">
               <Button variant="outline" onClick={() => setStep('supplier')}>

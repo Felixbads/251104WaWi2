@@ -49,6 +49,265 @@ import UnifiedPurchaseConditionsManager from "@/components/purchase-conditions/U
 import SupplierDiscountManager from "@/components/SupplierDiscountManager";
 import { apiRequest } from "@/lib/queryClient";
 
+// Inline editing component for supplier fields
+function SupplierInlineEditCard({ supplier, onUpdate }: { supplier: any; onUpdate: (data: any) => void }) {
+  const [editingField, setEditingField] = useState<string | null>(null);
+  const [editValues, setEditValues] = useState<any>({});
+  const { toast } = useToast();
+
+  const handleEdit = (field: string, currentValue: any) => {
+    setEditingField(field);
+    setEditValues({ [field]: currentValue || '' });
+  };
+
+  const handleSave = async (field: string) => {
+    try {
+      await onUpdate({ [field]: editValues[field] });
+      setEditingField(null);
+      setEditValues({});
+    } catch (error) {
+      toast({
+        title: "Fehler",
+        description: "Fehler beim Speichern des Feldes",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleCancel = () => {
+    setEditingField(null);
+    setEditValues({});
+  };
+
+  const EditableField = ({ 
+    label, 
+    field, 
+    value, 
+    type = "input",
+    icon 
+  }: { 
+    label: string; 
+    field: string; 
+    value: any; 
+    type?: "input" | "textarea" | "email" | "url";
+    icon?: any;
+  }) => {
+    const isEditing = editingField === field;
+    
+    return (
+      <div className="flex items-center justify-between py-2 border-b border-gray-100 last:border-b-0">
+        <div className="flex items-center gap-2 flex-1">
+          {icon && icon}
+          <span className="font-medium text-sm text-muted-foreground min-w-[120px]">{label}:</span>
+          {isEditing ? (
+            <div className="flex-1 flex items-center gap-2">
+              {type === "textarea" ? (
+                <Textarea
+                  value={editValues[field] || ''}
+                  onChange={(e) => setEditValues({ ...editValues, [field]: e.target.value })}
+                  className="flex-1"
+                  rows={3}
+                />
+              ) : (
+                <Input
+                  type={type === "email" ? "email" : type === "url" ? "url" : "text"}
+                  value={editValues[field] || ''}
+                  onChange={(e) => setEditValues({ ...editValues, [field]: e.target.value })}
+                  className="flex-1"
+                />
+              )}
+              <div className="flex gap-1">
+                <Button size="sm" onClick={() => handleSave(field)}>
+                  <Check className="h-3 w-3" />
+                </Button>
+                <Button size="sm" variant="outline" onClick={handleCancel}>
+                  <X className="h-3 w-3" />
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex-1 flex items-center justify-between">
+              <span className="text-sm">
+                {value ? (
+                  type === "email" ? (
+                    <a href={`mailto:${value}`} className="hover:underline text-blue-600">{value}</a>
+                  ) : type === "url" ? (
+                    <a href={value} target="_blank" rel="noopener noreferrer" className="hover:underline text-blue-600">
+                      {value.replace(/^https?:\/\//, '')}
+                    </a>
+                  ) : (
+                    value
+                  )
+                ) : (
+                  <span className="text-muted-foreground italic">Nicht angegeben</span>
+                )}
+              </span>
+              <Button 
+                size="sm" 
+                variant="ghost" 
+                onClick={() => handleEdit(field, value)}
+                className="h-6 w-6 p-0"
+              >
+                <Edit className="h-3 w-3" />
+              </Button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Kontaktinformationen */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Building className="h-5 w-5" />
+            Kontaktinformationen
+          </CardTitle>
+          <CardDescription>
+            Klicken Sie auf das Bearbeiten-Symbol, um Felder direkt zu bearbeiten
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <EditableField
+            label="Firmenname"
+            field="name"
+            value={supplier.name}
+            icon={<Building className="h-4 w-4 text-muted-foreground" />}
+          />
+          <EditableField
+            label="Ansprechpartner"
+            field="contactPerson"
+            value={supplier.contactPerson}
+          />
+          <EditableField
+            label="Telefon"
+            field="phone"
+            value={supplier.phone}
+            icon={<Phone className="h-4 w-4 text-muted-foreground" />}
+          />
+          <EditableField
+            label="E-Mail"
+            field="email"
+            value={supplier.email}
+            type="email"
+            icon={<Mail className="h-4 w-4 text-muted-foreground" />}
+          />
+          <EditableField
+            label="Website"
+            field="website"
+            value={supplier.website}
+            type="url"
+            icon={<Globe className="h-4 w-4 text-muted-foreground" />}
+          />
+        </CardContent>
+      </Card>
+
+      {/* Adressinformationen */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <MapPin className="h-5 w-5" />
+            Adressinformationen
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <EditableField
+            label="Straße/Hausnummer"
+            field="address"
+            value={supplier.address}
+          />
+          <EditableField
+            label="Postleitzahl"
+            field="postalCode"
+            value={supplier.postalCode}
+          />
+          <EditableField
+            label="Stadt"
+            field="city"
+            value={supplier.city}
+          />
+          <EditableField
+            label="Land"
+            field="country"
+            value={supplier.country}
+          />
+        </CardContent>
+      </Card>
+
+      {/* Geschäftsbedingungen */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <FileText className="h-5 w-5" />
+            Geschäftsbedingungen
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <EditableField
+            label="Zahlungsbedingungen"
+            field="paymentTerms"
+            value={supplier.paymentTerms}
+            type="textarea"
+          />
+          <EditableField
+            label="Lieferbedingungen"
+            field="deliveryTerms"
+            value={supplier.deliveryTerms}
+            type="textarea"
+          />
+          <EditableField
+            label="Liefertage"
+            field="deliveryDays"
+            value={supplier.deliveryDays}
+          />
+          <EditableField
+            label="Mindestbestellwert"
+            field="minimumOrderValue"
+            value={supplier.minimumOrderValue}
+          />
+        </CardContent>
+      </Card>
+
+      {/* Weitere Informationen */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <FileText className="h-5 w-5" />
+            Weitere Informationen
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <EditableField
+            label="Steuernummer/USt-ID"
+            field="taxId"
+            value={supplier.taxId}
+          />
+          <EditableField
+            label="Bankverbindung"
+            field="bankDetails"
+            value={supplier.bankDetails}
+            type="textarea"
+          />
+          <EditableField
+            label="Kontonummer"
+            field="accountNumber"
+            value={supplier.accountNumber}
+          />
+          <EditableField
+            label="Anmerkungen"
+            field="notes"
+            value={supplier.notes}
+            type="textarea"
+          />
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 interface SupplierPortalData {
   activePins: any[];
   feedback: any[];
@@ -1191,10 +1450,6 @@ export default function SupplierDetail() {
               <BarChart className="h-3 w-3 sm:h-4 sm:w-4" />
               <span>Statistiken</span>
             </TabsTrigger>
-            <TabsTrigger value="emailTemplates" className="flex items-center gap-1 px-2 py-2 text-xs sm:text-sm whitespace-nowrap">
-              <Mail className="h-3 w-3 sm:h-4 sm:w-4" />
-              <span>E-Mail</span>
-            </TabsTrigger>
             <TabsTrigger value="portal" className="flex items-center gap-1 px-2 py-2 text-xs sm:text-sm whitespace-nowrap">
               <Shield className="h-3 w-3 sm:h-4 sm:w-4" />
               <span>Portal</span>
@@ -1209,270 +1464,7 @@ export default function SupplierDetail() {
         
         {/* Informationen Tab */}
         <TabsContent value="info" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Kontaktinformationen</CardTitle>
-            </CardHeader>
-            <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <div className="space-y-4">
-                <div>
-                  <h3 className="text-sm font-medium text-muted-foreground mb-2">Kontaktdaten</h3>
-                  
-                  {supplier.contactPerson && (
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="font-medium">Ansprechpartner:</span>
-                      <span>{supplier.contactPerson}</span>
-                    </div>
-                  )}
-                  
-                  <div className="space-y-1.5">
-                    {supplier.phone && (
-                      <div className="flex items-center">
-                        <Phone className="h-4 w-4 text-muted-foreground mr-2" />
-                        <a href={`tel:${supplier.phone}`} className="hover:underline">
-                          {supplier.phone}
-                        </a>
-                      </div>
-                    )}
-                    
-                    {supplier.email && (
-                      <div className="flex items-center">
-                        <Mail className="h-4 w-4 text-muted-foreground mr-2" />
-                        <a href={`mailto:${supplier.email}`} className="hover:underline">
-                          {supplier.email}
-                        </a>
-                      </div>
-                    )}
-                    
-                    {supplier.website && (
-                      <div className="flex items-center">
-                        <Globe className="h-4 w-4 text-muted-foreground mr-2" />
-                        <a href={supplier.website} target="_blank" rel="noopener noreferrer" className="hover:underline">
-                          {supplier.website.replace(/^https?:\/\//, '')}
-                        </a>
-                      </div>
-                    )}
-                  </div>
-                </div>
-                
-                <Separator />
-                
-                {/* Beschreibung */}
-                <div>
-                  <h3 className="text-sm font-medium text-muted-foreground mb-2">Beschreibung</h3>
-                  
-                  {supplier.shortDescription && (
-                    <div className="mb-3">
-                      <span className="font-medium text-sm">Kurzbeschreibung:</span>
-                      <p className="text-sm text-muted-foreground mt-1">{supplier.shortDescription}</p>
-                    </div>
-                  )}
-                  
-                  {supplier.description && (
-                    <div>
-                      <span className="font-medium text-sm">Beschreibung:</span>
-                      <p className="text-sm text-muted-foreground mt-1 whitespace-pre-wrap">{supplier.description}</p>
-                    </div>
-                  )}
-                  
-                  {!supplier.shortDescription && !supplier.description && (
-                    <p className="text-sm text-muted-foreground italic">Keine Beschreibung verfügbar</p>
-                  )}
-                </div>
-                
-                <Separator />
-                
-                <div>
-                  <h3 className="text-sm font-medium text-muted-foreground mb-2">Adresse</h3>
-                  
-                  <div className="pl-1">
-                    {supplier.address && <p>{supplier.address}</p>}
-                    {(supplier.postalCode || supplier.city) && (
-                      <p>
-                        {supplier.postalCode && `${supplier.postalCode} `}
-                        {supplier.city}
-                      </p>
-                    )}
-                    {supplier.country && <p>{supplier.country}</p>}
-                    
-                    {(supplier.address || supplier.city) && (
-                      <a 
-                        href={`https://maps.google.com/maps?q=${encodeURIComponent(
-                          [
-                            supplier.address,
-                            supplier.postalCode,
-                            supplier.city,
-                            supplier.country
-                          ].filter(Boolean).join(', ')
-                        )}`} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center text-sm text-primary hover:underline mt-2"
-                      >
-                        <MapPin className="h-3.5 w-3.5 mr-1" />
-                        Auf Google Maps anzeigen
-                      </a>
-                    )}
-                  </div>
-                </div>
-              </div>
-              
-              <div className="space-y-4">
-                <div>
-                  <h3 className="text-sm font-medium text-muted-foreground mb-2">Lieferbedingungen</h3>
-                  
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-                    {supplier.deliveryTerms && (
-                      <div className="col-span-2">
-                        <span className="font-medium">Lieferbedingungen:</span>
-                        <p className="text-sm">{supplier.deliveryTerms}</p>
-                      </div>
-                    )}
-                    
-                    {supplier.deliveryDays && (
-                      <div className="col-span-2">
-                        <span className="font-medium">Liefertage:</span>
-                        <p className="text-sm">{supplier.deliveryDays}</p>
-                      </div>
-                    )}
-                    
-                    {supplier.minimumOrderValue && (
-                      <div>
-                        <span className="font-medium">Mindestbestellwert:</span>
-                        <p className="text-sm">{supplier.minimumOrderValue.toFixed(2)} €</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-                
-                <Separator />
-                
-                <div>
-                  <h3 className="text-sm font-medium text-muted-foreground mb-2">Zahlungsinformationen</h3>
-                  
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-                    {supplier.paymentTerms && (
-                      <div className="col-span-2">
-                        <span className="font-medium">Zahlungsbedingungen:</span>
-                        <p className="text-sm">{supplier.paymentTerms}</p>
-                      </div>
-                    )}
-                    
-                    {supplier.bankDetails && (
-                      <div className="col-span-2">
-                        <span className="font-medium">Bankverbindung:</span>
-                        <p className="text-sm">{supplier.bankDetails}</p>
-                      </div>
-                    )}
-                    
-                    {supplier.taxId && (
-                      <div>
-                        <span className="font-medium">Steuernummer/USt-ID:</span>
-                        <p className="text-sm">{supplier.taxId}</p>
-                      </div>
-                    )}
-                    
-                    {supplier.accountNumber && (
-                      <div>
-                        <span className="font-medium">Kontonummer:</span>
-                        <p className="text-sm">{supplier.accountNumber}</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-                
-                {/* E-Mail-Einstellungen */}
-                {(supplier.orderEmailRecipient || supplier.orderEmailCc || supplier.orderEmailBcc || supplier.emailSignature) && (
-                  <>
-                    <Separator />
-                    <div>
-                      <h3 className="text-sm font-medium text-muted-foreground mb-2">E-Mail-Einstellungen</h3>
-                      
-                      <div className="grid grid-cols-1 gap-y-2">
-                        {supplier.orderEmailRecipient && (
-                          <div>
-                            <span className="font-medium">Bestellungs-E-Mail:</span>
-                            <p className="text-sm">{supplier.orderEmailRecipient}</p>
-                          </div>
-                        )}
-                        
-                        {supplier.orderEmailCc && (
-                          <div>
-                            <span className="font-medium">CC-Empfänger:</span>
-                            <p className="text-sm">{supplier.orderEmailCc}</p>
-                          </div>
-                        )}
-                        
-                        {supplier.orderEmailBcc && (
-                          <div>
-                            <span className="font-medium">BCC-Empfänger:</span>
-                            <p className="text-sm">{supplier.orderEmailBcc}</p>
-                          </div>
-                        )}
-                        
-                        {supplier.emailSignature && (
-                          <div>
-                            <span className="font-medium">E-Mail-Signatur:</span>
-                            <p className="text-sm whitespace-pre-line">{supplier.emailSignature}</p>
-                          </div>
-                        )}
-                        
-                        <div>
-                          <span className="font-medium">Preise in Bestellungen anzeigen:</span>
-                          <p className="text-sm">{supplier.showPricesInOrders ? 'Ja' : 'Nein'}</p>
-                        </div>
-                      </div>
-                    </div>
-                  </>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-          
-          {/* Beschreibung */}
-          {(supplier.shortDescription || supplier.notes) && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Beschreibung</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {supplier.shortDescription && (
-                  <div className="mb-4">
-                    <h4 className="font-medium mb-2">Kurzbeschreibung</h4>
-                    <p className="whitespace-pre-line">{supplier.shortDescription}</p>
-                  </div>
-                )}
-                {supplier.notes && (
-                  <div>
-                    <h4 className="font-medium mb-2">Beschreibung</h4>
-                    <p className="whitespace-pre-line">{supplier.notes}</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
-          
-          {/* Fotos */}
-          {supplier.photos && supplier.photos.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Fotos</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                  {supplier.photos.map((photo, index) => (
-                    <div key={index} className="relative group">
-                      <img
-                        src={photo}
-                        alt={`${supplier.name} Foto ${index + 1}`}
-                        className="w-full h-32 object-cover rounded border"
-                      />
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
+          <SupplierInlineEditCard supplier={supplier} onUpdate={handleUpdateSupplier} />
         </TabsContent>
         
         {/* Produkte Tab */}
