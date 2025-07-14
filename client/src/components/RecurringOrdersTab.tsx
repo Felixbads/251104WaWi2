@@ -78,7 +78,7 @@ export default function RecurringOrdersTab() {
 
   // Mutations
   const startSchedulerMutation = useMutation({
-    mutationFn: () => apiRequest('/api/recurring-orders/scheduler/start', { method: 'POST' }),
+    mutationFn: () => apiRequest('/api/recurring-orders/scheduler/start', undefined, 'POST'),
     onSuccess: () => {
       toast({
         title: "Scheduler gestartet",
@@ -96,7 +96,7 @@ export default function RecurringOrdersTab() {
   });
 
   const stopSchedulerMutation = useMutation({
-    mutationFn: () => apiRequest('/api/recurring-orders/scheduler/stop', { method: 'POST' }),
+    mutationFn: () => apiRequest('/api/recurring-orders/scheduler/stop', undefined, 'POST'),
     onSuccess: () => {
       toast({
         title: "Scheduler gestoppt",
@@ -107,7 +107,7 @@ export default function RecurringOrdersTab() {
   });
 
   const deleteOrderMutation = useMutation({
-    mutationFn: (id: number) => apiRequest(`/api/recurring-orders/${id}`, { method: 'DELETE' }),
+    mutationFn: (id: number) => apiRequest(`/api/recurring-orders/${id}`, undefined, 'DELETE'),
     onSuccess: () => {
       toast({
         title: "Bestellung gelöscht",
@@ -118,7 +118,7 @@ export default function RecurringOrdersTab() {
   });
 
   const executeOrderMutation = useMutation({
-    mutationFn: (id: number) => apiRequest(`/api/recurring-orders/${id}/execute`, { method: 'POST' }),
+    mutationFn: (id: number) => apiRequest(`/api/recurring-orders/${id}/execute`, undefined, 'POST'),
     onSuccess: () => {
       toast({
         title: "Bestellung ausgeführt",
@@ -131,10 +131,10 @@ export default function RecurringOrdersTab() {
   // TEST-FUNKTIONALITÄTEN HINZUGEFÜGT
   const testEmailMutation = useMutation({
     mutationFn: ({ id, email }: { id: number; email: string }) => 
-      apiRequest('/api/recurring-orders/test-email', { 
-        method: 'POST', 
-        body: { recurringOrderId: id, recipientEmail: email }
-      }),
+      apiRequest('/api/recurring-orders/test-email', 
+        { recurringOrderId: id, recipientEmail: email }, 
+        'POST'
+      ),
     onSuccess: (data) => {
       toast({
         title: "Test-E-Mail gesendet",
@@ -152,10 +152,10 @@ export default function RecurringOrdersTab() {
 
   const testExecutionMutation = useMutation({
     mutationFn: ({ id, dryRun }: { id: number; dryRun: boolean }) => 
-      apiRequest('/api/recurring-orders/test-execution', { 
-        method: 'POST', 
-        body: { recurringOrderId: id, dryRun }
-      }),
+      apiRequest('/api/recurring-orders/test-execution', 
+        { recurringOrderId: id, dryRun }, 
+        'POST'
+      ),
     onSuccess: (data) => {
       toast({
         title: dryRun ? "Test-Simulation erfolgreich" : "Test-Bestellung erstellt",
@@ -174,15 +174,9 @@ export default function RecurringOrdersTab() {
   const saveOrderMutation = useMutation({
     mutationFn: (data: any) => {
       if (data.id) {
-        return apiRequest(`/api/recurring-orders/${data.id}`, { 
-          method: 'PUT', 
-          body: data 
-        });
+        return apiRequest(`/api/recurring-orders/${data.id}`, data, 'PUT');
       } else {
-        return apiRequest('/api/recurring-orders', { 
-          method: 'POST', 
-          body: data 
-        });
+        return apiRequest('/api/recurring-orders', data, 'POST');
       }
     },
     onSuccess: () => {
