@@ -173,13 +173,17 @@ export default function RecurringOrdersTab() {
 
   const saveOrderMutation = useMutation({
     mutationFn: (data: any) => {
+      console.log('Mutation called with data:', data);
       if (data.id) {
+        console.log('PUT request to:', `/api/recurring-orders/${data.id}`);
         return apiRequest(`/api/recurring-orders/${data.id}`, data, 'PUT');
       } else {
+        console.log('POST request to:', '/api/recurring-orders');
         return apiRequest('/api/recurring-orders', data, 'POST');
       }
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
+      console.log('Save successful:', result);
       toast({
         title: "Gespeichert",
         description: "Die wiederkehrende Bestellung wurde erfolgreich gespeichert."
@@ -187,6 +191,14 @@ export default function RecurringOrdersTab() {
       setConfigDialogOpen(false);
       setSelectedOrder(undefined);
       queryClient.invalidateQueries({ queryKey: ['/api/recurring-orders'] });
+    },
+    onError: (error) => {
+      console.error('Save failed:', error);
+      toast({
+        title: "Fehler beim Speichern",
+        description: "Die wiederkehrende Bestellung konnte nicht gespeichert werden.",
+        variant: "destructive"
+      });
     }
   });
 
@@ -459,7 +471,7 @@ export default function RecurringOrdersTab() {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => testEmailMutation.mutate({ id: order.id, email: 'test@example.com' })}
+                          onClick={() => testEmailMutation.mutate({ id: order.id, email: 'info@elbsandstein-proviant.de' })}
                           disabled={testEmailMutation.isPending}
                           className="text-blue-600"
                         >

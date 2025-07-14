@@ -299,6 +299,11 @@ export default function RecurringOrderConfigDialog({
       }))
     };
 
+    // ID hinzufügen wenn es ein Update ist
+    if (recurringOrder) {
+      saveData.id = recurringOrder.id;
+    }
+    
     console.log('Saving data:', saveData);
     onSave(saveData);
   };

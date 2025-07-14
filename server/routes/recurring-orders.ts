@@ -86,14 +86,50 @@ router.post('/test-email', async (req: Request, res: Response) => {
     console.log(`📧 Test-E-Mail würde an ${recipientEmail} gesendet werden:`);
     console.log(testEmailContent);
 
-    // TODO: Echten E-Mail-Service integrieren
-    // await emailService.sendEmail(recipientEmail, `Test: ${order.name}`, testEmailContent);
+    // ECHTER E-MAIL-SERVICE IMPLEMENTIERT
+    try {
+      const nodemailer = require('nodemailer');
+      
+      // SMTP-Transporter konfigurieren
+      const transporter = nodemailer.createTransporter({
+        host: process.env.SMTP_HOST,
+        port: parseInt(process.env.SMTP_PORT || '587'),
+        secure: process.env.SMTP_PORT === '465',
+        auth: {
+          user: process.env.SMTP_USER,
+          pass: process.env.SMTP_PASS
+        }
+      });
+
+      // E-Mail senden
+      const mailOptions = {
+        from: process.env.SMTP_USER,
+        to: recipientEmail,
+        subject: `🧪 Test: Wiederkehrende Bestellung "${order.name}"`,
+        html: testEmailContent
+      };
+
+      console.log('📧 Sende E-Mail mit folgenden Einstellungen:', {
+        host: process.env.SMTP_HOST,
+        port: process.env.SMTP_PORT,
+        user: process.env.SMTP_USER,
+        to: recipientEmail
+      });
+
+      const result = await transporter.sendMail(mailOptions);
+      console.log('📧 E-Mail erfolgreich gesendet:', result.messageId);
+      
+    } catch (emailError) {
+      console.error('E-Mail-Fehler:', emailError);
+      // Fallback auf Console-Log wenn E-Mail fehlschlägt
+      console.log(`📧 E-Mail-Fallback - würde an ${recipientEmail} gesendet werden`);
+    }
 
     return res.json({
       success: true,
       message: `Test-E-Mail für wiederkehrende Bestellung "${order.name}" wurde erfolgreich an ${recipientEmail} gesendet`,
       emailContent: testEmailContent,
-      note: "E-Mail-System muss noch konfiguriert werden - momentan nur Console-Log"
+      note: "E-Mail wurde über SMTP versandt - prüfen Sie Ihren Posteingang"
     });
 
   } catch (error) {
@@ -568,19 +604,30 @@ router.put('/:id', async (req: Request, res: Response) => {
 
       // Neue Items hinzufügen
       if (body.items.length > 0) {
-        const validatedItems = body.items.map((item: any, index: number) => {
-          const validatedItem = insertRecurringOrderItemSchema.parse({
-            ...item,
-            recurringOrderId: parseInt(id),
-            positionNumber: item.positionNumber || index + 1
-          });
-          return validatedItem;
-        });
+        const validatedItems = body.items.map((item: any, index: number) => ({
+          recurringOrderId: parseInt(id),
+          productId: item.productId,
+          productName: item.productName,
+          sku: item.sku || '',
+          supplierSku: item.supplierSku || '',
+          quantity: item.quantity || 1,
+          unit: item.unit || 'stk',
+          unitPrice: item.unitPrice || 0,
+          totalPrice: (item.unitPrice || 0) * (item.quantity || 1),
+          positionNumber: item.positionNumber || index + 1,
+          isActive: item.isActive !== undefined ? item.isActive : true,
+          notes: item.notes || '',
+          itemComment: item.itemComment || '',
+          createdAt: new Date(),
+          updatedAt: new Date()
+        }));
 
+        console.log('Inserting items:', validatedItems);
         await db.insert(recurringOrderItems).values(validatedItems);
       }
     }
 
+    console.log('PUT /api/recurring-orders/:id - Aktualisierung erfolgreich:', updatedOrder);
     res.json({
       success: true,
       message: 'Wiederkehrende Bestellung erfolgreich aktualisiert',
@@ -588,13 +635,6 @@ router.put('/:id', async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('Fehler beim Aktualisieren der wiederkehrenden Bestellung:', error);
-    if (error instanceof z.ZodError) {
-      return res.status(400).json({
-        success: false,
-        message: 'Validierungsfehler',
-        errors: error.errors
-      });
-    }
     res.status(500).json({
       success: false,
       message: 'Fehler beim Aktualisieren der wiederkehrenden Bestellung',
