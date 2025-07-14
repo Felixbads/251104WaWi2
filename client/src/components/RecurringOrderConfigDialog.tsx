@@ -19,6 +19,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import { AlertTriangle, Mail, Calendar, Package, TrendingUp, Clock, Truck } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useQuery } from '@tanstack/react-query';
+import { apiRequest } from '@/lib/queryClient';
 
 interface RecurringOrderConfigDialogProps {
   open: boolean;
@@ -33,11 +35,28 @@ export default function RecurringOrderConfigDialog({
   open,
   onOpenChange,
   recurringOrder,
-  suppliers,
-  warehouses,
+  suppliers: propsSuppliers,
+  warehouses: propsWarehouses,
   onSave
 }: RecurringOrderConfigDialogProps) {
   const { toast } = useToast();
+
+  // DIREKTE API-CALLS IM DIALOG - PROBLEM-BEHEBUNG
+  const { data: apiSuppliers = [] } = useQuery({
+    queryKey: ['/api/suppliers/all-for-conditions'],
+    queryFn: () => apiRequest('/api/suppliers/all-for-conditions', { method: 'GET' }),
+    enabled: open // Nur laden wenn Dialog offen ist
+  });
+
+  const { data: apiWarehouses = [] } = useQuery({
+    queryKey: ['/api/warehouses'],
+    queryFn: () => apiRequest('/api/warehouses', { method: 'GET' }),
+    enabled: open // Nur laden wenn Dialog offen ist
+  });
+
+  // Verwende API-Daten oder Props als Fallback
+  const suppliers = Array.isArray(apiSuppliers) && apiSuppliers.length > 0 ? apiSuppliers : propsSuppliers;
+  const warehouses = Array.isArray(apiWarehouses) && apiWarehouses.length > 0 ? apiWarehouses : propsWarehouses;
   const [formData, setFormData] = useState({
     // Basis-Informationen
     name: '',
@@ -182,8 +201,10 @@ export default function RecurringOrderConfigDialog({
   };
 
   // Debug-Informationen ausgeben
-  console.log('RecurringOrderConfigDialog - Suppliers:', suppliers);
-  console.log('RecurringOrderConfigDialog - Warehouses:', warehouses);
+  console.log('RecurringOrderConfigDialog - API Suppliers:', apiSuppliers);
+  console.log('RecurringOrderConfigDialog - API Warehouses:', apiWarehouses);
+  console.log('RecurringOrderConfigDialog - Final Suppliers:', suppliers);
+  console.log('RecurringOrderConfigDialog - Final Warehouses:', warehouses);
   console.log('RecurringOrderConfigDialog - suppliers length:', suppliers?.length);
   console.log('RecurringOrderConfigDialog - warehouses length:', warehouses?.length);
 
