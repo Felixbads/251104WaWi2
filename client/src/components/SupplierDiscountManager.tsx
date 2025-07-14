@@ -100,7 +100,7 @@ export default function SupplierDiscountManager({ supplierId }: SupplierDiscount
   const queryClient = useQueryClient();
 
   // Laden der Rabattbedingungen
-  const { data: discounts = [], isLoading } = useQuery({
+  const { data: rawDiscounts = [], isLoading } = useQuery({
     queryKey: ['/api/supplier-discounts', supplierId],
     queryFn: async () => {
       const response = await fetch(`/api/supplier-discounts/${supplierId}`);
@@ -108,6 +108,31 @@ export default function SupplierDiscountManager({ supplierId }: SupplierDiscount
       return response.json();
     }
   });
+
+  // Transformiere API Response von snake_case zu camelCase
+  const discounts: SupplierDiscountCondition[] = rawDiscounts.map((item: any) => ({
+    id: item.id,
+    supplierId: item.supplier_id,
+    discountType: item.discount_type,
+    description: item.description || '',
+    discountPercentage: item.discount_percentage ? parseFloat(item.discount_percentage) : undefined,
+    discountAmount: item.discount_amount ? parseFloat(item.discount_amount) : undefined,
+    thresholdQuantity: item.threshold_quantity ? parseInt(item.threshold_quantity) : undefined,
+    thresholdAmount: item.threshold_amount ? parseFloat(item.threshold_amount) : undefined,
+    maxQuantity: item.max_quantity ? parseInt(item.max_quantity) : undefined,
+    paymentTermsDays: item.payment_terms_days ? parseInt(item.payment_terms_days) : undefined,
+    skontoPercentage: item.skonto_percentage ? parseFloat(item.skonto_percentage) : undefined,
+    minimumOrderQuantity: item.minimum_order_quantity ? parseInt(item.minimum_order_quantity) : undefined,
+    applicableProductCategories: item.applicable_product_categories,
+    excludedProductIds: item.excluded_product_ids,
+    validFrom: item.valid_from,
+    validTo: item.valid_to,
+    priority: item.priority || 0,
+    isActive: item.is_active,
+    canCombineWithOtherDiscounts: item.can_combine_with_other_discounts,
+    createdAt: item.created_at,
+    updatedAt: item.updated_at
+  }));
 
   // Erstellen einer neuen Rabattbedingung
   const createMutation = useMutation({
