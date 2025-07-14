@@ -16,8 +16,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Separator } from '@/components/ui/separator';
-import { AlertTriangle, Mail, Calendar, Package, TrendingUp, Clock, Truck } from 'lucide-react';
+import { AlertTriangle, Mail, Calendar, Package, TrendingUp, Clock, Truck, ShoppingCart, Plus, Minus, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useQuery } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
@@ -127,6 +128,26 @@ export default function RecurringOrderConfigDialog({
   const [emailList, setEmailList] = useState<string[]>([]);
   const [newEmail, setNewEmail] = useState('');
 
+  // PRODUKTAUSWAHL STATE (WARENKORB)
+  const [selectedProducts, setSelectedProducts] = useState<Array<{
+    productId: number;
+    productName: string;
+    sku?: string;
+    quantity: number;
+    unit: string;
+    unitPrice?: number;
+    notes?: string;
+  }>>([]);
+
+  // Query für Lieferanten-Produkte
+  const { data: supplierProducts = [], isLoading: productsLoading } = useQuery({
+    queryKey: ['/api/suppliers', formData.supplierId, 'available-products'],
+    queryFn: () => formData.supplierId ? 
+      apiRequest(`/api/suppliers/${formData.supplierId}/available-products`, undefined, 'GET').then(res => res || []) : 
+      Promise.resolve([]),
+    enabled: open && !!formData.supplierId
+  });
+
   useEffect(() => {
     if (recurringOrder) {
       setFormData({
@@ -161,6 +182,16 @@ export default function RecurringOrderConfigDialog({
       toast({
         title: "Fehler",
         description: "Bitte geben Sie einen Namen für die wiederkehrende Bestellung ein.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Produktvalidierung für nicht-prognose-basierte Bestellungen
+    if (!formData.forecastEnabled && selectedProducts.length === 0) {
+      toast({
+        title: "Fehler",
+        description: "Bitte wählen Sie mindestens ein Produkt aus oder aktivieren Sie die Prognose-basierte Auswahl.",
         variant: "destructive"
       });
       return;
@@ -208,7 +239,18 @@ export default function RecurringOrderConfigDialog({
       intervalValue: formData.intervalValue || 1,
       isActive: formData.isActive !== undefined ? formData.isActive : true,
       priority: formData.priority || 'normal',
-      forecastEnabled: formData.forecastEnabled || false
+      forecastEnabled: formData.forecastEnabled || false,
+      // PRODUKTE HINZUFÜGEN
+      items: selectedProducts.map((item, index) => ({
+        productId: item.productId,
+        productName: item.productName,
+        sku: item.sku || '',
+        quantity: item.quantity,
+        unit: item.unit || 'stk',
+        unitPrice: item.unitPrice || 0,
+        notes: item.notes || '',
+        positionNumber: index + 1
+      }))
     };
 
     console.log('Saving data:', saveData);
@@ -224,6 +266,46 @@ export default function RecurringOrderConfigDialog({
 
   const removeEmail = (email: string) => {
     setEmailList(prev => prev.filter(e => e !== email));
+  };
+
+  // PRODUKTAUSWAHL-FUNKTIONEN
+  const addProduct = (product: any) => {
+    const exists = selectedProducts.find(p => p.productId === product.id);
+    if (exists) {
+      // Menge erhöhen
+      setSelectedProducts(prev => prev.map(p => 
+        p.productId === product.id 
+          ? { ...p, quantity: p.quantity + 1 }
+          : p
+      ));
+    } else {
+      // Neues Produkt hinzufügen
+      setSelectedProducts(prev => [...prev, {
+        productId: product.id,
+        productName: product.name || product.productName,
+        sku: product.sku || '',
+        quantity: 1,
+        unit: 'stk',
+        unitPrice: product.price || 0,
+        notes: ''
+      }]);
+    }
+  };
+
+  const updateProductQuantity = (productId: number, quantity: number) => {
+    if (quantity <= 0) {
+      setSelectedProducts(prev => prev.filter(p => p.productId !== productId));
+    } else {
+      setSelectedProducts(prev => prev.map(p => 
+        p.productId === productId 
+          ? { ...p, quantity }
+          : p
+      ));
+    }
+  };
+
+  const removeProduct = (productId: number) => {
+    setSelectedProducts(prev => prev.filter(p => p.productId !== productId));
   };
 
   // DETAILLIERTE DEBUG-INFORMATIONEN
@@ -333,6 +415,159 @@ export default function RecurringOrderConfigDialog({
                     </Select>
                   </div>
                 </div>
+              </CardContent>
+            </Card>
+
+            {/* PRODUKTAUSWAHL CARD */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <ShoppingCart className="w-5 h-5" />
+                  Produktauswahl {!formData.forecastEnabled && "*"}
+                </CardTitle>
+                <CardDescription>
+                  {formData.forecastEnabled 
+                    ? "Bei prognose-basierten Bestellungen werden Produkte automatisch basierend auf Verkaufsdaten ausgewählt."
+                    : "Wählen Sie die Produkte aus, die regelmäßig bestellt werden sollen."
+                  }
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {!formData.forecastEnabled && (
+                  <>
+                    {/* Verfügbare Produkte */}
+                    {formData.supplierId && (
+                      <div>
+                        <Label>Verfügbare Produkte vom Lieferanten</Label>
+                        <div className="max-h-40 overflow-y-auto border rounded-md p-2 space-y-1">
+                          {productsLoading ? (
+                            <div className="text-center py-4 text-muted-foreground">
+                              Lade Produkte...
+                            </div>
+                          ) : supplierProducts.length > 0 ? (
+                            supplierProducts.map((product: any) => (
+                              <div
+                                key={product.id}
+                                className="flex items-center justify-between p-2 hover:bg-muted rounded cursor-pointer"
+                                onClick={() => addProduct(product)}
+                              >
+                                <div>
+                                  <div className="font-medium">{product.name || product.productName}</div>
+                                  {product.sku && (
+                                    <div className="text-sm text-muted-foreground">SKU: {product.sku}</div>
+                                  )}
+                                </div>
+                                <Button size="sm" variant="outline">
+                                  <Plus className="w-4 h-4" />
+                                </Button>
+                              </div>
+                            ))
+                          ) : (
+                            <div className="text-center py-4 text-muted-foreground">
+                              {formData.supplierId ? "Keine Produkte für diesen Lieferanten gefunden" : "Wählen Sie zuerst einen Lieferanten"}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Ausgewählte Produkte (Warenkorb) */}
+                    <div>
+                      <Label>Ausgewählte Produkte ({selectedProducts.length})</Label>
+                      {selectedProducts.length > 0 ? (
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Produkt</TableHead>
+                              <TableHead className="w-24">Menge</TableHead>
+                              <TableHead className="w-20">Einheit</TableHead>
+                              <TableHead className="w-16">Aktionen</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {selectedProducts.map((item) => (
+                              <TableRow key={item.productId}>
+                                <TableCell>
+                                  <div className="font-medium">{item.productName}</div>
+                                  {item.sku && (
+                                    <div className="text-sm text-muted-foreground">SKU: {item.sku}</div>
+                                  )}
+                                </TableCell>
+                                <TableCell>
+                                  <div className="flex items-center gap-1">
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => updateProductQuantity(item.productId, item.quantity - 1)}
+                                    >
+                                      <Minus className="w-3 h-3" />
+                                    </Button>
+                                    <Input
+                                      type="number"
+                                      value={item.quantity}
+                                      onChange={(e) => updateProductQuantity(item.productId, parseInt(e.target.value) || 1)}
+                                      className="w-16 text-center"
+                                      min="1"
+                                    />
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => updateProductQuantity(item.productId, item.quantity + 1)}
+                                    >
+                                      <Plus className="w-3 h-3" />
+                                    </Button>
+                                  </div>
+                                </TableCell>
+                                <TableCell>
+                                  <Select
+                                    value={item.unit}
+                                    onValueChange={(value) => setSelectedProducts(prev => 
+                                      prev.map(p => p.productId === item.productId ? { ...p, unit: value } : p)
+                                    )}
+                                  >
+                                    <SelectTrigger>
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="stk">Stück</SelectItem>
+                                      <SelectItem value="kg">kg</SelectItem>
+                                      <SelectItem value="l">Liter</SelectItem>
+                                      <SelectItem value="kiste">Kiste</SelectItem>
+                                      <SelectItem value="palette">Palette</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </TableCell>
+                                <TableCell>
+                                  <Button
+                                    size="sm"
+                                    variant="destructive"
+                                    onClick={() => removeProduct(item.productId)}
+                                  >
+                                    <X className="w-3 h-3" />
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      ) : (
+                        <div className="text-center py-8 text-muted-foreground border rounded-md">
+                          <ShoppingCart className="w-8 h-8 mx-auto mb-2" />
+                          <p>Noch keine Produkte ausgewählt</p>
+                          <p className="text-sm">Klicken Sie auf Produkte oben, um sie hinzuzufügen</p>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+
+                {formData.forecastEnabled && (
+                  <div className="text-center py-8 text-muted-foreground border rounded-md">
+                    <TrendingUp className="w-8 h-8 mx-auto mb-2" />
+                    <p>Prognose-basierte Produktauswahl aktiviert</p>
+                    <p className="text-sm">Produkte werden automatisch basierend auf Verkaufsprognosen ausgewählt</p>
+                  </div>
+                )}
               </CardContent>
             </Card>
 

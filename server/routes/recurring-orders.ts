@@ -178,7 +178,8 @@ router.post('/', async (req: Request, res: Response) => {
       forecastEnabled = false,
       priority = 'normal',
       supplierName = '',
-      warehouseName = ''
+      warehouseName = '',
+      items = [] // PRODUKTPOSITIONEN
     } = req.body;
 
     if (!name) {
@@ -253,13 +254,41 @@ router.post('/', async (req: Request, res: Response) => {
     console.log('Insert data:', JSON.stringify(insertData, null, 2));
 
     const result = await db.insert(recurringOrders).values(insertData).returning();
+    const newOrder = result[0];
     
-    console.log('Wiederkehrende Bestellung erfolgreich erstellt:', result[0]);
+    console.log('Wiederkehrende Bestellung erfolgreich erstellt:', newOrder);
+
+    // PRODUKTPOSITIONEN SPEICHERN
+    if (Array.isArray(items) && items.length > 0) {
+      console.log(`💾 Speichere ${items.length} Produktpositionen...`);
+      
+      const itemsToInsert = items.map((item: any, index: number) => ({
+        recurringOrderId: newOrder.id,
+        productId: parseInt(item.productId),
+        productName: item.productName || '',
+        sku: item.sku || null,
+        supplierSku: item.supplierSku || null,
+        quantity: parseInt(item.quantity) || 1,
+        unit: item.unit || 'stk',
+        unitPrice: parseFloat(item.unitPrice) || null,
+        totalPrice: item.unitPrice ? (parseFloat(item.unitPrice) * parseInt(item.quantity)) : null,
+        positionNumber: item.positionNumber || (index + 1),
+        isActive: true,
+        notes: item.notes || null,
+        itemComment: item.itemComment || null
+      }));
+
+      await db.insert(recurringOrderItems).values(itemsToInsert);
+      console.log(`✅ ${itemsToInsert.length} Produktpositionen gespeichert`);
+    }
 
     return res.json({
       success: true,
       message: 'Wiederkehrende Bestellung erfolgreich erstellt',
-      data: result[0]
+      data: {
+        ...newOrder,
+        itemsCount: items.length
+      }
     });
 
   } catch (error) {
