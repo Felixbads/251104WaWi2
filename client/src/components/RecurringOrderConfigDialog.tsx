@@ -127,6 +127,7 @@ export default function RecurringOrderConfigDialog({
 
   const [emailList, setEmailList] = useState<string[]>([]);
   const [newEmail, setNewEmail] = useState('');
+  const [activeTab, setActiveTab] = useState('grundlagen');
 
   // PRODUKTAUSWAHL STATE (WARENKORB)
   const [selectedProducts, setSelectedProducts] = useState<Array<{
