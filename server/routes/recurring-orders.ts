@@ -113,14 +113,27 @@ router.post('/test-email', async (req: Request, res: Response) => {
         host: process.env.SMTP_HOST,
         port: process.env.SMTP_PORT,
         user: process.env.SMTP_USER,
-        to: recipientEmail
+        to: recipientEmail,
+        secure: process.env.SMTP_PORT === '465',
+        hasPassword: process.env.SMTP_PASS ? 'JA' : 'NEIN'
       });
 
       const result = await transporter.sendMail(mailOptions);
-      console.log('📧 E-Mail erfolgreich gesendet:', result.messageId);
+      console.log('📧 E-Mail erfolgreich gesendet:', {
+        messageId: result.messageId,
+        accepted: result.accepted,
+        rejected: result.rejected,
+        response: result.response
+      });
       
     } catch (emailError) {
-      console.error('E-Mail-Fehler:', emailError);
+      console.error('❌ E-Mail-Fehler:', emailError);
+      console.error('❌ Fehler-Details:', {
+        message: emailError.message,
+        code: emailError.code,
+        command: emailError.command,
+        response: emailError.response
+      });
       // Fallback auf Console-Log wenn E-Mail fehlschlägt
       console.log(`📧 E-Mail-Fallback - würde an ${recipientEmail} gesendet werden`);
     }
@@ -129,7 +142,7 @@ router.post('/test-email', async (req: Request, res: Response) => {
       success: true,
       message: `Test-E-Mail für wiederkehrende Bestellung "${order.name}" wurde erfolgreich an ${recipientEmail} gesendet`,
       emailContent: testEmailContent,
-      note: "E-Mail wurde über SMTP versandt - prüfen Sie Ihren Posteingang"
+      note: "E-Mail wurde über SMTP versandt - prüfen Sie Ihren Posteingang (auch Spam-Ordner)"
     });
 
   } catch (error) {

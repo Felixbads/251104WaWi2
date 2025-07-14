@@ -471,7 +471,7 @@ export default function RecurringOrdersTab() {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => testEmailMutation.mutate({ id: order.id, email: 'info@elbsandstein-proviant.de' })}
+                          onClick={() => testEmailMutation.mutate({ id: order.id, email: 'felix@proviantomat.de' })}
                           disabled={testEmailMutation.isPending}
                           className="text-blue-600"
                         >
