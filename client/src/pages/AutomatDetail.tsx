@@ -73,6 +73,7 @@ import {
   BatchInfo
 } from "@/lib/api";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { LocationCostsTab, LocationProfitabilityTab } from "./LocationDetail";
 import { 
   BarChart,
   Bar,

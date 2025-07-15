@@ -129,9 +129,7 @@ router.get('/overview', async (req, res) => {
         .from(locationCosts)
         .where(and(
           sql`${locationCosts.locationId} = ANY(${locationIds})`,
-          eq(locationCosts.isActive, true),
-          gte(locationCosts.validFrom, start),
-          lte(locationCosts.validUntil, end)
+          eq(locationCosts.isActive, true)
         ))
         .groupBy(locationCosts.locationId);
 

@@ -80,7 +80,7 @@ const FREQUENCIES = [
 ];
 
 // Location Costs Tab Component
-function LocationCostsTab({ locationId }: { locationId: string }) {
+export function LocationCostsTab({ locationId }: { locationId: string }) {
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [newCost, setNewCost] = useState<NewLocationCost>({
@@ -363,7 +363,7 @@ function LocationCostsTab({ locationId }: { locationId: string }) {
 }
 
 // Location Profitability Tab Component
-function LocationProfitabilityTab({ locationId }: { locationId: string }) {
+export function LocationProfitabilityTab({ locationId }: { locationId: string }) {
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
   
   // Fetch profitability data
