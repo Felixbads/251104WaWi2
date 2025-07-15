@@ -208,7 +208,8 @@ export function CreateRetroactiveCountDialog({
                     <SelectContent>
                       {warehouses.map((warehouse) => (
                         <SelectItem key={warehouse.id} value={warehouse.id.toString()}>
-                          {warehouse.name} ({warehouse.city})
+                          {warehouse.name}
+                          {warehouse.address && ` (${warehouse.address})`}
                         </SelectItem>
                       ))}
                     </SelectContent>

@@ -30,7 +30,7 @@ import warehouseMovementsRouter from './routes/warehouse-movements';
 import warehouseLocationsRouter from './routes/warehouse-locations';
 import inventoryCountBatchesRouter from './routes/inventory-count-batches';
 import productInventoryRouter from './routes/productInventory';
-import warehousesRouter from './routes/warehouses';
+// import warehousesRouter from './routes/warehouses'; // Entfernt: Konflikt mit direkter warehouses API
 import emailRouter from './routes/email';
 import { criticalInventoryRouter } from './routes/critical-inventory';
 import productSyncRouter from './routes/product-sync';
@@ -274,8 +274,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get(`${API_PREFIX}/warehouses`, async (_req: Request, res: Response) => {
     try {
       console.log("Versuche, Warehouses abzurufen...");
-      // Verwende storage.getWarehouses statt direkter SQL-Abfrage
-      const warehouses = await storage.getWarehouses();
+      // Direkte SQL-Abfrage da storage.getWarehouses nicht verfügbar
+      const result = await rawDb.query(`
+        SELECT 
+          id,
+          name,
+          address,
+          description,
+          is_active
+        FROM warehouses 
+        WHERE is_active = true
+        ORDER BY name
+      `);
+      
+      const warehouses = result.rows;
       console.log("Warehouses erfolgreich abgerufen:", warehouses.length);
       res.json(warehouses);
     } catch (error) {
@@ -1816,13 +1828,71 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.error(`[DEBUG] Direct DB query failed:`, dbError);
       }
       
-      const productsResponse = await storage.getProducts({
-        limit, 
-        offset, 
-        search, 
-        supplierId, 
-        status
-      });
+      // Direkte SQL-Abfrage da storage.getProducts nicht verfügbar
+      let whereClause = 'WHERE 1=1';
+      const queryParams = [];
+      let paramCount = 0;
+      
+      if (search) {
+        paramCount++;
+        whereClause += ` AND product_name ILIKE $${paramCount}`;
+        queryParams.push(`%${search}%`);
+      }
+      
+      if (supplierId) {
+        paramCount++;
+        whereClause += ` AND id IN (SELECT product_id FROM purchase_conditions WHERE supplier_id = $${paramCount})`;
+        queryParams.push(supplierId);
+      }
+      
+      if (status) {
+        paramCount++;
+        whereClause += ` AND status = $${paramCount}`;
+        queryParams.push(status);
+      }
+      
+      const productsQuery = `
+        SELECT 
+          id,
+          vendon_id,
+          product_name,
+          sku,
+          barcode,
+          price,
+          vat,
+          status,
+          units,
+          category,
+          short_description,
+          detail_description,
+          ingredients,
+          allergens,
+          nutritional_info,
+          package_size,
+          min_order_quantity,
+          shelf_life,
+          is_alcoholic,
+          image_url,
+          notes,
+          created_at,
+          updated_at
+        FROM products 
+        ${whereClause}
+        ORDER BY product_name
+        LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}
+      `;
+      
+      queryParams.push(limit, offset);
+      
+      const productsResult = await rawDb.query(productsQuery, queryParams);
+      const countResult = await rawDb.query(`SELECT COUNT(*) as count FROM products ${whereClause}`, queryParams.slice(0, -2));
+      
+      const productsResponse = {
+        products: productsResult.rows,
+        total: parseInt(countResult.rows[0].count),
+        limit,
+        offset
+      };
       
       console.log(`[DEBUG] Storage.getProducts response type:`, typeof productsResponse);
       console.log(`[DEBUG] Storage.getProducts response structure:`, {
@@ -4548,7 +4618,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use(`${API_PREFIX}/inventory-counts`, inventoryCountBatchesRouter);
   app.use(`${API_PREFIX}/warehouse-movements`, warehouseMovementsRouter);
   app.use(`${API_PREFIX}/inventory-movements`, inventoryMovementsRouter);
-  app.use(`${API_PREFIX}/warehouses`, warehousesRouter); // Neue Route für /api/warehouses
+  // app.use(`${API_PREFIX}/warehouses`, warehousesRouter); // Entfernt: Konflikt mit direkter warehouses API
   
   // Registriere Inventar-API Router für Warehouse-Statistiken
   const inventoryApiRouter = await import('./routes/inventory-api');
