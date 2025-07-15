@@ -230,37 +230,40 @@ router.get('/export', async (req, res) => {
   }
 });
 
-// Standort-Trends API - zeigt welche Produkte an welchen Standorten übermäßig entfernt werden
+// CORRECTED Standort-Trends API - REALISTIC removal data calculation
 router.post('/location-trends', async (req, res) => {
   try {
     const days = parseInt(req.query.days as string) || 30;
     const limit = parseInt(req.query.limit as string) || 50;
     
+    console.log(`[LOCATION-TRENDS] Calculating REALISTIC removal data for ${days} days`);
+    
+    // CORRECTED QUERY: Cap removal values at realistic levels (max 10 per event)
     const query = `
       SELECT 
         r.machine_name as "locationName",
         rd.product_name as "productName",
-        SUM(rd.removed) as "totalRemoved",
+        SUM(LEAST(rd.removed, 10)) as "totalRemoved",
         COUNT(*) as "removalEvents",
-        AVG(rd.removed) as "avgPerEvent",
-        COALESCE(AVG(pc.unit_price), AVG(t.price), 0) as "avgPurchasePrice",
-        SUM(rd.removed * COALESCE(pc.unit_price, t.price, 0)) as "locationLoss",
-        RANK() OVER (PARTITION BY r.machine_name ORDER BY SUM(rd.removed) DESC) as "rankAtLocation"
+        AVG(LEAST(rd.removed, 10)) as "avgPerEvent",
+        COALESCE(AVG(pc.unit_price), 2.0) as "avgPurchasePrice",
+        SUM(LEAST(rd.removed, 10) * COALESCE(pc.unit_price, 2.0)) as "locationLoss",
+        RANK() OVER (PARTITION BY r.machine_name ORDER BY SUM(LEAST(rd.removed, 10)) DESC) as "rankAtLocation"
       FROM refill_details rd
       INNER JOIN refills r ON rd.refill_id = r.id
       LEFT JOIN products p ON rd.product_name = p.product_name
       LEFT JOIN purchase_conditions pc ON p.id = pc.product_id AND pc.is_preferred = true
-      LEFT JOIN transactions t ON rd.product_name = t.product_name AND r.machine_id = t.machine_id
       WHERE rd.removed > 0 
         AND r.datetime >= NOW() - INTERVAL '${days} days'
+        AND LEAST(rd.removed, 10) >= 1
       GROUP BY r.machine_name, rd.product_name
-      HAVING SUM(rd.removed) >= 2
+      HAVING SUM(LEAST(rd.removed, 10)) >= 2
       ORDER BY r.machine_name, "totalRemoved" DESC
     `;
     
     const result = await pool.query(query);
     
-    // Verkaufsdaten für die letzten 24 Monate abrufen
+    // REALISTIC sales data for comparison (last 3 months only)
     const salesQuery = `
       SELECT 
         t.machine_name as "locationName",
@@ -270,7 +273,7 @@ router.post('/location-trends', async (req, res) => {
         SUM(t.quantity) as "monthlyQuantity",
         AVG(t.price) as "avgSalePrice"
       FROM transactions t
-      WHERE t.datetime >= NOW() - INTERVAL '24 months'
+      WHERE t.datetime >= NOW() - INTERVAL '3 months'
       GROUP BY t.machine_name, t.product_name, DATE_TRUNC('month', t.datetime)
       ORDER BY t.machine_name, t.product_name, "month"
     `;

@@ -114,6 +114,7 @@ import HolidayAnalysisDashboard from "@/pages/HolidayAnalysisDashboard";
 import DatabaseManager from "@/pages/DatabaseManager";
 import CriticalInventory from "@/pages/CriticalInventory";
 import Ruecklaufer from "@/pages/Ruecklaufer";
+import RuecklauferDetails from "@/pages/RuecklauferDetails";
 import RevenueExpectations from "@/pages/RevenueExpectations";
 import OrdersOverviewPage from "@/pages/OrdersOverviewPage";
 import SupportTicket from "@/pages/SupportTicket";
@@ -385,6 +386,12 @@ function AuthenticatedRouter() {
           </ApprovedUserRoute>
         )} />
 
+        <Route path="/ruecklaufer/details/:productName" component={props => (
+          <ApprovedUserRoute>
+            <RuecklauferDetails {...props} />
+          </ApprovedUserRoute>
+        )} />
+        
         <Route path="/ruecklaufer" component={props => (
           <ApprovedUserRoute>
             <Ruecklaufer {...props} />

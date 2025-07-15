@@ -289,7 +289,10 @@ export default function Ruecklaufer() {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => setSelectedProduct(product.productName)}
+                          onClick={() => {
+                            // Navigate to new page with product details
+                            window.open(`/ruecklaufer/details/${encodeURIComponent(product.productName)}`, '_blank');
+                          }}
                           className="flex items-center gap-1"
                         >
                           <BarChart3 className="h-3 w-3" />
