@@ -72,10 +72,27 @@ interface DashboardData {
 }
 
 export default function SupplierDashboard({ supplierId, supplier }: SupplierDashboardProps) {
-  const { data: dashboardData, isLoading } = useQuery<DashboardData>({
+  const { data: rawDashboardData, isLoading } = useQuery<DashboardData>({
     queryKey: [`/api/supplier-analytics/dashboard/${supplierId}`],
     staleTime: 1000 * 60 * 5, // 5 minutes
   });
+
+  // Handle different API response formats
+  const dashboardData = React.useMemo(() => {
+    if (!rawDashboardData) return null;
+    
+    // If the response is directly the dashboard data
+    if (rawDashboardData.overview) {
+      return rawDashboardData;
+    }
+    
+    // If the response has a data property
+    if ((rawDashboardData as any).data && (rawDashboardData as any).data.overview) {
+      return (rawDashboardData as any).data;
+    }
+    
+    return null;
+  }, [rawDashboardData]);
 
   if (isLoading) {
     return (

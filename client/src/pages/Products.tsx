@@ -553,9 +553,20 @@ export default function Products() {
 
   // Verwende alle regulären Produkte aus der Datenbank und ergänze mit Vendon-Produkten wenn vorhanden
   const regularProducts = useMemo(() => {
-    // Stelle sicher, dass products ein gültiges Objekt ist
-    if (!products || !products.data) return [];
-    return Array.isArray(products.data) ? products.data : [];
+    // Handle different API response formats (direct array vs {data: [...]})
+    if (!products) return [];
+    
+    // Check if products is directly an array
+    if (Array.isArray(products)) {
+      return products;
+    }
+    
+    // Check if products has a data property with an array
+    if (products.data && Array.isArray(products.data)) {
+      return products.data;
+    }
+    
+    return [];
   }, [products]);
 
   // Kombiniere die regulären Produkte mit Vendon-Produkten ohne Duplikate
