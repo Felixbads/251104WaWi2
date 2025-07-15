@@ -1201,6 +1201,11 @@ app.get('/orders-data', (req, res) => {
   app.use('/api/suppliers', suppliersProductsForConditionsRouter);
   console.log('[SERVER] Suppliers-products-for-conditions router mounted at /api/suppliers BEFORE registerRoutes');
   
+  // Mount cleanup router for draft orders and inventory cleanup
+  const cleanupRouter = (await import('./routes/cleanup')).default;
+  app.use('/api/cleanup', cleanupRouter);
+  console.log('[SERVER] Cleanup router mounted at /api/cleanup BEFORE registerRoutes');
+  
   // Supplier Analytics Router  
   const supplierAnalyticsRouter = (await import('./routes/supplier-analytics')).default;
   app.use('/api/supplier-analytics', supplierAnalyticsRouter);
