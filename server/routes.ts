@@ -639,7 +639,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const warehouseId = req.query.warehouseId ? parseInt(req.query.warehouseId as string) : undefined;
       const machineId = req.query.machineId ? parseInt(req.query.machineId as string) : undefined;
       
-      const assignments = await storage.getMachineWarehouseAssignments({ warehouseId, machineId });
+      const assignmentsResult = await rawDb.query(`
+        SELECT 
+          mwa.*,
+          m.machine_name,
+          w.name as warehouse_name
+        FROM machine_warehouse_assignments mwa
+        LEFT JOIN machines m ON mwa.machine_id = m.id
+        LEFT JOIN warehouses w ON mwa.warehouse_id = w.id
+        WHERE 1=1
+        ${warehouseId ? 'AND mwa.warehouse_id = $1' : ''}
+        ${machineId ? `AND mwa.machine_id = $${warehouseId ? 2 : 1}` : ''}
+        ORDER BY mwa.created_at DESC
+      `, [warehouseId, machineId].filter(Boolean));
+      const assignments = assignmentsResult.rows;
       res.json(assignments);
     } catch (error) {
       console.error("Error fetching machine-warehouse assignments:", error);
@@ -656,8 +669,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const warehouseId = req.query.warehouseId ? parseInt(req.query.warehouseId as string) : undefined;
       const status = req.query.status as string | undefined;
       
-      const counts = await storage.getInventoryCounts({ warehouseId, status });
-      res.json(counts);
+      let whereClause = 'WHERE 1=1';
+      const params: any[] = [];
+      
+      if (warehouseId) {
+        whereClause += ' AND ic.warehouse_id = $' + (params.length + 1);
+        params.push(warehouseId);
+      }
+      
+      if (status) {
+        whereClause += ' AND ic.status = $' + (params.length + 1);
+        params.push(status);
+      }
+      
+      const countsResult = await rawDb.query(`
+        SELECT 
+          ic.*,
+          w.name as warehouse_name
+        FROM inventory_counts ic
+        LEFT JOIN warehouses w ON ic.warehouse_id = w.id
+        ${whereClause}
+        ORDER BY ic.created_at DESC
+      `, params);
+      
+      res.json(countsResult.rows);
     } catch (error) {
       console.error("Error fetching inventory counts:", error);
       res.status(500).json({ 
@@ -676,20 +711,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Inventory Count ID is required" });
       }
       
-      const count = await storage.getInventoryCount(inventoryCountId);
+      const countResult = await rawDb.query(`
+        SELECT 
+          ic.*,
+          w.name as warehouse_name
+        FROM inventory_counts ic
+        LEFT JOIN warehouses w ON ic.warehouse_id = w.id
+        WHERE ic.id = $1
+      `, [inventoryCountId]);
+      
+      const count = countResult.rows[0];
       
       if (!count) {
         return res.status(404).json({ error: "Inventory Count not found" });
       }
       
-      // Hole auch zusätzliche Informationen zum zugehörigen Lager
-      const warehouse = await storage.getWarehouse(count.warehouseId);
-      
-      // Füge Lagername zur Antwort hinzu
-      const result = {
-        ...count,
-        warehouseName: warehouse?.name
-      };
+      const result = count;
       
       res.status(200).json(result);
     } catch (error) {
@@ -707,11 +744,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Inventory Count ID is required" });
       }
       
-      const items = await storage.getInventoryCountItems(inventoryCountId);
+      const itemsResult = await rawDb.query(`
+        SELECT 
+          ici.*,
+          p.product_name,
+          p.category,
+          p.price
+        FROM inventory_count_items ici
+        LEFT JOIN products p ON ici.product_id = p.id
+        WHERE ici.inventory_count_id = $1
+        ORDER BY ici.created_at ASC
+      `, [inventoryCountId]);
+      
+      const items = itemsResult.rows;
       
       // Hole detaillierte Produktinformationen und Batch-Daten für jedes Item
       const enrichedItems = await Promise.all(items.map(async (item) => {
-        const product = await storage.getProduct(item.productId);
+        const product = { 
+          id: item.product_id,
+          product_name: item.product_name,
+          category: item.category,
+          price: item.price
+        };
         
         // Wenn eine batchId vorhanden ist, lade die Batch-Informationen
         let batch = null;

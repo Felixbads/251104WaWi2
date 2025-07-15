@@ -726,7 +726,16 @@ router.get("/warehouses/:warehouseId/counts", async (req, res) => {
       return res.status(400).json({ success: false, message: "Ungültige Lager-ID" });
     }
     
-    const counts = await warehouseStorage.getInventoryCounts(warehouseId);
+    const countsResult = await rawDb.query(`
+      SELECT 
+        ic.*,
+        w.name as warehouse_name
+      FROM inventory_counts ic
+      LEFT JOIN warehouses w ON ic.warehouse_id = w.id
+      WHERE ic.warehouse_id = $1
+      ORDER BY ic.created_at DESC
+    `, [warehouseId]);
+    const counts = countsResult.rows;
     
     return res.json(counts);
   } catch (error) {
