@@ -3033,6 +3033,230 @@ export const recurringOrderExecutionRelations = relations(recurringOrderExecutio
   }),
 }));
 
+// ==========================================
+// RETROAKTIVES INVENTARSYSTEM
+// ==========================================
+
+// Retroaktive Inventurzählungen - Haupttabelle für vergangene Stichtage
+export const retroactiveInventoryCounts = pgTable("retroactive_inventory_counts", {
+  id: serial("id").primaryKey(),
+  
+  // Grunddaten
+  countName: text("count_name").notNull(), // Name der Inventur, z.B. "Quartalsabschluss Q2 2025"
+  countDate: date("count_date").notNull(), // Stichtag der Inventur (vergangenes Datum)
+  warehouseId: integer("warehouse_id").notNull().references(() => warehouses.id),
+  warehouseName: text("warehouse_name").notNull(), // Redundant für Audit-Sicherheit
+  
+  // Status und Verarbeitung
+  status: text("status").notNull().default("draft"), // "draft", "finalized", "processed", "cancelled"
+  isProcessed: boolean("is_processed").default(false), // Wurden Anpassungen bereits berechnet
+  processingDate: timestamp("processing_date"), // Wann wurde die Verarbeitung durchgeführt
+  
+  // Auswirkungen
+  totalItemsCount: integer("total_items_count").default(0), // Anzahl der gezählten Artikel
+  totalDiscrepancies: integer("total_discrepancies").default(0), // Anzahl der Abweichungen
+  totalAdjustmentValue: real("total_adjustment_value").default(0), // Gesamtwert der Anpassungen
+  hasNegativeStock: boolean("has_negative_stock").default(false), // Warnung bei negativen Beständen
+  
+  // Metadaten und Notizen
+  description: text("description"), // Beschreibung der Inventur
+  notes: text("notes"), // Zusätzliche Notizen
+  reasonForRetroactiveCount: text("reason_for_retroactive_count"), // Grund für nachträgliche Inventur
+  
+  // Audit und Revisionssicherheit
+  createdBy: integer("created_by").notNull().references(() => users.id),
+  createdByName: text("created_by_name").notNull(), // Name des Erstellers
+  processedBy: integer("processed_by").references(() => users.id), // Wer hat die Verarbeitung durchgeführt
+  processedByName: text("processed_by_name"), // Name des Verarbeiters
+  
+  // Zeitstempel
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertRetroactiveInventoryCountSchema = createInsertSchema(retroactiveInventoryCounts).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  totalItemsCount: true,
+  totalDiscrepancies: true,
+  totalAdjustmentValue: true,
+  hasNegativeStock: true,
+  isProcessed: true,
+  processingDate: true,
+  processedBy: true,
+  processedByName: true,
+});
+
+export type InsertRetroactiveInventoryCount = z.infer<typeof insertRetroactiveInventoryCountSchema>;
+export type RetroactiveInventoryCount = typeof retroactiveInventoryCounts.$inferSelect;
+
+// Einzelne Zählpositionen der retroaktiven Inventur
+export const retroactiveInventoryCountItems = pgTable("retroactive_inventory_count_items", {
+  id: serial("id").primaryKey(),
+  
+  // Zuordnung zur Inventur
+  countId: integer("count_id").notNull().references(() => retroactiveInventoryCounts.id, { onDelete: "cascade" }),
+  
+  // Produktdaten
+  productId: integer("product_id").notNull().references(() => products.id),
+  productName: text("product_name").notNull(), // Redundant für Audit-Sicherheit
+  productSku: text("product_sku"), // SKU zum Zeitpunkt der Inventur
+  
+  // Mengen
+  countedQuantity: integer("counted_quantity").notNull(), // Tatsächlich gezählte Menge
+  systemQuantity: integer("system_quantity"), // Systemmenge zum Count-Date (wird berechnet)
+  discrepancy: integer("discrepancy"), // Abweichung (countedQuantity - systemQuantity)
+  discrepancyPercentage: real("discrepancy_percentage"), // Abweichung in Prozent
+  
+  // Bewertung und Kosten
+  unitCost: real("unit_cost"), // Stückkosten zum Count-Date
+  totalDiscrepancyValue: real("total_discrepancy_value"), // Wert der Abweichung
+  
+  // Batch-/MHD-Informationen (optional)
+  batchId: text("batch_id"), // Charge, falls spezifisch gezählt
+  expiryDate: date("expiry_date"), // MHD, falls relevant
+  
+  // Status und Validierung
+  isValidated: boolean("is_validated").default(false), // Wurde die Zählung validiert
+  hasConflict: boolean("has_conflict").default(false), // Führt zu negativen Beständen
+  requiresAttention: boolean("requires_attention").default(false), // Benötigt manuelle Prüfung
+  
+  // Notizen
+  notes: text("notes"), // Notizen zur Position
+  countingRemarks: text("counting_remarks"), // Bemerkungen beim Zählen
+  
+  // Audit
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertRetroactiveInventoryCountItemSchema = createInsertSchema(retroactiveInventoryCountItems).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  systemQuantity: true,
+  discrepancy: true,
+  discrepancyPercentage: true,
+  totalDiscrepancyValue: true,
+  hasConflict: true,
+});
+
+export type InsertRetroactiveInventoryCountItem = z.infer<typeof insertRetroactiveInventoryCountItemSchema>;
+export type RetroactiveInventoryCountItem = typeof retroactiveInventoryCountItems.$inferSelect;
+
+// Berechnete Anpassungen für die aktuellen Bestände
+export const retroactiveInventoryAdjustments = pgTable("retroactive_inventory_adjustments", {
+  id: serial("id").primaryKey(),
+  
+  // Zuordnung
+  countId: integer("count_id").notNull().references(() => retroactiveInventoryCounts.id, { onDelete: "cascade" }),
+  countItemId: integer("count_item_id").notNull().references(() => retroactiveInventoryCountItems.id, { onDelete: "cascade" }),
+  
+  // Produktdaten
+  productId: integer("product_id").notNull().references(() => products.id),
+  warehouseId: integer("warehouse_id").notNull().references(() => warehouses.id),
+  
+  // Berechnungen
+  originalQuantity: integer("original_quantity").notNull(), // Ursprüngliche Systemmenge
+  adjustedQuantity: integer("adjusted_quantity").notNull(), // Neue berechnete Menge
+  adjustmentAmount: integer("adjustment_amount").notNull(), // Änderungsbetrag
+  
+  // Zwischenbewegungen (vom Count-Date bis heute)
+  movementsSinceCount: integer("movements_since_count").default(0), // Summe aller Bewegungen seit Count-Date
+  salesSinceCount: integer("sales_since_count").default(0), // Verkäufe seit Count-Date
+  refillsSinceCount: integer("refills_since_count").default(0), // Nachfüllungen seit Count-Date
+  otherMovements: integer("other_movements").default(0), // Andere Bewegungen
+  
+  // Auswirkungen
+  currentSystemQuantity: integer("current_system_quantity").notNull(), // Aktuelle Systemmenge vor Anpassung
+  newCalculatedQuantity: integer("new_calculated_quantity").notNull(), // Neue berechnete aktuelle Menge
+  finalAdjustment: integer("final_adjustment").notNull(), // Endgültige Anpassung
+  
+  // Validierung und Konflikte
+  wouldCauseNegativeStock: boolean("would_cause_negative_stock").default(false),
+  confidenceLevel: real("confidence_level").default(1.0), // Vertrauensniveau der Berechnung (0-1)
+  hasDataGaps: boolean("has_data_gaps").default(false), // Fehlende Bewegungsdaten
+  
+  // Status
+  status: text("status").default("calculated"), // "calculated", "applied", "rejected", "pending_review"
+  appliedAt: timestamp("applied_at"), // Wann wurde die Anpassung angewendet
+  appliedBy: integer("applied_by").references(() => users.id), // Wer hat die Anpassung angewendet
+  appliedByName: text("applied_by_name"), // Name des Anwenders
+  
+  // Metadaten
+  calculationDetails: text("calculation_details"), // JSON mit Details der Berechnung
+  validationNotes: text("validation_notes"), // Notizen zur Validierung
+  
+  // Audit
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertRetroactiveInventoryAdjustmentSchema = createInsertSchema(retroactiveInventoryAdjustments).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  appliedAt: true,
+  appliedBy: true,
+  appliedByName: true,
+});
+
+export type InsertRetroactiveInventoryAdjustment = z.infer<typeof insertRetroactiveInventoryAdjustmentSchema>;
+export type RetroactiveInventoryAdjustment = typeof retroactiveInventoryAdjustments.$inferSelect;
+
+// Relationen für das retroaktive Inventarsystem
+export const retroactiveInventoryCountRelations = relations(retroactiveInventoryCounts, ({ many, one }) => ({
+  items: many(retroactiveInventoryCountItems),
+  adjustments: many(retroactiveInventoryAdjustments),
+  warehouse: one(warehouses, {
+    fields: [retroactiveInventoryCounts.warehouseId],
+    references: [warehouses.id],
+  }),
+  creator: one(users, {
+    fields: [retroactiveInventoryCounts.createdBy],
+    references: [users.id],
+  }),
+  processor: one(users, {
+    fields: [retroactiveInventoryCounts.processedBy],
+    references: [users.id],
+  }),
+}));
+
+export const retroactiveInventoryCountItemRelations = relations(retroactiveInventoryCountItems, ({ one }) => ({
+  count: one(retroactiveInventoryCounts, {
+    fields: [retroactiveInventoryCountItems.countId],
+    references: [retroactiveInventoryCounts.id],
+  }),
+  product: one(products, {
+    fields: [retroactiveInventoryCountItems.productId],
+    references: [products.id],
+  }),
+}));
+
+export const retroactiveInventoryAdjustmentRelations = relations(retroactiveInventoryAdjustments, ({ one }) => ({
+  count: one(retroactiveInventoryCounts, {
+    fields: [retroactiveInventoryAdjustments.countId],
+    references: [retroactiveInventoryCounts.id],
+  }),
+  countItem: one(retroactiveInventoryCountItems, {
+    fields: [retroactiveInventoryAdjustments.countItemId],
+    references: [retroactiveInventoryCountItems.id],
+  }),
+  product: one(products, {
+    fields: [retroactiveInventoryAdjustments.productId],
+    references: [products.id],
+  }),
+  warehouse: one(warehouses, {
+    fields: [retroactiveInventoryAdjustments.warehouseId],
+    references: [warehouses.id],
+  }),
+  appliedByUser: one(users, {
+    fields: [retroactiveInventoryAdjustments.appliedBy],
+    references: [users.id],
+  }),
+}));
+
 export const allRelations = {
   orderRelations,
   orderItemRelations,
@@ -3055,4 +3279,7 @@ export const allRelations = {
   recurringOrderRelations,
   recurringOrderItemRelations,
   recurringOrderExecutionRelations,
+  retroactiveInventoryCountRelations,
+  retroactiveInventoryCountItemRelations,
+  retroactiveInventoryAdjustmentRelations,
 };

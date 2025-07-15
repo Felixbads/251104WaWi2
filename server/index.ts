@@ -1223,6 +1223,11 @@ app.get('/orders-data', (req, res) => {
   app.use('/api/supplier-analytics', supplierAnalyticsRouter);
   console.log('[SERVER] Supplier analytics router mounted at /api/supplier-analytics BEFORE registerRoutes');
   
+  // Mount retroactive inventory router BEFORE registerRoutes for retroactive inventory count functionality
+  const retroactiveInventoryRouter = (await import('./routes/retroactive-inventory')).default;
+  app.use('/api/retroactive-inventory', retroactiveInventoryRouter);
+  console.log('[SERVER] Retroactive inventory router mounted at /api/retroactive-inventory BEFORE registerRoutes');
+  
   // Location Costs Router for German cost categories and profitability analysis
   const locationCostsRouter = (await import('./routes/location-costs')).default;
   app.use('/api/location-costs', locationCostsRouter);
