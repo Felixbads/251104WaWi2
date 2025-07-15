@@ -58,6 +58,8 @@ import enhancedOrdersRouter from './routes/enhanced-orders';
 import enhancedEmailTemplatesRouter from './routes/enhanced-email-templates';
 import profitabilityRouter from './routes/profitability-simple';
 import enhancedProfitabilityRouter from './routes/enhanced-profitability-fixed';
+import { locationCostsRouter } from './routes/location-costs';
+import { enhancedProfitabilityRouter as enhancedProfitabilityNewRouter } from './routes/enhanced-profitability';
 import { recurringOrdersRouter } from './routes/recurring-orders';
 import { recurringOrderCronService } from './services/recurringOrderCron';
 import RecurringOrderScheduler from './services/recurringOrderScheduler';
@@ -1221,6 +1223,16 @@ app.get('/orders-data', (req, res) => {
   const supplierAnalyticsRouter = (await import('./routes/supplier-analytics')).default;
   app.use('/api/supplier-analytics', supplierAnalyticsRouter);
   console.log('[SERVER] Supplier analytics router mounted at /api/supplier-analytics BEFORE registerRoutes');
+  
+  // Location Costs Router for German cost categories and profitability analysis
+  const locationCostsRouter = (await import('./routes/location-costs')).default;
+  app.use('/api/location-costs', locationCostsRouter);
+  console.log('[SERVER] Location costs router mounted at /api/location-costs BEFORE registerRoutes');
+  
+  // Enhanced Profitability Router for detailed monthly financial analysis
+  const enhancedProfitabilityRouter = (await import('./routes/enhanced-profitability')).default;
+  app.use('/api/enhanced-profitability', enhancedProfitabilityRouter);
+  console.log('[SERVER] Enhanced profitability router mounted at /api/enhanced-profitability BEFORE registerRoutes');
   
   const server = await registerRoutes(app);
 

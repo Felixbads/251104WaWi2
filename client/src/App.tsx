@@ -121,6 +121,7 @@ import SupportTicket from "@/pages/SupportTicket";
 import VendonSync from "@/pages/admin/VendonSync";
 import RecurringOrdersPage from "@/pages/RecurringOrdersPage";
 import Fuellstaende from "@/pages/Fuellstaende";
+import LocationDetail from "@/pages/LocationDetail";
 
 // Authentifizierte und nicht-authentifizierte Router
 function AuthenticatedRouter() {
