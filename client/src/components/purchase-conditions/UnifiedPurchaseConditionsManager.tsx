@@ -453,10 +453,10 @@ export default function UnifiedPurchaseConditionsManager({
   const stats = {
     totalConditions: conditions.length,
     averagePrice: conditions.length > 0 ? 
-      conditions.reduce((sum, c) => sum + c.unit_price, 0) / conditions.length : 0,
+      conditions.reduce((sum, c) => sum + (c.unit_price || c.unitPrice || 0), 0) / conditions.length : 0,
     bestPrice: conditions.length > 0 ? 
-      Math.min(...conditions.map(c => c.unit_price)) : 0,
-    preferredConditions: conditions.filter(c => c.is_preferred).length
+      Math.min(...conditions.map(c => c.unit_price || c.unitPrice || 0)) : 0,
+    preferredConditions: conditions.filter(c => c.is_preferred || c.isPreferred).length
   };
 
   if (isLoading) {
@@ -622,14 +622,14 @@ export default function UnifiedPurchaseConditionsManager({
                     )}
                     <TableCell>
                       <div>
-                        <div className="font-medium">{formatCurrency(condition.unit_price)}</div>
+                        <div className="font-medium">{formatCurrency(condition.unit_price || condition.unitPrice)}</div>
                         <div className="text-xs text-gray-500">
-                          Brutto: {formatCurrency(condition.gross_price)}
+                          Brutto: {formatCurrency(condition.gross_price || condition.grossPrice)}
                         </div>
                       </div>
                     </TableCell>
                     <TableCell>
-                      {condition.deposit_per_unit > 0 ? formatCurrency(condition.deposit_per_unit) : '-'}
+                      {(condition.deposit_per_unit || condition.depositPerUnit) > 0 ? formatCurrency(condition.deposit_per_unit || condition.depositPerUnit) : '-'}
                     </TableCell>
                     <TableCell>
                       <div>

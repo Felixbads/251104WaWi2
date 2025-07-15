@@ -89,6 +89,13 @@ export default function SupplierStatistics({ supplierId, supplier }: SupplierSta
 
   const { data: statisticsData, isLoading, error } = useQuery({
     queryKey: ['/api/supplier-analytics/dashboard', supplierId, timeRange],
+    queryFn: async () => {
+      const response = await fetch(`/api/supplier-analytics/dashboard/${supplierId}`, {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('authToken') || 'test'}` }
+      });
+      if (!response.ok) throw new Error('Failed to fetch statistics');
+      return response.json();
+    },
     enabled: !!supplierId
   });
 
