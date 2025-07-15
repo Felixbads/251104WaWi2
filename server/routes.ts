@@ -1747,7 +1747,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get(`${API_PREFIX}/transactions`, async (req: Request, res: Response) => {
     try {
       const limit = req.query.limit ? parseInt(req.query.limit as string) : 200;
-      const transactions = await storage.getTransactions(limit);
+      // Direkte SQL-Abfrage für Transaktionen
+      const transactionsQuery = `
+        SELECT 
+          t.id,
+          t.vendon_id,
+          t.machine_id,
+          t.product_id,
+          t.product_name,
+          t.quantity,
+          t.amount,
+          t.payment_method,
+          t.datetime,
+          t.created_at,
+          m.machine_name
+        FROM transactions t
+        LEFT JOIN machines m ON t.machine_id = m.id
+        ORDER BY t.datetime DESC
+        LIMIT $1
+      `;
+      
+      const transactionsResult = await rawDb.query(transactionsQuery, [limit]);
+      const transactions = transactionsResult.rows;
       res.json(transactions);
     } catch (error) {
       console.error("Error fetching transactions:", error);
@@ -1769,20 +1790,64 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const startDateObj = new Date();
         startDateObj.setMonth(startDateObj.getMonth() - 1);
         
-        const transactions = await storage.getTransactionsByDateRange(
-          startDateObj,
-          endDateObj,
-          limit ? parseInt(limit as string) : 200
-        );
+        // Direkte SQL-Abfrage für Transaktionen
+        const transactionsQuery = `
+          SELECT 
+            t.id,
+            t.vendon_id,
+            t.machine_id,
+            t.product_id,
+            t.product_name,
+            t.quantity,
+            t.amount,
+            t.payment_method,
+            t.datetime,
+            t.created_at,
+            m.machine_name
+          FROM transactions t
+          LEFT JOIN machines m ON t.machine_id = m.id
+          WHERE t.datetime >= $1 AND t.datetime <= $2
+          ORDER BY t.datetime DESC
+          LIMIT $3
+        `;
         
-        return res.json(transactions);
+        const transactionsResult = await rawDb.query(transactionsQuery, [
+          startDateObj.toISOString(),
+          endDateObj.toISOString(), 
+          limit ? parseInt(limit as string) : 200
+        ]);
+        
+        return res.json(transactionsResult.rows);
       }
       
-      const transactions = await storage.getTransactionsByDateRange(
-        new Date(startDate as string),
-        new Date(endDate as string),
+      // Direkte SQL-Abfrage für normale Transaktions-Abfrage
+      const transactionsQuery = `
+        SELECT 
+          t.id,
+          t.vendon_id,
+          t.machine_id,
+          t.product_id,
+          t.product_name,
+          t.quantity,
+          t.amount,
+          t.payment_method,
+          t.datetime,
+          t.created_at,
+          m.machine_name
+        FROM transactions t
+        LEFT JOIN machines m ON t.machine_id = m.id
+        WHERE t.datetime >= $1 AND t.datetime <= $2
+        ORDER BY t.datetime DESC
+        LIMIT $3
+      `;
+      
+      const transactionsResult = await rawDb.query(transactionsQuery, [
+        new Date(startDate as string).toISOString(),
+        new Date(endDate as string).toISOString(),
         limit ? parseInt(limit as string) : 200
-      );
+      ]);
+      
+      const transactions = transactionsResult.rows;
       
       res.json(transactions);
     } catch (error) {
@@ -1955,7 +2020,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Invalid supplier ID" });
       }
       
-      const supplier = await storage.getSupplierById(supplierId);
+      // Direkte SQL-Abfrage für Lieferanten
+      const supplierQuery = `
+        SELECT 
+          id,
+          name as supplier_name,
+          contact_person,
+          email,
+          phone,
+          address,
+          city,
+          postal_code,
+          country,
+          website,
+          notes,
+          payment_terms,
+          delivery_terms,
+          created_at,
+          updated_at
+        FROM suppliers 
+        WHERE id = $1
+        LIMIT 1
+      `;
+      
+      const supplierResult = await rawDb.query(supplierQuery, [supplierId]);
+      const supplier = supplierResult.rows.length > 0 ? supplierResult.rows[0] : null;
       
       if (!supplier) {
         return res.status(404).json({ error: "Supplier not found" });
@@ -3125,7 +3214,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const machineId = parseInt(req.params.id);
       const limit = req.query.limit ? parseInt(req.query.limit as string) : 200;
       
-      const transactions = await storage.getTransactionsByMachine(machineId, limit);
+      // Direkte SQL-Abfrage für Maschinen-Transaktionen
+      const transactionsQuery = `
+        SELECT 
+          t.id,
+          t.vendon_id,
+          t.machine_id,
+          t.product_id,
+          t.product_name,
+          t.quantity,
+          t.amount,
+          t.payment_method,
+          t.datetime,
+          t.created_at,
+          m.machine_name
+        FROM transactions t
+        LEFT JOIN machines m ON t.machine_id = m.id
+        WHERE t.machine_id = $1
+        ORDER BY t.datetime DESC
+        LIMIT $2
+      `;
+      
+      const transactionsResult = await rawDb.query(transactionsQuery, [machineId, limit]);
+      const transactions = transactionsResult.rows;
       res.json(transactions);
     } catch (error) {
       console.error(`Error fetching transactions for machine ID ${req.params.id}:`, error);
