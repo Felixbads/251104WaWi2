@@ -237,18 +237,26 @@ export default function SupplierDashboard({ supplierId, supplier }: SupplierDash
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {dashboardData.inventory.flatMap((product) =>
-                  product.warehouses.map((warehouse) => (
-                    <TableRow key={`${product.productId}-${warehouse.warehouseId}`}>
-                      <TableCell className="font-medium">{product.productName}</TableCell>
-                      <TableCell className="font-mono text-sm">{product.sku}</TableCell>
-                      <TableCell>{warehouse.warehouseName}</TableCell>
-                      <TableCell>{warehouse.location}</TableCell>
-                      <TableCell className="text-right">{warehouse.stock}</TableCell>
-                      <TableCell className="text-right">{warehouse.reorderLevel}</TableCell>
-                      <TableCell>{getStockStatus(warehouse.status)}</TableCell>
-                    </TableRow>
-                  ))
+                {dashboardData.inventory && dashboardData.inventory.length > 0 ? (
+                  dashboardData.inventory.flatMap((product) =>
+                    product.warehouses.map((warehouse) => (
+                      <TableRow key={`${product.productId}-${warehouse.warehouseId}`}>
+                        <TableCell className="font-medium">{product.productName}</TableCell>
+                        <TableCell className="font-mono text-sm">{product.sku}</TableCell>
+                        <TableCell>{warehouse.warehouseName}</TableCell>
+                        <TableCell>{warehouse.location}</TableCell>
+                        <TableCell className="text-right">{warehouse.stock}</TableCell>
+                        <TableCell className="text-right">{warehouse.reorderLevel}</TableCell>
+                        <TableCell>{getStockStatus(warehouse.status)}</TableCell>
+                      </TableRow>
+                    ))
+                  )
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                      Keine Bestandsdaten verfügbar
+                    </TableCell>
+                  </TableRow>
                 )}
               </TableBody>
             </Table>
@@ -267,43 +275,49 @@ export default function SupplierDashboard({ supplierId, supplier }: SupplierDash
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={dashboardData.salesData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis 
-                  dataKey="date" 
-                  tick={{ fontSize: 12 }}
-                  tickFormatter={(date) => new Date(date).toLocaleDateString('de-DE', { month: 'short', day: 'numeric' })}
-                />
-                <YAxis yAxisId="left" tick={{ fontSize: 12 }} />
-                <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 12 }} />
-                <Tooltip 
-                  labelFormatter={(date) => formatDate(date)}
-                  formatter={(value: number, name: string) => [
-                    name === 'revenue' ? formatCurrency(value) : value,
-                    name === 'revenue' ? 'Umsatz' : 'Bestellungen'
-                  ]}
-                />
-                <Line 
-                  yAxisId="left"
-                  type="monotone" 
-                  dataKey="revenue" 
-                  stroke="#8884d8" 
-                  strokeWidth={2}
-                  dot={{ r: 4 }}
-                  name="revenue"
-                />
-                <Line 
-                  yAxisId="right"
-                  type="monotone" 
-                  dataKey="orders" 
-                  stroke="#82ca9d" 
-                  strokeWidth={2}
-                  dot={{ r: 4 }}
-                  name="orders"
-                />
-              </LineChart>
-            </ResponsiveContainer>
+            {dashboardData.salesData && dashboardData.salesData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart data={dashboardData.salesData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis 
+                    dataKey="date" 
+                    tick={{ fontSize: 12 }}
+                    tickFormatter={(date) => new Date(date).toLocaleDateString('de-DE', { month: 'short', day: 'numeric' })}
+                  />
+                  <YAxis yAxisId="left" tick={{ fontSize: 12 }} />
+                  <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 12 }} />
+                  <Tooltip 
+                    labelFormatter={(date) => formatDate(date)}
+                    formatter={(value: number, name: string) => [
+                      name === 'revenue' ? formatCurrency(value) : value,
+                      name === 'revenue' ? 'Umsatz' : 'Bestellungen'
+                    ]}
+                  />
+                  <Line 
+                    yAxisId="left"
+                    type="monotone" 
+                    dataKey="revenue" 
+                    stroke="#8884d8" 
+                    strokeWidth={2}
+                    dot={{ r: 4 }}
+                    name="revenue"
+                  />
+                  <Line 
+                    yAxisId="right"
+                    type="monotone" 
+                    dataKey="orders" 
+                    stroke="#82ca9d" 
+                    strokeWidth={2}
+                    dot={{ r: 4 }}
+                    name="orders"
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex items-center justify-center h-64 text-muted-foreground">
+                Keine Verkaufsdaten verfügbar
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -316,22 +330,28 @@ export default function SupplierDashboard({ supplierId, supplier }: SupplierDash
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={dashboardData.topLocations} layout="horizontal">
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis type="number" tick={{ fontSize: 12 }} />
-                <YAxis 
-                  dataKey="locationName" 
-                  type="category" 
-                  tick={{ fontSize: 12 }}
-                  width={100}
-                />
+            {dashboardData.topLocations && dashboardData.topLocations.length > 0 ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={dashboardData.topLocations} layout="horizontal">
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis type="number" tick={{ fontSize: 12 }} />
+                  <YAxis 
+                    dataKey="locationName" 
+                    type="category" 
+                    tick={{ fontSize: 12 }}
+                    width={100}
+                  />
                 <Tooltip 
                   formatter={(value: number) => [formatCurrency(value), 'Umsatz']}
                 />
                 <Bar dataKey="revenue" fill="#8884d8" />
               </BarChart>
             </ResponsiveContainer>
+            ) : (
+              <div className="flex items-center justify-center h-64 text-muted-foreground">
+                Keine Standortdaten verfügbar
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -346,7 +366,8 @@ export default function SupplierDashboard({ supplierId, supplier }: SupplierDash
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {dashboardData.topProducts.map((product, index) => (
+            {dashboardData.topProducts && dashboardData.topProducts.length > 0 ? (
+              dashboardData.topProducts.map((product, index) => (
               <div key={product.productId} className="flex items-center justify-between p-4 border rounded-lg">
                 <div className="flex items-center space-x-4">
                   <div className="bg-primary/10 rounded-full w-8 h-8 flex items-center justify-center text-sm font-medium">
@@ -375,7 +396,12 @@ export default function SupplierDashboard({ supplierId, supplier }: SupplierDash
                   )}
                 </div>
               </div>
-            ))}
+              ))
+            ) : (
+              <div className="flex items-center justify-center h-64 text-muted-foreground">
+                Keine Produktdaten verfügbar
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
