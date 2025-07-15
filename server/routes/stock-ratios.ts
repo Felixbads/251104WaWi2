@@ -4,7 +4,7 @@
  */
 
 import express from 'express';
-import { stockRatioService } from '../services/stockRatioService';
+import { getMachineStockData, calculateStockStatistics } from '../services/stockRatioService';
 
 const router = express.Router();
 
@@ -16,19 +16,10 @@ router.get('/all', async (req, res) => {
   try {
     console.log('📊 Abrufen aller Stock-Verhältnisse...');
     
-    const stockSummaries = await stockRatioService.calculateAllStockRatios();
-    
+    // TODO: Implementiere getAllMachineStockData() in stockRatioService
     res.json({
-      success: true,
-      data: stockSummaries,
-      summary: {
-        totalMachines: stockSummaries.length,
-        totalSlots: stockSummaries.reduce((sum, summary) => sum + summary.totalSlots, 0),
-        averageFillPercentage: stockSummaries.length > 0 
-          ? Math.round(stockSummaries.reduce((sum, summary) => sum + summary.averageFillPercentage, 0) / stockSummaries.length)
-          : 0,
-        timestamp: new Date().toISOString()
-      }
+      success: false,
+      error: 'Noch nicht implementiert - verwende /api/machine-stock/overview/all stattdessen'
     });
     
   } catch (error) {

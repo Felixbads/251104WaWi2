@@ -294,5 +294,53 @@ export class VendonAPI {
   }
 }
 
+/**
+ * Ruft die Produktbestände für eine bestimmte Maschine ab
+ * @param machineId Die Vendon Machine ID
+ * @returns Promise mit Produktbeständen oder null bei Fehler
+ */
+export async function fetchMachineProducts(machineId: number) {
+  try {
+    const apiKey = process.env.VENDON_API_KEY;
+    if (!apiKey) {
+      console.error('VENDON_API_KEY nicht gefunden');
+      return null;
+    }
+
+    console.log(`[VENDON API] Abrufen der Produktbestände für Maschine ${machineId}...`);
+    
+    const url = `https://cloud.vendon.net/rest/v1.9.0/machine/${machineId}/products`;
+    
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Token ${apiKey}`,
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      console.error(`[VENDON API] HTTP ${response.status}: ${response.statusText}`);
+      return null;
+    }
+
+    const data = await response.json();
+    
+    if (data.code === 200 && Array.isArray(data.result)) {
+      console.log(`[VENDON API] ✅ ${data.result.length} Produkte für Maschine ${machineId} abgerufen`);
+      return data.result;
+    } else {
+      console.error(`[VENDON API] Unerwartete Antwort:`, data);
+      return null;
+    }
+    
+  } catch (error) {
+    console.error(`[VENDON API] Fehler beim Abrufen der Produktbestände für Maschine ${machineId}:`, error);
+    return null;
+  }
+}
+
 // Exportiere eine Default-Instanz
 export const vendonAPI = new VendonAPI();
+export default vendonAPI;

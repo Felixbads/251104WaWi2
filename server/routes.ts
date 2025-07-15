@@ -59,6 +59,7 @@ import seasonalBackwardSyncRouter from './routes/seasonalBackwardSync';
 import stockoutDetectionRouter from './routes/stockoutDetection';
 import enhancedProphetForecastingRouter from './routes/enhancedProphetForecasting';
 import inventoryItemsUnassignedRouter from './routes/inventory-items-unassigned';
+import machineStockRouter from './routes/machine-stock';
 
 // Hilfsfunktion zum Gruppieren der Transaktionen nach Zeitraum
 function groupTransactionsByPeriod(transactions, period) {
@@ -211,6 +212,9 @@ export function sendWebSocketMessage(type: string, data: any) {
 export async function registerRoutes(app: Express): Promise<Server> {
   // HTTP-Server für Express erstellen
   const httpServer = createServer(app);
+  
+  // Machine Stock API für echte Vendon API Integration - ZUERST registrieren
+  app.use(`${API_PREFIX}/machine-stock`, machineStockRouter);
   
   // MHD FIFO Service initialisieren
   const mhdFifoService = new MhdFifoService(rawDb);

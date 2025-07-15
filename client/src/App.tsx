@@ -120,6 +120,7 @@ import OrdersOverviewPage from "@/pages/OrdersOverviewPage";
 import SupportTicket from "@/pages/SupportTicket";
 import VendonSync from "@/pages/admin/VendonSync";
 import RecurringOrdersPage from "@/pages/RecurringOrdersPage";
+import Fuellstaende from "@/pages/Fuellstaende";
 
 // Authentifizierte und nicht-authentifizierte Router
 function AuthenticatedRouter() {
@@ -578,6 +579,12 @@ function AuthenticatedRouter() {
         <Route path="/revenue-expectations" component={props => (
           <ApprovedUserRoute>
             <RevenueExpectations {...props} />
+          </ApprovedUserRoute>
+        )} />
+
+        <Route path="/fuellstaende" component={props => (
+          <ApprovedUserRoute>
+            <Fuellstaende {...props} />
           </ApprovedUserRoute>
         )} />
 
