@@ -65,6 +65,7 @@ import weeklyReportRouter from './routes/weekly-report';
 import { weeklyReportCron } from './services/weeklyReportCron';
 import syncRouter from './routes/sync';
 import inventoryItemsUnassignedRouter from './routes/inventory-items-unassigned';
+import stockRatiosRouter from './routes/stock-ratios';
 
 const app = express();
 
@@ -1582,6 +1583,10 @@ app.get('/orders-data', (req, res) => {
   // Register enhanced forecasting router
   const simpleEnhancedForecastRouter = (await import('./routes/simple-enhanced-forecast')).default;
   app.use('/api/enhanced-forecast', simpleEnhancedForecastRouter);
+  
+  // Register stock ratios router for filling level calculations
+  app.use('/api/stock-ratios', stockRatiosRouter);
+  console.log('[SERVER] Stock ratios router mounted successfully');
   
 
   

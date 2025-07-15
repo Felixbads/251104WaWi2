@@ -14,6 +14,7 @@ import {
   Product
 } from "@shared/schema";
 import { SYNC_TYPE, acquireSyncLock, releaseSyncLock } from "./syncLock";
+import { stockRatioService } from './stockRatioService';
 import axios, { AxiosInstance, AxiosRequestConfig } from "axios";
 
 /**

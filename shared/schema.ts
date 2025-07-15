@@ -834,6 +834,7 @@ export const machineStocks = pgTable("machine_stocks", {
   productVendonId: text("product_vendon_id"),                   // Vendon Produkt-ID
   selectionNumber: text("selection_number"),                    // Auswahlnummer in der Maschine
   quantity: integer("quantity").default(0),                      // Aktuelle Menge
+  maxQuantity: integer("max_quantity").default(0),               // Maximale Menge (wird bei Nachfüllung erkannt)
   status: text("status").default("active"),                      // Status
   lastFilled: timestamp("last_filled"),                          // Letzte Auffüllung
   // MHD-System: FIFO-Tracking
