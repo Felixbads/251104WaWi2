@@ -295,6 +295,52 @@ export class VendonAPI {
 }
 
 /**
+ * Ruft die Lagerbestände für eine bestimmte Maschine ab (für Stock Sync Service)
+ * @param machineId Die Vendon Machine ID
+ * @returns Promise mit Bestandsdaten in einem format das stockSyncService erwartet
+ */
+export async function fetchMachineStock(machineId: number) {
+  try {
+    const apiKey = process.env.VENDON_API_KEY;
+    if (!apiKey) {
+      console.error('VENDON_API_KEY nicht gefunden');
+      return null;
+    }
+
+    console.log(`[VENDON API] Abrufen der Lagerbestände für Maschine ${machineId}...`);
+    
+    const url = `https://cloud.vendon.net/rest/v1.8.0/machine/${machineId}/stock`;
+    
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Token ${apiKey}`,
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      console.error(`[VENDON API] HTTP ${response.status}: ${response.statusText}`);
+      return null;
+    }
+
+    const data = await response.json();
+    
+    if (data.code === 200 && Array.isArray(data.result)) {
+      console.log(`[VENDON API] ✅ ${data.result.length} Bestände für Maschine ${machineId} abgerufen`);
+      return { products: data.result };
+    } else {
+      console.error(`[VENDON API] Unerwartete Antwort:`, data);
+      return null;
+    }
+  } catch (error) {
+    console.error(`[VENDON API] Fehler beim Abrufen der Bestände für Maschine ${machineId}:`, error);
+    return null;
+  }
+}
+
+/**
  * Ruft die Produktbestände für eine bestimmte Maschine ab
  * @param machineId Die Vendon Machine ID
  * @returns Promise mit Produktbeständen oder null bei Fehler

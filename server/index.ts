@@ -1202,6 +1202,16 @@ app.get('/orders-data', (req, res) => {
   app.use('/api/suppliers', suppliersProductsForConditionsRouter);
   console.log('[SERVER] Suppliers-products-for-conditions router mounted at /api/suppliers BEFORE registerRoutes');
   
+  // Mount machine stock router BEFORE registerRoutes for database-backed stock queries
+  const machineStockRouter = (await import('./routes/machine-stock')).default;
+  app.use('/api/machine-stock', machineStockRouter);
+  console.log('[SERVER] Machine stock router mounted at /api/machine-stock BEFORE registerRoutes');
+  
+  // Mount machine stock sync router BEFORE registerRoutes for background sync management
+  const machineStockSyncRouter = (await import('./routes/machine-stock-sync')).default;
+  app.use('/api/machine-stock-sync', machineStockSyncRouter);
+  console.log('[SERVER] Machine stock sync router mounted at /api/machine-stock-sync BEFORE registerRoutes');
+  
   // Mount cleanup router for draft orders and inventory cleanup
   const cleanupRouter = (await import('./routes/cleanup')).default;
   app.use('/api/cleanup', cleanupRouter);
