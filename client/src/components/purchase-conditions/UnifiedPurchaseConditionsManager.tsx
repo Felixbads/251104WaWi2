@@ -4,7 +4,7 @@
  * Alle bekannten Felder integriert für Inventur und Bestellungen
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -61,32 +61,33 @@ interface UnifiedPurchaseConditionsManagerProps {
 
 interface PurchaseCondition {
   id: number;
-  productId: number;
-  productName?: string;
-  supplierId: number;
-  supplierName?: string;
-  unitPrice: number;
-  grossPrice: number;
-  taxRate: number;
-  minQuantity: number;
-  minQuantityUnit: 'individual' | 'package';
-  packagingUnit: string;
-  packagingQuantity: number;
-  depositPerUnit: number;
-  validFrom: string;
-  validTo?: string;
-  isPreferred: boolean;
+  product_id: number;
+  product_name?: string;
+  supplier_id: number;
+  supplier_name?: string;
+  unit_price: number;
+  gross_price: number;
+  tax_rate: number;
+  min_quantity: number;
+  min_quantity_unit: 'individual' | 'package';
+  packaging_unit: string;
+  packaging_quantity: number;
+  deposit_per_unit: number;
+  valid_from: string | null;
+  valid_to?: string | null;
+  is_preferred: boolean;
   notes?: string;
-  leadTime?: number;
-  deliveryTime?: string;
-  discountType?: string;
-  discountValue?: number;
-  discountMinQuantity?: number;
-  discountDescription?: string;
-  discountValidFrom?: string;
-  discountValidTo?: string;
-  createdAt: string;
-  updatedAt: string;
+  lead_time?: number;
+  delivery_time?: string;
+  discount_type?: string;
+  discount_value?: number;
+  discount_min_quantity?: number;
+  discount_description?: string;
+  discount_valid_from?: string;
+  discount_valid_to?: string;
+  created_at: string;
+  updated_at: string;
+  supplier_article_number?: string; // Neue Lieferanten-Artikelnummer
 }
 
 interface FormData {
@@ -105,6 +106,7 @@ interface FormData {
   notes: string;
   leadTime: number;
   deliveryTime: string;
+  supplierArticleNumber: string; // Neue Lieferanten-Artikelnummer
   discount_type: string;
   discount_value: number;
   discount_min_quantity: number;
@@ -133,7 +135,7 @@ export default function UnifiedPurchaseConditionsManager({
     supplierId: supplierId || null,
     productId: productId || null,
     unitPrice: 0,
-    taxRate: 19,
+    taxRate: 7, // Standard MwSt für Lebensmittel
     minQuantity: 0,
     minQuantityUnit: 'individual',
     packagingUnit: '',
@@ -145,6 +147,7 @@ export default function UnifiedPurchaseConditionsManager({
     notes: '',
     leadTime: 3,
     deliveryTime: '',
+    supplierArticleNumber: '', // Neue Lieferanten-Artikelnummer
     discount_type: '',
     discount_value: 0,
     discount_min_quantity: 0,
@@ -172,6 +175,20 @@ export default function UnifiedPurchaseConditionsManager({
       if (!response.ok) throw new Error('Failed to fetch purchase conditions');
       return response.json();
     }
+  });
+
+  // Produktdaten laden für MwSt-Übertragung aus Vendon
+  const { data: currentProduct } = useQuery({
+    queryKey: [`/api/products/${entityId}`],
+    queryFn: async () => {
+      if (mode !== 'product') return null;
+      const response = await fetch(`/api/products/${entityId}`, {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('authToken') || 'test'}` }
+      });
+      if (!response.ok) throw new Error('Failed to fetch product data');
+      return response.json();
+    },
+    enabled: mode === 'product'
   });
 
   // Lieferanten laden (für Produktmodus)
@@ -351,6 +368,13 @@ export default function UnifiedPurchaseConditionsManager({
     setIsCreateDialogOpen(true);
   };
 
+  // Automatische MwSt-Übernahme aus Vendon-Produktdaten
+  useEffect(() => {
+    if (currentProduct && currentProduct.vat) {
+      setFormData(prev => ({ ...prev, taxRate: currentProduct.vat }));
+    }
+  }, [currentProduct]);
+
   const handleEdit = (condition: PurchaseCondition) => {
     setEditingCondition(condition);
     setFormData({
@@ -369,6 +393,7 @@ export default function UnifiedPurchaseConditionsManager({
       notes: condition.notes || '',
       leadTime: condition.lead_time || 3,
       deliveryTime: condition.delivery_time || '',
+      supplierArticleNumber: condition.supplier_article_number || '',
       discount_type: condition.discount_type || '',
       discount_value: condition.discount_value || 0,
       discount_min_quantity: condition.discount_min_quantity || 0,
@@ -427,10 +452,10 @@ export default function UnifiedPurchaseConditionsManager({
   const stats = {
     totalConditions: conditions.length,
     averagePrice: conditions.length > 0 ? 
-      conditions.reduce((sum, c) => sum + c.unitPrice, 0) / conditions.length : 0,
+      conditions.reduce((sum, c) => sum + c.unit_price, 0) / conditions.length : 0,
     bestPrice: conditions.length > 0 ? 
-      Math.min(...conditions.map(c => c.unitPrice)) : 0,
-    preferredConditions: conditions.filter(c => c.isPreferred).length
+      Math.min(...conditions.map(c => c.unit_price)) : 0,
+    preferredConditions: conditions.filter(c => c.is_preferred).length
   };
 
   if (isLoading) {
@@ -586,55 +611,55 @@ export default function UnifiedPurchaseConditionsManager({
                   <TableRow key={condition.id}>
                     {mode === 'product' && (
                       <TableCell className="font-medium">
-                        {condition.supplierName}
+                        {condition.supplier_name}
                       </TableCell>
                     )}
                     {mode === 'supplier' && (
                       <TableCell className="font-medium">
-                        {condition.productName}
+                        {condition.product_name}
                       </TableCell>
                     )}
                     <TableCell>
                       <div>
-                        <div className="font-medium">{formatCurrency(condition.unitPrice)}</div>
+                        <div className="font-medium">{formatCurrency(condition.unit_price)}</div>
                         <div className="text-xs text-gray-500">
-                          Brutto: {formatCurrency(condition.grossPrice)}
+                          Brutto: {formatCurrency(condition.gross_price)}
                         </div>
                       </div>
                     </TableCell>
                     <TableCell>
-                      {condition.depositPerUnit > 0 ? formatCurrency(condition.depositPerUnit) : '-'}
+                      {condition.deposit_per_unit > 0 ? formatCurrency(condition.deposit_per_unit) : '-'}
                     </TableCell>
                     <TableCell>
                       <div>
-                        <div className="font-medium">{condition.minQuantity}</div>
-                        <div className={`text-xs px-2 py-1 rounded ${condition.minQuantityUnit === 'package' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}>
-                          {condition.minQuantityUnit === 'package' ? 'Gebinde' : 'Einzelstück'}
+                        <div className="font-medium">{condition.min_quantity}</div>
+                        <div className={`text-xs px-2 py-1 rounded ${condition.min_quantity_unit === 'package' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}>
+                          {condition.min_quantity_unit === 'package' ? 'Gebinde' : 'Einzelstück'}
                         </div>
                       </div>
                     </TableCell>
                     <TableCell>
-                      {condition.packagingUnit && condition.packagingQuantity ? 
-                        `${condition.packagingQuantity} ${condition.packagingUnit}` : '-'}
+                      {condition.packaging_unit && condition.packaging_quantity ? 
+                        `${condition.packaging_quantity} ${condition.packaging_unit}` : '-'}
                     </TableCell>
                     <TableCell>
-                      {condition.discountType ? (
+                      {condition.discount_type ? (
                         <div className="text-xs">
-                          <div>{condition.discountType}</div>
-                          <div className="text-gray-500">{condition.discountValue}%</div>
+                          <div>{condition.discount_type}</div>
+                          <div className="text-gray-500">{condition.discount_value}%</div>
                         </div>
                       ) : '-'}
                     </TableCell>
                     <TableCell>
-                      {formatDate(condition.validTo)}
+                      {formatDate(condition.valid_to)}
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-1">
-                        {condition.isPreferred && (
+                        {condition.is_preferred && (
                           <Badge variant="default">Bevorzugt</Badge>
                         )}
-                        <Badge variant={new Date(condition.validTo || '9999-12-31') > new Date() ? "outline" : "destructive"}>
-                          {new Date(condition.validTo || '9999-12-31') > new Date() ? 'Aktiv' : 'Abgelaufen'}
+                        <Badge variant={new Date(condition.valid_to || '9999-12-31') > new Date() ? "outline" : "destructive"}>
+                          {new Date(condition.valid_to || '9999-12-31') > new Date() ? 'Aktiv' : 'Abgelaufen'}
                         </Badge>
                       </div>
                     </TableCell>
@@ -672,6 +697,15 @@ export default function UnifiedPurchaseConditionsManager({
             <DialogTitle>
               {editingCondition ? 'Einkaufsbedingung bearbeiten' : 'Neue Einkaufsbedingung erstellen'}
             </DialogTitle>
+            {mode === 'product' && (
+              <div className="bg-blue-50 p-3 rounded-lg mt-2">
+                <p className="text-sm font-medium text-blue-900">Produkt:</p>
+                <p className="text-lg font-bold text-blue-800">{entityName}</p>
+                {currentProduct && (
+                  <p className="text-xs text-blue-600">MwSt.: {currentProduct.vat}% (aus Vendon-Daten)</p>
+                )}
+              </div>
+            )}
           </DialogHeader>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
@@ -696,13 +730,18 @@ export default function UnifiedPurchaseConditionsManager({
                     />
                   </div>
                   <div>
-                    <Label htmlFor="taxRate">MwSt. %</Label>
+                    <Label htmlFor="taxRate">MwSt. % {currentProduct && "(aus Vendon-Daten)"}</Label>
                     <Input
                       id="taxRate"
                       type="number"
                       value={formData.taxRate}
                       onChange={(e) => setFormData(prev => ({ ...prev, taxRate: parseFloat(e.target.value) || 19 }))}
+                      disabled={!!currentProduct}
+                      className={currentProduct ? "bg-gray-100" : ""}
                     />
+                    {currentProduct && (
+                      <p className="text-xs text-gray-500 mt-1">MwSt wird automatisch aus Vendon-Produktdaten übernommen</p>
+                    )}
                   </div>
                 </div>
 
@@ -716,6 +755,17 @@ export default function UnifiedPurchaseConditionsManager({
                     onChange={(e) => setFormData(prev => ({ ...prev, depositPerUnit: parseFloat(e.target.value) || 0 }))}
                   />
                   <p className="text-xs text-gray-500 mt-1">Pfandbeträge sind steuerbefreit</p>
+                </div>
+
+                <div>
+                  <Label htmlFor="supplierArticleNumber">Lieferanten-Artikelnummer</Label>
+                  <Input
+                    id="supplierArticleNumber"
+                    type="text"
+                    value={formData.supplierArticleNumber}
+                    onChange={(e) => setFormData(prev => ({ ...prev, supplierArticleNumber: e.target.value }))}
+                    placeholder="Art.-Nr. des Lieferanten"
+                  />
                 </div>
 
                 <div className="bg-gray-50 p-3 rounded">
