@@ -93,7 +93,7 @@ export default function ProductDataEntry() {
     queryFn: () => fetch('/api/product-categories').then(res => res.json()),
   });
 
-  // Ensure data is always an array - API returns { data: [...], meta: {...} }
+  // Handle different API response formats
   const products = Array.isArray(productsData) ? productsData : 
                    (productsData?.data && Array.isArray(productsData.data)) ? productsData.data : [];
   

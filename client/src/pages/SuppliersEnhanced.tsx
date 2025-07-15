@@ -477,15 +477,19 @@ export default function SuppliersEnhanced() {
 
   // Fetch suppliers with analytics
   const { data: suppliersData, isLoading, error } = useQuery({
-    queryKey: ['/api/suppliers/overview'],
+    queryKey: ['/api/suppliers'],
     staleTime: 30000, // 30 seconds
   });
 
   // Filter and sort suppliers
   const filteredSuppliers = useMemo(() => {
-    if (!suppliersData?.data) return [];
+    // Handle different API response formats
+    const suppliers = Array.isArray(suppliersData) ? suppliersData : 
+                     (suppliersData?.data && Array.isArray(suppliersData.data)) ? suppliersData.data : [];
     
-    let filtered = suppliersData.data.filter((supplier: EnhancedSupplier) => {
+    if (suppliers.length === 0) return [];
+    
+    let filtered = suppliers.filter((supplier: EnhancedSupplier) => {
       // Text search
       const matchesSearch = !searchTerm || [
         supplier.name,

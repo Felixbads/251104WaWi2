@@ -52,10 +52,18 @@ export default function Suppliers() {
 
   // Combine suppliers with analytics data
   const suppliersWithData = useMemo(() => {
-    if (!suppliersQuery.data?.data || !analyticsQuery.data?.data) return [];
+    // Handle different supplier data formats
+    const supplierData = Array.isArray(suppliersQuery.data) ? suppliersQuery.data : 
+                        (suppliersQuery.data?.data && Array.isArray(suppliersQuery.data.data)) ? suppliersQuery.data.data : [];
     
-    const suppliers = suppliersQuery.data.data;
-    const analytics = analyticsQuery.data.data;
+    // Handle different analytics data formats  
+    const analyticsData = Array.isArray(analyticsQuery.data) ? analyticsQuery.data :
+                         (analyticsQuery.data?.data && Array.isArray(analyticsQuery.data.data)) ? analyticsQuery.data.data : [];
+    
+    if (supplierData.length === 0) return [];
+    
+    const suppliers = supplierData;
+    const analytics = analyticsData;
     
     return suppliers.map((supplier: Supplier) => {
       const supplierAnalytics = analytics.find((a: SupplierAnalytics) => a.supplierId === supplier.id);
