@@ -33,6 +33,13 @@ const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D'
 export default function LocationAnalysisTab({ supplierId }: LocationAnalysisTabProps) {
   const { data: locationData, isLoading } = useQuery({
     queryKey: ['/api/supplier-analytics/location-analysis', supplierId],
+    queryFn: async () => {
+      const response = await fetch(`/api/supplier-analytics/location-analysis/${supplierId}`, {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('authToken') || 'test'}` }
+      });
+      if (!response.ok) throw new Error('Failed to fetch location analysis');
+      return response.json();
+    },
     enabled: !!supplierId
   });
 

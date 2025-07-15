@@ -32,6 +32,13 @@ interface TrendPatternsTabProps {
 export default function TrendPatternsTab({ supplierId }: TrendPatternsTabProps) {
   const { data: trendData, isLoading } = useQuery({
     queryKey: ['/api/supplier-analytics/trend-patterns', supplierId],
+    queryFn: async () => {
+      const response = await fetch(`/api/supplier-analytics/trend-patterns/${supplierId}`, {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('authToken') || 'test'}` }
+      });
+      if (!response.ok) throw new Error('Failed to fetch trend patterns');
+      return response.json();
+    },
     enabled: !!supplierId
   });
 

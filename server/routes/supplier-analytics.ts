@@ -15,42 +15,39 @@ router.get('/dashboard/:supplierId', async (req, res) => {
     const supplierId = parseInt(req.params.supplierId);
     const timeRange = req.query.timeRange || '12months';
     
-    // Grundlegende Statistiken
+    // Grundlegende Statistiken basierend auf Transaktionen (echte Verkäufe)
     const overviewQuery = `
       SELECT 
-        COUNT(DISTINCT o.id) as total_orders,
-        SUM(oi.quantity * oi.unit_price) as total_revenue,
-        AVG(o.total_amount) as avg_order_value,
+        COUNT(t.id) as total_orders,
+        SUM(t.price) as total_revenue,
+        AVG(t.price) as avg_order_value,
         COUNT(DISTINCT t.product_name) as products_sold
-      FROM orders o
-      LEFT JOIN order_items oi ON o.id = oi.order_id
-      LEFT JOIN transactions t ON t.product_name IN (
+      FROM transactions t
+      WHERE t.product_name IN (
         SELECT p.product_name FROM products p WHERE p.supplier_id = $1
-      )
-      WHERE o.supplier_id = $1
-        AND o.created_at >= NOW() - INTERVAL '12 months'
+      ) AND t.datetime >= NOW() - INTERVAL '12 months'
     `;
     
     const overviewResult = await rawDb.query(overviewQuery, [supplierId]);
     
-    // Monatliche Umsätze
+    // Monatliche Umsätze basierend auf echten Verkäufen
     const monthlyRevenueQuery = `
       SELECT 
-        DATE_TRUNC('month', o.created_at) as month,
-        SUM(oi.quantity * oi.unit_price) as revenue,
-        COUNT(o.id) as orders,
-        AVG(o.total_amount) as avg_order_value
-      FROM orders o
-      LEFT JOIN order_items oi ON o.id = oi.order_id
-      WHERE o.supplier_id = $1
-        AND o.created_at >= NOW() - INTERVAL '12 months'
-      GROUP BY DATE_TRUNC('month', o.created_at)
+        DATE_TRUNC('month', t.datetime) as month,
+        SUM(t.price) as revenue,
+        COUNT(t.id) as orders,
+        AVG(t.price) as avg_order_value
+      FROM transactions t
+      WHERE t.product_name IN (
+        SELECT p.product_name FROM products p WHERE p.supplier_id = $1
+      ) AND t.datetime >= NOW() - INTERVAL '12 months'
+      GROUP BY DATE_TRUNC('month', t.datetime)
       ORDER BY month DESC
     `;
     
     const monthlyResult = await rawDb.query(monthlyRevenueQuery, [supplierId]);
     
-    // Top-Produkte Performance
+    // Top-Produkte Performance  
     const productsQuery = `
       SELECT 
         p.id as product_id,
@@ -68,6 +65,7 @@ router.get('/dashboard/:supplierId', async (req, res) => {
       LEFT JOIN transactions t ON t.product_name = p.product_name
       WHERE p.supplier_id = $1
         AND t.datetime >= NOW() - INTERVAL '12 months'
+        AND t.id IS NOT NULL
       GROUP BY p.id, p.product_name
       ORDER BY revenue DESC
       LIMIT 10
@@ -246,10 +244,19 @@ router.get('/trend-patterns/:supplierId', async (req, res) => {
         SUM(t.price) as revenue,
         AVG(t.price) as avg_transaction
       FROM transactions t
-      LEFT JOIN products p ON p.product_name = t.product_name
-      WHERE p.supplier_id = $1
-        AND t.datetime >= NOW() - INTERVAL '3 months'
-      GROUP BY EXTRACT(DOW FROM t.datetime), weekday_name
+      WHERE t.product_name IN (
+        SELECT p.product_name FROM products p WHERE p.supplier_id = $1
+      ) AND t.datetime >= NOW() - INTERVAL '3 months'
+      GROUP BY EXTRACT(DOW FROM t.datetime), 
+        CASE EXTRACT(DOW FROM t.datetime)
+          WHEN 0 THEN 'Sonntag'
+          WHEN 1 THEN 'Montag' 
+          WHEN 2 THEN 'Dienstag'
+          WHEN 3 THEN 'Mittwoch'
+          WHEN 4 THEN 'Donnerstag'
+          WHEN 5 THEN 'Freitag'
+          WHEN 6 THEN 'Samstag'
+        END
       ORDER BY day_of_week
     `;
     
@@ -262,9 +269,9 @@ router.get('/trend-patterns/:supplierId', async (req, res) => {
         COUNT(t.id) as transactions,
         SUM(t.price) as revenue
       FROM transactions t
-      LEFT JOIN products p ON p.product_name = t.product_name
-      WHERE p.supplier_id = $1
-        AND t.datetime >= NOW() - INTERVAL '1 month'
+      WHERE t.product_name IN (
+        SELECT p.product_name FROM products p WHERE p.supplier_id = $1
+      ) AND t.datetime >= NOW() - INTERVAL '1 month'
       GROUP BY EXTRACT(HOUR FROM t.datetime)
       ORDER BY hour
     `;
@@ -279,9 +286,9 @@ router.get('/trend-patterns/:supplierId', async (req, res) => {
           SUM(t.price) as revenue,
           COUNT(t.id) as transactions
         FROM transactions t
-        LEFT JOIN products p ON p.product_name = t.product_name
-        WHERE p.supplier_id = $1
-          AND t.datetime >= NOW() - INTERVAL '12 months'
+        WHERE t.product_name IN (
+          SELECT p.product_name FROM products p WHERE p.supplier_id = $1
+        ) AND t.datetime >= NOW() - INTERVAL '12 months'
         GROUP BY DATE_TRUNC('month', t.datetime)
         ORDER BY month
       ),
@@ -326,17 +333,18 @@ router.get('/trend-patterns/:supplierId', async (req, res) => {
         SUM(t.price) as revenue,
         AVG(t.price) as avg_transaction
       FROM transactions t
-      LEFT JOIN products p ON p.product_name = t.product_name
-      WHERE p.supplier_id = $1
-        AND t.datetime >= NOW() - INTERVAL '12 months'
-      GROUP BY season
-      ORDER BY 
-        CASE season
-          WHEN 'Frühling' THEN 1
-          WHEN 'Sommer' THEN 2
-          WHEN 'Herbst' THEN 3
-          WHEN 'Winter' THEN 4
+      WHERE t.product_name IN (
+        SELECT p.product_name FROM products p WHERE p.supplier_id = $1
+      ) AND t.datetime >= NOW() - INTERVAL '12 months'
+      GROUP BY 
+        CASE 
+          WHEN EXTRACT(MONTH FROM t.datetime) IN (12, 1, 2) THEN 'Winter'
+          WHEN EXTRACT(MONTH FROM t.datetime) IN (3, 4, 5) THEN 'Frühling'
+          WHEN EXTRACT(MONTH FROM t.datetime) IN (6, 7, 8) THEN 'Sommer'
+          WHEN EXTRACT(MONTH FROM t.datetime) IN (9, 10, 11) THEN 'Herbst'
         END
+      ORDER BY 
+        MIN(EXTRACT(MONTH FROM t.datetime))
     `;
     
     const seasonalResult = await rawDb.query(seasonalQuery, [supplierId]);
