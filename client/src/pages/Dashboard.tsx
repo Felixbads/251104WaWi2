@@ -219,12 +219,20 @@ export default function Dashboard() {
 
   // Top Produkte
   const topProducts = transactions?.reduce((acc: Record<string, {count: number, revenue: number}>, tx) => {
-    const productName = tx.productName || 'Unbekanntes Produkt';
-    if (!acc[productName]) {
-      acc[productName] = { count: 0, revenue: 0 };
+    // Verwende product_name aus der API statt productName
+    const productName = tx.product_name || tx.productName;
+    
+    // Überspringe Transaktionen ohne echten Produktnamen
+    if (!productName || productName.trim() === '') {
+      return acc;
     }
-    acc[productName].count += 1;
-    acc[productName].revenue += tx.price || 0;
+    
+    const cleanProductName = productName.trim();
+    if (!acc[cleanProductName]) {
+      acc[cleanProductName] = { count: 0, revenue: 0 };
+    }
+    acc[cleanProductName].count += tx.quantity || 1;
+    acc[cleanProductName].revenue += tx.amount || tx.price || 0;
     return acc;
   }, {}) || {};
 
@@ -255,11 +263,12 @@ export default function Dashboard() {
 
   // Top Maschinen nach Transaktionen
   const machineTransactions = transactions?.reduce((acc: Record<string, {count: number, revenue: number}>, tx) => {
-    if (!acc[tx.machineName]) {
-      acc[tx.machineName] = { count: 0, revenue: 0 };
+    const machineName = tx.machine_name || tx.machineName || 'Unbekannte Maschine';
+    if (!acc[machineName]) {
+      acc[machineName] = { count: 0, revenue: 0 };
     }
-    acc[tx.machineName].count += 1;
-    acc[tx.machineName].revenue += tx.price || 0;
+    acc[machineName].count += 1;
+    acc[machineName].revenue += tx.amount || tx.price || 0;
     return acc;
   }, {}) || {};
 
@@ -271,9 +280,10 @@ export default function Dashboard() {
     total: number,
     cashlessPercentage: number
   }>, tx) => {
-    if (!acc[tx.machineId]) {
-      acc[tx.machineId] = {
-        machineName: tx.machineName,
+    const machineKey = (tx.machine_id || tx.machineId || 'unknown').toString();
+    if (!acc[machineKey]) {
+      acc[machineKey] = {
+        machineName: tx.machine_name || tx.machineName || 'Unbekannte Maschine',
         cash: 0,
         cashless: 0,
         total: 0,
@@ -281,16 +291,16 @@ export default function Dashboard() {
       };
     }
 
-    acc[tx.machineId].total += 1;
+    acc[machineKey].total += 1;
 
-    if (tx.paymentMethod === 'CASH') {
-      acc[tx.machineId].cash += 1;
-    } else if (tx.paymentMethod === 'CASHLESS') {
-      acc[tx.machineId].cashless += 1;
+    if (tx.payment_method === 'CASH' || tx.paymentMethod === 'CASH') {
+      acc[machineKey].cash += 1;
+    } else if (tx.payment_method === 'CASHLESS' || tx.paymentMethod === 'CASHLESS') {
+      acc[machineKey].cashless += 1;
     }
 
     // Prozentsatz berechnen
-    acc[tx.machineId].cashlessPercentage = (acc[tx.machineId].cashless / acc[tx.machineId].total) * 100;
+    acc[machineKey].cashlessPercentage = acc[machineKey].total > 0 ? (acc[machineKey].cashless / acc[machineKey].total) * 100 : 0;
 
     return acc;
   }, {}) || {};

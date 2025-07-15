@@ -257,7 +257,12 @@ export class UltraRobustVendonSync {
       }
 
       // Prüfe ob Transaktion bereits existiert
-      const existingTransaction = await storage.getTransactionByVendonId(transactionId.toString());
+      // Direkte SQL-Abfrage statt storage method
+      const existingResult = await rawDb.query(
+        'SELECT id FROM transactions WHERE vendon_id = $1 LIMIT 1',
+        [transactionId.toString()]
+      );
+      const existingTransaction = existingResult.rows[0];
 
       if (existingTransaction) {
         // Transaktion existiert bereits - überspringe
@@ -349,7 +354,11 @@ export class UltraRobustVendonSync {
         dayEnd.setHours(23, 59, 59, 999);
         
         // Prüfe wieviele Transaktionen wir für diesen Tag haben
-        const dayTransactions = await storage.getTransactionsByDateRange(dayStart, dayEnd);
+        const dayResult = await rawDb.query(
+          'SELECT COUNT(*) as count FROM transactions WHERE datetime >= $1 AND datetime <= $2',
+          [dayStart.toISOString(), dayEnd.toISOString()]
+        );
+        const dayTransactions = { length: parseInt(dayResult.rows[0].count) };
         
         if (dayTransactions.length < 10) { // Weniger als 10 Transaktionen pro Tag ist verdächtig
           console.log(`🔧 Schließe Lücke für: ${dayStart.toISOString().split('T')[0]} (nur ${dayTransactions.length} Transaktionen)`);

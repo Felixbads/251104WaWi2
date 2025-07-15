@@ -321,29 +321,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Für eine Lagerhausbewegung muss entweder das Quell- oder Ziellager das gesuchte sein
       // Wir suchen also nach Bewegungen, die dieses Lager betreffen
-      const movements = await storage.getInventoryMovements({
-        limit,
-        offset,
-        ...(warehouseId ? { sourceWarehouseId: warehouseId } : {}),
-        ...(productId ? { productId } : {}),
-        ...(movementType ? { movementType } : {}),
-        ...(startDate ? { startDate } : {}),
-        ...(endDate ? { endDate } : {})
-      });
+      // Direkte SQL-Abfrage für Inventory Movements
+      const movementsQuery = `
+        SELECT 
+          id,
+          product_id,
+          warehouse_id,
+          movement_type,
+          quantity,
+          reference_type,
+          reference_id,
+          notes,
+          created_at,
+          performed_at,
+          performed_by
+        FROM inventory_movements
+        WHERE warehouse_id = $1
+        ORDER BY performed_at DESC
+        LIMIT 50
+      `;
+      
+      const movementsResult = await rawDb.query(movementsQuery, [warehouseId]);
+      const movements = movementsResult.rows;
       
       // Wenn ein warehouseId angegeben wurde, müssen wir auch nach Bewegungen suchen,
       // bei denen dieses Lager das Ziellager ist
       let destMovements: any[] = [];
       if (warehouseId) {
-        destMovements = await storage.getInventoryMovements({
-          limit,
-          offset,
-          destinationWarehouseId: warehouseId,
-          ...(productId ? { productId } : {}),
-          ...(movementType ? { movementType } : {}),
-          ...(startDate ? { startDate } : {}),
-          ...(endDate ? { endDate } : {})
-        });
+        // Direkte SQL-Abfrage für Destination Movements
+        const destMovementsQuery = `
+          SELECT 
+            id,
+            product_id,
+            warehouse_id,
+            movement_type,
+            quantity,
+            reference_type,
+            reference_id,
+            notes,
+            created_at,
+            performed_at,
+            performed_by
+          FROM inventory_movements
+          WHERE warehouse_id = $1
+          ORDER BY performed_at DESC
+          LIMIT 50
+        `;
+        
+        const destMovementsResult = await rawDb.query(destMovementsQuery, [warehouseId]);
+        destMovements = destMovementsResult.rows;
       }
       
       // Kombiniere beide Listen und sortiere nach Datum (neueste zuerst)
@@ -364,13 +390,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Transformiere die Daten für die Frontendanzeige
       const formattedMovements = filteredMovements.map(item => ({
         id: item.id,
-        productId: item.productId,
-        productName: item.productName,
+        productId: item.product_id,
+        productName: item.product_name || 'Unbekanntes Produkt',
         quantity: item.quantity,
-        type: item.sourceWarehouseId === warehouseId ? 'OUT' : 'IN',
-        movementType: item.movementType,
-        referenceType: item.referenceType,
-        referenceId: item.referenceId,
+        type: item.warehouse_id === warehouseId ? 'IN' : 'OUT',
+        movementType: item.movement_type,
+        referenceType: item.reference_type,
+        referenceId: item.reference_id,
         source: item.referenceType === 'vendon' ? 'vendon' : 'manual',
         machineId: item.machineId,
         machineName: item.machineName,
@@ -1800,10 +1826,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
             t.product_name,
             t.quantity,
             t.amount,
+            t.price,
             t.payment_method,
             t.datetime,
             t.created_at,
-            m.machine_name
+            m.machine_name,
+            m.location_name
           FROM transactions t
           LEFT JOIN machines m ON t.machine_id = m.id
           WHERE t.datetime >= $1 AND t.datetime <= $2
@@ -2264,7 +2292,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Invalid supplier ID" });
       }
       
-      const purchaseConditions = await storage.getPurchaseConditionsBySupplier(supplierId);
+      // Direkte SQL-Abfrage für Purchase Conditions nach Lieferant
+      const purchaseConditionsQuery = `
+        SELECT 
+          id,
+          supplier_id,
+          product_id,
+          unit_price,
+          tax_rate,
+          gross_price,
+          min_quantity,
+          packaging_unit,
+          packaging_quantity,
+          delivery_time,
+          valid_from,
+          valid_to,
+          is_preferred,
+          notes,
+          lead_time,
+          packaging_type,
+          min_quantity_unit,
+          deposit_per_unit,
+          created_at,
+          updated_at
+        FROM purchase_conditions 
+        WHERE supplier_id = $1
+        ORDER BY created_at DESC
+      `;
+      
+      const purchaseConditionsResult = await rawDb.query(purchaseConditionsQuery, [supplierId]);
+      const purchaseConditions = purchaseConditionsResult.rows;
       res.json(purchaseConditions);
     } catch (error) {
       console.error(`Error fetching purchase conditions for supplier ${req.params.supplierId}:`, error);
@@ -2284,7 +2341,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Invalid product ID" });
       }
       
-      const purchaseConditions = await storage.getPurchaseConditionsByProduct(productId);
+      // Direkte SQL-Abfrage für Purchase Conditions nach Produkt
+      const purchaseConditionsQuery = `
+        SELECT 
+          id,
+          supplier_id,
+          product_id,
+          unit_price,
+          tax_rate,
+          gross_price,
+          min_quantity,
+          packaging_unit,
+          packaging_quantity,
+          delivery_time,
+          valid_from,
+          valid_to,
+          is_preferred,
+          notes,
+          lead_time,
+          packaging_type,
+          min_quantity_unit,
+          deposit_per_unit,
+          created_at,
+          updated_at
+        FROM purchase_conditions 
+        WHERE product_id = $1
+        ORDER BY created_at DESC
+      `;
+      
+      const purchaseConditionsResult = await rawDb.query(purchaseConditionsQuery, [productId]);
+      const purchaseConditions = purchaseConditionsResult.rows;
       res.json(purchaseConditions);
     } catch (error) {
       console.error(`Error fetching purchase conditions for product ${req.params.productId}:`, error);
@@ -2304,7 +2390,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Invalid purchase condition ID" });
       }
       
-      const purchaseCondition = await storage.getPurchaseConditionById(id);
+      // Direkte SQL-Abfrage für Purchase Condition nach ID
+      const purchaseConditionQuery = `
+        SELECT 
+          id,
+          supplier_id,
+          product_id,
+          unit_price,
+          tax_rate,
+          gross_price,
+          min_quantity,
+          packaging_unit,
+          packaging_quantity,
+          delivery_time,
+          valid_from,
+          valid_to,
+          is_preferred,
+          notes,
+          lead_time,
+          packaging_type,
+          min_quantity_unit,
+          deposit_per_unit,
+          created_at,
+          updated_at
+        FROM purchase_conditions 
+        WHERE id = $1
+      `;
+      
+      const purchaseConditionResult = await rawDb.query(purchaseConditionQuery, [id]);
+      const purchaseCondition = purchaseConditionResult.rows[0];
       
       if (!purchaseCondition) {
         return res.status(404).json({ error: "Purchase condition not found" });
@@ -2325,8 +2439,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       console.log('[PURCHASE-CONDITIONS] Creating new purchase condition:', req.body);
       
-      const validatedData = insertPurchaseConditionSchema.parse(req.body);
-      const purchaseCondition = await storage.createPurchaseCondition(validatedData);
+      // Direkte SQL-Insertion für Purchase Condition
+      const insertQuery = `
+        INSERT INTO purchase_conditions (
+          supplier_id, product_id, unit_price, tax_rate, gross_price,
+          min_quantity, packaging_unit, packaging_quantity, delivery_time,
+          valid_from, valid_to, is_preferred, notes, lead_time,
+          packaging_type, min_quantity_unit, deposit_per_unit
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+        RETURNING *
+      `;
+      
+      const result = await rawDb.query(insertQuery, [
+        req.body.supplier_id, req.body.product_id, req.body.unit_price || 0,
+        req.body.tax_rate || 19, req.body.gross_price || 0, req.body.min_quantity || 1,
+        req.body.packaging_unit, req.body.packaging_quantity || 1, req.body.delivery_time || 7,
+        req.body.valid_from, req.body.valid_to, req.body.is_preferred || false,
+        req.body.notes, req.body.lead_time || 7, req.body.packaging_type,
+        req.body.min_quantity_unit, req.body.deposit_per_unit || 0
+      ]);
+      const purchaseCondition = result.rows[0];
       
       console.log('[PURCHASE-CONDITIONS] Created successfully:', purchaseCondition);
       res.status(201).json(purchaseCondition);
