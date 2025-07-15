@@ -124,10 +124,7 @@ export default function LocationAnalysisTab({ supplierId }: LocationAnalysisTabP
                     ))}
                   </Pie>
                   <Tooltip 
-                    formatter={[
-                      (value: number) => formatCurrency(value),
-                      'Umsatz'
-                    ]}
+                    formatter={(value: number) => [formatCurrency(value), 'Umsatz']}
                   />
                 </PieChart>
               </ResponsiveContainer>
@@ -165,10 +162,7 @@ export default function LocationAnalysisTab({ supplierId }: LocationAnalysisTabP
                     tickFormatter={(value) => formatCurrency(value)}
                   />
                   <Tooltip 
-                    formatter={[
-                      (value: number) => formatCurrency(value),
-                      'Umsatz'
-                    ]}
+                    formatter={(value: number) => [formatCurrency(value), 'Umsatz']}
                     labelFormatter={(label) => `Standort: ${label}`}
                   />
                   <Bar dataKey="totalRevenue" fill="#0088FE" />

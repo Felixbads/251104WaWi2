@@ -118,13 +118,11 @@ export default function TrendPatternsTab({ supplierId }: TrendPatternsTabProps) 
                 <YAxis yAxisId="right" orientation="right" />
                 <Tooltip 
                   labelFormatter={(value) => new Date(value).toLocaleDateString('de-DE', { month: 'long', year: 'numeric' })}
-                  formatter={[
-                    (value: number, name: string) => {
-                      if (name === 'revenue') return [formatCurrency(value), 'Umsatz'];
-                      if (name === 'transactions') return [value, 'Transaktionen'];
-                      return [formatPercentage(value), 'Wachstum'];
-                    }
-                  ]}
+                  formatter={(value: number, name: string) => {
+                    if (name === 'revenue') return [formatCurrency(value), 'Umsatz'];
+                    if (name === 'transactions') return [value, 'Transaktionen'];
+                    return [formatPercentage(value), 'Wachstum'];
+                  }}
                 />
                 <Area yAxisId="left" type="monotone" dataKey="revenue" stroke="#0088FE" fill="#0088FE" fillOpacity={0.3} />
                 <Line yAxisId="right" type="monotone" dataKey="transactions" stroke="#00C49F" strokeWidth={2} />
@@ -158,10 +156,7 @@ export default function TrendPatternsTab({ supplierId }: TrendPatternsTabProps) 
                   <XAxis dataKey="weekdayName" />
                   <YAxis tickFormatter={(value) => formatCurrency(value)} />
                   <Tooltip 
-                    formatter={[
-                      (value: number) => formatCurrency(value),
-                      'Umsatz'
-                    ]}
+                    formatter={(value: number) => [formatCurrency(value), 'Umsatz']}
                   />
                   <Bar dataKey="revenue" fill="#0088FE" />
                 </BarChart>
@@ -196,10 +191,7 @@ export default function TrendPatternsTab({ supplierId }: TrendPatternsTabProps) 
                   <YAxis />
                   <Tooltip 
                     labelFormatter={(value) => `${value}:00 Uhr`}
-                    formatter={[
-                      (value: number) => value,
-                      'Transaktionen'
-                    ]}
+                    formatter={(value: number) => [value, 'Transaktionen']}
                   />
                   <Area type="monotone" dataKey="transactions" stroke="#00C49F" fill="#00C49F" fillOpacity={0.6} />
                 </AreaChart>
