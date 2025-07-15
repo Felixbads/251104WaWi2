@@ -553,19 +553,36 @@ export default function Products() {
 
   // Verwende alle regulären Produkte aus der Datenbank und ergänze mit Vendon-Produkten wenn vorhanden
   const regularProducts = useMemo(() => {
+    // Debug: Log the products structure to understand what we're getting
+    console.log('Products from API:', products);
+    console.log('Products type:', typeof products);
+    console.log('Is products an array?', Array.isArray(products));
+    
     // Handle different API response formats (direct array vs {data: [...]})
-    if (!products) return [];
+    if (!products) {
+      console.log('No products data available');
+      return [];
+    }
     
     // Check if products is directly an array
     if (Array.isArray(products)) {
+      console.log('Products is direct array with length:', products.length);
       return products;
     }
     
     // Check if products has a data property with an array
     if (products.data && Array.isArray(products.data)) {
+      console.log('Products has data property with length:', products.data.length);
       return products.data;
     }
     
+    // Check if products has products property with an array
+    if (products.products && Array.isArray(products.products)) {
+      console.log('Products has products property with length:', products.products.length);
+      return products.products;
+    }
+    
+    console.log('Unknown products format:', products);
     return [];
   }, [products]);
 
@@ -576,9 +593,19 @@ export default function Products() {
     
     // Füge reguläre Produkte hinzu
     regularProducts.forEach(product => {
-      const productId = product.vendonId || product.id?.toString();
-      if (productId && !productsMap.has(productId)) {
-        productsMap.set(productId, product);
+      // Verwende verschiedene ID-Felder als Fallback
+      const productId = product.vendon_id || product.vendonId || product.id?.toString();
+      if (productId) {
+        // Normalisiere das Produktobjekt für konsistente Darstellung
+        const normalizedProduct = {
+          ...product,
+          productName: product.product_name || product.productName,
+          category: product.category || 'Unkategorisiert',
+          price: product.price || 0,
+          inStock: product.inStock || 0,
+          amountCritical: product.amountCritical || 5
+        };
+        productsMap.set(productId, normalizedProduct);
       }
     });
     
@@ -603,10 +630,11 @@ export default function Products() {
   const filteredProducts = combinedProducts
     ? (combinedProducts as Product[]).filter((product: Product) => {
         // Sicherstellen, dass product und seine Eigenschaften definiert sind
-        if (!product || !product.productName) return false;
+        const productName = product.productName || product.product_name;
+        if (!product || !productName) return false;
         
         // Suchterm-Filter
-        const matchesSearch = product.productName.toLowerCase().includes(searchTerm.toLowerCase()) || 
+        const matchesSearch = productName.toLowerCase().includes(searchTerm.toLowerCase()) || 
                             (product.sku?.toLowerCase().includes(searchTerm.toLowerCase()) || false);
         
         // Kategorie-Filter
@@ -662,7 +690,9 @@ export default function Products() {
         switch (filters.sortBy) {
           default:
           case "name":
-            comparison = a.productName.localeCompare(b.productName);
+            const nameA = a.productName || a.product_name || '';
+            const nameB = b.productName || b.product_name || '';
+            comparison = nameA.localeCompare(nameB);
             break;
           case "price":
             const priceA = a.price || 0;
@@ -696,7 +726,7 @@ export default function Products() {
       <Card className="overflow-hidden">
         <CardHeader className="pb-2">
           <div className="flex justify-between items-start">
-            <CardTitle className="text-lg truncate">{product.productName}</CardTitle>
+            <CardTitle className="text-lg truncate">{product.productName || product.product_name}</CardTitle>
             {isAlcohol && (
               <Badge variant="outline" className="ml-2 bg-amber-100 text-amber-800 border-amber-300">
                 18+
