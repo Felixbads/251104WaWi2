@@ -38,6 +38,19 @@ import {
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 
+// Utility functions
+const formatCurrency = (value: number) => {
+  return new Intl.NumberFormat('de-DE', {
+    style: 'currency',
+    currency: 'EUR'
+  }).format(value);
+};
+
+const formatDate = (dateString?: string) => {
+  if (!dateString) return '-';
+  return format(new Date(dateString), 'dd.MM.yyyy', { locale: de });
+};
+
 interface UnifiedPurchaseConditionsManagerProps {
   mode: 'product' | 'supplier';
   entityId: number;
@@ -48,32 +61,32 @@ interface UnifiedPurchaseConditionsManagerProps {
 
 interface PurchaseCondition {
   id: number;
-  product_id: number;
-  product_name?: string;
-  supplier_id: number;
-  supplier_name: string;
-  unit_price: number;
-  gross_price: number;
-  tax_rate: number;
-  min_quantity: number;
-  min_quantity_unit: 'individual' | 'package';
-  packaging_unit: string;
-  packaging_quantity: number;
-  deposit_per_unit: number;
-  valid_from: string;
-  valid_to?: string;
-  is_preferred: boolean;
+  productId: number;
+  productName?: string;
+  supplierId: number;
+  supplierName?: string;
+  unitPrice: number;
+  grossPrice: number;
+  taxRate: number;
+  minQuantity: number;
+  minQuantityUnit: 'individual' | 'package';
+  packagingUnit: string;
+  packagingQuantity: number;
+  depositPerUnit: number;
+  validFrom: string;
+  validTo?: string;
+  isPreferred: boolean;
   notes?: string;
-  lead_time?: number;
-  delivery_time?: string;
-  discount_type?: string;
-  discount_value?: number;
-  discount_min_quantity?: number;
-  discount_description?: string;
-  discount_valid_from?: string;
-  discount_valid_to?: string;
-  created_at: string;
-  updated_at: string;
+  leadTime?: number;
+  deliveryTime?: string;
+  discountType?: string;
+  discountValue?: number;
+  discountMinQuantity?: number;
+  discountDescription?: string;
+  discountValidFrom?: string;
+  discountValidTo?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 interface FormData {
@@ -414,10 +427,10 @@ export default function UnifiedPurchaseConditionsManager({
   const stats = {
     totalConditions: conditions.length,
     averagePrice: conditions.length > 0 ? 
-      conditions.reduce((sum, c) => sum + c.unit_price, 0) / conditions.length : 0,
+      conditions.reduce((sum, c) => sum + c.unitPrice, 0) / conditions.length : 0,
     bestPrice: conditions.length > 0 ? 
-      Math.min(...conditions.map(c => c.unit_price)) : 0,
-    preferredConditions: conditions.filter(c => c.is_preferred).length
+      Math.min(...conditions.map(c => c.unitPrice)) : 0,
+    preferredConditions: conditions.filter(c => c.isPreferred).length
   };
 
   if (isLoading) {
@@ -573,55 +586,55 @@ export default function UnifiedPurchaseConditionsManager({
                   <TableRow key={condition.id}>
                     {mode === 'product' && (
                       <TableCell className="font-medium">
-                        {condition.supplier_name}
+                        {condition.supplierName}
                       </TableCell>
                     )}
                     {mode === 'supplier' && (
                       <TableCell className="font-medium">
-                        {condition.product_name}
+                        {condition.productName}
                       </TableCell>
                     )}
                     <TableCell>
                       <div>
-                        <div className="font-medium">{formatCurrency(condition.unit_price)}</div>
+                        <div className="font-medium">{formatCurrency(condition.unitPrice)}</div>
                         <div className="text-xs text-gray-500">
-                          Brutto: {formatCurrency(condition.gross_price)}
+                          Brutto: {formatCurrency(condition.grossPrice)}
                         </div>
                       </div>
                     </TableCell>
                     <TableCell>
-                      {condition.deposit_per_unit > 0 ? formatCurrency(condition.deposit_per_unit) : '-'}
+                      {condition.depositPerUnit > 0 ? formatCurrency(condition.depositPerUnit) : '-'}
                     </TableCell>
                     <TableCell>
                       <div>
-                        <div className="font-medium">{condition.min_quantity}</div>
-                        <div className={`text-xs px-2 py-1 rounded ${condition.min_quantity_unit === 'package' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}>
-                          {condition.min_quantity_unit === 'package' ? 'Gebinde' : 'Einzelstück'}
+                        <div className="font-medium">{condition.minQuantity}</div>
+                        <div className={`text-xs px-2 py-1 rounded ${condition.minQuantityUnit === 'package' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}>
+                          {condition.minQuantityUnit === 'package' ? 'Gebinde' : 'Einzelstück'}
                         </div>
                       </div>
                     </TableCell>
                     <TableCell>
-                      {condition.packaging_unit && condition.packaging_quantity ? 
-                        `${condition.packaging_quantity} ${condition.packaging_unit}` : '-'}
+                      {condition.packagingUnit && condition.packagingQuantity ? 
+                        `${condition.packagingQuantity} ${condition.packagingUnit}` : '-'}
                     </TableCell>
                     <TableCell>
-                      {condition.discount_type ? (
+                      {condition.discountType ? (
                         <div className="text-xs">
-                          <div>{condition.discount_type}</div>
-                          <div className="text-gray-500">{condition.discount_value}%</div>
+                          <div>{condition.discountType}</div>
+                          <div className="text-gray-500">{condition.discountValue}%</div>
                         </div>
                       ) : '-'}
                     </TableCell>
                     <TableCell>
-                      {formatDate(condition.valid_to)}
+                      {formatDate(condition.validTo)}
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-1">
-                        {condition.is_preferred && (
+                        {condition.isPreferred && (
                           <Badge variant="default">Bevorzugt</Badge>
                         )}
-                        <Badge variant={new Date(condition.valid_to || '9999-12-31') > new Date() ? "outline" : "destructive"}>
-                          {new Date(condition.valid_to || '9999-12-31') > new Date() ? 'Aktiv' : 'Abgelaufen'}
+                        <Badge variant={new Date(condition.validTo || '9999-12-31') > new Date() ? "outline" : "destructive"}>
+                          {new Date(condition.validTo || '9999-12-31') > new Date() ? 'Aktiv' : 'Abgelaufen'}
                         </Badge>
                       </div>
                     </TableCell>

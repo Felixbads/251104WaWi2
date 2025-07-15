@@ -697,7 +697,7 @@ export default function SupplierDetail() {
   });
   
   // Bestellungen extrahieren und als Array zur Verfügung stellen
-  const orders = Array.isArray(ordersResponse?.data) ? ordersResponse.data : [];
+  const orders = Array.isArray(ordersResponse?.orders) ? ordersResponse.orders : [];
   
   // Einkaufsbedingungen des Lieferanten abfragen
   const { 
