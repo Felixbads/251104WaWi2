@@ -1201,6 +1201,11 @@ app.get('/orders-data', (req, res) => {
   app.use('/api/suppliers', suppliersProductsForConditionsRouter);
   console.log('[SERVER] Suppliers-products-for-conditions router mounted at /api/suppliers BEFORE registerRoutes');
   
+  // Supplier Analytics Router  
+  const supplierAnalyticsRouter = (await import('./routes/supplier-analytics')).default;
+  app.use('/api/supplier-analytics', supplierAnalyticsRouter);
+  console.log('[SERVER] Supplier analytics router mounted at /api/supplier-analytics BEFORE registerRoutes');
+  
   const server = await registerRoutes(app);
 
   // Register weather correction service AFTER registerRoutes

@@ -39,7 +39,8 @@ import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 
 // Utility functions
-const formatCurrency = (value: number) => {
+const formatCurrency = (value: number | undefined | null) => {
+  if (value === undefined || value === null || isNaN(value)) return '0,00 €';
   return new Intl.NumberFormat('de-DE', {
     style: 'currency',
     currency: 'EUR'

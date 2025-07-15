@@ -1,326 +1,377 @@
+/**
+ * LIEFERANTEN-ANALYTICS API
+ * Umfassende Statistiken für Lieferanten-Performance-Analyse
+ */
+
 import { Router } from 'express';
-import { and, eq, gte, lte, desc, asc, sql, count, sum, avg } from 'drizzle-orm';
-import { db } from '../db';
-import { 
-  suppliers, 
-  products, 
-  orders, 
-  orderItems, 
-  inventoryItems,
-  warehouses,
-  transactions,
-  purchaseConditions,
-  productMovements
-} from '../../shared/schema';
+import { z } from 'zod';
+import { rawDb } from '../db';
 
 const router = Router();
 
-// Overview endpoint for suppliers page
-router.get('/overview', async (req, res) => {
-  try {
-    // Get basic overview statistics using pure SQL to avoid cartesian product issues
-    const overviewQuery = await db.execute(sql`
-      SELECT 
-        COUNT(DISTINCT s.id) as "totalSuppliers",
-        COUNT(DISTINCT p.id) as "totalProducts", 
-        COUNT(DISTINCT CASE WHEN o.status IN ('pending', 'processing') THEN o.id END) as "openOrders",
-        COALESCE(SUM(o.total_amount), 0) as "totalRevenue"
-      FROM suppliers s
-      LEFT JOIN products p ON s.id = p.supplier_id
-      LEFT JOIN orders o ON s.id = o.supplier_id
-    `);
-
-    const overviewData = overviewQuery.rows[0] || {
-      totalSuppliers: 0,
-      totalProducts: 0,
-      openOrders: 0,
-      totalRevenue: 0
-    };
-
-    res.json(overviewData);
-  } catch (error) {
-    console.error('Error fetching supplier analytics overview:', error);
-    res.status(500).json({ error: 'Fehler beim Laden der Lieferanten-Übersicht' });
-  }
-});
-
-// Dashboard endpoint
+// Dashboard-Statistiken für Lieferanten
 router.get('/dashboard/:supplierId', async (req, res) => {
   try {
     const supplierId = parseInt(req.params.supplierId);
+    const timeRange = req.query.timeRange || '12months';
     
-    // Calculate date ranges
-    const now = new Date();
-    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-    const oneMonthAgo = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
-    
-    // Get overview metrics using pure SQL
-    const overviewQuery = await db.execute(sql`
+    // Grundlegende Statistiken
+    const overviewQuery = `
       SELECT 
-        COUNT(DISTINCT p.id) as "totalProducts",
-        COUNT(DISTINCT p.id) as "activeProducts",
-        COUNT(DISTINCT o.id) as "totalOrders",
-        0 as "openOrders",
-        COALESCE(SUM(DISTINCT t.price), 0) as "totalRevenue",
-        COALESCE(SUM(CASE WHEN t.datetime >= ${thirtyDaysAgo} THEN t.price ELSE 0 END), 0) as "monthlyRevenue"
+        COUNT(DISTINCT o.id) as total_orders,
+        SUM(oi.quantity * oi.unit_price) as total_revenue,
+        AVG(o.total_amount) as avg_order_value,
+        COUNT(DISTINCT t.product_name) as products_sold
+      FROM orders o
+      LEFT JOIN order_items oi ON o.id = oi.order_id
+      LEFT JOIN transactions t ON t.product_name IN (
+        SELECT p.product_name FROM products p WHERE p.supplier_id = $1
+      )
+      WHERE o.supplier_id = $1
+        AND o.created_at >= NOW() - INTERVAL '12 months'
+    `;
+    
+    const overviewResult = await rawDb.query(overviewQuery, [supplierId]);
+    
+    // Monatliche Umsätze
+    const monthlyRevenueQuery = `
+      SELECT 
+        DATE_TRUNC('month', o.created_at) as month,
+        SUM(oi.quantity * oi.unit_price) as revenue,
+        COUNT(o.id) as orders,
+        AVG(o.total_amount) as avg_order_value
+      FROM orders o
+      LEFT JOIN order_items oi ON o.id = oi.order_id
+      WHERE o.supplier_id = $1
+        AND o.created_at >= NOW() - INTERVAL '12 months'
+      GROUP BY DATE_TRUNC('month', o.created_at)
+      ORDER BY month DESC
+    `;
+    
+    const monthlyResult = await rawDb.query(monthlyRevenueQuery, [supplierId]);
+    
+    // Top-Produkte Performance
+    const productsQuery = `
+      SELECT 
+        p.id as product_id,
+        p.product_name,
+        COUNT(t.id) as quantity_sold,
+        SUM(t.price) as revenue,
+        AVG(t.price) as avg_price,
+        (COUNT(t.id) * 100.0 / (
+          SELECT COUNT(*) FROM transactions t2 
+          WHERE t2.product_name IN (
+            SELECT p2.product_name FROM products p2 WHERE p2.supplier_id = $1
+          )
+        )) as market_share
       FROM products p
-      LEFT JOIN orders o ON p.supplier_id = o.supplier_id
-      LEFT JOIN transactions t ON p.product_name = t.product_name
-      WHERE p.supplier_id = ${supplierId}
-    `);
-
-    const overviewResult = overviewQuery.rows[0] || {
-      totalProducts: 0,
-      activeProducts: 0,
-      totalOrders: 0,
-      openOrders: 0,
-      totalRevenue: 0,
-      monthlyRevenue: 0,
-      lastOrderDate: null
-    };
-
-    // Get inventory data with warehouse information using SQL
-    const inventoryQuery = await db.execute(sql`
-      SELECT 
-        ii.product_id as "productId",
-        p.product_name as "productName",
-        p.sku,
-        ii.warehouse_id as "warehouseId", 
-        w.name as "warehouseName",
-        w.address as location,
-        ii.quantity as stock,
-        ii.min_quantity as "reorderLevel"
-      FROM inventory_items ii
-      INNER JOIN products p ON ii.product_id = p.id
-      LEFT JOIN warehouses w ON ii.warehouse_id = w.id  
-      WHERE p.supplier_id = ${supplierId}
-      ORDER BY p.product_name, w.name
-    `);
-
-    // Group inventory by product
-    const inventoryMap = new Map();
-    inventoryQuery.rows.forEach((item: any) => {
-      const key = item.productId;
-      if (!inventoryMap.has(key)) {
-        inventoryMap.set(key, {
-          productId: item.productId,
-          productName: item.productName || 'Unbekannt',
-          sku: item.sku || '',
-          warehouses: [],
-          totalStock: 0
-        });
-      }
-      
-      const product = inventoryMap.get(key);
-      const stockLevel = item.stock || 0;
-      const reorderLevel = item.reorderLevel || 0;
-      let status: 'good' | 'warning' | 'critical' = 'good';
-      
-      if (stockLevel === 0) {
-        status = 'critical';
-      } else if (stockLevel <= reorderLevel) {
-        status = 'warning';
-      }
-
-      product.warehouses.push({
-        warehouseId: item.warehouseId,
-        warehouseName: item.warehouseName || `Lager ${item.warehouseId}`,
-        location: item.location || '',
-        stock: stockLevel,
-        reorderLevel: reorderLevel,
-        status: status
-      });
-      
-      product.totalStock += stockLevel;
+      LEFT JOIN transactions t ON t.product_name = p.product_name
+      WHERE p.supplier_id = $1
+        AND t.datetime >= NOW() - INTERVAL '12 months'
+      GROUP BY p.id, p.product_name
+      ORDER BY revenue DESC
+      LIMIT 10
+    `;
+    
+    const productsResult = await rawDb.query(productsQuery, [supplierId]);
+    
+    res.json({
+      overview: overviewResult.rows[0] || {
+        total_orders: 0,
+        total_revenue: 0,
+        avg_order_value: 0,
+        products_sold: 0
+      },
+      monthlyRevenue: monthlyResult.rows.map(row => ({
+        month: row.month,
+        revenue: parseFloat(row.revenue) || 0,
+        orders: parseInt(row.orders) || 0,
+        avgOrderValue: parseFloat(row.avg_order_value) || 0
+      })),
+      productPerformance: productsResult.rows.map(row => ({
+        productId: row.product_id,
+        productName: row.product_name,
+        quantitySold: parseInt(row.quantity_sold) || 0,
+        revenue: parseFloat(row.revenue) || 0,
+        avgPrice: parseFloat(row.avg_price) || 0,
+        marketShare: parseFloat(row.market_share) || 0
+      }))
     });
-
-    // Convert to array
-    const inventory = Array.from(inventoryMap.values());
-
-    // Get recent sales data (last 30 days) using SQL
-    const salesQuery = await db.execute(sql`
-      SELECT 
-        DATE(t.datetime) as date,
-        SUM(COALESCE(t.price, 0)) as revenue,
-        COUNT(*) as sales
-      FROM transactions t
-      INNER JOIN products p ON t.product_name = p.product_name
-      WHERE p.supplier_id = ${supplierId}
-        AND t.datetime >= ${thirtyDaysAgo}
-      GROUP BY DATE(t.datetime)
-      ORDER BY DATE(t.datetime)
-    `);
-
-    // Get top products by sales volume using SQL
-    const topProductsQuery = await db.execute(sql`
-      SELECT 
-        p.id as "productId",
-        t.product_name as "productName",
-        COUNT(*) as quantity,
-        SUM(COALESCE(t.price, 0)) as revenue
-      FROM transactions t
-      INNER JOIN products p ON t.product_name = p.product_name
-      WHERE p.supplier_id = ${supplierId}
-        AND t.datetime >= ${thirtyDaysAgo}
-      GROUP BY p.id, t.product_name
-      ORDER BY COUNT(*) DESC
-      LIMIT 5
-    `);
-
-    const dashboardData = {
-      overview: overviewResult,
-      inventory: inventory,
-      salesData: salesQuery.rows,
-      topLocations: [
-        {
-          locationId: 1,
-          locationName: 'Alle Standorte',
-          revenue: salesQuery.rows.reduce((sum: number, day: any) => sum + (day.revenue || 0), 0),
-          orders: salesQuery.rows.reduce((sum: number, day: any) => sum + (day.sales || 0), 0),
-          percentage: 100
-        }
-      ],
-      topProducts: topProductsQuery.rows
-    };
-
-    res.json(dashboardData);
+    
   } catch (error) {
-    console.error('Error fetching supplier dashboard data:', error);
-    console.error('Stack trace:', error instanceof Error ? error.stack : 'No stack trace');
-    res.status(500).json({ 
-      error: 'Fehler beim Laden der Dashboard-Daten',
-      details: error instanceof Error ? error.message : String(error)
-    });
+    console.error('Fehler beim Abrufen der Lieferanten-Dashboard-Statistiken:', error);
+    res.status(500).json({ error: 'Fehler beim Laden der Statistiken' });
   }
 });
 
-// Statistics endpoint
-router.get('/statistics/:supplierId', async (req, res) => {
+// Standort-Analyse für Lieferanten
+router.get('/location-analysis/:supplierId', async (req, res) => {
   try {
     const supplierId = parseInt(req.params.supplierId);
-    const timeRange = req.query.timeRange as string || '12m';
     
-    // Calculate date range based on timeRange parameter
-    const now = new Date();
-    let startDate: Date;
-    
-    switch (timeRange) {
-      case '3m':
-        startDate = new Date(now.getFullYear(), now.getMonth() - 3, now.getDate());
-        break;
-      case '6m':
-        startDate = new Date(now.getFullYear(), now.getMonth() - 6, now.getDate());
-        break;
-      case '24m':
-        startDate = new Date(now.getFullYear() - 2, now.getMonth(), now.getDate());
-        break;
-      default: // 12m
-        startDate = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
-    }
-
-    // Get overview statistics using SQL with transaction data
-    const overviewQuery = await db.execute(sql`
+    // Verkaufsperformance nach Standorten
+    const locationPerformanceQuery = `
       SELECT 
-        COALESCE(SUM(t.price), 0) as "totalRevenue",
-        COUNT(*) as "totalTransactions",
-        COALESCE(AVG(t.price), 0) as "avgTransactionValue",
-        (
-          SELECT t2.product_name 
-          FROM transactions t2 
-          INNER JOIN products p2 ON t2.product_name = p2.product_name 
-          WHERE p2.supplier_id = ${supplierId} 
-            AND t2.datetime >= ${startDate}
-          GROUP BY t2.product_name 
-          ORDER BY COUNT(*) DESC 
-          LIMIT 1
-        ) as "topSellingProduct"
-      FROM transactions t
-      INNER JOIN products p ON t.product_name = p.product_name
-      WHERE p.supplier_id = ${supplierId}
-        AND t.datetime >= ${startDate}
-    `);
-
-    const overviewStats = overviewQuery.rows[0] || {
-      totalRevenue: 0,
-      totalTransactions: 0,
-      avgTransactionValue: 0,
-      topSellingProduct: 'Kein Produkt'
-    };
-
-    // Revenue by month using SQL
-    const revenueByMonthQuery = await db.execute(sql`
-      SELECT 
-        TO_CHAR(t.datetime, 'YYYY-MM') as month,
-        COALESCE(SUM(t.price), 0) as revenue,
-        COUNT(*) as transactions,
-        COALESCE(AVG(t.price), 0) as "avgTransactionValue"
-      FROM transactions t
-      INNER JOIN products p ON t.product_name = p.product_name
-      WHERE p.supplier_id = ${supplierId}
-        AND t.datetime >= ${startDate}
-      GROUP BY TO_CHAR(t.datetime, 'YYYY-MM')
-      ORDER BY TO_CHAR(t.datetime, 'YYYY-MM')
-    `);
-
-    // Product performance using SQL with transaction data
-    const productPerformanceQuery = await db.execute(sql`
-      SELECT 
-        p.id as "productId",
-        p.product_name as "productName",
-        COALESCE(SUM(t.price), 0) as revenue,
-        COUNT(*) as quantity,
-        0 as growth,
-        15 as margin
-      FROM products p
-      LEFT JOIN transactions t ON p.product_name = t.product_name
-      WHERE p.supplier_id = ${supplierId}
-        AND (t.datetime IS NULL OR t.datetime >= ${startDate})
-      GROUP BY p.id, p.product_name
-      ORDER BY COALESCE(SUM(t.price), 0) DESC
-      LIMIT 10
-    `);
-
-    // Top locations using SQL
-    const topLocationsQuery = await db.execute(sql`
-      SELECT 
-        m.id as "locationId",
-        m.machine_name as "locationName",
-        COALESCE(SUM(t.price), 0) as revenue,
-        COUNT(*) as transactions,
-        ROUND(
-          (COUNT(*) * 100.0 / NULLIF(
-            (SELECT COUNT(*) FROM transactions t2 
-             INNER JOIN products p2 ON t2.product_name = p2.product_name 
-             WHERE p2.supplier_id = ${supplierId} 
-               AND t2.datetime >= ${startDate}), 
-            0
-          )), 2
-        ) as percentage
+        m.id as machine_id,
+        m.machine_name as location_name,
+        COUNT(t.id) as total_sales,
+        SUM(t.price) as total_revenue,
+        AVG(t.price) as avg_transaction_value,
+        COUNT(DISTINCT DATE(t.datetime)) as active_days,
+        (COUNT(t.id) * 100.0 / (
+          SELECT COUNT(*) FROM transactions t2 WHERE t2.machine_id = m.id
+        )) as supplier_share
       FROM machines m
-      LEFT JOIN transactions t ON m.id = t.machine_id
-      LEFT JOIN products p ON t.product_name = p.product_name
-      WHERE p.supplier_id = ${supplierId}
-        AND t.datetime >= ${startDate}
+      LEFT JOIN transactions t ON t.machine_id = m.id
+      LEFT JOIN products p ON p.product_name = t.product_name
+      WHERE p.supplier_id = $1
+        AND t.datetime >= NOW() - INTERVAL '6 months'
       GROUP BY m.id, m.machine_name
-      ORDER BY COALESCE(SUM(t.price), 0) DESC
-      LIMIT 5
-    `);
-
-    const statistics = {
-      overview: {
-        ...overviewStats,
-        revenueGrowth: 0,
-        orderGrowth: 0
-      },
-      revenueByMonth: revenueByMonthQuery.rows,
-      productPerformance: productPerformanceQuery.rows,
-      topLocations: topLocationsQuery.rows
-    };
-
-    res.json(statistics);
+      HAVING COUNT(t.id) > 0
+      ORDER BY total_revenue DESC
+    `;
+    
+    const locationResult = await rawDb.query(locationPerformanceQuery, [supplierId]);
+    
+    // Geografische Verteilung
+    const geographicQuery = `
+      SELECT 
+        CASE 
+          WHEN m.machine_name LIKE '%Dresden%' THEN 'Dresden'
+          WHEN m.machine_name LIKE '%Bad Schandau%' THEN 'Bad Schandau'
+          WHEN m.machine_name LIKE '%Pirna%' THEN 'Pirna'
+          WHEN m.machine_name LIKE '%Stolpen%' THEN 'Stolpen'
+          ELSE 'Sonstige'
+        END as region,
+        COUNT(DISTINCT m.id) as machine_count,
+        SUM(t.price) as revenue,
+        COUNT(t.id) as transactions
+      FROM machines m
+      LEFT JOIN transactions t ON t.machine_id = m.id
+      LEFT JOIN products p ON p.product_name = t.product_name
+      WHERE p.supplier_id = $1
+        AND t.datetime >= NOW() - INTERVAL '6 months'
+      GROUP BY region
+      ORDER BY revenue DESC
+    `;
+    
+    const geographicResult = await rawDb.query(geographicQuery, [supplierId]);
+    
+    // Beste und schlechteste Standorte
+    const topBottomQuery = `
+      WITH ranked_locations AS (
+        SELECT 
+          m.machine_name,
+          SUM(t.price) as revenue,
+          COUNT(t.id) as transactions,
+          ROW_NUMBER() OVER (ORDER BY SUM(t.price) DESC) as rank_desc,
+          ROW_NUMBER() OVER (ORDER BY SUM(t.price) ASC) as rank_asc
+        FROM machines m
+        LEFT JOIN transactions t ON t.machine_id = m.id
+        LEFT JOIN products p ON p.product_name = t.product_name
+        WHERE p.supplier_id = $1
+          AND t.datetime >= NOW() - INTERVAL '6 months'
+        GROUP BY m.machine_name
+        HAVING COUNT(t.id) > 0
+      )
+      SELECT 
+        machine_name,
+        revenue,
+        transactions,
+        CASE WHEN rank_desc <= 3 THEN 'top' ELSE 'bottom' END as category
+      FROM ranked_locations
+      WHERE rank_desc <= 3 OR rank_asc <= 3
+      ORDER BY revenue DESC
+    `;
+    
+    const topBottomResult = await rawDb.query(topBottomQuery, [supplierId]);
+    
+    res.json({
+      locationPerformance: locationResult.rows.map(row => ({
+        machineId: row.machine_id,
+        locationName: row.location_name,
+        totalSales: parseInt(row.total_sales) || 0,
+        totalRevenue: parseFloat(row.total_revenue) || 0,
+        avgTransactionValue: parseFloat(row.avg_transaction_value) || 0,
+        activeDays: parseInt(row.active_days) || 0,
+        supplierShare: parseFloat(row.supplier_share) || 0
+      })),
+      geographicDistribution: geographicResult.rows.map(row => ({
+        region: row.region,
+        machineCount: parseInt(row.machine_count) || 0,
+        revenue: parseFloat(row.revenue) || 0,
+        transactions: parseInt(row.transactions) || 0
+      })),
+      topPerformers: topBottomResult.rows
+        .filter(row => row.category === 'top')
+        .map(row => ({
+          locationName: row.machine_name,
+          revenue: parseFloat(row.revenue) || 0,
+          transactions: parseInt(row.transactions) || 0
+        })),
+      underPerformers: topBottomResult.rows
+        .filter(row => row.category === 'bottom')
+        .map(row => ({
+          locationName: row.machine_name,
+          revenue: parseFloat(row.revenue) || 0,
+          transactions: parseInt(row.transactions) || 0
+        }))
+    });
+    
   } catch (error) {
-    console.error('Error fetching supplier statistics:', error);
-    res.status(500).json({ error: 'Fehler beim Laden der Statistiken' });
+    console.error('Fehler beim Abrufen der Standort-Analyse:', error);
+    res.status(500).json({ error: 'Fehler beim Laden der Standort-Analyse' });
+  }
+});
+
+// Trend-Pattern-Analyse für Lieferanten
+router.get('/trend-patterns/:supplierId', async (req, res) => {
+  try {
+    const supplierId = parseInt(req.params.supplierId);
+    
+    // Wochentag-Analyse
+    const weekdayQuery = `
+      SELECT 
+        EXTRACT(DOW FROM t.datetime) as day_of_week,
+        CASE EXTRACT(DOW FROM t.datetime)
+          WHEN 0 THEN 'Sonntag'
+          WHEN 1 THEN 'Montag' 
+          WHEN 2 THEN 'Dienstag'
+          WHEN 3 THEN 'Mittwoch'
+          WHEN 4 THEN 'Donnerstag'
+          WHEN 5 THEN 'Freitag'
+          WHEN 6 THEN 'Samstag'
+        END as weekday_name,
+        COUNT(t.id) as transactions,
+        SUM(t.price) as revenue,
+        AVG(t.price) as avg_transaction
+      FROM transactions t
+      LEFT JOIN products p ON p.product_name = t.product_name
+      WHERE p.supplier_id = $1
+        AND t.datetime >= NOW() - INTERVAL '3 months'
+      GROUP BY EXTRACT(DOW FROM t.datetime), weekday_name
+      ORDER BY day_of_week
+    `;
+    
+    const weekdayResult = await rawDb.query(weekdayQuery, [supplierId]);
+    
+    // Stunden-Analyse
+    const hourlyQuery = `
+      SELECT 
+        EXTRACT(HOUR FROM t.datetime) as hour,
+        COUNT(t.id) as transactions,
+        SUM(t.price) as revenue
+      FROM transactions t
+      LEFT JOIN products p ON p.product_name = t.product_name
+      WHERE p.supplier_id = $1
+        AND t.datetime >= NOW() - INTERVAL '1 month'
+      GROUP BY EXTRACT(HOUR FROM t.datetime)
+      ORDER BY hour
+    `;
+    
+    const hourlyResult = await rawDb.query(hourlyQuery, [supplierId]);
+    
+    // Monatliche Trends
+    const monthlyTrendQuery = `
+      WITH monthly_data AS (
+        SELECT 
+          DATE_TRUNC('month', t.datetime) as month,
+          SUM(t.price) as revenue,
+          COUNT(t.id) as transactions
+        FROM transactions t
+        LEFT JOIN products p ON p.product_name = t.product_name
+        WHERE p.supplier_id = $1
+          AND t.datetime >= NOW() - INTERVAL '12 months'
+        GROUP BY DATE_TRUNC('month', t.datetime)
+        ORDER BY month
+      ),
+      with_growth AS (
+        SELECT 
+          month,
+          revenue,
+          transactions,
+          LAG(revenue) OVER (ORDER BY month) as prev_revenue,
+          LAG(transactions) OVER (ORDER BY month) as prev_transactions
+        FROM monthly_data
+      )
+      SELECT 
+        month,
+        revenue,
+        transactions,
+        CASE 
+          WHEN prev_revenue IS NOT NULL AND prev_revenue > 0 
+          THEN ((revenue - prev_revenue) / prev_revenue * 100)
+          ELSE 0 
+        END as revenue_growth,
+        CASE 
+          WHEN prev_transactions IS NOT NULL AND prev_transactions > 0 
+          THEN ((transactions - prev_transactions) / prev_transactions * 100)
+          ELSE 0 
+        END as transaction_growth
+      FROM with_growth
+    `;
+    
+    const monthlyTrendResult = await rawDb.query(monthlyTrendQuery, [supplierId]);
+    
+    // Saisonale Muster
+    const seasonalQuery = `
+      SELECT 
+        CASE 
+          WHEN EXTRACT(MONTH FROM t.datetime) IN (12, 1, 2) THEN 'Winter'
+          WHEN EXTRACT(MONTH FROM t.datetime) IN (3, 4, 5) THEN 'Frühling'
+          WHEN EXTRACT(MONTH FROM t.datetime) IN (6, 7, 8) THEN 'Sommer'
+          WHEN EXTRACT(MONTH FROM t.datetime) IN (9, 10, 11) THEN 'Herbst'
+        END as season,
+        COUNT(t.id) as transactions,
+        SUM(t.price) as revenue,
+        AVG(t.price) as avg_transaction
+      FROM transactions t
+      LEFT JOIN products p ON p.product_name = t.product_name
+      WHERE p.supplier_id = $1
+        AND t.datetime >= NOW() - INTERVAL '12 months'
+      GROUP BY season
+      ORDER BY 
+        CASE season
+          WHEN 'Frühling' THEN 1
+          WHEN 'Sommer' THEN 2
+          WHEN 'Herbst' THEN 3
+          WHEN 'Winter' THEN 4
+        END
+    `;
+    
+    const seasonalResult = await rawDb.query(seasonalQuery, [supplierId]);
+    
+    res.json({
+      weekdayPatterns: weekdayResult.rows.map(row => ({
+        dayOfWeek: parseInt(row.day_of_week),
+        weekdayName: row.weekday_name,
+        transactions: parseInt(row.transactions) || 0,
+        revenue: parseFloat(row.revenue) || 0,
+        avgTransaction: parseFloat(row.avg_transaction) || 0
+      })),
+      hourlyPatterns: hourlyResult.rows.map(row => ({
+        hour: parseInt(row.hour),
+        transactions: parseInt(row.transactions) || 0,
+        revenue: parseFloat(row.revenue) || 0
+      })),
+      monthlyTrends: monthlyTrendResult.rows.map(row => ({
+        month: row.month,
+        revenue: parseFloat(row.revenue) || 0,
+        transactions: parseInt(row.transactions) || 0,
+        revenueGrowth: parseFloat(row.revenue_growth) || 0,
+        transactionGrowth: parseFloat(row.transaction_growth) || 0
+      })),
+      seasonalPatterns: seasonalResult.rows.map(row => ({
+        season: row.season,
+        transactions: parseInt(row.transactions) || 0,
+        revenue: parseFloat(row.revenue) || 0,
+        avgTransaction: parseFloat(row.avg_transaction) || 0
+      }))
+    });
+    
+  } catch (error) {
+    console.error('Fehler beim Abrufen der Trend-Pattern-Analyse:', error);
+    res.status(500).json({ error: 'Fehler beim Laden der Trend-Analyse' });
   }
 });
 
