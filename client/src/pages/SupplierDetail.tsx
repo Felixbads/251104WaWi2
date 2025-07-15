@@ -669,11 +669,15 @@ export default function SupplierDetail() {
   });
   
   // Produkte extrahieren und als Array zur Verfügung stellen
-  const products = Array.isArray(productsResponse?.data) ? productsResponse.data : [];
+  const products = Array.isArray(productsResponse) ? productsResponse : 
+                   Array.isArray(productsResponse?.data) ? productsResponse.data : 
+                   Array.isArray(productsResponse?.products) ? productsResponse.products : [];
   
   // Debugging-Ausgabe (temporär)
-  console.log(`Lieferant ${id} - Produkte geladen:`, products?.length, 
-    productsResponse);
+  console.log(`Lieferant ${id} - Produkte geladen:`, products?.length, products);
+  console.log(`Lieferant ${id} - Original response:`, productsResponse);
+  console.log(`Lieferant ${id} - Bestellungen:`, orders?.length, orders);
+  console.log(`Lieferant ${id} - Einkaufsbedingungen:`, purchaseConditions?.length, purchaseConditions);
   
   // Alle verfügbaren Produkte abfragen (für Zuordnung)
   const { data: allProductsResponse, isLoading: isAllProductsLoading } = useQuery({
@@ -683,10 +687,10 @@ export default function SupplierDetail() {
   });
   
   // Alle Produkte extrahieren
-  const allProducts = Array.isArray(allProductsResponse?.data) 
-    ? allProductsResponse.data.map((product: any) => ({
-        ...product
-      }))
+  const allProducts = Array.isArray(allProductsResponse) 
+    ? allProductsResponse.map((product: any) => ({ ...product }))
+    : Array.isArray(allProductsResponse?.data) 
+    ? allProductsResponse.data.map((product: any) => ({ ...product }))
     : [];
   
   // Bestellungen des Lieferanten abfragen
@@ -697,7 +701,9 @@ export default function SupplierDetail() {
   });
   
   // Bestellungen extrahieren und als Array zur Verfügung stellen
-  const orders = Array.isArray(ordersResponse?.orders) ? ordersResponse.orders : [];
+  const orders = Array.isArray(ordersResponse) ? ordersResponse : 
+                 Array.isArray(ordersResponse?.orders) ? ordersResponse.orders : 
+                 Array.isArray(ordersResponse?.data) ? ordersResponse.data : [];
   
   // Einkaufsbedingungen des Lieferanten abfragen
   const { 
@@ -711,7 +717,9 @@ export default function SupplierDetail() {
   });
   
   // Extract purchase conditions from response
-  const purchaseConditions = Array.isArray(purchaseConditionsResponse?.data) 
+  const purchaseConditions = Array.isArray(purchaseConditionsResponse) 
+    ? purchaseConditionsResponse 
+    : Array.isArray(purchaseConditionsResponse?.data) 
     ? purchaseConditionsResponse.data 
     : [];
   
