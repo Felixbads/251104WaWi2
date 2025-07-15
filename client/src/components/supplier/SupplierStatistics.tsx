@@ -40,14 +40,12 @@ interface SupplierStatisticsProps {
 
 interface StatisticsData {
   overview: {
-    totalRevenue: number;
-    totalOrders: number;
-    avgOrderValue: number;
-    topSellingProduct: string;
-    revenueGrowth: number;
-    orderGrowth: number;
+    total_revenue: number;
+    total_orders: number;
+    avg_order_value: number;
+    products_sold: number;
   };
-  revenueByMonth: Array<{
+  monthlyRevenue: Array<{
     month: string;
     revenue: number;
     orders: number;
@@ -57,9 +55,9 @@ interface StatisticsData {
     productId: number;
     productName: string;
     revenue: number;
-    quantity: number;
-    growth: number;
-    margin: number;
+    quantitySold: number;
+    avgPrice: number;
+    marketShare: number;
   }>;
   locationPerformance: Array<{
     locationId: number;
@@ -178,15 +176,9 @@ export default function SupplierStatistics({ supplierId, supplier }: SupplierSta
                 <Euro className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{formatCurrency(statisticsData?.overview?.totalRevenue || 0)}</div>
-                <div className={`text-xs flex items-center ${
-                  (statisticsData?.overview?.revenueGrowth || 0) >= 0 ? 'text-green-600' : 'text-red-600'
-                }`}>
-                  {(statisticsData?.overview?.revenueGrowth || 0) >= 0 ? 
-                    <TrendingUp className="h-3 w-3 mr-1" /> : 
-                    <TrendingDown className="h-3 w-3 mr-1" />
-                  }
-                  {formatPercentage(statisticsData?.overview?.revenueGrowth || 0)} vs. Vorperiode
+                <div className="text-2xl font-bold">{formatCurrency(statisticsData?.overview?.total_revenue || 0)}</div>
+                <div className="text-xs text-muted-foreground">
+                  Gesamtumsatz aller Zeiten
                 </div>
               </CardContent>
             </Card>
@@ -197,15 +189,9 @@ export default function SupplierStatistics({ supplierId, supplier }: SupplierSta
                 <Package className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{statisticsData?.overview?.totalOrders || 0}</div>
-                <div className={`text-xs flex items-center ${
-                  (statisticsData?.overview?.orderGrowth || 0) >= 0 ? 'text-green-600' : 'text-red-600'
-                }`}>
-                  {(statisticsData?.overview?.orderGrowth || 0) >= 0 ? 
-                    <TrendingUp className="h-3 w-3 mr-1" /> : 
-                    <TrendingDown className="h-3 w-3 mr-1" />
-                  }
-                  {formatPercentage(statisticsData?.overview?.orderGrowth || 0)} vs. Vorperiode
+                <div className="text-2xl font-bold">{statisticsData?.overview?.total_orders || 0}</div>
+                <div className="text-xs text-muted-foreground">
+                  Bestellungen insgesamt
                 </div>
               </CardContent>
             </Card>
@@ -216,9 +202,9 @@ export default function SupplierStatistics({ supplierId, supplier }: SupplierSta
                 <BarChart3 className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{formatCurrency(statisticsData?.overview?.avgOrderValue || 0)}</div>
+                <div className="text-2xl font-bold">{formatCurrency(statisticsData?.overview?.avg_order_value || 0)}</div>
                 <p className="text-xs text-muted-foreground">
-                  {statisticsData?.overview?.topSellingProduct || 'Keine Daten'}
+                  Durchschnittlicher Bestellwert
                 </p>
               </CardContent>
             </Card>
@@ -229,9 +215,9 @@ export default function SupplierStatistics({ supplierId, supplier }: SupplierSta
                 <Users className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{statisticsData?.productPerformance?.length || 0}</div>
+                <div className="text-2xl font-bold">{statisticsData?.overview?.products_sold || 0}</div>
                 <p className="text-xs text-muted-foreground">
-                  Verschiedene Produkte
+                  Verkaufte Produkte
                 </p>
               </CardContent>
             </Card>
@@ -245,9 +231,9 @@ export default function SupplierStatistics({ supplierId, supplier }: SupplierSta
                 <CardDescription>Umsatzentwicklung der letzten Monate</CardDescription>
               </CardHeader>
               <CardContent>
-                {statisticsData?.revenueByMonth && statisticsData.revenueByMonth.length > 0 ? (
+                {statisticsData?.monthlyRevenue && statisticsData.monthlyRevenue.length > 0 ? (
                   <ResponsiveContainer width="100%" height={300}>
-                    <LineChart data={statisticsData.revenueByMonth}>
+                    <LineChart data={statisticsData.monthlyRevenue}>
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis 
                         dataKey="month" 

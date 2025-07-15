@@ -617,7 +617,7 @@ export default function UnifiedPurchaseConditionsManager({
                     )}
                     {mode === 'supplier' && (
                       <TableCell className="font-medium">
-                        {condition.product_name}
+                        {condition.product_name || condition.productName}
                       </TableCell>
                     )}
                     <TableCell>
