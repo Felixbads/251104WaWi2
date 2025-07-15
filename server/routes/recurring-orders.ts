@@ -27,6 +27,11 @@ import GoodsReceiptService from '../services/goodsReceiptService';
 const scheduler = new RecurringOrderScheduler({ drizzle: db });
 const goodsReceiptService = new GoodsReceiptService({ drizzle: db });
 
+// Export scheduler instance für Server-Initialisierung
+export function getRecurringOrderSchedulerInstance() {
+  return scheduler;
+}
+
 const router = Router();
 
 // ================================ TEST-FUNKTIONALITÄTEN ================================

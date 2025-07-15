@@ -1220,6 +1220,13 @@ app.get('/orders-data', (req, res) => {
   recurringOrderCronService.start();
   console.log('[SERVER] Recurring orders cron service started (daily 6:00 AM)');
   
+  // CRITICAL FIX: Start the RecurringOrderScheduler that the API endpoints actually use
+  // Import and start the same scheduler instance that the routes use
+  const { getRecurringOrderSchedulerInstance } = await import('./routes/recurring-orders');
+  const recurringOrderScheduler = getRecurringOrderSchedulerInstance();
+  recurringOrderScheduler.start();
+  console.log('[SERVER] RecurringOrderScheduler (API) started - automation now active');
+  
   // Start weekly report cron service for automated weekly email reports
   weeklyReportCron.start();
   console.log('[SERVER] Weekly report cron service started (Monday 6:00 AM)');
