@@ -89,54 +89,12 @@ export default function LocationAnalysisTab({ supplierId }: LocationAnalysisTabP
     );
   }
 
-  const { locationPerformance, geographicDistribution, topPerformers, underPerformers } = locationData;
+  const { locationPerformance, topPerformers, underPerformers } = locationData;
 
   return (
     <div className="space-y-6">
-      {/* Geografische Verteilung */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center">
-              <MapPin className="h-5 w-5 mr-2" />
-              Geografische Verteilung
-            </CardTitle>
-            <CardDescription>
-              Umsatzverteilung nach Regionen
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {geographicDistribution && geographicDistribution.length > 0 ? (
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie
-                    data={geographicDistribution}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={({ region, revenue }) => `${region}: ${formatCurrency(revenue)}`}
-                    outerRadius={80}
-                    fill="#8884d8"
-                    dataKey="revenue"
-                  >
-                    {geographicDistribution.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip 
-                    formatter={(value: number) => [formatCurrency(value), 'Umsatz']}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                Keine geografischen Daten verfügbar
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
+      {/* Standort-Performance */}
+      <Card>
           <CardHeader>
             <CardTitle className="flex items-center">
               <BarChart3 className="h-5 w-5 mr-2" />
@@ -175,7 +133,6 @@ export default function LocationAnalysisTab({ supplierId }: LocationAnalysisTabP
             )}
           </CardContent>
         </Card>
-      </div>
 
       {/* Top und Underperformer */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

@@ -107,55 +107,34 @@ router.get('/location-analysis/:supplierId', async (req, res) => {
   try {
     const supplierId = parseInt(req.params.supplierId);
     
-    // Verkaufsperformance nach Standorten
+    // Verkaufsperformance nach Standorten (ohne Duplikate)
     const locationPerformanceQuery = `
       SELECT 
-        m.id as machine_id,
         m.machine_name as location_name,
         COUNT(t.id) as total_sales,
         SUM(t.price) as total_revenue,
         AVG(t.price) as avg_transaction_value,
         COUNT(DISTINCT DATE(t.datetime)) as active_days,
         (COUNT(t.id) * 100.0 / (
-          SELECT COUNT(*) FROM transactions t2 WHERE t2.machine_id = m.id
+          SELECT COUNT(*) FROM transactions t2 
+          INNER JOIN machines m2 ON t2.machine_id = m2.id
+          WHERE m2.machine_name = m.machine_name
         )) as supplier_share
       FROM machines m
-      LEFT JOIN transactions t ON t.machine_id = m.id
-      LEFT JOIN products p ON p.product_name = t.product_name
+      INNER JOIN transactions t ON t.machine_id = m.id
+      INNER JOIN products p ON p.product_name = t.product_name
       WHERE p.supplier_id = $1
         AND t.datetime >= NOW() - INTERVAL '6 months'
-      GROUP BY m.id, m.machine_name
+      GROUP BY m.machine_name
       HAVING COUNT(t.id) > 0
       ORDER BY total_revenue DESC
     `;
     
     const locationResult = await rawDb.query(locationPerformanceQuery, [supplierId]);
     
-    // Geografische Verteilung
-    const geographicQuery = `
-      SELECT 
-        CASE 
-          WHEN m.machine_name LIKE '%Dresden%' THEN 'Dresden'
-          WHEN m.machine_name LIKE '%Bad Schandau%' THEN 'Bad Schandau'
-          WHEN m.machine_name LIKE '%Pirna%' THEN 'Pirna'
-          WHEN m.machine_name LIKE '%Stolpen%' THEN 'Stolpen'
-          ELSE 'Sonstige'
-        END as region,
-        COUNT(DISTINCT m.id) as machine_count,
-        SUM(t.price) as revenue,
-        COUNT(t.id) as transactions
-      FROM machines m
-      LEFT JOIN transactions t ON t.machine_id = m.id
-      LEFT JOIN products p ON p.product_name = t.product_name
-      WHERE p.supplier_id = $1
-        AND t.datetime >= NOW() - INTERVAL '6 months'
-      GROUP BY region
-      ORDER BY revenue DESC
-    `;
+    // Geografische Verteilung entfernt (sinnlos laut Benutzer)
     
-    const geographicResult = await rawDb.query(geographicQuery, [supplierId]);
-    
-    // Beste und schlechteste Standorte
+    // Beste und schlechteste Standorte (ohne Duplikate)
     const topBottomQuery = `
       WITH ranked_locations AS (
         SELECT 
@@ -165,8 +144,8 @@ router.get('/location-analysis/:supplierId', async (req, res) => {
           ROW_NUMBER() OVER (ORDER BY SUM(t.price) DESC) as rank_desc,
           ROW_NUMBER() OVER (ORDER BY SUM(t.price) ASC) as rank_asc
         FROM machines m
-        LEFT JOIN transactions t ON t.machine_id = m.id
-        LEFT JOIN products p ON p.product_name = t.product_name
+        INNER JOIN transactions t ON t.machine_id = m.id
+        INNER JOIN products p ON p.product_name = t.product_name
         WHERE p.supplier_id = $1
           AND t.datetime >= NOW() - INTERVAL '6 months'
         GROUP BY m.machine_name
@@ -186,19 +165,12 @@ router.get('/location-analysis/:supplierId', async (req, res) => {
     
     res.json({
       locationPerformance: locationResult.rows.map(row => ({
-        machineId: row.machine_id,
         locationName: row.location_name,
         totalSales: parseInt(row.total_sales) || 0,
         totalRevenue: parseFloat(row.total_revenue) || 0,
         avgTransactionValue: parseFloat(row.avg_transaction_value) || 0,
         activeDays: parseInt(row.active_days) || 0,
         supplierShare: parseFloat(row.supplier_share) || 0
-      })),
-      geographicDistribution: geographicResult.rows.map(row => ({
-        region: row.region,
-        machineCount: parseInt(row.machine_count) || 0,
-        revenue: parseFloat(row.revenue) || 0,
-        transactions: parseInt(row.transactions) || 0
       })),
       topPerformers: topBottomResult.rows
         .filter(row => row.category === 'top')
