@@ -2653,6 +2653,274 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get product inventory (warehouse + machine stocks)
+  app.get(`${API_PREFIX}/products/:id/inventory`, async (req: Request, res: Response) => {
+    try {
+      const productId = parseInt(req.params.id);
+      
+      if (isNaN(productId)) {
+        return res.status(400).json({ error: "Invalid product ID" });
+      }
+      
+      console.log(`[INVENTORY API] Fetching inventory for product ${productId}`);
+      
+      // Get product to verify it exists
+      const product = await storage.getProduct(productId);
+      if (!product) {
+        return res.status(404).json({ success: false, error: "Product not found" });
+      }
+      
+      // Query warehouse stocks
+      const warehouseQuery = `
+        SELECT 
+          wi.warehouse_id,
+          w.name as warehouse_name,
+          wi.quantity,
+          wi.batch_id,
+          wi.expiry_date,
+          wi.received_date
+        FROM warehouse_inventory wi
+        JOIN warehouses w ON wi.warehouse_id = w.id
+        WHERE wi.product_id = $1
+        ORDER BY w.name
+      `;
+      
+      // Query machine stocks with fill levels
+      const machineQuery = `
+        SELECT 
+          ms.machine_id,
+          m.machine_name,
+          ms.current_stock as "currentStock",
+          ms.max_quantity as "maxCapacity",
+          ms.stock_ratio as "fillLevel",
+          ms.last_refill,
+          CASE 
+            WHEN ms.current_stock = 0 THEN 'empty'
+            WHEN ms.stock_ratio < 0.2 THEN 'low'
+            WHEN ms.stock_ratio < 0.5 THEN 'medium'
+            ELSE 'good'
+          END as status
+        FROM machine_stocks ms
+        JOIN machines m ON ms.machine_id = m.id
+        WHERE ms.product_id = $1
+        ORDER BY m.machine_name
+      `;
+      
+      const [warehouseResult, machineResult] = await Promise.all([
+        rawDb.query(warehouseQuery, [productId]),
+        rawDb.query(machineQuery, [productId])
+      ]);
+      
+      console.log(`[INVENTORY API] Found ${warehouseResult.rows.length} warehouse stocks, ${machineResult.rows.length} machine stocks`);
+      
+      res.json({
+        success: true,
+        warehouseStocks: warehouseResult.rows,
+        machineStocks: machineResult.rows
+      });
+    } catch (error) {
+      console.error(`[INVENTORY API] Error fetching inventory for product ${req.params.id}:`, error);
+      res.status(500).json({ 
+        success: false,
+        error: "Failed to fetch product inventory", 
+        details: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
+
+  // Get product sales data
+  app.get(`${API_PREFIX}/products/:id/sales`, async (req: Request, res: Response) => {
+    try {
+      const productId = parseInt(req.params.id);
+      const timeRange = req.query.timeRange as string || '7d';
+      const selectedMachine = req.query.selectedMachine as string || 'all';
+      
+      if (isNaN(productId)) {
+        return res.status(400).json({ error: "Invalid product ID" });
+      }
+      
+      console.log(`[SALES API] Fetching sales for product ${productId}, timeRange: ${timeRange}, machine: ${selectedMachine}`);
+      
+      // Get product to verify it exists and get name
+      const productQuery = `SELECT id, product_name FROM products WHERE id = $1`;
+      const productResult = await rawDb.query(productQuery, [productId]);
+      
+      if (productResult.rows.length === 0) {
+        return res.status(404).json({ error: "Product not found" });
+      }
+      
+      const product = productResult.rows[0];
+      const productName = product.product_name;
+      
+      // Calculate date range
+      const endDate = new Date();
+      const startDate = new Date();
+      switch (timeRange) {
+        case '24h': startDate.setHours(startDate.getHours() - 24); break;
+        case '7d': startDate.setDate(startDate.getDate() - 7); break;
+        case '30d': startDate.setDate(startDate.getDate() - 30); break;
+        case '90d': startDate.setDate(startDate.getDate() - 90); break;
+        default: startDate.setDate(startDate.getDate() - 7);
+      }
+      
+      // Build WHERE clause for machine filter
+      let machineFilter = '';
+      let queryParams = [productName, startDate.toISOString(), endDate.toISOString()];
+      if (selectedMachine !== 'all') {
+        machineFilter = ' AND t.machine_name = $4';
+        queryParams.push(selectedMachine);
+      }
+      
+      // Query sales summary
+      const summaryQuery = `
+        SELECT 
+          COUNT(*) as "totalSales",
+          SUM(t.amount) as "totalRevenue",
+          AVG(t.amount) as "averagePrice",
+          COUNT(DISTINCT t.machine_name) as "machinesCount"
+        FROM transactions t
+        WHERE t.product_name ILIKE $1
+          AND t.datetime >= $2
+          AND t.datetime <= $3
+          ${machineFilter}
+      `;
+      
+      // Query daily sales trend
+      const trendQuery = `
+        SELECT 
+          DATE(t.datetime) as date,
+          COUNT(*) as sales,
+          SUM(t.amount) as revenue
+        FROM transactions t
+        WHERE t.product_name ILIKE $1
+          AND t.datetime >= $2
+          AND t.datetime <= $3
+          ${machineFilter}
+        GROUP BY DATE(t.datetime)
+        ORDER BY date
+      `;
+      
+      // Query top machines
+      const machinesQuery = `
+        SELECT 
+          t.machine_name,
+          COUNT(*) as sales,
+          SUM(t.amount) as revenue,
+          MAX(t.datetime) as "lastSale"
+        FROM transactions t
+        WHERE t.product_name ILIKE $1
+          AND t.datetime >= $2
+          AND t.datetime <= $3
+          ${machineFilter}
+        GROUP BY t.machine_name
+        ORDER BY sales DESC
+        LIMIT 10
+      `;
+      
+      const [summaryResult, trendResult, machinesResult] = await Promise.all([
+        rawDb.query(summaryQuery, queryParams),
+        rawDb.query(trendQuery, queryParams),
+        rawDb.query(machinesQuery, queryParams)
+      ]);
+      
+      const summary = summaryResult.rows[0] || { totalSales: 0, totalRevenue: 0, averagePrice: 0, machinesCount: 0 };
+      
+      console.log(`[SALES API] Found ${summary.totalSales} sales for product ${productId}`);
+      
+      res.json({
+        success: true,
+        data: {
+          summary: {
+            totalSales: parseInt(summary.totalSales) || 0,
+            totalRevenue: parseFloat(summary.totalRevenue) || 0,
+            averagePrice: parseFloat(summary.averagePrice) || 0,
+            machinesCount: parseInt(summary.machinesCount) || 0
+          },
+          salesTrend: trendResult.rows,
+          machines: machinesResult.rows
+        }
+      });
+    } catch (error) {
+      console.error(`[SALES API] Error fetching sales for product ${req.params.id}:`, error);
+      res.status(500).json({ 
+        error: "Failed to fetch product sales data", 
+        details: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
+
+  // Get product refill history (alternative endpoint)
+  app.get(`${API_PREFIX}/products/:id/refill-history`, async (req: Request, res: Response) => {
+    try {
+      const productId = parseInt(req.params.id);
+      const timeRange = req.query.timeRange as string || '30d';
+      
+      if (isNaN(productId)) {
+        return res.status(400).json({ error: "Invalid product ID" });
+      }
+      
+      console.log(`[REFILL-HISTORY API] Fetching refill history for product ${productId}, timeRange: ${timeRange}`);
+      
+      // Get product to verify it exists and get name  
+      const productQuery = `SELECT id, product_name FROM products WHERE id = $1`;
+      const productResult = await rawDb.query(productQuery, [productId]);
+      
+      if (productResult.rows.length === 0) {
+        return res.status(404).json({ error: "Product not found" });
+      }
+      
+      const product = productResult.rows[0];
+      const productName = product.product_name;
+      
+      // Calculate date range
+      const endDate = new Date();
+      const startDate = new Date();
+      switch (timeRange) {
+        case '7d': startDate.setDate(startDate.getDate() - 7); break;
+        case '30d': startDate.setDate(startDate.getDate() - 30); break;
+        case '90d': startDate.setDate(startDate.getDate() - 90); break;
+        default: startDate.setDate(startDate.getDate() - 30);
+      }
+      
+      // Query refill history with details
+      const refillQuery = `
+        SELECT 
+          r.id as "refillId",
+          r.datetime as "refillDate",
+          r.machine_name as "machineName",
+          r.operator,
+          rd.added as "quantityAdded",
+          rd.removed as "quantityRemoved",
+          (rd.added - rd.removed) as "netChange",
+          rd.position,
+          rd.notes
+        FROM refills r
+        JOIN refill_details rd ON r.id = rd.refill_id
+        WHERE rd.product_name ILIKE $1
+          AND r.datetime >= $2
+          AND r.datetime <= $3
+        ORDER BY r.datetime DESC
+        LIMIT 100
+      `;
+      
+      const result = await rawDb.query(refillQuery, [
+        `%${productName}%`,
+        startDate.toISOString(),
+        endDate.toISOString()
+      ]);
+      
+      console.log(`[REFILL-HISTORY API] Found ${result.rows.length} refill records for product ${productId}`);
+      
+      res.json(result.rows);
+    } catch (error) {
+      console.error(`[REFILL-HISTORY API] Error fetching refill history for product ${req.params.id}:`, error);
+      res.status(500).json({ 
+        error: "Failed to fetch product refill history", 
+        details: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
+
   // Get machines
   app.get(`${API_PREFIX}/machines`, async (req: Request, res: Response) => {
     try {
