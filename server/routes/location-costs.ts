@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { db } from '../storage/database-storage';
+import { db } from '../db';
 import { 
   locationCosts, 
   insertLocationCostSchema,
@@ -257,4 +257,4 @@ router.get('/summary', async (req, res) => {
   }
 });
 
-export { router as locationCostsRouter };
+export default router;

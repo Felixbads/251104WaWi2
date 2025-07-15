@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { db } from '../storage/database-storage';
+import { db } from '../db';
 import { 
   transactions,
   products,
@@ -344,4 +344,4 @@ router.get('/location/:locationId', async (req, res) => {
   }
 });
 
-export { router as enhancedProfitabilityRouter };
+export default router;

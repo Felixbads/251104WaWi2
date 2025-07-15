@@ -28,7 +28,15 @@ import {
   Plus,
   Edit3,
   Save,
-  X
+  X,
+  TrendingUp,
+  TrendingDown,
+  DollarSign,
+  Zap,
+  Home,
+  Radio,
+  Shield,
+  Heart
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -46,6 +54,8 @@ import {
 } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Form, FormControl, FormField, FormItem, FormLabel } from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
 import { 
   getMachine, 
   getTransactionsByMachine,
@@ -1510,6 +1520,16 @@ export default function AutomatDetail() {
         {/* Entnommene Produkte Tab */}
         <TabsContent value="entnommene-produkte" className="mt-4">
           <RemovedProductsMachineTab machineId={parseInt(params.id)} />
+        </TabsContent>
+
+        {/* Kosten Tab */}
+        <TabsContent value="kosten" className="mt-4">
+          <LocationCostsTab machineId={parseInt(params.id)} />
+        </TabsContent>
+
+        {/* Wirtschaftlichkeit Tab */}
+        <TabsContent value="wirtschaftlichkeit" className="mt-4">
+          <LocationProfitabilityTab machineId={parseInt(params.id)} />
         </TabsContent>
       </Tabs>
     </div>

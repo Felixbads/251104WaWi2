@@ -57,9 +57,8 @@ import { retroactiveWeatherService } from './services/retroactiveWeatherCorrecti
 import enhancedOrdersRouter from './routes/enhanced-orders';
 import enhancedEmailTemplatesRouter from './routes/enhanced-email-templates';
 import profitabilityRouter from './routes/profitability-simple';
-import enhancedProfitabilityRouter from './routes/enhanced-profitability-fixed';
 import { locationCostsRouter } from './routes/location-costs';
-import { enhancedProfitabilityRouter as enhancedProfitabilityNewRouter } from './routes/enhanced-profitability';
+import { enhancedProfitabilityRouter } from './routes/enhanced-profitability';
 import { recurringOrdersRouter } from './routes/recurring-orders';
 import { recurringOrderCronService } from './services/recurringOrderCron';
 import RecurringOrderScheduler from './services/recurringOrderScheduler';
@@ -1172,8 +1171,8 @@ app.get('/orders-data', (req, res) => {
   console.log('[SERVER] Profitability analysis router mounted successfully');
   
   // Mount enhanced profitability analysis router with fixed cost allocation
-  app.use('/api/enhanced-profitability', enhancedProfitabilityRouter);
-  console.log('[SERVER] Enhanced profitability analysis router mounted successfully');
+  // app.use('/api/enhanced-profitability', enhancedProfitabilityRouter);
+  // console.log('[SERVER] Enhanced profitability analysis router mounted successfully');
   
   // Register location status router BEFORE registerRoutes to prevent conflicts
   app.use('/api/location-status', locationStatusRouter);
