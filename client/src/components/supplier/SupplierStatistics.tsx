@@ -249,7 +249,7 @@ export default function SupplierStatistics({ supplierId, supplier }: SupplierSta
                       <YAxis tickFormatter={(value) => formatCurrency(value)} />
                       <Tooltip 
                         labelFormatter={(value) => new Date(value).toLocaleDateString('de-DE', { month: 'long', year: 'numeric' })}
-                        formatter={[(value: number) => formatCurrency(value), 'Umsatz']}
+                        formatter={(value: number) => [formatCurrency(value), 'Umsatz']}
                       />
                       <Line type="monotone" dataKey="revenue" stroke="#0088FE" strokeWidth={2} />
                     </LineChart>
@@ -274,7 +274,7 @@ export default function SupplierStatistics({ supplierId, supplier }: SupplierSta
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="productName" angle={-45} textAnchor="end" height={80} fontSize={10} />
                       <YAxis tickFormatter={(value) => formatCurrency(value)} />
-                      <Tooltip formatter={[(value: number) => formatCurrency(value), 'Umsatz']} />
+                      <Tooltip formatter={(value: number) => [formatCurrency(value), 'Umsatz']} />
                       <Bar dataKey="revenue" fill="#00C49F" />
                     </BarChart>
                   </ResponsiveContainer>
