@@ -109,6 +109,19 @@ This is a comprehensive vending machine management platform (Warenwirtschaftssys
 
 ## Changelog
 
+- July 15, 2025: RETROACTIVE INVENTORY SYSTEM FULLY IMPLEMENTED - Complete audit-safe inventory counting for past dates
+  - ✅ Complete retroactive inventory system implemented with three-table architecture
+  - ✅ Database schema successfully created: retroactive_inventory_counts, retroactive_inventory_count_items, retroactive_inventory_adjustments
+  - ✅ RetroactiveInventoryService class with comprehensive calculation logic for system quantities and adjustments
+  - ✅ Audit-safe design: Original bookings remain unchanged, separate inventory booking with cutoff date as reference
+  - ✅ API endpoints fully functional: GET /counts, POST /counts, count items and adjustments management
+  - ✅ Warehouses API operational returning all 7 active warehouses (Bad Gottleuba, Bahnhof, Hohenstein, Pillnitz, Pirna, Stolpen, Übigau)
+  - ✅ Products API systematically repaired with correct column references after database schema analysis
+  - ✅ Three-table design enables complete historical reconstruction: past counts → current adjustments → future consistency
+  - ✅ Manual inventory counting for specific past dates with automatic stock level recalculation
+  - ✅ Conflict detection for negative stock situations with revision-safe implementation
+  - ✅ System maintains full audit trail while ensuring data integrity through separate adjustment bookings
+  - System enables users to enter manual counts for past dates (e.g., "last Tuesday") with automatic current stock recalculation
 - July 14, 2025: CRITICAL DATABASE SCHEMA FIX COMPLETED - Wiederkehrende Bestellungen vollständig funktionsfähig
   - ✅ Critical Fix: Fehlende Datenbanktabellen created: recurring_orders, recurring_order_items, recurring_order_executions
   - ✅ Vollständiges Produktauswahl-Interface implementiert: Shopping Cart mit Mengen, Einheiten, +/- Buttons

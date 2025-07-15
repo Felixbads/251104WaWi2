@@ -243,24 +243,26 @@ const retroInventoryService = new RetroactiveInventoryService();
 // GET /api/retroactive-inventory/counts - Alle retroaktiven Inventuren
 router.get('/counts', async (req, res) => {
   try {
-    const counts = await db
-      .select({
-        id: retroactiveInventoryCounts.id,
-        countName: retroactiveInventoryCounts.countName,
-        countDate: retroactiveInventoryCounts.countDate,
-        warehouseId: retroactiveInventoryCounts.warehouseId,
-        warehouseName: retroactiveInventoryCounts.warehouseName,
-        status: retroactiveInventoryCounts.status,
-        isProcessed: retroactiveInventoryCounts.isProcessed,
-        totalItemsCount: retroactiveInventoryCounts.totalItemsCount,
-        totalDiscrepancies: retroactiveInventoryCounts.totalDiscrepancies,
-        hasNegativeStock: retroactiveInventoryCounts.hasNegativeStock,
-        createdBy: retroactiveInventoryCounts.createdBy,
-        createdByName: retroactiveInventoryCounts.createdByName,
-        createdAt: retroactiveInventoryCounts.createdAt,
-      })
-      .from(retroactiveInventoryCounts)
-      .orderBy(desc(retroactiveInventoryCounts.createdAt));
+    const countsResult = await db.execute(sql`
+      SELECT 
+        id,
+        count_name,
+        count_date,
+        warehouse_id,
+        warehouse_name,
+        status,
+        is_processed,
+        total_items_count,
+        total_discrepancy_value,
+        has_conflicts,
+        created_by,
+        created_by_name,
+        created_at
+      FROM retroactive_inventory_counts
+      ORDER BY created_at DESC
+    `);
+    
+    const counts = countsResult.rows;
 
     res.json(counts);
   } catch (error) {
