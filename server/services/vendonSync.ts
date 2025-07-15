@@ -584,7 +584,8 @@ export class VendonSyncService {
    * Diese Methode ist für die Web-API gedacht
    */
   async getAllProducts() {
-    return await storage.getProducts(0); // 0 bedeutet kein Limit
+    const result = await rawDb.query('SELECT * FROM products');
+    return result.rows;
   }
   
   // Status für inkrementelle historische Synchronisierung
@@ -2771,7 +2772,8 @@ export class VendonSyncService {
     
     // Hole die Anzahl der Datensätze für jeden Typ
     const machines = await storage.getMachines(0); // 0 means no limit
-    const products = await storage.getProducts(0); // 0 means no limit
+    const result = await rawDb.query('SELECT * FROM products');
+    const products = result.rows;
     const transactions = await storage.getTransactions(1); // Just get the latest transaction
     const refills = await storage.getRefills(0); // 0 means no limit
     const events = await storage.getEvents(0); // 0 means no limit

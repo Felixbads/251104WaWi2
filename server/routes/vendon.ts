@@ -6,7 +6,7 @@ import { storage } from '../storage';
 import { MachineStock, historicalSyncOptionsSchema } from '@shared/schema';
 import { UploadedFile } from 'express-fileupload';
 import { SQL, and, asc, between, count, desc, eq, gt, gte, lt, lte, sql } from 'drizzle-orm';
-import { db } from '../db';
+import { db, rawDb } from '../db';
 import { transactions } from '@shared/schema';
 import { z } from 'zod';
 
@@ -703,7 +703,8 @@ router.get('/status', async (req, res) => {
 router.get('/products', async (req, res) => {
   try {
     // Hole alle Produkte ohne Limit und gib sie als Array (nicht als Paginated-Response) zurück
-    const products = await storage.getProducts(0); // 0 = kein Limit
+    const result = await rawDb.query('SELECT * FROM products');
+    const products = result.rows;
     if (Array.isArray(products)) {
       return res.json(products);
     } else if (products && products.data && Array.isArray(products.data)) {
@@ -735,10 +736,8 @@ router.get('/vendon/products', async (req, res) => {
     const offset = page * limit;
     
     // Hole die echten Produktdaten aus der products-Tabelle
-    const productsResponse = await storage.getProducts({
-      limit,
-      offset
-    });
+    const result = await rawDb.query('SELECT * FROM products ORDER BY product_name');
+    const productsResponse = { data: result.rows, total: result.rows.length };
     
     let products = [];
     let totalCount = 0;

@@ -14,7 +14,7 @@ router.get('/all-for-conditions', async (req, res) => {
         s.id,
         s.name,
         s.name as "companyName",
-        s.name as "company_name",
+        s.name as "name",
         s.email,
         s.phone,
         s.city,

@@ -1896,9 +1896,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const status = req.query.status as string | undefined;
       const search = req.query.search as string | undefined;
       
-      const suppliersResponse = await storage.getSuppliers({limit, offset, status, search});
-      // Return the full response including metadata for pagination
-      res.json(suppliersResponse);
+      // Direkte SQL-Abfrage statt storage.getSuppliers
+      let whereClause = 'WHERE 1=1';
+      const params: any[] = [];
+      
+      if (status) {
+        whereClause += ` AND status = $${params.length + 1}`;
+        params.push(status);
+      }
+      
+      if (search) {
+        whereClause += ` AND (name ILIKE $${params.length + 1} OR contact_person ILIKE $${params.length + 1})`;
+        params.push(`%${search}%`);
+      }
+      
+      const suppliersQuery = `
+        SELECT * FROM suppliers 
+        ${whereClause}
+        ORDER BY name
+        LIMIT $${params.length + 1} OFFSET $${params.length + 2}
+      `;
+      params.push(limit, offset);
+      
+      const countQuery = `SELECT COUNT(*) as count FROM suppliers ${whereClause}`;
+      const countParams = params.slice(0, -2); // Remove limit and offset for count
+      
+      const [suppliersResult, countResult] = await Promise.all([
+        rawDb.query(suppliersQuery, params),
+        rawDb.query(countQuery, countParams)
+      ]);
+      
+      res.json({
+        data: suppliersResult.rows,
+        total: parseInt(countResult.rows[0].count),
+        limit,
+        offset
+      });
     } catch (error) {
       console.error("Error fetching suppliers:", error);
       res.status(500).json({ 
@@ -2183,8 +2216,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get(`${API_PREFIX}/supplier-analytics/overview`, async (_req: Request, res: Response) => {
     try {
       // Berechne Analytics-Daten für jeden Lieferanten
-      const suppliersResponse = await storage.getSuppliers();
-      const suppliers = suppliersResponse.data || [];
+      // Direkte SQL-Abfrage statt storage.getSuppliers
+      const suppliersResult = await rawDb.query('SELECT * FROM suppliers ORDER BY name');
+      const suppliers = suppliersResult.rows;
       const analyticsData = [];
 
       for (const supplier of suppliers) {
@@ -2664,17 +2698,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const XLSX = require('xlsx');
       
       // Alle Produkte ohne Limit abrufen
-      const productsResponse = await storage.getProducts({
-        limit: 9999
-      });
-      
-      // Stelle sicher, dass wir ein Array erhalten
-      let products: any[] = [];
-      if (Array.isArray(productsResponse)) {
-        products = productsResponse;
-      } else if (productsResponse.data && Array.isArray(productsResponse.data)) {
-        products = productsResponse.data;
-      }
+      // Direkte SQL-Abfrage statt storage.getProducts
+      const productsResult = await rawDb.query('SELECT * FROM products ORDER BY product_name');
+      const products = productsResult.rows;
       
       // Transformiere Daten für Excel (entferne nicht benötigte Felder)
       const exportData = products.map(product => ({

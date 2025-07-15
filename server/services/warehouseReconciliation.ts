@@ -225,12 +225,9 @@ export async function reconcileWarehouseProducts(
                     console.log(`Keine exakte Übereinstimmung für "${productName}" gefunden, versuche allgemeine Suche...`);
                     
                     // Wenn keine exakte Übereinstimmung gefunden wurde, versuche die Standardsuche
-                    const productsResult = await storage.getProducts({
-                      search: productName,
-                      limit: 5 // Erhöhe auf 5, um bessere Trefferchancen zu haben
-                    });
+                    const productsResult = await rawDb.query('SELECT * FROM products WHERE product_name ILIKE $1 LIMIT 5', [`%${productName}%`]);
                     
-                    const products = Array.isArray(productsResult) ? productsResult : productsResult.data;
+                    const products = productsResult.rows;
                     
                     if (products.length > 0) {
                       const matchedProduct = products[0]; // Verwende das erste Ergebnis
@@ -243,7 +240,7 @@ export async function reconcileWarehouseProducts(
                             // Produkt noch nicht im globalen Register
                             const productInfo = {
                               id: productId,
-                              name: matchedProduct.productName || rawProductName,
+                              name: matchedProduct.product_name || rawProductName,
                               found: false,
                               warehouses: new Set<number>([warehouseId])
                             };

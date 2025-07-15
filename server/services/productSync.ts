@@ -1,4 +1,5 @@
 import { storage } from "../storage";
+import { rawDb } from "../db";
 import { InsertProduct, InsertSyncLog, Product } from "@shared/schema";
 // Import der VendonAPI-Klasse
 // Der TypeScript-Fehler kann ignoriert werden, da die Datei existiert
@@ -74,7 +75,8 @@ export class ProductSyncService {
         console.log(`${itemsFound} Produkte von der API erhalten.`);
 
         // 2. Hole alle bestehenden Produkte aus der Datenbank für Duplikaterkennung
-        const existingProducts = await storage.getProducts(0);
+        const result = await rawDb.query('SELECT * FROM products');
+        const existingProducts = result.rows;
         const existingProductsMap = new Map<string, Product>();
         
         // Behandle existingProducts als Array, auch wenn es ein Drizzle-Ergebnistyp sein könnte

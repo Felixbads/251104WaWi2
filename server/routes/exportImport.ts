@@ -1,6 +1,7 @@
 import { Router, type Request, type Response } from "express";
 import * as XLSX from "xlsx";
 import { storage } from "../storage";
+import { rawDb } from "../db";
 import { z } from "zod";
 import { 
   insertSupplierSchema, 
@@ -38,10 +39,10 @@ function createWorkbook(sheets: Record<string, any[]>) {
 router.get("/export/suppliers", async (req: Request, res: Response) => {
   try {
     // Lieferanten aus dem Speicher abrufen
-    const suppliersResult = await storage.getSuppliers();
+    const suppliersResult = await rawDb.query('SELECT * FROM suppliers ORDER BY name');
     
     // Überprüfen, ob Daten vorhanden sind
-    if (!suppliersResult || !suppliersResult.data || suppliersResult.data.length === 0) {
+    if (!suppliersResult || !suppliersResult.rows || suppliersResult.rows.length === 0) {
       return res.status(404).json({ error: "Keine Lieferanten gefunden" });
     }
     
@@ -72,7 +73,7 @@ router.get("/export/suppliers", async (req: Request, res: Response) => {
 router.get("/export/products", async (req: Request, res: Response) => {
   try {
     // Produkte aus dem Speicher abrufen
-    const productsResult = await storage.getProducts();
+    const productsResult = await rawDb.query('SELECT * FROM products ORDER BY product_name');
     let products = [];
     
     // Array-Format oder Objekt-Format mit data-Property überprüfen
@@ -433,8 +434,8 @@ router.post("/import/products", async (req: Request, res: Response) => {
       };
       
       // Alle existierenden Produkte abrufen um Duplikate zu prüfen
-      const existingProducts = await storage.getProducts();
-      const existingSkus = new Set(existingProducts.map(p => p.sku));
+      const existingProductsResult = await rawDb.query('SELECT * FROM products');
+      const existingSkus = new Set(existingProductsResult.rows.map(p => p.sku));
       
       // Jede Zeile in der Datenbank speichern, überspringen wenn SKU existiert
       for (const product of validatedData) {

@@ -7,6 +7,7 @@
 import { storage } from "../storage";
 import { InsertTransaction, InsertMachine } from "@shared/schema";
 import axios from "axios";
+import { db as rawDb } from "../db";
 
 export class UltraRobustVendonSync {
   private readonly BASE_URL = "https://cloud.vendon.net/rest/v1.8.0";

@@ -818,7 +818,7 @@ export default function AutomatDetail() {
                         <TableCell>{formatDateTime(transaction.datetime, 'datetime')}</TableCell>
                         <TableCell>{transaction.productName}</TableCell>
                         <TableCell>{transaction.quantity}x</TableCell>
-                        <TableCell className="text-right">{transaction.price.toFixed(2)} {transaction.currency}</TableCell>
+                        <TableCell className="text-right">{(transaction.price || transaction.amount || 0).toFixed(2)} €</TableCell>
                         <TableCell>
                           <Badge variant="outline">
                             {transaction.paymentMethod === 'CASH' ? 'Bar' : 
