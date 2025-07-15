@@ -689,6 +689,14 @@ export default function AutomatDetail() {
               <Package className="h-4 w-4 mr-2 text-red-500" />
               <span>Entnommene Produkte</span>
             </TabsTrigger>
+            <TabsTrigger value="kosten" className="whitespace-nowrap flex items-center">
+              <DollarSign className="h-4 w-4 mr-2" />
+              <span>Kosten</span>
+            </TabsTrigger>
+            <TabsTrigger value="wirtschaftlichkeit" className="whitespace-nowrap flex items-center">
+              <TrendingUp className="h-4 w-4 mr-2" />
+              <span>Wirtschaftlichkeit</span>
+            </TabsTrigger>
           </TabsList>
         </div>
         
