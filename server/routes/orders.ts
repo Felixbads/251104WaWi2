@@ -208,6 +208,7 @@ router.get('/', async (req: Request, res: Response) => {
     // Filter & Suche
     let statusFilter = req.query.status as string;
     const searchTerm = req.query.search as string;
+    const supplierId = req.query.supplierId as string;
     
     // Sortierung
     const sortField = req.query.sortField as string || 'orderDate';
@@ -233,6 +234,15 @@ router.get('/', async (req: Request, res: Response) => {
     if (statusFilter) {
       countQuery = countQuery.where(eq(orders.status, statusFilter));
       query = query.where(eq(orders.status, statusFilter));
+    }
+    
+    // Supplier-Filter hinzufügen, wenn definiert
+    if (supplierId) {
+      const supplierIdNum = parseInt(supplierId);
+      if (!isNaN(supplierIdNum)) {
+        countQuery = countQuery.where(eq(orders.supplierId, supplierIdNum));
+        query = query.where(eq(orders.supplierId, supplierIdNum));
+      }
     }
     
     // Suchfilter hinzufügen, wenn definiert
