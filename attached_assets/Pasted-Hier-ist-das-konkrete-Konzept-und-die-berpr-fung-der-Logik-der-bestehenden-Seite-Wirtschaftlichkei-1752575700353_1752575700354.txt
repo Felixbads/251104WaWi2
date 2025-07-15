@@ -1,0 +1,89 @@
+Hier ist das konkrete Konzept und die Überprüfung der Logik der bestehenden Seite “Wirtschaftlichkeit”, mit Fokus auf die Herkunft der Kosten und die gewünschte Erweiterung für eine detaillierte wirtschaftliche Standortbewertung:
+
+⸻
+
+🔍 1. Analyse der bestehenden Seite „Wirtschaftlichkeit“
+
+Ziel der Überprüfung:
+
+Feststellen, woher die bisherigen Kostenansätze je Standort und je Refill stammen und welche Systemlogik ihnen zugrunde liegt.
+
+Prüfpunkte:
+	•	Kosten je Refill:
+	•	Werden sie aus manuell eingegebenen Pauschalen pro Refill gezogen?
+	•	Oder ergibt sich der Betrag dynamisch aus z. B. Refill-Dauer × Lohnsatz?
+	•	Wird zwischen externem Dienstleister und internem Refill unterschieden?
+	•	Kosten je Standort:
+	•	Sind diese zentral hinterlegt oder individuell je Standort gepflegt?
+	•	Gibt es Felder oder Tabellen im Backend, die fixe Werte pro Standort (Miete, Strom usw.) speichern?
+	•	Werden einzelne Kosten (z. B. Telemetrie oder Versicherung) pauschal oder pro Gerät gerechnet?
+
+⸻
+
+🧩 2. Erweiterung: Tab „Kosten“ je Standort (auf Standortseite)
+
+Ziel:
+
+Manuelle oder automatische Pflege aller laufenden Kosten je Standort, zentral dargestellt.
+
+Umsetzung:
+
+Neuer Tab: „Kosten“ (auf der Seite des jeweiligen Standorts)
+
+Felder (alle Netto, monatlich):
+	•	🔌 Stromabschlag
+	•	🏠 Miete
+	•	📡 Vendon-Telemetrie
+	•	💳 Kartenzahlungsmodul (SIM/Dienstleister)
+	•	🛡️ Versicherung
+	•	⚙️ Sonstige laufende Kosten (freies Feld mit Titel + Betrag)
+	•	💝 Spende (fix oder prozentual)
+
+Funktionen:
+	•	Eingabe je Monat oder jährlicher Betrag mit Monatsaufschlüsselung
+	•	Kommentarfeld je Position
+	•	Optional: Upload für Nachweise (z. B. Rechnungen, Verträge)
+	•	Automatische Übernahme in Wirtschaftlichkeitsberechnung
+
+⸻
+
+📊 3. Neuer Tab „Wirtschaftlichkeit“ je Standort
+
+Ziel:
+
+Detaillierte Übersicht zu Umsatz, Wareneinsatz, Ergebnis und Produktdetails – inkl. Berücksichtigung der Standortkosten aus dem Kostentab.
+
+Struktur:
+
+Übersicht je Monat (wählbar):
+	•	Zeitraumwahl (z. B. Juli 2025)
+	•	Umsatz netto
+	•	Wareneinsatz (Summe Entnahmen × EK)
+	•	Rohertrag (Umsatz – Wareneinsatz)
+	•	Laufende Kosten (Summe aus Tab „Kosten“)
+	•	Netto-Ergebnis (vor Steuern)
+
+Aufklappbare Produkt-Detailansicht:
+
+Produkt	Verkäufe	Umsatz netto	Entnahme (EK)	Ergebnis (netto)
+Fritz Cola 0,33 l	143	214,50 €	100,10 €	114,40 €
+Bionade Holunder	80	120,00 €	61,60 €	58,40 €
+
+Ergebnis = (Umsatz – EK) auf Produktebene, Standort-Ergebnis = Summe Produkt-Ergebnisse – Standortkosten
+
+⸻
+
+🛠️ 4. To-Do für Implementierung
+	1.	Prüfe Datenquellen im System:
+	•	Wie werden Refill-Kosten aktuell berechnet oder geschätzt?
+	•	Wo sind laufende Standortkosten gepflegt (falls überhaupt)?
+	2.	Erstelle Kostentabellen oder Module in der Datenstruktur:
+	•	Fixe Felder pro Standort mit monatlicher Gültigkeit
+	•	Historisierung bei Änderungen
+	3.	Verknüpfe diese Daten mit der Wirtschaftlichkeitsseite:
+	•	Automatischer Abzug der Standortkosten bei Monatsauswertung
+	•	Darstellung auf Gesamtebene + Produktdetail (aufklappbar)
+
+⸻
+
+Wenn du möchtest, kann ich dir aus diesem Konzept auch ein konkretes Lastenheft-Modul oder Prompt für ein Entwickler-Ticket formulieren. Sag einfach Bescheid.
