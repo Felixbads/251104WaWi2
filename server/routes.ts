@@ -1175,7 +1175,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!isNaN(parsedId)) {
         // Prüfen, ob eine Maschine mit dieser internen ID existiert
         try {
-          const machineCheck = await storage.getMachine(parsedId);
+          const machineCheckResult = await rawDb.query(
+            'SELECT id FROM machines WHERE id = $1 LIMIT 1', [parsedId]
+          );
+          const machineCheck = machineCheckResult.rows.length > 0 ? machineCheckResult.rows[0] : null;
           if (machineCheck) {
             internalMachineId = parsedId;
             console.log(`[DEBUG] Interne Maschinen-ID ${internalMachineId} gefunden`);
@@ -1185,7 +1188,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         } catch {
           // Falls keine Maschine mit interner ID gefunden, versuche als Vendon-ID
           console.log(`[DEBUG] Keine Maschine mit interner ID ${parsedId} gefunden, versuche als Vendon-ID`);
-          const machineByVendonId = await storage.getMachineByVendonId(inputId);
+          const machineByVendonIdResult = await rawDb.query(
+            'SELECT id, machine_name FROM machines WHERE vendon_id = $1 LIMIT 1', [inputId]
+          );
+          const machineByVendonId = machineByVendonIdResult.rows.length > 0 ? machineByVendonIdResult.rows[0] : null;
           if (machineByVendonId) {
             internalMachineId = machineByVendonId.id;
             console.log(`[DEBUG] Maschine mit Vendon-ID ${inputId} gefunden, interne ID: ${internalMachineId}`);
@@ -1196,7 +1202,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } else {
         // ID ist keine Zahl, behandle als Vendon-ID (String)
         console.log(`[DEBUG] ID ${inputId} ist keine Zahl, behandle als Vendon-ID`);
-        const machineByVendonId = await storage.getMachineByVendonId(inputId);
+        const machineByVendonIdResult = await rawDb.query(
+          'SELECT id, machine_name FROM machines WHERE vendon_id = $1 LIMIT 1', [inputId]
+        );
+        const machineByVendonId = machineByVendonIdResult.rows.length > 0 ? machineByVendonIdResult.rows[0] : null;
         if (machineByVendonId) {
           internalMachineId = machineByVendonId.id;
           console.log(`[DEBUG] Maschine mit Vendon-ID ${inputId} gefunden, interne ID: ${internalMachineId}`);
@@ -3070,16 +3079,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Location status route handled by dedicated router
 
-  // Get machine by ID
+  // Get machine by ID - Direct SQL
   app.get(`${API_PREFIX}/machines/:id`, async (req: Request, res: Response) => {
     try {
-      const machine = await storage.getMachine(parseInt(req.params.id));
-      
-      if (!machine) {
-        return res.status(404).json({ error: "Machine not found" });
+      const machineId = parseInt(req.params.id);
+      if (isNaN(machineId)) {
+        return res.status(400).json({ error: 'Invalid machine ID' });
       }
+
+      // Direkte SQL-Abfrage für Maschinendaten
+      const machineQuery = `
+        SELECT 
+          id,
+          vendon_id,
+          machine_name,
+          location_name as location,
+          status,
+          last_sync,
+          created_at,
+          updated_at
+        FROM machines 
+        WHERE id = $1
+        LIMIT 1
+      `;
       
-      res.json(machine);
+      const machineResult = await rawDb.query(machineQuery, [machineId]);
+      
+      if (machineResult.rows.length === 0) {
+        return res.status(404).json({ error: 'Machine not found' });
+      }
+
+      res.json(machineResult.rows[0]);
     } catch (error) {
       console.error(`Error fetching machine with ID ${req.params.id}:`, error);
       res.status(500).json({ 
