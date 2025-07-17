@@ -41,18 +41,23 @@ router.get('/inventory/bulk/:supplierId', async (req, res) => {
                ELSE p.price 
           END, 0
         ) as price,
+        COALESCE(pc.unit_price, 0) as purchase_price,
         COALESCE(SUM(ii.quantity), 0) as total_stock,
         COALESCE(SUM(ii.quantity), 0) as available_stock,
         0 as reserved_stock,
         COALESCE(MIN(ii.min_quantity), 0) as min_stock,
         COALESCE(MAX(ii.max_quantity), 100) as max_stock,
-        COUNT(DISTINCT w.id) as warehouse_count
+        COUNT(DISTINCT w.id) as warehouse_count,
+        COALESCE(pc.package_size, 1) as package_size,
+        COALESCE(pc.package_type_name, 'Stück') as package_type_name,
+        COALESCE(pc.base_unit_name, 'Stück') as base_unit_name,
+        COALESCE(pc.min_quantity_unit, 'Stück') as min_quantity_unit
       FROM products p
       LEFT JOIN purchase_conditions pc ON p.id = pc.product_id AND pc.supplier_id = ${supplierId}
       LEFT JOIN inventory_items ii ON p.id = ii.product_id
       LEFT JOIN warehouses w ON ii.warehouse_id = w.id
       WHERE p.supplier_id = ${supplierId}
-      GROUP BY p.id, p.product_name, pc.unit_price, p.price
+      GROUP BY p.id, p.product_name, pc.unit_price, p.price, pc.package_size, pc.package_type_name, pc.base_unit_name, pc.min_quantity_unit
       ORDER BY p.product_name
     `;
 

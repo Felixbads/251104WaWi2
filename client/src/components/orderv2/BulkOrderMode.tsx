@@ -57,6 +57,17 @@ import {
   Truck,
   Store
 } from 'lucide-react';
+import { 
+  calculatePackageInfo, 
+  formatPackageDisplay, 
+  formatTotalQuantity, 
+  validatePackageOrder,
+  getNextValidPackageQuantity,
+  getPreviousValidPackageQuantity,
+  formatOrderSummaryPackage,
+  calculatePackageCount,
+  calculateTotalQuantity
+} from '../../../../shared/package-utils';
 
 interface BulkOrderModeProps {
   onBack: () => void;
@@ -79,6 +90,12 @@ interface ProductInventory {
   minStock: number;
   maxStock: number;
   price: number;
+  purchasePrice?: number;
+  packageSize?: number;
+  packageType?: string;
+  packageTypeName?: string;
+  baseUnitName?: string;
+  minQuantityUnit?: string;
 }
 
 interface SalesAnalysis {
@@ -408,8 +425,19 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
     setStep('inventory');
   };
 
-  // Handle order quantity changes
+  // Handle order quantity changes with package validation
   const updateOrderQuantity = (productId: number, quantity: number) => {
+    const product = (inventoryData as any[])?.find((item: any) => item.productId === productId);
+    
+    if (product && product.packageSize) {
+      // Validate package-based quantity
+      const validation = validatePackageOrder(quantity, product.packageSize);
+      if (!validation.isValid) {
+        // Round to nearest valid package quantity
+        quantity = Math.round(quantity / product.packageSize) * product.packageSize;
+      }
+    }
+    
     setOrderQuantities(prev => ({
       ...prev,
       [productId]: Math.max(0, quantity)
@@ -467,24 +495,32 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
     });
   };
 
-  // Calculate totals
+  // Calculate totals with package information
   const calculateTotals = () => {
-    if (!inventoryData) return { totalItems: 0, totalValue: 0 };
+    if (!inventoryData) return { totalItems: 0, totalValue: 0, totalPackages: 0 };
     
     let totalItems = 0;
     let totalValue = 0;
+    let totalPackages = 0;
     
     Object.entries(orderQuantities).forEach(([productId, quantity]) => {
       if (quantity > 0) {
-        totalItems += quantity;
         const product = (inventoryData as any[])?.find((item: any) => item.productId === parseInt(productId));
         if (product) {
-          totalValue += quantity * product.price;
+          totalItems += quantity;
+          // Use purchase price if available, otherwise use regular price
+          const unitPrice = product.purchasePrice || product.price;
+          totalValue += quantity * unitPrice;
+          
+          // Calculate package count
+          if (product.packageSize) {
+            totalPackages += quantity / product.packageSize;
+          }
         }
       }
     });
     
-    return { totalItems, totalValue };
+    return { totalItems, totalValue, totalPackages };
   };
 
   // Create order
@@ -500,11 +536,27 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
 
     const orderItems = Object.entries(orderQuantities)
       .filter(([_, quantity]) => quantity > 0)
-      .map(([productId, quantity]) => ({
-        productId: parseInt(productId),
-        quantity,
-        notes: `Großbestellung - Prognose für ${forecastWeeks} Wochen`,
-      }));
+      .map(([productId, quantity]) => {
+        const product = (inventoryData as any[])?.find((inv: any) => inv.productId === parseInt(productId));
+        const packageInfo = product ? calculatePackageInfo(
+          quantity,
+          product.packageSize || 1,
+          product.packageTypeName || 'Stück',
+          product.baseUnitName || 'Stück'
+        ) : { packageCount: 0, totalQuantity: quantity, packageSize: 1, packageTypeName: 'Stück', baseUnitName: 'Stück' };
+        
+        return {
+          productId: parseInt(productId),
+          quantity,
+          packageCount: packageInfo.packageCount,
+          packageTypeName: packageInfo.packageTypeName,
+          packageQuantity: packageInfo.packageSize,
+          baseUnitName: packageInfo.baseUnitName,
+          unitPrice: product?.purchasePrice || product?.price || 0,
+          totalPrice: quantity * (product?.purchasePrice || product?.price || 0),
+          notes: `Großbestellung - Prognose für ${forecastWeeks} Wochen`,
+        };
+      });
 
     // Validate mandatory fields
     if (!selectedWarehouseId) {
@@ -1054,7 +1106,7 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
                     <TableHead>Prognose {forecastWeeks}W</TableHead>
                     <TableHead>Empfehlung</TableHead>
                     <TableHead>Bestellmenge</TableHead>
-                    {showPricesInTable && <TableHead>Gesamt</TableHead>}
+                    {showPricesInTable && <TableHead>Einkaufspreis</TableHead>}
                     <TableHead>Standorte</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -1062,58 +1114,118 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
                   {Array.isArray(forecastData) ? (forecastData as ForecastData[]).map((item: ForecastData) => {
                     const quantity = orderQuantities[item.productId] || 0;
                     const product = (inventoryData as any[])?.find((inv: any) => inv.productId === item.productId);
-                    const totalCost = quantity * (product?.price || 0);
+                    const purchasePrice = product?.purchasePrice || product?.price || 0;
+                    const totalCost = quantity * purchasePrice;
                     const isExpanded = expandedRows[item.productId];
+                    
+                    // Calculate package information
+                    const packageInfo = product ? calculatePackageInfo(
+                      quantity,
+                      product.packageSize || 1,
+                      product.packageTypeName || 'Stück',
+                      product.baseUnitName || 'Stück'
+                    ) : { packageCount: 0, totalQuantity: quantity, packageSize: 1, packageTypeName: 'Stück', baseUnitName: 'Stück' };
+                    
+                    // Calculate package counts for forecast and recommendation
+                    const forecastPackageInfo = product ? calculatePackageInfo(
+                      item.forecastedDemand,
+                      product.packageSize || 1,
+                      product.packageTypeName || 'Stück',
+                      product.baseUnitName || 'Stück'
+                    ) : { packageCount: 0, totalQuantity: item.forecastedDemand, packageSize: 1, packageTypeName: 'Stück', baseUnitName: 'Stück' };
                     
                     return (
                       <React.Fragment key={item.productId}>
                         <TableRow>
-                          <TableCell className="font-medium">{item.productName}</TableCell>
+                          <TableCell className="font-medium">
+                            <div>
+                              <div className="font-medium">{item.productName}</div>
+                              {product && product.packageSize && product.packageSize > 1 && (
+                                <div className="text-xs text-muted-foreground">
+                                  {product.packageTypeName} à {product.packageSize} {product.baseUnitName}
+                                </div>
+                              )}
+                            </div>
+                          </TableCell>
                           <TableCell>
                             <Badge variant="secondary">
-                              {item.forecastedDemand} erwartet
+                              {formatPackageDisplay(forecastPackageInfo)} erwartet
                             </Badge>
                           </TableCell>
                           <TableCell>
                             <Badge variant="outline">
-                              {/* Show forecasted demand as recommendation */}
-                              {item.forecastedDemand} bestellen
+                              {formatPackageDisplay(forecastPackageInfo)} bestellen
                             </Badge>
                           </TableCell>
                           <TableCell>
-                            <div className="flex items-center gap-2">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => updateOrderQuantity(item.productId, quantity - 1)}
-                                disabled={quantity <= 0}
-                              >
-                                <Minus className="h-3 w-3" />
-                              </Button>
-                              <Input
-                                type="number"
-                                value={quantity}
-                                onChange={(e) => updateOrderQuantity(item.productId, parseInt(e.target.value) || 0)}
-                                className="w-20 text-center"
-                                min="0"
-                              />
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => updateOrderQuantity(item.productId, quantity + 1)}
-                              >
-                                <Plus className="h-3 w-3" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => setOrderQuantities(prev => ({ ...prev, [item.productId]: item.forecastedDemand }))}
-                              >
-                                Empfehlung
-                              </Button>
+                            <div className="space-y-2">
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    const newQuantity = product && product.packageSize ? 
+                                      getPreviousValidPackageQuantity(quantity, product.packageSize) : 
+                                      quantity - 1;
+                                    updateOrderQuantity(item.productId, newQuantity);
+                                  }}
+                                  disabled={quantity <= 0}
+                                >
+                                  <Minus className="h-3 w-3" />
+                                </Button>
+                                <Input
+                                  type="number"
+                                  value={product && product.packageSize ? packageInfo.packageCount : quantity}
+                                  onChange={(e) => {
+                                    const inputValue = parseInt(e.target.value) || 0;
+                                    const newQuantity = product && product.packageSize ? 
+                                      inputValue * product.packageSize : 
+                                      inputValue;
+                                    updateOrderQuantity(item.productId, newQuantity);
+                                  }}
+                                  className="w-20 text-center"
+                                  min="0"
+                                  step={product && product.packageSize ? 1 : 1}
+                                />
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    const newQuantity = product && product.packageSize ? 
+                                      getNextValidPackageQuantity(quantity, product.packageSize) : 
+                                      quantity + 1;
+                                    updateOrderQuantity(item.productId, newQuantity);
+                                  }}
+                                >
+                                  <Plus className="h-3 w-3" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => setOrderQuantities(prev => ({ ...prev, [item.productId]: item.forecastedDemand }))}
+                                >
+                                  Empfehlung
+                                </Button>
+                              </div>
+                              {quantity > 0 && (
+                                <div className="text-xs text-muted-foreground text-center">
+                                  {formatPackageDisplay(packageInfo)}
+                                </div>
+                              )}
                             </div>
                           </TableCell>
-                          {showPricesInTable && <TableCell>{totalCost.toFixed(2)} €</TableCell>}
+                          {showPricesInTable && (
+                            <TableCell>
+                              <div className="text-right">
+                                <div className="font-medium">{totalCost.toFixed(2)} €</div>
+                                {quantity > 0 && product && product.packageSize && product.packageSize > 1 && (
+                                  <div className="text-xs text-muted-foreground">
+                                    {packageInfo.packageCount} × {(purchasePrice * product.packageSize).toFixed(2)} €
+                                  </div>
+                                )}
+                              </div>
+                            </TableCell>
+                          )}
                           <TableCell>
                             <Button
                               variant="ghost"
@@ -1157,7 +1269,7 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
               <div className="flex justify-between items-center">
                 <div className="space-y-1">
                   <p className="text-sm text-muted-foreground">
-                    Gesamtmenge: {totals.totalItems} Artikel
+                    Gesamtmenge: {totals.totalItems} Artikel{totals.totalPackages > 0 && ` (${totals.totalPackages} Pakete)`}
                   </p>
                   <p className="text-lg font-semibold">
                     Gesamtwert: {totals.totalValue.toFixed(2)} €
