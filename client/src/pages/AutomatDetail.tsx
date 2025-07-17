@@ -73,7 +73,8 @@ import {
   BatchInfo
 } from "@/lib/api";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { LocationCostsTab, LocationProfitabilityTab } from "./LocationDetail";
+import MachineCostsTab from "@/components/MachineCostsTab";
+import MachineProfitabilityTab from "@/components/MachineProfitabilityTab";
 import { 
   BarChart,
   Bar,
@@ -1525,12 +1526,12 @@ export default function AutomatDetail() {
 
         {/* Kosten Tab */}
         <TabsContent value="kosten" className="mt-4">
-          <LocationCostsTab machineId={parseInt(params.id)} />
+          <MachineCostsTab machineId={parseInt(params.id)} />
         </TabsContent>
 
         {/* Wirtschaftlichkeit Tab */}
         <TabsContent value="wirtschaftlichkeit" className="mt-4">
-          <LocationProfitabilityTab machineId={parseInt(params.id)} />
+          <MachineProfitabilityTab machineId={parseInt(params.id)} />
         </TabsContent>
       </Tabs>
     </div>

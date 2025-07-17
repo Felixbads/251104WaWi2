@@ -3462,6 +3462,206 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Die Route für tägliche Statistiken wurde konsolidiert und befindet sich weiter oben
   // Siehe die Route für `/api/machines/:id/daily-stats` weiter oben in dieser Datei
   
+  // GET /machines/:id/costs - Get machine-specific costs
+  app.get(`${API_PREFIX}/machines/:id/costs`, async (req: Request, res: Response) => {
+    try {
+      const machineId = parseInt(req.params.id);
+      
+      if (isNaN(machineId)) {
+        return res.status(400).json({ error: "Invalid machine ID" });
+      }
+      
+      // Get machine information to determine location
+      const machine = await storage.getMachine(machineId);
+      if (!machine) {
+        return res.status(404).json({ error: "Machine not found" });
+      }
+      
+      // For now, return machine-specific costs (this could be expanded to actual machine costs)
+      // Currently returning location-based costs associated with this machine
+      const costsQuery = `
+        SELECT 
+          id,
+          location as machine_location,
+          cost_type,
+          amount,
+          currency,
+          frequency,
+          description,
+          is_active,
+          valid_from,
+          valid_until,
+          created_at,
+          updated_at
+        FROM location_costs 
+        WHERE location = $1 AND is_active = true
+        ORDER BY created_at DESC
+      `;
+      
+      const result = await rawDb.query(costsQuery, [machine.location || machine.machineName]);
+      res.json(result.rows);
+    } catch (error) {
+      console.error(`Error fetching costs for machine ${req.params.id}:`, error);
+      res.status(500).json({ 
+        error: "Failed to fetch machine costs", 
+        details: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
+
+  // POST /machines/:id/costs - Add new machine-specific cost
+  app.post(`${API_PREFIX}/machines/:id/costs`, async (req: Request, res: Response) => {
+    try {
+      const machineId = parseInt(req.params.id);
+      const { costType, amount, frequency, description } = req.body;
+      
+      if (isNaN(machineId)) {
+        return res.status(400).json({ error: "Invalid machine ID" });
+      }
+      
+      // Get machine information
+      const machine = await storage.getMachine(machineId);
+      if (!machine) {
+        return res.status(404).json({ error: "Machine not found" });
+      }
+      
+      // Insert the cost record
+      const insertQuery = `
+        INSERT INTO location_costs (
+          location, cost_type, amount, currency, frequency, description, 
+          is_active, valid_from, created_at, updated_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        RETURNING *
+      `;
+      
+      const now = new Date();
+      const result = await rawDb.query(insertQuery, [
+        machine.location || machine.machineName,
+        costType,
+        parseFloat(amount),
+        'EUR',
+        frequency,
+        description || '',
+        true,
+        now,
+        now,
+        now
+      ]);
+      
+      res.status(201).json(result.rows[0]);
+    } catch (error) {
+      console.error(`Error creating cost for machine ${req.params.id}:`, error);
+      res.status(500).json({ 
+        error: "Failed to create machine cost", 
+        details: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
+
+  // GET /machines/:id/profitability - Get machine-specific profitability data
+  app.get(`${API_PREFIX}/machines/:id/profitability`, async (req: Request, res: Response) => {
+    try {
+      const machineId = parseInt(req.params.id);
+      const { startDate, endDate } = req.query;
+      
+      if (isNaN(machineId)) {
+        return res.status(400).json({ error: "Invalid machine ID" });
+      }
+      
+      // Default to current month if no dates provided
+      const end = endDate ? new Date(String(endDate)) : new Date();
+      const start = startDate ? new Date(String(startDate)) : new Date(end.getFullYear(), end.getMonth(), 1);
+      
+      // Get machine information
+      const machine = await storage.getMachine(machineId);
+      if (!machine) {
+        return res.status(404).json({ error: "Machine not found" });
+      }
+      
+      // Calculate profitability data for this specific machine
+      const profitabilityQuery = `
+        WITH machine_sales AS (
+          SELECT 
+            t.product_name,
+            COUNT(*) as quantity_sold,
+            SUM(t.amount) as revenue_gross,
+            SUM(t.amount * 0.84) as revenue_net, -- Assuming 16% VAT
+            AVG(t.amount) as avg_sale_price
+          FROM transactions t
+          WHERE t.machine_id = $1
+            AND t.datetime >= $2
+            AND t.datetime <= $3
+          GROUP BY t.product_name
+        ),
+        machine_costs AS (
+          SELECT 
+            COALESCE(SUM(
+              CASE 
+                WHEN frequency = 'monthly' THEN amount / 30 * EXTRACT(DAY FROM ($3::date - $2::date) + 1)
+                WHEN frequency = 'yearly' THEN amount / 365 * EXTRACT(DAY FROM ($3::date - $2::date) + 1)
+                WHEN frequency = 'quarterly' THEN amount / 90 * EXTRACT(DAY FROM ($3::date - $2::date) + 1)
+                ELSE amount
+              END
+            ), 0) as total_costs
+          FROM location_costs 
+          WHERE location = $4 AND is_active = true
+        )
+        SELECT 
+          ms.*,
+          mc.total_costs,
+          (ms.revenue_net - mc.total_costs) as net_profit,
+          CASE 
+            WHEN ms.revenue_net > 0 THEN 
+              ((ms.revenue_net - mc.total_costs) / ms.revenue_net * 100)
+            ELSE 0 
+          END as profit_margin_percent,
+          CASE 
+            WHEN (ms.revenue_net - mc.total_costs) > 0 THEN true 
+            ELSE false 
+          END as is_profitable
+        FROM machine_sales ms
+        CROSS JOIN machine_costs mc
+        ORDER BY ms.revenue_net DESC
+      `;
+      
+      const result = await rawDb.query(profitabilityQuery, [
+        machineId, 
+        start.toISOString(), 
+        end.toISOString(),
+        machine.location || machine.machineName
+      ]);
+      
+      // Calculate summary
+      const totalRevenue = result.rows.reduce((sum, row) => sum + parseFloat(row.revenue_net || 0), 0);
+      const totalCosts = result.rows.length > 0 ? parseFloat(result.rows[0].total_costs || 0) : 0;
+      const netProfit = totalRevenue - totalCosts;
+      
+      res.json({
+        success: true,
+        data: {
+          products: result.rows,
+          summary: {
+            totalRevenue,
+            totalCosts,
+            netProfit,
+            profitMarginPercent: totalRevenue > 0 ? (netProfit / totalRevenue * 100) : 0,
+            isProfitable: netProfit > 0,
+            period: {
+              start: start.toISOString().split('T')[0],
+              end: end.toISOString().split('T')[0]
+            }
+          }
+        }
+      });
+    } catch (error) {
+      console.error(`Error fetching profitability for machine ${req.params.id}:`, error);
+      res.status(500).json({ 
+        error: "Failed to fetch machine profitability", 
+        details: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
+
   // Get refills by machine ID
   app.get(`${API_PREFIX}/machines/:id/refills`, async (req: Request, res: Response) => {
     try {
