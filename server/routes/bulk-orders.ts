@@ -36,6 +36,7 @@ router.get('/inventory/bulk/:supplierId', async (req, res) => {
       SELECT 
         p.id as product_id,
         p.product_name,
+        p.article_supplier,
         COALESCE(
           CASE WHEN pc.unit_price IS NOT NULL THEN pc.unit_price 
                ELSE p.price 
@@ -48,16 +49,17 @@ router.get('/inventory/bulk/:supplierId', async (req, res) => {
         COALESCE(MIN(ii.min_quantity), 0) as min_stock,
         COALESCE(MAX(ii.max_quantity), 100) as max_stock,
         COUNT(DISTINCT w.id) as warehouse_count,
-        COALESCE(pc.package_size, 1) as package_size,
-        COALESCE(pc.package_type_name, 'Stück') as package_type_name,
-        COALESCE(pc.base_unit_name, 'Stück') as base_unit_name,
-        COALESCE(pc.min_quantity_unit, 'Stück') as min_quantity_unit
+        COALESCE(p.package_quantity, 1) as package_size,
+        COALESCE(pt.name, 'Stück') as package_type_name,
+        COALESCE(p.base_unit_name, 'Stück') as base_unit_name,
+        COALESCE(p.min_order_quantity, 1) as min_quantity_unit
       FROM products p
       LEFT JOIN purchase_conditions pc ON p.id = pc.product_id AND pc.supplier_id = ${supplierId}
+      LEFT JOIN package_types pt ON p.package_type_id = pt.id
       LEFT JOIN inventory_items ii ON p.id = ii.product_id
       LEFT JOIN warehouses w ON ii.warehouse_id = w.id
       WHERE p.supplier_id = ${supplierId}
-      GROUP BY p.id, p.product_name, pc.unit_price, p.price, pc.package_size, pc.package_type_name, pc.base_unit_name, pc.min_quantity_unit
+      GROUP BY p.id, p.product_name, p.article_supplier, pc.unit_price, p.price, p.package_quantity, pt.name, p.base_unit_name, p.min_order_quantity, pt.id
       ORDER BY p.product_name
     `;
 

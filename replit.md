@@ -109,6 +109,16 @@ This is a comprehensive vending machine management platform (Warenwirtschaftssys
 
 ## Changelog
 
+- July 17, 2025: CRITICAL BULK ORDERS API FIXED - Database schema issue resolved for package information display
+  - ✅ Fixed SQL query in bulk-orders.ts to correctly reference products table (p.package_quantity) instead of purchase_conditions table (pc.package_size)
+  - ✅ Updated JOIN statements to properly include package_types table for package type names
+  - ✅ Corrected GROUP BY clause to use only existing columns from products and package_types tables
+  - ✅ API now correctly returns product names, article numbers, prices, and package information for bulk orders
+  - ✅ Backend API /api/bulk-orders/inventory/bulk/:supplierId now functional and returns authentic data
+  - ✅ Package information (package_size, package_type_name, base_unit_name) correctly retrieved from products table
+  - ✅ Product display shows proper names instead of "Empfehlung" placeholders
+  - ✅ Prices display correctly (0.29€, 0.419€, etc.) instead of 0.00€ values
+  - System now provides complete package information for Großbestellungen with authentic product data from database
 - July 17, 2025: COMPREHENSIVE PACKAGE LOGIC (GEBINDELOGIK) FULLY IMPLEMENTED - Complete package handling across all order types
   - ✅ Enhanced database schema with package-related fields (packageCount, packageTypeName, packageQuantity, baseUnitName) in order_items table
   - ✅ Comprehensive package utilities library created (shared/package-utils.ts) with consistent calculation and formatting functions
