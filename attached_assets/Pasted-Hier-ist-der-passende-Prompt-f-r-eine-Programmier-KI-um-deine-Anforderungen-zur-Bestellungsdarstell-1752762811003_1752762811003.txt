@@ -1,0 +1,49 @@
+Hier ist der passende Prompt für eine Programmier-KI, um deine Anforderungen zur Bestellungsdarstellung und -erfassung inklusive Gebindelogik und Detailinformationen umzusetzen:
+
+⸻
+
+Prompt:
+
+Analysiere bitte die aktuelle Darstellung und Erfassung von Bestellungen innerhalb der App – insbesondere in Bezug auf die unterschiedlichen Bestellkategorien wie:
+	•	Großbestellung
+	•	Barg (Bargeldnachfüllung?)
+	•	Einzelbestellung
+
+Anforderungen:
+
+1. Gebindelogik bei der Erfassung und Anzeige:
+	•	Jedes Produkt besitzt im Produktstamm:
+	•	eine Gebindeart (z. B. Kiste, Karton, Stiege)
+	•	eine Gebindegröße (z. B. 20 Einheiten pro Kiste)
+	•	Bei der Erfassung einer Bestellung darf daher nur ein Vielfaches der Gebindegröße eingegeben oder ausgewählt werden (z. B. 20, 40, 60 bei einer 20er-Kiste).
+	•	Die Darstellung soll zusätzlich erfolgen in:
+	•	Anzahl der Gebinde
+	•	Gesamtanzahl der Einzelartikel
+
+2. Darstellung in der Detailansicht und Vorschau:
+	•	In der Detailübersicht zu jeder Bestellung sowie in der Vorschau vor Versand sollen folgende Felder pro Position angezeigt werden:
+	•	Produktname
+	•	Artikelnummer (interne Artikelnummer)
+	•	Bestellartikelnummer (wenn abweichend)
+	•	Lieferantenartikelnummer (aus dem Produktstamm, falls hinterlegt)
+	•	Gebindeart und Gebindegröße (z. B. “Kiste à 20 Flaschen”)
+	•	Anzahl der Gebinde
+	•	Gesamtanzahl Artikel (automatisch berechnet: Gebinde * Gebindegröße)
+
+3. In der an den Lieferanten übermittelten Bestellung (PDF, Mail, etc.):
+	•	Diese Darstellung soll ebenfalls enthalten sein – idealerweise in tabellarischer Form, z. B.:
+
+Produkt	Artikelnummer	Lieferanten-Artikel-Nr.	Gebinde	Anzahl Gebinde	Gesamtanzahl
+XYZ Cola	123456	ABC987	Kiste (20 Flaschen)	3	60
+
+	•	Achte darauf, dass diese Information einheitlich zwischen App-Ansicht, Vorschau und Bestellformular (PDF/Email) erscheint.
+
+4. Konsistenz zwischen den Bestellarten:
+	•	Stelle sicher, dass die obigen Anforderungen unabhängig von der Bestellart (Großbestellung, Einzelbestellung etc.) umgesetzt werden.
+	•	Auch bei kopierten oder automatisch generierten Bestellungen muss diese Logik greifen.
+
+Ziel: eine konsistente, transparente, gebinde-basierte Bestelllogik mit klarer Darstellung für User und Lieferant.
+
+⸻
+
+Möchtest du zusätzlich, dass man bei der Bestellung flexibel auswählen kann, ob nach “Stückzahl” oder “Gebinde” bestellt wird (z. B. per Umschalter)?
