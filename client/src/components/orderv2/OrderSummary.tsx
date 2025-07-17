@@ -33,6 +33,12 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
+import { 
+  calculatePackageInfo, 
+  formatPackageDisplay, 
+  formatTotalQuantity, 
+  formatOrderSummaryPackage 
+} from '../../../../shared/package-utils';
 
 interface OrderSummaryProps {
   warehouseName: string;
@@ -179,42 +185,31 @@ const OrderSummary: React.FC<OrderSummaryProps> = ({
             <TableHeader>
               <TableRow>
                 <TableHead>Produkt</TableHead>
-                <TableHead className="text-right">Menge</TableHead>
-                <TableHead className="text-right">Gebindegröße</TableHead>
-                <TableHead className="text-right">Gesamtmenge</TableHead>
+                <TableHead className="text-right">Artikelnummer</TableHead>
+                <TableHead className="text-right">Lieferanten-Art.-Nr.</TableHead>
+                <TableHead className="text-right">Gebinde</TableHead>
+                <TableHead className="text-right">Anzahl Gebinde</TableHead>
+                <TableHead className="text-right">Gesamtanzahl</TableHead>
                 <TableHead className="text-right">Einzelpreis</TableHead>
-                <TableHead className="text-right">Pfand</TableHead>
-                <TableHead className="text-right">Netto</TableHead>
-                <TableHead className="text-right">MwSt.</TableHead>
-                <TableHead className="text-right">Brutto</TableHead>
+                <TableHead className="text-right">Gesamt</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {Array.isArray(selectedProducts) ? selectedProducts.map((product, index) => {
-                const quantity = product?.orderQuantity || 0;
-                const packageSize = product?.packageSize || 1;
-                const totalQuantity = quantity * packageSize;
+                const orderSummaryPackage = formatOrderSummaryPackage(product);
                 const unitPrice = product?.price || 0;
-                const deposit = product?.deposit || 0;
-                const vatRate = product?.vatRate || 19; // Default 19% MwSt.
-                const netPrice = unitPrice / (1 + vatRate / 100);
-                const vatAmount = unitPrice - netPrice;
-                const totalNet = quantity * netPrice;
-                const totalVat = quantity * vatAmount;
-                const totalGross = quantity * unitPrice;
-                const totalDeposit = quantity * deposit;
+                const totalPrice = (product?.orderQuantity || 0) * unitPrice;
 
                 return (
                   <TableRow key={index}>
                     <TableCell className="font-medium">{product?.name || ''}</TableCell>
-                    <TableCell className="text-right">{quantity}</TableCell>
-                    <TableCell className="text-right">{packageSize}</TableCell>
-                    <TableCell className="text-right">{totalQuantity}</TableCell>
+                    <TableCell className="text-right text-sm text-muted-foreground">{orderSummaryPackage.articleNumber}</TableCell>
+                    <TableCell className="text-right text-sm text-muted-foreground">{orderSummaryPackage.supplierArticleNumber}</TableCell>
+                    <TableCell className="text-right text-sm">{orderSummaryPackage.packageDisplay}</TableCell>
+                    <TableCell className="text-right">{orderSummaryPackage.packageCount}</TableCell>
+                    <TableCell className="text-right font-medium">{orderSummaryPackage.totalQuantity}</TableCell>
                     <TableCell className="text-right">{unitPrice.toFixed(2)} €</TableCell>
-                    <TableCell className="text-right">{deposit > 0 ? `${totalDeposit.toFixed(2)} €` : '-'}</TableCell>
-                    <TableCell className="text-right">{totalNet.toFixed(2)} €</TableCell>
-                    <TableCell className="text-right">{totalVat.toFixed(2)} €</TableCell>
-                    <TableCell className="text-right">{totalGross.toFixed(2)} €</TableCell>
+                    <TableCell className="text-right font-medium">{totalPrice.toFixed(2)} €</TableCell>
                   </TableRow>
                 );
               }) : null}

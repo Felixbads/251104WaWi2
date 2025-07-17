@@ -32,6 +32,14 @@ import {
 import { Search, Plus, Minus, Package2, AlertCircle, Tag, ArrowRight } from 'lucide-react';
 import { Skeleton } from "@/components/ui/skeleton";
 import { OrderMode } from './OrderModeSelector';
+import { 
+  calculatePackageInfo, 
+  formatPackageDisplay, 
+  formatTotalQuantity, 
+  validatePackageOrder,
+  getNextValidPackageQuantity,
+  getPreviousValidPackageQuantity 
+} from '../../../../shared/package-utils';
 
 interface ProductSelectionTableProps {
   supplierId: number;
@@ -291,8 +299,22 @@ const ProductSelectionTable: React.FC<ProductSelectionTableProps> = ({
     }
   }, [mode, forecastData, products, selectedProducts.length, onProductsChange, setSelectedProducts]);
   
-  // Handle quantity change
+  // Handle quantity change with package validation
   const handleQuantityChange = (productId: number, quantity: number) => {
+    const product = enrichedProducts.find((p: any) => p.id === productId);
+    if (!product) return;
+    
+    const packageSize = product.packageQuantity || product.packageSize || 1;
+    const packageTypeName = product.packageTypeName || "Stück";
+    const baseUnitName = product.baseUnitName || "Stück";
+    
+    // Validate that quantity is a multiple of package size
+    if (quantity > 0 && quantity % packageSize !== 0) {
+      // Round to nearest package multiple
+      const packageCount = Math.round(quantity / packageSize);
+      quantity = packageCount * packageSize;
+    }
+    
     const updatedProducts = [...selectedProducts];
     const productIndex = updatedProducts.findIndex(p => p.id === productId);
     
@@ -302,23 +324,33 @@ const ProductSelectionTable: React.FC<ProductSelectionTableProps> = ({
         // Remove product if quantity is zero or negative
         updatedProducts.splice(productIndex, 1);
       } else {
-        // Update quantity
-        updatedProducts[productIndex].orderQuantity = quantity;
+        // Update quantity with package information
+        updatedProducts[productIndex] = {
+          ...updatedProducts[productIndex],
+          orderQuantity: quantity,
+          packageCount: quantity / packageSize,
+          packageQuantity: packageSize,
+          packageTypeName,
+          baseUnitName,
+          supplierSku: product.supplierSku || product.articleSupplier
+        };
       }
     } else if (quantity > 0) {
-      // Add new product
-      const product = enrichedProducts.find((p: any) => p.id === productId);
-      if (product) {
-        updatedProducts.push({
-          id: productId,
-          name: product.name || product.productName || '',
-          productName: product.productName || product.name || '',
-          price: product.price,
-          sku: product.sku,
-          orderQuantity: quantity,
-          packageSize: product.packageSize || 1
-        });
-      }
+      // Add new product with package information
+      updatedProducts.push({
+        id: productId,
+        name: product.name || product.productName || '',
+        productName: product.productName || product.name || '',
+        price: product.price,
+        sku: product.sku,
+        supplierSku: product.supplierSku || product.articleSupplier,
+        orderQuantity: quantity,
+        packageSize: packageSize, // Legacy field
+        packageCount: quantity / packageSize,
+        packageQuantity: packageSize,
+        packageTypeName,
+        baseUnitName
+      });
     }
     
     if (onProductsChange) {
@@ -333,7 +365,7 @@ const ProductSelectionTable: React.FC<ProductSelectionTableProps> = ({
   const incrementQuantity = (productId: number) => {
     const selectedProduct = selectedProducts.find(p => p.id === productId);
     const product = enrichedProducts.find((p: any) => p.id === productId);
-    const packageSize = product?.packageSize || 1;
+    const packageSize = product?.packageQuantity || product?.packageSize || 1;
     const currentQuantity = selectedProduct?.orderQuantity || 0;
     
     // Wenn die aktuelle Menge 0 ist, setzen wir sie auf die Gebindegröße,
@@ -346,7 +378,7 @@ const ProductSelectionTable: React.FC<ProductSelectionTableProps> = ({
   const decrementQuantity = (productId: number) => {
     const selectedProduct = selectedProducts.find(p => p.id === productId);
     const product = enrichedProducts.find((p: any) => p.id === productId);
-    const packageSize = product?.packageSize || 1;
+    const packageSize = product?.packageQuantity || product?.packageSize || 1;
     const currentQuantity = selectedProduct?.orderQuantity || 0;
     
     if (currentQuantity > 0) {
@@ -565,9 +597,12 @@ const ProductSelectionTable: React.FC<ProductSelectionTableProps> = ({
               <TableHeader>
                 <TableRow>
                   <TableHead>Produktname</TableHead>
-                  <TableHead className="text-right">Gebindegröße</TableHead>
+                  <TableHead className="text-right">Artikelnummer</TableHead>
+                  <TableHead className="text-right">Lieferanten-Art.-Nr.</TableHead>
+                  <TableHead className="text-right">Gebinde</TableHead>
                   <TableHead className="text-right">Lagerbestand</TableHead>
-                  <TableHead className="text-right">Menge</TableHead>
+                  <TableHead className="text-right">Anzahl Gebinde</TableHead>
+                  <TableHead className="text-right">Gesamtanzahl</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -575,6 +610,13 @@ const ProductSelectionTable: React.FC<ProductSelectionTableProps> = ({
                   const selectedProduct = selectedProducts.find(p => p.id === product.id);
                   const orderQuantity = selectedProduct?.orderQuantity || 0;
                   const isSelected = orderQuantity > 0;
+                  
+                  const packageInfo = calculatePackageInfo({
+                    ...product,
+                    orderQuantity
+                  });
+                  const packageDisplayText = formatPackageDisplay(packageInfo);
+                  const packageSize = packageInfo.packageQuantity;
                   
                   return (
                     <TableRow 
@@ -591,7 +633,15 @@ const ProductSelectionTable: React.FC<ProductSelectionTableProps> = ({
                           )}
                         </div>
                       </TableCell>
-                      <TableCell className="text-right">{product.packageSize || 1}</TableCell>
+                      <TableCell className="text-right text-sm text-muted-foreground">
+                        {product.sku || '-'}
+                      </TableCell>
+                      <TableCell className="text-right text-sm text-muted-foreground">
+                        {product.supplierSku || product.articleSupplier || '-'}
+                      </TableCell>
+                      <TableCell className="text-right text-sm">
+                        {packageDisplayText}
+                      </TableCell>
                       <TableCell className="text-right">
                         {product.inStock}
                         {product.inStock <= 5 && (
@@ -612,9 +662,15 @@ const ProductSelectionTable: React.FC<ProductSelectionTableProps> = ({
                           <Input
                             type="number"
                             min="0"
-                            value={orderQuantity}
-                            onChange={(e) => handleQuantityChange(product.id, parseInt(e.target.value) || 0)}
+                            step="1"
+                            value={packageInfo.packageCount}
+                            onChange={(e) => {
+                              const newPackageCount = parseInt(e.target.value) || 0;
+                              const newQuantity = newPackageCount * packageSize;
+                              handleQuantityChange(product.id, newQuantity);
+                            }}
                             className="w-16 h-8 text-center"
+                            placeholder="0"
                           />
                           <Button
                             variant="outline"
@@ -625,6 +681,9 @@ const ProductSelectionTable: React.FC<ProductSelectionTableProps> = ({
                             <Plus className="h-4 w-4" />
                           </Button>
                         </div>
+                      </TableCell>
+                      <TableCell className="text-right font-medium">
+                        {formatTotalQuantity(packageInfo.totalQuantity, packageInfo.baseUnitName)}
                       </TableCell>
                     </TableRow>
                   );

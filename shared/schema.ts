@@ -1976,10 +1976,18 @@ export const orderItems = pgTable("order_items", {
   productName: text("product_name").notNull(), // Produktname (notwendig, auch wenn Produkt-ID vorhanden)
   sku: text("sku"), // Artikelnummer
   supplierSku: text("supplier_sku"), // Lieferanten-Artikelnummer
+  orderArticleNumber: text("order_article_number"), // Bestellartikelnummer (wenn abweichend von SKU)
+  
+  // Gebinde-Informationen (Package Logic)
+  packageTypeId: integer("package_type_id").references(() => packageTypes.id), // Verweis auf Gebindeart
+  packageTypeName: text("package_type_name"), // Name der Gebindeart (z.B. "Kiste", "Karton", "Stiege")
+  packageQuantity: integer("package_quantity").default(1), // Anzahl Einzelprodukte pro Gebinde
+  baseUnitName: text("base_unit_name").default("Stück"), // Name der Grundeinheit (Stück, Liter, kg, etc.)
+  packageCount: integer("package_count").default(1), // Anzahl bestellter Gebinde
   
   // Mengen
-  quantity: integer("quantity").notNull().default(1), // Bestellmenge
-  unit: text("unit").default("stk"), // Einheit (Stück, Kiste, Palette, etc.)
+  quantity: integer("quantity").notNull().default(1), // Gesamtmenge (packageCount * packageQuantity)
+  unit: text("unit").default("stk"), // Einheit (Legacy-Feld für Kompatibilität)
   quantityDelivered: integer("quantity_delivered").default(0), // Tatsächlich gelieferte Menge
   
   // Preise

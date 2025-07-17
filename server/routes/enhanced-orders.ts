@@ -34,7 +34,15 @@ const enhancedOrderSchema = z.object({
     totalPrice: z.number(),
     unit: z.string(),
     itemComment: z.string().optional(),
-    expectedMHD: z.string().optional()
+    expectedMHD: z.string().optional(),
+    // Package information
+    sku: z.string().optional(),
+    supplierSku: z.string().optional(),
+    orderArticleNumber: z.string().optional(),
+    packageCount: z.number().optional(),
+    packageQuantity: z.number().optional(),
+    packageTypeName: z.string().optional(),
+    baseUnitName: z.string().optional()
   })),
   totalAmount: z.number()
 });
@@ -115,11 +123,14 @@ router.post('/enhanced', async (req, res) => {
       })
       .returning();
     
-    // Create order items
+    // Create order items with package information
     const orderItemsToInsert = orderData.items.map((item, index) => ({
       orderId: newOrder.id,
       productId: item.productId,
       productName: item.productName,
+      sku: item.sku || null,
+      supplierSku: item.supplierSku || null,
+      orderArticleNumber: item.orderArticleNumber || null,
       quantity: item.quantity,
       unit: item.unit,
       unitPrice: item.unitPrice,
@@ -130,6 +141,11 @@ router.post('/enhanced', async (req, res) => {
       status: 'pending',
       itemComment: item.itemComment || null,
       expectedMHD: item.expectedMHD || null,
+      // Package information
+      packageCount: item.packageCount || null,
+      packageQuantity: item.packageQuantity || null,
+      packageTypeName: item.packageTypeName || null,
+      baseUnitName: item.baseUnitName || null,
       createdAt: new Date(),
       updatedAt: new Date()
     }));

@@ -271,7 +271,15 @@ export default function EnhancedOrderingProcess({
         totalPrice: item.totalPrice,
         unit: item.unit,
         itemComment: item.comment,
-        expectedMHD: item.expectedMHD
+        expectedMHD: item.expectedMHD,
+        // Package information
+        sku: item.sku || null,
+        supplierSku: item.supplierSku || null,
+        orderArticleNumber: item.sku || null,
+        packageCount: item.packageCount || null,
+        packageQuantity: item.packageQuantity || null,
+        packageTypeName: item.packageTypeName || null,
+        baseUnitName: item.baseUnitName || null
       })),
       totalAmount: orderTotal
     };
