@@ -62,6 +62,7 @@ import {
   formatPackageDisplay, 
   formatTotalQuantity, 
   validatePackageOrder,
+  validatePackageQuantitySimple,
   getNextValidPackageQuantity,
   getPreviousValidPackageQuantity,
   formatOrderSummaryPackage,
@@ -429,12 +430,13 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
   const updateOrderQuantity = (productId: number, quantity: number) => {
     const product = (inventoryData as any[])?.find((item: any) => item.productId === productId);
     
-    if (product && product.packageSize) {
-      // Validate package-based quantity
-      const validation = validatePackageOrder(quantity, product.packageSize);
+    const packageSize = product?.package_size || product?.packageSize || 1;
+    if (product && packageSize > 1) {
+      // Validate package-based quantity and round up to next valid package quantity
+      const validation = validatePackageQuantitySimple(quantity, packageSize);
       if (!validation.isValid) {
-        // Round to nearest valid package quantity
-        quantity = Math.round(quantity / product.packageSize) * product.packageSize;
+        // Always round UP to the next valid package quantity for orders
+        quantity = getNextValidPackageQuantity(quantity, packageSize);
       }
     }
     
@@ -513,8 +515,9 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
           totalValue += quantity * unitPrice;
           
           // Calculate package count
-          if (product.packageSize) {
-            totalPackages += quantity / product.packageSize;
+          const packageSize = product.package_size || product.packageSize || 1;
+          if (packageSize > 1) {
+            totalPackages += quantity / packageSize;
           }
         }
       }
@@ -538,11 +541,15 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
       .filter(([_, quantity]) => quantity > 0)
       .map(([productId, quantity]) => {
         const product = (inventoryData as any[])?.find((inv: any) => inv.productId === parseInt(productId));
+        const packageSize = product ? (product.package_size || product.packageSize || 1) : 1;
+        const packageTypeName = product ? (product.package_type_name || product.packageTypeName || 'Stück') : 'Stück';
+        const baseUnitName = product ? (product.base_unit_name || product.baseUnitName || 'Stück') : 'Stück';
+        
         const packageInfo = product ? calculatePackageInfo(
           quantity,
-          product.packageSize || 1,
-          product.packageTypeName || 'Stück',
-          product.baseUnitName || 'Stück'
+          packageSize,
+          packageTypeName,
+          baseUnitName
         ) : { packageCount: 0, totalQuantity: quantity, packageSize: 1, packageTypeName: 'Stück', baseUnitName: 'Stück' };
         
         return {
@@ -804,7 +811,7 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
                   salesAnalysis.map((item: SalesAnalysis) => {
                     const isExpanded = expandedRows[item.productId];
                     return (
-                      <React.Fragment key={item.productId}>
+                      <div key={item.productId}>
                         <TableRow>
                           <TableCell className="font-medium">{item.productName}</TableCell>
                           <TableCell>{item.totalSales}</TableCell>
@@ -845,7 +852,7 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
                             </TableCell>
                           </TableRow>
                         )}
-                      </React.Fragment>
+                      </div>
                     );
                   })
                 ) : (
@@ -1119,30 +1126,34 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
                     const isExpanded = expandedRows[item.productId];
                     
                     // Calculate package information
+                    const packageSize = product ? (product.package_size || product.packageSize || 1) : 1;
+                    const packageTypeName = product ? (product.package_type_name || product.packageTypeName || 'Stück') : 'Stück';
+                    const baseUnitName = product ? (product.base_unit_name || product.baseUnitName || 'Stück') : 'Stück';
+                    
                     const packageInfo = product ? calculatePackageInfo(
                       quantity,
-                      product.packageSize || 1,
-                      product.packageTypeName || 'Stück',
-                      product.baseUnitName || 'Stück'
+                      packageSize,
+                      packageTypeName,
+                      baseUnitName
                     ) : { packageCount: 0, totalQuantity: quantity, packageSize: 1, packageTypeName: 'Stück', baseUnitName: 'Stück' };
                     
                     // Calculate package counts for forecast and recommendation
                     const forecastPackageInfo = product ? calculatePackageInfo(
                       item.forecastedDemand,
-                      product.packageSize || 1,
-                      product.packageTypeName || 'Stück',
-                      product.baseUnitName || 'Stück'
+                      packageSize,
+                      packageTypeName,
+                      baseUnitName
                     ) : { packageCount: 0, totalQuantity: item.forecastedDemand, packageSize: 1, packageTypeName: 'Stück', baseUnitName: 'Stück' };
                     
                     return (
-                      <React.Fragment key={item.productId}>
+                      <div key={item.productId}>
                         <TableRow>
                           <TableCell className="font-medium">
                             <div>
                               <div className="font-medium">{item.productName}</div>
-                              {product && product.packageSize && product.packageSize > 1 && (
+                              {product && packageSize > 1 && (
                                 <div className="text-xs text-muted-foreground">
-                                  {product.packageTypeName} à {product.packageSize} {product.baseUnitName}
+                                  {packageTypeName} à {packageSize} {baseUnitName}
                                 </div>
                               )}
                             </div>
@@ -1164,8 +1175,8 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
                                   variant="outline"
                                   size="sm"
                                   onClick={() => {
-                                    const newQuantity = product && product.packageSize ? 
-                                      getPreviousValidPackageQuantity(quantity, product.packageSize) : 
+                                    const newQuantity = product && packageSize > 1 ? 
+                                      getPreviousValidPackageQuantity(quantity, packageSize) : 
                                       quantity - 1;
                                     updateOrderQuantity(item.productId, newQuantity);
                                   }}
@@ -1175,24 +1186,24 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
                                 </Button>
                                 <Input
                                   type="number"
-                                  value={product && product.packageSize ? packageInfo.packageCount : quantity}
+                                  value={product && packageSize > 1 ? packageInfo.packageCount : quantity}
                                   onChange={(e) => {
                                     const inputValue = parseInt(e.target.value) || 0;
-                                    const newQuantity = product && product.packageSize ? 
-                                      inputValue * product.packageSize : 
+                                    const newQuantity = product && packageSize > 1 ? 
+                                      inputValue * packageSize : 
                                       inputValue;
                                     updateOrderQuantity(item.productId, newQuantity);
                                   }}
                                   className="w-20 text-center"
                                   min="0"
-                                  step={product && product.packageSize ? 1 : 1}
+                                  step={packageSize > 1 ? 1 : 1}
                                 />
                                 <Button
                                   variant="outline"
                                   size="sm"
                                   onClick={() => {
-                                    const newQuantity = product && product.packageSize ? 
-                                      getNextValidPackageQuantity(quantity, product.packageSize) : 
+                                    const newQuantity = product && packageSize > 1 ? 
+                                      getNextValidPackageQuantity(quantity, packageSize) : 
                                       quantity + 1;
                                     updateOrderQuantity(item.productId, newQuantity);
                                   }}
@@ -1218,9 +1229,9 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
                             <TableCell>
                               <div className="text-right">
                                 <div className="font-medium">{totalCost.toFixed(2)} €</div>
-                                {quantity > 0 && product && product.packageSize && product.packageSize > 1 && (
+                                {quantity > 0 && product && packageSize > 1 && (
                                   <div className="text-xs text-muted-foreground">
-                                    {packageInfo.packageCount} × {(purchasePrice * product.packageSize).toFixed(2)} €
+                                    {packageInfo.packageCount} × {(purchasePrice * packageSize).toFixed(2)} €
                                   </div>
                                 )}
                               </div>
@@ -1252,7 +1263,7 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
                             </TableCell>
                           </TableRow>
                         )}
-                      </React.Fragment>
+                      </div>
                     );
                   }) : (
                     <TableRow>

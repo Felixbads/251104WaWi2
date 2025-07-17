@@ -150,6 +150,33 @@ export function validatePackageOrder(product: Product, requestedQuantity: number
 }
 
 /**
+ * Simple package validation for quantity and package size
+ */
+export function validatePackageQuantitySimple(requestedQuantity: number, packageSize: number): {
+  isValid: boolean;
+  errorMessage?: string;
+  suggestedQuantity?: number;
+} {
+  if (requestedQuantity <= 0) {
+    return {
+      isValid: false,
+      errorMessage: 'Menge muss größer als 0 sein'
+    };
+  }
+
+  if (packageSize > 1 && requestedQuantity % packageSize !== 0) {
+    const suggestedQuantity = getNextValidPackageQuantity(requestedQuantity, packageSize);
+    return {
+      isValid: false,
+      errorMessage: `Menge muss ein Vielfaches von ${packageSize} sein (Gebinde)`,
+      suggestedQuantity
+    };
+  }
+
+  return { isValid: true };
+}
+
+/**
  * Formats package information for order summary display
  */
 export function formatOrderSummaryPackage(product: Product): {
