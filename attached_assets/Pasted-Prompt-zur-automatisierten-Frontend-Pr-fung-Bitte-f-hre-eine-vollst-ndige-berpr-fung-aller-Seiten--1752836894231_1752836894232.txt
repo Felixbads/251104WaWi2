@@ -1,0 +1,20 @@
+Prompt zur automatisierten Frontend-Prüfung:
+Bitte führe eine vollständige Überprüfung aller Seiten der Anwendung im laufenden Frontend durch. Ziel ist es, sicherzustellen, dass sämtliche Elemente, Werte und Inhalte korrekt angezeigt und berechnet werden. Beachte dabei insbesondere Folgendes:
+	1.	Vollständigkeit der Darstellung:
+	•	Überprüfe jede Seite systematisch darauf, ob alle vorgesehenen Werte, Datenfelder und UI-Elemente sichtbar sind.
+	•	Vergleiche die aktuelle Darstellung mit der erwarteten, auf Basis der zugrunde liegenden Datenmodelle und API-Antworten.
+	•	Markiere Felder, bei denen Werte fehlen, falsch sind oder die gar nicht gerendert werden.
+	2.	Fehlerhafte oder fehlende Berechnungen:
+	•	Identifiziere Stellen, an denen berechnete Werte nicht oder falsch angezeigt werden (z. B. Mengen, Preise, Zwischensummen, Prognosewerte etc.).
+	•	Prüfe insbesondere nach den letzten Änderungen an den API-Routen, ob Abhängigkeiten oder Datenzuweisungen unterbrochen wurden.
+	3.	Darstellungslogik:
+	•	Prüfe, ob Bedingte Anzeigen (z. B. “nur wenn Wert vorhanden”, “nur bei bestimmtem Status”) korrekt funktionieren.
+	•	Validierung von Tooltips, Einheiten, Formatierungen (z. B. €, %, Datum, Uhrzeit), Icons und Statusanzeigen.
+	4.	Technische Prüfung im Frontend-Kontext:
+	•	Untersuche die laufende Umgebung (z. B. über DevTools) auf JavaScript-Fehler, nicht gerenderte Komponenten, fehlgeschlagene API-Calls oder leere Responses.
+	•	Stelle sicher, dass alle dynamischen Datenbindung korrekt funktionieren (z. B. via Props, State, Store oder API-Fetch).
+	5.	Erwartungshorizont:
+	•	Nutze die bestehende Implementationslogik als Referenz und prüfe, ob das, was im Code vorgesehen ist, auch tatsächlich im Frontend korrekt ankommt.
+	•	Liefere eine strukturierte Liste der gefundenen Auffälligkeiten, sortiert nach Seiten, Komponenten oder Modulen.
+
+Ziel ist ein systematischer, technischer Abgleich zwischen dem, was laut Logik und Datenmodell im Frontend angezeigt werden sollte, und dem, was tatsächlich angezeigt wird. Bitte erkenne automatisiert alle Abweichungen und gib diese so aus, dass sie direkt für Debugging und Bugfixing verwendet werden können.
