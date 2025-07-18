@@ -738,7 +738,7 @@ export default function Products() {
       <Card className="overflow-hidden">
         <CardHeader className="pb-2">
           <div className="flex justify-between items-start">
-            <CardTitle className="text-lg truncate">{product.productName || product.product_name}</CardTitle>
+            <CardTitle className="text-lg truncate">{product.productName || product.product_name || `Produkt-ID ${product.id}`}</CardTitle>
             {isAlcohol && (
               <Badge variant="outline" className="ml-2 bg-amber-100 text-amber-800 border-amber-300">
                 18+
@@ -836,7 +836,7 @@ export default function Products() {
           <div className="flex items-start justify-between">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
-                <h3 className="text-base font-medium text-gray-900 leading-tight">{product.productName}</h3>
+                <h3 className="text-base font-medium text-gray-900 leading-tight">{product.productName || product.product_name || `Produkt-ID ${product.id}`}</h3>
                 {isAlcohol && (
                   <Badge variant="outline" className="bg-amber-100 text-amber-800 border-amber-300 text-xs">
                     18+

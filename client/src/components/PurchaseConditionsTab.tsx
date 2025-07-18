@@ -43,7 +43,7 @@ export function PurchaseConditionsTab({ supplierId, supplierName }: PurchaseCond
   // Fetch available products for new conditions
   const { data: availableProducts = [] } = useQuery({
     queryKey: ['suppliers-conditions', supplierId, 'available-products'],
-    queryFn: () => fetch(`/api/suppliers-conditions/${supplierId}/available-products`).then(res => res.json())
+    queryFn: () => fetch(`/api/suppliers/${supplierId}/available-products`).then(res => res.json())
   });
 
   // Create mutation
@@ -163,9 +163,9 @@ export function PurchaseConditionsTab({ supplierId, supplierName }: PurchaseCond
     setFormData({});
   };
 
-  const getProductName = (productId: number) => {
+  const getProductName = (productId: number, fallbackName?: string) => {
     const product = availableProducts.find((p: ProductOption) => p.id === productId);
-    return product?.productName || `Produkt ID: ${productId}`;
+    return product?.productName || fallbackName || `Produkt ID: ${productId}`;
   };
 
   if (isLoading) {
@@ -372,7 +372,7 @@ export function PurchaseConditionsTab({ supplierId, supplierName }: PurchaseCond
                       // Edit Form
                       <div className="space-y-4">
                         <div className="flex justify-between items-center">
-                          <h4 className="font-semibold">{getProductName(condition.productId)}</h4>
+                          <h4 className="font-semibold">{getProductName(condition.productId, condition.productName || condition.product_name)}</h4>
                           <div className="flex space-x-2">
                             <Button size="sm" onClick={handleSaveEdit} disabled={updateMutation.isPending}>
                               <Save className="h-4 w-4 mr-1" />
@@ -448,7 +448,7 @@ export function PurchaseConditionsTab({ supplierId, supplierName }: PurchaseCond
                       <div>
                         <div className="flex justify-between items-start mb-4">
                           <div>
-                            <h4 className="font-semibold text-lg">{condition.productName || `Produkt ID: ${condition.productId}`}</h4>
+                            <h4 className="font-semibold text-lg">{condition.productName || condition.product_name || getProductName(condition.productId)}</h4>
                             {condition.isPreferred && <Badge className="mt-1">Bevorzugter Lieferant</Badge>}
                           </div>
                           <div className="flex space-x-2">

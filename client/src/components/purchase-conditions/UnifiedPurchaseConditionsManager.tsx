@@ -568,7 +568,7 @@ export default function UnifiedPurchaseConditionsManager({
                   <SelectContent>
                     {products.map((product: any) => (
                       <SelectItem key={product.id} value={product.id.toString()}>
-                        {product.productName || product.product_name}
+                        {product.productName || product.product_name || `Produkt-ID ${product.id}`}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -617,7 +617,7 @@ export default function UnifiedPurchaseConditionsManager({
                     )}
                     {mode === 'supplier' && (
                       <TableCell className="font-medium">
-                        {condition.product_name || condition.productName}
+                        {condition.product_name || condition.productName || `Produkt-ID ${condition.product_id}`}
                       </TableCell>
                     )}
                     <TableCell>

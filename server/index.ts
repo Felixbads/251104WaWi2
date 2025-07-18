@@ -774,14 +774,19 @@ app.get('/orders-data', (req, res) => {
       
       const order = orderResult.rows[0];
       
-      // Bestellpositionen mit korrekten Preisen laden
+      // Bestellpositionen mit korrekten Preisen UND GEBINDE-INFORMATIONEN laden
       const itemsResult = await pool.query(`
         SELECT 
           oi.*,
           p.product_name,
           p.units as product_unit,
           COALESCE(oi.unit_price, 0) as unit_price,
-          COALESCE(oi.total_price, oi.quantity * COALESCE(oi.unit_price, 0)) as total_price
+          COALESCE(oi.total_price, oi.quantity * COALESCE(oi.unit_price, 0)) as total_price,
+          -- GEBINDE-INFORMATIONEN HINZUFÜGEN
+          COALESCE(oi.package_count, 1) as package_count,
+          COALESCE(oi.package_quantity, 1) as package_quantity,
+          COALESCE(oi.package_type_name, 'Stück') as package_type_name,
+          COALESCE(oi.base_unit_name, 'Stück') as base_unit_name
         FROM order_items oi
         LEFT JOIN products p ON oi.product_id = p.id
         WHERE oi.order_id = $1
@@ -824,13 +829,27 @@ app.get('/orders-data', (req, res) => {
           // Nur echte Artikelnummer verwenden oder leer lassen
           const supplierSku = item.supplier_sku || '';
           
+          // GEBINDE-INFORMATIONEN BERECHNEN UND ANZEIGEN
+          const packageCount = parseInt(item.package_count || 1);
+          const packageQuantity = parseInt(item.package_quantity || 1);
+          const packageTypeName = item.package_type_name || 'Stück';
+          const baseUnitName = item.base_unit_name || 'Stück';
+          
+          // Gebinde-Darstellung: "5 Kisten × 24 Stück = 120 Stück"
+          let quantityDisplay = '';
+          if (packageCount > 1 && packageQuantity > 1) {
+            quantityDisplay = `${packageCount} ${packageTypeName} × ${packageQuantity} ${baseUnitName} = ${quantity} ${baseUnitName}`;
+          } else {
+            quantityDisplay = `${quantity} ${unit}`;
+          }
+          
           itemsTableRows += `
             <tr>
               <td style="padding: 8px; text-align: left;">${index + 1}</td>
               <td style="padding: 8px; text-align: left;">${item.product_id || ''}</td>
               <td style="padding: 8px; text-align: left;">${productName}</td>
               <td style="padding: 8px; text-align: left;">${supplierSku}</td>
-              <td style="padding: 8px; text-align: center;">${quantity.toFixed(2)}</td>
+              <td style="padding: 8px; text-align: center;"><strong>${quantityDisplay}</strong></td>
               <td style="padding: 8px; text-align: center;">${unit}</td>
               ${showPrices ? `<td style="padding: 8px; text-align: right;">${itemTotal.toFixed(2)} €</td>` : ''}
             </tr>
