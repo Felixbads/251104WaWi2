@@ -545,23 +545,43 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
     let totalValue = 0;
     let totalPackages = 0;
     
+    console.log('🔍 CALCULATE TOTALS DEBUG:', {
+      orderQuantitiesCount: Object.keys(orderQuantities).length,
+      orderQuantities,
+      inventoryDataLength: Array.isArray(inventoryData) ? inventoryData.length : 'not-array'
+    });
+    
     Object.entries(orderQuantities).forEach(([productId, quantity]) => {
       if (quantity > 0) {
-        const product = (inventoryData as any[])?.find((item: any) => item.productId === parseInt(productId));
+        const product = (inventoryData as any[])?.find((item: any) => item.product_id === parseInt(productId));
+        
+        console.log(`🔍 TOTALS PRODUCT LOOKUP - ID ${productId}:`, {
+          quantity,
+          productFound: !!product,
+          productData: product ? {
+            product_id: product.product_id,
+            purchase_price: product.purchase_price,
+            price: product.price,
+            package_size: product.package_size
+          } : null
+        });
+        
         if (product) {
           totalItems += quantity;
           // Use purchase price if available, otherwise use regular price
-          const unitPrice = product.purchasePrice || product.price;
+          const unitPrice = product.purchase_price || product.price || 0;
           totalValue += quantity * unitPrice;
           
           // Calculate package count
-          const packageSize = product.package_size || product.packageSize || 1;
+          const packageSize = product.package_size || 1;
           if (packageSize > 1) {
             totalPackages += quantity / packageSize;
           }
         }
       }
     });
+    
+    console.log('🔍 TOTALS RESULT:', { totalItems, totalValue, totalPackages });
     
     return { totalItems, totalValue, totalPackages };
   };
@@ -1313,7 +1333,16 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
                       packageSize,
                       packageTypeName,
                       baseUnitName
-                    ) : { packageCount: 0, totalQuantity: quantity, packageSize: 1, packageTypeName: 'Stück', baseUnitName: 'Stück' };
+                    ) : { packageCount: 0, totalQuantity: quantity, packageQuantity: 1, packageTypeName: 'Stück', baseUnitName: 'Stück' };
+                    
+                    console.log(`🔍 QUANTITY DEBUG - ${item.productName}:`, {
+                      productId: item.productId,
+                      quantity,
+                      packageSize,
+                      packageTypeName,
+                      packageInfo,
+                      orderQuantitiesCount: Object.keys(orderQuantities).length
+                    });
                     
                     // Apply holiday and tourism factors to forecasted demand
                     const holidayBoost = (forecastFactors as any)?.holidays?.boost || 25;
@@ -1381,6 +1410,11 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
                                 variant="outline"
                                 size="sm"
                                 onClick={() => {
+                                  console.log('🔍 MINUS BUTTON CLICKED:', {
+                                    productId: item.productId,
+                                    currentQuantity: quantity,
+                                    packageSize
+                                  });
                                   const newQuantity = product && packageSize > 1 ? 
                                     getPreviousValidPackageQuantity(quantity, packageSize) : 
                                     quantity - 1;
@@ -1415,6 +1449,11 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
                                 variant="outline"
                                 size="sm"
                                 onClick={() => {
+                                  console.log('🔍 PLUS BUTTON CLICKED:', {
+                                    productId: item.productId,
+                                    currentQuantity: quantity,
+                                    packageSize
+                                  });
                                   const newQuantity = product && packageSize > 1 ? 
                                     getNextValidPackageQuantity(quantity, packageSize) : 
                                     quantity + 1;
