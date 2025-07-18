@@ -109,6 +109,16 @@ This is a comprehensive vending machine management platform (Warenwirtschaftssys
 
 ## Changelog
 
+- July 18, 2025: COMPREHENSIVE FRONTEND FIXES COMPLETED - Login design & dashboard calculations completely resolved
+  - ✅ **Login Page Completely Redesigned**: Modern mobile-first design with professional gradient background, clean card layout, and proper responsive spacing
+  - ✅ **Critical Dashboard Revenue Fix**: Implemented product price lookup to resolve 0€ revenue display - now shows actual sales amounts using product database prices
+  - ✅ **OrderSummary Package Logic Fixed**: Package multiples now correctly calculated using calculatePackageInfo() for accurate order totals
+  - ✅ **Currency Formatting Standardized**: Created unified formatters.ts for consistent EUR display across all components
+  - ✅ **Flexible VAT Calculation**: Replaced hardcoded 19% with configurable vatRate for different tax scenarios
+  - ✅ **Dashboard Performance Enhanced**: Added product price caching and optimized transaction calculations for better user experience
+  - ✅ **UI Components Cleaned**: Removed unnecessary Login page widgets (LiveDatabaseStatsTile, MHDAlertTile) for cleaner focus
+  - ✅ **Revenue Calculations Fixed**: Top products and machine revenues now display authentic amounts instead of 0€ placeholders
+  - System now displays accurate financial data with professional German business interface standards
 - July 18, 2025: FINAL BULK ORDER FIX - Package data now correctly sourced from purchase_conditions
   - ✅ **CRITICAL FIX**: bulk-orders.ts API now uses purchase_conditions table for correct package information
   - ✅ **Package Types Corrected**: packaging_unit and packaging_quantity from purchase_conditions replace products table data

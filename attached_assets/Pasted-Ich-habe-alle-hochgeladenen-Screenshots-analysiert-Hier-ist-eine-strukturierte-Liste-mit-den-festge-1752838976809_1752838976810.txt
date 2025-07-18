@@ -1,0 +1,79 @@
+Ich habe alle hochgeladenen Screenshots analysiert. Hier ist eine strukturierte Liste mit den festgestellten Problemen im Frontend — inklusive Angabe des Bereichs und der konkreten Auffälligkeit:
+
+⸻
+
+🔄 Synchronisierungsstatus
+	•	Fehlende Daten trotz “completed”-Status:
+→ Es wird „completed“ für Automaten, Produkte und Lagerstände angezeigt, dennoch gibt es massive Datenlücken im Dashboard. Das deutet auf ein inkonsistentes Backend-Frontend-Sync-Verhalten hin.
+
+⸻
+
+📊 Wiederherstellungsfortschritt
+	•	Nur 66 % Wiederherstellungsfortschritt, aber keine Hinweise, welche Einträge fehlen
+→ Die Angabe „1 Fehlend“ ist nicht klickbar oder aufklärend – unklar bleibt, was fehlt.
+
+⸻
+
+🧾 Neueste Transaktionen
+	•	Datenfelder leer:
+→ Spalten „Automat“, „Produkt“, „Preis“ sind bei allen Einträgen leer. Das ist ein massiver Darstellungs- oder Datenfehler.
+
+⸻
+
+📈 Top 5 verkaufte Waren / Aktive Automaten (letzte 7 Tage)
+	•	„Keine Verkaufsdaten gefunden“, obwohl Transaktionen vorhanden sind
+→ Mindestens eine Inkonsistenz: Entweder ist die Berechnung/Verlinkung zu den Verkaufsdaten defekt, oder der Zeitraum-/Filtermechanismus liefert keine gültigen Daten trotz aktiver Transaktionen.
+
+⸻
+
+🏆 Top Automaten nach Umsatz / Top Produkte
+	•	Alle Umsätze = 0,00 €, alle Ergebnisse = 0,00 €
+→ Offenbar Berechnungsfehler oder fehlende Verknüpfung zu Produktpreisen/Einkaufspreisen.
+→ Es werden Transaktionen gezählt, aber keine monetären Werte verarbeitet.
+
+⸻
+
+📅 Verkaufsprognose
+	•	Keine Prognosedaten verfügbar trotz Ferienzeit und Sommergeschäft
+→ Die Funktion zur automatischen Erstellung scheint entweder nicht aktiv oder defekt zu sein.
+→ Erwartung: Es sollte mindestens eine baseline-Prognose auf Basis der Transaktionshistorie erzeugt werden.
+
+⸻
+
+🛑 Kritische Automaten & Lagerbestände
+	•	Fehleranzeigen korrekt, aber ohne Deep-Link zur Fehlerursache
+→ „5 abgelaufene Produkte“ wird zwar dargestellt, aber man kann sie nicht direkt ansehen oder prüfen.
+→ Bei „514 Produkte benötigen Nachbestellung“ fehlt ein Produktlisting oder interaktive Ansicht.
+
+⸻
+
+📦 Offene Lieferungen
+	•	Teile der Lieferinformationen fehlen oder sind unvollständig
+→ „Lieferant“ wird wiederholt angezeigt, aber ohne Namen oder Details.
+→ Datum und Betrag vorhanden, aber keine Verlinkung oder erweiterte Infos zu den Bestellungen.
+
+⸻
+
+💶 Heutige Performance
+	•	0 € Umsatz trotz Transaktionen
+→ Klarer Fehler in der Umsatzberechnung oder -anzeige. Es scheint, als würden Einnahmen aktuell gar nicht verarbeitet/zugeordnet werden.
+
+⸻
+
+🧠 Weitere potenzielle strukturelle Fehler
+	•	Einige Bereiche laden offenbar Daten gar nicht, sondern zeigen nur den statischen Fallback-Text (z. B. “Keine Verkaufsdaten”, “Keine Prognosedaten”).
+	•	In mehreren Tabellen sind Spalteninhalte nicht gerendert, obwohl der Rahmen vorhanden ist → das spricht für ein JavaScript- oder Datenbindungsthema.
+	•	Die Icons und Layouts sind in Ordnung, aber inhaltlich zu leer für ein System mit über 20.000 Transaktionen (wie im Sync-Status angegeben).
+
+⸻
+
+🔧 Empfehlungen für die Entwickler:
+	1.	Prüfung der API-Routen & Data-Mapping → Sind die aktualisierten Endpunkte korrekt ans Frontend gebunden?
+	2.	Fallback-Logik verfeinern: → Es sollte differenziert werden zwischen „keine Daten verfügbar“ und „Datenabruf fehlgeschlagen“.
+	3.	Fehlerhafte oder leere Felder systematisch loggen: → z. B. über Konsolenwarnungen im Dev-Mode.
+	4.	Zusätzliche Debug-Funktion: → z. B. ein „Daten prüfen“-Button, der testweise alle Abfragen auf der Seite anzeigt (API-Response).
+	5.	Umsatz- und Ergebnisberechnung dringend prüfen → aktuell wird der wirtschaftliche Überblick komplett blockiert.
+
+⸻
+
+Möchtest du basierend darauf einen dedizierten QA-Test-Prompt oder ein Jira-Ticket-Template daraus machen? ￼

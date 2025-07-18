@@ -123,7 +123,7 @@ export default function EmailDialogFixed({
     orderItems.forEach(item => {
       const itemTotal = (item.quantity || 0) * (item.unit_price || 0);
       totalNet += itemTotal;
-      totalGross += itemTotal * 1.19;
+      totalGross += itemTotal * (1 + (orderData?.vatRate || 0.19));
     });
 
     // Create product table

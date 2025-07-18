@@ -194,20 +194,85 @@ export default function Dashboard() {
   const activeMachines = machines?.filter(m => m.status === "active").length || 0;
   const totalMachines = machines?.length || 0;
 
-  // Umsatz heute
+  // Fetch product prices for revenue calculation
+  const { data: products } = useQuery({
+    queryKey: ['/api/products'],
+    queryFn: async () => {
+      const response = await fetch('/api/products');
+      if (!response.ok) throw new Error('Failed to fetch products');
+      return response.json();
+    },
+    staleTime: 1000 * 60 * 10, // 10 minutes
+  });
+
+  // Create price lookup map
+  const productPriceMap = React.useMemo(() => {
+    if (!products) return new Map();
+    const map = new Map();
+    products.forEach((product: any) => {
+      if (product.name && product.price) {
+        map.set(product.name.trim(), product.price);
+      }
+      // Also index by product_id if available
+      if (product.id && product.price) {
+        map.set(product.id.toString(), product.price);
+      }
+    });
+    return map;
+  }, [products]);
+
+  // Umsatz heute mit echten Produktpreisen
   const dailyRevenue = transactions?.reduce((sum, tx) => {
     const txDate = new Date(tx.datetime);
     if (txDate.toDateString() === today.toDateString()) {
-      return sum + (tx.price || 0);
+      // Try to get price from various sources
+      let price = tx.price || tx.amount || 0;
+      
+      // If no price in transaction, lookup from product database
+      if (price === 0 && tx.product_name) {
+        const productPrice = productPriceMap.get(tx.product_name.trim());
+        if (productPrice) {
+          price = productPrice;
+        }
+      }
+      
+      // If still no price and we have product_id, try that
+      if (price === 0 && tx.product_id) {
+        const productPrice = productPriceMap.get(tx.product_id.toString());
+        if (productPrice) {
+          price = productPrice;
+        }
+      }
+      
+      return sum + (price * (tx.quantity || 1));
     }
     return sum;
   }, 0) || 0;
 
-  // Umsatz gestern (als Vergleich)
+  // Umsatz gestern (als Vergleich) mit echten Produktpreisen
   const yesterdayRevenue = transactions?.reduce((sum, tx) => {
     const txDate = new Date(tx.datetime);
     if (txDate.toDateString() === yesterday.toDateString()) {
-      return sum + (tx.price || 0);
+      // Try to get price from various sources
+      let price = tx.price || tx.amount || 0;
+      
+      // If no price in transaction, lookup from product database
+      if (price === 0 && tx.product_name) {
+        const productPrice = productPriceMap.get(tx.product_name.trim());
+        if (productPrice) {
+          price = productPrice;
+        }
+      }
+      
+      // If still no price and we have product_id, try that
+      if (price === 0 && tx.product_id) {
+        const productPrice = productPriceMap.get(tx.product_id.toString());
+        if (productPrice) {
+          price = productPrice;
+        }
+      }
+      
+      return sum + (price * (tx.quantity || 1));
     }
     return sum;
   }, 0) || 0;
@@ -232,7 +297,23 @@ export default function Dashboard() {
       acc[cleanProductName] = { count: 0, revenue: 0 };
     }
     acc[cleanProductName].count += tx.quantity || 1;
-    acc[cleanProductName].revenue += tx.amount || tx.price || 0;
+    
+    // Calculate revenue with product price lookup
+    let price = tx.price || tx.amount || 0;
+    if (price === 0 && tx.product_name) {
+      const productPrice = productPriceMap.get(tx.product_name.trim());
+      if (productPrice) {
+        price = productPrice;
+      }
+    }
+    if (price === 0 && tx.product_id) {
+      const productPrice = productPriceMap.get(tx.product_id.toString());
+      if (productPrice) {
+        price = productPrice;
+      }
+    }
+    
+    acc[cleanProductName].revenue += price * (tx.quantity || 1);
     return acc;
   }, {}) || {};
 
@@ -268,7 +349,23 @@ export default function Dashboard() {
       acc[machineName] = { count: 0, revenue: 0 };
     }
     acc[machineName].count += 1;
-    acc[machineName].revenue += tx.amount || tx.price || 0;
+    
+    // Calculate revenue with product price lookup
+    let price = tx.price || tx.amount || 0;
+    if (price === 0 && tx.product_name) {
+      const productPrice = productPriceMap.get(tx.product_name.trim());
+      if (productPrice) {
+        price = productPrice;
+      }
+    }
+    if (price === 0 && tx.product_id) {
+      const productPrice = productPriceMap.get(tx.product_id.toString());
+      if (productPrice) {
+        price = productPrice;
+      }
+    }
+    
+    acc[machineName].revenue += price * (tx.quantity || 1);
     return acc;
   }, {}) || {};
 

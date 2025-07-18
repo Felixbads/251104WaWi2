@@ -72,10 +72,17 @@ const OrderSummary: React.FC<OrderSummaryProps> = ({
   orderId,
   orderData
 }) => {
-  // Calculate total with safety checks
+  // Calculate total with package logic and safety checks
   const total = Array.isArray(selectedProducts) ? selectedProducts.reduce((sum, product) => {
     const price = product?.price || 0;
-    const quantity = product?.orderQuantity || 0;
+    let quantity = product?.orderQuantity || 0;
+    
+    // Apply package logic if package information is available
+    if (product?.packageSize && product?.packageQuantity) {
+      const packageInfo = calculatePackageInfo(product);
+      quantity = packageInfo.totalQuantity;
+    }
+    
     return sum + (price * quantity);
   }, 0) : 0;
   

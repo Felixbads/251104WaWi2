@@ -17,9 +17,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ShoppingBag, LogIn, Loader2 } from "lucide-react";
-import MHDAlertTile from "@/components/MHDAlertTile";
-import TopRemovedProductsTileStandalone from "@/components/TopRemovedProductsTileStandalone";
-import LiveDatabaseStatsTile from "@/components/LiveDatabaseStatsTile";
 
 // Login schema mit Validierungsregeln
 const loginSchema = z.object({
@@ -74,97 +71,112 @@ export default function Login() {
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-50 px-4">
-      <div className="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-        {/* Login Form */}
-        <Card className="w-full max-w-md mx-auto lg:mx-0">
-        <CardHeader className="space-y-1 text-center">
-          <div className="flex justify-center mb-4">
-            <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center">
-              <ShoppingBag className="h-8 w-8 text-primary" />
+    <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-primary/10 flex items-center justify-center p-4">
+      <div className="w-full max-w-md space-y-8">
+        {/* Header */}
+        <div className="text-center space-y-6">
+          <div className="flex justify-center">
+            <div className="h-20 w-20 rounded-full bg-primary flex items-center justify-center shadow-lg">
+              <ShoppingBag className="h-10 w-10 text-primary-foreground" />
             </div>
           </div>
-          <CardTitle className="text-2xl font-bold">Proviantomat</CardTitle>
-          <CardDescription>
-            Bitte melden Sie sich mit Ihren Zugangsdaten an
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="username">Benutzername</Label>
-              <Input 
-                id="username"
-                placeholder="Ihr Benutzername" 
-                {...form.register("username")}
-                autoComplete="username"
-              />
-              {form.formState.errors.username && (
-                <p className="text-sm text-red-500">{form.formState.errors.username.message}</p>
-              )}
-            </div>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="password">Passwort</Label>
-                <Button variant="link" size="sm" className="text-xs p-0 h-auto">
-                  Passwort vergessen?
-                </Button>
+          <div className="space-y-2">
+            <h1 className="text-3xl font-bold text-foreground">Proviantomat</h1>
+            <p className="text-muted-foreground">Warenwirtschaftssystem für Vendig Automaten</p>
+          </div>
+        </div>
+
+        {/* Login Form */}
+        <Card className="shadow-xl border-0">
+          <CardHeader className="space-y-1 pb-6">
+            <CardTitle className="text-xl text-center">Anmeldung</CardTitle>
+            <CardDescription className="text-center">
+              Bitte melden Sie sich mit Ihren Zugangsdaten an
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+              <div className="space-y-2">
+                <Label htmlFor="username">Benutzername</Label>
+                <Input 
+                  id="username"
+                  placeholder="Ihr Benutzername" 
+                  {...form.register("username")}
+                  autoComplete="username"
+                  className="h-11"
+                />
+                {form.formState.errors.username && (
+                  <p className="text-sm text-destructive">{form.formState.errors.username.message}</p>
+                )}
               </div>
-              <Input 
-                id="password"
-                type="password" 
-                placeholder="Ihr Passwort" 
-                {...form.register("password")}
-                autoComplete="current-password"
-              />
-              {form.formState.errors.password && (
-                <p className="text-sm text-red-500">{form.formState.errors.password.message}</p>
-              )}
-            </div>
-            <Button 
-              type="submit" 
-              className="w-full" 
-              disabled={isFormSubmitting || isLoading}
-            >
-              {isFormSubmitting || isLoading ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" /> Wird angemeldet...
-                </>
-              ) : (
-                <>
-                  <LogIn className="h-4 w-4 mr-2" /> Anmelden
-                </>
-              )}
-            </Button>
-          </form>
-        </CardContent>
-        <CardFooter className="justify-center">
-          <p className="text-sm text-gray-600">
-            Noch kein Konto?{" "}
-            <Button 
-              variant="link" 
-              className="p-0 h-auto text-primary" 
-              onClick={() => setLocation("/register")}
-            >
-              Registrieren
-            </Button>
-          </p>
-        </CardFooter>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="password">Passwort</Label>
+                  <Button variant="link" size="sm" className="text-xs p-0 h-auto text-muted-foreground hover:text-primary">
+                    Passwort vergessen?
+                  </Button>
+                </div>
+                <Input 
+                  id="password"
+                  type="password" 
+                  placeholder="Ihr Passwort" 
+                  {...form.register("password")}
+                  autoComplete="current-password"
+                  className="h-11"
+                />
+                {form.formState.errors.password && (
+                  <p className="text-sm text-destructive">{form.formState.errors.password.message}</p>
+                )}
+              </div>
+              <Button 
+                type="submit" 
+                className="w-full h-11 text-base font-medium" 
+                disabled={isFormSubmitting || isLoading}
+              >
+                {isFormSubmitting || isLoading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" /> 
+                    Wird angemeldet...
+                  </>
+                ) : (
+                  <>
+                    <LogIn className="h-4 w-4 mr-2" /> 
+                    Anmelden
+                  </>
+                )}
+              </Button>
+            </form>
+          </CardContent>
+          <CardFooter className="justify-center pt-6">
+            <p className="text-sm text-muted-foreground">
+              Noch kein Konto?{" "}
+              <Button 
+                variant="link" 
+                className="p-0 h-auto text-primary font-medium" 
+                onClick={() => setLocation("/register")}
+              >
+                Registrieren
+              </Button>
+            </p>
+          </CardFooter>
         </Card>
 
-        {/* Live Database Stats Tile */}
-        <div className="w-full max-w-md mx-auto lg:mx-0">
-          <LiveDatabaseStatsTile />
-        </div>
-
-        {/* MHD Alert Tile */}
-        <div className="w-full max-w-md mx-auto lg:mx-0">
-          <MHDAlertTile />
-        </div>
-
-        {/* Top Removed Products Tile */}
-        <div className="w-full max-w-md mx-auto lg:mx-0">
-          <TopRemovedProductsTileStandalone />
+        {/* Footer */}
+        <div className="text-center space-y-2">
+          <p className="text-xs text-muted-foreground">
+            © 2025 Elbsandstein Proviant & Quartier GmbH
+          </p>
+          <div className="flex justify-center space-x-4 text-xs text-muted-foreground">
+            <Button variant="link" size="sm" className="p-0 h-auto text-xs">
+              Datenschutz
+            </Button>
+            <Button variant="link" size="sm" className="p-0 h-auto text-xs">
+              Impressum
+            </Button>
+            <Button variant="link" size="sm" className="p-0 h-auto text-xs">
+              Support
+            </Button>
+          </div>
         </div>
       </div>
     </div>
