@@ -336,7 +336,8 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
     queryKey: [`/api/bulk-orders/inventory/bulk/${selectedSupplierId}`],
     enabled: !!selectedSupplierId,
     staleTime: 0, // Force fresh data
-    refetchOnMount: true
+    refetchOnMount: true,
+    refetchInterval: false
   });
 
   // Debug logging for inventory data
