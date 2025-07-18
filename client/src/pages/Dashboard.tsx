@@ -185,6 +185,48 @@ export default function Dashboard() {
     refetchInterval: 300000 // Alle 5 Minuten aktualisieren
   });
 
+  // CRITICAL FIX: Produktdaten für Preislookup abrufen
+  const { data: products, isLoading: isLoadingProducts } = useQuery({
+    queryKey: ['/api/products'],
+    queryFn: async () => {
+      const response = await fetch('/api/products?limit=1000');
+      if (!response.ok) throw new Error('Fehler beim Laden der Produktdaten');
+      const data = await response.json();
+      return Array.isArray(data) ? data : data.products || [];
+    },
+    staleTime: 600000 // 10 Minuten Cache für Produktdaten
+  });
+
+  // CRITICAL FIX: Produktpreis-Map aufbauen
+  const productPriceMap = React.useMemo(() => {
+    const map = new Map<string, number>();
+    
+    if (products && Array.isArray(products)) {
+      products.forEach(product => {
+        if (product.price && product.price > 0) {
+          // Map sowohl nach product_name als auch nach ID
+          if (product.product_name) {
+            map.set(product.product_name.trim(), product.price);
+          }
+          if (product.id) {
+            map.set(product.id.toString(), product.price);
+          }
+          if (product.vendon_id) {
+            map.set(product.vendon_id.toString(), product.price);
+          }
+        }
+      });
+    }
+    
+    console.log('Produktpreis-Map aufgebaut:', {
+      productsCount: products?.length || 0,
+      priceMapSize: map.size,
+      sampleEntries: Array.from(map.entries()).slice(0, 3)
+    });
+    
+    return map;
+  }, [products]);
+
   // Berechne aktuelle Metriken aus realen Daten
   const today = new Date();
   const yesterday = new Date(today);
@@ -194,32 +236,7 @@ export default function Dashboard() {
   const activeMachines = machines?.filter(m => m.status === "active").length || 0;
   const totalMachines = machines?.length || 0;
 
-  // Fetch product prices for revenue calculation
-  const { data: products } = useQuery({
-    queryKey: ['/api/products'],
-    queryFn: async () => {
-      const response = await fetch('/api/products');
-      if (!response.ok) throw new Error('Failed to fetch products');
-      return response.json();
-    },
-    staleTime: 1000 * 60 * 10, // 10 minutes
-  });
-
-  // Create price lookup map
-  const productPriceMap = React.useMemo(() => {
-    if (!products) return new Map();
-    const map = new Map();
-    products.forEach((product: any) => {
-      if (product.name && product.price) {
-        map.set(product.name.trim(), product.price);
-      }
-      // Also index by product_id if available
-      if (product.id && product.price) {
-        map.set(product.id.toString(), product.price);
-      }
-    });
-    return map;
-  }, [products]);
+  // Note: Products data and productPriceMap already defined above - no duplicate needed
 
   // Umsatz heute mit echten Produktpreisen
   const dailyRevenue = transactions?.reduce((sum, tx) => {
@@ -229,8 +246,9 @@ export default function Dashboard() {
       let price = tx.price || tx.amount || 0;
       
       // If no price in transaction, lookup from product database
-      if (price === 0 && tx.product_name) {
-        const productPrice = productPriceMap.get(tx.product_name.trim());
+      if (price === 0 && (tx.product_name || tx.productName)) {
+        const productName = tx.product_name || tx.productName;
+        const productPrice = productPriceMap.get(productName?.trim());
         if (productPrice) {
           price = productPrice;
         }
@@ -257,8 +275,9 @@ export default function Dashboard() {
       let price = tx.price || tx.amount || 0;
       
       // If no price in transaction, lookup from product database
-      if (price === 0 && tx.product_name) {
-        const productPrice = productPriceMap.get(tx.product_name.trim());
+      if (price === 0 && (tx.product_name || tx.productName)) {
+        const productName = tx.product_name || tx.productName;
+        const productPrice = productPriceMap.get(productName?.trim());
         if (productPrice) {
           price = productPrice;
         }
@@ -317,19 +336,53 @@ export default function Dashboard() {
     return acc;
   }, {}) || {};
 
-  // Debug Top Products
+  // CRITICAL FIX: Refill Removed Items für "Top 5 verkaufte Waren" Widget
+  const refillRemovedItems = React.useMemo(() => {
+    if (!transactions || !Array.isArray(transactions)) return {};
+    
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    
+    return transactions
+      .filter(tx => {
+        const txDate = new Date(tx.datetime);
+        return txDate >= sevenDaysAgo && (tx.product_name || tx.productName);
+      })
+      .reduce((acc, tx) => {
+        const productName = tx.product_name || tx.productName || 'Unbekanntes Produkt';
+        acc[productName] = (acc[productName] || 0) + (tx.quantity || 1);
+        return acc;
+      }, {});
+  }, [transactions]);
+
+  // Debug Feldnamen und Revenue-Details
   React.useEffect(() => {
-    console.log('Top Products check:', {
+    console.log('Dashboard Debug Check:', {
       hasTopProducts: !!topProducts,
       keyCount: Object.keys(topProducts).length,
-      isObject: typeof topProducts === 'object',
-      firstProduct: Object.entries(topProducts)[0]
+      priceMapSize: productPriceMap.size,
+      refillRemovedItemsCount: Object.keys(refillRemovedItems).length,
+      transactionsCount: transactions?.length || 0
     });
-    if (Object.keys(topProducts).length > 0) {
-      console.log('Top Products calculated:', Object.keys(topProducts).length, 'products');
-      console.log('First 3 products:', Object.entries(topProducts).slice(0, 3));
+    
+    // Debug erste Transaktion für Feldnamen
+    if (transactions && transactions.length > 0) {
+      const firstTx = transactions[0];
+      console.log('Transaction field mapping:', {
+        available_fields: Object.keys(firstTx),
+        product_name: firstTx.product_name,
+        productName: firstTx.productName,
+        machine_name: firstTx.machine_name,
+        machineName: firstTx.machineName,
+        tx_price: firstTx.price,
+        tx_amount: firstTx.amount
+      });
     }
-  }, [topProducts]);
+    
+    if (Object.keys(topProducts).length > 0) {
+      console.log('Top Products with revenue:', Object.entries(topProducts).slice(0, 3));
+    }
+  }, [topProducts, productPriceMap, transactions, refillRemovedItems]);
 
   // Debug Transactions
   React.useEffect(() => {
@@ -421,29 +474,7 @@ export default function Dashboard() {
     };
   }
 
-  // Top 5 verkaufte Waren - aus Transaktionsdaten (letzte 7 Tage)
-  const refillRemovedItems = React.useMemo<Record<string, number>>(() => {
-    if (!transactions || !Array.isArray(transactions)) return {};
-
-    // Filter transactions from last 7 days
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-
-    const recentTransactions = transactions.filter((tx: any) => {
-      const txDate = new Date(tx.datetime);
-      return txDate >= sevenDaysAgo && tx.productName;
-    });
-
-    // Count products sold
-    const productCounts: Record<string, number> = {};
-    recentTransactions.forEach((tx: any) => {
-      if (tx.productName) {
-        productCounts[tx.productName] = (productCounts[tx.productName] || 0) + (tx.quantity || 1);
-      }
-    });
-
-    return productCounts;
-  }, [transactions]);
+  // Note: refillRemovedItems already defined above - removing duplicate
 
   // Synchronisationsstatus
   const getLatestSyncTime = () => {
@@ -1156,22 +1187,29 @@ export default function Dashboard() {
             const machineActivity = transactions
               ?.filter((tx: any) => {
                 const txDate = new Date(tx.datetime);
-                return txDate >= sevenDaysAgo && tx.productName && tx.machineName;
+                const productName = tx.product_name || tx.productName;
+                const machineName = tx.machine_name || tx.machineName;
+                return txDate >= sevenDaysAgo && productName && machineName;
               })
               .reduce((acc: Record<string, { machineId: number; machineName: string; count: number; revenue: number; products: Set<string> }>, tx: any) => {
-                const key = tx.machineName;
+                const machineName = tx.machine_name || tx.machineName;
+                const productName = tx.product_name || tx.productName;
+                const key = machineName;
                 if (!acc[key]) {
                   acc[key] = {
-                    machineId: tx.machineId,
-                    machineName: tx.machineName,
+                    machineId: tx.machine_id || tx.machineId,
+                    machineName: machineName,
                     count: 0,
                     revenue: 0,
                     products: new Set()
                   };
                 }
                 acc[key].count += tx.quantity || 1;
-                acc[key].revenue += tx.price || 0;
-                acc[key].products.add(tx.productName);
+                
+                // CRITICAL FIX: Produktpreis aus Map für korrekte Umsätze
+                const productPrice = productPriceMap.get(productName?.trim()) || tx.price || 0;
+                acc[key].revenue += productPrice * (tx.quantity || 1);
+                acc[key].products.add(productName);
                 return acc;
               }, {}) || {};
 
@@ -1252,16 +1290,22 @@ export default function Dashboard() {
                     .map((tx, index) => (
                     <tr key={index} className="border-b hover:bg-muted/20">
                       <td className="px-4 py-2">{formatDateTime(tx.datetime)}</td>
-                      <td className="px-4 py-2 truncate max-w-[160px]" title={tx.machineName}>
-                        {tx.machineName}
+                      <td className="px-4 py-2 truncate max-w-[160px]" title={tx.machine_name || tx.machineName}>
+                        {tx.machine_name || tx.machineName || 'Unbekannt'}
                       </td>
-                      <td className="px-4 py-2 truncate max-w-[180px]" title={tx.productName}>
-                        {tx.productName}
+                      <td className="px-4 py-2 truncate max-w-[180px]" title={tx.product_name || tx.productName}>
+                        {tx.product_name || tx.productName || 'Unbekannt'}
                       </td>
-                      <td className="px-4 py-2 text-right">{tx.price?.toFixed(2)} €</td>
                       <td className="px-4 py-2 text-right">
-                        <Badge variant={tx.paymentMethod === 'CASH' ? 'outline' : 'secondary'}>
-                          {tx.paymentMethod === 'CASH' ? 'Bar' : 'Karte'}
+                        {(() => {
+                          const productName = tx.product_name || tx.productName;
+                          const productPrice = productPriceMap.get(productName?.trim()) || tx.price || 0;
+                          return productPrice.toFixed(2) + ' €';
+                        })()}
+                      </td>
+                      <td className="px-4 py-2 text-right">
+                        <Badge variant={(tx.payment_method || tx.paymentMethod) === 'CASH' ? 'outline' : 'secondary'}>
+                          {(tx.payment_method || tx.paymentMethod) === 'CASH' ? 'Bar' : 'Karte'}
                         </Badge>
                       </td>
                     </tr>
