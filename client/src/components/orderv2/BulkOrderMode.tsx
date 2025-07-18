@@ -1260,8 +1260,8 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
                 <TableBody>
                   {Array.isArray(forecastData) ? (forecastData as ForecastData[]).map((item: ForecastData) => {
                     const quantity = orderQuantities[item.productId] || 0;
-                    const product = (inventoryData as any[])?.find((inv: any) => inv.productId === item.productId);
-                    const purchasePrice = product?.purchasePrice || product?.price || 0;
+                    const product = (inventoryData as any[])?.find((inv: any) => inv.product_id === item.productId);
+                    const purchasePrice = product?.purchase_price || product?.price || 0;
                     const totalCost = quantity * purchasePrice;
                     const isExpanded = expandedRows[item.productId];
                     
@@ -1275,9 +1275,9 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
                     });
                     
                     // Calculate package information
-                    const packageSize = product ? (product.package_size || product.packageSize || 1) : 1;
-                    const packageTypeName = product ? (product.package_type_name || product.packageTypeName || 'Stück') : 'Stück';
-                    const baseUnitName = product ? (product.base_unit_name || product.baseUnitName || 'Stück') : 'Stück';
+                    const packageSize = product ? (product.package_size || 1) : 1;
+                    const packageTypeName = product ? (product.package_type_name || 'Stück') : 'Stück';
+                    const baseUnitName = product ? (product.base_unit_name || 'Stück') : 'Stück';
                     
                     // DEBUG: Log package calculation inputs
                     console.log(`🔍 PACKAGE CALC DEBUG - ${item.productName}:`, {
