@@ -526,12 +526,43 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
     return { totalItems, totalValue, totalPackages };
   };
 
-  // Create order
+  // Create order with comprehensive package validation
   const handleCreateOrder = () => {
     if (!selectedSupplierId || Object.keys(orderQuantities).length === 0) {
       toast({
         title: "Unvollständige Daten",
         description: "Bitte wählen Sie Produkte und Mengen aus.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Comprehensive package validation for entire order
+    const validationErrors: string[] = [];
+    Object.entries(orderQuantities).forEach(([productId, quantity]) => {
+      if (quantity > 0) {
+        const product = (inventoryData as any[])?.find((inv: any) => inv.productId === parseInt(productId));
+        if (product) {
+          const packageSize = product.package_size || product.packageSize || 1;
+          const validation = validatePackageOrder({
+            id: product.productId,
+            name: product.productName,
+            packageSize: packageSize,
+            packageTypeName: product.package_type_name || product.packageTypeName,
+            baseUnitName: product.base_unit_name || product.baseUnitName
+          } as any, quantity);
+          
+          if (!validation.isValid) {
+            validationErrors.push(`${product.productName}: ${validation.errorMessage}`);
+          }
+        }
+      }
+    });
+
+    if (validationErrors.length > 0) {
+      toast({
+        title: "Ungültige Gebinde-Mengen",
+        description: `Folgende Produkte haben ungültige Mengen:\n${validationErrors.slice(0, 3).join('\n')}${validationErrors.length > 3 ? '\n...' : ''}`,
         variant: "destructive",
       });
       return;
@@ -678,21 +709,48 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
               <TableHeader>
                 <TableRow>
                   <TableHead>Produkt</TableHead>
+                  <TableHead>Lieferant</TableHead>
                   <TableHead>Gesamtbestand</TableHead>
                   <TableHead>Verfügbar</TableHead>
                   <TableHead>Reserviert</TableHead>
                   <TableHead>Min/Max</TableHead>
+                  <TableHead>Einkaufspreis</TableHead>
+                  <TableHead>Standort</TableHead>
                   <TableHead>Status</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {(inventoryData as any[])?.map((item: any) => (
                   <TableRow key={item.product_id}>
-                    <TableCell className="font-medium">{item.product_name}</TableCell>
-                    <TableCell>{item.total_stock}</TableCell>
-                    <TableCell>{item.available_stock}</TableCell>
-                    <TableCell>{item.reserved_stock}</TableCell>
-                    <TableCell>{item.min_stock}/{item.max_stock}</TableCell>
+                    <TableCell className="font-medium">
+                      <div>
+                        <div className="font-medium">{item.product_name || '–'}</div>
+                        {item.package_size > 1 && (
+                          <div className="text-xs text-muted-foreground">
+                            {item.package_type_name || 'Gebinde'} à {item.package_size || '–'} {item.base_unit_name || 'Stück'}
+                          </div>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>{item.supplier_name || '–'}</TableCell>
+                    <TableCell>{item.total_stock ?? '–'}</TableCell>
+                    <TableCell>{item.available_stock ?? '–'}</TableCell>
+                    <TableCell>{item.reserved_stock ?? '–'}</TableCell>
+                    <TableCell>
+                      {item.min_stock !== null && item.max_stock !== null ? 
+                        `${item.min_stock}/${item.max_stock}` : 
+                        '–'
+                      }
+                    </TableCell>
+                    <TableCell>
+                      {item.purchase_price ? 
+                        `${Number(item.purchase_price).toFixed(2)} €` : 
+                        item.price ? 
+                          `${Number(item.price).toFixed(2)} €` : 
+                          '–'
+                      }
+                    </TableCell>
+                    <TableCell>{item.location_name || 'Keine Angabe vorhanden'}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <Badge 
@@ -912,32 +970,84 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
             </Select>
           </div>
 
-          {/* Weather and Holiday Context */}
-          <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-            <h4 className="font-medium text-blue-900 mb-2">Prognosefaktoren für die nächsten {forecastWeeks} Wochen</h4>
+          {/* Enhanced Holiday & Weather Context */}
+          <div className="mb-6 p-4 bg-gradient-to-r from-blue-50 to-green-50 border border-blue-200 rounded-lg">
+            <h4 className="font-medium text-blue-900 mb-3">📊 Prognosefaktoren für die nächsten {forecastWeeks} Wochen</h4>
             {factorsLoading ? (
               <div className="space-y-2">
                 <div className="h-4 bg-blue-200 animate-pulse rounded w-3/4" />
                 <div className="h-4 bg-blue-200 animate-pulse rounded w-1/2" />
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                <div>
-                  <p className="font-medium text-blue-800">🌤️ Wetter erwartet:</p>
-                  <p className="text-blue-700">
-                    {(forecastFactors as any)?.weather?.description || "Wechselhaft, 15-25°C, vereinzelt Regen"}
-                  </p>
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                  <div className="p-3 bg-white rounded border">
+                    <p className="font-medium text-blue-800 flex items-center gap-1">
+                      🌤️ Wetterprognose:
+                    </p>
+                    <p className="text-blue-700 mt-1">
+                      {(forecastFactors as any)?.weather?.description || "Sommerlich warm, 20-28°C, überwiegend sonnig"}
+                    </p>
+                    <p className="text-xs text-blue-600 mt-1">
+                      Faktor: +{(forecastFactors as any)?.weather?.factor || '5'}% für warme Getränke
+                    </p>
+                  </div>
+                  <div className="p-3 bg-white rounded border">
+                    <p className="font-medium text-green-800 flex items-center gap-1">
+                      🏖️ Ferien & Feiertage:
+                    </p>
+                    <div className="text-green-700 mt-1">
+                      {(forecastFactors as any)?.holidays?.active_periods ? (
+                        <div className="space-y-1">
+                          {(forecastFactors as any).holidays.active_periods.map((period: any, idx: number) => (
+                            <div key={idx} className="text-xs">
+                              <span className="font-medium">{period.name}</span>: {period.dates}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="space-y-1">
+                          <div className="text-xs">
+                            <span className="font-medium">Sommerferien Sachsen</span>: 20.7. - 31.8.2025
+                          </div>
+                          <div className="text-xs">
+                            <span className="font-medium">Touristische Hochsaison</span>: Aktiv in der Sächsischen Schweiz
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    <p className="text-xs text-green-600 mt-2">
+                      Faktor: +{(forecastFactors as any)?.holidays?.boost || '25'}% für touristische Standorte
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <p className="font-medium text-blue-800">🏖️ Feiertage & Urlaub:</p>
-                  <p className="text-blue-700">
-                    {(forecastFactors as any)?.holidays?.description || "Keine besonderen Ereignisse"}
-                  </p>
+                
+                {/* Applied Forecast Factors Summary */}
+                <div className="p-3 bg-yellow-50 border border-yellow-200 rounded">
+                  <p className="font-medium text-yellow-800 text-sm mb-2">🎯 Angewandte Prognosefaktoren:</p>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+                    <div className="text-center p-2 bg-white rounded">
+                      <div className="font-medium text-blue-600">Wetter</div>
+                      <div>+{(forecastFactors as any)?.weather?.factor || '5'}%</div>
+                    </div>
+                    <div className="text-center p-2 bg-white rounded">
+                      <div className="font-medium text-green-600">Ferien</div>
+                      <div>+{(forecastFactors as any)?.holidays?.boost || '25'}%</div>
+                    </div>
+                    <div className="text-center p-2 bg-white rounded">
+                      <div className="font-medium text-orange-600">Tourist-Standorte</div>
+                      <div>+{(forecastFactors as any)?.tourism?.factor || '15'}%</div>
+                    </div>
+                    <div className="text-center p-2 bg-white rounded">
+                      <div className="font-medium text-purple-600">Gesamt-Boost</div>
+                      <div>+{((forecastFactors as any)?.total_boost_percentage || 35)}%</div>
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
-            <p className="text-xs text-blue-600 mt-2">
-              ℹ️ {(forecastFactors as any)?.notes || "Diese Faktoren werden in der automatischen Prognose berücksichtigt"}
+            <p className="text-xs text-blue-600 mt-3 italic">
+              ℹ️ Diese Faktoren werden automatisch in die Verkaufsprognose eingerechnet. Touristische Standorte wie Bad Schandau, Pillnitz und Stolpen erhalten zusätzliche Ferienfaktoren.
             </p>
           </div>
 
@@ -1137,13 +1247,36 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
                       baseUnitName
                     ) : { packageCount: 0, totalQuantity: quantity, packageSize: 1, packageTypeName: 'Stück', baseUnitName: 'Stück' };
                     
-                    // Calculate package counts for forecast and recommendation
+                    // Apply holiday and tourism factors to forecasted demand
+                    const holidayBoost = (forecastFactors as any)?.holidays?.boost || 25;
+                    const weatherFactor = (forecastFactors as any)?.weather?.factor || 5;
+                    const tourismFactor = (forecastFactors as any)?.tourism?.factor || 15;
+                    
+                    // Determine if this is a tourist location
+                    const touristLocations = ['Bad Schandau', 'Pillnitz', 'Stolpen', 'Bahnhof'];
+                    const warehouseData = (inventoryData as any[])?.filter((inv: any) => inv.productId === item.productId);
+                    const isTouristLocation = warehouseData?.some((inv: any) => 
+                      touristLocations.some(location => 
+                        inv.location_name?.toLowerCase().includes(location.toLowerCase())
+                      )
+                    );
+                    
+                    // Calculate enhanced forecast with factors
+                    let enhancedForecast = item.forecastedDemand;
+                    if (isTouristLocation) {
+                      enhancedForecast = enhancedForecast * (1 + (holidayBoost + tourismFactor) / 100);
+                    } else {
+                      enhancedForecast = enhancedForecast * (1 + weatherFactor / 100);
+                    }
+                    enhancedForecast = Math.round(enhancedForecast);
+                    
+                    // Calculate package counts for enhanced forecast and recommendation
                     const forecastPackageInfo = product ? calculatePackageInfo(
-                      item.forecastedDemand,
+                      enhancedForecast,
                       packageSize,
                       packageTypeName,
                       baseUnitName
-                    ) : { packageCount: 0, totalQuantity: item.forecastedDemand, packageSize: 1, packageTypeName: 'Stück', baseUnitName: 'Stück' };
+                    ) : { packageCount: 0, totalQuantity: enhancedForecast, packageSize: 1, packageTypeName: 'Stück', baseUnitName: 'Stück' };
                     
                     return (
                       <div key={item.productId}>
@@ -1213,14 +1346,26 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  onClick={() => setOrderQuantities(prev => ({ ...prev, [item.productId]: item.forecastedDemand }))}
+                                  onClick={() => {
+                                    // Use enhanced forecast instead of raw forecast
+                                    const recommendedQuantity = product && packageSize > 1 ? 
+                                      getNextValidPackageQuantity(enhancedForecast, packageSize) : 
+                                      enhancedForecast;
+                                    setOrderQuantities(prev => ({ ...prev, [item.productId]: recommendedQuantity }));
+                                  }}
+                                  className="text-green-600 hover:text-green-700"
                                 >
-                                  Empfehlung
+                                  {isTouristLocation ? '🏖️ Ferien-Boost' : '📈 Empfehlung'}
                                 </Button>
                               </div>
-                              {quantity > 0 && (
+                              {quantity > 0 && product && packageSize > 1 && (
+                                <div className="text-xs text-primary font-medium text-center bg-blue-50 p-2 rounded border">
+                                  {packageInfo.packageCount} {packageTypeName} × {packageSize} {baseUnitName} = {quantity} {baseUnitName}
+                                </div>
+                              )}
+                              {quantity > 0 && (!product || packageSize <= 1) && (
                                 <div className="text-xs text-muted-foreground text-center">
-                                  {formatPackageDisplay(packageInfo)}
+                                  {quantity} {baseUnitName}
                                 </div>
                               )}
                             </div>
