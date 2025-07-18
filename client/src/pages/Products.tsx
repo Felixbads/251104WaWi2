@@ -578,19 +578,32 @@ export default function Products() {
     // Check if products is directly an array
     if (Array.isArray(products)) {
       console.log('Products is direct array with length:', products.length);
-      return products;
+      // Sicherstellen dass jedes Produkt korrekte Namen hat
+      return products.map(product => ({
+        ...product,
+        productName: product.productName || product.product_name || `Produkt-ID ${product.id}`,
+        name: product.productName || product.product_name || `Produkt-ID ${product.id}`
+      }));
     }
     
     // Check if products has a data property with an array
     if (products.data && Array.isArray(products.data)) {
       console.log('Products has data property with length:', products.data.length);
-      return products.data;
+      return products.data.map(product => ({
+        ...product,
+        productName: product.productName || product.product_name || `Produkt-ID ${product.id}`,
+        name: product.productName || product.product_name || `Produkt-ID ${product.id}`
+      }));
     }
     
     // Check if products has products property with an array
     if (products.products && Array.isArray(products.products)) {
       console.log('Products has products property with length:', products.products.length);
-      return products.products;
+      return products.products.map(product => ({
+        ...product,
+        productName: product.productName || product.product_name || `Produkt-ID ${product.id}`,
+        name: product.productName || product.product_name || `Produkt-ID ${product.id}`
+      }));
     }
     
     console.log('Unknown products format:', products);

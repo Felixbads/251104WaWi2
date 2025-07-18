@@ -2090,14 +2090,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         keys: Object.keys(productsResponse || {})
       });
       
+      // KRITISCHER FIX: Sicherstellen dass alle Produkte korrekte Produktnamen haben
       const finalProducts = productsResponse.products || productsResponse;
+      const productsWithNames = Array.isArray(finalProducts) ? finalProducts.map(product => ({
+        ...product,
+        productName: product.productName || product.product_name || `Produkt-ID ${product.id}`,
+        name: product.productName || product.product_name || `Produkt-ID ${product.id}`
+      })) : finalProducts;
+
       console.log(`[DEBUG] Final products to return:`, {
-        isArray: Array.isArray(finalProducts),
-        count: Array.isArray(finalProducts) ? finalProducts.length : 'not array',
-        firstItem: Array.isArray(finalProducts) && finalProducts.length > 0 ? finalProducts[0] : 'none'
+        isArray: Array.isArray(productsWithNames),
+        count: Array.isArray(productsWithNames) ? productsWithNames.length : 'not array',
+        firstItem: Array.isArray(productsWithNames) && productsWithNames.length > 0 ? productsWithNames[0] : 'none'
       });
       
-      res.json(finalProducts);
+      res.json(productsWithNames);
     } catch (error) {
       console.error("Error fetching products:", error);
       res.status(500).json({ 

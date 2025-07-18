@@ -782,13 +782,18 @@ app.get('/orders-data', (req, res) => {
           p.units as product_unit,
           COALESCE(oi.unit_price, 0) as unit_price,
           COALESCE(oi.total_price, oi.quantity * COALESCE(oi.unit_price, 0)) as total_price,
-          -- GEBINDE-INFORMATIONEN HINZUFÜGEN
-          COALESCE(oi.package_count, 1) as package_count,
-          COALESCE(oi.package_quantity, 1) as package_quantity,
-          COALESCE(oi.package_type_name, 'Stück') as package_type_name,
+          -- GEBINDE-INFORMATIONEN KORREKT AUS PURCHASE_CONDITIONS LADEN
+          CASE 
+            WHEN pc.packaging_quantity > 1 THEN FLOOR(oi.quantity::float / pc.packaging_quantity)
+            ELSE COALESCE(oi.package_count, 1)
+          END as package_count,
+          COALESCE(pc.packaging_quantity, oi.package_quantity, 1) as package_quantity,
+          COALESCE(pc.packaging_unit, oi.package_type_name, 'Stück') as package_type_name,
           COALESCE(oi.base_unit_name, 'Stück') as base_unit_name
         FROM order_items oi
         LEFT JOIN products p ON oi.product_id = p.id
+        LEFT JOIN purchase_conditions pc ON oi.product_id = pc.product_id 
+          AND pc.supplier_id = (SELECT supplier_id FROM orders WHERE id = $1)
         WHERE oi.order_id = $1
         ORDER BY oi.id
       `, [orderId]);
@@ -829,16 +834,43 @@ app.get('/orders-data', (req, res) => {
           // Nur echte Artikelnummer verwenden oder leer lassen
           const supplierSku = item.supplier_sku || '';
           
-          // GEBINDE-INFORMATIONEN BERECHNEN UND ANZEIGEN
+          // GEBINDE-INFORMATIONEN BERECHNEN UND ANZEIGEN - MIT SQL-KORREKTEN WERTEN
           const packageCount = parseInt(item.package_count || 1);
           const packageQuantity = parseInt(item.package_quantity || 1);
           const packageTypeName = item.package_type_name || 'Stück';
           const baseUnitName = item.base_unit_name || 'Stück';
           
-          // Gebinde-Darstellung: "5 Kisten × 24 Stück = 120 Stück"
+          console.log(`SQL PACKAGE VALUES für ${productName}:`, {
+            rawPackageCount: item.package_count,
+            rawPackageQuantity: item.package_quantity,
+            rawPackageTypeName: item.package_type_name,
+            parsedPackageCount: packageCount,
+            parsedPackageQuantity: packageQuantity,
+            quantity
+          });
+          
+          console.log(`PACKAGE DEBUG für ${productName}:`, {
+            packageCount, packageQuantity, packageTypeName, baseUnitName, quantity,
+            originalItem: { package_count: item.package_count, package_quantity: item.package_quantity, package_type_name: item.package_type_name }
+          });
+          
+          // Gebinde-Darstellung: "18 Kisten × 20 Stück = 360 Stück" (MIT KORREKTEN SQL-WERTEN)
           let quantityDisplay = '';
-          if (packageCount > 1 && packageQuantity > 1) {
+          
+          // KRITISCHER FIX: Verwende packageCount DIREKT aus SQL-Query statt zu berechnen
+          if (packageQuantity > 1 && packageCount > 1) {
+            // Verwende packageCount direkt aus SQL-Query (bereits korrekt berechnet)
             quantityDisplay = `${packageCount} ${packageTypeName} × ${packageQuantity} ${baseUnitName} = ${quantity} ${baseUnitName}`;
+            console.log(`PACKAGE DISPLAY für ${productName}: "${quantityDisplay}"`);
+          } else if (packageQuantity > 1 && quantity >= packageQuantity) {
+            // Fallback: Berechne falls packageCount nicht korrekt ist
+            const calculatedPackageCount = Math.floor(quantity / packageQuantity);
+            if (calculatedPackageCount > 1) {
+              quantityDisplay = `${calculatedPackageCount} ${packageTypeName} × ${packageQuantity} ${baseUnitName} = ${quantity} ${baseUnitName}`;
+              console.log(`PACKAGE DISPLAY FALLBACK für ${productName}: "${quantityDisplay}"`);
+            } else {
+              quantityDisplay = `${quantity} ${baseUnitName}`;
+            }
           } else {
             quantityDisplay = `${quantity} ${unit}`;
           }
