@@ -689,11 +689,9 @@ export default function SupplierDetail() {
     }
   })();
   
-  // Debugging-Ausgabe (temporär)
+  // Debug-Ausgabe für Produkte (orders und purchaseConditions werden später definiert)
   console.log(`Lieferant ${id} - Produkte geladen:`, products?.length, products);
   console.log(`Lieferant ${id} - Original response:`, productsResponse);
-  console.log(`Lieferant ${id} - Bestellungen:`, orders?.length, orders);
-  console.log(`Lieferant ${id} - Einkaufsbedingungen:`, purchaseConditions?.length, purchaseConditions);
   
   // Alle verfügbaren Produkte abfragen (für Zuordnung)
   const { data: allProductsResponse, isLoading: isAllProductsLoading } = useQuery({
@@ -762,6 +760,10 @@ export default function SupplierDetail() {
       return [];
     }
   })();
+
+  // Debugging-Ausgabe (nach Variablendefinition)
+  console.log(`Lieferant ${id} - Bestellungen:`, orders?.length, orders);
+  console.log(`Lieferant ${id} - Einkaufsbedingungen:`, purchaseConditions?.length, purchaseConditions);
   
   // Mutation für das Aktualisieren des Lieferanten
   const updateMutation = useMutation({

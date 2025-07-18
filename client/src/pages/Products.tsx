@@ -469,8 +469,9 @@ export default function Products() {
     }
   }, [vendonProductsError]);
 
-  // Category Filter
+  // Category Filter - kombiniert mit Tab State
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<string>("all");
 
   // Debug: Das Format der API-Antwort untersuchen
   useEffect(() => {
@@ -1036,16 +1037,22 @@ export default function Products() {
       />
 
       {/* Tabs for Category Filtering */}
-      <Tabs defaultValue="all" className="w-full">
+      <Tabs 
+        value={activeTab} 
+        onValueChange={(value) => {
+          setActiveTab(value);
+          setCategoryFilter(value === "all" ? null : value);
+        }} 
+        className="w-full"
+      >
         <TabsList className="overflow-x-auto">
-          <TabsTrigger value="all" onClick={() => setCategoryFilter(null)}>
+          <TabsTrigger value="all">
             Alle
           </TabsTrigger>
           {categories.map((category) => (
             <TabsTrigger 
               key={category} 
               value={category}
-              onClick={() => setCategoryFilter(category)}
             >
               {category}
             </TabsTrigger>
@@ -1096,16 +1103,16 @@ export default function Products() {
       {/* Products Grid/List View */}
       {!isLoading && !error && viewMode === "grid" && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {(filteredProducts as Product[]).map((product: Product) => (
-            <ProductCard key={product.id} product={product} />
+          {(filteredProducts as Product[]).map((product: Product, index: number) => (
+            <ProductCard key={`product-${product.id}-${product.vendon_id || product.vendonId || index}`} product={product} />
           ))}
         </div>
       )}
 
       {!isLoading && !error && viewMode === "list" && (
         <div className="border rounded-md divide-y">
-          {(filteredProducts as Product[]).map((product: Product) => (
-            <ProductListItem key={product.id} product={product} />
+          {(filteredProducts as Product[]).map((product: Product, index: number) => (
+            <ProductListItem key={`product-list-${product.id}-${product.vendon_id || product.vendonId || index}`} product={product} />
           ))}
         </div>
       )}
@@ -1126,6 +1133,7 @@ export default function Products() {
               // Alle Filter zurücksetzen
               setSearchTerm("");
               setCategoryFilter(null);
+              setActiveTab("all");
               setFilters({
                 onlyInStock: false,
                 onlyLowStock: false,
