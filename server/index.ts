@@ -1185,6 +1185,84 @@ app.get('/orders-data', (req, res) => {
     }
   });
 
+  // NEUE PRODUKTLISTEN-API FÜR KOREKTE NAMEN
+  app.get('/api/suppliers/:supplierId/products-fixed', async (req, res) => {
+    console.log('[PRODUCTS-FIXED] Fetching products with correct names for supplier:', req.params.supplierId);
+    
+    try {
+      const supplierId = parseInt(req.params.supplierId);
+      
+      if (isNaN(supplierId)) {
+        return res.status(400).json({ error: 'Invalid supplier ID' });
+      }
+
+      // DIREKTE SQL-ABFRAGE FÜR AUTHENTISCHE PRODUKTNAMEN
+      const query = `
+        SELECT 
+          p.id,
+          p.product_name,
+          p.category,
+          p.price,
+          p.units,
+          p.package_size,
+          p.short_description,
+          p.vendon_id,
+          p.status,
+          pc.unit_price as purchase_price,
+          pc.packaging_unit,
+          pc.packaging_quantity,
+          pc.deposit_per_unit,
+          pc.min_quantity
+        FROM products p
+        LEFT JOIN purchase_conditions pc ON p.id = pc.product_id AND pc.supplier_id = $1
+        WHERE (pc.supplier_id = $1 OR p.supplier_id = $1)
+          AND p.product_name IS NOT NULL 
+          AND p.product_name != ''
+          AND p.status = 'active'
+        ORDER BY p.product_name ASC
+      `;
+      
+      const result = await pool.query(query, [supplierId]);
+      
+      // SICHERE DATENKONVERTIERUNG
+      const products = result.rows.map(product => ({
+        id: product.id,
+        productName: product.product_name,
+        name: product.product_name,
+        category: product.category || 'Ohne Kategorie',
+        price: product.price || 0,
+        purchasePrice: product.purchase_price || 0,
+        units: product.units || 'Stück',
+        packageSize: product.package_size || '',
+        packagingUnit: product.packaging_unit || 'Stück',
+        packagingQuantity: product.packaging_quantity || 1,
+        depositPerUnit: product.deposit_per_unit || 0,
+        minQuantity: product.min_quantity || 0,
+        shortDescription: product.short_description || '',
+        vendonId: product.vendon_id || '',
+        status: product.status || 'active'
+      }));
+      
+      console.log(`[PRODUCTS-FIXED] SUCCESS: Found ${products.length} products with names:`, 
+        products.slice(0, 3).map(p => ({ id: p.id, name: p.productName })));
+      
+      res.json({
+        success: true,
+        data: products,
+        count: products.length,
+        supplierId: supplierId
+      });
+      
+    } catch (error) {
+      console.error('[PRODUCTS-FIXED] Error:', error);
+      res.status(500).json({ 
+        success: false,
+        error: 'Failed to fetch products',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
   // Mount supplier portal router FIRST to prevent Vite middleware conflicts
   const supplierPortalRouter = (await import('./routes/supplier-portal')).default;
   app.use('/api/supplier-portal', supplierPortalRouter);

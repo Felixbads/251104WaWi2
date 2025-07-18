@@ -48,6 +48,7 @@ import { SupplierEditDialog } from "@/components/SupplierEditDialog";
 import UnifiedPurchaseConditionsManager from "@/components/purchase-conditions/UnifiedPurchaseConditionsManager";
 import SupplierDiscountManager from "@/components/SupplierDiscountManager";
 import SupplierInformationTab from "@/components/suppliers/SupplierInformationTab";
+import ProductOverviewTable from "@/components/ProductOverviewTable";
 import { apiRequest } from "@/lib/queryClient";
 
 // Inline editing component for supplier fields
@@ -1528,127 +1529,23 @@ export default function SupplierDetail() {
           <SupplierInformationTab supplier={supplier} supplierId={parseInt(id!)} />
         </TabsContent>
         
-        {/* Produkte Tab */}
-        <TabsContent value="products">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <div>
-                <CardTitle>Produkte</CardTitle>
-                <CardDescription>
-                  Alle Produkte dieses Lieferanten
-                </CardDescription>
-              </div>
-              <Button onClick={() => setShowProductAssignmentDialog(true)}>
-                <Plus className="h-4 w-4 mr-2" />
-                Produkt zuordnen
-              </Button>
-            </CardHeader>
-            <CardContent>
-              {isProductsLoading ? (
-                <div className="space-y-4">
-                  {[1, 2, 3].map((i) => (
-                    <div key={i} className="flex items-center p-3 border rounded-md">
-                      <div className="flex-grow">
-                        <Skeleton className="h-5 w-40 mb-1" />
-                        <Skeleton className="h-4 w-24" />
-                      </div>
-                      <Skeleton className="h-6 w-16" />
-                    </div>
-                  ))}
-                </div>
-              ) : !products || products.length === 0 ? (
-                <div className="text-center p-6">
-                  <Package className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
-                  <h3 className="text-lg font-medium mb-1">Keine Produkte gefunden</h3>
-                  <p className="text-muted-foreground mb-4">
-                    Für diesen Lieferanten sind noch keine Produkte erfasst.
-                  </p>
-                  <Button variant="outline" onClick={() => setShowProductAssignmentDialog(true)}>
-                    Produkte zuordnen
-                  </Button>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {products.map((product: any) => (
-                    <div 
-                      key={product.id} 
-                      className="flex items-center p-3 border rounded-md hover:bg-accent"
-                    >
-                      <div 
-                        className="flex-grow cursor-pointer"
-                        onClick={() => navigate(`/produkte/${product.id}`)}
-                      >
-                        <h3 className="font-medium">{product.productName || product.product_name || product.name || 'Produkt ohne Namen'}</h3>
-                        <div className="text-sm text-muted-foreground">
-                          {product.sku && <span className="mr-2">SKU: {product.sku}</span>}
-                          {product.supplierSku && <span className="mr-2">Lieferanten-Nr.: {product.supplierSku}</span>}
-                          {product.category && <span className="mr-2">• {product.category}</span>}
-                        </div>
-                        {/* Einkaufsbedingungen anzeigen */}
-                        {(product.unitPrice || product.minQuantity || product.deliveryTime) && (
-                          <div className="text-xs text-muted-foreground mt-1 flex items-center gap-3">
-                            {product.unitPrice && (
-                              <span className="flex items-center">
-                                <Euro className="h-3 w-3 mr-1" />
-                                EK: {product.unitPrice.toFixed(2)} €
-                              </span>
-                            )}
-                            {product.minQuantity && (
-                              <span>Min: {product.minQuantity}</span>
-                            )}
-                            {product.deliveryTime && (
-                              <span className="flex items-center">
-                                <Clock className="h-3 w-3 mr-1" />
-                                {product.deliveryTime}
-                              </span>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <div className="text-right">
-                          {/* Hauptpreis (Einkaufspreis) */}
-                          <Badge variant={product.unitPrice ? "default" : "outline"} className="mb-1">
-                            {product.unitPrice ? `${product.unitPrice.toFixed(2)} €` : 
-                             product.purchasePrice ? `${product.purchasePrice.toFixed(2)} €` : 
-                             product.price ? `${product.price.toFixed(2)} €` : 'k.A.'}
-                          </Badge>
-                          {/* Bruttopreis falls verfügbar */}
-                          {product.grossPrice && product.grossPrice !== product.unitPrice && (
-                            <div className="text-xs text-muted-foreground">
-                              Brutto: {product.grossPrice.toFixed(2)} €
-                            </div>
-                          )}
-                          {/* Bevorzugter Lieferant Indikator */}
-                          {product.isPreferred && (
-                            <div className="text-xs text-green-600 font-medium">
-                              ⭐ Bevorzugt
-                            </div>
-                          )}
-                        </div>
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            removeProductFromSupplierMutation.mutate(product.id);
-                          }}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-            <CardFooter>
-              <Button variant="outline" className="w-full" onClick={() => navigate('/produkte?supplierId=' + id)}>
-                Alle Produkte anzeigen
-              </Button>
-            </CardFooter>
-          </Card>
+        {/* Produkte Tab - NEUE KORREKTE PRODUKTANZEIGE */}
+        <TabsContent value="products" className="space-y-6">
+          <ProductOverviewTable 
+            supplierId={parseInt(id!)} 
+            supplierName={supplier?.name}
+          />
+        </TabsContent>
+        
+        
+        {/* Einkaufsbedingungen Tab */}
+        <TabsContent value="purchaseConditions" className="space-y-6">
+          <UnifiedPurchaseConditionsManager supplierId={parseInt(id!)} />
+        </TabsContent>
+        
+        {/* Rabattbedingungen Tab */}
+        <TabsContent value="discountConditions" className="space-y-6">
+          <SupplierDiscountManager supplierId={parseInt(id!)} />
         </TabsContent>
         
         {/* Bestellungen Tab */}

@@ -40,11 +40,13 @@ export function PurchaseConditionsTab({ supplierId, supplierName }: PurchaseCond
     queryFn: () => fetch(`/api/suppliers/${supplierId}/purchase-conditions`).then(res => res.json())
   });
 
-  // Fetch available products for new conditions
-  const { data: availableProducts = [] } = useQuery({
-    queryKey: ['suppliers-conditions', supplierId, 'available-products'],
-    queryFn: () => fetch(`/api/suppliers/${supplierId}/available-products`).then(res => res.json())
+  // Fetch available products for new conditions - NEUE FIXED API
+  const { data: availableProductsResponse } = useQuery({
+    queryKey: ['suppliers-products-fixed', supplierId],
+    queryFn: () => fetch(`/api/suppliers/${supplierId}/products-fixed`).then(res => res.json())
   });
+  
+  const availableProducts = availableProductsResponse?.data || [];
 
   // Create mutation
   const createMutation = useMutation({
