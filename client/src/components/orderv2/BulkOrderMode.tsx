@@ -457,9 +457,20 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
 
   // Handle order quantity changes with package validation
   const updateOrderQuantity = (productId: number, quantity: number) => {
-    const product = (inventoryData as any[])?.find((item: any) => item.productId === productId);
+    const product = (inventoryData as any[])?.find((item: any) => item.product_id === productId);
     
-    const packageSize = product?.package_size || product?.packageSize || 1;
+    console.log(`🔧 UPDATE ORDER QUANTITY DEBUG:`, {
+      productId,
+      quantity,
+      productFound: !!product,
+      productData: product ? {
+        product_id: product.product_id,
+        package_size: product.package_size,
+        package_type_name: product.package_type_name
+      } : null
+    });
+    
+    const packageSize = product?.package_size || 1;
     if (product && packageSize > 1) {
       // Validate package-based quantity and round up to next valid package quantity
       const validation = validatePackageQuantitySimple(quantity, packageSize);
@@ -1333,7 +1344,7 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
                       packageSize,
                       packageTypeName,
                       baseUnitName
-                    ) : { packageCount: 0, totalQuantity: enhancedForecast, packageSize: 1, packageTypeName: 'Stück', baseUnitName: 'Stück' };
+                    ) : { packageCount: 0, totalQuantity: enhancedForecast, packageQuantity: 1, packageTypeName: 'Stück', baseUnitName: 'Stück' };
                     
                     const rows = [
                       <TableRow key={item.productId}>
@@ -1349,12 +1360,18 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
                         </TableCell>
                         <TableCell>
                           <Badge variant="secondary">
-                            {formatPackageDisplay(forecastPackageInfo)} erwartet
+                            {product && packageSize > 1 ? 
+                              `${Math.ceil(enhancedForecast / packageSize)} ${packageTypeName} erwartet` :
+                              `${enhancedForecast} Stück erwartet`
+                            }
                           </Badge>
                         </TableCell>
                         <TableCell>
                           <Badge variant="outline">
-                            {formatPackageDisplay(forecastPackageInfo)} bestellen
+                            {product && packageSize > 1 ? 
+                              `${Math.ceil(enhancedForecast / packageSize)} ${packageTypeName} bestellen` :
+                              `${enhancedForecast} Stück bestellen`
+                            }
                           </Badge>
                         </TableCell>
                         <TableCell>
