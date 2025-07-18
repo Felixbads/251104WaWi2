@@ -292,7 +292,7 @@ export default function ProductDetail() {
           </Button>
           <div>
             <h1 className="text-3xl font-bold">
-              {product.productName || product.product_name || `Produkt #${product.id}` || 'Unbenanntes Produkt'}
+              {product.productName || product.product_name || `Produkt #${product.id}` || 'Produkt ohne Namen'}
             </h1>
             <p className="text-gray-600">
               {product.sku && `SKU: ${product.sku}`}

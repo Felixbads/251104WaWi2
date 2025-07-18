@@ -469,9 +469,19 @@ export default function Products() {
     }
   }, [vendonProductsError]);
 
-  // Category Filter - kombiniert mit Tab State
+  // Category Filter - kombiniert mit Tab State - BEHOBEN: Synchronisiert activeTab mit categoryFilter
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<string>("all");
+  
+  // Synchronisiere activeTab mit categoryFilter für Tab-Filterung
+  const handleTabChange = (tabValue: string) => {
+    setActiveTab(tabValue);
+    if (tabValue === "all") {
+      setCategoryFilter(null);
+    } else {
+      setCategoryFilter(tabValue);
+    }
+  };
 
   // Debug: Das Format der API-Antwort untersuchen
   useEffect(() => {
@@ -639,8 +649,9 @@ export default function Products() {
                             (product.sku?.toLowerCase().includes(searchTerm.toLowerCase()) || false);
         
         // Kategorie-Filter
-        const matchesCategory = !categoryFilter || product.category === categoryFilter || 
-                              (categoryFilter === 'Unkategorisiert' && !product.category);
+        // Tab-basierte Kategorie-Filterung - BEHOBEN: Korrekte Kategorie-Zuordnung 
+        const matchesCategory = activeTab === "all" || product.category === activeTab || 
+                              (activeTab === 'Unkategorisiert' && !product.category);
         
         // Filter für Lieferanten
         const matchesSupplier = filters.suppliers.length === 0 || 
@@ -1039,10 +1050,7 @@ export default function Products() {
       {/* Tabs for Category Filtering */}
       <Tabs 
         value={activeTab} 
-        onValueChange={(value) => {
-          setActiveTab(value);
-          setCategoryFilter(value === "all" ? null : value);
-        }} 
+        onValueChange={handleTabChange}
         className="w-full"
       >
         <TabsList className="overflow-x-auto">
@@ -1104,7 +1112,7 @@ export default function Products() {
       {!isLoading && !error && viewMode === "grid" && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {(filteredProducts as Product[]).map((product: Product, index: number) => (
-            <ProductCard key={`product-${product.id}-${product.vendon_id || product.vendonId || index}`} product={product} />
+            <ProductCard key={`product-grid-${product.id}-${product.vendon_id || product.vendonId || `idx-${index}`}-${Date.now()}`} product={product} />
           ))}
         </div>
       )}
@@ -1112,7 +1120,7 @@ export default function Products() {
       {!isLoading && !error && viewMode === "list" && (
         <div className="border rounded-md divide-y">
           {(filteredProducts as Product[]).map((product: Product, index: number) => (
-            <ProductListItem key={`product-list-${product.id}-${product.vendon_id || product.vendonId || index}`} product={product} />
+            <ProductListItem key={`product-list-${product.id}-${product.vendon_id || product.vendonId || `idx-${index}`}-${Date.now()}`} product={product} />
           ))}
         </div>
       )}
@@ -1132,8 +1140,7 @@ export default function Products() {
             onClick={() => {
               // Alle Filter zurücksetzen
               setSearchTerm("");
-              setCategoryFilter(null);
-              setActiveTab("all");
+              handleTabChange("all");
               setFilters({
                 onlyInStock: false,
                 onlyLowStock: false,

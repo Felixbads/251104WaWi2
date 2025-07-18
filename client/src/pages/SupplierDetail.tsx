@@ -1578,7 +1578,7 @@ export default function SupplierDetail() {
                         className="flex-grow cursor-pointer"
                         onClick={() => navigate(`/produkte/${product.id}`)}
                       >
-                        <h3 className="font-medium">{product.productName || product.name || 'Unbenanntes Produkt'}</h3>
+                        <h3 className="font-medium">{product.productName || product.product_name || product.name || 'Produkt ohne Namen'}</h3>
                         <div className="text-sm text-muted-foreground">
                           {product.sku && <span className="mr-2">SKU: {product.sku}</span>}
                           {product.supplierSku && <span className="mr-2">Lieferanten-Nr.: {product.supplierSku}</span>}
@@ -1916,7 +1916,7 @@ export default function SupplierDetail() {
                     >
                       <div className="flex-grow">
                         <div className="font-medium">
-                          {product.productName || product.name}
+                          {product.productName || product.product_name || product.name}
                           {product.supplierId === parseInt(id) && (
                             <Badge className="ml-2 bg-green-100 text-green-800 border-green-200">
                               Bereits zugeordnet
