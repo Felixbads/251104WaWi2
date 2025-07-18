@@ -14,6 +14,7 @@ import StandortAnalyse from "@/pages/StandortAnalyse"; // Standort-Analyse mit V
 import AutomatDetail from "@/pages/AutomatDetail"; // Detail-Ansicht eines Automaten
 import RefillDetail from "@/pages/RefillDetail"; // Detail-Ansicht einer Auffüllung
 import Products from "@/pages/Products";
+import ProductsNew from "@/pages/ProductsNew";
 import ProductDetail from "@/pages/ProductDetail"; // Detail-Ansicht eines Produkts
 import ProductDataEntry from "@/pages/ProductDataEntry"; // Tabellarische Produktdatenbearbeitung
 import WarenbewegungNewPage from "@/pages/WarenbewegungNewPage"; // Neue Warenumlagerung-Komponente
@@ -220,7 +221,7 @@ function AuthenticatedRouter() {
 
         <Route path="/produkte" component={props => (
           <ApprovedUserRoute>
-            <Products {...props} />
+            <ProductsNew {...props} />
           </ApprovedUserRoute>
         )} />
 
