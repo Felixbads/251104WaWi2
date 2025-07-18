@@ -659,19 +659,35 @@ export default function SupplierDetail() {
   const { data: supplier, isLoading, error } = useQuery<Supplier>({
     queryKey: [`/api/suppliers/${id}`],
     staleTime: 1000 * 60, // 1 Minute
+    enabled: !!id && !isNaN(parseInt(id)),
+    retry: 2,
+    retryDelay: 1000,
   });
   
   // Produkte des Lieferanten abfragen
-  const { data: productsResponse, isLoading: isProductsLoading } = useQuery({
+  const { data: productsResponse, isLoading: isProductsLoading, error: productsError } = useQuery({
     queryKey: ['/api/products', { supplierId: parseInt(id) }],
     staleTime: 1000 * 60, // 1 Minute
-    enabled: !!id
+    enabled: !!id && !isNaN(parseInt(id)),
+    retry: 2,
+    onError: (error) => {
+      console.error('Fehler beim Laden der Produkte:', error);
+    }
   });
   
   // Produkte extrahieren und als Array zur Verfügung stellen
-  const products = Array.isArray(productsResponse) ? productsResponse : 
-                   Array.isArray(productsResponse?.data) ? productsResponse.data : 
-                   Array.isArray(productsResponse?.products) ? productsResponse.products : [];
+  const products = (() => {
+    try {
+      if (!productsResponse) return [];
+      if (Array.isArray(productsResponse)) return productsResponse;
+      if (Array.isArray(productsResponse?.data)) return productsResponse.data;
+      if (Array.isArray(productsResponse?.products)) return productsResponse.products;
+      return [];
+    } catch (error) {
+      console.error('Fehler beim Verarbeiten der Produktdaten:', error);
+      return [];
+    }
+  })();
   
   // Debugging-Ausgabe (temporär)
   console.log(`Lieferant ${id} - Produkte geladen:`, products?.length, products);
@@ -694,34 +710,58 @@ export default function SupplierDetail() {
     : [];
   
   // Bestellungen des Lieferanten abfragen
-  const { data: ordersResponse, isLoading: isOrdersLoading } = useQuery({
+  const { data: ordersResponse, isLoading: isOrdersLoading, error: ordersError } = useQuery({
     queryKey: ['/api/orders', { supplierId: parseInt(id) }],
     staleTime: 1000 * 60, // 1 Minute
-    enabled: !!id
+    enabled: !!id && !isNaN(parseInt(id)),
+    retry: 2,
+    onError: (error) => {
+      console.error('Fehler beim Laden der Bestellungen:', error);
+    }
   });
   
   // Bestellungen extrahieren und als Array zur Verfügung stellen
-  const orders = Array.isArray(ordersResponse) ? ordersResponse : 
-                 Array.isArray(ordersResponse?.orders) ? ordersResponse.orders : 
-                 Array.isArray(ordersResponse?.data) ? ordersResponse.data : [];
+  const orders = (() => {
+    try {
+      if (!ordersResponse) return [];
+      if (Array.isArray(ordersResponse)) return ordersResponse;
+      if (Array.isArray(ordersResponse?.orders)) return ordersResponse.orders;
+      if (Array.isArray(ordersResponse?.data)) return ordersResponse.data;
+      return [];
+    } catch (error) {
+      console.error('Fehler beim Verarbeiten der Bestellungsdaten:', error);
+      return [];
+    }
+  })();
   
   // Einkaufsbedingungen des Lieferanten abfragen
   const { 
     data: purchaseConditionsResponse, 
     isLoading: isPurchaseConditionsLoading,
+    error: purchaseConditionsError,
     refetch: refetchPurchaseConditions
   } = useQuery({
     queryKey: [`/api/suppliers/${id}/purchase-conditions`],
     staleTime: 1000 * 60, // 1 Minute
-    enabled: !!id
+    enabled: !!id && !isNaN(parseInt(id)),
+    retry: 2,
+    onError: (error) => {
+      console.error('Fehler beim Laden der Einkaufsbedingungen:', error);
+    }
   });
   
   // Extract purchase conditions from response
-  const purchaseConditions = Array.isArray(purchaseConditionsResponse) 
-    ? purchaseConditionsResponse 
-    : Array.isArray(purchaseConditionsResponse?.data) 
-    ? purchaseConditionsResponse.data 
-    : [];
+  const purchaseConditions = (() => {
+    try {
+      if (!purchaseConditionsResponse) return [];
+      if (Array.isArray(purchaseConditionsResponse)) return purchaseConditionsResponse;
+      if (Array.isArray(purchaseConditionsResponse?.data)) return purchaseConditionsResponse.data;
+      return [];
+    } catch (error) {
+      console.error('Fehler beim Verarbeiten der Einkaufsbedingungen:', error);
+      return [];
+    }
+  })();
   
   // Mutation für das Aktualisieren des Lieferanten
   const updateMutation = useMutation({
