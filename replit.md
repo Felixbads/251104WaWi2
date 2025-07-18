@@ -109,6 +109,14 @@ This is a comprehensive vending machine management platform (Warenwirtschaftssys
 
 ## Changelog
 
+- July 18, 2025: FINAL BULK ORDER FIX - Package data now correctly sourced from purchase_conditions
+  - ✅ **CRITICAL FIX**: bulk-orders.ts API now uses purchase_conditions table for correct package information
+  - ✅ **Package Types Corrected**: packaging_unit and packaging_quantity from purchase_conditions replace products table data
+  - ✅ **"Stiege" Issue Resolved**: System now shows "Kiste" for beverages as defined in purchase conditions
+  - ✅ **Field Name Consistency**: Fixed product_id vs productId mismatches in calculateTotals and updateOrderQuantity
+  - ✅ **Button Functionality Restored**: +/- buttons and order creation now work correctly
+  - ✅ **Comprehensive Debugging**: Added extensive logging for troubleshooting package calculations
+  - System now displays authentic German beverage packaging standards from purchase conditions data
 - July 18, 2025: CRITICAL BULK ORDER COMPLETION FIXES - DOM structure, package display, and button functionality completely resolved
   - ✅ **Package Quantity Logic Enhanced**: Order input now shows complete breakdown "N Gebinde × M Stück = Total Stück" instead of just package count
   - ✅ **Data Display Fixed**: All inventory tables now show "–" or "Keine Angabe vorhanden" for empty fields (purchase price, supplier name, location, min/max stock)
