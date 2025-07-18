@@ -866,52 +866,54 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
               </TableHeader>
               <TableBody>
                 {Array.isArray(salesAnalysis) && salesAnalysis.length > 0 ? (
-                  salesAnalysis.map((item: SalesAnalysis) => {
+                  salesAnalysis.flatMap((item: SalesAnalysis) => {
                     const isExpanded = expandedRows[item.productId];
-                    return (
-                      <div key={item.productId}>
-                        <TableRow>
-                          <TableCell className="font-medium">{item.productName}</TableCell>
-                          <TableCell>{item.totalSales}</TableCell>
-                          <TableCell>{Number(item.totalRevenue).toFixed(2)} €</TableCell>
-                          <TableCell>{Number(item.avgWeeklySales).toFixed(1)}</TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              <Badge 
-                                variant={
-                                  item.trendDirection === 'up' ? "default" :
-                                  item.trendDirection === 'down' ? "destructive" : "secondary"
-                                }
-                              >
-                                {item.trendDirection === 'up' ? '↗' : 
-                                 item.trendDirection === 'down' ? '↘' : '→'}
-                                {item.trendPercentage?.toFixed(0) || '0'}%
-                              </Badge>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => toggleRowExpansion(item.productId)}
-                              className="flex items-center gap-1"
+                    const rows = [
+                      <TableRow key={item.productId}>
+                        <TableCell className="font-medium">{item.productName}</TableCell>
+                        <TableCell>{item.totalSales}</TableCell>
+                        <TableCell>{Number(item.totalRevenue).toFixed(2)} €</TableCell>
+                        <TableCell>{Number(item.avgWeeklySales).toFixed(1)}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Badge 
+                              variant={
+                                item.trendDirection === 'up' ? "default" :
+                                item.trendDirection === 'down' ? "destructive" : "secondary"
+                              }
                             >
-                              {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                              <MapPin className="h-3 w-3" />
-                              Standorte
-                            </Button>
+                              {item.trendDirection === 'up' ? '↗' : 
+                               item.trendDirection === 'down' ? '↘' : '→'}
+                              {item.trendPercentage?.toFixed(0) || '0'}%
+                            </Badge>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => toggleRowExpansion(item.productId)}
+                            className="flex items-center gap-1"
+                          >
+                            {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                            <MapPin className="h-3 w-3" />
+                            Standorte
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ];
+                    
+                    if (isExpanded) {
+                      rows.push(
+                        <TableRow key={`${item.productId}-details`} className="bg-gray-50">
+                          <TableCell colSpan={6} className="p-0">
+                            <SalesLocationBreakdown productId={item.productId} analysisWeeks={analysisWeeks} />
                           </TableCell>
                         </TableRow>
-                        
-                        {isExpanded && (
-                          <TableRow className="bg-gray-50">
-                            <TableCell colSpan={6} className="p-0">
-                              <SalesLocationBreakdown productId={item.productId} analysisWeeks={analysisWeeks} />
-                            </TableCell>
-                          </TableRow>
-                        )}
-                      </div>
-                    );
+                      );
+                    }
+                    
+                    return rows;
                   })
                 ) : (
                   <TableRow>
@@ -1278,138 +1280,140 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
                       baseUnitName
                     ) : { packageCount: 0, totalQuantity: enhancedForecast, packageSize: 1, packageTypeName: 'Stück', baseUnitName: 'Stück' };
                     
-                    return (
-                      <div key={item.productId}>
-                        <TableRow>
-                          <TableCell className="font-medium">
-                            <div>
-                              <div className="font-medium">{item.productName}</div>
-                              {product && packageSize > 1 && (
-                                <div className="text-xs text-muted-foreground">
-                                  {packageTypeName} à {packageSize} {baseUnitName}
-                                </div>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="secondary">
-                              {formatPackageDisplay(forecastPackageInfo)} erwartet
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline">
-                              {formatPackageDisplay(forecastPackageInfo)} bestellen
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <div className="space-y-2">
-                              <div className="flex items-center gap-2">
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => {
-                                    const newQuantity = product && packageSize > 1 ? 
-                                      getPreviousValidPackageQuantity(quantity, packageSize) : 
-                                      quantity - 1;
-                                    updateOrderQuantity(item.productId, newQuantity);
-                                  }}
-                                  disabled={quantity <= 0}
-                                >
-                                  <Minus className="h-3 w-3" />
-                                </Button>
-                                <Input
-                                  type="number"
-                                  value={product && packageSize > 1 ? packageInfo.packageCount : quantity}
-                                  onChange={(e) => {
-                                    const inputValue = parseInt(e.target.value) || 0;
-                                    const newQuantity = product && packageSize > 1 ? 
-                                      inputValue * packageSize : 
-                                      inputValue;
-                                    updateOrderQuantity(item.productId, newQuantity);
-                                  }}
-                                  className="w-20 text-center"
-                                  min="0"
-                                  step={packageSize > 1 ? 1 : 1}
-                                />
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => {
-                                    const newQuantity = product && packageSize > 1 ? 
-                                      getNextValidPackageQuantity(quantity, packageSize) : 
-                                      quantity + 1;
-                                    updateOrderQuantity(item.productId, newQuantity);
-                                  }}
-                                >
-                                  <Plus className="h-3 w-3" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => {
-                                    // Use enhanced forecast instead of raw forecast
-                                    const recommendedQuantity = product && packageSize > 1 ? 
-                                      getNextValidPackageQuantity(enhancedForecast, packageSize) : 
-                                      enhancedForecast;
-                                    setOrderQuantities(prev => ({ ...prev, [item.productId]: recommendedQuantity }));
-                                  }}
-                                  className="text-green-600 hover:text-green-700"
-                                >
-                                  {isTouristLocation ? '🏖️ Ferien-Boost' : '📈 Empfehlung'}
-                                </Button>
+                    const rows = [
+                      <TableRow key={item.productId}>
+                        <TableCell className="font-medium">
+                          <div>
+                            <div className="font-medium">{item.productName}</div>
+                            {product && packageSize > 1 && (
+                              <div className="text-xs text-muted-foreground">
+                                {packageTypeName} à {packageSize} {baseUnitName}
                               </div>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="secondary">
+                            {formatPackageDisplay(forecastPackageInfo)} erwartet
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline">
+                            {formatPackageDisplay(forecastPackageInfo)} bestellen
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  const newQuantity = product && packageSize > 1 ? 
+                                    getPreviousValidPackageQuantity(quantity, packageSize) : 
+                                    quantity - 1;
+                                  updateOrderQuantity(item.productId, newQuantity);
+                                }}
+                                disabled={quantity <= 0}
+                              >
+                                <Minus className="h-3 w-3" />
+                              </Button>
+                              <Input
+                                type="number"
+                                value={product && packageSize > 1 ? packageInfo.packageCount : quantity}
+                                onChange={(e) => {
+                                  const inputValue = parseInt(e.target.value) || 0;
+                                  const newQuantity = product && packageSize > 1 ? 
+                                    inputValue * packageSize : 
+                                    inputValue;
+                                  updateOrderQuantity(item.productId, newQuantity);
+                                }}
+                                className="w-20 text-center"
+                                min="0"
+                                step={packageSize > 1 ? 1 : 1}
+                              />
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  const newQuantity = product && packageSize > 1 ? 
+                                    getNextValidPackageQuantity(quantity, packageSize) : 
+                                    quantity + 1;
+                                  updateOrderQuantity(item.productId, newQuantity);
+                                }}
+                              >
+                                <Plus className="h-3 w-3" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  // Use enhanced forecast instead of raw forecast
+                                  const recommendedQuantity = product && packageSize > 1 ? 
+                                    getNextValidPackageQuantity(enhancedForecast, packageSize) : 
+                                    enhancedForecast;
+                                  setOrderQuantities(prev => ({ ...prev, [item.productId]: recommendedQuantity }));
+                                }}
+                                className="text-green-600 hover:text-green-700"
+                              >
+                                {isTouristLocation ? '🏖️ Ferien-Boost' : '📈 Empfehlung'}
+                              </Button>
+                            </div>
+                            {quantity > 0 && product && packageSize > 1 && (
+                              <div className="text-xs text-primary font-medium text-center bg-blue-50 p-2 rounded border">
+                                {packageInfo.packageCount} {packageTypeName} × {packageSize} {baseUnitName} = {quantity} {baseUnitName}
+                              </div>
+                            )}
+                            {quantity > 0 && (!product || packageSize <= 1) && (
+                              <div className="text-xs text-muted-foreground text-center">
+                                {quantity} {baseUnitName}
+                              </div>
+                            )}
+                          </div>
+                        </TableCell>
+                        {showPricesInTable && (
+                          <TableCell>
+                            <div className="text-right">
+                              <div className="font-medium">{totalCost.toFixed(2)} €</div>
                               {quantity > 0 && product && packageSize > 1 && (
-                                <div className="text-xs text-primary font-medium text-center bg-blue-50 p-2 rounded border">
-                                  {packageInfo.packageCount} {packageTypeName} × {packageSize} {baseUnitName} = {quantity} {baseUnitName}
-                                </div>
-                              )}
-                              {quantity > 0 && (!product || packageSize <= 1) && (
-                                <div className="text-xs text-muted-foreground text-center">
-                                  {quantity} {baseUnitName}
+                                <div className="text-xs text-muted-foreground">
+                                  {packageInfo.packageCount} × {(purchasePrice * packageSize).toFixed(2)} €
                                 </div>
                               )}
                             </div>
                           </TableCell>
-                          {showPricesInTable && (
-                            <TableCell>
-                              <div className="text-right">
-                                <div className="font-medium">{totalCost.toFixed(2)} €</div>
-                                {quantity > 0 && product && packageSize > 1 && (
-                                  <div className="text-xs text-muted-foreground">
-                                    {packageInfo.packageCount} × {(purchasePrice * packageSize).toFixed(2)} €
-                                  </div>
-                                )}
-                              </div>
-                            </TableCell>
-                          )}
-                          <TableCell>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => toggleRowExpansion(item.productId)}
-                              disabled={quantity === 0}
-                              className="flex items-center gap-1"
-                            >
-                              {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                              <MapPin className="h-3 w-3" />
-                              Standorte
-                            </Button>
+                        )}
+                        <TableCell>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => toggleRowExpansion(item.productId)}
+                            disabled={quantity === 0}
+                            className="flex items-center gap-1"
+                          >
+                            {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                            <MapPin className="h-3 w-3" />
+                            Standorte
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ];
+                    
+                    if (isExpanded && quantity > 0) {
+                      rows.push(
+                        <TableRow key={`${item.productId}-details`} className="bg-gray-50">
+                          <TableCell colSpan={showPricesInTable ? 6 : 5} className="p-0">
+                            <ForecastLocationBreakdown 
+                              productId={item.productId} 
+                              totalQuantity={quantity} 
+                              forecastWeeks={forecastWeeks} 
+                            />
                           </TableCell>
                         </TableRow>
-                        
-                        {isExpanded && quantity > 0 && (
-                          <TableRow className="bg-gray-50">
-                            <TableCell colSpan={showPricesInTable ? 6 : 5} className="p-0">
-                              <ForecastLocationBreakdown 
-                                productId={item.productId} 
-                                totalQuantity={quantity} 
-                                forecastWeeks={forecastWeeks} 
-                              />
-                            </TableCell>
-                          </TableRow>
-                        )}
-                      </div>
-                    );
+                      );
+                    }
+                    
+                    return rows;
                   }) : (
                     <TableRow>
                       <TableCell colSpan={showPricesInTable ? 6 : 5} className="text-center py-8 text-muted-foreground">
