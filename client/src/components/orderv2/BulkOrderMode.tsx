@@ -341,11 +341,21 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
   // Debug logging for inventory data
   useEffect(() => {
     if (inventoryData) {
-      console.log(`[BulkOrderMode] Inventory data received for supplier ${selectedSupplierId}:`, {
+      console.log(`🔍 INVENTORY DEBUG - Inventory data received for supplier ${selectedSupplierId}:`, {
         dataLength: Array.isArray(inventoryData) ? inventoryData.length : 'not-array',
         firstProduct: Array.isArray(inventoryData) ? inventoryData[0]?.product_name : null,
         rawData: inventoryData
       });
+      if (Array.isArray(inventoryData) && inventoryData.length > 0) {
+        console.log('🔍 INVENTORY DEBUG - First product package data:', {
+          productName: inventoryData[0].product_name,
+          packageSize: inventoryData[0].package_size,
+          packageTypeName: inventoryData[0].package_type_name,
+          baseUnitName: inventoryData[0].base_unit_name,
+          purchasePrice: inventoryData[0].purchase_price,
+          price: inventoryData[0].price
+        });
+      }
     }
   }, [inventoryData, selectedSupplierId]);
 
@@ -360,6 +370,23 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
     enabled: !!selectedSupplierId && step === 'forecast',
     staleTime: 1000 * 60 * 5,
   });
+
+  // Debug logging for forecast data
+  useEffect(() => {
+    if (forecastData) {
+      console.log('🔍 FORECAST DEBUG - Raw forecast data:', forecastData);
+      if (Array.isArray(forecastData) && forecastData.length > 0) {
+        console.log('🔍 FORECAST DEBUG - First forecast item:', forecastData[0]);
+        console.log('🔍 FORECAST DEBUG - Package fields in forecast:', {
+          packageSize: forecastData[0].package_size,
+          packageTypeName: forecastData[0].package_type_name,
+          baseUnitName: forecastData[0].base_unit_name,
+          purchasePrice: forecastData[0].purchase_price,
+          price: forecastData[0].price
+        });
+      }
+    }
+  }, [forecastData]);
 
   const { data: forecastFactors, isLoading: factorsLoading } = useQuery<{
     weather: { description: string; expected: boolean };
@@ -1238,10 +1265,35 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
                     const totalCost = quantity * purchasePrice;
                     const isExpanded = expandedRows[item.productId];
                     
+                    // DEBUG: Log the product lookup and data
+                    console.log(`🔍 PRODUCT LOOKUP DEBUG - ${item.productName}:`, {
+                      productId: item.productId,
+                      productFound: !!product,
+                      productData: product,
+                      inventoryDataType: typeof inventoryData,
+                      inventoryDataLength: Array.isArray(inventoryData) ? inventoryData.length : 'not-array'
+                    });
+                    
                     // Calculate package information
                     const packageSize = product ? (product.package_size || product.packageSize || 1) : 1;
                     const packageTypeName = product ? (product.package_type_name || product.packageTypeName || 'Stück') : 'Stück';
                     const baseUnitName = product ? (product.base_unit_name || product.baseUnitName || 'Stück') : 'Stück';
+                    
+                    // DEBUG: Log package calculation inputs
+                    console.log(`🔍 PACKAGE CALC DEBUG - ${item.productName}:`, {
+                      packageSize,
+                      packageTypeName,
+                      baseUnitName,
+                      quantity,
+                      productPackageFields: product ? {
+                        package_size: product.package_size,
+                        packageSize: product.packageSize,
+                        package_type_name: product.package_type_name,
+                        packageTypeName: product.packageTypeName,
+                        base_unit_name: product.base_unit_name,
+                        baseUnitName: product.baseUnitName
+                      } : 'no-product'
+                    });
                     
                     const packageInfo = product ? calculatePackageInfo(
                       quantity,

@@ -65,6 +65,19 @@ router.get('/inventory/bulk/:supplierId', async (req, res) => {
 
     const result = await db.execute(inventoryQuery);
     console.log(`Found ${result.rows.length} products for supplier ${supplier.name}`);
+    
+    // DEBUG: Log first product data structure
+    if (result.rows.length > 0) {
+      console.log('🔍 BACKEND DEBUG - First product from bulk inventory API:', result.rows[0]);
+      console.log('🔍 BACKEND DEBUG - Package fields in first product:', {
+        package_size: result.rows[0].package_size,
+        package_type_name: result.rows[0].package_type_name,
+        base_unit_name: result.rows[0].base_unit_name,
+        purchase_price: result.rows[0].purchase_price,
+        price: result.rows[0].price
+      });
+    }
+    
     res.json(result.rows);
 
   } catch (error) {
