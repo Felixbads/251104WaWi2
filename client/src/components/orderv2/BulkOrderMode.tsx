@@ -480,10 +480,17 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
       }
     }
     
-    setOrderQuantities(prev => ({
-      ...prev,
-      [productId]: Math.max(0, quantity)
-    }));
+    const finalQuantity = Math.max(0, quantity);
+    console.log(`🔧 SETTING FINAL QUANTITY:`, { productId, finalQuantity });
+    
+    setOrderQuantities(prev => {
+      const updated = {
+        ...prev,
+        [productId]: finalQuantity
+      };
+      console.log(`🔧 NEW ORDER QUANTITIES STATE:`, updated);
+      return updated;
+    });
   };
 
   const toggleRowExpansion = (productId: number) => {
@@ -1573,13 +1580,21 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
                     Zurück
                   </Button>
                   <Button 
-                    onClick={handleCreateOrder}
+                    onClick={() => {
+                      console.log('🔍 CREATE ORDER BUTTON CLICKED:', {
+                        totals,
+                        selectedWarehouseId,
+                        orderQuantities,
+                        isPending: createOrderMutation.isPending
+                      });
+                      handleCreateOrder();
+                    }}
                     disabled={createOrderMutation.isPending || totals.totalItems === 0}
                     className={!selectedWarehouseId ? "bg-orange-500 hover:bg-orange-600" : ""}
                   >
                     {createOrderMutation.isPending ? "Erstelle..." : 
                      !selectedWarehouseId ? "Lager auswählen!" :
-                     "Bestellung erstellen"}
+                     `Bestellung erstellen (${totals.totalItems} Artikel)`}
                     <ShoppingCart className="ml-2 h-4 w-4" />
                   </Button>
                 </div>

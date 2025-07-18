@@ -41,23 +41,56 @@ export interface Product {
 /**
  * Calculates comprehensive package information from a product
  */
-export function calculatePackageInfo(product: Product): PackageInfo {
-  const packageQuantity = product.packageQuantity || product.packageSize || 1;
-  const packageTypeName = product.packageTypeName || "Stück";
-  const baseUnitName = product.baseUnitName || "Stück";
-  const orderQuantity = product.orderQuantity || 0;
+export function calculatePackageInfo(product: Product): PackageInfo;
+export function calculatePackageInfo(
+  orderQuantity: number,
+  packageSize: number,
+  packageTypeName: string,
+  baseUnitName: string
+): PackageInfo;
+export function calculatePackageInfo(
+  productOrQuantity: Product | number,
+  packageSize?: number,
+  packageTypeName?: string,
+  baseUnitName?: string
+): PackageInfo {
+  // Handle both calling patterns
+  let packageQuantity: number;
+  let packageType: string;
+  let baseUnit: string;
+  let orderQuantity: number;
+  let sku: string | undefined;
+  let supplierSku: string | undefined;
+
+  if (typeof productOrQuantity === 'object') {
+    // Called with Product object
+    const product = productOrQuantity;
+    packageQuantity = product.packageQuantity || product.packageSize || 1;
+    packageType = product.packageTypeName || "Stück";
+    baseUnit = product.baseUnitName || "Stück";
+    orderQuantity = product.orderQuantity || 0;
+    sku = product.sku;
+    supplierSku = product.supplierSku || product.articleSupplier;
+  } else {
+    // Called with individual parameters
+    orderQuantity = productOrQuantity;
+    packageQuantity = packageSize || 1;
+    packageType = packageTypeName || "Stück";
+    baseUnit = baseUnitName || "Stück";
+  }
+
   const packageCount = orderQuantity > 0 ? Math.floor(orderQuantity / packageQuantity) : 0;
   const totalQuantity = packageCount * packageQuantity;
 
   return {
     packageCount,
     packageQuantity,
-    packageTypeName,
-    baseUnitName,
+    packageTypeName: packageType,
+    baseUnitName: baseUnit,
     totalQuantity,
-    sku: product.sku,
-    supplierSku: product.supplierSku || product.articleSupplier,
-    orderArticleNumber: product.sku
+    sku,
+    supplierSku,
+    orderArticleNumber: sku
   };
 }
 
