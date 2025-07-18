@@ -1,0 +1,19 @@
+Bitte führt eine umfassende Kontrolle und Anpassung des Bulk-Bestellmodus durch und berücksichtigt dabei folgende Punkte und gefundene Fehler:
+	1.	Gebinde-Mengen-Logik & Rundung
+	•	Wenn im Produktstamm ein Gebinde (z. B. „Kiste“, „Stiege“) mit einer Gebinde-Menge (z. B. 20 Flaschen) hinterlegt ist, muss die Bestellmenge im Bestellprozess immer auf das nächsthöhere bzw. nächstniedrigere Vielfache dieser Gebinde-Menge gerundet werden (nicht nur automatisches Aufrunden beim Eingeben).
+	•	Fehler gefunden:
+	•	Das Mengen-Input-Feld zeigt aktuell nur die Anzahl der Gebinde (packageInfo.packageCount), nicht die Gesamtstückzahl.
+	•	De-/Inkrement-Buttons (Plus/Minus) nutzen zwar getNextValidPackageQuantity und getPreviousValidPackageQuantity, runden aber nur auf, ohne das UI klar zu kennzeichnen.
+	•	Erwartetes Verhalten: Zeige im Bestellformular beides an: „N Gebinde × M Stück = Gesamt Stückzahl“ (z. B. „5 Kisten × 20 = 100 Stück“) und wende validatePackageOrder() für die gesamte Order an, um ungültige Kombinationen zu blockieren.
+	2.	Frontend-Datenanzeige
+	•	In der aktuellen Bestellübersicht fehlen in verschiedenen Spalten Daten (z. B. Einkaufspreis, Lieferantenname, Standort, Mindest-/Höchstbestand).
+	•	Fehler gefunden: Manche Felder bleiben leer ohne Platzhalter oder Hinweis.
+	•	Erwartetes Verhalten:
+	•	Prüft alle Datenfelder (productName, currentStock, reservedStock, availableStock, minStock, maxStock, price, purchasePrice, packageTypeName, baseUnitName etc.).
+	•	Wenn keine Daten vorliegen, zeigt „–“ oder „Keine Angabe vorhanden“ an, statt ein leeres Feld.
+	3.	Prognose-Logik & Ferien-Effekt
+	•	Die Verkaufsprognose berücksichtigt derzeit nur historische Umsätze, nicht parallele Schul-/Urlaubszeiten.
+	•	Fehler gefunden: Parallel laufende Ferien (z. B. Sommerferien in Sachsen) werden nicht als Absatz-Boost modelliert.
+	•	Erwartetes Verhalten:
+	•	Nutzt die bestehende Ferien-/Feiertagsdatenbank, um an Ferienwochen in touristischen Regionen einen Faktor (z. B. + X %) auf die Prognose anzuwenden.
+	•	Zeigt im Forecast-UI an, welche Faktoren (Ferien, Feiertage, Wetter) eingebracht wurden.
