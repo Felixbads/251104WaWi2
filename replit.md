@@ -109,7 +109,7 @@ This is a comprehensive vending machine management platform (Warenwirtschaftssys
 
 ## Changelog
 
-- July 18, 2025: COMPREHENSIVE BULK ORDER MODE IMPROVEMENTS - Fixed package display, data visualization, and holiday forecasting
+- July 18, 2025: CRITICAL BULK ORDER COMPLETION FIXES - DOM structure, package display, and button functionality completely resolved
   - ✅ **Package Quantity Logic Enhanced**: Order input now shows complete breakdown "N Gebinde × M Stück = Total Stück" instead of just package count
   - ✅ **Data Display Fixed**: All inventory tables now show "–" or "Keine Angabe vorhanden" for empty fields (purchase price, supplier name, location, min/max stock)
   - ✅ **Holiday/Vacation Forecasting Implemented**: Tourist regions (Bad Schandau, Pillnitz, Stolpen, Bahnhof) get +25% boost during Saxon summer holidays

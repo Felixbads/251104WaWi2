@@ -1066,11 +1066,12 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
             </CardHeader>
             <CardContent>
               {/* Warehouse Selection - Now in the order form as requested */}
-              <div className="mb-6 p-4 border border-orange-200 bg-orange-50 rounded-lg">
+              <div className={`mb-6 p-4 border rounded-lg ${!selectedWarehouseId ? 'border-red-300 bg-red-50' : 'border-green-200 bg-green-50'}`}>
                 <div className="space-y-3">
                   <Label className="text-base font-semibold flex items-center gap-2">
                     <Warehouse className="h-5 w-5" />
                     Ziellager für Bestellung auswählen <span className="text-red-500">*</span>
+                    {selectedWarehouseId && <span className="text-green-600 text-sm ml-2">✓ Ausgewählt</span>}
                   </Label>
                   {warehousesLoading ? (
                     <div className="h-20 bg-muted animate-pulse rounded-lg" />
@@ -1318,20 +1319,27 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
                               >
                                 <Minus className="h-3 w-3" />
                               </Button>
-                              <Input
-                                type="number"
-                                value={product && packageSize > 1 ? packageInfo.packageCount : quantity}
-                                onChange={(e) => {
-                                  const inputValue = parseInt(e.target.value) || 0;
-                                  const newQuantity = product && packageSize > 1 ? 
-                                    inputValue * packageSize : 
-                                    inputValue;
-                                  updateOrderQuantity(item.productId, newQuantity);
-                                }}
-                                className="w-20 text-center"
-                                min="0"
-                                step={packageSize > 1 ? 1 : 1}
-                              />
+                              <div className="relative">
+                                <Input
+                                  type="number"
+                                  value={product && packageSize > 1 ? packageInfo.packageCount : quantity}
+                                  onChange={(e) => {
+                                    const inputValue = parseInt(e.target.value) || 0;
+                                    const newQuantity = product && packageSize > 1 ? 
+                                      inputValue * packageSize : 
+                                      inputValue;
+                                    updateOrderQuantity(item.productId, newQuantity);
+                                  }}
+                                  className="w-20 text-center pr-8"
+                                  min="0"
+                                  step={packageSize > 1 ? 1 : 1}
+                                />
+                                {product && packageSize > 1 && (
+                                  <div className="absolute right-1 top-1/2 transform -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">
+                                    {packageTypeName.charAt(0)}
+                                  </div>
+                                )}
+                              </div>
                               <Button
                                 variant="outline"
                                 size="sm"
@@ -1348,10 +1356,15 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => {
-                                  // Use enhanced forecast instead of raw forecast
-                                  const recommendedQuantity = product && packageSize > 1 ? 
-                                    getNextValidPackageQuantity(enhancedForecast, packageSize) : 
-                                    enhancedForecast;
+                                  // Use enhanced forecast with proper package rounding
+                                  let recommendedQuantity;
+                                  if (product && packageSize > 1) {
+                                    // Round UP to next package size for proper ordering
+                                    const packages = Math.ceil(enhancedForecast / packageSize);
+                                    recommendedQuantity = packages * packageSize;
+                                  } else {
+                                    recommendedQuantity = enhancedForecast;
+                                  }
                                   setOrderQuantities(prev => ({ ...prev, [item.productId]: recommendedQuantity }));
                                 }}
                                 className="text-green-600 hover:text-green-700"
@@ -1359,14 +1372,22 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
                                 {isTouristLocation ? '🏖️ Ferien-Boost' : '📈 Empfehlung'}
                               </Button>
                             </div>
-                            {quantity > 0 && product && packageSize > 1 && (
-                              <div className="text-xs text-primary font-medium text-center bg-blue-50 p-2 rounded border">
-                                {packageInfo.packageCount} {packageTypeName} × {packageSize} {baseUnitName} = {quantity} {baseUnitName}
-                              </div>
-                            )}
-                            {quantity > 0 && (!product || packageSize <= 1) && (
-                              <div className="text-xs text-muted-foreground text-center">
-                                {quantity} {baseUnitName}
+                            {quantity > 0 && (
+                              <div className="text-xs font-medium text-center">
+                                {product && packageSize > 1 ? (
+                                  <div className="bg-blue-50 p-2 rounded border text-primary">
+                                    <div className="font-bold text-sm">
+                                      {packageInfo.packageCount} {packageTypeName} bestellen
+                                    </div>
+                                    <div className="text-xs text-muted-foreground">
+                                      {packageInfo.packageCount} × {packageSize} = {quantity} {baseUnitName}
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="text-muted-foreground">
+                                    {quantity} {baseUnitName}
+                                  </div>
+                                )}
                               </div>
                             )}
                           </div>
@@ -1443,9 +1464,12 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
                   </Button>
                   <Button 
                     onClick={handleCreateOrder}
-                    disabled={createOrderMutation.isPending || totals.totalItems === 0 || !selectedWarehouseId}
+                    disabled={createOrderMutation.isPending || totals.totalItems === 0}
+                    className={!selectedWarehouseId ? "bg-orange-500 hover:bg-orange-600" : ""}
                   >
-                    {createOrderMutation.isPending ? "Erstelle..." : "Bestellung erstellen"}
+                    {createOrderMutation.isPending ? "Erstelle..." : 
+                     !selectedWarehouseId ? "Lager auswählen!" :
+                     "Bestellung erstellen"}
                     <ShoppingCart className="ml-2 h-4 w-4" />
                   </Button>
                 </div>
