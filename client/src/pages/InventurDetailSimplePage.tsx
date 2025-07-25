@@ -219,6 +219,8 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
 
 
 
+
+
   // Filter items based on search
   const filteredItems = React.useMemo(() => {
     if (!inventurItems || !Array.isArray(inventurItems)) return [];
@@ -525,7 +527,7 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
                           </div>
                         </TableCell>
                         <TableCell className="text-center">
-                          {currentCount !== '' && currentCount !== null && Number(currentCount) !== 0 ? (
+                          {currentCount !== '' && currentCount !== null && currentCount !== 0 ? (
                             <Badge variant="default" className="text-xs">
                               Gezählt
                             </Badge>
@@ -599,12 +601,15 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
               setSelectedItem(null);
             }
           }}
-          selectedItem={selectedItem}
+          selectedItem={{
+            ...selectedItem,
+            productName: selectedItem.product?.productName || 'Unbekanntes Produkt'
+          }}
           availableBatches={availableBatches?.filter(batch => 
             batch.productId === selectedItem.productId
           ) || []}
           onBatchSelect={() => {}}
-          inventoryId={inventoryId}
+          inventoryId={inventoryId.toString()}
           warehouseId={inventurData?.warehouseId || 0}
           onBatchCreated={handleBatchCreated}
         />
