@@ -681,5 +681,65 @@ router.patch('/items/:itemId/batch', async (req: Request, res: Response) => {
   }
 });
 
+// GET /api/inventory-counts/warehouse/:warehouseId/products - Hole alle Batches für ein Lager
+router.get('/warehouse/:warehouseId/products', async (req: Request, res: Response) => {
+  try {
+    const warehouseId = parseInt(req.params.warehouseId);
+    
+    if (!warehouseId) {
+      return res.status(400).json({ error: "Warehouse ID is required" });
+    }
+    
+    console.log(`[BATCHES API] Fetching batches for warehouse ${warehouseId}`);
+    
+    // Hole alle aktiven Batches für das Lager
+    const query = `
+      SELECT 
+        pb.*,
+        p.product_name as product_name
+      FROM 
+        product_batches pb
+      JOIN 
+        products p ON pb.product_id = p.id
+      WHERE 
+        pb.warehouse_id = $1
+        AND pb.status = 'active'
+      ORDER BY 
+        p.product_name ASC,
+        pb.expiry_date ASC NULLS LAST
+    `;
+    
+    const result = await rawDb.query(query, [warehouseId]);
+    
+    // Formatiere das Ergebnis
+    const batches = result.rows.map((row: any) => ({
+      id: row.id,
+      batchNumber: row.batch_number,
+      productId: row.product_id,
+      warehouseId: row.warehouse_id,
+      initialQuantity: row.initial_quantity,
+      currentQuantity: row.current_quantity,
+      expiryDate: row.expiry_date,
+      manufacturingDate: row.manufacturing_date,
+      notes: row.notes,
+      locationInWarehouse: row.location_in_warehouse,
+      status: row.status,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+      productName: row.product_name
+    }));
+    
+    console.log(`[BATCHES API] Found ${batches.length} batches for warehouse ${warehouseId}`);
+    
+    res.status(200).json(batches);
+  } catch (error) {
+    console.error(`[BATCHES API] Error fetching batches for warehouse ${req.params.warehouseId}:`, error);
+    res.status(500).json({ 
+      error: "Failed to fetch batches for warehouse", 
+      details: error instanceof Error ? error.message : String(error) 
+    });
+  }
+});
+
 export default router;
 export const inventoryCountBatchesRouter = router;
