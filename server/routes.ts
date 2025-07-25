@@ -839,19 +839,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
           p.package_quantity,
           p.sku,
           p.units,
-          pc.packaging_quantity,
-          pc.packaging_unit,
+          p.supplier_id,
+          COALESCE(pc.packaging_quantity, p.package_quantity, 1) as packaging_quantity,
+          COALESCE(pc.packaging_unit, p.base_unit_name, 'Stück') as packaging_unit,
           pb.batch_number,
           pb.expiry_date,
           pb.current_quantity as batch_current_quantity,
           pb.received_date,
-          pb.notes as batch_notes
+          pb.notes as batch_notes,
+          ic.warehouse_id,
+          w.name as warehouse_name,
+          w.location as warehouse_location
         FROM inventory_count_items ici
         LEFT JOIN products p ON ici.product_id = p.id
-        LEFT JOIN purchase_conditions pc ON pc.product_id = ici.product_id
+        LEFT JOIN inventory_counts ic ON ici.inventory_count_id = ic.id
+        LEFT JOIN warehouses w ON ic.warehouse_id = w.id
+        LEFT JOIN purchase_conditions pc ON pc.product_id = ici.product_id 
+          AND pc.supplier_id = p.supplier_id
         LEFT JOIN product_batches pb ON ici.batch_id = pb.id
         WHERE ici.inventory_count_id = $1
-        ORDER BY ici.created_at ASC
+        ORDER BY COALESCE(p.product_name, 'Unbekanntes Produkt'), ici.created_at ASC
       `, [inventoryCountId]);
       
       const items = itemsResult.rows;
@@ -860,16 +867,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const enrichedItems = items.map((item) => {
         const product = { 
           id: item.product_id,
-          productName: item.product_name,
+          productName: item.product_name || 'Unbekanntes Produkt',
           category: item.category,
           price: item.price,
           packageSize: item.package_size,
           packageQuantity: item.package_quantity,
           sku: item.sku,
           unit: item.units || 'Stk.',
-          // Einkaufsbedingungen hinzufügen
-          packagingQuantity: item.packaging_quantity,
-          packagingUnit: item.packaging_unit
+          // Einkaufsbedingungen hinzufügen - richtige Gebindemenge aus purchase_conditions
+          packagingQuantity: item.packaging_quantity || 1,
+          packagingUnit: item.packaging_unit || 'Stück',
+          supplierInfo: item.supplier_id ? {
+            supplierId: item.supplier_id
+          } : null
+        };
+        
+        // Warehouse-Informationen hinzufügen
+        const warehouse = {
+          id: item.warehouse_id,
+          name: item.warehouse_name || 'Unbekanntes Lager',
+          location: item.warehouse_location
         };
         
         // Transform batch information to camelCase if available
@@ -885,6 +902,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           };
         }
         
+        // Berechne Container-Zähllogik (Gebinde)
+        const packagingQty = product.packagingQuantity || 1;
+        const expectedContainers = item.expected_quantity ? Math.floor(item.expected_quantity / packagingQty) : 0;
+        const expectedLooseItems = item.expected_quantity ? item.expected_quantity % packagingQty : 0;
+        
+        const countedContainers = item.counted_quantity ? Math.floor(item.counted_quantity / packagingQty) : 0;
+        const countedLooseItems = item.counted_quantity ? item.counted_quantity % packagingQty : 0;
+        
         // Transform main item fields to camelCase
         return {
           id: item.id,
@@ -892,12 +917,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
           productId: item.product_id,
           expectedQuantity: item.expected_quantity,
           countedQuantity: item.counted_quantity,
+          // Container-Zählung (Gebindemenge)
+          expectedContainers,
+          expectedLooseItems,
+          countedContainers,
+          countedLooseItems,
           notes: item.notes,
           batchId: item.batch_id,
           createdAt: item.created_at,
           updatedAt: item.updated_at,
           product,
-          batch
+          warehouse,
+          batch,
+          // Discrepancy calculation
+          discrepancy: item.counted_quantity !== null ? 
+            (item.counted_quantity - (item.expected_quantity || 0)) : null,
+          // Container discrepancy
+          containerDiscrepancy: (countedContainers - expectedContainers),
+          looseItemDiscrepancy: (countedLooseItems - expectedLooseItems)
         };
       });
       

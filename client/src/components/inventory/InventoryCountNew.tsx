@@ -25,6 +25,7 @@ import {
   AlertDialogHeader, AlertDialogTitle
 } from '@/components/ui/alert-dialog';
 import InventoryCountBatchDialog from '@/components/inventory/InventoryCountBatchDialog';
+import ContainerCountingInput from '@/components/inventory/ContainerCountingInput';
 
 // Interface für Produktcharge
 interface ProductBatch {
@@ -47,7 +48,9 @@ interface InventoryCountItem {
   productName: string;
   currentQuantity: number;
   countedQuantity: number;
+  expectedQuantity?: number; // Erwartete Menge (aus API)
   difference: number;
+  discrepancy?: number; // API-Diskrepanz
   sku?: string;
   location?: string;
   status?: string;
@@ -56,6 +59,32 @@ interface InventoryCountItem {
   batchId?: number;
   batches?: ProductBatch[]; // Alle verfügbaren Batches für dieses Produkt
   batchCounts?: {[batchId: number]: number}; // Gezählte Mengen pro Batch
+  
+  // Container/Gebinde-Zählung
+  expectedContainers?: number;
+  expectedLooseItems?: number;
+  countedContainers?: number;
+  countedLooseItems?: number;
+  containerDiscrepancy?: number;
+  looseItemDiscrepancy?: number;
+  
+  // Produktdaten inklusive Gebindeinformationen
+  product?: {
+    id: number;
+    productName: string;
+    packagingQuantity: number;
+    packagingUnit: string;
+    price?: number;
+    category?: string;
+    unit?: string;
+  };
+  
+  // Lagerinformationen
+  warehouse?: {
+    id: number;
+    name: string;
+    location?: string;
+  };
 }
 
 // Interface für die Inventur
@@ -223,7 +252,7 @@ const InventoryCountNew = ({ warehouseId, onComplete, onCancel }: InventoryCount
                           ...prevItem, 
                           batches: batches,
                           // Erstelle ein Objekt mit BatchID als Schlüssel und aktueller Menge als Wert
-                          batchCounts: batches.reduce((acc, batch) => {
+                          batchCounts: batches.reduce((acc: {[batchId: number]: number}, batch: ProductBatch) => {
                             acc[batch.id] = batch.currentQuantity;
                             return acc;
                           }, {} as {[batchId: number]: number})
@@ -713,59 +742,95 @@ const InventoryCountNew = ({ warehouseId, onComplete, onCancel }: InventoryCount
               <TableBody>
                 {filteredItems.length > 0 ? (
                   filteredItems.map((item, index) => (
-                    <TableRow key={`${item.productId}-${index}`}>
-                      <TableCell className="font-medium">{item.productName}</TableCell>
-                      <TableCell>{item.sku || "-"}</TableCell>
-                      <TableCell className="text-right">{item.currentQuantity}</TableCell>
-                      <TableCell className="text-right">
-                        <Input
-                          type="number"
-                          min="0"
-                          value={item.countedQuantity}
-                          onChange={(e) => handleQuantityChange(item.productId, parseInt(e.target.value) || 0)}
-                          className="w-24 text-right inline-block"
-                        />
-                      </TableCell>
-                      <TableCell className={`text-right ${
-                        item.difference !== 0 
-                          ? (item.difference > 0 ? 'text-green-600' : 'text-red-600') 
-                          : ''
-                      }`}>
-                        {item.difference > 0 ? '+' : ''}{item.difference}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <div className="flex items-center justify-center space-x-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleSaveItem(item)}
-                            disabled={saveInventoryItemMutation.isPending}
-                            title="Artikel speichern"
-                          >
-                            {saveInventoryItemMutation.isPending ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <Check className="h-4 w-4" />
+                    <>
+                      <TableRow key={`${item.productId}-${index}`}>
+                        <TableCell className="font-medium">
+                          <div>
+                            {item.product?.productName || item.productName}
+                            {item.warehouse && (
+                              <div className="text-xs text-muted-foreground">
+                                Lager: {item.warehouse.name}
+                              </div>
                             )}
-                          </Button>
-                          
-                          {item.batches && item.batches.length > 0 && (
+                          </div>
+                        </TableCell>
+                        <TableCell>{item.sku || "-"}</TableCell>
+                        <TableCell className="text-right">{item.expectedQuantity || item.currentQuantity}</TableCell>
+                        <TableCell className="text-right">
+                          <Input
+                            type="number"
+                            min="0"
+                            value={item.countedQuantity || 0}
+                            onChange={(e) => handleQuantityChange(item.productId, parseInt(e.target.value) || 0)}
+                            className="w-24 text-right inline-block"
+                          />
+                        </TableCell>
+                        <TableCell className={`text-right ${
+                          (item.discrepancy || item.difference) !== 0 
+                            ? ((item.discrepancy || item.difference) > 0 ? 'text-green-600' : 'text-red-600') 
+                            : ''
+                        }`}>
+                          {(item.discrepancy || item.difference) > 0 ? '+' : ''}{item.discrepancy || item.difference}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <div className="flex items-center justify-center space-x-1">
                             <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleShowBatches(item)}
-                              className="ml-1 flex items-center"
-                              title="Chargen anzeigen und bearbeiten"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleSaveItem(item)}
+                              disabled={saveInventoryItemMutation.isPending}
+                              title="Artikel speichern"
                             >
-                              <PackageOpen className="h-4 w-4 mr-1" />
-                              <span className="text-xs">
-                                Chargen ({item.batches.length})
-                              </span>
+                              {saveInventoryItemMutation.isPending ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Check className="h-4 w-4" />
+                              )}
                             </Button>
-                          )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
+                            
+                            {item.batches && item.batches.length > 0 && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleShowBatches(item)}
+                                className="ml-1 flex items-center"
+                                title="Chargen anzeigen und bearbeiten"
+                              >
+                                <PackageOpen className="h-4 w-4 mr-1" />
+                                <span className="text-xs">
+                                  Chargen ({item.batches.length})
+                                </span>
+                              </Button>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                      
+                      {/* Container Counting Row - Show if product has packaging quantity > 1 */}
+                      {item.product?.packagingQuantity && item.product.packagingQuantity > 1 && (
+                        <TableRow key={`container-${item.productId}-${index}`}>
+                          <TableCell colSpan={6} className="p-4 bg-muted/30">
+                            <ContainerCountingInput
+                              productName={item.product.productName}
+                              packagingQuantity={item.product.packagingQuantity}
+                              packagingUnit={item.product.packagingUnit || 'Stück'}
+                              expectedQuantity={item.expectedQuantity || item.currentQuantity}
+                              countedQuantity={item.countedQuantity}
+                              expectedContainers={item.expectedContainers || 0}
+                              expectedLooseItems={item.expectedLooseItems || 0}
+                              countedContainers={item.countedContainers || 0}
+                              countedLooseItems={item.countedLooseItems || 0}
+                              onCountedQuantityChange={(newQuantity) => handleQuantityChange(item.productId, newQuantity)}
+                              onContainerCountChange={(containers, looseItems) => {
+                                // Update container count fields in the item
+                                // This would need to be handled by a new mutation or state update
+                                console.log(`Container count update for ${item.product?.productName}: ${containers} containers + ${looseItems} loose items`);
+                              }}
+                            />
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </>
                   ))
                 ) : (
                   <TableRow>
