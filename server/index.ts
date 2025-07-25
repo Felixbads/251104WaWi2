@@ -67,6 +67,7 @@ import { weeklyReportCron } from './services/weeklyReportCron';
 import syncRouter from './routes/sync';
 import inventoryItemsUnassignedRouter from './routes/inventory-items-unassigned';
 import stockRatiosRouter from './routes/stock-ratios';
+import purchasePriceHistoryRouter from './routes/purchase-price-history';
 
 const app = express();
 
@@ -1742,6 +1743,10 @@ app.get('/orders-data', (req, res) => {
   // Register stock ratios router for filling level calculations
   app.use('/api/stock-ratios', stockRatiosRouter);
   console.log('[SERVER] Stock ratios router mounted successfully');
+
+  // Mount purchase price history router BEFORE registerRoutes for audit trail functionality
+  app.use('/api/purchase-price-history', purchasePriceHistoryRouter);
+  console.log('[SERVER] Purchase price history router mounted successfully');
   
 
   

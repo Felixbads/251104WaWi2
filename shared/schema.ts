@@ -202,7 +202,7 @@ export const users = pgTable("users", {
   email: text("email").unique(),
   role: text("role").default("user"),
   approved: boolean("approved").default(false), // Standardmäßig nicht freigeschaltet
-  approvedBy: integer("approved_by").references(() => users.id),
+  approvedBy: integer("approved_by"),
   approvedAt: timestamp("approved_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -918,6 +918,30 @@ export const insertPurchaseConditionSchema = createInsertSchema(purchaseConditio
 
 export type InsertPurchaseCondition = z.infer<typeof insertPurchaseConditionSchema>;
 export type PurchaseCondition = typeof purchaseConditions.$inferSelect;
+
+// Purchase Price History Tabelle - Historische Nachverfolgung von Preisänderungen
+export const purchasePriceHistory = pgTable("purchase_price_history", {
+  id: serial("id").primaryKey(),
+  purchaseConditionId: integer("purchase_condition_id").notNull().references(() => purchaseConditions.id),
+  oldUnitPrice: real("old_unit_price"),
+  newUnitPrice: real("new_unit_price").notNull(),
+  changeDate: timestamp("change_date").defaultNow().notNull(),
+  changeReason: text("change_reason"), // "manual_update", "order_receipt", "weclapp_sync", "bulk_import"
+  orderId: integer("order_id").references(() => orders.id), // Verknüpfung zu Bestellung, falls durch Wareneingang ausgelöst
+  invoiceReference: text("invoice_reference"), // Weclapp Rechnungsnummer oder andere Referenz
+  createdBy: integer("created_by").references(() => users.id),
+  automaticUpdate: boolean("automatic_update").default(false), // Unterscheidung zwischen manuell/automatisch
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertPurchasePriceHistorySchema = createInsertSchema(purchasePriceHistory).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertPurchasePriceHistory = z.infer<typeof insertPurchasePriceHistorySchema>;
+export type PurchasePriceHistory = typeof purchasePriceHistory.$inferSelect;
 
 // Supplier Discount Conditions Tabelle - Lieferantenspezifische Rabatt- und Nachlasslogik
 export const supplierDiscountConditions = pgTable("supplier_discount_conditions", {
