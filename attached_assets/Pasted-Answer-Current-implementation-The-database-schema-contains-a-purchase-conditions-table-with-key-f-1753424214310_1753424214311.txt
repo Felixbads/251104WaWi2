@@ -1,0 +1,33 @@
+Answer:
+
+Current implementation
+
+The database schema contains a purchase_conditions table with key fields like unitPrice (net purchase price), packaging info, tax rate, etc. This table links each product to a supplier and stores the basic purchase conditions.
+The API and UI use these purchase conditions. The “Supplier‑Products” API returns purchase prices instead of sales prices, and the order process integrates those prices automatically when selecting products.
+A draft for tracking price changes is outlined via a purchase_price_history table with order references and change reasons.
+Overall status is estimated at ~60 % complete. Goods receipt with purchase prices is only partially implemented, and further economic analysis features are missing.
+Automatic price import
+
+In GoodsReceiptService, inventory batches are created during goods receipt. Currently the unitPrice is set to zero with the comment “will be fetched from order item later,” which indicates that actual prices from orders are not yet stored when goods are received.
+Despite the note in the purchase conditions analysis (“Bestellungen: Einkaufspreise werden automatisch übernommen”), the code shows that prices are not applied to batches yet, so the automatic import appears incomplete.
+Manual corrections
+
+The application exposes full CRUD routes for purchase conditions. The log in replit.md confirms that the Purchase Conditions API is operational and returns real prices; missing POST/PUT routes were fixed and the “Save” button works correctly.
+Front‑end components such as ProductPurchaseConditionsSimple.tsx allow adding or editing purchase conditions for a product, providing a manual way to maintain purchase prices.
+Available APIs
+
+Existing backend endpoints manage purchase conditions (/api/purchase-conditions) and supplier product listings.
+Although no direct references to Weclapp APIs are present in the repository, the documentation mentions that purchase prices come from orders. If Weclapp is the source system, relevant endpoints would likely involve purchaseInvoice, article, or warehouseStockMovement to retrieve invoices and stock movements.
+Required enhancements
+
+Finish goods receipt price handling: The goods receipt service should read each order item’s price and store it as unitPrice in inventory_batches (and possibly update inventory_items) instead of using zero.
+Implement historical tracking: Create the purchase_price_history table and record changes whenever a purchase condition is updated.
+Provide Weclapp integration logic: Implement ETL or webhook flows that fetch purchase invoices, compute per‑unit price (total price divided by delivered units), and store the value in purchase conditions or directly in product cost fields.
+Allow manual corrections: Ensure that UI forms for purchase conditions can override automatically imported prices.
+Evaluate unused fields: The products table already contains a costPrice column in the schema, which could store a default purchase price per article in addition to the per‑supplier purchase conditions.
+Potential fields/tables in Weclapp or Vendon
+
+Weclapp: Data is typically accessible via purchaseInvoice (invoice lines with unit price), article (product master data), and warehouseStockMovement (receipts). Those fields could feed the purchase_conditions or products.costPrice field.
+Vendon: The repository contains scripts for Vendon product synchronization, but Vendon does not appear to store purchase prices directly. Thus, Weclapp remains the main source for accurate purchase cost information.
+Overall assessment
+The system already stores purchase prices via purchase conditions and exposes CRUD APIs. However, the automatic import during goods receipt is still incomplete, and historical tracking is only drafted. Implementing those pieces and connecting directly with Weclapp invoice data would establish reliable per‑product purchase cost tracking for margin calculations and reporting.

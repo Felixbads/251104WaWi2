@@ -1,0 +1,44 @@
+Prompt zur Systemanalyse:
+
+Untersuche bitte, wie in unserem aktuellen System die Einkaufspreise einzelner Produkte berechnet und gespeichert werden. Ziel ist es, eine verlässliche Grundlage für Auswertungen zu schaffen. Dabei soll folgendes sichergestellt sein:
+
+1. Automatischer Weg bei Bestellungen:
+Immer wenn eine Bestellung über Weclapp erfolgt, sollen die Einkaufspreise auf Stückbasis automatisch berechnet und im System je Produkt gespeichert werden (z. B. Einkaufspreis gesamt / Anzahl der gelieferten Einheiten).
+
+2. Manueller bzw. korrigierender Weg:
+Es muss möglich sein, die Einkaufspreise nachträglich manuell für jedes Produkt zu hinterlegen oder zu korrigieren – etwa wenn Sammelbuchungen oder Preisnachlässe nicht automatisch erkannt wurden.
+
+Zielzustand:
+Für jedes Produkt soll ein aktueller, nachvollziehbarer Einkaufspreis hinterlegt sein, der in der Statistik- und Margen-Auswertung genutzt wird.
+
+Bitte analysiere:
+	•	Wie sieht der aktuelle Umsetzungsstand im System aus?
+	•	Wird der automatische Preisimport aus Bestellungen korrekt durchgeführt?
+	•	Ist eine manuelle Nachbearbeitung von Einkaufspreisen möglich und an welcher Stelle?
+	•	Welche APIs (z. B. purchaseInvoice, article, warehouseStockMovement) können genutzt werden, um Einkaufspreise automatisiert oder korrigierend zu setzen?
+	•	Welche Änderungen wären notwendig, um diesen Idealzustand zu erreichen (z. B. neue Logik im ETL-Prozess, Trigger bei Rechnungseingang, Webhooks oder separate Sync-Logik)?
+	•	Gibt es Felder oder Tabellen in Weclapp oder Vendon, die ggf. nicht genutzt werden, aber geeignet wären, Einkaufspreise je Produkt zu speichern?
+
+Ziel ist es, daraus ein robustes Einkaufspreis-Tracking je Produkt zu etablieren, um daraus korrekte Margenberechnungen in Dashboards, Lagerwerten und Preisstrategien ableiten zu können.
+Prompt zur Systemanalyse:
+
+Untersuche bitte, wie in unserem aktuellen System die Einkaufspreise einzelner Produkte berechnet und gespeichert werden. Ziel ist es, eine verlässliche Grundlage für Auswertungen zu schaffen. Dabei soll folgendes sichergestellt sein:
+
+1. Automatischer Weg bei Bestellungen:
+Immer wenn eine Bestellung über Weclapp erfolgt, sollen die Einkaufspreise auf Stückbasis automatisch berechnet und im System je Produkt gespeichert werden (z. B. Einkaufspreis gesamt / Anzahl der gelieferten Einheiten).
+
+2. Manueller bzw. korrigierender Weg:
+Es muss möglich sein, die Einkaufspreise nachträglich manuell für jedes Produkt zu hinterlegen oder zu korrigieren – etwa wenn Sammelbuchungen oder Preisnachlässe nicht automatisch erkannt wurden.
+
+Zielzustand:
+Für jedes Produkt soll ein aktueller, nachvollziehbarer Einkaufspreis hinterlegt sein, der in der Statistik- und Margen-Auswertung genutzt wird.
+
+Bitte analysiere:
+	•	Wie sieht der aktuelle Umsetzungsstand im System aus?
+	•	Wird der automatische Preisimport aus Bestellungen korrekt durchgeführt?
+	•	Ist eine manuelle Nachbearbeitung von Einkaufspreisen möglich und an welcher Stelle?
+	•	Welche APIs (z. B. purchaseInvoice, article, warehouseStockMovement) können genutzt werden, um Einkaufspreise automatisiert oder korrigierend zu setzen?
+	•	Welche Änderungen wären notwendig, um diesen Idealzustand zu erreichen (z. B. neue Logik im ETL-Prozess, Trigger bei Rechnungseingang, Webhooks oder separate Sync-Logik)?
+	•	Gibt es Felder oder Tabellen in Weclapp oder Vendon, die ggf. nicht genutzt werden, aber geeignet wären, Einkaufspreise je Produkt zu speichern?
+
+Ziel ist es, daraus ein robustes Einkaufspreis-Tracking je Produkt zu etablieren, um daraus korrekte Margenberechnungen in Dashboards, Lagerwerten und Preisstrategien ableiten zu können.
