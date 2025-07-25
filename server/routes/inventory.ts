@@ -21,7 +21,7 @@ const createInventoryCountSchema = z.object({
 });
 
 // Erstelle eine neue Inventur und lade automatisch alle Lageritems
-router.post('/inventory-counts', async (req, res) => {
+router.post('/', async (req, res) => {
   try {
     // Validiere Request-Body
     const validatedData = createInventoryCountSchema.parse(req.body);
@@ -131,7 +131,7 @@ router.post('/inventory-counts', async (req, res) => {
 });
 
 // Lade Details einer Inventur
-router.get('/inventory-counts/:id', async (req, res) => {
+router.get('/:id', async (req, res) => {
   try {
     const inventoryCountId = parseInt(req.params.id);
     
@@ -176,7 +176,7 @@ router.get('/inventory-counts/:id', async (req, res) => {
 });
 
 // Lade Inventurpositionen für eine Inventur
-router.get('/inventory-counts/:id/items', async (req, res) => {
+router.get('/:id/items', async (req, res) => {
   try {
     const inventoryCountId = parseInt(req.params.id);
     
@@ -420,7 +420,7 @@ router.get('/inventory-count-items/:id/batches', async (req, res) => {
 });
 
 // Abschließen einer Inventur und Übertragen der Daten in den Lagerbestand
-router.post('/inventory-counts/:id/complete', async (req, res) => {
+router.post('/:id/complete', async (req, res) => {
   try {
     const inventoryCountId = parseInt(req.params.id);
     
@@ -476,7 +476,7 @@ router.post('/inventory-counts/:id/complete', async (req, res) => {
 });
 
 // Löschen einer Inventur
-router.delete('/inventory-counts/:id', async (req, res) => {
+router.delete('/:id', async (req, res) => {
   try {
     const inventoryCountId = parseInt(req.params.id);
     
@@ -523,7 +523,7 @@ router.delete('/inventory-counts/:id', async (req, res) => {
 });
 
 // Speichere Inventur (Zwischenstand)
-router.post('/inventory-counts/:id/save', async (req, res) => {
+router.post('/:id/save', async (req, res) => {
   try {
     const inventoryCountId = parseInt(req.params.id);
     
@@ -562,7 +562,7 @@ router.post('/inventory-counts/:id/save', async (req, res) => {
 });
 
 // Starte Inventur (Wechsel von 'open' oder 'pending' zu 'in_progress')
-router.post('/inventory-counts/:id/start', async (req, res) => {
+router.post('/:id/start', async (req, res) => {
   try {
     const inventoryCountId = parseInt(req.params.id);
     
