@@ -1,0 +1,52 @@
+Hier ist ein sauber strukturierter Prompt, der die Aufgabe in Einzelschritte gliedert und die gewünschte Vorgehensweise umsetzt („erst Überblick, dann Schritt für Schritt mit Mobil-First-Prüfung“):
+
+⸻
+
+PROMPT:
+
+Bitte führe die folgende Aufgabe strukturiert und schrittweise durch.
+
+1. Überblick & Analyse:
+Erstelle zuerst eine kurze Übersicht, welche Bestandteile und Aufgaben im Rahmen der Überarbeitung der Login-Seite zu erledigen sind. Unterteile sie logisch nach:
+	•	Entfernen von Widgets
+	•	Inhaltliche Anpassungen bestehender Widgets
+	•	Komplette Überarbeitungen & neue Widgets
+
+2. Schrittweise Umsetzung:
+Gehe danach Schritt für Schritt jede Aufgabe nacheinander durch. Nach jedem einzelnen Schritt:
+	•	Überprüfe direkt im Frontend, ob die Änderung erfolgreich umgesetzt wurde.
+	•	Mobil-First-Prüfung: Achte insbesondere auf die Darstellung auf mobilen Endgeräten. Bei Problemen: sofort responsive überarbeiten.
+
+3. Die konkreten Aufgaben:
+
+A – Entfernen der folgenden Widgets von der Login-Seite:
+	•	Wiederherstellungsfortschritt
+	•	Datenbankstatistiken (doppelt genannt, ggf. beide Varianten prüfen)
+	•	Synchronisierungsstatus
+	•	Pfand-Umsätze
+	•	Top 5 verkaufte Waren (letzte 7 Tage)
+	•	Performance (Netto) unten
+	•	Feiertage & Ferien
+
+B – Inhaltliche Änderungen an bestehenden Widgets:
+	•	Offene Lieferungen: Zeige hier zusätzlich den Lieferantennamen an.
+	•	Kritische Automaten: Zeilenweise Darstellung mit Grund der Kritikalität (z. B. leer, Störung, kein Internet).
+	•	Kritische Lagerbestände: Zeige Lagername + Anzahl kritischer Produkte. Klick auf Zeile öffnet Lageransicht.
+	•	Kostenanalyse: Aktuell alles „0“. Prüfen, ob Daten gezogen werden. Falls leer, Fehlermeldung anzeigen. Zeitraumfilter hinzufügen.
+	•	Ergänze Netto-Ergebnis als zusätzliche Spalte in folgenden Widgets:
+	•	Aktive Automaten (letzte 7 Tage)
+	•	Top-Automaten nach Umsatz
+	•	Top 10 Produkte
+	•	Neueste Transaktionen
+
+C – Komplette Überarbeitung / Neuerstellung:
+	•	Verkaufsprognosen: komplett überarbeiten – sauber strukturiert, mobil lesbar, sinnvolle Forecast-Logik prüfen.
+	•	Wetter-Widget (neu): integriere Wetterdaten und Darstellung von Urlaub/Ferienzeiten (z. B. durch Balken, Kalender, Tooltip).
+
+WICHTIG:
+– Nach jedem Schritt prüfen: Wurde die Änderung sichtbar und korrekt im Frontend übernommen?
+– Darstellung mobil zuerst optimieren, danach Desktop.
+
+⸻
+
+Wenn du willst, kann ich daraus auch ein technisches Task-Dokument oder ein Jira-Ticket-Schema ableiten. Sag einfach Bescheid.

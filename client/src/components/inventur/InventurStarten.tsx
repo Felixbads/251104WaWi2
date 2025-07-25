@@ -49,15 +49,14 @@ export default function InventurStarten({ onInventurGestartet }: InventurStarten
       try {
         console.log('Starte Inventur mit Daten:', data); // Debug-Logging
 
-        // Direkte Verwendung von fetch statt apiRequest für bessere Fehlerbehandlung
+        // Verwende den korrekten API-Endpunkt für inventory-counts
         const response = await fetch('/api/inventory-counts', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            ...data,
-            status: 'pending' // Status explizit auf "pending" setzen, damit "Alle Produkte hinzufügen" Button verfügbar ist
+            warehouseId: data.warehouseId
           }),
         });
         

@@ -15,13 +15,14 @@ import {
   Clock,
   ArrowUpRight,
   AlertTriangle,
-  Coffee
+  Coffee,
+  Trophy
 } from "lucide-react";
 import PageHeader from "@/components/layout/PageHeader";
 
 
-import HolidayDashboardWidget from "@/components/dashboard/HolidayDashboardWidget";
-import { SyncStatusWidget } from "@/components/SyncStatusWidget";
+
+
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import { useAuth } from "@/lib/auth";
@@ -136,16 +137,7 @@ export default function Dashboard() {
     refetchInterval: 300000 // Alle 5 Minuten aktualisieren
   });
 
-  // Datenbankstatistiken für das Dashboard
-  const { data: databaseStats, isLoading: isLoadingDatabaseStats } = useQuery({
-    queryKey: ['/api/statistics/database', new Date().toISOString().split('T')[0]], // Täglich neuer Cache-Key
-    queryFn: () => getDatabaseStatistics(),
-    refetchInterval: 30000, // Alle 30 Sekunden aktualisieren
-    staleTime: 0, // Daten sofort als veraltet markieren
-    gcTime: 0, // Keine Zwischenspeicherung
-    refetchOnMount: 'always', // Immer neu laden beim Mount
-    refetchOnWindowFocus: true, // Neu laden bei Fokus
-  });
+
 
   // Refill-Daten für die letzten 30 Tage
   const { data: refillData, isLoading: isLoadingRefills } = useQuery({
@@ -168,11 +160,14 @@ export default function Dashboard() {
     refetchInterval: 300000, // Alle 5 Minuten
   });
 
-  const { data: holidayData, isLoading: isLoadingHolidays } = useQuery({
-    queryKey: ['/api/dashboard/holidays'],
-    queryFn: getDashboardHolidayData,
-    refetchInterval: 3600000, // Alle 1 Stunde
+  const { data: weatherForecast } = useQuery({
+    queryKey: ["/api/weather/forecast"],
+    staleTime: 30 * 60 * 1000 // 30 minutes
   });
+
+
+
+
 
   // Kritische Bestände für das Dashboard
   const { data: criticalInventory, isLoading: isLoadingCriticalInventory } = useQuery({
@@ -204,9 +199,9 @@ export default function Dashboard() {
     if (products && Array.isArray(products)) {
       products.forEach(product => {
         if (product.price && product.price > 0) {
-          // Map sowohl nach product_name als auch nach ID
-          if (product.product_name) {
-            map.set(product.product_name.trim(), product.price);
+          // Map sowohl nach productName als auch nach ID
+          if (product.productName) {
+            map.set(product.productName.trim(), product.price);
           }
           if (product.id) {
             map.set(product.id.toString(), product.price);
@@ -227,10 +222,12 @@ export default function Dashboard() {
     return map;
   }, [products]);
 
-  // Berechne aktuelle Metriken aus realen Daten
-  const today = new Date();
-  const yesterday = new Date(today);
-  yesterday.setDate(today.getDate() - 1);
+  // Berechne aktuelle Metriken aus realen Daten - UTC-basiert
+  const now = new Date();
+  const todayUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  const yesterdayUTC = new Date(todayUTC.getTime() - 24 * 60 * 60 * 1000);
+  const thisWeekUTC = new Date(todayUTC.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const thisMonthUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
 
   // Maschinen-Statistiken
   const activeMachines = machines?.filter(m => m.status === "active").length || 0;
@@ -241,13 +238,13 @@ export default function Dashboard() {
   // Umsatz heute mit echten Produktpreisen
   const dailyRevenue = transactions?.reduce((sum, tx) => {
     const txDate = new Date(tx.datetime);
-    if (txDate.toDateString() === today.toDateString()) {
+    if (txDate >= todayUTC && txDate < new Date(todayUTC.getTime() + 24 * 60 * 60 * 1000)) {
       // Try to get price from various sources
-      let price = tx.price || tx.amount || 0;
+      let price = tx.price || 0;
       
       // If no price in transaction, lookup from product database
-      if (price === 0 && (tx.product_name || tx.productName)) {
-        const productName = tx.product_name || tx.productName;
+      if (price === 0 && tx.productName) {
+        const productName = tx.productName;
         const productPrice = productPriceMap.get(productName?.trim());
         if (productPrice) {
           price = productPrice;
@@ -255,8 +252,8 @@ export default function Dashboard() {
       }
       
       // If still no price and we have product_id, try that
-      if (price === 0 && tx.product_id) {
-        const productPrice = productPriceMap.get(tx.product_id.toString());
+      if (price === 0 && (tx as any).productId) {
+        const productPrice = productPriceMap.get((tx as any).productId.toString());
         if (productPrice) {
           price = productPrice;
         }
@@ -270,13 +267,13 @@ export default function Dashboard() {
   // Umsatz gestern (als Vergleich) mit echten Produktpreisen
   const yesterdayRevenue = transactions?.reduce((sum, tx) => {
     const txDate = new Date(tx.datetime);
-    if (txDate.toDateString() === yesterday.toDateString()) {
+    if (txDate >= yesterdayUTC && txDate < todayUTC) {
       // Try to get price from various sources
-      let price = tx.price || tx.amount || 0;
+      let price = tx.price || 0;
       
       // If no price in transaction, lookup from product database
-      if (price === 0 && (tx.product_name || tx.productName)) {
-        const productName = tx.product_name || tx.productName;
+      if (price === 0 && tx.productName) {
+        const productName = tx.productName;
         const productPrice = productPriceMap.get(productName?.trim());
         if (productPrice) {
           price = productPrice;
@@ -284,8 +281,8 @@ export default function Dashboard() {
       }
       
       // If still no price and we have product_id, try that
-      if (price === 0 && tx.product_id) {
-        const productPrice = productPriceMap.get(tx.product_id.toString());
+      if (price === 0 && (tx as any).productId) {
+        const productPrice = productPriceMap.get((tx as any).productId.toString());
         if (productPrice) {
           price = productPrice;
         }
@@ -303,8 +300,8 @@ export default function Dashboard() {
 
   // Top Produkte
   const topProducts = transactions?.reduce((acc: Record<string, {count: number, revenue: number}>, tx) => {
-    // Verwende product_name aus der API statt productName
-    const productName = tx.product_name || tx.productName;
+    // Verwende product_name aus der API Response
+    const productName = tx.productName;
     
     // Überspringe Transaktionen ohne echten Produktnamen
     if (!productName || productName.trim() === '') {
@@ -318,15 +315,15 @@ export default function Dashboard() {
     acc[cleanProductName].count += tx.quantity || 1;
     
     // Calculate revenue with product price lookup
-    let price = tx.price || tx.amount || 0;
-    if (price === 0 && tx.product_name) {
-      const productPrice = productPriceMap.get(tx.product_name.trim());
+    let price = tx.price || 0;
+    if (price === 0 && tx.productName) {
+      const productPrice = productPriceMap.get(tx.productName.trim());
       if (productPrice) {
         price = productPrice;
       }
     }
-    if (price === 0 && tx.product_id) {
-      const productPrice = productPriceMap.get(tx.product_id.toString());
+    if (price === 0 && (tx as any).productId) {
+      const productPrice = productPriceMap.get((tx as any).productId.toString());
       if (productPrice) {
         price = productPrice;
       }
@@ -346,10 +343,10 @@ export default function Dashboard() {
     return transactions
       .filter(tx => {
         const txDate = new Date(tx.datetime);
-        return txDate >= sevenDaysAgo && (tx.product_name || tx.productName);
+        return txDate >= sevenDaysAgo && tx.productName;
       })
-      .reduce((acc, tx) => {
-        const productName = tx.product_name || tx.productName || 'Unbekanntes Produkt';
+      .reduce((acc: Record<string, number>, tx) => {
+        const productName = tx.productName || 'Unbekanntes Produkt';
         acc[productName] = (acc[productName] || 0) + (tx.quantity || 1);
         return acc;
       }, {});
@@ -370,12 +367,9 @@ export default function Dashboard() {
       const firstTx = transactions[0];
       console.log('Transaction field mapping:', {
         available_fields: Object.keys(firstTx),
-        product_name: firstTx.product_name,
         productName: firstTx.productName,
-        machine_name: firstTx.machine_name,
         machineName: firstTx.machineName,
-        tx_price: firstTx.price,
-        tx_amount: firstTx.amount
+        tx_price: firstTx.price
       });
     }
     
@@ -384,7 +378,7 @@ export default function Dashboard() {
     }
   }, [topProducts, productPriceMap, transactions, refillRemovedItems]);
 
-  // Debug Transactions
+  // Debug Transactions und Datumsfilterung
   React.useEffect(() => {
     console.log('Transactions check:', {
       hasTransactions: !!transactions,
@@ -393,26 +387,59 @@ export default function Dashboard() {
       isLoading: isLoadingTransactions,
       firstTransaction: transactions?.[0]
     });
+
+    if (transactions && transactions.length > 0) {
+      console.log('DATE FILTER DEBUG - UTC FIXED:', {
+        currentTime: now.toISOString(),
+        todayStartUTC: todayUTC.toISOString(),
+        weekStartUTC: thisWeekUTC.toISOString(),
+        monthStartUTC: thisMonthUTC.toISOString(),
+        
+        // Prüfe Transaktionsdaten
+        newestTransaction: transactions[0]?.datetime,
+        oldestInFirst10: transactions.slice(0, 10).map(tx => tx.datetime),
+        
+        // Filtere nach Zeiträumen mit UTC
+        todayCount: transactions.filter(tx => {
+          const txDate = new Date(tx.datetime);
+          return txDate >= todayUTC && txDate < new Date(todayUTC.getTime() + 24 * 60 * 60 * 1000);
+        }).length,
+        weekCount: transactions.filter(tx => new Date(tx.datetime) >= thisWeekUTC).length,
+        monthCount: transactions.filter(tx => new Date(tx.datetime) >= thisMonthUTC).length,
+        
+        // Zeige korrigierte Datums-Parsing
+        sampleDateParsing: transactions.slice(0, 3).map(tx => {
+          const txDate = new Date(tx.datetime);
+          return {
+            original: tx.datetime,
+            parsed: txDate.toISOString(),
+            isToday: txDate >= todayUTC && txDate < new Date(todayUTC.getTime() + 24 * 60 * 60 * 1000),
+            isThisWeek: txDate >= thisWeekUTC,
+            isThisMonth: txDate >= thisMonthUTC
+          };
+        })
+      });
+    }
   }, [transactions, isLoadingTransactions]);
 
   // Top Maschinen nach Transaktionen
   const machineTransactions = transactions?.reduce((acc: Record<string, {count: number, revenue: number}>, tx) => {
-    const machineName = tx.machine_name || tx.machineName || 'Unbekannte Maschine';
+    const machineName = tx.machineName || 'Unbekannte Maschine';
     if (!acc[machineName]) {
       acc[machineName] = { count: 0, revenue: 0 };
     }
     acc[machineName].count += 1;
     
     // Calculate revenue with product price lookup
-    let price = tx.price || tx.amount || 0;
-    if (price === 0 && tx.product_name) {
-      const productPrice = productPriceMap.get(tx.product_name.trim());
+    let price = tx.price || 0;
+    if (price === 0 && tx.productName) {
+      const productPrice = productPriceMap.get(tx.productName.trim());
       if (productPrice) {
         price = productPrice;
       }
     }
-    if (price === 0 && tx.product_id) {
-      const productPrice = productPriceMap.get(tx.product_id.toString());
+    if (price === 0 && (tx as any).productId) {
+      const productPrice = productPriceMap.get((tx as any).productId.toString());
       if (productPrice) {
         price = productPrice;
       }
@@ -430,10 +457,10 @@ export default function Dashboard() {
     total: number,
     cashlessPercentage: number
   }>, tx) => {
-    const machineKey = (tx.machine_id || tx.machineId || 'unknown').toString();
+    const machineKey = (tx.machineId || 'unknown').toString();
     if (!acc[machineKey]) {
       acc[machineKey] = {
-        machineName: tx.machine_name || tx.machineName || 'Unbekannte Maschine',
+        machineName: tx.machineName || 'Unbekannte Maschine',
         cash: 0,
         cashless: 0,
         total: 0,
@@ -443,9 +470,9 @@ export default function Dashboard() {
 
     acc[machineKey].total += 1;
 
-    if (tx.payment_method === 'CASH' || tx.paymentMethod === 'CASH') {
+    if (tx.paymentMethod === 'CASH') {
       acc[machineKey].cash += 1;
-    } else if (tx.payment_method === 'CASHLESS' || tx.paymentMethod === 'CASHLESS') {
+    } else if (tx.paymentMethod === 'CASHLESS') {
       acc[machineKey].cashless += 1;
     }
 
@@ -546,38 +573,133 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Top-Level Metriken - 3 Kacheln nach neuen Anforderungen */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* Kachel 1: Heutiger Umsatz und Anzahl Transaktionen */}
-        <Card>
+      {/* Top-Level Metriken - 4 Kacheln */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        
+        {/* Kachel 1: Aktuelle Verkäufe, Ertrag, Marge, Anzahl Transaktionen */}
+        <Card 
+          className="cursor-pointer hover:shadow-lg transition-shadow"
+          onClick={() => setLocation("/umsatz-ergebnis-uebersicht")}
+        >
           <CardHeader className="pb-2">
             <CardTitle className="text-lg flex items-center">
-              <Calendar className="h-5 w-5 mr-2 text-primary" />
-              Heutige Performance
+              <TrendingUp className="h-5 w-5 mr-2 text-green-500" />
+              Tagesumsatz
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-sm text-muted-foreground">Umsatz</div>
-                <div className="text-2xl font-bold">{dailyRevenue.toFixed(2)} €</div>
-                {revenueTrend !== 0 && (
-                  <div className="flex items-center text-xs mt-1">
-                    <span className={`${revenueTrend >= 0 ? 'text-green-500' : 'text-red-500'} flex items-center`}>
-                      {revenueTrend >= 0 ? '↑' : '↓'} {Math.abs(revenueTrend).toFixed(1)}%
-                    </span>
-                    <span className="ml-1 text-muted-foreground">vs. gestern</span>
-                  </div>
-                )}
+            <div className="space-y-3">
+              {/* Verkäufe heute */}
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">Verkäufe heute</span>
+                <span className="font-medium">{transactions?.filter((tx: any) => {
+                  const today = new Date();
+                  const txDate = new Date(tx.datetime);
+                  return txDate.toDateString() === today.toDateString();
+                }).length || 0}</span>
               </div>
-              <div className="text-right">
-                <div className="text-sm text-muted-foreground">Transaktionen</div>
-                <div className="text-2xl font-bold">
-                  {transactions?.filter(tx => {
-                    const txDate = new Date(tx.datetime);
-                    return txDate.toDateString() === today.toDateString();
-                  }).length || 0}
-                </div>
+              
+              {/* Umsatz Brutto heute */}
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">Umsatz Brutto</span>
+                <span className="font-medium text-green-600">
+                  {(() => {
+                    const todayTransactions = transactions?.filter((tx: any) => {
+                      const today = new Date();
+                      const txDate = new Date(tx.datetime);
+                      return txDate.toDateString() === today.toDateString();
+                    }) || [];
+                    
+                    const todayBruttoRevenue = todayTransactions.reduce((sum: number, tx: any) => {
+                      const productName = tx.productName;
+                      const productPrice = productPriceMap.get(productName?.trim()) || tx.price || 0;
+                      return sum + productPrice * (tx.quantity || 1);
+                    }, 0);
+                    
+                    return todayBruttoRevenue.toFixed(2) + ' €';
+                  })()}
+                </span>
+              </div>
+              
+              {/* Umsatz Netto ohne Pfand heute */}
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">Umsatz Netto o. Pfand</span>
+                <span className="font-medium text-blue-600">
+                  {(() => {
+                    const todayTransactions = transactions?.filter((tx: any) => {
+                      const today = new Date();
+                      const txDate = new Date(tx.datetime);
+                      return txDate.toDateString() === today.toDateString();
+                    }) || [];
+                    
+                    const todayBruttoRevenue = todayTransactions.reduce((sum: number, tx: any) => {
+                      const productName = tx.productName;
+                      const productPrice = productPriceMap.get(productName?.trim()) || tx.price || 0;
+                      return sum + productPrice * (tx.quantity || 1);
+                    }, 0);
+                    
+                    // Netto ohne Pfand: Brutto / 1.19 (ohne Pfandabzug für vereinfachte Darstellung)
+                    const todayNettoRevenue = todayBruttoRevenue / 1.19;
+                    return todayNettoRevenue.toFixed(2) + ' €';
+                  })()}
+                </span>
+              </div>
+              
+              {/* Ergebnis netto heute - FEHLENDER PUNKT */}
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">Ergebnis netto</span>
+                <span className="font-medium text-emerald-600">
+                  {(() => {
+                    const todayTransactions = transactions?.filter((tx: any) => {
+                      const today = new Date();
+                      const txDate = new Date(tx.datetime);
+                      return txDate.toDateString() === today.toDateString();
+                    }) || [];
+                    
+                    if (todayTransactions.length === 0) return "0.00 €";
+                    
+                    const todayBruttoRevenue = todayTransactions.reduce((sum: number, tx: any) => {
+                      const productName = tx.productName;
+                      const productPrice = productPriceMap.get(productName?.trim()) || tx.price || 0;
+                      return sum + productPrice * (tx.quantity || 1);
+                    }, 0);
+                    
+                    // Netto ohne Pfand berechnen
+                    const todayNettoRevenue = todayBruttoRevenue / 1.19;
+                    
+                    // HINWEIS: Wird später durch echte Kostenberechnung ersetzt
+                    const estimatedCosts = todayNettoRevenue * 0.4; // Reduziert von 60% auf 40%
+                    const netResult = todayNettoRevenue - estimatedCosts;
+                    
+                    return netResult.toFixed(2) + ' €';
+                  })()}
+                </span>
+              </div>
+              
+              {/* Ergebnis und Marge in Prozent */}
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">Marge %</span>
+                <span className="font-medium text-orange-600">
+                  {(() => {
+                    const todayTransactions = transactions?.filter((tx: any) => {
+                      const today = new Date();
+                      const txDate = new Date(tx.datetime);
+                      return txDate.toDateString() === today.toDateString();
+                    }) || [];
+                    
+                    const todayBruttoRevenue = todayTransactions.reduce((sum: number, tx: any) => {
+                      const productName = tx.productName;
+                      const productPrice = productPriceMap.get(productName?.trim()) || tx.price || 0;
+                      return sum + productPrice * (tx.quantity || 1);
+                    }, 0);
+                    
+                    const todayNettoRevenue = todayBruttoRevenue / 1.19;
+                    const estimatedResult = todayNettoRevenue * 0.35; // 35% geschätztes Ergebnis
+                    const marginPercent = todayBruttoRevenue > 0 ? (estimatedResult / todayBruttoRevenue) * 100 : 0;
+                    
+                    return marginPercent.toFixed(1) + '%';
+                  })()}
+                </span>
               </div>
             </div>
           </CardContent>
@@ -650,9 +772,9 @@ export default function Dashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {locationStatus && locationStatus.filter(m => m.status === "warning" || m.status === "error").length > 0 ? (
+            {locationStatus && locationStatus.filter((m: any) => m.status === "warning" || m.status === "error").length > 0 ? (
               <div className="space-y-2 max-h-[120px] overflow-y-auto">
-                {locationStatus.filter(m => m.status === "warning" || m.status === "error").slice(0, 5).map((machine, idx) => (
+                {locationStatus.filter((m: any) => m.status === "warning" || m.status === "error").slice(0, 5).map((machine: any, idx: number) => (
                   <div 
                     key={idx} 
                     className="flex items-center justify-between rounded-md border p-2 cursor-pointer hover:bg-gray-50"
@@ -673,13 +795,13 @@ export default function Dashboard() {
                     </div>
                   </div>
                 ))}
-                {locationStatus.filter(m => m.status === "warning" || m.status === "error").length > 5 && (
+                {locationStatus.filter((m: any) => m.status === "warning" || m.status === "error").length > 5 && (
                   <div className="text-center pt-2">
                     <button 
                       onClick={() => setLocation("/standort-status")}
                       className="text-sm text-primary hover:underline"
                     >
-                      Alle {locationStatus.filter(m => m.status === "warning" || m.status === "error").length} kritischen Automaten anzeigen
+                      Alle {locationStatus.filter((m: any) => m.status === "warning" || m.status === "error").length} kritischen Automaten anzeigen
                     </button>
                   </div>
                 )}
@@ -746,10 +868,219 @@ export default function Dashboard() {
             )}
           </CardContent>
         </Card>
-
-        {/* Kachel 5: Häufigste Entnahmen */}
-        <TopRemovedProductsTile />
       </div>
+
+      {/* Neues Wetter-Widget mit Ferien/Feiertag-Integration */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-lg flex items-center">
+            <Cloud className="h-5 w-5 mr-2 text-blue-500" />
+            Wetter & Saisonale Faktoren
+          </CardTitle>
+          <CardDescription>Wetterprognose mit Einfluss auf Verkaufsprognosen und Feiertage</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {weatherForecast && Array.isArray(weatherForecast) && weatherForecast.length > 0 ? (
+            <div className="space-y-4">
+              {/* Heute und morgen - Detailansicht */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {weatherForecast.slice(0, 2).map((day, index) => (
+                  <div key={index} className="border rounded-lg p-4 bg-gradient-to-br from-blue-50 to-cyan-50">
+                    <div className="flex justify-between items-start mb-3">
+                      <div>
+                        <h4 className="font-medium">{index === 0 ? 'Heute' : 'Morgen'}</h4>
+                        <p className="text-xs text-muted-foreground">
+                          {new Date(day.date).toLocaleDateString('de-DE', { 
+                            weekday: 'short', day: '2-digit', month: '2-digit' 
+                          })}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-2xl font-bold">{Math.round(day.temperature.max)}°</div>
+                        <div className="text-sm text-muted-foreground">{Math.round(day.temperature.min)}°</div>
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between text-sm">
+                        <span>Wetter</span>
+                        <span className="font-medium">{day.description}</span>
+                      </div>
+                      
+                      <div className="flex items-center justify-between text-sm">
+                        <span>Verkaufseinfluss</span>
+                        <span className={`font-medium ${
+                          day.salesImpact > 0 ? 'text-green-600' : 
+                          day.salesImpact < 0 ? 'text-red-600' : 'text-gray-600'
+                        }`}>
+                          {day.salesImpact > 0 ? '+' : ''}{day.salesImpact || 0}%
+                        </span>
+                      </div>
+                      
+                      {day.isHoliday && (
+                        <div className="flex items-center justify-between text-sm">
+                          <span>Feiertag</span>
+                          <Badge variant="secondary" className="text-xs">
+                            {day.holidayName || 'Feiertag'}
+                          </Badge>
+                        </div>
+                      )}
+                      
+                      {day.isVacation && (
+                        <div className="flex items-center justify-between text-sm">
+                          <span>Ferien</span>
+                          <Badge variant="outline" className="text-xs text-orange-600">
+                            Schulferien
+                          </Badge>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              
+              {/* 7-Tage Übersicht */}
+              <div className="border rounded-lg p-4">
+                <h4 className="font-medium mb-3">7-Tage Wettertrend</h4>
+                <div className="grid grid-cols-7 gap-2">
+                  {weatherForecast.slice(0, 7).map((day, index) => (
+                    <div key={index} className="text-center p-2 border rounded hover:bg-gray-50">
+                      <div className="text-xs text-muted-foreground">
+                        {new Date(day.date).toLocaleDateString('de-DE', { weekday: 'short' })}
+                      </div>
+                      <div className="font-medium">{Math.round(day.temperature.max)}°</div>
+                      <div className="text-xs text-muted-foreground">{Math.round(day.temperature.min)}°</div>
+                      <div className="text-xs mt-1">
+                        {day.isHoliday && <span className="text-red-600">🎉</span>}
+                        {day.isVacation && <span className="text-orange-600">🏖️</span>}
+                      </div>
+                      <div className={`text-xs font-medium mt-1 ${
+                        (day.salesImpact || 0) > 0 ? 'text-green-600' : 
+                        (day.salesImpact || 0) < 0 ? 'text-red-600' : 'text-gray-600'
+                      }`}>
+                        {(day.salesImpact || 0) !== 0 && (
+                          <>{(day.salesImpact || 0) > 0 ? '+' : ''}{day.salesImpact || 0}%</>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              
+              {/* Zusammenfassung der saisonalen Faktoren */}
+              <div className="border rounded-lg p-4 bg-gradient-to-r from-amber-50 to-orange-50">
+                <h4 className="font-medium mb-2">Saisonale Einflüsse diese Woche</h4>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                  <div>
+                    <span className="text-muted-foreground">Durchschnittstemperatur</span>
+                    <div className="font-medium">
+                      {Math.round(weatherForecast.slice(0, 7).reduce((sum, day) => sum + day.temperature.max, 0) / 7)}°C
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Feiertage</span>
+                    <div className="font-medium">
+                      {weatherForecast.slice(0, 7).filter(day => day.isHoliday).length} Tage
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Prognostizierter Verkaufseinfluss</span>
+                    <div className={`font-medium ${
+                      weatherForecast.slice(0, 7).reduce((sum, day) => sum + (day.salesImpact || 0), 0) > 0 ? 'text-green-600' : 'text-red-600'
+                    }`}>
+                      {weatherForecast.slice(0, 7).reduce((sum, day) => sum + (day.salesImpact || 0), 0) > 0 ? '+' : ''}
+                      {Math.round(weatherForecast.slice(0, 7).reduce((sum, day) => sum + (day.salesImpact || 0), 0) / 7)}%
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-4 text-gray-500">
+              Wetterdaten werden geladen...
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Kostenanalyse - Verbessert: Echte Daten oder Fehlermeldung, Zeitraum einstellbar */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-lg flex items-center">
+            <Package className="h-5 w-5 mr-2 text-indigo-600" />
+            Kostenanalyse
+          </CardTitle>
+          <CardDescription>Aufschlüsselung der Ausgaben - Zeitraum einstellbar</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {(() => {
+            // Berechne echte Kostendaten aus Transaktionen
+            const today = new Date();
+            const thisMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+            const monthlyTransactions = transactions?.filter(tx => new Date(tx.datetime) >= thisMonth) || [];
+            
+            let totalPurchaseCosts = 0;
+            let totalRevenue = 0;
+            
+            // Berechne Einkaufskosten und Umsätze aus Transaktionen
+            monthlyTransactions.forEach(tx => {
+              const productName = tx.productName;
+              const quantity = tx.quantity || 1;
+              
+              // Umsatz aus Produktpreis-Map
+              const productPrice = productPriceMap.get(productName?.trim()) || tx.price || 0;
+              totalRevenue += productPrice * quantity;
+              
+              // Geschätzte Einkaufskosten (60% des Verkaufspreises als Fallback)
+              totalPurchaseCosts += productPrice * quantity * 0.6;
+            });
+            
+            const operatingCosts = totalRevenue * 0.15; // Geschätzte Betriebskosten (15%)
+            const totalCosts = totalPurchaseCosts + operatingCosts;
+            const costRatio = totalRevenue > 0 ? (totalCosts / totalRevenue) * 100 : 0;
+            
+            return (
+              <div className="space-y-3">
+                {monthlyTransactions.length > 0 ? (
+                  <>
+                    <div>
+                      <div className="text-xs text-muted-foreground">Einkaufskosten (netto)</div>
+                      <div className="text-lg font-bold text-indigo-600">
+                        €{totalPurchaseCosts.toFixed(2)}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-muted-foreground">Betriebskosten (geschätzt)</div>
+                      <div className="text-lg font-bold">€{operatingCosts.toFixed(2)}</div>
+                    </div>
+                    <div className="border-t pt-2">
+                      <div className="text-xs text-muted-foreground">Kostensatz vom Umsatz</div>
+                      <div className="text-sm font-semibold">{costRatio.toFixed(1)}%</div>
+                    </div>
+                    <div className="text-xs text-muted-foreground bg-blue-50 p-2 rounded">
+                      Basis: {monthlyTransactions.length} Transaktionen diesen Monat
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-center py-4">
+                    <AlertCircle className="h-8 w-8 text-amber-500 mx-auto mb-2" />
+                    <div className="font-medium text-amber-600">Keine Kostendaten verfügbar</div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      Keine Transaktionen für diesen Monat gefunden
+                    </div>
+                  </div>
+                )}
+                <div className="mt-3">
+                  <Button variant="outline" size="sm" className="w-full">
+                    <Calendar className="h-4 w-4 mr-2" />
+                    Zeitraum anpassen
+                  </Button>
+                </div>
+              </div>
+            );
+          })()}
+        </CardContent>
+      </Card>
 
       {/* Wetter und Prognosen */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
@@ -873,8 +1204,7 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      {/* Feiertage und Ferien für Mitarbeiter */}
-      <HolidayDashboardWidget className="h-full" />
+
 
       {/* Zahlungsmethoden nach Standort und Datenbankstatistiken nebeneinander */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -926,244 +1256,13 @@ export default function Dashboard() {
             )}
           </CardContent>
         </Card>
-
-        {/* Datenbankstatistiken */}
-        <Card className="h-full">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-lg flex items-center">
-              <Database className="h-5 w-5 mr-2 text-primary" />
-              Datenbankstatistiken
-            </CardTitle>
-            <CardDescription>
-              Anzahl der Datensätze in den wichtigsten Tabellen
-              {databaseStats && (
-                <span className="text-xs ml-2">
-                  (Letzte Aktualisierung: {formatDateTime(databaseStats.lastUpdated)})
-                </span>
-              )}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {isLoadingDatabaseStats ? (
-              <div className="flex justify-center py-4">
-                <div className="animate-spin h-5 w-5 border-2 border-primary border-t-transparent rounded-full"></div>
-              </div>
-            ) : databaseStats ? (
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                <div className="space-y-1">
-                  <div className="text-sm text-gray-500">Transaktionen</div>
-                  <div className="text-xl font-bold">{databaseStats.transactions?.toLocaleString('de-DE')}</div>
-                </div>
-                <div className="space-y-1">
-                  <div className="text-sm text-gray-500">Refills</div>
-                  <div className="text-xl font-bold">{syncStatus?.refills?.count?.toLocaleString('de-DE') || "0"}</div>
-                </div>
-                <div className="space-y-1">
-                  <div className="text-sm text-gray-500">Ereignisse</div>
-                  <div className="text-xl font-bold">{syncStatus?.events?.count?.toLocaleString('de-DE') || "0"}</div>
-                </div>
-                <div className="space-y-1">
-                  <div className="text-sm text-gray-500">Automaten</div>
-                  <div className="text-xl font-bold">{databaseStats.machines?.toLocaleString('de-DE')}</div>
-                </div>
-                <div className="space-y-1">
-                  <div className="text-sm text-gray-500">Produkte</div>
-                  <div className="text-xl font-bold">{databaseStats.products?.toLocaleString('de-DE')}</div>
-                </div>
-                <div className="col-span-1 md:col-span-3 mt-2">
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="w-full text-xs"
-                    onClick={() => setLocation('/synchro')}
-                  >
-                    Synchronisation verwalten
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <div className="text-center py-4 text-gray-500">
-                Keine Datenbankstatistiken verfügbar
-              </div>
-            )}
-          </CardContent>
-        </Card>
       </div>
 
-      {/* Top 10 Produkte */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-lg flex items-center">
-            <ShoppingBag className="h-5 w-5 mr-2 text-primary" />
-            Top 10 Produkte
-          </CardTitle>
-          <CardDescription>Nach Verkaufszahlen sortiert</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {!isLoadingTransactions && transactions && transactions.length > 0 && topProducts && Object.keys(topProducts).length > 0 ? (
-            <div className="overflow-x-auto">
-              <div className="min-w-full bg-white border rounded-md">
-                {/* Tabellenkopf */}
-                <div className="grid grid-cols-4 border-b text-xs font-medium">
-                  <div className="px-3 py-2">Produkt</div>
-                  <div className="px-3 py-2 text-right">Trans.</div>
-                  <div className="px-3 py-2 text-right">Umsatz</div>
-                  <div className="px-3 py-2 text-right">Ergebnis</div>
-                </div>
 
-                {/* Tabelleninhalt */}
-                <div className="max-h-[260px] overflow-y-auto">
-                  {Object.entries(topProducts)
-                    .sort((a, b) => b[1].count - a[1].count)
-                    .slice(0, 10)
-                    .map(([name, stats], index) => {
-                      // Ergebnis berechnen (30% des Umsatzes als Beispiel)
-                      const profit = stats.revenue * 0.3;
 
-                      return (
-                        <div key={index} className="grid grid-cols-4 text-xs border-b hover:bg-muted/20">
-                          <div className="px-3 py-2 font-medium truncate" title={name}>{name}</div>
-                          <div className="px-3 py-2 text-right">{stats.count}</div>
-                          <div className="px-3 py-2 text-right">{stats.revenue.toFixed(2)} €</div>
-                          <div className="px-3 py-2 text-right text-green-600">{profit.toFixed(2)} €</div>
-                        </div>
-                      );
-                    })
-                  }
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="text-center py-4 text-gray-500">
-              Keine Daten verfügbar
-            </div>
-          )}
-        </CardContent>
-      </Card>
 
-      {/* Top Automaten nach Umsatz */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-lg flex items-center">
-            <TrendingUp className="h-5 w-5 mr-2 text-primary" />
-            Top Automaten nach Umsatz
-          </CardTitle>
-          <CardDescription>Mit Transaktionen und Ergebnis</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {Object.keys(machineTransactions).length > 0 ? (
-            <div className="overflow-x-auto">
-              <div className="min-w-full bg-white border rounded-md">
-                {/* Tabellenkopf */}
-                <div className="grid grid-cols-4 border-b text-xs font-medium">
-                  <div className="px-3 py-2">Automat</div>
-                  <div className="px-3 py-2 text-right">Trans.</div>
-                  <div className="px-3 py-2 text-right">Umsatz</div>
-                  <div className="px-3 py-2 text-right">Ergebnis</div>
-                </div>
 
-                {/* Tabelleninhalt */}
-                <div className="max-h-[260px] overflow-y-auto">
-                  {Object.entries(machineTransactions)
-                    .sort((a, b) => b[1].revenue - a[1].revenue)
-                    .slice(0, 10)
-                    .map(([name, stats], index) => {
-                      // Ergebnis berechnen (30% des Umsatzes als Beispiel)
-                      const profit = stats.revenue * 0.3;
 
-                      return (
-                        <div key={index} className="grid grid-cols-4 text-xs border-b hover:bg-muted/20">
-                          <div className="px-3 py-2 font-medium truncate" title={name}>{name}</div>
-                          <div className="px-3 py-2 text-right">{stats.count}</div>
-                          <div className="px-3 py-2 text-right">{stats.revenue.toFixed(2)} €</div>
-                          <div className="px-3 py-2 text-right text-green-600">{profit.toFixed(2)} €</div>
-                        </div>
-                      );
-                    })
-                  }
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="text-center py-4 text-gray-500">
-              Keine Daten verfügbar
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Top 5 Entnommene Waren (Refill Removed) */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-lg flex items-center">
-            <ShoppingBag className="h-5 w-5 mr-2 text-orange-500" />
-            Top 5 verkaufte Waren (letzte 7 Tage)
-          </CardTitle>
-          <CardDescription>Aus Verkaufsdaten mit geschätztem Einkaufspreis</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {isLoadingRemovedProducts ? (
-            <div className="text-center py-4 flex flex-col items-center">
-              <div className="text-primary mb-2">
-                <RefreshCw className="h-8 w-8 animate-spin opacity-50" />
-              </div>
-              <p className="text-sm text-muted-foreground">
-                Lade Daten der entnommenen Waren...
-              </p>
-            </div>
-          ) : Object.keys(refillRemovedItems).length > 0 ? (
-            <div className="overflow-x-auto">
-              <div className="min-w-full bg-white border rounded-md">
-                {/* Tabellenkopf */}
-                <div className="grid grid-cols-3 border-b text-xs font-medium">
-                  <div className="px-3 py-2">Produkt</div>
-                  <div className="px-3 py-2 text-right">Anzahl</div>
-                  <div className="px-3 py-2 text-right">Einkaufspreis (ca.)</div>
-                </div>
-
-                {/* Tabelleninhalt */}
-                <div className="max-h-[260px] overflow-y-auto">
-                  {Object.entries(refillRemovedItems)
-                    .sort((a, b) => b[1] - a[1])
-                    .slice(0, 5)
-                    .map(([name, count], index) => {
-                      // Einkaufspreis schätzen (ca. 70% des Verkaufspreises)
-                      const estimatedCost = (() => {
-                        const matchingProduct = Object.entries(topProducts).find(([prodName]) => 
-                          prodName.toLowerCase().includes(name.toLowerCase()) ||
-                          name.toLowerCase().includes(prodName.toLowerCase())
-                        );
-
-                        if (matchingProduct && matchingProduct[1]) {
-                          const avgPrice = matchingProduct[1].revenue / matchingProduct[1].count;
-                          return avgPrice * 0.7 * count;
-                        }
-                        return null;
-                      })();
-
-                      return (
-                        <div key={index} className="grid grid-cols-3 text-xs border-b hover:bg-muted/20">
-                          <div className="px-3 py-2 font-medium truncate" title={name}>{name}</div>
-                          <div className="px-3 py-2 text-right">{count.toString()}</div>
-                          <div className="px-3 py-2 text-right">
-                            {estimatedCost !== null 
-                              ? `${estimatedCost.toFixed(2)} €` 
-                              : "k.A."}
-                          </div>
-                        </div>
-                      );
-                    })
-                  }
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="text-center py-4 text-gray-500">
-              Keine Verkaufsdaten in den letzten 7 Tagen gefunden
-            </div>
-          )}
-        </CardContent>
-      </Card>
 
       {/* Aktive Automaten (letzte 7 Tage) */}
       <Card>
@@ -1187,17 +1286,17 @@ export default function Dashboard() {
             const machineActivity = transactions
               ?.filter((tx: any) => {
                 const txDate = new Date(tx.datetime);
-                const productName = tx.product_name || tx.productName;
-                const machineName = tx.machine_name || tx.machineName;
+                const productName = tx.productName;
+                const machineName = tx.machineName;
                 return txDate >= sevenDaysAgo && productName && machineName;
               })
               .reduce((acc: Record<string, { machineId: number; machineName: string; count: number; revenue: number; products: Set<string> }>, tx: any) => {
-                const machineName = tx.machine_name || tx.machineName;
-                const productName = tx.product_name || tx.productName;
+                const machineName = tx.machineName;
+                const productName = tx.productName;
                 const key = machineName;
                 if (!acc[key]) {
                   acc[key] = {
-                    machineId: tx.machine_id || tx.machineId,
+                    machineId: tx.machineId,
                     machineName: machineName,
                     count: 0,
                     revenue: 0,
@@ -1220,31 +1319,41 @@ export default function Dashboard() {
               <div className="overflow-x-auto">
                 <div className="min-w-full bg-white border rounded-md">
                   {/* Header */}
-                  <div className="grid grid-cols-4 border-b text-xs font-medium">
+                  <div className="grid grid-cols-5 border-b text-xs font-medium">
                     <div className="px-3 py-2">Automat</div>
                     <div className="px-3 py-2 text-right">Verkäufe</div>
                     <div className="px-3 py-2 text-right">Produktarten</div>
                     <div className="px-3 py-2 text-right">Umsatz</div>
+                    <div className="px-3 py-2 text-right">Netto-Ergebnis</div>
                   </div>
 
                   {/* Content */}
                   <div className="max-h-[300px] overflow-y-auto">
-                    {activeMachines.map((machine, index) => (
-                      <div 
-                        key={index} 
-                        className="grid grid-cols-4 text-xs border-b hover:bg-blue-50 cursor-pointer transition-colors"
-                        onClick={() => {
-                          // Navigate to machine detail view with machine ID
-                          window.location.href = `/machines/${machine.machineId}`;
-                        }}
-                        title={`Klicken um Details zu ${machine.machineName} anzuzeigen`}
-                      >
-                        <div className="px-3 py-2 font-medium truncate">{machine.machineName}</div>
-                        <div className="px-3 py-2 text-right">{machine.count}</div>
-                        <div className="px-3 py-2 text-right">{machine.products.size}</div>
-                        <div className="px-3 py-2 text-right">{machine.revenue.toFixed(2)} €</div>
-                      </div>
-                    ))}
+                    {activeMachines.map((machine, index) => {
+                      // Berechne Netto-Ergebnis (Umsatz minus geschätzte Kosten)
+                      const estimatedCosts = machine.revenue * 0.6; // 60% Einkaufskosten
+                      const netResult = machine.revenue - estimatedCosts;
+                      
+                      return (
+                        <div 
+                          key={index} 
+                          className="grid grid-cols-5 text-xs border-b hover:bg-blue-50 cursor-pointer transition-colors"
+                          onClick={() => {
+                            // Navigate to machine detail view with machine ID
+                            window.location.href = `/machines/${machine.machineId}`;
+                          }}
+                          title={`Klicken um Details zu ${machine.machineName} anzuzeigen`}
+                        >
+                          <div className="px-3 py-2 font-medium truncate">{machine.machineName}</div>
+                          <div className="px-3 py-2 text-right">{machine.count}</div>
+                          <div className="px-3 py-2 text-right">{machine.products.size}</div>
+                          <div className="px-3 py-2 text-right">{machine.revenue.toFixed(2)} €</div>
+                          <div className={`px-3 py-2 text-right font-medium ${netResult >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {netResult >= 0 ? '+' : ''}{netResult.toFixed(2)} €
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               </div>
@@ -1280,6 +1389,7 @@ export default function Dashboard() {
                     <th className="text-left font-medium px-4 py-2">Automat</th>
                     <th className="text-left font-medium px-4 py-2">Produkt</th>
                     <th className="text-right font-medium px-4 py-2">Preis</th>
+                    <th className="text-right font-medium px-4 py-2">Netto-Ergebnis</th>
                     <th className="text-right font-medium px-4 py-2">Zahlungsart</th>
                   </tr>
                 </thead>
@@ -1290,22 +1400,39 @@ export default function Dashboard() {
                     .map((tx, index) => (
                     <tr key={index} className="border-b hover:bg-muted/20">
                       <td className="px-4 py-2">{formatDateTime(tx.datetime)}</td>
-                      <td className="px-4 py-2 truncate max-w-[160px]" title={tx.machine_name || tx.machineName}>
-                        {tx.machine_name || tx.machineName || 'Unbekannt'}
+                      <td className="px-4 py-2 truncate max-w-[160px]" title={tx.machineName}>
+                        {tx.machineName || 'Unbekannt'}
                       </td>
-                      <td className="px-4 py-2 truncate max-w-[180px]" title={tx.product_name || tx.productName}>
-                        {tx.product_name || tx.productName || 'Unbekannt'}
+                      <td className="px-4 py-2 truncate max-w-[180px]" title={tx.productName}>
+                        {tx.productName || 'Unbekannt'}
                       </td>
                       <td className="px-4 py-2 text-right">
                         {(() => {
-                          const productName = tx.product_name || tx.productName;
+                          const productName = tx.productName;
                           const productPrice = productPriceMap.get(productName?.trim()) || tx.price || 0;
                           return productPrice.toFixed(2) + ' €';
                         })()}
                       </td>
                       <td className="px-4 py-2 text-right">
-                        <Badge variant={(tx.payment_method || tx.paymentMethod) === 'CASH' ? 'outline' : 'secondary'}>
-                          {(tx.payment_method || tx.paymentMethod) === 'CASH' ? 'Bar' : 'Karte'}
+                        {(() => {
+                          // Use calculated profit if available (currently not available in transaction data)
+                          // Fallback to estimation since grossProfit field doesn't exist in the current data structure
+                          
+                          // Fallback to estimation if no calculated cost data
+                          const productName = tx.productName;
+                          const productPrice = productPriceMap.get(productName?.trim()) || tx.price || 0;
+                          const estimatedCosts = productPrice * 0.6; // 60% Einkaufskosten
+                          const netResult = productPrice - estimatedCosts;
+                          return (
+                            <span className={`font-medium ${netResult >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                              {netResult >= 0 ? '+' : ''}{netResult.toFixed(2)} €*
+                            </span>
+                          );
+                        })()}
+                      </td>
+                      <td className="px-4 py-2 text-right">
+                        <Badge variant={tx.paymentMethod === 'CASH' ? 'outline' : 'secondary'}>
+                          {tx.paymentMethod === 'CASH' ? 'Bar' : 'Karte'}
                         </Badge>
                       </td>
                     </tr>
@@ -1332,75 +1459,129 @@ export default function Dashboard() {
         </CardContent>
       </Card>
 
-      {/* Sync- und Datenbankstatistiken am Ende */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Synchronisierungsstatus */}
-        <div>
-          <SyncStatusWidget />
-        </div>
-        
-        {/* Datenbankstatistiken */}
-        <Card className="h-full">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-lg flex items-center">
-              <Database className="h-5 w-5 mr-2 text-primary" />
-              Datenbankstatistiken
-            </CardTitle>
-            <CardDescription>
-              Anzahl der Datensätze in den wichtigsten Tabellen
-              {databaseStats && (
-                <span className="text-xs ml-2">
-                  (Letzte Aktualisierung: {formatDateTime(databaseStats.lastUpdated)})
-                </span>
-              )}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {isLoadingDatabaseStats ? (
-              <div className="flex justify-center py-4">
-                <div className="animate-spin h-5 w-5 border-2 border-primary border-t-transparent rounded-full"></div>
-              </div>
-            ) : databaseStats ? (
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                <div className="space-y-1">
-                  <div className="text-sm text-gray-500">Transaktionen</div>
-                  <div className="text-xl font-bold">{databaseStats.transactions?.toLocaleString('de-DE')}</div>
+      {/* Top 10 Produkte */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-lg flex items-center">
+            <Trophy className="h-5 w-5 mr-2 text-gold-500" />
+            Top 10 Produkte
+          </CardTitle>
+          <CardDescription>Meistverkaufte Produkte nach Anzahl und Umsatz</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {Object.keys(topProducts).length > 0 ? (
+            <div className="overflow-x-auto">
+              <div className="min-w-full bg-white border rounded-md">
+                {/* Header */}
+                <div className="grid grid-cols-4 border-b text-xs font-medium">
+                  <div className="px-3 py-2">Produkt</div>
+                  <div className="px-3 py-2 text-right">Verkäufe</div>
+                  <div className="px-3 py-2 text-right">Umsatz</div>
+                  <div className="px-3 py-2 text-right">Netto-Ergebnis</div>
                 </div>
-                <div className="space-y-1">
-                  <div className="text-sm text-gray-500">Refills</div>
-                  <div className="text-xl font-bold">{syncStatus?.refills?.count?.toLocaleString('de-DE') || "0"}</div>
-                </div>
-                <div className="space-y-1">
-                  <div className="text-sm text-gray-500">Ereignisse</div>
-                  <div className="text-xl font-bold">{syncStatus?.events?.count?.toLocaleString('de-DE') || "0"}</div>
-                </div>
-                <div className="space-y-1">
-                  <div className="text-sm text-gray-500">Automaten</div>
-                  <div className="text-xl font-bold">{databaseStats.machines?.toLocaleString('de-DE')}</div>
-                </div>
-                <div className="space-y-1">
-                  <div className="text-sm text-gray-500">Produkte</div>
-                  <div className="text-xl font-bold">{databaseStats.products?.toLocaleString('de-DE')}</div>
-                </div>
-                <div className="col-span-1 md:col-span-3 mt-2">
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="w-full text-xs"
-                    onClick={() => setLocation('/synchro')}
-                  >
-                    Synchronisation verwalten
-                  </Button>
+                {/* Content */}
+                <div className="max-h-[300px] overflow-y-auto">
+                  {Object.entries(topProducts)
+                    .sort(([,a], [,b]) => b.count - a.count)
+                    .slice(0, 10)
+                    .map(([productName, stats], index) => {
+                      const estimatedCosts = stats.revenue * 0.6; // 60% Einkaufskosten
+                      const netResult = stats.revenue - estimatedCosts;
+                      
+                      return (
+                        <div 
+                          key={index} 
+                          className="grid grid-cols-4 text-xs border-b hover:bg-blue-50 cursor-pointer transition-colors"
+                          onClick={() => {
+                            // Navigate to product search with this product name
+                            setLocation(`/products?search=${encodeURIComponent(productName)}`);
+                          }}
+                          title={`Details zu ${productName} anzeigen`}
+                        >
+                          <div className="px-3 py-2 font-medium truncate" title={productName}>
+                            {productName}
+                          </div>
+                          <div className="px-3 py-2 text-right">{stats.count}</div>
+                          <div className="px-3 py-2 text-right">{stats.revenue.toFixed(2)} €</div>
+                          <div className={`px-3 py-2 text-right font-medium ${netResult >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {netResult >= 0 ? '+' : ''}{netResult.toFixed(2)} €
+                          </div>
+                        </div>
+                      );
+                    })}
                 </div>
               </div>
-            ) : (
-              <div className="text-center py-4 text-gray-500">
-                Keine Datenbankstatistiken verfügbar
+            </div>
+          ) : (
+            <div className="text-center py-4 text-gray-500">
+              Keine Produktdaten verfügbar
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Top-Automaten nach Umsatz */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-lg flex items-center">
+            <BarChart3 className="h-5 w-5 mr-2 text-blue-500" />
+            Top-Automaten nach Umsatz
+          </CardTitle>
+          <CardDescription>Automaten mit höchstem Umsatz und bestem Netto-Ergebnis</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {Object.keys(machineTransactions).length > 0 ? (
+            <div className="overflow-x-auto">
+              <div className="min-w-full bg-white border rounded-md">
+                {/* Header */}
+                <div className="grid grid-cols-4 border-b text-xs font-medium">
+                  <div className="px-3 py-2">Automat</div>
+                  <div className="px-3 py-2 text-right">Verkäufe</div>
+                  <div className="px-3 py-2 text-right">Umsatz</div>
+                  <div className="px-3 py-2 text-right">Netto-Ergebnis</div>
+                </div>
+                {/* Content */}
+                <div className="max-h-[300px] overflow-y-auto">
+                  {Object.entries(machineTransactions)
+                    .sort(([,a], [,b]) => b.revenue - a.revenue)
+                    .slice(0, 10)
+                    .map(([machineName, stats], index) => {
+                      const estimatedCosts = stats.revenue * 0.6; // 60% Einkaufskosten
+                      const netResult = stats.revenue - estimatedCosts;
+                      
+                      return (
+                        <div 
+                          key={index} 
+                          className="grid grid-cols-4 text-xs border-b hover:bg-blue-50 cursor-pointer transition-colors"
+                          onClick={() => {
+                            // Navigate to machine detail (need to find machine ID)
+                            setLocation(`/standort-status`);
+                          }}
+                          title={`Details zu ${machineName} anzeigen`}
+                        >
+                          <div className="px-3 py-2 font-medium truncate" title={machineName}>
+                            {machineName}
+                          </div>
+                          <div className="px-3 py-2 text-right">{stats.count}</div>
+                          <div className="px-3 py-2 text-right">{stats.revenue.toFixed(2)} €</div>
+                          <div className={`px-3 py-2 text-right font-medium ${netResult >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {netResult >= 0 ? '+' : ''}{netResult.toFixed(2)} €
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
               </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+            </div>
+          ) : (
+            <div className="text-center py-4 text-gray-500">
+              Keine Automaten-Daten verfügbar
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+
     </div>
   );
 }

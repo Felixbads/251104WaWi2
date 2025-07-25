@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { vendonSync } from '../services/vendonSync';
 import { historicalVendonSync } from '../services/historicalVendonSync';
 import { SystematicHistoricalSync } from '../services/systematicHistoricalSync';
+import { TargetedHistoricalBackfill } from '../services/targetedHistoricalBackfill';
 import { storage } from '../storage';
 import { MachineStock, historicalSyncOptionsSchema } from '@shared/schema';
 import { UploadedFile } from 'express-fileupload';
@@ -939,6 +940,80 @@ router.post('/historical-sync', async (req, res) => {
     return res.status(500).json({ 
       status: 'error', 
       message: `Historische Synchronisierung fehlgeschlagen: ${error instanceof Error ? error.message : String(error)}` 
+    });
+  }
+});
+
+/**
+ * Route für den gezielten historischen Backfill bis 1. Juli 2023
+ * POST /api/vendon/targeted-backfill
+ */
+router.post('/targeted-backfill', async (req, res) => {
+  try {
+    const { 
+      action,
+      targetDate = '2023-07-01',
+      batchSize = 100,
+      requestDelay = 1000,
+      maxRetries = 3,
+      enableDetailedLogging = true
+    } = req.body;
+
+    if (action === 'start') {
+      console.log('🚀 Starte Targeted Historical Backfill bis', targetDate);
+      
+      // Erstelle neue Backfill-Instanz mit den angegebenen Parametern
+      const backfill = new TargetedHistoricalBackfill({
+        targetDate,
+        batchSize: Math.min(parseInt(batchSize), 100), // API limit
+        requestDelay: parseInt(requestDelay),
+        maxRetries: parseInt(maxRetries),
+        enableDetailedLogging: Boolean(enableDetailedLogging)
+      });
+
+      // Starte den Backfill-Prozess im Hintergrund
+      backfill.startBackfill()
+        .then(progress => {
+          console.log('✅ Targeted Historical Backfill abgeschlossen:', progress);
+        })
+        .catch(error => {
+          console.error('❌ Fehler beim Targeted Historical Backfill:', error);
+        });
+
+      // Rückgabe sofort mit den ersten Informationen
+      return res.json({
+        status: 'started',
+        message: 'Targeted Historical Backfill wurde gestartet',
+        config: {
+          targetDate,
+          batchSize: Math.min(parseInt(batchSize), 100),
+          requestDelay: parseInt(requestDelay),
+          maxRetries: parseInt(maxRetries),
+          enableDetailedLogging: Boolean(enableDetailedLogging)
+        },
+        timestamp: new Date().toISOString()
+      });
+
+    } else if (action === 'status') {
+      // Status-Abfrage für laufenden Backfill (placeholder)
+      return res.json({
+        status: 'info',
+        message: 'Status-Abfrage für Targeted Backfill',
+        timestamp: new Date().toISOString()
+      });
+
+    } else {
+      return res.status(400).json({
+        status: 'error',
+        message: `Ungültige Aktion: ${action}. Erlaubt sind 'start' oder 'status'.`
+      });
+    }
+
+  } catch (error) {
+    console.error('Fehler beim Targeted Historical Backfill:', error);
+    return res.status(500).json({ 
+      status: 'error', 
+      message: `Targeted Historical Backfill fehlgeschlagen: ${error instanceof Error ? error.message : String(error)}` 
     });
   }
 });

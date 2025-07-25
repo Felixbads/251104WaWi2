@@ -167,9 +167,9 @@ type InventurStatusTypes = {
   [key: string]: StatusEntry;  // Index-Signatur für beliebige string-Keys
 };
 
-// Status-Definitionen mit korrekter Typisierung
+// Status-Definitionen mit korrekter Typisierung - FIXED: pending zu Entwurf für Inventur-Workflow
 const inventurStatusTypes: InventurStatusTypes = {
-  pending: { label: 'Geplant', color: 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200', icon: ClockIcon },
+  pending: { label: 'Entwurf', color: 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200', icon: ClockIcon },
   in_progress: { label: 'In Bearbeitung', color: 'bg-blue-100 text-blue-800 hover:bg-blue-200', icon: RefreshCw },
   completed: { label: 'Abgeschlossen', color: 'bg-green-100 text-green-800 hover:bg-green-200', icon: CheckCircle2 },
   cancelled: { label: 'Abgebrochen', color: 'bg-red-100 text-red-800 hover:bg-red-200', icon: Ban },
@@ -185,6 +185,19 @@ const formatDate = (date?: Date | string) => {
     hour: '2-digit',
     minute: '2-digit',
   }).format(new Date(date));
+};
+
+// Hilfsfunktion zur Verwendung der Gebindegröße aus Einkaufsbedingungen
+const parsePackageSize = (product: any): number => {
+  if (!product) return 1;
+  
+  // Priorität 1: Gebindegröße aus Einkaufsbedingungen (packagingQuantity)
+  if (product.packagingQuantity && typeof product.packagingQuantity === 'number' && product.packagingQuantity > 0) {
+    return product.packagingQuantity;
+  }
+  
+  // Fallback: Direkt auf 1 setzen (Einzelstück)
+  return 1;
 };
 
 // Funktion zum Formatieren von Batch-Daten (MHD)
@@ -255,7 +268,7 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
   const calculateTotalQuantity = (itemId: number, product?: Product) => {
     const packageCount = packageCounts[itemId] || 0;
     const individualCount = individualCounts[itemId] || 0;
-    const packageSize = product?.packageQuantity || 1; // Standardwert 1 falls keine Gebindegröße definiert
+    const packageSize = parsePackageSize(product); // Verwende die neue parsePackageSize Funktion
     
     const totalFromPackages = packageCount * packageSize;
     const total = totalFromPackages + individualCount;
@@ -2682,7 +2695,7 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
                     
                     return (
                       // Fragment statt div, damit die TableRow direkt in TableBody gerendert wird
-                      <React.Fragment key={item.id}>
+                      <div key={`item-${item.id}`}>
                         {/* Hauptzeile für das Produkt */}
                         <TableRow className={
                           item.status === 'counted' || 
@@ -2728,7 +2741,7 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
                                   {/* Gebinde-Eingabe - zeigt echte packageQuantity */}
                                   <div className="space-y-1 p-2 bg-blue-50 rounded border">
                                     <div className="text-xs font-medium text-blue-800">
-                                      Gebinde ({item.product?.packageQuantity || 20} Stk. pro Gebinde)
+                                      Gebinde ({parsePackageSize(item.product)} Stk. pro Gebinde)
                                     </div>
                                     <div className="flex items-center space-x-1">
                                       <Input
@@ -2741,7 +2754,7 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
                                           setPackageCounts({ ...packageCounts, [item.id]: count });
                                           
                                           // Automatische Berechnung der Gesamtmenge
-                                          const packageQuantity = item.product?.packageQuantity || 20;
+                                          const packageQuantity = parsePackageSize(item.product);
                                           const calculation = calculateTotalQuantity(item.id, item.product);
                                           calculation.total = (count || 0) * packageQuantity + (individualCounts[item.id] || 0);
                                           setEditedCounts({ ...editedCounts, [item.id]: calculation.total });
@@ -2749,7 +2762,7 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
                                         className="w-16 text-center text-sm"
                                       />
                                       <span className="text-xs text-muted-foreground">
-                                        = {(packageCounts[item.id] || 0) * (item.product?.packageQuantity || 20)} Stk.
+                                        = {(packageCounts[item.id] || 0) * parsePackageSize(item.product)} Stk.
                                       </span>
                                     </div>
                                   </div>
@@ -2770,7 +2783,7 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
                                           setIndividualCounts({ ...individualCounts, [item.id]: count });
                                           
                                           // Automatische Berechnung der Gesamtmenge
-                                          const packageQuantity = item.product?.packageQuantity || 20;
+                                          const packageQuantity = parsePackageSize(item.product);
                                           const calculation = calculateTotalQuantity(item.id, item.product);
                                           calculation.total = (packageCounts[item.id] || 0) * packageQuantity + (count || 0);
                                           setEditedCounts({ ...editedCounts, [item.id]: calculation.total });
@@ -2915,7 +2928,7 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
                         
                         {/* Batch-Informationen, wenn expandiert */}
                         {expandedItems[item.id] && (
-                          <TableRow>
+                          <TableRow key={`batch-${item.id}`}>
                             <TableCell colSpan={7} className="bg-gray-50 p-0">
                               <div className="p-4">
                                 <div className="text-sm font-medium mb-2">Mindesthaltbarkeitsdaten</div>
@@ -2982,7 +2995,7 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
                             </TableCell>
                           </TableRow>
                         )}
-                      </React.Fragment>
+                      </div>
                     );
                   })
                 )}
@@ -3184,7 +3197,60 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
         onBatchCreated={(newBatch) => {
           console.log('Neue Batch erstellt:', newBatch);
           
-          // React Query Caches invalidieren für sofortige UI-Updates
+          // KRITISCH: Sofortiges lokales State-Update für UI-Reaktion
+          if (selectedItem && newBatch) {
+            console.log('Aktualisiere lokale State mit neuer Batch:', {
+              itemId: selectedItem.id,
+              batchId: newBatch.id,
+              batchNumber: newBatch.batchNumber,
+              expiryDate: newBatch.expiryDate
+            });
+            
+            // Aktualisiere das entsprechende Item in countedItems
+            setCountedItems(prevItems =>
+              prevItems.map(item =>
+                item.id === selectedItem.id
+                  ? {
+                      ...item,
+                      batchId: newBatch.id,
+                      batch: {
+                        id: newBatch.id,
+                        batchNumber: newBatch.batchNumber,
+                        expiryDate: newBatch.expiryDate,
+                        productId: newBatch.productId,
+                        warehouseId: newBatch.warehouseId,
+                        currentQuantity: newBatch.currentQuantity || newBatch.quantity || 0,
+                        initialQuantity: newBatch.initialQuantity || newBatch.quantity || 0,
+                        createdAt: newBatch.createdAt || new Date().toISOString(),
+                        updatedAt: newBatch.updatedAt || new Date().toISOString()
+                      }
+                    }
+                  : item
+              )
+            );
+            
+            // Füge die neue Batch zu availableBatches hinzu
+            setAvailableBatches(prevBatches => {
+              // Prüfe ob die Batch bereits existiert (verhindert Duplikate)
+              const exists = prevBatches.some(batch => batch.id === newBatch.id);
+              if (exists) {
+                console.log('Batch bereits in availableBatches vorhanden:', newBatch.id);
+                return prevBatches;
+              }
+              
+              const updatedBatches = [...prevBatches, newBatch];
+              console.log('Neue Batch zu availableBatches hinzugefügt:', updatedBatches.length, 'Batches total');
+              return updatedBatches;
+            });
+            
+            // Expandiere das Item für sofortige Sichtbarkeit der neuen Batch
+            setExpandedItems(prev => ({
+              ...prev,
+              [selectedItem.id]: true
+            }));
+          }
+          
+          // React Query Caches invalidieren für Server-Synchronisation
           queryClient.invalidateQueries({ 
             queryKey: [`/api/products/${selectedItem?.productId}/batches`],
             exact: false 
@@ -3195,9 +3261,9 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
             exact: false 
           });
           
-          // Batches für das ausgewählte Produkt neu laden
+          // Optionales Nachladen von Server-Daten (für Konsistenz)
           if (selectedItem && inventurData?.warehouseId) {
-            console.log('Lade Batches neu nach Erstellung...');
+            console.log('Lade Batches zur Synchronisation vom Server...');
             fetch(`/api/products/${selectedItem.productId}/batches?warehouseId=${inventurData.warehouseId}`, {
               method: 'GET',
               headers: {
@@ -3209,17 +3275,18 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
             })
             .then(response => response.json())
             .then(batches => {
-              setAvailableBatches(Array.isArray(batches) ? batches : []);
-              console.log('Batches erfolgreich neu geladen:', batches);
-              
-              // Force a re-render by updating the expanded state
-              setExpandedItems(prev => ({
-                ...prev,
-                [selectedItem.id]: true
-              }));
+              console.log('Server-Batches für Synchronisation geladen:', batches.length);
+              // Nur aktualisieren, wenn sich die Anzahl unterscheidet (verhindert UI-Flackern)
+              setAvailableBatches(prevBatches => {
+                if (Array.isArray(batches) && batches.length !== prevBatches.length) {
+                  console.log('Aktualisiere availableBatches mit Server-Daten');
+                  return batches;
+                }
+                return prevBatches;
+              });
             })
             .catch(error => {
-              console.error('Fehler beim Neuladen der Batches:', error);
+              console.error('Fehler beim Server-Batch-Sync:', error);
             });
           }
         }}

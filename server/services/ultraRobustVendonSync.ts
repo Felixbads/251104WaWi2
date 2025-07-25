@@ -7,7 +7,7 @@
 import { storage } from "../storage";
 import { InsertTransaction, InsertMachine } from "@shared/schema";
 import axios from "axios";
-import { db as rawDb } from "../db";
+import { db, rawDb } from "../db";
 
 export class UltraRobustVendonSync {
   private readonly BASE_URL = "https://cloud.vendon.net/rest/v1.8.0";
@@ -64,7 +64,7 @@ export class UltraRobustVendonSync {
    */
   private async findLastTransaction() {
     try {
-      const transactions = await storage.getTransactions(1);
+      const transactions = await storage.getTransactions();
       
       if (transactions.length > 0) {
         return {

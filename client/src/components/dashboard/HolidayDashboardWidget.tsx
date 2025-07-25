@@ -112,10 +112,7 @@ export default function HolidayDashboardWidget({ className }: HolidayDashboardWi
           <CalendarDays className="h-5 w-5 mr-2 text-blue-600" />
           Feiertage & Ferien
         </CardTitle>
-        <CardDescription className="flex items-center">
-          <MapPin className="h-3 w-3 mr-1" />
-          Sachsen und deutschlandweit
-        </CardDescription>
+        <CardDescription>Aktuelle Feiertage und Ferien nach Bundesländern</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Heutige Feiertage/Ferien */}
@@ -148,20 +145,28 @@ export default function HolidayDashboardWidget({ className }: HolidayDashboardWi
                   }
                 })()}
               </div>
-              <div className="space-y-1">
+              <div className="space-y-2">
                 {holidayData.today.map((holiday, index) => (
-                  <div key={index} className="flex items-center justify-between">
-                    <div className="flex items-center">
-                      {getHolidayTypeIcon(holiday.type)}
-                      <span className={`ml-2 text-sm font-medium ${
-                        holiday.type === 'PUBLIC_HOLIDAY'
-                          ? 'text-red-700 dark:text-red-300'
-                          : 'text-blue-700 dark:text-blue-300'
-                      }`}>
-                        {holiday.name}
-                      </span>
+                  <div key={index} className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center">
+                        {getHolidayTypeIcon(holiday.type)}
+                        <span className={`ml-2 text-sm font-medium ${
+                          holiday.type === 'PUBLIC_HOLIDAY'
+                            ? 'text-red-700 dark:text-red-300'
+                            : 'text-blue-700 dark:text-blue-300'
+                        }`}>
+                          {holiday.name}
+                        </span>
+                      </div>
+                      {getHolidayTypeBadge(holiday.type)}
                     </div>
-                    {getHolidayTypeBadge(holiday.type)}
+                    {holiday.stateNames && holiday.stateNames.length > 0 && (
+                      <div className="ml-6 text-xs text-muted-foreground">
+                        <MapPin className="h-3 w-3 inline mr-1" />
+                        {holiday.stateNames.join(', ')}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -189,8 +194,19 @@ export default function HolidayDashboardWidget({ className }: HolidayDashboardWi
                         <span className="text-sm font-medium">{holiday.name}</span>
                         {getHolidayTypeBadge(holiday.type)}
                       </div>
-                      <div className="text-xs text-muted-foreground mt-1">
-                        {formatDate(holiday.date)} • {holiday.state || 'Bundesweit'}
+                      <div className="text-xs text-muted-foreground mt-1 space-y-1">
+                        <div>{formatDate(holiday.date)}</div>
+                        {holiday.stateNames && holiday.stateNames.length > 0 ? (
+                          <div className="flex items-center">
+                            <MapPin className="h-3 w-3 mr-1" />
+                            <span className="font-medium">{holiday.stateNames.join(', ')}</span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center">
+                            <MapPin className="h-3 w-3 mr-1" />
+                            <span>Bundesweit</span>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>

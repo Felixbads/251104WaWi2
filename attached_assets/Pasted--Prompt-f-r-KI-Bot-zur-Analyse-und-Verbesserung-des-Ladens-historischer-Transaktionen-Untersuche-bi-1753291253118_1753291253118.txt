@@ -1,0 +1,88 @@
+
+Prompt für KI-Bot zur Analyse und Verbesserung des Ladens historischer Transaktionen
+
+Untersuche bitte die aktuelle Implementierung zum Laden von Transaktionen in unsere Datenbank. Aktuell werden lediglich neue Transaktionen, die Tag für Tag entstehen, gespeichert. Historische Transaktionen hingegen werden nicht geladen.
+
+Aufgabe:
+	1.	Prüfe den aktuellen Code bzw. die Logik zur Transaktionsverarbeitung:
+	•	Wie werden Transaktionen aktuell über die API der Vendoren geladen?
+	•	Wird beim Abruf ein Datumsfilter oder ein Startzeitpunkt verwendet?
+	•	Gibt es ein Limit oder eine Paging-Strategie?
+	2.	Identifiziere den Grund, warum keine historischen Transaktionen (also aus der Vergangenheit vor dem aktuellen Tag) geladen werden.
+	3.	Zielzustand:
+	•	Die Datenbank soll rekursiv rückwärts (also historisch in die Vergangenheit) befüllt werden – Tag für Tag oder in sinnvollen Blöcken.
+	•	Es sollen alle Transaktionen geladen werden bis einschließlich 1. Juli 2023.
+	•	Der Abruf soll so lange wiederholt werden, bis alle Transaktionen bis zu diesem Stichtag vollständig gespeichert sind.
+	4.	Schlage eine sinnvolle Strategie vor, wie dieser rückwirkende Ladevorgang robust umgesetzt werden kann:
+	•	z. B. mit einer while-Schleife oder einem rekursiven Zeitfenster, beginnend mit heute –1 Tag und dann weiter zurückgehend.
+	•	Beachte dabei mögliche API-Limits, Ratenbegrenzungen und Fehlerbehandlungen.
+	5.	Liefere optional direkt Beispielcode für eine solche Implementierung – idealerweise modular und mit Logging der bereits abgerufenen Zeiträume.
+
++## Current Implementation
++The script `sync_today_transactions.js` only retrieves transactions from the previous day. It sets `startOfDay` and `endOfDay` as yesterday and today and uses a fixed limit of 100 when calling the Vendon API:
++```javascript
++const today = new Date();
++const yesterday = new Date(today);
++yesterday.setDate(yesterday.getDate() - 1);
++const startOfDay = Math.floor(yesterday.getTime() / 1000);
++const endOfDay = Math.floor(today.getTime() / 1000);
++// ...
++const params = {
++  from_timestamp: startOfDay,
++  to_timestamp: endOfDay,
++  limit: 100,
++  offset: 0
++};
++```
++This code is visible in lines 18-35 of the file.
++
++Other helper scripts such as `quick_sync_missing.js` follow a similar pattern and restrict the retrieval to the current day, also applying a fixed limit:
++```javascript
++const startDate = new Date(`${today}T00:00:00.000Z`);
++const endDate = new Date(`${today}T23:59:59.999Z`);
++const startTimestamp = Math.floor(startDate.getTime() / 1000);
++const endTimestamp = Math.floor(endDate.getTime() / 1000);
++const transactions = await fetchVendonTransactions(startTimestamp, endTimestamp);
++```
++Here the helper function queries `/stats/vends` with `limit=500` and does not iterate over earlier dates.
++
++Due to these fixed ranges, historical data prior to the last day never gets processed.
++
++## Reason for Missing Historical Data
++The current sync logic lacks a loop or recursion to step backwards through previous days. It always starts from yesterday and stops after one request with a small limit. There is no continuation mechanism or persistent state that would fetch earlier dates.
++
++## Recommended Backfill Strategy
++To populate the database back to **1 July 2023**, a backward loop should repeatedly request transactions in daily (or configurable) blocks until the target date is reached. Important aspects:
++
++1. **Iterative date range** – Start one day before the most recent stored transaction and decrease by one day in each iteration.
++2. **Pagination** – Respect the API limit by requesting in pages and continuing until no more data is returned for that day.
++3. **Stopping condition** – Stop once the start of the current window is before `2023‑07‑01`.
++4. **Error handling & rate limits** – Retry on API errors, apply delays between requests, and log progress.
++
++### Example Outline
++```javascript
++async function backfillTransactions(targetDate = '2023-07-01') {
++  const endTimestamp = Math.floor(Date.now() / 1000);
++  let start = endTimestamp - 24 * 3600;
++  const target = Math.floor(new Date(targetDate).getTime() / 1000);
++
++  while (start >= target) {
++    let page = 0;
++    let hasMore = true;
++    while (hasMore) {
++      const result = await fetchVendon(start, start + 24*3600, 100, page * 100);
++      if (result.length === 0) { hasMore = false; break; }
++      await saveTransactions(result);
++      hasMore = result.length === 100;
++      page++;
++    }
++    start -= 24 * 3600; // go one day back
++  }
++}
++```
++This simplified routine repeatedly fetches transactions for each day and handles pagination via `page` and `limit`. The process continues until July 2023 is reached or no new data remains.
++
++## Prompt Example
++```
++Bitte analysiere den bestehenden Vendon-Sync-Code. Ermittle den aktuellsten gespeicherten Transaktionszeitpunkt und rufe rekursiv jeweils den Vortag ab, bis der 1. Juli 2023 erreicht ist. Nutze dabei Paging mit "limit" und "offset" und wiederhole den Abruf, bis keine Daten mehr zurückkommen. Pro Tag sollen alle Transaktionen in die Datenbank geschrieben werden. Beachte API-Limits und logge den Fortschritt.
++```

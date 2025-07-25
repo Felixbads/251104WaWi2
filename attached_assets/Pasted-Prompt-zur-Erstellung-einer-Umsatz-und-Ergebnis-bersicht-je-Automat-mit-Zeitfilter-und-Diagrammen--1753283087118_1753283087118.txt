@@ -1,0 +1,65 @@
+Prompt zur Erstellung einer Umsatz- und Ergebnisübersicht je Automat (mit Zeitfilter und Diagrammen)
+
+Bitte erstelle eine mobilfähige Web- oder App-Seite mit folgender Funktionalität:
+
+⸻
+
+1. Filterbereich (oben auf der Seite)
+	•	Auswahlfeld zur Auswahl des Zeitraums:
+	•	Heute
+	•	Gestern
+	•	Diese Woche
+	•	Dieser Monat
+	•	Letzter Monat
+	•	Benutzerdefinierter Zeitraum (Datumsfeld von / bis)
+
+Je nach gewähltem Zeitraum ändern sich alle angezeigten Werte dynamisch. Bei größeren Zeiträumen (Woche oder länger) wird zusätzlich automatisch eine grafische Auswertung eingeblendet.
+
+⸻
+
+2. Übersicht aller Automaten (nach gewähltem Zeitraum)
+
+Für jeden Automat wird angezeigt:
+	•	Name/ID des Automaten
+	•	Umsatz netto (ohne Pfand)
+	•	Anzahl Transaktionen
+	•	Gesamtergebnis (Umsatz – Einkaufspreise – Tageskosten × Tage)
+	•	Durchschnittliche Marge (%)
+	•	Fixkosten im Zeitraum (tägliche Kosten × Tage)
+	•	Delta (Gewinn/Verlust im Zeitraum)
+
+Am Ende der Seite:
+	•	Summen über alle Automaten: Gesamtumsatz, Transaktionen, Gesamtgewinn, durchschnittliche Marge, Gesamtkosten, Gesamtdelta
+
+⸻
+
+3. Detailansicht pro Automat (aufklappbar)
+
+Nach Klick auf einen Automaten wird eine Tabelle mit allen verkauften Produkten im gewählten Zeitraum angezeigt:
+	•	Produktname
+	•	Verkaufspreis (netto)
+	•	Einkaufspreis (netto)
+	•	Marge (in € und %)
+	•	Anzahl Verkäufe
+	•	Gesamtergebnis je Produkt
+
+Darunter jeweils:
+	•	Summenzeile für den Automaten im Zeitraum: Umsatz, Transaktionen, Ergebnis, Marge, Kosten, Delta
+
+⸻
+
+4. Grafische Darstellung (bei Zeiträumen > 1 Tag)
+	•	Automatisch generiertes Liniendiagramm oder Balkendiagramm
+	•	X-Achse: Tage oder Wochen (abhängig vom Zeitraum)
+	•	Y-Achse: Umsatz, Ergebnis, Transaktionen (umschaltbar)
+	•	Filterbar nach Automat oder alle zusammen
+	•	Optional: Tortendiagramm zur Visualisierung des Produktmix (Top-Produkte nach Umsatz / Ergebnis)
+
+⸻
+
+5. Technische Anforderungen
+	•	Darstellung „mobile first“, responsives Design
+	•	Daten aus Backend in Echtzeit oder regelmäßig synchronisiert
+	•	Optisch intuitive Gestaltung (z. B. mit Farbcodes für Marge oder Verluste)
+	•	Exportfunktion für CSV oder PDF (optional)
+	•	Vorbereitung auf spätere Erweiterungen (z. B. Forecast, Alert bei niedriger Marge)

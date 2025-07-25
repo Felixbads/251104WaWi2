@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { db } from '../db';
 import { sql, eq, and, gte, lte } from 'drizzle-orm';
 import { subWeeks, format, addWeeks } from 'date-fns';
-import { orders, orderItems, suppliers } from '../../shared/schema';
+import { orders, orderItems, suppliers, warehouses } from '../../shared/schema';
 
 const router = Router();
 
@@ -154,11 +154,13 @@ router.get('/analytics/sales/:supplierId/:weeks', async (req, res) => {
             ELSE 'stable'
           END as trend_direction,
           CASE 
-            WHEN td.older_period_sales = 0 OR sd.avg_weekly_sales = 0 THEN 0
+            WHEN COALESCE(td.older_period_sales, 0) = 0 THEN 
+              CASE WHEN COALESCE(td.recent_period_sales, 0) > 0 THEN 100.0 ELSE 0.0 END
+            WHEN td.recent_period_sales IS NULL THEN 0.0
             ELSE CAST(
-              ((td.recent_period_sales::numeric / ${Math.ceil(weeks / 2)}) - 
-               (td.older_period_sales::numeric / ${Math.ceil(weeks / 2)})) / 
-              (td.older_period_sales::numeric / ${Math.ceil(weeks / 2)}) * 100 
+              ((COALESCE(td.recent_period_sales, 0)::numeric / ${Math.ceil(weeks / 2)}) - 
+               (COALESCE(td.older_period_sales, 0)::numeric / ${Math.ceil(weeks / 2)})) / 
+              (COALESCE(td.older_period_sales, 0)::numeric / ${Math.ceil(weeks / 2)}) * 100
               AS numeric(10,1))
           END as trend_percentage
         FROM sales_data sd
@@ -327,6 +329,18 @@ router.post('/bulk', async (req, res) => {
       return res.status(404).json({ error: 'Supplier not found' });
     }
 
+    // Get warehouse information to set warehouse_name correctly
+    let warehouseName = null;
+    if (warehouseId) {
+      const warehouse = await db.select().from(warehouses).where(eq(warehouses.id, warehouseId)).limit(1);
+      if (warehouse.length > 0) {
+        warehouseName = warehouse[0].name;
+        console.log(`🏢 WAREHOUSE FOUND: ID ${warehouseId} -> Name: ${warehouseName}`);
+      } else {
+        console.log(`⚠️ WAREHOUSE NOT FOUND: ID ${warehouseId}`);
+      }
+    }
+
     // Generate order number
     const today = new Date();
     const dateStr = format(today, 'yyyyMMdd');
@@ -346,16 +360,25 @@ router.post('/bulk', async (req, res) => {
     const orderSequence = (parseInt(todayOrdersCount[0]?.count as string) || 0) + 1;
     const orderNumber = `BULK-${dateStr}-${orderSequence.toString().padStart(3, '0')}`;
 
-    // Create the order
+    // Create the order - warehouseId is required for bulk orders
+    if (!warehouseId) {
+      return res.status(400).json({ 
+        error: 'Warehouse ID is required for bulk orders',
+        details: { warehouseId, supplierId }
+      });
+    }
+
     const newOrder = await db.insert(orders).values({
       orderNumber,
       supplierId,
-      warehouseId: warehouseId ? parseInt(warehouseId) : null,
+      supplierName: supplier[0].name,
+      warehouseId: parseInt(warehouseId),
+
       status: 'draft',
       expectedDeliveryDate: expectedDeliveryDate ? new Date(expectedDeliveryDate) : null,
       deliveryType: deliveryType,
       showPricesInEmail: showPricesInEmail,
-      notes: `${notes || ''}\n\nBulk order analysis: ${analysisWeeks} weeks, forecast: ${forecastWeeks} weeks`,
+      notes: notes || '', // Don't add automatic text, use only what user enters
       priority: priority,
       totalAmount: totalValue
     }).returning();

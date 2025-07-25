@@ -1,7 +1,7 @@
 import { db } from "./db";
 import { sql } from "drizzle-orm";
 import { eq, and, or, desc, inArray, gte, lte, like } from "drizzle-orm";
-import { products, machines } from "../shared/schema";
+import { products, machines, purchaseConditions } from "../shared/schema";
 
 // Import warehouse3 schema definitions for type information
 import {
@@ -1246,13 +1246,13 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
     const [itemCount] = await db
       .select({ count: sql<number>`count(*)` })
       .from(inventoryCountItems)
-      .where(eq(inventoryCountItems.countId, id));
+      .where(eq(inventoryCountItems.inventoryCountId, id));
     
     // Berechnung der Diskrepanzen
     const [discrepancySum] = await db
       .select({ sum: sql<number>`sum(abs(${inventoryCountItems.discrepancy}))` })
       .from(inventoryCountItems)
-      .where(eq(inventoryCountItems.countId, id));
+      .where(eq(inventoryCountItems.inventoryCountId, id));
     
     return {
       ...count,
@@ -1344,20 +1344,35 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
       .select({
         item: inventoryCountItems,
         product: products,
-        batch: productBatches
+        batch: productBatches,
+        purchaseCondition: purchaseConditions
       })
       .from(inventoryCountItems)
       .leftJoin(products, eq(inventoryCountItems.productId, products.id))
       .leftJoin(productBatches, eq(inventoryCountItems.batchId, productBatches.id))
-      .where(eq(inventoryCountItems.countId, countId));
+      .leftJoin(purchaseConditions, eq(purchaseConditions.productId, inventoryCountItems.productId))
+      .where(eq(inventoryCountItems.inventoryCountId, countId));
     
-    return items.map(({ item, product, batch }) => ({
+    return items.map(({ item, product, batch, purchaseCondition }) => ({
       ...item,
-      productName: product?.productName || 'Unbekanntes Produkt',
-      sku: product?.sku || '',
-      category: product?.category || '',
-      batchNumber: batch?.batchNumber || null,
-      expiryDate: batch?.expiryDate || null
+      product: product ? {
+        id: product.id,
+        productName: product.product_name || 'Unbekanntes Produkt',
+        sku: product.sku || '',
+        category: product.category || '',
+        price: product.price || 0,
+        packageSize: product.package_size || null,
+        packageQuantity: product.package_quantity || null,
+        unit: product.units || 'Stk.',
+        // Einkaufsbedingungen hinzufügen
+        packagingQuantity: purchaseCondition?.packagingQuantity || null,
+        packagingUnit: purchaseCondition?.packagingUnit || null
+      } : null,
+      batch: batch ? {
+        id: batch.id,
+        batchNumber: batch.batchNumber || null,
+        expiryDate: batch.expiryDate || null
+      } : null
     }));
   }
   
@@ -1369,7 +1384,7 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
         count: inventoryCounts
       })
       .from(inventoryCountItems)
-      .leftJoin(inventoryCounts, eq(inventoryCountItems.countId, inventoryCounts.id))
+      .leftJoin(inventoryCounts, eq(inventoryCountItems.inventoryCountId, inventoryCounts.id))
       .where(eq(inventoryCountItems.id, id));
     
     if (!previousItem || !previousItem.count) {
@@ -1575,12 +1590,21 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
     
     return items.map(({ item, product, batch }) => ({
       ...item,
-      productName: product?.productName || 'Unbekanntes Produkt',
-      sku: product?.sku || '',
-      category: product?.category || '',
-      price: product?.price || 0,
-      batchNumber: batch?.batchNumber || null,
-      expiryDate: batch?.expiryDate || null
+      product: product ? {
+        id: product.id,
+        productName: product.productName || product.product_name || 'Unbekanntes Produkt',
+        sku: product.sku || '',
+        category: product.category || '',
+        price: product.price || 0,
+        packageSize: product.packageSize || product.package_size || null,
+        packageQuantity: product.packageQuantity || product.package_quantity || null,
+        unit: product.unit || 'Stk.'
+      } : null,
+      batch: batch ? {
+        id: batch.id,
+        batchNumber: batch.batchNumber || null,
+        expiryDate: batch.expiryDate || null
+      } : null
     }));
   }
   

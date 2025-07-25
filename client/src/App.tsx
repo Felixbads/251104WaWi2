@@ -30,6 +30,8 @@ import DataAvailability from "@/pages/DataAvailability"; // Neue Datenverfügbar
 import AdvancedAnalysis from "@/pages/AdvancedAnalysis"; // Erweiterte Analyse-Komponente
 import ProfitabilityAnalysis from "@/pages/ProfitabilityAnalysis"; // Wirtschaftlichkeitsauswertung
 import Wirtschaftlichkeit from "@/pages/Wirtschaftlichkeit"; // Neue Wirtschaftlichkeitsseite
+import ModernProfitabilityDashboard from "@/pages/ModernProfitabilityDashboard"; // Modernes Wirtschaftlichkeits-Dashboard
+import ProductProfitabilityAnalysis from "@/pages/ProductProfitabilityAnalysis"; // Produktspezifische Wirtschaftlichkeitsanalyse
 import Login from "@/pages/Login";
 import Register from "@/pages/Register";
 import NotApproved from "@/pages/NotApproved"; // Seite für nicht-freigegebene Benutzer
@@ -43,6 +45,7 @@ import { InventoryCartProvider } from "@/components/inventory/InventoryCartConte
 import InterAppConnections from "@/pages/InterAppConnections";
 import SupplierPortal from "@/pages/SupplierPortal";
 import SupplierPortalNew from "@/pages/SupplierPortalNew";
+import UmsatzErgebnisUebersicht from "@/pages/UmsatzErgebnisUebersicht";
 
 /**
  * HOC, der eine geschützte Route mit Benutzerfreigabe-Prüfung erstellt
@@ -101,6 +104,7 @@ import UserManagement from "@/pages/UserManagement";
 import InventurPage from "@/pages/InventurPage";
 import InventurDetailPage from "@/pages/InventurDetailPage";
 import InventurDetailNewPage from "@/pages/InventurDetailNewPage";
+import InventurDetailSimplePage from "@/pages/InventurDetailSimplePage";
 import InventurCreationPage from "@/pages/InventurCreationPage";
 // Neue Lagerbestandsseiten importieren
 import WarehouseInventoryPage from "@/pages/warehouse/WarehouseInventoryPage";
@@ -456,6 +460,13 @@ function AuthenticatedRouter() {
           </ApprovedUserRoute>
         )} />
 
+        {/* Englische Route für Inventory Counts → Inventur umleiten */}
+        <Route path="/inventory-counts" component={props => (
+          <ApprovedUserRoute>
+            <InventurPage {...props} />
+          </ApprovedUserRoute>
+        )} />
+
         <Route path="/inventur/neu" component={props => (
           <ApprovedUserRoute>
             <InventurCreationPage {...props} />
@@ -465,14 +476,20 @@ function AuthenticatedRouter() {
         {/* Inventur-Detailseite */}
         <Route path="/inventur/:id" component={props => (
           <ApprovedUserRoute>
+            <InventurDetailSimplePage {...props} />
+          </ApprovedUserRoute>
+        )} />
+        
+        <Route path="/inventur/:id/complex" component={props => (
+          <ApprovedUserRoute>
             <InventurDetailNewPage {...props} />
           </ApprovedUserRoute>
         )} />
 
-        {/* Neue verbesserte Inventur-Detailseite */}
+        {/* Neue verbesserte Inventur-Detailseite - VEREINFACHT! */}
         <Route path="/inventur-detail/:id" component={props => (
           <ApprovedUserRoute>
-            <InventurDetailNewPage {...props} />
+            <InventurDetailSimplePage {...props} />
           </ApprovedUserRoute>
         )} />
 
@@ -498,6 +515,30 @@ function AuthenticatedRouter() {
         <Route path="/wirtschaftlichkeit" component={props => (
           <ApprovedUserRoute>
             <Wirtschaftlichkeit {...props} />
+          </ApprovedUserRoute>
+        )} />
+
+        <Route path="/wirtschaftlichkeit-modern" component={props => (
+          <ApprovedUserRoute>
+            <ModernProfitabilityDashboard {...props} />
+          </ApprovedUserRoute>
+        )} />
+
+        <Route path="/umsatz-ergebnis-uebersicht" component={props => (
+          <ApprovedUserRoute>
+            <UmsatzErgebnisUebersicht {...props} />
+          </ApprovedUserRoute>
+        )} />
+
+        <Route path="/wirtschaftlichkeit-alt" component={props => (
+          <ApprovedUserRoute>
+            <ProfitabilityAnalysis {...props} />
+          </ApprovedUserRoute>
+        )} />
+
+        <Route path="/produkte/:id/wirtschaftlichkeit" component={props => (
+          <ApprovedUserRoute>
+            <ProductProfitabilityAnalysis {...props} />
           </ApprovedUserRoute>
         )} />
 
@@ -644,6 +685,13 @@ function AuthenticatedRouter() {
           <AdminRoute>
             <VendonSync {...props} />
           </AdminRoute>
+        )} />
+
+        {/* Umsatz- und Ergebnisübersicht */}
+        <Route path="/umsatz-ergebnis-uebersicht" component={props => (
+          <ApprovedUserRoute>
+            <UmsatzErgebnisUebersicht {...props} />
+          </ApprovedUserRoute>
         )} />
 
         {/* Supplier Portal Route entfernt - bereits oben registriert */}

@@ -33,7 +33,7 @@ router.get('/', async (req, res) => {
     if (costType) conditions.push(eq(locationCosts.costType, String(costType)));
     if (isActive !== undefined) conditions.push(eq(locationCosts.isActive, isActive === 'true'));
     if (startDate) conditions.push(gte(locationCosts.validFrom, new Date(String(startDate))));
-    if (endDate) conditions.push(lte(locationCosts.validUntil, new Date(String(endDate))));
+    if (endDate) conditions.push(lte(locationCosts.validTo, new Date(String(endDate))));
 
     if (conditions.length > 0) {
       query = query.where(and(...conditions));
@@ -82,7 +82,7 @@ router.get('/location/:locationId', async (req, res) => {
       query = query.where(and(
         eq(locationCosts.locationId, Number(locationId)),
         gte(locationCosts.validFrom, startDate),
-        lte(locationCosts.validUntil, endDate)
+        lte(locationCosts.validTo, endDate)
       ));
     }
 
@@ -104,7 +104,7 @@ router.get('/location/:locationId', async (req, res) => {
       success: true,
       data: costsByType,
       summary: {
-        totalCosts: costs.reduce((sum, row) => sum + (row.cost.amount || 0), 0),
+        totalCosts: costs.reduce((sum, row) => sum + (row.cost.amountNet || 0), 0),
         activeCosts: costs.filter(row => row.cost.isActive).length,
         costTypes: Object.keys(costsByType).length,
       }
@@ -214,7 +214,7 @@ router.get('/summary', async (req, res) => {
       locationId: locationCosts.locationId,
       locationName: locations.name,
       costType: locationCosts.costType,
-      totalAmount: sql<number>`SUM(${locationCosts.amount})`,
+      totalAmount: sql<number>`SUM(${locationCosts.amountNet})`,
       countCosts: sql<number>`COUNT(*)`,
     })
     .from(locationCosts)
@@ -226,7 +226,7 @@ router.get('/summary', async (req, res) => {
       baseQuery = baseQuery.where(and(
         eq(locationCosts.isActive, true),
         gte(locationCosts.validFrom, new Date(String(startDate))),
-        lte(locationCosts.validUntil, new Date(String(endDate)))
+        lte(locationCosts.validTo, new Date(String(endDate)))
       ));
     }
 

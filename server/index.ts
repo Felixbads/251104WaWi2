@@ -10,6 +10,7 @@ import WebSocket from 'ws';
 import http from 'http';
 import inventoryApiRouter from './routes/inventory-api';
 import inventoryRouter from './routes/inventory';
+import inventorySimpleRouter from './routes/inventory-simple';
 import mailTemplatesRouter from './routes/mail-templates';
 import simpleEmailRouter from './routes/simple-email';
 import dbDirectRouter from './routes/db-direct';
@@ -67,7 +68,7 @@ import { weeklyReportCron } from './services/weeklyReportCron';
 import syncRouter from './routes/sync';
 import inventoryItemsUnassignedRouter from './routes/inventory-items-unassigned';
 import stockRatiosRouter from './routes/stock-ratios';
-import purchasePriceHistoryRouter from './routes/purchase-price-history';
+import inventorySimpleRouter from './routes/inventory-simple';
 
 const app = express();
 
@@ -333,7 +334,7 @@ app.get('/orders-data', (req, res) => {
       COALESCE(s.name, 'Kein Lieferant') as supplier_name,
       COALESCE(w.name, 'Kein Lager') as location_name,
       COALESCE(
-        (SELECT SUM(oi.quantity * oi.unit_price) 
+        (SELECT SUM(oi.quantity * COALESCE(oi.unit_price, 0)) 
          FROM order_items oi 
          WHERE oi.order_id = o.id),
         0
@@ -1299,6 +1300,11 @@ app.get('/orders-data', (req, res) => {
   // Mount profitability analysis router for economic evaluation
   app.use('/api/profitability', profitabilityRouter);
   console.log('[SERVER] Profitability analysis router mounted successfully');
+
+  // Mount modern profitability dashboard for visual analytics
+  const modernProfitabilityRouter = (await import('./routes/profitability-modern')).default;
+  app.use('/api/profitability-modern', modernProfitabilityRouter);
+  console.log('[SERVER] Modern profitability dashboard router mounted successfully');
   
   // Mount enhanced profitability analysis router with fixed cost allocation
   // app.use('/api/enhanced-profitability', enhancedProfitabilityRouter);
@@ -1306,6 +1312,14 @@ app.get('/orders-data', (req, res) => {
   
   // Register location status router BEFORE registerRoutes to prevent conflicts
   app.use('/api/location-status', locationStatusRouter);
+  
+  // Umsatz-Ergebnis-Overview API (BOTH VERSIONS)
+  const { getUmsatzErgebnisOverview } = await import('./routes/umsatz-ergebnis-overview-fast');
+  const authenticRouter = (await import('./routes/umsatz-ergebnis-overview-authentic')).default;
+  
+  app.get('/api/umsatz-ergebnis-overview', getUmsatzErgebnisOverview);
+  app.get('/api/umsatz-ergebnis-overview-fast', getUmsatzErgebnisOverview);
+  app.use('/api/umsatz-ergebnis-overview-authentic', authenticRouter);
   console.log('[SERVER] Location status router mounted BEFORE registerRoutes');
   
   // Mount Simplified Enhanced Prophet router BEFORE registerRoutes for Phase 4 implementation
@@ -1358,16 +1372,54 @@ app.get('/orders-data', (req, res) => {
   app.use('/api/retroactive-inventory', retroactiveInventoryRouter);
   console.log('[SERVER] Retroactive inventory router mounted at /api/retroactive-inventory BEFORE registerRoutes');
   
-  // Location Costs Router for German cost categories and profitability analysis
-  const locationCostsRouter = (await import('./routes/location-costs')).default;
-  app.use('/api/location-costs', locationCostsRouter);
-  console.log('[SERVER] Location costs router mounted at /api/location-costs BEFORE registerRoutes');
+  // Location Costs Router for German cost categories and profitability analysis (SIMPLIFIED VERSION)
+  const locationCostsSimpleRouter = (await import('./routes/location-costs-simple')).default;
+  app.use('/api/location-costs', locationCostsSimpleRouter);
+  console.log('[SERVER] Simplified location costs router mounted at /api/location-costs BEFORE registerRoutes');
   
   // Enhanced Profitability Router for detailed monthly financial analysis
   const enhancedProfitabilityRouter = (await import('./routes/enhanced-profitability')).default;
   app.use('/api/enhanced-profitability', enhancedProfitabilityRouter);
   console.log('[SERVER] Enhanced profitability router mounted at /api/enhanced-profitability BEFORE registerRoutes');
   
+  // Product Cost and Revenue Analysis Router for transparent cost breakdown
+  const productCostRevenueAnalysisRouter = (await import('./routes/product-cost-revenue-analysis')).default;
+  app.use('/api/product-analysis', productCostRevenueAnalysisRouter);
+  console.log('[SERVER] Product cost and revenue analysis router mounted at /api/product-analysis BEFORE registerRoutes');
+  
+  // Eggs Profitability Router for accurate Vendon-price-based calculations
+  const eggsProfitabilityRouter = (await import('./routes/eggs-profitability')).default;
+  app.use('/api/eggs-profitability', eggsProfitabilityRouter);
+  console.log('[SERVER] Eggs profitability router mounted at /api/eggs-profitability BEFORE registerRoutes');
+
+  // Product profitability router - mount before registerRoutes
+  const productProfitabilityRouter = (await import('./routes/product-profitability')).default;
+  app.use('/api/products', productProfitabilityRouter);
+  console.log('[SERVER] Product profitability router mounted at /api/products BEFORE registerRoutes');
+
+  // Product margin calculation router - mount before registerRoutes
+  const productMarginCalculationRouter = (await import('./routes/product-margin-calculation')).default;
+  app.use('/api', productMarginCalculationRouter);
+  console.log('[SERVER] Product margin calculation router mounted at /api BEFORE registerRoutes');
+
+  // Performance netto router - mount before registerRoutes
+  const performanceNettoRouter = (await import('./routes/performance-netto')).default;
+  app.use('/api/performance-netto', performanceNettoRouter);
+  console.log('[SERVER] Performance netto router mounted at /api/performance-netto BEFORE registerRoutes');
+
+  // Modern profitability router already mounted at /api/profitability-modern above
+  
+  // Inventory router - mount BEFORE registerRoutes for save/start/complete operations
+  const inventoryRouter = (await import('./routes/inventory')).default;
+  app.use('/api/inventory-counts', inventoryRouter);
+  
+  // Simple inventory router for robust operations
+  const inventorySimpleRouter = (await import('./routes/inventory-simple')).default;
+  app.use('/api/inventory-simple', inventorySimpleRouter);
+  console.log('[SERVER] Inventory routers mounted at /api/inventory-counts and /api/inventory-simple BEFORE registerRoutes');
+  
+  // CRITICAL: Register API routes FIRST before any static/wildcard routes
+  console.log('[SERVER] Registering API routes BEFORE Vite middleware...');
   const server = await registerRoutes(app);
 
   // Register weather correction service AFTER registerRoutes
@@ -1718,8 +1770,10 @@ app.get('/orders-data', (req, res) => {
   app.use('/api', emailDebugRouter);
   app.use('/api/orders', rawEmailRouter);
 
-  // Register inventory-count-batches router
-  app.use('/api/inventory-counts', inventoryCountBatchesRouter);
+  // Register inventory-count-batches router - FIX: separate path to avoid conflict with inventoryRouter
+  app.use('/api/inventory-count-batches', inventoryCountBatchesRouter);
+  
+
   
   // Register inventory-items-unassigned router
   app.use('/api/inventory-items', inventoryItemsUnassignedRouter);
@@ -1743,10 +1797,6 @@ app.get('/orders-data', (req, res) => {
   // Register stock ratios router for filling level calculations
   app.use('/api/stock-ratios', stockRatiosRouter);
   console.log('[SERVER] Stock ratios router mounted successfully');
-
-  // Mount purchase price history router BEFORE registerRoutes for audit trail functionality
-  app.use('/api/purchase-price-history', purchasePriceHistoryRouter);
-  console.log('[SERVER] Purchase price history router mounted successfully');
   
 
   

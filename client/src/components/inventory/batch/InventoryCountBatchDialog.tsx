@@ -60,7 +60,7 @@ interface InventoryCountBatchDialogProps {
   onBatchSelect: (batchId: number | null) => void;
   inventoryId: string;
   warehouseId: number; // Lagernummer ist wichtig für die korrekte Batch-Erstellung
-  onBatchCreated?: () => void; // Callback zum Neuladen der Batches
+  onBatchCreated?: (newBatch: ProductBatch) => void; // Callback mit der erstellten Batch
 }
 
 export default function InventoryCountBatchDialog({
@@ -78,7 +78,7 @@ export default function InventoryCountBatchDialog({
   
   // State-Verwaltung
   const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<string>(availableBatches.length === 0 ? 'new' : 'existing');
+  const [activeTab, setActiveTab] = useState<string>((availableBatches?.length || 0) === 0 ? 'new' : 'existing');
   
   // Für automatische Batch-Nummerngenerierung
   const [newBatchNumber, setNewBatchNumber] = useState(() => generateBatchNumber());
@@ -106,11 +106,14 @@ export default function InventoryCountBatchDialog({
       if (response.ok) {
         const data = await response.json();
         const unassignedQuantity = data.unassignedQuantity || 0;
-        // Setze die maximale verfügbare Menge
-        const maxQuantity = Math.max(unassignedQuantity, selectedItem.expectedQuantity || 0);
+        // PRIORITÄT: Verwende gezählte Menge (countedQuantity) vor erwarteter Menge (expectedQuantity)
+        const maxQuantity = Math.max(
+          unassignedQuantity, 
+          selectedItem.countedQuantity ?? selectedItem.expectedQuantity ?? 0
+        );
         setBatchQuantity(maxQuantity);
         
-        console.log(`Auto-Fill für Produkt ${selectedItem.productId}: ${unassignedQuantity} nicht zugeordnet, ${selectedItem.expectedQuantity} erwartet`);
+        console.log(`Auto-Fill für Produkt ${selectedItem.productId}: ${unassignedQuantity} nicht zugeordnet, ${selectedItem.countedQuantity ?? selectedItem.expectedQuantity} gezählt/erwartet`);
         
         if (unassignedQuantity > 0) {
           toast({
@@ -140,12 +143,14 @@ export default function InventoryCountBatchDialog({
       // Setze auch das Default-Ablaufdatum
       setExpiryDate(new Date(getDefaultExpiryDate()));
       
-      // Automatisch verfügbare Menge laden und setzen
+      // Automatisch verfügbare Menge laden und setzen - PRIORITÄT: countedQuantity
       if (activeTab === 'new') {
+        // Setze zunächst die gezählte Menge, dann auto-fill falls nötig
+        setBatchQuantity(selectedItem.countedQuantity ?? selectedItem.expectedQuantity ?? 1);
         autoFillBatchQuantity();
       } else {
-        // Setze Standardmenge auf verfügbaren Lagerbestand (expectedQuantity)
-        setBatchQuantity(selectedItem.expectedQuantity || 1);
+        // Setze Standardmenge auf gezählte Menge (countedQuantity) oder Fallback auf expectedQuantity
+        setBatchQuantity(selectedItem.countedQuantity ?? selectedItem.expectedQuantity ?? 1);
       }
     }
   }, [open, selectedItem, activeTab]);
@@ -154,7 +159,9 @@ export default function InventoryCountBatchDialog({
   useEffect(() => {
     if (expiryDate && selectedItem && warehouseId) {
       // Automatisches Ausfüllen nur wenn noch keine spezifische Menge gesetzt wurde
-      if (batchQuantity === 1 || batchQuantity === (selectedItem.expectedQuantity || 1)) {
+      // PRIORITÄT: Vergleiche mit countedQuantity statt expectedQuantity
+      const userCountedQuantity = selectedItem.countedQuantity ?? selectedItem.expectedQuantity ?? 1;
+      if (batchQuantity === 1 || batchQuantity === userCountedQuantity) {
         autoFillBatchQuantity();
       }
     }
@@ -400,7 +407,7 @@ export default function InventoryCountBatchDialog({
     
     try {
       // Verwende unseren optimierten Handler
-      await createAndLinkBatch({
+      const createdBatch = await createAndLinkBatch({
         item: selectedItem,
         warehouseId,
         inventoryId,
@@ -409,10 +416,12 @@ export default function InventoryCountBatchDialog({
         quantity: batchQuantity,
         notes: `Erstellt bei Inventur #${inventoryId}`,
         queryClient,
-        onSuccess: () => {
-          // Batch-Liste neu laden
+        onSuccess: (newBatch) => {
+          console.log('Neue Batch erfolgreich erstellt:', newBatch);
+          
+          // WICHTIG: Gebe die erstellte Batch an onBatchCreated weiter
           if (onBatchCreated) {
-            onBatchCreated();
+            onBatchCreated(newBatch);
           }
           
           // Dialog schließen
@@ -425,6 +434,11 @@ export default function InventoryCountBatchDialog({
           setIsSubmitting(false);
         }
       });
+      
+      // Fallback: Falls onSuccess-Callback nicht ausgeführt wurde
+      if (createdBatch && onBatchCreated) {
+        onBatchCreated(createdBatch);
+      }
       
     } catch (error: any) {
       console.error('Fehler bei der kombinierten Aktion:', error);

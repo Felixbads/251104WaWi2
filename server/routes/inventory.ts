@@ -147,8 +147,28 @@ router.get('/inventory-counts/:id', async (req, res) => {
       return res.status(404).json({ error: 'Inventur nicht gefunden' });
     }
 
+    // Transform to camelCase
+    const warehouse = Array.isArray(inventoryCount.warehouse) ? inventoryCount.warehouse[0] : inventoryCount.warehouse;
+    const transformedCount = {
+      id: inventoryCount.id,
+      warehouseId: inventoryCount.warehouseId,
+      warehouseName: warehouse?.name || 'Unbekanntes Lager',
+      status: inventoryCount.status,
+      startDate: inventoryCount.startDate,
+      endDate: inventoryCount.endDate,
+      notes: inventoryCount.notes,
+      createdAt: inventoryCount.createdAt,
+      updatedAt: inventoryCount.updatedAt,
+      initiatedBy: inventoryCount.initiatedBy,
+      completedBy: inventoryCount.completedBy,
+      warehouse: warehouse ? {
+        id: warehouse.id,
+        name: warehouse.name
+      } : null
+    };
+
     // Erfolgreiche Antwort
-    return res.status(200).json(inventoryCount);
+    return res.status(200).json(transformedCount);
   } catch (error) {
     console.error('Fehler beim Laden der Inventur:', error);
     return res.status(500).json({ error: 'Serverfehler' });
@@ -169,8 +189,45 @@ router.get('/inventory-counts/:id/items', async (req, res) => {
       }
     });
 
+    // Transform all items to camelCase
+    const transformedItems = items.map(item => {
+      const product = Array.isArray(item.product) ? item.product[0] : item.product;
+      const batch = Array.isArray(item.batch) ? item.batch[0] : item.batch;
+      
+      return {
+        id: item.id,
+        inventoryCountId: item.inventoryCountId,
+        productId: item.productId,
+        expectedQuantity: item.expectedQuantity,
+        countedQuantity: item.countedQuantity,
+        notes: item.notes,
+        batchId: item.batchId,
+        createdAt: item.createdAt,
+        updatedAt: item.updatedAt,
+        product: product ? {
+          id: product.id,
+          productName: product.productName,
+          category: product.category,
+          price: product.price,
+          packageSize: product.packageSize,
+          packageQuantity: product.packageQuantity,
+          sku: product.sku,
+          units: product.units,
+          vendonId: product.vendonId
+        } : null,
+        batch: batch ? {
+          id: batch.id,
+          batchNumber: batch.batchNumber,
+          expiryDate: batch.expiryDate,
+          currentQuantity: batch.currentQuantity,
+          receivedDate: batch.receivedDate,
+          notes: batch.notes
+        } : null
+      };
+    });
+
     // Erfolgreiche Antwort
-    return res.status(200).json(items);
+    return res.status(200).json(transformedItems);
   } catch (error) {
     console.error('Fehler beim Laden der Inventurpositionen:', error);
     return res.status(500).json({ error: 'Serverfehler' });
@@ -216,8 +273,36 @@ router.post('/inventory-count-items/:id/batches', async (req, res) => {
     const itemId = parseInt(req.params.id);
     const batches = req.body.batches;
     
+    console.log(`🔄 POST /inventory-count-items/${itemId}/batches`);
+    console.log(`📦 Request Body:`, JSON.stringify(req.body, null, 2));
+    
     if (!Array.isArray(batches) || batches.length === 0) {
-      return res.status(400).json({ error: 'Batch-Informationen fehlen oder sind ungültig' });
+      console.error(`❌ Batch-Validation fehlgeschlagen:`, { batches, isArray: Array.isArray(batches), length: batches?.length });
+      return res.status(400).json({ 
+        error: 'Batch-Informationen fehlen oder sind ungültig',
+        received: { batches, isArray: Array.isArray(batches), length: batches?.length }
+      });
+    }
+    
+    // Validiere jeden Batch
+    for (let i = 0; i < batches.length; i++) {
+      const batch = batches[i];
+      if (!batch.batchNumber) {
+        console.error(`❌ Batch ${i} fehlt batchNumber:`, batch);
+        return res.status(400).json({ 
+          error: `Batch ${i}: batchNumber ist erforderlich`,
+          batch: batch
+        });
+      }
+      
+      const quantity = batch.quantity || batch.initialQuantity || batch.currentQuantity;
+      if (!quantity || quantity <= 0) {
+        console.error(`❌ Batch ${i} fehlt gültige Menge:`, batch);
+        return res.status(400).json({ 
+          error: `Batch ${i}: Gültige Menge (quantity/initialQuantity/currentQuantity) ist erforderlich`,
+          batch: batch
+        });
+      }
     }
 
     // Prüfe, ob die Inventurposition existiert
@@ -236,13 +321,41 @@ router.post('/inventory-count-items/:id/batches', async (req, res) => {
     await db.delete(inventoryCountBatches)
       .where(eq(schema.inventoryCountBatches.inventoryCountItemId, itemId));
 
-    // Bereite Batch-Daten vor
-    const batchData = batches.map(batch => ({
-      inventoryCountItemId: itemId,
-      batchNumber: batch.batchNumber,
-      expiryDate: batch.expiryDate ? batch.expiryDate : null,
-      quantity: batch.quantity,
-    }));
+    // Bereite Batch-Daten vor - akzeptiere verschiedene Feldnamen für Kompatibilität
+    const batchData = batches.map((batch, index) => {
+      const quantity = batch.quantity || batch.initialQuantity || batch.currentQuantity || 0;
+      
+      // Parse expiryDate sicher als Date oder null
+      let parsedExpiryDate = null;
+      if (batch.expiryDate) {
+        try {
+          // Akzeptiere verschiedene Datumsformate
+          if (typeof batch.expiryDate === 'string') {
+            parsedExpiryDate = new Date(batch.expiryDate);
+            // Prüfe ob das Datum gültig ist
+            if (isNaN(parsedExpiryDate.getTime())) {
+              console.warn(`⚠️  Ungültiges expiryDate für Batch ${index}: ${batch.expiryDate}`);
+              parsedExpiryDate = null;
+            }
+          } else if (batch.expiryDate instanceof Date) {
+            parsedExpiryDate = batch.expiryDate;
+          }
+        } catch (error) {
+          console.warn(`⚠️  Fehler beim Parsen von expiryDate für Batch ${index}:`, error);
+          parsedExpiryDate = null;
+        }
+      }
+      
+      const processedBatch = {
+        inventoryCountItemId: itemId,
+        batchNumber: batch.batchNumber,
+        expiryDate: parsedExpiryDate,
+        quantity: quantity,
+      };
+      
+      console.log(`📋 Batch ${index} verarbeitet:`, processedBatch);
+      return processedBatch;
+    });
 
     // Speichere neue Batches
     const insertedBatches = await db.insert(inventoryCountBatches)
@@ -257,11 +370,21 @@ router.post('/inventory-count-items/:id/batches', async (req, res) => {
       .set({ countedQuantity: totalBatchQuantity })
       .where(eq(schema.inventoryCountItems.id, itemId));
 
-    // Erfolgreiche Antwort
+    console.log(`✅ ${insertedBatches.length} Batches erfolgreich gespeichert für Item ${itemId}`);
+    console.log(`📊 Gesamtmenge: ${totalBatchQuantity}`);
+    
+    // Erfolgreiche Antwort mit detaillierten Informationen
     return res.status(201).json({ 
+      success: true,
       message: 'Batches erfolgreich gespeichert',
+      itemId: itemId,
+      batchesCreated: insertedBatches.length,
       batches: insertedBatches,
-      totalQuantity: totalBatchQuantity
+      totalQuantity: totalBatchQuantity,
+      originalRequest: {
+        batchesReceived: batches.length,
+        inputBatches: batches
+      }
     });
   } catch (error) {
     console.error('Fehler beim Speichern der Batch-Informationen:', error);
@@ -292,48 +415,6 @@ router.get('/inventory-count-items/:id/batches', async (req, res) => {
     return res.status(200).json(batches);
   } catch (error) {
     console.error('Fehler beim Laden der Batch-Informationen:', error);
-    return res.status(500).json({ error: 'Serverfehler' });
-  }
-});
-
-// Starten einer Inventur (pending -> in_progress)
-router.post('/inventory-counts/:id/start', async (req, res) => {
-  try {
-    const inventoryCountId = parseInt(req.params.id);
-    
-    // Prüfe, ob die Inventur existiert und im pending Status ist
-    const inventoryCount = await db.query.inventoryCounts.findFirst({
-      where: and(
-        eq(schema.inventoryCounts.id, inventoryCountId),
-        eq(schema.inventoryCounts.status, 'pending')
-      ),
-      with: {
-        warehouse: true
-      }
-    });
-
-    if (!inventoryCount) {
-      return res.status(404).json({ 
-        error: 'Inventur nicht gefunden oder nicht im pending Status'
-      });
-    }
-
-    // Setze die Inventur auf "in_progress"
-    await db.update(inventoryCounts)
-      .set({ 
-        status: 'in_progress', 
-        startDate: new Date()
-      })
-      .where(eq(schema.inventoryCounts.id, inventoryCountId));
-
-    // Erfolgreiche Antwort
-    return res.status(200).json({ 
-      message: 'Inventur erfolgreich gestartet',
-      inventoryCountId,
-      warehouseName: inventoryCount.warehouse?.name
-    });
-  } catch (error) {
-    console.error('Fehler beim Starten der Inventur:', error);
     return res.status(500).json({ error: 'Serverfehler' });
   }
 });
@@ -376,16 +457,17 @@ router.post('/inventory-counts/:id/complete', async (req, res) => {
     await db.update(inventoryCounts)
       .set({ 
         status: 'completed', 
-        completedAt: new Date(),
-        completedBy: 1 // Alternativ können Sie auch completedBy verwenden
+        endDate: new Date(), // Verwende endDate statt completedAt
+        completedBy: 1
       })
       .where(eq(schema.inventoryCounts.id, inventoryCountId));
 
     // Erfolgreiche Antwort
+    const warehouse = Array.isArray(inventoryCount.warehouse) ? inventoryCount.warehouse[0] : inventoryCount.warehouse;
     return res.status(200).json({ 
       message: 'Inventur erfolgreich abgeschlossen',
       inventoryCountId,
-      warehouseName: inventoryCount.warehouse?.name
+      warehouseName: warehouse?.name
     });
   } catch (error) {
     console.error('Fehler beim Abschließen der Inventur:', error);
@@ -428,10 +510,11 @@ router.delete('/inventory-counts/:id', async (req, res) => {
       .where(eq(schema.inventoryCounts.id, inventoryCountId));
 
     // Erfolgreiche Antwort
+    const warehouse = Array.isArray(inventoryCount.warehouse) ? inventoryCount.warehouse[0] : inventoryCount.warehouse;
     return res.status(200).json({ 
       message: 'Inventur erfolgreich gelöscht',
       inventoryCountId,
-      warehouseName: inventoryCount.warehouse?.name
+      warehouseName: warehouse?.name
     });
   } catch (error) {
     console.error('Fehler beim Löschen der Inventur:', error);
@@ -465,10 +548,11 @@ router.post('/inventory-counts/:id/save', async (req, res) => {
       .where(eq(schema.inventoryCounts.id, inventoryCountId));
 
     // Erfolgreiche Antwort
+    const warehouse = Array.isArray(inventoryCount.warehouse) ? inventoryCount.warehouse[0] : inventoryCount.warehouse;
     return res.status(200).json({ 
       message: 'Inventur erfolgreich gespeichert',
       inventoryCountId,
-      warehouseName: inventoryCount.warehouse?.name,
+      warehouseName: warehouse?.name,
       savedAt: new Date()
     });
   } catch (error) {
@@ -477,16 +561,16 @@ router.post('/inventory-counts/:id/save', async (req, res) => {
   }
 });
 
-// Starte Inventur (Wechsel von 'pending' zu 'in_progress')
+// Starte Inventur (Wechsel von 'open' oder 'pending' zu 'in_progress')
 router.post('/inventory-counts/:id/start', async (req, res) => {
   try {
     const inventoryCountId = parseInt(req.params.id);
     
-    // Prüfe, ob die Inventur existiert und im Status 'pending' ist
+    // Prüfe, ob die Inventur existiert und im Status 'open' oder 'pending' ist
     const inventoryCount = await db.query.inventoryCounts.findFirst({
       where: and(
         eq(schema.inventoryCounts.id, inventoryCountId),
-        eq(schema.inventoryCounts.status, 'pending')
+        sql`status IN ('open', 'pending')`
       ),
       with: {
         warehouse: true
@@ -495,7 +579,7 @@ router.post('/inventory-counts/:id/start', async (req, res) => {
 
     if (!inventoryCount) {
       return res.status(404).json({ 
-        error: 'Inventur nicht gefunden oder nicht im Status "Geplant"'
+        error: 'Inventur nicht gefunden oder nicht startbar (Status muss "Offen" oder "Geplant" sein)'
       });
     }
 
@@ -509,10 +593,11 @@ router.post('/inventory-counts/:id/start', async (req, res) => {
       .where(eq(schema.inventoryCounts.id, inventoryCountId));
 
     // Erfolgreiche Antwort
+    const warehouse = Array.isArray(inventoryCount.warehouse) ? inventoryCount.warehouse[0] : inventoryCount.warehouse;
     return res.status(200).json({ 
       message: 'Inventur erfolgreich gestartet',
       inventoryCountId,
-      warehouseName: inventoryCount.warehouse?.name,
+      warehouseName: warehouse?.name,
       startedAt: new Date()
     });
   } catch (error) {
@@ -622,21 +707,24 @@ router.get('/warehouse/:id/inventory', async (req, res) => {
     });
 
     // Formatiere die Antwort mit korrekten Produktnamen
-    const formattedInventory = inventoryItems.map(item => ({
-      id: item.id,
-      warehouseId: item.warehouseId,
-      productId: item.productId,
-      quantity: item.quantity,
-      minQuantity: item.minQuantity,
-      reorderPoint: item.reorderPoint,
-      location: item.location,
-      lastUpdated: item.lastUpdated,
-      productName: item.product?.productName || 'Unbekanntes Produkt',
-      sku: item.product?.sku || '',
-      price: item.product?.price || 0,
-      category: item.product?.category || '',
-      unit: item.product?.unit || 'Stk.'
-    }));
+    const formattedInventory = inventoryItems.map(item => {
+      const product = Array.isArray(item.product) ? item.product[0] : item.product;
+      return {
+        id: item.id,
+        warehouseId: item.warehouseId,
+        productId: item.productId,
+        quantity: item.quantity,
+        minQuantity: item.minQuantity,
+        reorderPoint: item.reorderPoint,
+        locationInWarehouse: item.locationInWarehouse,
+        updatedAt: item.updatedAt,
+        productName: product?.productName || 'Unbekanntes Produkt',
+        sku: product?.sku || '',
+        price: product?.price || 0,
+        category: product?.category || '',
+        unit: product?.unit || 'Stk.'
+      };
+    });
 
     // Erfolgreiche Antwort
     return res.status(200).json(formattedInventory);
@@ -674,21 +762,24 @@ router.get('/warehouse/:id', async (req, res) => {
     });
 
     // Formatiere die Antwort mit korrekten Produktnamen
-    const formattedInventory = inventoryItems.map(item => ({
-      id: item.id,
-      warehouseId: item.warehouseId,
-      productId: item.productId,
-      quantity: item.quantity,
-      minQuantity: item.minQuantity,
-      reorderPoint: item.reorderPoint,
-      location: item.location,
-      lastUpdated: item.lastUpdated,
-      productName: item.product?.productName || 'Unbekanntes Produkt',
-      sku: item.product?.sku || '',
-      price: item.product?.price || 0,
-      category: item.product?.category || '',
-      unit: item.product?.unit || 'Stk.'
-    }));
+    const formattedInventory = inventoryItems.map(item => {
+      const product = Array.isArray(item.product) ? item.product[0] : item.product;
+      return {
+        id: item.id,
+        warehouseId: item.warehouseId,
+        productId: item.productId,
+        quantity: item.quantity,
+        minQuantity: item.minQuantity,
+        reorderPoint: item.reorderPoint,
+        locationInWarehouse: item.locationInWarehouse,
+        updatedAt: item.updatedAt,
+        productName: product?.productName || 'Unbekanntes Produkt',
+        sku: product?.sku || '',
+        price: product?.price || 0,
+        category: product?.category || '',
+        unit: product?.unit || 'Stk.'
+      };
+    });
 
     // Erfolgreiche Antwort
     return res.status(200).json(formattedInventory);

@@ -38,11 +38,13 @@ export const menuItems = {
     { title: 'Wiederkehrende Bestellungen', icon: <BarChart2 className="h-5 w-5 mr-3" />, path: '/wiederkehrende-bestellungen' },
   ] as MenuItem[],
   analysis: [
+    { title: 'Umsatz- und Ergebnisübersicht', icon: <BarChart4 className="h-5 w-5 mr-3" />, path: '/umsatz-ergebnis-uebersicht' },
     { title: 'Auswertung', icon: <PieChart className="h-5 w-5 mr-3" />, path: '/auswertungen' },
     { title: 'Erweiterte Auswertung', icon: <PieChart className="h-5 w-5 mr-3" />, path: '/erweiterte-analyse' },
     { title: 'Standort-Analyse', icon: <PieChart className="h-5 w-5 mr-3" />, path: '/standort-analyse' },
     { title: 'Umsatzerwartungen', icon: <BarChart4 className="h-5 w-5 mr-3" />, path: '/revenue-expectations' },
-    { title: 'Wirtschaftlichkeit', icon: null, path: '/wirtschaftlichkeit' },
+    { title: 'Wirtschaftlichkeit', icon: <BarChart2 className="h-5 w-5 mr-3" />, path: '/wirtschaftlichkeit' },
+    { title: 'Moderne Wirtschaftlichkeit', icon: <PieChart className="h-5 w-5 mr-3" />, path: '/wirtschaftlichkeit-modern' },
   ] as MenuItem[],
   system: [
     { title: 'Benutzer', icon: <Users className="h-5 w-5 mr-3" />, path: '/benutzer' },
@@ -139,6 +141,8 @@ export default function AppShell({ children }: AppShellProps) {
         return "Prognosen";
       case "/settings":
         return "Einstellungen";
+      case "/umsatz-ergebnis-uebersicht":
+        return "Umsatz- und Ergebnisübersicht";
       default:
         return "Proviantomat";
     }

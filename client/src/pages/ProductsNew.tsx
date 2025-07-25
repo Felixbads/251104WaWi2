@@ -8,19 +8,17 @@ import {
   Package, 
   Search, 
   Plus, 
-  Grid, 
-  List, 
   AlertTriangle,
   Tag,
   CircleDollarSign,
   Edit,
-  Download,
-  Upload,
   RefreshCw,
-  Camera,
-  ExternalLink,
   Filter,
-  X
+  X,
+  ArrowUpDown,
+  CheckCircle,
+  XCircle,
+  MinusCircle
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -28,6 +26,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { 
   Select, 
   SelectContent, 
@@ -152,7 +151,6 @@ const syncProductsWithVendon = async () => {
 export default function ProductsNew() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [isSyncing, setIsSyncing] = useState(false);
@@ -172,10 +170,24 @@ export default function ProductsNew() {
     }),
   });
 
-  const { data: categories = [] } = useQuery({
+  // Extract unique categories from products if API fails
+  const extractCategoriesFromProducts = (productsList: Product[]) => {
+    const categorySet = new Set<string>();
+    productsList.forEach(product => {
+      if (product.category && product.category !== 'Unkategorisiert') {
+        categorySet.add(product.category);
+      }
+    });
+    return Array.from(categorySet).sort();
+  };
+
+  const { data: apiCategories = [] } = useQuery({
     queryKey: ['/api/product-categories'],
     queryFn: getProductCategories,
   });
+
+  // Use API categories or extract from products as fallback
+  const categories = apiCategories.length > 0 ? apiCategories : extractCategoriesFromProducts(products);
 
   // Handle Vendon sync
   const handleSyncProducts = async () => {
@@ -296,52 +308,59 @@ export default function ProductsNew() {
     );
   };
 
-  // Product List Item Component
-  const ProductListItem = ({ product }: { product: Product }) => {
-    const formatPrice = (price?: number) => {
-      if (!price) return '–';
-      return `${price.toFixed(2)} €`;
+  // Product Table Component - Mobile First
+  const ProductTable = ({ products }: { products: Product[] }) => {
+    const handleRowClick = (productId: number) => {
+      setLocation(`/produkte/${productId}`);
     };
 
     return (
-      <div className="flex items-center p-4 hover:bg-gray-50 border-b last:border-b-0">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-start justify-between">
-            <div className="flex-1">
-              <h3 className="font-semibold text-gray-900 mb-1">
-                {product.productName}
-              </h3>
-              <div className="flex items-center gap-4 text-sm text-gray-600">
-                <span>Kategorie: {product.category}</span>
-                {product.sku && <span>SKU: {product.sku}</span>}
-                <span>Preis: {formatPrice(product.price)}</span>
-              </div>
-              {product.shortDescription && (
-                <p className="text-sm text-gray-700 mt-1 line-clamp-1">
-                  {product.shortDescription}
-                </p>
-              )}
-            </div>
-            <div className="flex items-center gap-2 ml-4">
-              <ProductPhotoUpload 
-                productId={product.id}
-                size="sm"
-                onUploadSuccess={() => {
-                  queryClient.invalidateQueries({ queryKey: ['/api/products'] });
-                }}
-              />
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={() => setLocation(`/produkte/${product.id}`)}
-              >
-                <Edit className="h-4 w-4 mr-2" />
-                Bearbeiten
-              </Button>
-            </div>
+      <Card>
+        <CardContent className="p-0">
+          <div className="rounded-md border overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="min-w-[200px]">Produkt</TableHead>
+                  <TableHead className="min-w-[120px]">Kategorie</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {products.map((product) => (
+                  <TableRow 
+                    key={product.id} 
+                    className="cursor-pointer hover:bg-muted/50 transition-colors"
+                    onClick={() => handleRowClick(product.id)}
+                  >
+                    <TableCell className="font-medium">
+                      <div className="flex flex-col">
+                        <div className="font-semibold text-foreground text-sm sm:text-base">
+                          {product.productName}
+                        </div>
+                        {product.barcode && (
+                          <div className="text-xs text-muted-foreground mt-1">
+                            Barcode: {product.barcode}
+                          </div>
+                        )}
+                        {product.shortDescription && (
+                          <div className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                            {product.shortDescription}
+                          </div>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="text-xs">
+                        {product.category || 'Unkategorisiert'}
+                      </Badge>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </div>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
     );
   };
 
@@ -357,22 +376,8 @@ export default function ProductsNew() {
   return (
     <div className="container mx-auto px-4 py-6 space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Produkte</h1>
-          <p className="text-gray-600 mt-1">
-            Verwalten Sie Ihre Produktdatenbank
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setViewMode(viewMode === "grid" ? "list" : "grid")}
-          >
-            {viewMode === "grid" ? <List className="h-4 w-4" /> : <Grid className="h-4 w-4" />}
-          </Button>
-        </div>
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold text-gray-900">Produkte</h1>
       </div>
 
       {/* Search and Actions */}
@@ -388,66 +393,27 @@ export default function ProductsNew() {
           />
         </div>
         
-        <div className="flex items-center gap-2">
-          {/* Data Entry Button */}
-          <Button
-            variant="default"
-            size="sm"
-            onClick={() => setLocation('/product-data-entry')}
-          >
-            <Edit className="h-4 w-4 mr-2" />
-            Daten bearbeiten
-          </Button>
-
-          {/* Vendon Sync Button */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleSyncProducts}
-            disabled={isSyncing}
-          >
-            {isSyncing ? (
-              <>
-                <div className="animate-spin h-4 w-4 border-2 border-current border-t-transparent rounded-full mr-2" />
-                Synchronisiere...
-              </>
-            ) : (
-              <>
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Vendon Sync
-              </>
-            )}
-          </Button>
-
-          {/* Export/Import */}
-          <ExportImportButtons
-            type="products"
-            label="Produkte"
-            onSuccessfulImport={handleSuccessfulImport}
-          />
-
-          {/* Add New Product */}
-          <Button
-            variant="default"
-            size="sm"
-            onClick={() => setLocation('/produkte/neu')}
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Neues Produkt
-          </Button>
-        </div>
+        {/* Actions removed - cleaner interface */}
       </div>
 
-      {/* Category Filter */}
+      {/* Category Filter - Mobile First */}
       <Tabs value={selectedCategory} onValueChange={setSelectedCategory} className="w-full">
-        <TabsList className="grid w-full grid-cols-auto overflow-x-auto">
-          <TabsTrigger value="all">Alle Kategorien</TabsTrigger>
-          {categories.map((category) => (
-            <TabsTrigger key={category} value={category}>
-              {category}
+        <div className="overflow-x-auto">
+          <TabsList className="inline-flex h-auto p-1 min-w-full">
+            <TabsTrigger value="all" className="text-xs sm:text-sm px-2 sm:px-3 py-1 sm:py-2">
+              Alle Kategorien
             </TabsTrigger>
-          ))}
-        </TabsList>
+            {categories.map((category) => (
+              <TabsTrigger 
+                key={category} 
+                value={category}
+                className="text-xs sm:text-sm px-2 sm:px-3 py-1 sm:py-2 whitespace-nowrap"
+              >
+                {category}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </div>
       </Tabs>
 
       {/* Loading State */}
@@ -488,27 +454,9 @@ export default function ProductsNew() {
         </div>
       )}
 
-      {/* Products Display */}
+      {/* Products Table */}
       {!isLoading && !error && (
-        <>
-          {viewMode === "grid" ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {filteredProducts.map((product) => (
-                <ProductCard key={product.id} product={product} />
-              ))}
-            </div>
-          ) : (
-            <Card>
-              <CardContent className="p-0">
-                <div className="divide-y">
-                  {filteredProducts.map((product) => (
-                    <ProductListItem key={product.id} product={product} />
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-        </>
+        <ProductTable products={filteredProducts} />
       )}
 
       {/* Empty State */}
@@ -534,6 +482,45 @@ export default function ProductsNew() {
             Filter zurücksetzen
           </Button>
         </div>
+      )}
+
+      {/* Action Buttons moved to bottom */}
+      {!isLoading && !error && (
+        <Card className="mt-6">
+          <CardContent className="pt-6">
+            <div className="flex flex-col sm:flex-row gap-4 items-center justify-center">
+              {/* Vendon Sync Button */}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleSyncProducts}
+                disabled={isSyncing}
+                className="w-full sm:w-auto"
+              >
+                {isSyncing ? (
+                  <>
+                    <div className="animate-spin h-4 w-4 border-2 border-current border-t-transparent rounded-full mr-2" />
+                    Synchronisiere...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Vendon Sync
+                  </>
+                )}
+              </Button>
+
+              {/* Export/Import */}
+              <div className="w-full sm:w-auto">
+                <ExportImportButtons
+                  type="products"
+                  label="Produkte"
+                  onSuccessfulImport={handleSuccessfulImport}
+                />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       )}
     </div>
   );

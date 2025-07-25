@@ -13,7 +13,9 @@ interface DatabaseStats {
 }
 
 export default function LiveDatabaseStatsTile() {
-  const [previousTransactions, setPreviousTransactions] = useState<number | null>(null);
+  // Widget deaktiviert - von User angefordert  
+  return null;
+}
   const [isGrowing, setIsGrowing] = useState(false);
 
   // Datenbankstatistiken alle 10 Sekunden abrufen

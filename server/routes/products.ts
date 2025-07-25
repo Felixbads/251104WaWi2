@@ -254,8 +254,8 @@ router.post('/:id/purchase-conditions', async (req, res) => {
       INSERT INTO purchase_conditions 
       (product_id, supplier_id, unit_price, tax_rate, gross_price, min_quantity, 
        packaging_unit, packaging_quantity, delivery_time, valid_from, valid_to, 
-       is_preferred, notes, lead_time, created_at, updated_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW(), NOW())
+       is_preferred, notes, lead_time, supplier_article_number, created_at, updated_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW(), NOW())
       RETURNING *
     `, [
       id,
@@ -271,7 +271,8 @@ router.post('/:id/purchase-conditions', async (req, res) => {
       valid_to || null,
       is_preferred || false,
       notes,
-      lead_time || 3
+      lead_time || 3,
+      req.body.supplier_article_number
     ]);
 
     console.log('[PRODUCTS] Purchase condition created:', result.rows[0]);

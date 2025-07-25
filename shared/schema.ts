@@ -202,7 +202,7 @@ export const users = pgTable("users", {
   email: text("email").unique(),
   role: text("role").default("user"),
   approved: boolean("approved").default(false), // Standardmäßig nicht freigeschaltet
-  approvedBy: integer("approved_by"),
+  approvedBy: integer("approved_by").references(() => users.id),
   approvedAt: timestamp("approved_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -597,6 +597,17 @@ export const transactions = pgTable("transactions", {
   seasonalEnrichmentSource: text("seasonal_enrichment_source"), // Quelle der saisonalen Daten
   seasonalEnrichmentDate: timestamp("seasonal_enrichment_date"), // Wann wurden saisonale Daten hinzugefügt
   
+  // ===== KOSTEN- UND PROFITABILITÄTS-TRACKING =====
+  // Resource-efficient cost calculation fields for immediate evaluation
+  unitCost: real("unit_cost"),                                // Kalkulierte Einkaufskosten pro Stück
+  totalCost: real("total_cost"),                              // Gesamte Einkaufskosten für diese Transaktion
+  supplierDiscountApplied: real("supplier_discount_applied"), // Angewandter Lieferantenrabatt in %
+  purchaseConditionId: integer("purchase_condition_id").references(() => purchaseConditions.id), // Verwendete Einkaufsbedingung
+  costCalculatedAt: timestamp("cost_calculated_at"),          // Wann wurden die Kosten berechnet
+  costCalculationStatus: text("cost_calculation_status").default("pending"), // Status: pending, calculated, fallback
+  grossProfit: real("gross_profit"),                          // Bruttogewinn (Umsatz - Kosten)
+  profitMargin: real("profit_margin"),                        // Gewinnmarge in %
+  
   // Datensatz-Tracking
   createdAt: timestamp("created_at").defaultNow(),            // Wann wurde der Datensatz erstellt
 }, (table) => {
@@ -884,7 +895,6 @@ export const purchaseConditions = pgTable("purchase_conditions", {
   packagingUnit: text("packaging_unit"), // Beschreibung der Verpackungseinheit (z.B. "Karton mit 6 Flaschen")
   packagingQuantity: integer("packaging_quantity").default(1), // Anzahl der Einheiten pro Verpackung
   depositPerUnit: real("deposit_per_unit").default(0), // Pfand je Artikel (steuerfrei)
-  supplierArticleNumber: text("supplier_article_number"),
   deliveryTime: text("delivery_time"), // Lieferzeit (z.B. "2-3 Tage")
   validFrom: timestamp("valid_from"), // Gültigkeit von
   validTo: timestamp("valid_to"), // Gültigkeit bis
@@ -892,6 +902,7 @@ export const purchaseConditions = pgTable("purchase_conditions", {
   notes: text("notes"), // Notizen zu dieser Einkaufsbedingung
   leadTime: integer("lead_time"), // Vorlaufzeit in Tagen
   packagingType: text("packaging_type"), // Gebindeart (Karton, Kiste, etc.)
+  supplierArticleNumber: text("supplier_article_number"), // Lieferanten-Artikelnummer
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -918,30 +929,6 @@ export const insertPurchaseConditionSchema = createInsertSchema(purchaseConditio
 
 export type InsertPurchaseCondition = z.infer<typeof insertPurchaseConditionSchema>;
 export type PurchaseCondition = typeof purchaseConditions.$inferSelect;
-
-// Purchase Price History Tabelle - Historische Nachverfolgung von Preisänderungen
-export const purchasePriceHistory = pgTable("purchase_price_history", {
-  id: serial("id").primaryKey(),
-  purchaseConditionId: integer("purchase_condition_id").notNull().references(() => purchaseConditions.id),
-  oldUnitPrice: real("old_unit_price"),
-  newUnitPrice: real("new_unit_price").notNull(),
-  changeDate: timestamp("change_date").defaultNow().notNull(),
-  changeReason: text("change_reason"), // "manual_update", "order_receipt", "weclapp_sync", "bulk_import"
-  orderId: integer("order_id").references(() => orders.id), // Verknüpfung zu Bestellung, falls durch Wareneingang ausgelöst
-  invoiceReference: text("invoice_reference"), // Weclapp Rechnungsnummer oder andere Referenz
-  createdBy: integer("created_by").references(() => users.id),
-  automaticUpdate: boolean("automatic_update").default(false), // Unterscheidung zwischen manuell/automatisch
-  notes: text("notes"),
-  createdAt: timestamp("created_at").defaultNow(),
-});
-
-export const insertPurchasePriceHistorySchema = createInsertSchema(purchasePriceHistory).omit({
-  id: true,
-  createdAt: true,
-});
-
-export type InsertPurchasePriceHistory = z.infer<typeof insertPurchasePriceHistorySchema>;
-export type PurchasePriceHistory = typeof purchasePriceHistory.$inferSelect;
 
 // Supplier Discount Conditions Tabelle - Lieferantenspezifische Rabatt- und Nachlasslogik
 export const supplierDiscountConditions = pgTable("supplier_discount_conditions", {
@@ -2800,17 +2787,10 @@ export const locationCosts = pgTable("location_costs", {
   validTo: date("valid_to"), // Gültig bis (null = unbefristet)
   billingCycle: text("billing_cycle").default("monthly"), // "monthly", "quarterly", "yearly", "one_time"
   
-  // Beschreibung und Kategorie
-  description: text("description"), // Beschreibung der Kosten
-  category: text("category"), // Kategorie (z.B. "energie", "infrastruktur", "service")
-  
-  // Status
-  isActive: boolean("is_active").default(true), // Ist die Kostenposition aktiv
-  isAutoDeducted: boolean("is_auto_deducted").default(true), // Automatisch in Wirtschaftlichkeitsberechnung einbeziehen
-  
-  // Metadaten
-  supplier: text("supplier"), // Anbieter/Lieferant der Dienstleistung
-  contractNumber: text("contract_number"), // Vertragsnummer
+  // Beschreibung und Kategorisierung
+  category: text("category"), // Kategorie (optional für Gruppierung)
+  description: text("description"), // Beschreibung
+  isActive: boolean("is_active").default(true), // Ist aktiv?
   notes: text("notes"), // Zusätzliche Notizen
   
   // Audit

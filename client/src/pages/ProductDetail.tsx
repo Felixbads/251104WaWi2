@@ -19,6 +19,7 @@ import ProductSalesView from '@/components/product/ProductSalesView';
 import ProductAnalyticsView from '@/components/product/ProductAnalyticsView';
 import UnifiedPurchaseConditionsManager from '@/components/purchase-conditions/UnifiedPurchaseConditionsManager';
 import { PurchaseConditionsDisplay } from '@/components/PurchaseConditionsDisplay';
+import ProductProfitabilityAnalysis from '@/pages/ProductProfitabilityAnalysis';
 
 export default function ProductDetail() {
   const { id } = useParams<{ id: string }>();
@@ -329,6 +330,10 @@ export default function ProductDetail() {
             <TabsTrigger value="purchase-conditions" className="flex items-center gap-1 px-3 py-2 text-xs sm:text-sm whitespace-nowrap">
               <Calculator className="h-3 w-3 sm:h-4 sm:w-4" />
               <span>Einkaufsbedingungen</span>
+            </TabsTrigger>
+            <TabsTrigger value="profitability" className="flex items-center gap-1 px-3 py-2 text-xs sm:text-sm whitespace-nowrap">
+              <TrendingUp className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span>Wirtschaftlichkeit</span>
             </TabsTrigger>
           </TabsList>
         </div>
@@ -962,6 +967,11 @@ export default function ProductDetail() {
             entityId={parseInt(id!)}
             entityName={product.product_name || `Produkt #${product.id}`}
           />
+        </TabsContent>
+
+        {/* Profitability Analysis Tab */}
+        <TabsContent value="profitability" className="space-y-6 mt-6">
+          <ProductProfitabilityAnalysis productId={parseInt(id!)} />
         </TabsContent>
       </Tabs>
 

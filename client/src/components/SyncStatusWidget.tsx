@@ -116,7 +116,9 @@ function getOverallStatus(syncData: SyncStatus): string {
 }
 
 export function SyncStatusWidget() {
-  const { data: syncStatus, isLoading: syncLoading } = useQuery<SyncStatus>({
+  // Widget deaktiviert - von User angefordert
+  return null;
+}
     queryKey: ['/api/sync/status'],
     refetchInterval: 30000, // Refresh every 30 seconds
   });

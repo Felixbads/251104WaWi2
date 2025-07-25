@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -14,10 +15,12 @@ import {
   Euro,
   Calendar,
   Package,
-  Building2
+  Building2,
+  CalculatorIcon
 } from 'lucide-react';
 import { format, subDays } from 'date-fns';
 import { de } from 'date-fns/locale';
+import ProductCostRevenueAnalysis from '@/components/ProductCostRevenueAnalysis';
 
 interface WirtschaftlichkeitData {
   period: string;
@@ -153,6 +156,14 @@ export default function Wirtschaftlichkeit() {
           <p className="text-gray-600 mt-2">Umsatz minus Kosten - Echte Gewinnberechnungen</p>
         </div>
       </div>
+
+      <Tabs defaultValue="analysis" className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="analysis">Standort-Analyse</TabsTrigger>
+          <TabsTrigger value="costs">Produktkosten-Analyse</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="analysis" className="space-y-6 mt-6">
 
       {/* Filter Controls */}
       <Card>
@@ -432,6 +443,12 @@ export default function Wirtschaftlichkeit() {
           </div>
         </CardContent>
       </Card>
+        </TabsContent>
+
+        <TabsContent value="costs" className="space-y-6 mt-6">
+          <ProductCostRevenueAnalysis />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

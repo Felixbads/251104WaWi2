@@ -71,32 +71,39 @@ const SupplierSelector: React.FC<SupplierSelectorProps> = ({
     }
   });
   
-  // Extract suppliers from response (handles verschiedene Antwortformate)
+  // Extract suppliers from response and sort by revenue (highest first)
   const suppliers = React.useMemo(() => {
     if (!suppliersResponse) return [];
     
+    let suppliersList = [];
+    
     // Handle direct array response
     if (Array.isArray(suppliersResponse)) {
-      return suppliersResponse;
+      suppliersList = suppliersResponse;
     }
-    
     // Handle response with rows property (from db-direct endpoint)
-    if (suppliersResponse.rows && Array.isArray(suppliersResponse.rows)) {
-      return suppliersResponse.rows;
+    else if (suppliersResponse.rows && Array.isArray(suppliersResponse.rows)) {
+      suppliersList = suppliersResponse.rows;
     }
-    
     // Handle response with data property
-    if (suppliersResponse.data && Array.isArray(suppliersResponse.data)) {
-      return suppliersResponse.data;
+    else if (suppliersResponse.data && Array.isArray(suppliersResponse.data)) {
+      suppliersList = suppliersResponse.data;
     }
-    
     // Handle response with success and data properties
-    if (suppliersResponse.success && suppliersResponse.data && Array.isArray(suppliersResponse.data)) {
-      return suppliersResponse.data;
+    else if (suppliersResponse.success && suppliersResponse.data && Array.isArray(suppliersResponse.data)) {
+      suppliersList = suppliersResponse.data;
+    }
+    else {
+      console.warn("Unbekanntes Antwortformat für Lieferanten:", suppliersResponse);
+      return [];
     }
     
-    console.warn("Unbekanntes Antwortformat für Lieferanten:", suppliersResponse);
-    return [];
+    // Sort by revenue (highest first) - use annual_revenue, revenue, or fallback
+    return suppliersList.sort((a: any, b: any) => {
+      const revenueA = (a as any).annual_revenue || (a as any).revenue || 0;
+      const revenueB = (b as any).annual_revenue || (b as any).revenue || 0;
+      return revenueB - revenueA;
+    });
   }, [suppliersResponse]);
   
   // Filter suppliers based on search query
@@ -156,7 +163,8 @@ const SupplierSelector: React.FC<SupplierSelectorProps> = ({
             <TableCaption>Liste der verfügbaren Lieferanten</TableCaption>
             <TableHeader>
               <TableRow>
-                <TableHead>Name</TableHead>
+                <TableHead>Name & Umsatz</TableHead>
+                <TableHead>Status</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -168,12 +176,25 @@ const SupplierSelector: React.FC<SupplierSelectorProps> = ({
                     onClick={() => onSelectSupplier(supplier.id, supplier.name)}
                   >
                     <TableCell className="font-medium">
-                      <div className="flex items-center justify-between">
-                        <span>{supplier.name}</span>
-                        {selectedSupplierId === supplier.id && (
-                          <CheckCircle2 className="h-4 w-4 text-primary" />
-                        )}
+                      <div className="space-y-1">
+                        <div className="font-semibold text-base">{supplier.name}</div>
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-2 text-sm text-muted-foreground">
+                          {supplier.contactPerson && (
+                            <span className="flex items-center gap-1">
+                              <PhoneCall className="w-3 h-3" />
+                              {supplier.contactPerson}
+                            </span>
+                          )}
+                          {/* Revenue display removed as requested - numbers after supplier names removed */}
+                        </div>
                       </div>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {selectedSupplierId === supplier.id ? (
+                        <CheckCircle2 className="h-5 w-5 text-green-600" />
+                      ) : (
+                        <div className="w-5 h-5"></div>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))

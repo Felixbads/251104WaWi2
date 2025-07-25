@@ -217,6 +217,13 @@ export default function Sidebar() {
               Erweiterte Auswertung
             </NavItem>
             <NavItem 
+              href="/wirtschaftlichkeit-modern" 
+              icon={<BarChart2 className="h-5 w-5 mr-3" />}
+              isActive={isActive("/wirtschaftlichkeit-modern")}
+            >
+              📊 Moderne Wirtschaftlichkeit
+            </NavItem>
+            <NavItem 
               href="/forecast" 
               icon={<BarChart2 className="h-5 w-5 mr-3" />}
               isActive={isActive("/forecast") && !isActive("/forecast-evaluation")}

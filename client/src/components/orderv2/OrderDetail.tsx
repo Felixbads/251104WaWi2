@@ -53,6 +53,8 @@ interface Order {
   supplier_email: string;
   supplier_id?: number;
   warehouse_name: string;
+  warehouse_id?: number;
+  warehouseId?: number;
   warehouseName?: string;
   total_amount: number;
   expected_delivery_date?: string;
@@ -144,6 +146,70 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
   const [availableProducts, setAvailableProducts] = useState<any[]>([]);
   const [availableWarehouses, setAvailableWarehouses] = useState<any[]>([]);
   const [isSaving, setIsSaving] = useState(false);
+  
+  // API-Integration für Produkthinzufügung
+  const addProductToOrder = async (product: any, quantity: number) => {
+    try {
+      setIsSaving(true);
+      
+      const response = await fetch(`/api/orders/${orderId}/add-product`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          productId: product.id,
+          quantity: quantity
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error('Fehler beim Hinzufügen des Produkts');
+      }
+      
+      const result = await response.json();
+      
+      // Bestellpositionen neu laden
+      await loadOrderItems();
+      
+      // Dialog schließen
+      setShowAddItemDialog(false);
+      
+      console.log('Produkt erfolgreich hinzugefügt:', result);
+      
+    } catch (error) {
+      console.error('Fehler beim Hinzufügen des Produkts:', error);
+      setError('Produkt konnte nicht hinzugefügt werden');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Produkte für Hinzufügung laden
+  const loadAvailableProducts = async () => {
+    if (!order?.supplier_id) {
+      try {
+        const response = await fetch(`/api/products`);
+        if (response.ok) {
+          const products = await response.json();
+          setAvailableProducts(products?.data || products || []);
+        }
+      } catch (error) {
+        console.error('Fehler beim Laden der verfügbaren Produkte:', error);
+      }
+      return;
+    }
+    
+    try {
+      const response = await fetch(`/api/suppliers/${order.supplier_id}/products`);
+      if (response.ok) {
+        const products = await response.json();
+        setAvailableProducts(products.data || products || []);
+      }
+    } catch (error) {
+      console.error('Error loading available products:', error);
+    }
+  };
 
   const loadOrderData = async () => {
     try {
@@ -281,6 +347,7 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
   useEffect(() => {
     loadOrderData();
     loadOrderItems();
+    loadAvailableProducts();
   }, [orderId]);
 
   // Bearbeitungsfunktionen
@@ -290,7 +357,6 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
       ...order,
       warehouseId: order.warehouseId || order.warehouse_id || null,
       expected_delivery_date: order.expected_delivery_date || '',
-      delivery_location: order.delivery_location || order.warehouse_name || '',
       delivery_type: order.delivery_type || 'delivery',
       show_prices_in_email: order.show_prices_in_email !== false,
       notes: order.notes || ''
@@ -311,18 +377,7 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
     setShowAddItemDialog(false);
   };
 
-  const loadAvailableProducts = async () => {
-    if (!order) return;
-    try {
-      const response = await fetch(`/api/suppliers/${order.supplier_id}/products`);
-      if (response.ok) {
-        const products = await response.json();
-        setAvailableProducts(products.data || products || []);
-      }
-    } catch (error) {
-      console.error('Error loading available products:', error);
-    }
-  };
+
 
   const loadAvailableWarehouses = async () => {
     try {
@@ -371,7 +426,6 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
         warehouseId: editingOrder.warehouseId,
         warehouse_name: editingOrder.warehouse_name,
         expected_delivery_date: editingOrder.expected_delivery_date,
-        delivery_location: editingOrder.delivery_location,
         delivery_type: editingOrder.delivery_type,
         show_prices_in_email: editingOrder.show_prices_in_email,
         notes: editingOrder.notes
@@ -1052,7 +1106,7 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
                   <ProductRow 
                     key={product.id} 
                     product={product} 
-                    onAdd={(product, quantity) => addNewItem(product, quantity)} 
+                    onAdd={(product, quantity) => addProductToOrder(product, quantity)} 
                   />
                 ))}
               </div>

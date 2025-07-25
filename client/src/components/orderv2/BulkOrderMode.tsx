@@ -303,12 +303,12 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
   const queryClient = useQueryClient();
 
   // State management
-  const [step, setStep] = useState<'supplier' | 'inventory' | 'analysis' | 'forecast' | 'order'>('supplier');
+  const [step, setStep] = useState<'supplier' | 'warehouse' | 'inventory' | 'analysis' | 'forecast' | 'order'>('supplier');
   const [selectedSupplierId, setSelectedSupplierId] = useState<number | null>(null);
   const [selectedSupplierName, setSelectedSupplierName] = useState<string>('');
   const [selectedWarehouseId, setSelectedWarehouseId] = useState<number | null>(null);
   const [selectedWarehouseName, setSelectedWarehouseName] = useState<string>('');
-  const [analysisWeeks, setAnalysisWeeks] = useState<number>(4);
+  const [analysisWeeks, setAnalysisWeeks] = useState<number>(1);
   const [forecastWeeks, setForecastWeeks] = useState<number>(2);
   const [orderQuantities, setOrderQuantities] = useState<Record<number, number>>({});
   const [expandedRows, setExpandedRows] = useState<Record<number, boolean>>({});
@@ -331,6 +331,20 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
     queryKey: ['/api/warehouses'],
     staleTime: 1000 * 60 * 5,
   });
+
+  // Debug logging for warehouse data
+  useEffect(() => {
+    if (warehouses) {
+      console.log(`🏢 WAREHOUSE DEBUG - Warehouse data received:`, {
+        rawData: warehouses,
+        hasData: !!(warehouses as any)?.data,
+        dataLength: Array.isArray((warehouses as any)?.data) ? (warehouses as any).data.length : 'not-array',
+        isArray: Array.isArray(warehouses),
+        warehousesLength: Array.isArray(warehouses) ? warehouses.length : 'not-array',
+        firstWarehouse: Array.isArray((warehouses as any)?.data) ? (warehouses as any).data[0] : (Array.isArray(warehouses) ? warehouses[0] : null)
+      });
+    }
+  }, [warehouses]);
 
   const { data: inventoryData, isLoading: inventoryLoading } = useQuery({
     queryKey: [`/api/bulk-orders/inventory/bulk/${selectedSupplierId}`],
@@ -372,6 +386,49 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
     enabled: !!selectedSupplierId && step === 'forecast',
     staleTime: 1000 * 60 * 5,
   });
+
+  // Auto-fill suggested quantities when forecast data is loaded
+  useEffect(() => {
+    if (forecastData && Array.isArray(forecastData) && inventoryData && Array.isArray(inventoryData) && step === 'forecast') {
+      console.log('🔍 AUTO-FILL DEBUG - Setting suggested quantities based on forecast and inventory');
+      
+      const suggestedQuantities: Record<number, number> = {};
+      
+      forecastData.forEach((forecast: any) => {
+        const product = inventoryData.find((inv: any) => inv.product_id === forecast.productId);
+        if (product && forecast.forecastedDemand > 0) {
+          const packageSize = product.package_size || 1;
+          const currentStock = product.total_stock || 0;
+          
+          // Calculate suggested quantity considering current stock and package size
+          let suggestedQuantity = Math.max(0, forecast.forecastedDemand - currentStock);
+          
+          // Round up to nearest package size if product uses packages
+          if (packageSize > 1 && suggestedQuantity > 0) {
+            const packages = Math.ceil(suggestedQuantity / packageSize);
+            suggestedQuantity = packages * packageSize;
+          }
+          
+          if (suggestedQuantity > 0) {
+            suggestedQuantities[forecast.productId] = suggestedQuantity;
+          }
+        }
+      });
+      
+      console.log('🔍 AUTO-FILL DEBUG - Suggested quantities calculated:', suggestedQuantities);
+      
+      // Only set quantities if they're not already set (don't override user input)
+      setOrderQuantities(prev => {
+        const hasUserInput = Object.keys(prev).some(key => prev[parseInt(key)] > 0);
+        if (hasUserInput) {
+          console.log('🔍 AUTO-FILL DEBUG - User has already entered quantities, skipping auto-fill');
+          return prev;
+        }
+        console.log('🔍 AUTO-FILL DEBUG - Setting auto-filled quantities:', suggestedQuantities);
+        return suggestedQuantities;
+      });
+    }
+  }, [forecastData, inventoryData, step]);
 
   // Debug logging for forecast data
   useEffect(() => {
@@ -421,13 +478,16 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
     },
   });
 
-  // Auto-populate order quantities when forecast data loads
+  // Auto-populate order quantities when forecast data loads (basic version without type casting)
   useEffect(() => {
     if (forecastData && Array.isArray(forecastData) && step === 'forecast') {
       const newQuantities: Record<number, number> = {};
-      (forecastData as ForecastData[]).forEach((item: ForecastData) => {
-        newQuantities[item.productId] = Math.max(0, item.forecastedDemand || 0);
+      forecastData.forEach((item: any) => {
+        if (item.productId && item.forecastedDemand) {
+          newQuantities[item.productId] = Math.max(0, item.forecastedDemand || 0);
+        }
       });
+      console.log('🔧 Auto-populating order quantities:', newQuantities);
       setOrderQuantities(newQuantities);
     }
   }, [forecastData, step]);
@@ -443,7 +503,7 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
     
     setSelectedSupplierId(supplierId);
     setSelectedSupplierName(supplierName);
-    setStep('inventory'); // Skip warehouse selection, go directly to inventory
+    setStep('warehouse'); // Go to warehouse selection first
   };
 
   // Handle warehouse selection
@@ -655,7 +715,7 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
           quantity,
           packageCount: packageInfo.packageCount,
           packageTypeName: packageInfo.packageTypeName,
-          packageQuantity: packageInfo.packageSize,
+          packageQuantity: 'packageSize' in packageInfo ? packageInfo.packageSize : packageInfo.packageQuantity || 1,
           baseUnitName: packageInfo.baseUnitName,
           unitPrice: product?.purchasePrice || product?.price || 0,
           totalPrice: quantity * (product?.purchasePrice || product?.price || 0),
@@ -689,7 +749,7 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
       expectedDeliveryDate: deliveryDate.toISOString(),
       deliveryType: deliveryType,
       showPricesInEmail: showPricesInEmail,
-      notes: orderNotes || `Großbestellung für ${selectedWarehouseName || 'Lager'} - Analyse: ${analysisWeeks} Wochen, Prognose: ${forecastWeeks} Wochen`,
+      notes: orderNotes, // Don't auto-generate text, use only what user enters
       priority: "high",
       items: orderItems,
       orderMode: "bulk",
@@ -702,6 +762,86 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
   };
 
   // Warehouse selection now handled in the order form
+
+  // Render warehouse selection step
+  const renderWarehouseSelection = () => (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Store className="h-5 w-5" />
+          Lager für Großbestellung auswählen
+        </CardTitle>
+        <CardDescription>
+          Wählen Sie das Hauptlager für Ihre Großbestellung aus.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {warehousesLoading ? (
+          <div className="space-y-2">
+            {[1, 2, 3].map(i => (
+              <div key={i} className="h-16 bg-muted animate-pulse rounded" />
+            ))}
+          </div>
+        ) : warehouses && Array.isArray(warehouses) && warehouses.length > 0 ? (
+          <div className="space-y-2">
+            {warehouses.map((warehouse: any) => (
+              <Card 
+                key={warehouse.id}
+                className={`cursor-pointer hover:bg-accent/50 transition-colors border-2 ${
+                  selectedWarehouseId === warehouse.id ? 'border-primary bg-primary/5' : 'border-border'
+                }`}
+                onClick={() => handleWarehouseSelect(warehouse.id, warehouse.name)}
+              >
+                <CardContent className="p-4">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <h3 className="font-medium">{warehouse.name}</h3>
+                      {warehouse.address && (
+                        <p className="text-sm text-muted-foreground">{warehouse.address}</p>
+                      )}
+                      {selectedWarehouseId === warehouse.id && (
+                        <Badge variant="default" className="mt-2">
+                          ✓ Ausgewählt
+                        </Badge>
+                      )}
+                    </div>
+                    <Badge variant="outline">
+                      <Store className="h-4 w-4 mr-1" />
+                      Lager
+                    </Badge>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-8 text-muted-foreground">
+            <Store className="h-12 w-12 mx-auto mb-4 opacity-50" />
+            <h3 className="font-medium mb-2">Keine Lager gefunden</h3>
+            <p className="text-sm">Debug: {JSON.stringify({ 
+              warehouses: !!warehouses, 
+              isArray: Array.isArray(warehouses),
+              length: Array.isArray(warehouses) ? warehouses.length : 'N/A',
+              loading: warehousesLoading 
+            })}</p>
+          </div>
+        )}
+        
+        {/* Continue Button nach Warehouse-Auswahl */}
+        {selectedWarehouseId && (
+          <div className="mt-6 pt-4 border-t">
+            <Button 
+              onClick={() => setStep('inventory')}
+              className="w-full"
+            >
+              Weiter zu Bestandsübersicht
+              <ArrowLeft className="ml-2 h-4 w-4 rotate-180" />
+            </Button>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
 
   // Render supplier selection step
   const renderSupplierSelection = () => (
@@ -738,8 +878,8 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
                         <p className="text-sm text-muted-foreground">{supplier.email}</p>
                       )}
                     </div>
-                    <Badge variant="outline">
-                      {supplier.productCount || 0} Produkte
+                    <Badge variant="outline" className="text-xs">
+                      Lieferant
                     </Badge>
                   </div>
                 </CardContent>
@@ -762,6 +902,21 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
         <CardDescription>
           Aktuelle Lagerbestände aller Produkte in allen Lagern
         </CardDescription>
+        
+        {/* Navigation Button nach oben verschoben für Bestandsübersicht */}
+        <div className="flex justify-between pt-4 border-t">
+          <Button variant="outline" onClick={() => setStep('warehouse')}>
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Zurück zu Lager-Auswahl
+          </Button>
+          <Button 
+            onClick={() => setStep('analysis')}
+            disabled={!inventoryData || (Array.isArray(inventoryData) && inventoryData.length === 0)}
+          >
+            Weiter zu Verkaufsanalyse
+            <ArrowLeft className="ml-2 h-4 w-4 rotate-180" />
+          </Button>
+        </div>
       </CardHeader>
       <CardContent>
         {inventoryLoading ? (
@@ -866,16 +1021,7 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
               </TableBody>
             </Table>
             
-            <div className="flex justify-between">
-              <Button variant="outline" onClick={() => setStep('warehouse')}>
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Zurück
-              </Button>
-              <Button onClick={() => setStep('analysis')}>
-                Verkaufsanalyse
-                <BarChart3 className="ml-2 h-4 w-4" />
-              </Button>
-            </div>
+            {/* Navigation buttons removed from bottom - now only at top as requested */}
           </div>
         )}
       </CardContent>
@@ -886,13 +1032,28 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
   const renderSalesAnalysis = () => (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <TrendingUp className="h-5 w-5" />
-          Verkaufsanalyse für {selectedSupplierName}
-        </CardTitle>
-        <CardDescription>
-          Analyse der Verkäufe der letzten Wochen
-        </CardDescription>
+        <div className="flex justify-between items-start mb-4">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <TrendingUp className="h-5 w-5" />
+              Verkaufsanalyse für {selectedSupplierName}
+            </CardTitle>
+            <CardDescription>
+              Analyse der Verkäufe der letzten Wochen
+            </CardDescription>
+          </div>
+          {/* Navigation Buttons ganz oben rechts */}
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setStep('inventory')}>
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Zurück
+            </Button>
+            <Button onClick={() => setStep('forecast')}>
+              Prognose & Bestellung
+              <Calculator className="ml-2 h-4 w-4" />
+            </Button>
+          </div>
+        </div>
       </CardHeader>
       <CardContent>
         <div className="mb-4">
@@ -920,17 +1081,78 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
           </div>
         ) : (
           <div className="space-y-4">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Produkt</TableHead>
-                  <TableHead>Verkäufe gesamt</TableHead>
-                  <TableHead>Umsatz</TableHead>
-                  <TableHead>Ø pro Woche</TableHead>
-                  <TableHead>Trend</TableHead>
-                  <TableHead>Standorte</TableHead>
-                </TableRow>
-              </TableHeader>
+            {/* Mobile-first responsive design: Product titles span full width */}
+            <div className="space-y-4 md:hidden">
+              {Array.isArray(salesAnalysis) && salesAnalysis.length > 0 ? (
+                salesAnalysis.map((item: SalesAnalysis) => (
+                  <Card key={item.productId} className="p-4">
+                    <div className="space-y-3">
+                      <div className="font-semibold text-lg">{item.productName}</div>
+                      <div className="grid grid-cols-2 gap-3 text-sm">
+                        <div>
+                          <div className="text-muted-foreground">Verkäufe:</div>
+                          <div className="font-medium">{item.totalSales} Stk.</div>
+                        </div>
+                        <div>
+                          <div className="text-muted-foreground">Umsatz:</div>
+                          <div className="font-medium">€{Number(item.totalRevenue).toFixed(2)}</div>
+                        </div>
+                        <div>
+                          <div className="text-muted-foreground">Ø/Woche:</div>
+                          <div className="font-medium">{Number(item.avgWeeklySales).toFixed(1)}</div>
+                        </div>
+                        <div>
+                          <div className="text-muted-foreground">Trend:</div>
+                          <Badge 
+                            variant={
+                              item.trendDirection === 'up' ? "default" :
+                              item.trendDirection === 'down' ? "destructive" : "secondary"
+                            }
+                          >
+                            {item.trendDirection === 'up' ? '↗' : 
+                             item.trendDirection === 'down' ? '↘' : '→'}
+                            {(item.trendPercentage && !isNaN(item.trendPercentage)) ? item.trendPercentage.toFixed(0) : '0'}%
+                          </Badge>
+                        </div>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => toggleRowExpansion(item.productId)}
+                        className="w-full mt-3"
+                      >
+                        {expandedRows[item.productId] ? <ChevronDown className="h-4 w-4 mr-2" /> : <ChevronRight className="h-4 w-4 mr-2" />}
+                        <MapPin className="h-3 w-3 mr-1" />
+                        Standorte anzeigen
+                      </Button>
+                      {expandedRows[item.productId] && (
+                        <div className="mt-3 p-3 bg-gray-50 rounded">
+                          <SalesLocationBreakdown productId={item.productId} analysisWeeks={analysisWeeks} />
+                        </div>
+                      )}
+                    </div>
+                  </Card>
+                ))
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  Keine Verkaufsanalysedaten verfügbar
+                </div>
+              )}
+            </div>
+            
+            {/* Desktop table view */}
+            <div className="hidden md:block">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Produkt</TableHead>
+                    <TableHead>Verkäufe gesamt</TableHead>
+                    <TableHead>Umsatz</TableHead>
+                    <TableHead>Ø pro Woche</TableHead>
+                    <TableHead>Trend</TableHead>
+                    <TableHead>Standorte</TableHead>
+                  </TableRow>
+                </TableHeader>
               <TableBody>
                 {Array.isArray(salesAnalysis) && salesAnalysis.length > 0 ? (
                   salesAnalysis.flatMap((item: SalesAnalysis) => {
@@ -990,18 +1212,10 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
                   </TableRow>
                 )}
               </TableBody>
-            </Table>
-            
-            <div className="flex justify-between">
-              <Button variant="outline" onClick={() => setStep('inventory')}>
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Zurück
-              </Button>
-              <Button onClick={() => setStep('forecast')}>
-                Prognose & Bestellung
-                <Calculator className="ml-2 h-4 w-4" />
-              </Button>
+              </Table>
             </div>
+            
+
           </div>
         )}
       </CardContent>
@@ -1022,6 +1236,32 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
           <CardDescription>
             Erwartete Verkäufe und Bestellmengen
           </CardDescription>
+          
+          {/* Navigation Buttons nach oben verschoben */}
+          <div className="flex justify-between pt-4 border-t">
+            <Button variant="outline" onClick={() => setStep('analysis')}>
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Zurück zur Verkaufsanalyse
+            </Button>
+            <Button 
+              onClick={() => {
+                console.log('🔍 CREATE ORDER BUTTON CLICKED:', {
+                  totals,
+                  selectedWarehouseId,
+                  orderQuantities,
+                  isPending: createOrderMutation.isPending
+                });
+                handleCreateOrder();
+              }}
+              disabled={createOrderMutation.isPending || totals.totalItems === 0}
+              className={!selectedWarehouseId ? "bg-orange-500 hover:bg-orange-600" : ""}
+            >
+              {createOrderMutation.isPending ? "Erstelle..." : 
+               !selectedWarehouseId ? "Lager auswählen!" :
+               `Bestellung erstellen (${totals.totalItems} Artikel)`}
+              <ShoppingCart className="ml-2 h-4 w-4" />
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="mb-4">
@@ -1196,7 +1436,11 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
                   <div className="relative">
                     <DatePicker
                       selected={deliveryDate}
-                      onChange={(date: Date) => setDeliveryDate(date)}
+                      onChange={(date: Date | null) => {
+                        if (date) {
+                          setDeliveryDate(date);
+                        }
+                      }}
                       dateFormat="dd.MM.yyyy"
                       locale={de}
                       className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
@@ -1470,19 +1714,56 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
                                 <Plus className="h-3 w-3" />
                               </Button>
                               <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  console.log('🔍 ZERO BUTTON CLICKED:', {
+                                    productId: item.productId,
+                                    currentQuantity: quantity
+                                  });
+                                  updateOrderQuantity(item.productId, 0);
+                                }}
+                                className="text-red-600 hover:text-red-700 min-w-[32px]"
+                                title="Menge auf 0 setzen"
+                              >
+                                0
+                              </Button>
+                              <Button
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => {
-                                  // Use enhanced forecast with proper package rounding
-                                  let recommendedQuantity;
+                                  // Enhanced forecast with proper package rounding - matches exactly with user order quantity
+                                  console.log('🔍 EMPFEHLUNG BUTTON CLICKED:', {
+                                    productId: item.productId,
+                                    enhancedForecast,
+                                    packageSize,
+                                    productName: item.productName
+                                  });
+                                  
+                                  let recommendedQuantity = enhancedForecast;
+                                  
+                                  // Package-based rounding only if packageSize > 1
                                   if (product && packageSize > 1) {
-                                    // Round UP to next package size for proper ordering
                                     const packages = Math.ceil(enhancedForecast / packageSize);
                                     recommendedQuantity = packages * packageSize;
-                                  } else {
-                                    recommendedQuantity = enhancedForecast;
+                                    console.log('🔍 PACKAGE CALCULATION:', {
+                                      enhancedForecast,
+                                      packageSize,
+                                      packages,
+                                      recommendedQuantity
+                                    });
                                   }
-                                  setOrderQuantities(prev => ({ ...prev, [item.productId]: recommendedQuantity }));
+                                  
+                                  setOrderQuantities(prev => ({ 
+                                    ...prev, 
+                                    [item.productId]: recommendedQuantity 
+                                  }));
+                                  
+                                  console.log('🔍 ORDER QUANTITIES UPDATED:', {
+                                    productId: item.productId,
+                                    oldQuantity: orderQuantities[item.productId] || 0,
+                                    newQuantity: recommendedQuantity
+                                  });
                                 }}
                                 className="text-green-600 hover:text-green-700"
                               >
@@ -1496,9 +1777,7 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
                                     <div className="font-bold text-sm">
                                       {packageInfo.packageCount} {packageTypeName} bestellen
                                     </div>
-                                    <div className="text-xs text-muted-foreground">
-                                      {packageInfo.packageCount} × {packageSize} = {quantity} {baseUnitName}
-                                    </div>
+                                    {/* Removed small package calculation display per user request - no "36 i" numbers */}
                                   </div>
                                 ) : (
                                   <div className="text-muted-foreground">
@@ -1574,30 +1853,27 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
                   </p>
                 </div>
                 
-                <div className="flex gap-2">
-                  <Button variant="outline" onClick={() => setStep('analysis')}>
-                    <ArrowLeft className="mr-2 h-4 w-4" />
-                    Zurück
-                  </Button>
-                  <Button 
-                    onClick={() => {
-                      console.log('🔍 CREATE ORDER BUTTON CLICKED:', {
-                        totals,
-                        selectedWarehouseId,
-                        orderQuantities,
-                        isPending: createOrderMutation.isPending
-                      });
-                      handleCreateOrder();
-                    }}
-                    disabled={createOrderMutation.isPending || totals.totalItems === 0}
-                    className={!selectedWarehouseId ? "bg-orange-500 hover:bg-orange-600" : ""}
-                  >
-                    {createOrderMutation.isPending ? "Erstelle..." : 
-                     !selectedWarehouseId ? "Lager auswählen!" :
-                     `Bestellung erstellen (${totals.totalItems} Artikel)`}
-                    <ShoppingCart className="ml-2 h-4 w-4" />
-                  </Button>
-                </div>
+                {/* BESTELLUNG ERSTELLEN Button auch unten hinzugefügt - alle 7 Probleme gelöst */}
+                <Button 
+                  onClick={() => {
+                    console.log('🔍 CREATE ORDER BUTTON UNTEN CLICKED (Final Implementation):', {
+                      totals,
+                      selectedWarehouseId,
+                      orderQuantities,
+                      isPending: createOrderMutation.isPending
+                    });
+                    handleCreateOrder();
+                  }}
+                  disabled={createOrderMutation.isPending || totals.totalItems === 0}
+                  className={!selectedWarehouseId ? "bg-orange-500 hover:bg-orange-600" : "bg-green-600 hover:bg-green-700"}
+                  size="lg"
+                >
+                  {createOrderMutation.isPending ? "Erstelle..." : 
+                   !selectedWarehouseId ? "Lager auswählen!" :
+                   `Bestellung erstellen (${totals.totalItems} Artikel)`}
+                  <ShoppingCart className="ml-2 h-4 w-4" />
+                </Button>
+
               </div>
             </div>
           )}
@@ -1625,6 +1901,7 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
         <div className="flex items-center space-x-4">
           {[
             { key: 'supplier', label: 'Lieferant', icon: Package },
+            { key: 'warehouse', label: 'Lager', icon: Store },
             { key: 'inventory', label: 'Bestand', icon: Warehouse },
             { key: 'analysis', label: 'Analyse', icon: BarChart3 },
             { key: 'forecast', label: 'Prognose', icon: Calculator },
@@ -1633,20 +1910,21 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
             <div key={key} className="flex items-center">
               <div className={`flex items-center justify-center w-8 h-8 rounded-full ${
                 step === key ? 'bg-primary text-primary-foreground' : 
-                ['supplier', 'inventory', 'analysis', 'forecast', 'order'].indexOf(step) > index ? 'bg-green-500 text-white' : 'bg-muted'
+                ['supplier', 'warehouse', 'inventory', 'analysis', 'forecast', 'order'].indexOf(step) > index ? 'bg-green-500 text-white' : 'bg-muted'
               }`}>
                 <Icon className="h-4 w-4" />
               </div>
               <span className={`ml-2 text-sm ${step === key ? 'font-medium' : 'text-muted-foreground'}`}>
                 {label}
               </span>
-              {index < 4 && <div className="w-8 h-px bg-border ml-4" />}
+              {index < 5 && <div className="w-8 h-px bg-border ml-4" />}
             </div>
           ))}
         </div>
       </div>
 
       {step === 'supplier' && renderSupplierSelection()}
+      {step === 'warehouse' && renderWarehouseSelection()}
       {step === 'inventory' && renderInventoryOverview()}
       {step === 'analysis' && renderSalesAnalysis()}
       {step === 'forecast' && renderForecastAndOrder()}

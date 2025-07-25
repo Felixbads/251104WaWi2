@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useParams, useLocation } from "wouter";
 import { 
@@ -35,29 +35,42 @@ import {
   TableRow 
 } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
-// Types for location costs
+// Types for location costs based on backend schema
 interface LocationCost {
   id: number;
-  locationId: number;
+  locationId: number | null;
+  machineId: number | null;
+  locationName: string;
+  machineName: string | null;
   costType: string;
-  amount: number;
+  costName: string;
+  amountNet: number;
+  amountGross: number;
+  vatRate: number;
   currency: string;
-  frequency: string;
-  description?: string;
-  isActive: boolean;
   validFrom: string;
-  validUntil?: string;
+  validTo: string | null;
+  billingCycle: string;
+  category: string | null;
+  description: string | null;
+  isActive: boolean;
+  notes: string | null;
   createdAt: string;
   updatedAt: string;
+  createdBy: number | null;
 }
 
 interface NewLocationCost {
+  locationId: number;
+  locationName: string;
   costType: string;
-  amount: number;
-  frequency: string;
+  costName: string;
+  amountNet: number;
+  validFrom: string;
+  billingCycle: string;
   description?: string;
 }
 
@@ -72,11 +85,11 @@ const COST_TYPES = [
   { value: 'spende', label: 'Spende', icon: Heart }
 ];
 
-const FREQUENCIES = [
+const BILLING_CYCLES = [
   { value: 'monthly', label: 'Monatlich' },
   { value: 'quarterly', label: 'Vierteljährlich' },
   { value: 'yearly', label: 'Jährlich' },
-  { value: 'one-time', label: 'Einmalig' }
+  { value: 'one_time', label: 'Einmalig' }
 ];
 
 // Location Costs Tab Component
@@ -84,55 +97,99 @@ export function LocationCostsTab({ locationId }: { locationId: string }) {
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [newCost, setNewCost] = useState<NewLocationCost>({
+    locationId: parseInt(locationId),
+    locationName: '',
     costType: '',
-    amount: 0,
-    frequency: 'monthly',
+    costName: '',
+    amountNet: 0,
+    validFrom: new Date().toISOString().split('T')[0],
+    billingCycle: 'monthly',
     description: ''
   });
   const { toast } = useToast();
 
-  // Fetch location costs
-  const { data: costs = [], isLoading, refetch } = useQuery({
-    queryKey: [`/api/location-costs/${locationId}`],
+  // Fetch location costs with correct endpoint
+  const { data: costsResponse, isLoading, refetch } = useQuery<LocationCost[]>({
+    queryKey: ['/api/location-costs/location', locationId],
+    enabled: !!locationId,
+    retry: false,
+    onError: (error: any) => {
+      console.error('[LOCATION-COSTS] Frontend error fetching costs for location', locationId, ':', error);
+    },
+    onSuccess: (data: any) => {
+      console.log('[LOCATION-COSTS] Frontend received data for location', locationId, ':', data);
+    }
+  });
+
+  const costs = costsResponse || [];
+
+  // Fetch location name for the form
+  const { data: locationData } = useQuery<any>({
+    queryKey: ['/api/locations', locationId],
     enabled: !!locationId
   });
 
-  // Create cost mutation
+  // Update location name when data is available
+  useEffect(() => {
+    if (locationData?.name) {
+      setNewCost(prev => ({ ...prev, locationName: locationData.name }));
+    }
+  }, [locationData]);
+
+  // Create cost mutation with correct endpoint
   const createCostMutation = useMutation({
-    mutationFn: (data: NewLocationCost) => 
-      apiRequest(`/api/location-costs/${locationId}`, data, 'POST'),
+    mutationFn: (data: NewLocationCost) => {
+      // Calculate gross amount (amountNet + 19% VAT)
+      const costData = {
+        ...data,
+        amountGross: data.amountNet * 1.19,
+        vatRate: 19,
+        currency: 'EUR',
+        isActive: true
+      };
+      return apiRequest('/api/location-costs', costData, 'POST');
+    },
     onSuccess: () => {
       toast({ title: "Kostenpunkt erfolgreich hinzugefügt" });
       setIsAdding(false);
-      setNewCost({ costType: '', amount: 0, frequency: 'monthly', description: '' });
-      refetch();
+      setNewCost({
+        locationId: parseInt(locationId),
+        locationName: '',
+        costType: '',
+        costName: '',
+        amountNet: 0,
+        validFrom: new Date().toISOString().split('T')[0],
+        billingCycle: 'monthly',
+        description: ''
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/location-costs/location', locationId] });
     },
     onError: () => {
       toast({ title: "Fehler beim Hinzufügen des Kostenpunkts", variant: "destructive" });
     }
   });
 
-  // Update cost mutation
+  // Update cost mutation with correct endpoint
   const updateCostMutation = useMutation({
     mutationFn: ({ id, data }: { id: number; data: Partial<LocationCost> }) => 
-      apiRequest(`/api/location-costs/item/${id}`, data, 'PUT'),
+      apiRequest(`/api/location-costs/${id}`, data, 'PUT'),
     onSuccess: () => {
       toast({ title: "Kostenpunkt erfolgreich aktualisiert" });
       setEditingId(null);
-      refetch();
+      queryClient.invalidateQueries({ queryKey: ['/api/location-costs/location', locationId] });
     },
     onError: () => {
       toast({ title: "Fehler beim Aktualisieren des Kostenpunkts", variant: "destructive" });
     }
   });
 
-  // Delete cost mutation
+  // Delete cost mutation with correct endpoint
   const deleteCostMutation = useMutation({
     mutationFn: (id: number) => 
-      apiRequest(`/api/location-costs/item/${id}`, {}, 'DELETE'),
+      apiRequest(`/api/location-costs/${id}`, {}, 'DELETE'),
     onSuccess: () => {
       toast({ title: "Kostenpunkt erfolgreich gelöscht" });
-      refetch();
+      queryClient.invalidateQueries({ queryKey: ['/api/location-costs/location', locationId] });
     },
     onError: () => {
       toast({ title: "Fehler beim Löschen des Kostenpunkts", variant: "destructive" });
@@ -140,7 +197,7 @@ export function LocationCostsTab({ locationId }: { locationId: string }) {
   });
 
   const handleAddCost = () => {
-    if (!newCost.costType || newCost.amount <= 0) {
+    if (!newCost.costType || !newCost.costName || newCost.amountNet <= 0) {
       toast({ title: "Bitte füllen Sie alle Pflichtfelder aus", variant: "destructive" });
       return;
     }
@@ -152,8 +209,8 @@ export function LocationCostsTab({ locationId }: { locationId: string }) {
            { label: costType, icon: Settings };
   };
 
-  const getFrequencyLabel = (frequency: string) => {
-    return FREQUENCIES.find(f => f.value === frequency)?.label || frequency;
+  const getBillingCycleLabel = (billingCycle: string) => {
+    return BILLING_CYCLES.find(f => f.value === billingCycle)?.label || billingCycle;
   };
 
   if (isLoading) {
@@ -202,7 +259,14 @@ export function LocationCostsTab({ locationId }: { locationId: string }) {
                 <Label htmlFor="costType">Kostenart *</Label>
                 <Select 
                   value={newCost.costType} 
-                  onValueChange={(value) => setNewCost(prev => ({ ...prev, costType: value }))}
+                  onValueChange={(value) => {
+                    const typeInfo = getCostTypeInfo(value);
+                    setNewCost(prev => ({ 
+                      ...prev, 
+                      costType: value,
+                      costName: typeInfo.label
+                    }));
+                  }}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Kostenart auswählen" />
@@ -224,29 +288,47 @@ export function LocationCostsTab({ locationId }: { locationId: string }) {
               </div>
               
               <div>
-                <Label htmlFor="amount">Betrag (€) *</Label>
+                <Label htmlFor="costName">Bezeichnung *</Label>
+                <Input
+                  value={newCost.costName}
+                  onChange={(e) => setNewCost(prev => ({ ...prev, costName: e.target.value }))}
+                  placeholder="z.B. Stromabschlag Standort"
+                />
+              </div>
+              
+              <div>
+                <Label htmlFor="amountNet">Betrag Netto (€) *</Label>
                 <Input
                   type="number"
                   step="0.01"
-                  value={newCost.amount}
-                  onChange={(e) => setNewCost(prev => ({ ...prev, amount: parseFloat(e.target.value) || 0 }))}
+                  value={newCost.amountNet}
+                  onChange={(e) => setNewCost(prev => ({ ...prev, amountNet: parseFloat(e.target.value) || 0 }))}
                   placeholder="0.00"
                 />
               </div>
               
               <div>
-                <Label htmlFor="frequency">Häufigkeit</Label>
+                <Label htmlFor="validFrom">Gültig ab *</Label>
+                <Input
+                  type="date"
+                  value={newCost.validFrom}
+                  onChange={(e) => setNewCost(prev => ({ ...prev, validFrom: e.target.value }))}
+                />
+              </div>
+              
+              <div>
+                <Label htmlFor="billingCycle">Abrechnungszyklus</Label>
                 <Select 
-                  value={newCost.frequency} 
-                  onValueChange={(value) => setNewCost(prev => ({ ...prev, frequency: value }))}
+                  value={newCost.billingCycle} 
+                  onValueChange={(value) => setNewCost(prev => ({ ...prev, billingCycle: value }))}
                 >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {FREQUENCIES.map(freq => (
-                      <SelectItem key={freq.value} value={freq.value}>
-                        {freq.label}
+                    {BILLING_CYCLES.map(cycle => (
+                      <SelectItem key={cycle.value} value={cycle.value}>
+                        {cycle.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -256,7 +338,7 @@ export function LocationCostsTab({ locationId }: { locationId: string }) {
               <div>
                 <Label htmlFor="description">Beschreibung</Label>
                 <Input
-                  value={newCost.description}
+                  value={newCost.description || ''}
                   onChange={(e) => setNewCost(prev => ({ ...prev, description: e.target.value }))}
                   placeholder="Optionale Beschreibung"
                 />
@@ -275,7 +357,16 @@ export function LocationCostsTab({ locationId }: { locationId: string }) {
                 variant="outline" 
                 onClick={() => {
                   setIsAdding(false);
-                  setNewCost({ costType: '', amount: 0, frequency: 'monthly', description: '' });
+                  setNewCost({
+                    locationId: parseInt(locationId),
+                    locationName: '',
+                    costType: '',
+                    costName: '',
+                    amountNet: 0,
+                    validFrom: new Date().toISOString().split('T')[0],
+                    billingCycle: 'monthly',
+                    description: ''
+                  });
                 }}
               >
                 <X className="w-4 h-4 mr-2" />
@@ -317,15 +408,20 @@ export function LocationCostsTab({ locationId }: { locationId: string }) {
                           <Icon className="w-5 h-5 text-primary" />
                         </div>
                         <div>
-                          <h4 className="font-semibold">{costTypeInfo.label}</h4>
+                          <h4 className="font-semibold">{cost.costName}</h4>
                           <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                            <span className="font-mono">€{cost.amount.toFixed(2)}</span>
+                            <span className="font-mono">€{cost.amountNet.toFixed(2)} netto</span>
+                            <span className="font-mono text-xs">€{cost.amountGross.toFixed(2)} brutto</span>
                             <Badge variant="outline">
-                              {getFrequencyLabel(cost.frequency)}
+                              {getBillingCycleLabel(cost.billingCycle)}
                             </Badge>
                             {cost.description && (
                               <span>{cost.description}</span>
                             )}
+                          </div>
+                          <div className="text-xs text-muted-foreground mt-1">
+                            Gültig ab: {new Date(cost.validFrom).toLocaleDateString('de-DE')}
+                            {cost.validTo && ` bis ${new Date(cost.validTo).toLocaleDateString('de-DE')}`}
                           </div>
                         </div>
                       </div>
@@ -367,7 +463,7 @@ export function LocationProfitabilityTab({ locationId }: { locationId: string })
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
   
   // Fetch profitability data
-  const { data: profitabilityData, isLoading } = useQuery({
+  const { data: profitabilityData, isLoading } = useQuery<any>({
     queryKey: [`/api/enhanced-profitability/location/${locationId}`, selectedMonth],
     enabled: !!locationId
   });
@@ -548,6 +644,7 @@ export function LocationProfitabilityTab({ locationId }: { locationId: string })
 export default function LocationDetail() {
   const { id } = useParams<{ id: string }>();
   const [, setLocation] = useLocation();
+  const [activeTab, setActiveTab] = useState("kosten");
 
   // Mock location data - in real app, fetch this from an API
   const locationName = `Standort ${id}`;
@@ -593,7 +690,7 @@ export default function LocationDetail() {
       </div>
 
       {/* Main Content */}
-      <Tabs defaultValue="kosten" className="space-y-6">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="kosten" className="flex items-center gap-2">
             <Euro className="w-4 h-4" />

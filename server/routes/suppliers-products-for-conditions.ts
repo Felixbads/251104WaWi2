@@ -90,7 +90,8 @@ router.put('/purchase-conditions/:id', async (req, res) => {
       validTo,
       isPreferred,
       notes,
-      leadTime
+      leadTime,
+      supplierArticleNumber
     } = req.body;
     
     console.log('[PURCHASE-CONDITIONS] Updating condition:', id, req.body);
@@ -113,8 +114,9 @@ router.put('/purchase-conditions/:id', async (req, res) => {
         is_preferred = $13,
         notes = $14,
         lead_time = $15,
+        supplier_article_number = $16,
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $16
+      WHERE id = $17
       RETURNING *
     `, [
       unitPrice,
@@ -132,6 +134,7 @@ router.put('/purchase-conditions/:id', async (req, res) => {
       isPreferred || false,
       notes,
       leadTime,
+      supplierArticleNumber,
       parseInt(id)
     ]);
     

@@ -1,5 +1,5 @@
 import type { Express, Request as ExpressRequest, Response, NextFunction } from "express";
-import { User, insertPurchaseConditionSchema, insertInventoryCountItemSchema, machines, transactions, refills } from '../shared/schema';
+import { User, insertPurchaseConditionSchema, insertInventoryCountItemSchema, machines, transactions, refills, syncLogs } from '../shared/schema';
 import { z } from 'zod';
 
 // Erweitern der Request-Schnittstelle zur Unterstützung des user-Objekts
@@ -9,7 +9,7 @@ interface Request extends ExpressRequest {
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { db, rawDb, rawSql } from "./db";
-import { sql, eq, desc, and, gte, lte } from "drizzle-orm";
+import { sql, eq, desc, and, gte, lte, count } from "drizzle-orm";
 import { vendonSync } from "./services/vendonSync";
 import { syncWeatherForecast } from './services/openWeatherService';
 import { holidayService } from './services/holidayService';
@@ -60,6 +60,7 @@ import stockoutDetectionRouter from './routes/stockoutDetection';
 import enhancedProphetForecastingRouter from './routes/enhancedProphetForecasting';
 import inventoryItemsUnassignedRouter from './routes/inventory-items-unassigned';
 import machineStockRouter from './routes/machine-stock';
+import transactionCostsRouter from './routes/transaction-costs';
 
 // Hilfsfunktion zum Gruppieren der Transaktionen nach Zeitraum
 function groupTransactionsByPeriod(transactions, period) {
@@ -185,6 +186,10 @@ import emailRoutes from "./routes/email";
 import refillsRoutes from "./routes/refills";
 import enhancedVendonImportRoutes from "./routes/enhancedVendonImport";
 import warehouseProductsRoutes from "./routes/warehouseProducts";
+import unifiedProfitabilityRouter from "./routes/unified-profitability";
+import locationProfitabilityRouter from "./routes/location-profitability";
+import simpleProfitabilityRouter from "./routes/product-profitability-simple";
+import fixedProfitabilityRouter from "./routes/fixed-profitability";
 import { WebSocketServer } from 'ws';
 
 // API route prefix
@@ -281,7 +286,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           name,
           address,
           description,
-          is_active
+          is_active,
+          CASE 
+            WHEN is_active = true THEN 'active'
+            ELSE 'inactive'
+          END as status
         FROM warehouses 
         WHERE is_active = true
         ORDER BY name
@@ -684,15 +693,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const countsResult = await rawDb.query(`
         SELECT 
-          ic.*,
-          w.name as warehouse_name
+          ic.id,
+          ic.warehouse_id,
+          ic.status,
+          ic.start_date,
+          ic.end_date,
+          ic.notes,
+          ic.created_at,
+          ic.updated_at,
+          w.name AS warehouse_name,
+          COUNT(ici.id) AS item_count,
+          COUNT(CASE WHEN ici.counted_quantity IS NOT NULL THEN 1 END) AS counted_items,
+          COUNT(CASE WHEN ici.counted_quantity IS NOT NULL AND ici.counted_quantity != ici.expected_quantity THEN 1 END) AS items_with_difference
         FROM inventory_counts ic
         LEFT JOIN warehouses w ON ic.warehouse_id = w.id
+        LEFT JOIN inventory_count_items ici ON ici.inventory_count_id = ic.id
         ${whereClause}
+        GROUP BY ic.id, w.name
         ORDER BY ic.created_at DESC
       `, params);
       
-      res.json(countsResult.rows);
+      // Transform to camelCase and add computed fields
+      const formatted = countsResult.rows.map(row => ({
+        id: row.id,
+        warehouseId: row.warehouse_id,
+        warehouseName: row.warehouse_name || 'Unbekanntes Lager',
+        status: row.status,
+        startDate: row.start_date,
+        endDate: row.end_date,
+        notes: row.notes,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+        itemCount: Number(row.item_count) || 0,
+        totalItems: Number(row.item_count) || 0,
+        countedItems: Number(row.counted_items) || 0,
+        withDifference: Number(row.items_with_difference) || 0,
+        // Add additional fields for UI compatibility
+        name: row.notes || `Inventur #${row.id}`,
+        description: row.warehouse_name ? `Lager: ${row.warehouse_name}` : undefined,
+        scheduledDate: row.start_date || row.created_at
+      }));
+      
+      res.json(formatted);
     } catch (error) {
       console.error("Error fetching inventory counts:", error);
       res.status(500).json({ 
@@ -713,11 +755,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const countResult = await rawDb.query(`
         SELECT 
-          ic.*,
-          w.name as warehouse_name
+          ic.id,
+          ic.warehouse_id,
+          ic.status,
+          ic.start_date,
+          ic.end_date,
+          ic.notes,
+          ic.created_at,
+          ic.updated_at,
+          w.name AS warehouse_name,
+          COUNT(ici.id) AS item_count,
+          COUNT(CASE WHEN ici.counted_quantity IS NOT NULL THEN 1 END) AS counted_items,
+          COUNT(CASE WHEN ici.counted_quantity IS NOT NULL AND ici.counted_quantity != ici.expected_quantity THEN 1 END) AS items_with_difference
         FROM inventory_counts ic
         LEFT JOIN warehouses w ON ic.warehouse_id = w.id
+        LEFT JOIN inventory_count_items ici ON ici.inventory_count_id = ic.id
         WHERE ic.id = $1
+        GROUP BY ic.id, w.name
       `, [inventoryCountId]);
       
       const count = countResult.rows[0];
@@ -726,7 +780,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Inventory Count not found" });
       }
       
-      const result = count;
+      // Transform to camelCase
+      const result = {
+        id: count.id,
+        warehouseId: count.warehouse_id,
+        warehouseName: count.warehouse_name || 'Unbekanntes Lager',
+        status: count.status,
+        startDate: count.start_date,
+        endDate: count.end_date,
+        notes: count.notes,
+        createdAt: count.created_at,
+        updatedAt: count.updated_at,
+        itemCount: Number(count.item_count) || 0,
+        totalItems: Number(count.item_count) || 0,
+        countedItems: Number(count.counted_items) || 0,
+        withDifference: Number(count.items_with_difference) || 0,
+        // Add additional fields for UI compatibility
+        name: count.notes || `Inventur #${count.id}`,
+        description: count.warehouse_name ? `Lager: ${count.warehouse_name}` : undefined,
+        scheduledDate: count.start_date || count.created_at,
+        warehouse: {
+          id: count.warehouse_id,
+          name: count.warehouse_name || 'Unbekanntes Lager'
+        }
+      };
       
       res.status(200).json(result);
     } catch (error) {
@@ -746,43 +823,83 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const itemsResult = await rawDb.query(`
         SELECT 
-          ici.*,
+          ici.id,
+          ici.inventory_count_id,
+          ici.product_id,
+          ici.expected_quantity,
+          ici.counted_quantity,
+          ici.notes,
+          ici.batch_id,
+          ici.created_at,
+          ici.updated_at,
           p.product_name,
           p.category,
-          p.price
+          p.price,
+          p.package_size,
+          p.package_quantity,
+          p.sku,
+          p.units,
+          pc.packaging_quantity,
+          pc.packaging_unit,
+          pb.batch_number,
+          pb.expiry_date,
+          pb.current_quantity as batch_current_quantity,
+          pb.received_date,
+          pb.notes as batch_notes
         FROM inventory_count_items ici
         LEFT JOIN products p ON ici.product_id = p.id
+        LEFT JOIN purchase_conditions pc ON pc.product_id = ici.product_id
+        LEFT JOIN product_batches pb ON ici.batch_id = pb.id
         WHERE ici.inventory_count_id = $1
         ORDER BY ici.created_at ASC
       `, [inventoryCountId]);
       
       const items = itemsResult.rows;
       
-      // Hole detaillierte Produktinformationen und Batch-Daten für jedes Item
-      const enrichedItems = await Promise.all(items.map(async (item) => {
+      // Transform all fields to camelCase
+      const enrichedItems = items.map((item) => {
         const product = { 
           id: item.product_id,
-          product_name: item.product_name,
+          productName: item.product_name,
           category: item.category,
-          price: item.price
+          price: item.price,
+          packageSize: item.package_size,
+          packageQuantity: item.package_quantity,
+          sku: item.sku,
+          unit: item.units || 'Stk.',
+          // Einkaufsbedingungen hinzufügen
+          packagingQuantity: item.packaging_quantity,
+          packagingUnit: item.packaging_unit
         };
         
-        // Wenn eine batchId vorhanden ist, lade die Batch-Informationen
+        // Transform batch information to camelCase if available
         let batch = null;
-        if (item.batchId) {
-          try {
-            batch = await storage.getProductBatch(item.batchId);
-          } catch (batchError) {
-            console.warn(`Batch ${item.batchId} für Item ${item.id} nicht gefunden:`, batchError);
-          }
+        if (item.batch_id && item.batch_number) {
+          batch = {
+            id: item.batch_id,
+            batchNumber: item.batch_number,
+            expiryDate: item.expiry_date,
+            currentQuantity: item.batch_current_quantity,
+            receivedDate: item.received_date,
+            notes: item.batch_notes
+          };
         }
         
+        // Transform main item fields to camelCase
         return {
-          ...item,
+          id: item.id,
+          inventoryCountId: item.inventory_count_id,
+          productId: item.product_id,
+          expectedQuantity: item.expected_quantity,
+          countedQuantity: item.counted_quantity,
+          notes: item.notes,
+          batchId: item.batch_id,
+          createdAt: item.created_at,
+          updatedAt: item.updated_at,
           product,
           batch
         };
-      }));
+      });
       
       res.status(200).json(enrichedItems);
     } catch (error) {
@@ -791,451 +908,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // GET /inventory-counts/:id/available-items - Verfügbare Produkte für Inventurzählung abrufen
-  app.get(`${API_PREFIX}/inventory-counts/:id/available-items`, async (req: Request, res: Response) => {
-    try {
-      const inventoryCountId = parseInt(req.params.id);
-      
-      if (!inventoryCountId) {
-        return res.status(400).json({ error: "Inventory Count ID is required" });
-      }
-      
-      // Überprüfe, ob die Inventurzählung existiert
-      const count = await storage.getInventoryCount(inventoryCountId);
-      if (!count) {
-        return res.status(404).json({ error: "Inventory Count not found" });
-      }
-      
-      // Hole das Lager ID von der Inventurzählung
-      const warehouseId = count.warehouseId;
-      
-      // Hole alle Produkte im Lager
-      const inventoryItems = await storage.getInventoryItems({ 
-        warehouseId,
-        includeZeroStock: true // Wichtig: Auch Produkte mit Bestand 0 einschließen
-      });
-      
-      // Hole bereits in der Inventur existierende Elemente
-      const existingItems = await storage.getInventoryCountItems(inventoryCountId);
-      const existingProductIds = new Set(existingItems.map(item => item.productId));
-      
-      // Filtere nur die Produkte, die noch nicht in der Inventur sind
-      const availableItems = inventoryItems.filter(item => !existingProductIds.has(item.productId || 0));
-      
-      // Hole detaillierte Produktinformationen
-      const productsWithDetails = await Promise.all(availableItems.map(async (item) => {
-        const product = await storage.getProduct(item.productId || 0);
-        return {
-          ...item,
-          product
-        };
-      }));
-      
-      res.status(200).json({
-        items: productsWithDetails,
-        total: productsWithDetails.length
-      });
-    } catch (error) {
-      console.error("Fehler beim Abrufen der verfügbaren Produkte:", error);
-      res.status(500).json({ error: "Failed to retrieve available items" });
-    }
-  });
+  // REMOVED: Old inventory-counts/:id/available-items route - now handled by inventory.ts router
 
-  // POST /inventory-counts - Neue Inventurzählung erstellen
-  app.post(`${API_PREFIX}/inventory-counts`, async (req: Request, res: Response) => {
-    try {
-      const { warehouseId, notes, status } = req.body;
-      
-      console.log(`Erstelle neue Inventurzählung für Lager ${warehouseId} mit Status ${status || 'pending'}`);
-      
-      if (!warehouseId) {
-        return res.status(400).json({ error: "Warehouse ID is required" });
-      }
-      
-      // Validiere warehouseId
-      const warehouse = await storage.getWarehouse(warehouseId);
-      if (!warehouse) {
-        console.error(`Lager mit ID ${warehouseId} nicht gefunden!`);
-        return res.status(404).json({ error: "Warehouse not found" });
-      }
-      
-      console.log(`Lager gefunden: ${warehouse.name} (ID: ${warehouse.id})`);
-      
-      // Erstelle neue Inventurzählung
-      const inventoryCount = await storage.createInventoryCount({
-        warehouseId,
-        notes,
-        status: status || 'pending',
-        startDate: new Date()
-      });
-      
-      console.log(`Neue Inventurzählung erstellt: ID ${inventoryCount.id} für Lager ${warehouse.name} (${warehouseId})`);
-      console.log(`Warehouse Name in Response: ${inventoryCount.warehouseName || 'Nicht gesetzt'}`);
-      
-      // Füge automatisch alle Produkte aus dem Lager zur Inventur hinzu
-      try {
-        console.log(`Füge automatisch alle Produkte für neue Inventur ${inventoryCount.id} hinzu...`);
-        
-        // Hole direkt die inventory_items für das Lager
-        const inventoryItems = await storage.getInventoryItemsByWarehouse(warehouseId);
-        
-        console.log(`${inventoryItems.length} Lagerprodukte gefunden in inventory_items für Lager ${warehouseId}`);
-        
-        if (inventoryItems && inventoryItems.length > 0) {
-          // Speichere alle gefundenen Produkte in der Inventur
-          const savedItems = [];
-          console.log(`Beginne mit dem Hinzufügen von ${inventoryItems.length} Produkten zur Inventur ${inventoryCount.id}`);
-          
-          // Für jedes Lagerprodukt ein Inventurelement erstellen
-          for (const item of inventoryItems) {
-            if (!item.productId) {
-              console.warn(`Überspringe Eintrag ohne Produkt-ID:`, item);
-              continue;
-            }
-            
-            console.log(`Füge Produkt ${item.productId} mit Bestand ${item.quantity || 0} zur Inventur hinzu`);
-            try {
-              const savedItem = await storage.createInventoryCountItem({
-                inventoryCountId: inventoryCount.id,
-                productId: item.productId,
-                expectedQuantity: item.quantity || 0,
-                actualQuantity: null,
-                status: 'pending'
-              });
-              
-              savedItems.push(savedItem);
-            } catch (itemError) {
-              console.error(`Fehler beim Hinzufügen von Produkt ${item.productId}:`, itemError);
-            }
-          }
-          
-          console.log(`✅ ${savedItems.length} Produkte automatisch zur Inventur ${inventoryCount.id} hinzugefügt`);
-        } else {
-          console.warn(`Keine Lagerprodukte für Lager ${warehouseId} gefunden!`);
-        }
-      } catch (addError) {
-        console.error("Fehler beim automatischen Hinzufügen der Produkte:", addError);
-        // Wir lassen die Inventur trotzdem erstellen, selbst wenn das Hinzufügen fehlschlägt
-      }
-      
-      res.status(201).json(inventoryCount);
-    } catch (error) {
-      console.error("Error creating inventory count:", error);
-      res.status(500).json({ 
-        error: "Failed to create inventory count", 
-        details: error instanceof Error ? error.message : String(error) 
-      });
-    }
-  });
+  // REMOVED: Old inventory-counts POST route - now handled by inventory.ts router
 
-  // POST /inventory-counts/:id/items - Inventurzählungselemente hinzufügen
-  app.post(`${API_PREFIX}/inventory-counts/:id/items`, async (req: Request, res: Response) => {
-    try {
-      const inventoryCountId = parseInt(req.params.id);
-      const { items } = req.body;
-      
-      if (!inventoryCountId) {
-        return res.status(400).json({ error: "Inventory Count ID is required" });
-      }
-      
-      if (!items || !Array.isArray(items) || items.length === 0) {
-        return res.status(400).json({ error: "Items array is required and must not be empty" });
-      }
-      
-      // Überprüfe, ob die Inventurzählung existiert
-      const count = await storage.getInventoryCount(inventoryCountId);
-      if (!count) {
-        return res.status(404).json({ error: "Inventory Count not found" });
-      }
-      
-      // Speichere alle Items
-      const savedItems = [];
-      for (const item of items) {
-        const savedItem = await storage.createInventoryCountItem({
-          inventoryCountId,
-          productId: item.productId,
-          expectedQuantity: item.currentQuantity || 0,
-          actualQuantity: item.countedQuantity || 0,
-          difference: (item.countedQuantity || 0) - (item.currentQuantity || 0),
-          status: 'counted'
-        });
-        savedItems.push(savedItem);
-      }
-      
-      console.log(`${savedItems.length} Inventurzählungselemente für ID ${inventoryCountId} gespeichert`);
-      res.status(201).json(savedItems);
-    } catch (error) {
-      console.error("Error saving inventory count items:", error);
-      res.status(500).json({ 
-        error: "Failed to save inventory count items", 
-        details: error instanceof Error ? error.message : String(error) 
-      });
-    }
-  });
+  // REMOVED: Old inventory-counts/:id/items POST route - now handled by inventory.ts router
   
-  // PATCH /inventory-count-items/:id - Inventurzählungselement aktualisieren
-  app.patch(`${API_PREFIX}/inventory-count-items/:id`, async (req: Request, res: Response) => {
-    try {
-      const itemId = parseInt(req.params.id);
-      
-      if (!itemId) {
-        return res.status(400).json({ error: "Item ID is required" });
-      }
-      
-      // Hole das zu aktualisierende Element
-      const countItem = await storage.getInventoryCountItemById(itemId);
-      if (!countItem) {
-        return res.status(404).json({ error: "Inventory count item not found" });
-      }
-      
-      console.log(`Inventurzählungselement ${itemId} gefunden, aktualisiere mit Daten:`, req.body);
-      
-      // Validiere die Anfragedaten mit einem angepassten Schema, da das Frontend countedQuantity sendet
-      // aber das Backend actualQuantity erwartet
-      const validationSchema = z.object({
-        countedQuantity: z.number().optional(),
-        notes: z.string().optional(),
-        status: z.string().optional(),
-        countedBy: z.number().optional(),
-        countedAt: z.date().optional()
-      });
-      
-      const validatedInput = validationSchema.parse(req.body);
-      
-      // Erstelle das tatsächliche Update-Objekt
-      const updateData: Partial<InsertInventoryCountItem> = {};
-      
-      // Wenn countedQuantity geändert wurde, berechnen wir die Differenz neu
-      if (validatedInput.countedQuantity !== undefined) {
-        // In der Anfrage heißt es countedQuantity, aber im Schema actualQuantity
-        updateData.actualQuantity = validatedInput.countedQuantity;
-        
-        const expectedQty = countItem.expectedQuantity !== null && countItem.expectedQuantity !== undefined ? 
-                            countItem.expectedQuantity : 0;
-        
-        updateData.difference = updateData.actualQuantity - expectedQty;
-        updateData.status = 'counted';
-        updateData.countedAt = new Date();
-      }
-      
-      // Weitere Felder übernehmen, wenn vorhanden
-      if (validatedInput.notes !== undefined) updateData.notes = validatedInput.notes;
-      if (validatedInput.status !== undefined) updateData.status = validatedInput.status;
-      if (validatedInput.countedBy !== undefined) updateData.countedBy = validatedInput.countedBy;
-      
-      // Aktualisiere das Element
-      const updatedItem = await storage.updateInventoryCountItem(itemId, updateData);
-      
-      console.log(`Inventurzählungselement ${itemId} erfolgreich aktualisiert mit actualQuantity: ${updateData.actualQuantity}`);
-      return res.json(updatedItem);
-    } catch (error) {
-      console.error("Error updating inventory count item:", error);
-      res.status(500).json({ 
-        error: "Failed to update inventory count item", 
-        details: error instanceof Error ? error.message : String(error) 
-      });
-    }
-  });
+  // REMOVED: Old inventory-count-items/:id PATCH route - now handled by inventory.ts router
 
-  // POST /inventory-counts/:id/complete - Inventurzählung abschließen
-  app.post(`${API_PREFIX}/inventory-counts/:id/complete`, async (req: Request, res: Response) => {
-    try {
-      const inventoryCountId = parseInt(req.params.id);
-      
-      if (!inventoryCountId) {
-        return res.status(400).json({ error: "Inventory Count ID is required" });
-      }
-      
-      // Überprüfe, ob die Inventurzählung existiert
-      const count = await storage.getInventoryCount(inventoryCountId);
-      if (!count) {
-        return res.status(404).json({ error: "Inventory Count not found" });
-      }
-      
-      // Hole alle Zählungselemente
-      const items = await storage.getInventoryCountItems(inventoryCountId);
-      
-      // Aktualisiere den Bestand basierend auf den Zählungsergebnissen
-      for (const item of items) {
-        if (item.actualQuantity !== undefined && item.productId) {
-          // Hole aktuellen Bestand
-          const inventoryItem = await storage.getInventoryItemByProductAndWarehouse(
-            item.productId, 
-            count.warehouseId
-          );
-          
-          if (inventoryItem) {
-            // Berechne die Differenz
-            const difference = item.actualQuantity - (inventoryItem.quantity || 0);
-            
-            // Erstelle eine Bewegung für die Inventuranpassung
-            await storage.createInventoryMovement({
-              productId: item.productId,
-              warehouseId: count.warehouseId,
-              quantity: difference,
-              type: difference >= 0 ? 'ADJUSTMENT_IN' : 'ADJUSTMENT_OUT',
-              reason: 'INVENTORY_COUNT',
-              notes: `Inventuranpassung aus Zählung #${inventoryCountId}`,
-              previousStock: inventoryItem.quantity || 0,
-              currentStock: item.actualQuantity,
-            });
-            
-            // Aktualisiere den Bestand
-            await storage.updateInventoryItem(inventoryItem.id, {
-              quantity: item.actualQuantity
-            });
-          }
-        }
-      }
-      
-      // Aktualisiere den Status der Inventurzählung
-      const updatedCount = await storage.updateInventoryCount(inventoryCountId, {
-        status: 'completed',
-        endDate: new Date()
-      });
-      
-      console.log(`Inventurzählung ${inventoryCountId} abgeschlossen`);
-      res.json(updatedCount);
-    } catch (error) {
-      console.error("Error completing inventory count:", error);
-      res.status(500).json({ 
-        error: "Failed to complete inventory count", 
-        details: error instanceof Error ? error.message : String(error) 
-      });
-    }
-  });
+  // REMOVED: Old inventory-counts/:id/complete route - now handled by inventory.ts router
 
-  // POST /inventory-counts/:id/cancel - Inventurzählung abbrechen
-  app.post(`${API_PREFIX}/inventory-counts/:id/cancel`, async (req: Request, res: Response) => {
-    try {
-      const inventoryCountId = parseInt(req.params.id);
-      
-      if (!inventoryCountId) {
-        return res.status(400).json({ error: "Inventory Count ID is required" });
-      }
-      
-      // Überprüfe, ob die Inventurzählung existiert
-      const count = await storage.getInventoryCount(inventoryCountId);
-      if (!count) {
-        return res.status(404).json({ error: "Inventory Count not found" });
-      }
-      
-      // Aktualisiere den Status der Inventurzählung
-      const updatedCount = await storage.updateInventoryCount(inventoryCountId, {
-        status: 'cancelled',
-        endDate: new Date()
-      });
-      
-      console.log(`Inventurzählung ${inventoryCountId} abgebrochen`);
-      res.json(updatedCount);
-    } catch (error) {
-      console.error("Error cancelling inventory count:", error);
-      res.status(500).json({ 
-        error: "Failed to cancel inventory count", 
-        details: error instanceof Error ? error.message : String(error) 
-      });
-    }
-  });
+  // REMOVED: Old inventory-counts/:id/cancel route - now handled by inventory.ts router
   
-  // POST /inventory-counts/:id/add-all-products - Fügt automatisch alle Lagerprodukte zur Inventur hinzu
-  app.post(`${API_PREFIX}/inventory-counts/:id/add-all-products`, async (req: Request, res: Response) => {
-    try {
-      const inventoryCountId = parseInt(req.params.id);
-      
-      if (!inventoryCountId) {
-        return res.status(400).json({ error: "Inventory Count ID is required" });
-      }
-      
-      console.log(`Füge automatisch alle Produkte für Inventur ${inventoryCountId} hinzu...`);
-      
-      // Überprüfe, ob die Inventurzählung existiert
-      const count = await storage.getInventoryCount(inventoryCountId);
-      if (!count) {
-        console.error(`Inventurzählung ${inventoryCountId} nicht gefunden!`);
-        return res.status(404).json({ error: "Inventory Count not found" });
-      }
-      
-      // Hole alle Inventurelemente des Lagers
-      const warehouseId = count.warehouseId;
-      console.log(`Lager-ID aus Inventurzählung: ${warehouseId}`);
-      
-      // Hole Lagerinformation zur Überprüfung
-      const warehouse = await storage.getWarehouse(warehouseId);
-      if (!warehouse) {
-        console.error(`Lager mit ID ${warehouseId} existiert nicht!`);
-        return res.status(404).json({ error: "Warehouse not found" });
-      }
-      
-      console.log(`Lager gefunden: ${warehouse.name} (ID: ${warehouseId})`);
-      
-      // Synchronisiere zuerst alle Automatenprodukte mit dem Lager
-      console.log(`Synchronisiere alle Automaten-Produkte mit Lager ${warehouseId} vor dem Hinzufügen zur Inventur...`);
-      // Verwende den Service statt der nicht existierenden Methode in storage
-      const { reconcileWarehouseProducts } = require('./services/warehouseReconciliation');
-      await reconcileWarehouseProducts(warehouseId, true, true);
-      
-      // Jetzt holen wir die Lagerprodukte direkt aus der inventory_items Tabelle
-      const inventoryItems = await storage.getInventoryItemsByWarehouse(warehouseId);
-      
-      console.log(`${inventoryItems.length} Lagerprodukte gefunden nach Synchronisierung`);
-      
-      // Extra Debugging der gefundenen Produkte
-      for (const item of inventoryItems) {
-        console.log(`Lagerprodukt für Hinzufügung zur Inventur: ${item.productName} (ID: ${item.productId}), Bestand: ${item.quantity}`);
-      }
-      
-      if (!inventoryItems || inventoryItems.length === 0) {
-        console.warn(`Keine Lagerprodukte für Lager ${warehouseId} gefunden!`);
-        return res.status(404).json({ 
-          error: "No inventory items found for this warehouse",
-          warehouseId 
-        });
-      }
-      
-      // Überprüfe, ob bereits Elemente für diese Inventurzählung existieren
-      const existingItems = await storage.getInventoryCountItems(inventoryCountId);
-      const existingProductIds = new Set(existingItems.map(item => item.productId));
-      console.log(`${existingItems.length} Produkte bereits in der Inventur`);
-      
-      // Speichere nur die Produkte, die noch nicht hinzugefügt wurden
-      const savedItems = [];
-      let skippedItems = 0;
-      
-      for (const item of inventoryItems) {
-        // Überspringe, wenn das Produkt bereits in der Inventur ist
-        if (existingProductIds.has(item.productId || 0)) {
-          skippedItems++;
-          continue;
-        }
-        
-        const savedItem = await storage.createInventoryCountItem({
-          inventoryCountId,
-          productId: item.productId || 0,
-          expectedQuantity: item.quantity || 0,
-          // Initially, we set countedQuantity to null to indicate it hasn't been counted
-          actualQuantity: null,
-          status: 'pending'
-        });
-        
-        savedItems.push(savedItem);
-      }
-      
-      console.log(`${savedItems.length} neue Inventurelemente für ID ${inventoryCountId} gespeichert, ${skippedItems} übersprungen`);
-      
-      res.status(201).json({
-        success: true,
-        addedItems: savedItems.length,
-        skippedItems,
-        totalItems: savedItems.length + skippedItems
-      });
-    } catch (error) {
-      console.error("Error adding all products to inventory count:", error);
-      res.status(500).json({ 
-        error: "Failed to add all products to inventory count", 
-        details: error instanceof Error ? error.message : String(error) 
-      });
-    }
-  });
+  // REMOVED: Old inventory-counts/:id/add-all-products POST route - now handled by inventory.ts router
 
   // WebSocket wurde deaktiviert, um Verbindungsprobleme zu vermeiden
   // Wir verwenden stattdessen einen normalen Polling-Ansatz für Updates
@@ -1837,6 +1522,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           t.product_name,
           t.quantity,
           t.amount,
+          t.price,
           t.payment_method,
           t.datetime,
           t.created_at,
@@ -1848,7 +1534,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       `;
       
       const transactionsResult = await rawDb.query(transactionsQuery, [limit]);
-      const transactions = transactionsResult.rows;
+      const transactions = transactionsResult.rows.map(row => ({
+        id: row.id,
+        vendonId: row.vendon_id,
+        machineId: row.machine_id,
+        productId: row.product_id,
+        productName: row.product_name,
+        quantity: row.quantity,
+        amount: row.amount,
+        price: row.price,
+        paymentMethod: row.payment_method,
+        datetime: row.datetime,
+        createdAt: row.created_at,
+        machineName: row.machine_name
+      }));
       res.json(transactions);
     } catch (error) {
       console.error("Error fetching transactions:", error);
@@ -1998,7 +1697,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get all products
   app.get(`${API_PREFIX}/products`, async (req: Request, res: Response) => {
     try {
-      console.log(`[DEBUG] GET /api/products called with query:`, req.query);
+      // Debug log removed for performance
       
       const limit = req.query.limit ? parseInt(req.query.limit as string) : 1000;
       const offset = req.query.offset ? parseInt(req.query.offset as string) : 0;
@@ -2006,16 +1705,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const supplierId = req.query.supplierId ? parseInt(req.query.supplierId as string) : undefined;
       const status = req.query.status as string | undefined;
       
-      console.log(`[DEBUG] Products query params: limit=${limit}, offset=${offset}, search=${search}, supplierId=${supplierId}, status=${status}`);
+      // Query params debug log removed for performance
       
-      // Direct database check to see if products exist
-      try {
-        const directCountQuery = 'SELECT COUNT(*) as count FROM products';
-        const countResult = await rawDb.query(directCountQuery);
-        console.log(`[DEBUG] Direct DB query - Total products in database:`, countResult.rows[0]?.count || 0);
-      } catch (dbError) {
-        console.error(`[DEBUG] Direct DB query failed:`, dbError);
-      }
+      // Direct database count check removed for better performance
       
       // Direkte SQL-Abfrage da storage.getProducts nicht verfügbar
       let whereClause = 'WHERE 1=1';
@@ -2081,14 +1773,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         offset
       };
       
-      console.log(`[DEBUG] Storage.getProducts response type:`, typeof productsResponse);
-      console.log(`[DEBUG] Storage.getProducts response structure:`, {
-        isArray: Array.isArray(productsResponse),
-        hasProducts: productsResponse?.products ? true : false,
-        productsCount: Array.isArray(productsResponse?.products) ? productsResponse.products.length : 'not array',
-        directCount: Array.isArray(productsResponse) ? productsResponse.length : 'not direct array',
-        keys: Object.keys(productsResponse || {})
-      });
+      // Debug logs removed for better performance
       
       // KRITISCHER FIX: Sicherstellen dass alle Produkte korrekte Produktnamen haben
       const finalProducts = productsResponse.products || productsResponse;
@@ -2098,11 +1783,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         name: product.productName || product.product_name || `Produkt-ID ${product.id}`
       })) : finalProducts;
 
-      console.log(`[DEBUG] Final products to return:`, {
-        isArray: Array.isArray(productsWithNames),
-        count: Array.isArray(productsWithNames) ? productsWithNames.length : 'not array',
-        firstItem: Array.isArray(productsWithNames) && productsWithNames.length > 0 ? productsWithNames[0] : 'none'
-      });
+      // Final debug log removed for better performance
       
       res.json(productsWithNames);
     } catch (error) {
@@ -2408,10 +2089,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           packaging_type,
           min_quantity_unit,
           deposit_per_unit,
-          supplier_article_number,
           created_at,
           updated_at
-        FROM purchase_conditions
+        FROM purchase_conditions 
         WHERE supplier_id = $1
         ORDER BY created_at DESC
       `;
@@ -2458,10 +2138,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           packaging_type,
           min_quantity_unit,
           deposit_per_unit,
-          supplier_article_number,
           created_at,
           updated_at
-        FROM purchase_conditions
+        FROM purchase_conditions 
         WHERE product_id = $1
         ORDER BY created_at DESC
       `;
@@ -2508,10 +2187,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           packaging_type,
           min_quantity_unit,
           deposit_per_unit,
-          supplier_article_number,
           created_at,
           updated_at
-        FROM purchase_conditions
+        FROM purchase_conditions 
         WHERE id = $1
       `;
       
@@ -2543,8 +2221,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           supplier_id, product_id, unit_price, tax_rate, gross_price,
           min_quantity, packaging_unit, packaging_quantity, delivery_time,
           valid_from, valid_to, is_preferred, notes, lead_time,
-          packaging_type, min_quantity_unit, deposit_per_unit,
-          supplier_article_number
+          packaging_type, min_quantity_unit, deposit_per_unit, supplier_article_number
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
         RETURNING *
       `;
@@ -2555,8 +2232,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         req.body.packaging_unit, req.body.packaging_quantity || 1, req.body.delivery_time || 7,
         req.body.valid_from, req.body.valid_to, req.body.is_preferred || false,
         req.body.notes, req.body.lead_time || 7, req.body.packaging_type,
-        req.body.min_quantity_unit, req.body.deposit_per_unit || 0,
-        req.body.supplier_article_number || null
+        req.body.min_quantity_unit, req.body.deposit_per_unit || 0, req.body.supplier_article_number
       ]);
       const purchaseCondition = result.rows[0];
       
@@ -3483,35 +3159,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Invalid machine ID" });
       }
       
-      // Get machine information to determine location
-      const machine = await storage.getMachine(machineId);
-      if (!machine) {
+      // Get machine information directly via SQL to avoid storage method dependency
+      const machineQuery = `
+        SELECT id, machine_name, location_name as location, vendon_id 
+        FROM machines 
+        WHERE id = $1
+      `;
+      const machineResult = await rawDb.query(machineQuery, [machineId]);
+      
+      if (machineResult.rows.length === 0) {
         return res.status(404).json({ error: "Machine not found" });
       }
       
-      // For now, return machine-specific costs (this could be expanded to actual machine costs)
-      // Currently returning location-based costs associated with this machine
-      const costsQuery = `
-        SELECT 
-          id,
-          location as machine_location,
-          cost_type,
-          amount,
-          currency,
-          frequency,
-          description,
-          is_active,
-          valid_from,
-          valid_until,
-          created_at,
-          updated_at
-        FROM location_costs 
-        WHERE location = $1 AND is_active = true
-        ORDER BY created_at DESC
-      `;
+      const machine = machineResult.rows[0];
       
-      const result = await rawDb.query(costsQuery, [machine.location || machine.machineName]);
-      res.json(result.rows);
+      // Return empty array since location_costs table doesn't exist yet  
+      res.json([]);
     } catch (error) {
       console.error(`Error fetching costs for machine ${req.params.id}:`, error);
       res.status(500).json({ 
@@ -3531,26 +3194,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Invalid machine ID" });
       }
       
-      // Get machine information
-      const machine = await storage.getMachine(machineId);
-      if (!machine) {
+      // Check if machine exists using direct SQL
+      const machineQuery = `
+        SELECT id, machine_name, location_name as location, vendon_id 
+        FROM machines 
+        WHERE id = $1
+      `;
+      const machineResult = await rawDb.query(machineQuery, [machineId]);
+      
+      if (machineResult.rows.length === 0) {
         return res.status(404).json({ error: "Machine not found" });
       }
+      
+      const machine = machineResult.rows[0];
       
       // Insert the cost record
       const insertQuery = `
         INSERT INTO location_costs (
-          location, cost_type, amount, currency, frequency, description, 
+          location_name, cost_type, cost_name, amount_net, amount_gross, currency, billing_cycle, description, 
           is_active, valid_from, created_at, updated_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
         RETURNING *
       `;
       
       const now = new Date();
+      const netAmount = parseFloat(amount);
+      const grossAmount = netAmount * 1.19; // Add 19% VAT
+      // Ensure required fields are not null/undefined
+      const locationName = machine.location || machine.machine_name || 'Unbekannt';
+      const finalCostType = costType || 'Betriebskosten';
+      const finalCostName = costType || 'Betriebskosten';
+      
+      console.log('[COST-CREATE] Parameters:', {
+        locationName,
+        finalCostType, 
+        finalCostName,
+        netAmount,
+        grossAmount,
+        description: description || ''
+      });
+      
       const result = await rawDb.query(insertQuery, [
-        machine.location || machine.machineName,
-        costType,
-        parseFloat(amount),
+        locationName,
+        finalCostType,
+        finalCostName,
+        netAmount,
+        grossAmount,
         'EUR',
         frequency,
         description || '',
@@ -3570,8 +3259,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // GET /machines/:id/profitability - Get machine-specific profitability data
+  // GET /machines/:id/profitability - Enhanced machine-specific profitability (CRITICAL: BEFORE registerRoutes)
   app.get(`${API_PREFIX}/machines/:id/profitability`, async (req: Request, res: Response) => {
+    console.log(`🔥 API HIT: /machines/${req.params.id}/profitability`);
+    res.setHeader('Content-Type', 'application/json');
     try {
       const machineId = parseInt(req.params.id);
       const { startDate, endDate } = req.query;
@@ -3584,91 +3275,159 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const end = endDate ? new Date(String(endDate)) : new Date();
       const start = startDate ? new Date(String(startDate)) : new Date(end.getFullYear(), end.getMonth(), 1);
       
-      // Get machine information
-      const machine = await storage.getMachine(machineId);
-      if (!machine) {
+      console.log(`🏪 LOCATION PROFITABILITY für Machine ${machineId} von ${start.toISOString().split('T')[0]} bis ${end.toISOString().split('T')[0]}`);
+      
+      // Get machine details
+      const machineQuery = `
+        SELECT id, machine_name, location_name, vendon_id 
+        FROM machines 
+        WHERE id = $1
+      `;
+      const machineResult = await rawDb.query(machineQuery, [machineId]);
+      
+      if (machineResult.rows.length === 0) {
         return res.status(404).json({ error: "Machine not found" });
       }
       
-      // Calculate profitability data for this specific machine
-      const profitabilityQuery = `
-        WITH machine_sales AS (
-          SELECT 
-            t.product_name,
-            COUNT(*) as quantity_sold,
-            SUM(t.amount) as revenue_gross,
-            SUM(t.amount * 0.84) as revenue_net, -- Assuming 16% VAT
-            AVG(t.amount) as avg_sale_price
-          FROM transactions t
-          WHERE t.machine_id = $1
-            AND t.datetime >= $2
-            AND t.datetime <= $3
-          GROUP BY t.product_name
-        ),
-        machine_costs AS (
-          SELECT 
-            COALESCE(SUM(
-              CASE 
-                WHEN frequency = 'monthly' THEN amount / 30 * EXTRACT(DAY FROM ($3::date - $2::date) + 1)
-                WHEN frequency = 'yearly' THEN amount / 365 * EXTRACT(DAY FROM ($3::date - $2::date) + 1)
-                WHEN frequency = 'quarterly' THEN amount / 90 * EXTRACT(DAY FROM ($3::date - $2::date) + 1)
-                ELSE amount
-              END
-            ), 0) as total_costs
-          FROM location_costs 
-          WHERE location = $4 AND is_active = true
-        )
+      const machine = machineResult.rows[0];
+      
+      // Calculate period days for cost calculation
+      const periodDays = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+      
+      // Get sales data with product prices fallback (wegen amount=0 Problem)
+      const salesQuery = `
         SELECT 
-          ms.*,
-          mc.total_costs,
-          (ms.revenue_net - mc.total_costs) as net_profit,
-          CASE 
-            WHEN ms.revenue_net > 0 THEN 
-              ((ms.revenue_net - mc.total_costs) / ms.revenue_net * 100)
-            ELSE 0 
-          END as profit_margin_percent,
-          CASE 
-            WHEN (ms.revenue_net - mc.total_costs) > 0 THEN true 
-            ELSE false 
-          END as is_profitable
-        FROM machine_sales ms
-        CROSS JOIN machine_costs mc
-        ORDER BY ms.revenue_net DESC
+          t.product_name,
+          COUNT(*) as quantity_sold,
+          -- Use product prices when transaction amounts are 0
+          SUM(CASE 
+            WHEN t.amount > 0 THEN t.amount 
+            ELSE COALESCE(p.price, 0)
+          END) as revenue_gross,
+          AVG(CASE 
+            WHEN t.amount > 0 THEN t.amount
+            ELSE COALESCE(p.price, 0)
+          END) as avg_price
+        FROM transactions t
+        LEFT JOIN products p ON t.product_name = p.product_name
+        WHERE t.machine_id = $1
+          AND t.datetime >= $2
+          AND t.datetime <= $3
+        GROUP BY t.product_name
+        HAVING COUNT(*) > 0
+        ORDER BY quantity_sold DESC
       `;
       
-      const result = await rawDb.query(profitabilityQuery, [
+      const salesResult = await rawDb.query(salesQuery, [
         machineId, 
         start.toISOString(), 
-        end.toISOString(),
-        machine.location || machine.machineName
+        end.toISOString()
       ]);
       
-      // Calculate summary
-      const totalRevenue = result.rows.reduce((sum, row) => sum + parseFloat(row.revenue_net || 0), 0);
-      const totalCosts = result.rows.length > 0 ? parseFloat(result.rows[0].total_costs || 0) : 0;
-      const netProfit = totalRevenue - totalCosts;
+      // Get location costs
+      const costsQuery = `
+        SELECT 
+          cost_type,
+          amount_net,
+          billing_cycle,
+          description
+        FROM location_costs 
+        WHERE (machine_id = $1 OR location_name = $2) 
+          AND is_active = true
+          AND (valid_from IS NULL OR valid_from <= $4)
+          AND (valid_to IS NULL OR valid_to >= $3)
+      `;
       
-      res.json({
-        success: true,
-        data: {
-          products: result.rows,
-          summary: {
-            totalRevenue,
-            totalCosts,
-            netProfit,
-            profitMarginPercent: totalRevenue > 0 ? (netProfit / totalRevenue * 100) : 0,
-            isProfitable: netProfit > 0,
-            period: {
-              start: start.toISOString().split('T')[0],
-              end: end.toISOString().split('T')[0]
-            }
-          }
+      const costsResult = await rawDb.query(costsQuery, [
+        machineId,
+        machine.location_name,
+        start.toISOString().split('T')[0],
+        end.toISOString().split('T')[0]
+      ]);
+      
+      // Calculate total costs for the period
+      let totalCosts = 0;
+      const costBreakdown = costsResult.rows.map(cost => {
+        let periodCost = 0;
+        const amount = parseFloat(cost.amount_net || 0);
+        
+        switch (cost.billing_cycle) {
+          case 'monthly':
+            periodCost = (amount / 30) * periodDays;
+            break;
+          case 'yearly':
+            periodCost = (amount / 365) * periodDays;
+            break;
+          case 'quarterly':
+            periodCost = (amount / 90) * periodDays;
+            break;
+          case 'weekly':
+            periodCost = (amount / 7) * periodDays;
+            break;
+          default:
+            periodCost = amount; // one-time cost
         }
+        
+        totalCosts += periodCost;
+        
+        return {
+          type: cost.cost_type,
+          description: cost.description,
+          amountNet: amount,
+          billingCycle: cost.billing_cycle,
+          periodCost: periodCost
+        };
       });
+      
+      // Calculate summary
+      const totalRevenue = salesResult.rows.reduce((sum, row) => sum + parseFloat(row.revenue_gross || 0), 0);
+      const totalQuantity = salesResult.rows.reduce((sum, row) => sum + parseInt(row.quantity_sold || 0), 0);
+      const netProfit = totalRevenue - totalCosts;
+      const profitMargin = totalRevenue > 0 ? (netProfit / totalRevenue * 100) : 0;
+      
+      // Product breakdown
+      const products = salesResult.rows.map(row => ({
+        productName: row.product_name,
+        quantitySold: parseInt(row.quantity_sold),
+        revenue: parseFloat(row.revenue_gross || 0),
+        averagePrice: parseFloat(row.avg_price || 0),
+        revenueShare: totalRevenue > 0 ? (parseFloat(row.revenue_gross || 0) / totalRevenue * 100) : 0
+      }));
+      
+      console.log(`💰 Profitability berechnet: ${totalRevenue}€ Revenue - ${totalCosts}€ Costs = ${netProfit}€ Profit`);
+      
+      const result = {
+        success: true,
+        machine: {
+          id: machine.id,
+          name: machine.machine_name,
+          location: machine.location_name,
+          vendonId: machine.vendon_id
+        },
+        period: {
+          start: start.toISOString().split('T')[0],
+          end: end.toISOString().split('T')[0],
+          days: periodDays
+        },
+        summary: {
+          totalRevenue: Math.round(totalRevenue * 100) / 100,
+          totalCosts: Math.round(totalCosts * 100) / 100,
+          netProfit: Math.round(netProfit * 100) / 100,
+          profitMargin: Math.round(profitMargin * 100) / 100,
+          totalQuantity,
+          averageRevenuePerDay: Math.round((totalRevenue / periodDays) * 100) / 100,
+          isProfitable: netProfit > 0
+        },
+        products,
+        costBreakdown
+      };
+      
+      res.json(result);
+      
     } catch (error) {
-      console.error(`Error fetching profitability for machine ${req.params.id}:`, error);
+      console.error(`❌ Error in location profitability for machine ${req.params.id}:`, error);
       res.status(500).json({ 
-        error: "Failed to fetch machine profitability", 
+        error: "Failed to fetch location profitability", 
         details: error instanceof Error ? error.message : String(error) 
       });
     }
@@ -4346,7 +4105,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         baseStats, 
         transactionStats, 
         weatherStats,
-        syncLogs,
+        syncLogsResult,
         forecastModels,
         holidays
       ] = await Promise.all([
@@ -4396,7 +4155,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         // Zusätzliche Statistiken
         holidays: parseCount(holidays[0]?.count),
-        syncLogs: parseCount(syncLogs[0]?.count),
+        syncLogs: parseCount(syncLogsResult[0]?.count),
         forecastModels: parseCount(forecastModels[0]?.count)
       };
       
@@ -4823,6 +4582,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const photosRouter = await import('./routes/photos');
   app.use(`${API_PREFIX}/photos`, photosRouter.default);
 
+  // Performance Netto Routes
+  const performanceNettoRouter = await import('./routes/performance-netto');
+  app.use(`${API_PREFIX}`, performanceNettoRouter.default);
+
+  // Product Margin Calculation Routes
+  const productMarginCalculationRouter = await import('./routes/product-margin-calculation');
+  app.use(`${API_PREFIX}`, productMarginCalculationRouter.default);
+
 
   
   // Top entfernte Produkte API
@@ -5034,9 +4801,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use(`${API_PREFIX}/database-viewer`, databaseViewerRoutes);
   app.use(`${API_PREFIX}/database`, databaseRouter);
   app.use(`${API_PREFIX}/admin`, adminRouter);
+  app.use(`${API_PREFIX}/profitability-unified`, unifiedProfitabilityRouter);
+  app.use(`${API_PREFIX}/location-profitability`, locationProfitabilityRouter);
   // app.use(`${API_PREFIX}/location-status`, locationStatusRouter); // Moved above registerRoutes() for priority
+  
+  // Register FIXED profitability router at SEPARATE path to avoid conflicts
+  console.log('[SERVER] FIXED profitability router mounting at /api/clean-profitability BEFORE registerRoutes()');
+  app.use(`${API_PREFIX}/clean-profitability`, fixedProfitabilityRouter);
+  
+  // Register simple profitability router BEFORE registerRoutes() for priority
+  console.log('[SERVER] Simple profitability router mounting at /api/profitability-simple/products BEFORE registerRoutes()');
+  app.use(`${API_PREFIX}/profitability-simple/products`, simpleProfitabilityRouter);
   app.use(`${API_PREFIX}/sync`, syncRouter);
   app.use(`${API_PREFIX}/products`, productInventoryRouter);
+  app.use(`${API_PREFIX}/transaction-costs`, transactionCostsRouter);
   
   // Erste Version der Warehouse-Stats-API entfernt, um Duplikate zu vermeiden.
   // Die unten definierte Version (Zeile 2483) wird stattdessen verwendet.
@@ -5047,6 +4825,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Registriere Bestellungs-Routen
   app.use(`${API_PREFIX}/orders`, ordersRouter);
   app.use(`${API_PREFIX}/bulk-orders`, bulkOrdersRouter);
+  
+  // Order Items API für Produkthinzufügung in Detailansicht
+  const orderItemsRouter = (await import('./routes/order-items')).default;
+  app.use(`${API_PREFIX}`, orderItemsRouter);
   
   // Neue Bestellungen V4
   const ordersV4Router = await import('./routes/orders-v4');
@@ -5403,7 +5185,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get(`${API_PREFIX}/warehouses/:id`, async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
-      const query = `SELECT * FROM warehouses WHERE id = $1`;
+      const query = `
+        SELECT 
+          *,
+          CASE 
+            WHEN is_active = true THEN 'active'
+            ELSE 'inactive'
+          END as status
+        FROM warehouses 
+        WHERE id = $1
+      `;
       const result = await rawDb.query(query, [id]);
       
       if (result.rows.length === 0) {
@@ -5816,6 +5607,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Supplier PIN Generator API
   const supplierPinGeneratorRoutes = (await import('./routes/supplier-pin-generator')).default;
   app.use(`${API_PREFIX}/supplier-pin`, supplierPinGeneratorRoutes);
+
+  // Import und hinzufügen der Umsatz-Ergebnis-Overview Routen
+  const { getUmsatzErgebnisOverview, getUmsatzErgebnisChart } = await import('./routes/umsatz-ergebnis-overview-fast');
+  app.get(`${API_PREFIX}/umsatz-ergebnis-overview`, getUmsatzErgebnisOverview);
+  app.get(`${API_PREFIX}/umsatz-ergebnis-chart`, getUmsatzErgebnisChart);
 
   return httpServer;
 }

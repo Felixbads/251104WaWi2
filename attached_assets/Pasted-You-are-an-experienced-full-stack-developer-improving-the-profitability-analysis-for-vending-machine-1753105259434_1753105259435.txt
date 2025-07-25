@@ -1,0 +1,44 @@
+You are an experienced full-stack developer improving the profitability analysis
+for vending machine locations. Use TypeScript (Node + Express) and the Drizzle ORM.
+Follow these goals:
+
+1. **Location cost model**
+   - Ensure the table `location_costs` uses the fields `amountNet`, `amountGross`,
+     `vatRate`, `validFrom`, and `validTo`.
+   - Modify the location-cost API routes so all queries reference these fields.
+   - When listing or summarizing costs, filter by the requested period:
+       validFrom <= endDate AND (validTo IS NULL OR validTo >= startDate).
+   - Return costs both in net and gross form and group by type.
+
+2. **Profitability calculation**
+   - In `routes/enhanced-profitability.ts`, update the location cost query:
+       *Sum amountNet* for the requested date range per location.
+       Use the same filter logic as above.
+
+   - When grouping by `machine` or `product`, distribute the location’s total
+     costs proportionally instead of assigning the full amount to each row.
+     Example: divide by number of active machines at the location or by each row’s
+     revenue share.
+
+   - Include the deposit revenue and (if available) deposit cost in the calculation.
+     Net revenue = (sales without deposit) – purchase costs; add deposit revenue
+     afterward.
+
+   - Use the purchase price valid on the transaction date if possible.
+     Fall back to the latest price before that date.
+
+   - Provide, for each row:
+       `revenueNet`, `depositRevenue`, `purchaseCostNet`, `allocatedLocationCost`,
+       `netProfit`, `profitMarginPercent`, `transactionCount`, `quantitySold`.
+
+   - In the summary section, sum these values only once per location and ensure
+     total costs equal purchaseCostNet + allocatedLocationCost.
+
+3. **Testing and validation**
+   - Adjust existing unit tests or create new ones for:
+       - Location-cost CRUD operations with date filtering.
+       - Profitability overview for a date range with multiple machines at one
+         location verifying correct cost allocation.
+   - Document API examples in README.
+
+Produce clean, well‑commented code. Do not introduce breaking database changes.

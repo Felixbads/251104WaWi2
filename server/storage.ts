@@ -410,7 +410,6 @@ export interface IStorage {
   // Warehouse operations
   getWarehouses(): Promise<Warehouse[]>;
   getWarehouseById(id: number): Promise<Warehouse | undefined>;
-  getWarehouse(id: number): Promise<Warehouse | undefined>; // Alias für getWarehouseById
   createWarehouse(warehouse: Omit<Warehouse, 'id' | 'createdAt' | 'updatedAt'>): Promise<Warehouse>;
   updateWarehouse(id: number, updates: Partial<Warehouse>): Promise<Warehouse>;
   deleteWarehouse(id: number): Promise<void>;
@@ -446,6 +445,10 @@ export interface IStorage {
   createMachine(machine: Omit<Machine, 'id' | 'createdAt' | 'updatedAt'>): Promise<Machine>;
   updateMachine(id: number, updates: Partial<Machine>): Promise<Machine>;
   deleteMachine(id: number): Promise<void>;
+
+  // Location operations
+  getLocations(): Promise<any[]>;
+  getLocationById(id: number): Promise<any | undefined>;
   
   // Inventory operations
   getInventoryItems(): Promise<InventoryItem[]>;

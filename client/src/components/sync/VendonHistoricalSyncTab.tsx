@@ -105,6 +105,7 @@ const VendonHistoricalSyncTab: React.FC = () => {
   const [isImporting, setIsImporting] = useState(false);
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const [refreshCounter, setRefreshCounter] = useState(0);
+  const [isTargetedBackfillRunning, setIsTargetedBackfillRunning] = useState(false);
   const { toast } = useToast();
 
   // Form setup with improved defaults
@@ -203,6 +204,40 @@ const VendonHistoricalSyncTab: React.FC = () => {
     } catch (error) {
       toast({
         title: "Fehler beim Zurücksetzen",
+        description: error instanceof Error ? error.message : "Ein unbekannter Fehler ist aufgetreten",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Targeted Historical Backfill bis 1. Juli 2023
+  const startTargetedBackfill = async () => {
+    try {
+      setIsTargetedBackfillRunning(true);
+      
+      const response = await axios.post('/api/vendon/targeted-backfill', {
+        action: 'start',
+        targetDate: '2023-07-01',
+        batchSize: 100,
+        requestDelay: 1000,
+        maxRetries: 3,
+        enableDetailedLogging: true
+      });
+
+      toast({
+        title: "Targeted Backfill gestartet",
+        description: "Der Rückwärts-Import bis 1. Juli 2023 wurde gestartet. Prüfen Sie die Logs für den Fortschritt.",
+      });
+
+      // Nach kurzer Zeit den Status wieder auf false setzen
+      setTimeout(() => {
+        setIsTargetedBackfillRunning(false);
+      }, 5000);
+
+    } catch (error) {
+      setIsTargetedBackfillRunning(false);
+      toast({
+        title: "Fehler beim Starten des Targeted Backfill",
         description: error instanceof Error ? error.message : "Ein unbekannter Fehler ist aufgetreten",
         variant: "destructive",
       });
@@ -666,6 +701,83 @@ const VendonHistoricalSyncTab: React.FC = () => {
               </div>
             </form>
           </Form>
+        </CardContent>
+      </Card>
+
+      {/* Targeted Historical Backfill Card */}
+      <Card className="border-2 border-blue-200">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <RotateCcw className="h-5 w-5 text-blue-600" />
+            Gezielter Historischer Backfill bis 1. Juli 2023
+          </CardTitle>
+          <CardDescription>
+            Systematische Rückwärts-Synchronisation aller Transaktionen bis zum 1. Juli 2023. 
+            Startet vom neuesten Datum und arbeitet Tag für Tag rückwärts mit vollständiger Paginierung.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Alert className="mb-4 bg-amber-50 border-amber-200">
+            <AlertTriangle className="h-4 w-4 text-amber-600" />
+            <AlertTitle className="text-amber-800">Wichtiger Hinweis</AlertTitle>
+            <AlertDescription className="text-amber-700">
+              <strong>Dieser Prozess ist speziell für das Zieldatum 1. Juli 2023 entwickelt</strong> und arbeitet wie folgt:
+              <ul className="list-disc pl-5 mt-2 space-y-1">
+                <li>Ermittelt automatisch das neueste Transaktionsdatum in der Datenbank</li>
+                <li>Geht Tag für Tag rückwärts bis zum 1. Juli 2023</li>
+                <li>Verwendet Paginierung mit 100 Transaktionen pro API-Aufruf</li>
+                <li>Respektiert API-Limits mit 1-Sekunden-Pausen zwischen Aufrufen</li>
+                <li>Führt automatische Duplikatsprüfung durch</li>
+              </ul>
+            </AlertDescription>
+          </Alert>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            <div className="space-y-2">
+              <div className="text-sm font-medium">Konfiguration</div>
+              <div className="space-y-1 text-sm text-gray-600">
+                <div>• Zieldatum: <strong>1. Juli 2023</strong></div>
+                <div>• Batch-Größe: <strong>100 Transaktionen</strong></div>
+                <div>• API-Verzögerung: <strong>1 Sekunde</strong></div>
+                <div>• Max. Wiederholungen: <strong>3 Versuche</strong></div>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <div className="text-sm font-medium">Prozess</div>
+              <div className="space-y-1 text-sm text-gray-600">
+                <div>• Automatische Startpunkt-Erkennung</div>
+                <div>• Tag-für-Tag Rückwärts-Verarbeitung</div>
+                <div>• Vollständige Paginierung pro Tag</div>
+                <div>• Detailliertes Logging im Backend</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex justify-center">
+            <Button
+              onClick={startTargetedBackfill}
+              disabled={isTargetedBackfillRunning || isImporting}
+              className="gap-2 bg-blue-600 hover:bg-blue-700"
+              size="lg"
+            >
+              {isTargetedBackfillRunning ? (
+                <>
+                  <Loader className="h-5 w-5 animate-spin" />
+                  Backfill wird gestartet...
+                </>
+              ) : (
+                <>
+                  <Play className="h-5 w-5" />
+                  Targeted Backfill bis Juli 2023 starten
+                </>
+              )}
+            </Button>
+          </div>
+
+          <div className="mt-4 text-center text-sm text-gray-500">
+            Der Fortschritt wird in den Backend-Logs angezeigt. Der Prozess läuft im Hintergrund weiter, 
+            auch wenn Sie diese Seite verlassen.
+          </div>
         </CardContent>
       </Card>
     </div>

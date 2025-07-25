@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { db } from '../db';
+import { storage } from '../storage.js';
+import { db } from '../db.js';
 import { 
   transactions,
   products,
@@ -9,8 +10,8 @@ import {
   locationCosts,
   purchaseConditions,
   suppliers
-} from '../../shared/schema';
-import { eq, and, gte, lte, desc, asc, sql } from 'drizzle-orm';
+} from '../../shared/schema.js';
+import { eq, and, gte, lte, desc, asc, sql, isNull, or } from 'drizzle-orm';
 
 const router = Router();
 
@@ -116,35 +117,65 @@ router.get('/overview', async (req, res) => {
       }, {} as Record<number, number>);
     }
 
-    // Get location costs
-    const locationIds = [...new Set(revenueData.map(row => row.locationId).filter(Boolean))];
+    // Get location costs with proper date filtering
+    const locationIds = Array.from(new Set(revenueData.map((row: any) => row.locationId).filter(Boolean)));
     let locationCostData: Record<number, number> = {};
 
     if (locationIds.length > 0) {
+      // Updated location cost query to use amountNet and proper date filtering
       const costs = await db
         .select({
           locationId: locationCosts.locationId,
-          totalCosts: sql<number>`SUM(${locationCosts.amount})`,
+          amountNet: sql<number>`SUM(${locationCosts.amountNet})`,
+          costType: locationCosts.costType,
         })
         .from(locationCosts)
         .where(and(
-          sql`${locationCosts.locationId} = ANY(${locationIds})`,
+          sql`${locationCosts.locationId} = ANY(ARRAY[${locationIds.join(',')}])`,
+          // Date filtering: validFrom <= endDate AND (validTo IS NULL OR validTo >= startDate)
+          sql`${locationCosts.validFrom} <= ${end.toISOString().split('T')[0]}`,
+          or(
+            isNull(locationCosts.validTo),
+            sql`${locationCosts.validTo} >= ${start.toISOString().split('T')[0]}`
+          ),
           eq(locationCosts.isActive, true)
         ))
-        .groupBy(locationCosts.locationId);
+        .groupBy(locationCosts.locationId, locationCosts.costType);
 
-      locationCostData = costs.reduce((acc, row) => {
-        acc[row.locationId] = row.totalCosts || 0;
-        return acc;
-      }, {} as Record<number, number>);
+      // Sum amountNet for the requested date range per location
+      costs.forEach((cost: any) => {
+        const currentCost = locationCostData[cost.locationId] || 0;
+        locationCostData[cost.locationId] = currentCost + (cost.amountNet || 0);
+      });
     }
 
-    // Calculate enhanced profitability metrics
-    const enrichedData = revenueData.map(row => {
-      const wareneinsatz = (purchaseCosts[row.productId] || 0) * (row.quantitySold || 0);
-      const fixkosten = locationCostData[row.locationId] || 0;
-      const rohertrag = (row.umsatzNetto || 0) - wareneinsatz;
-      const nettoErgebnis = rohertrag - fixkosten;
+    // Calculate enhanced profitability metrics with proper cost allocation
+    const enrichedData = revenueData.map((row: any) => {
+      const purchaseCostNet = (purchaseCosts[row.productId] || 0) * (row.quantitySold || 0);
+      
+      // Allocate location costs proportionally
+      let allocatedLocationCost = 0;
+      if (groupBy === 'machine' || groupBy === 'product') {
+        // Distribute location costs proportionally by revenue share
+        const totalLocationRevenue = revenueData
+          .filter((r: any) => r.locationId === row.locationId)
+          .reduce((sum: number, r: any) => sum + (r.umsatzNetto || 0), 0);
+        
+        if (totalLocationRevenue > 0) {
+          const revenueShare = (row.umsatzNetto || 0) / totalLocationRevenue;
+          allocatedLocationCost = (locationCostData[row.locationId] || 0) * revenueShare;
+        }
+      } else {
+        // For location grouping, use full location cost
+        allocatedLocationCost = locationCostData[row.locationId] || 0;
+      }
+
+      // Include deposit revenue and calculate net revenue
+      const revenueNet = (row.umsatzNetto || 0) - (row.pfandUmsatz || 0);
+      const depositRevenue = row.pfandUmsatz || 0;
+      
+      const netProfit = revenueNet - purchaseCostNet - allocatedLocationCost;
+      const profitMarginPercent = revenueNet > 0 ? (netProfit / revenueNet) * 100 : 0;
 
       return {
         period: `${start.toISOString().split('T')[0]} bis ${end.toISOString().split('T')[0]}`,
@@ -155,28 +186,46 @@ router.get('/overview', async (req, res) => {
         machineName: row.machineName,
         productId: row.productId,
         productName: row.productName,
-        // German business metrics
+        // Updated fields according to requirements
+        revenueNet,
+        depositRevenue,
+        purchaseCostNet,
+        allocatedLocationCost,
+        netProfit,
+        profitMarginPercent,
+        transactionCount: row.transactionCount || 0,
+        quantitySold: row.quantitySold || 0,
+        // Legacy fields for compatibility
         umsatzBrutto: row.umsatzBrutto || 0,
         umsatzNetto: row.umsatzNetto || 0,
         pfandUmsatz: row.pfandUmsatz || 0,
-        wareneinsatz,
-        fixkosten,
-        gesamtkosten: wareneinsatz + fixkosten,
-        rohertrag,
-        nettoErgebnis,
-        gewinnmarge: row.umsatzNetto > 0 ? (rohertrag / row.umsatzNetto) * 100 : 0,
-        nettoMargeVorSteuern: row.umsatzNetto > 0 ? (nettoErgebnis / row.umsatzNetto) * 100 : 0,
-        istWirtschaftlich: nettoErgebnis > 0,
-        // Quantities and averages
-        transactionCount: row.transactionCount || 0,
-        quantitySold: row.quantitySold || 0,
+        wareneinsatz: purchaseCostNet,
+        fixkosten: allocatedLocationCost,
+        gesamtkosten: purchaseCostNet + allocatedLocationCost,
+        rohertrag: revenueNet - purchaseCostNet,
+        nettoErgebnis: netProfit,
+        gewinnmarge: profitMarginPercent,
+        istWirtschaftlich: netProfit > 0,
         avgSalePrice: row.avgSalePrice || 0,
         avgPurchasePrice: purchaseCosts[row.productId] || 0,
       };
     });
 
-    // Calculate summary
+    // Calculate summary with proper totals
     const summary = {
+      totalRevenueNet: enrichedData.reduce((sum, row) => sum + row.revenueNet, 0),
+      totalDepositRevenue: enrichedData.reduce((sum, row) => sum + row.depositRevenue, 0),
+      totalPurchaseCostNet: enrichedData.reduce((sum, row) => sum + row.purchaseCostNet, 0),
+      totalAllocatedLocationCost: enrichedData.reduce((sum, row) => sum + row.allocatedLocationCost, 0),
+      totalNetProfit: enrichedData.reduce((sum, row) => sum + row.netProfit, 0),
+      averageProfitMargin: enrichedData.length > 0 ? enrichedData.reduce((sum, row) => sum + row.profitMarginPercent, 0) / enrichedData.length : 0,
+      totalCosts: enrichedData.reduce((sum, row) => sum + row.purchaseCostNet + row.allocatedLocationCost, 0),
+      profitableItems: enrichedData.filter(row => row.istWirtschaftlich).length,
+      totalItems: enrichedData.length,
+      profitabilityRate: enrichedData.length > 0 ? (enrichedData.filter(row => row.istWirtschaftlich).length / enrichedData.length) * 100 : 0,
+      totalTransactions: enrichedData.reduce((sum, row) => sum + row.transactionCount, 0),
+      totalQuantitySold: enrichedData.reduce((sum, row) => sum + row.quantitySold, 0),
+      // Legacy fields for compatibility
       gesamtUmsatzBrutto: enrichedData.reduce((sum, row) => sum + row.umsatzBrutto, 0),
       gesamtUmsatzNetto: enrichedData.reduce((sum, row) => sum + row.umsatzNetto, 0),
       gesamtPfandUmsatz: enrichedData.reduce((sum, row) => sum + row.pfandUmsatz, 0),
@@ -185,13 +234,6 @@ router.get('/overview', async (req, res) => {
       gesamtKosten: enrichedData.reduce((sum, row) => sum + row.gesamtkosten, 0),
       gesamtRohertrag: enrichedData.reduce((sum, row) => sum + row.rohertrag, 0),
       gesamtNettoErgebnis: enrichedData.reduce((sum, row) => sum + row.nettoErgebnis, 0),
-      durchschnittlicheGewinnmarge: enrichedData.length > 0 ? enrichedData.reduce((sum, row) => sum + row.gewinnmarge, 0) / enrichedData.length : 0,
-      roi: 0, // TODO: Calculate ROI based on investment
-      wirtschaftlicheStandorte: enrichedData.filter(row => row.istWirtschaftlich).length,
-      gesamtStandorte: enrichedData.length,
-      wirtschaftlichkeitsquote: enrichedData.length > 0 ? (enrichedData.filter(row => row.istWirtschaftlich).length / enrichedData.length) * 100 : 0,
-      gesamtTransaktionen: enrichedData.reduce((sum, row) => sum + row.transactionCount, 0),
-      gesamtMenge: enrichedData.reduce((sum, row) => sum + row.quantitySold, 0),
     };
 
     res.json({
