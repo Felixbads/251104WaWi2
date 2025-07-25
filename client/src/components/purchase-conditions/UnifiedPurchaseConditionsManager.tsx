@@ -246,7 +246,8 @@ export default function UnifiedPurchaseConditionsManager({
         isPreferred: data.isPreferred,
         leadTime: data.leadTime,
         deliveryTime: data.deliveryTime,
-        notes: data.notes
+        notes: data.notes,
+        supplierArticleNumber: data.supplierArticleNumber
       };
 
       const response = await fetch(url, {
@@ -317,6 +318,7 @@ export default function UnifiedPurchaseConditionsManager({
       notes: '',
       leadTime: 3,
       deliveryTime: '',
+      supplierArticleNumber: '',
       discount_type: '',
       discount_value: 0,
       discount_min_quantity: 0,

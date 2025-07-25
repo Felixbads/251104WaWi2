@@ -2408,9 +2408,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           packaging_type,
           min_quantity_unit,
           deposit_per_unit,
+          supplier_article_number,
           created_at,
           updated_at
-        FROM purchase_conditions 
+        FROM purchase_conditions
         WHERE supplier_id = $1
         ORDER BY created_at DESC
       `;
@@ -2457,9 +2458,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           packaging_type,
           min_quantity_unit,
           deposit_per_unit,
+          supplier_article_number,
           created_at,
           updated_at
-        FROM purchase_conditions 
+        FROM purchase_conditions
         WHERE product_id = $1
         ORDER BY created_at DESC
       `;
@@ -2506,9 +2508,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           packaging_type,
           min_quantity_unit,
           deposit_per_unit,
+          supplier_article_number,
           created_at,
           updated_at
-        FROM purchase_conditions 
+        FROM purchase_conditions
         WHERE id = $1
       `;
       
@@ -2540,8 +2543,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           supplier_id, product_id, unit_price, tax_rate, gross_price,
           min_quantity, packaging_unit, packaging_quantity, delivery_time,
           valid_from, valid_to, is_preferred, notes, lead_time,
-          packaging_type, min_quantity_unit, deposit_per_unit
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+          packaging_type, min_quantity_unit, deposit_per_unit,
+          supplier_article_number
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
         RETURNING *
       `;
       
@@ -2551,7 +2555,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         req.body.packaging_unit, req.body.packaging_quantity || 1, req.body.delivery_time || 7,
         req.body.valid_from, req.body.valid_to, req.body.is_preferred || false,
         req.body.notes, req.body.lead_time || 7, req.body.packaging_type,
-        req.body.min_quantity_unit, req.body.deposit_per_unit || 0
+        req.body.min_quantity_unit, req.body.deposit_per_unit || 0,
+        req.body.supplier_article_number || null
       ]);
       const purchaseCondition = result.rows[0];
       

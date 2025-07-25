@@ -179,7 +179,7 @@ export default function CleanupDashboard() {
               {statsLoading ? "..." : stats?.inventory?.nonZeroItems || 0}
             </div>
             <p className="text-xs text-muted-foreground">
-              Artikel mit Bestand > 0
+              Artikel mit Bestand &gt; 0
             </p>
           </CardContent>
         </Card>

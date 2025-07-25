@@ -1193,6 +1193,7 @@ export interface PurchaseCondition {
   isPreferred: boolean;
   notes?: string;
   leadTime?: number;
+  supplierArticleNumber?: string;
   createdAt?: string;
   updatedAt?: string;
   // Erweiterte Felder für die Anzeige
