@@ -410,6 +410,7 @@ export interface IStorage {
   // Warehouse operations
   getWarehouses(): Promise<Warehouse[]>;
   getWarehouseById(id: number): Promise<Warehouse | undefined>;
+  getWarehouse(id: number): Promise<Warehouse | undefined>; // Alias für getWarehouseById
   createWarehouse(warehouse: Omit<Warehouse, 'id' | 'createdAt' | 'updatedAt'>): Promise<Warehouse>;
   updateWarehouse(id: number, updates: Partial<Warehouse>): Promise<Warehouse>;
   deleteWarehouse(id: number): Promise<void>;
