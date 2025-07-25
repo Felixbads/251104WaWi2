@@ -47,7 +47,7 @@ interface ProductBatch {
   batchNumber: string;
   productId: number;
   warehouseId: number;
-  initialQuantity: number;
+  initialQuantity?: number;
   currentQuantity: number;
   expiryDate: string | null;
   manufacturingDate?: string | null;
@@ -527,7 +527,7 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
                           </div>
                         </TableCell>
                         <TableCell className="text-center">
-                          {currentCount !== '' && currentCount !== null && currentCount !== 0 ? (
+                          {currentCount !== null && currentCount !== 0 ? (
                             <Badge variant="default" className="text-xs">
                               Gezählt
                             </Badge>
