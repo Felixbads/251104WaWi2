@@ -849,11 +849,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           pb.notes as batch_notes,
           ic.warehouse_id,
           w.name as warehouse_name,
-          w.location as warehouse_location
+          l.name as warehouse_location
         FROM inventory_count_items ici
         LEFT JOIN products p ON ici.product_id = p.id
         LEFT JOIN inventory_counts ic ON ici.inventory_count_id = ic.id
         LEFT JOIN warehouses w ON ic.warehouse_id = w.id
+        LEFT JOIN locations l ON w.location_id = l.id
         LEFT JOIN purchase_conditions pc ON pc.product_id = ici.product_id 
           AND pc.supplier_id = p.supplier_id
         LEFT JOIN product_batches pb ON ici.batch_id = pb.id
