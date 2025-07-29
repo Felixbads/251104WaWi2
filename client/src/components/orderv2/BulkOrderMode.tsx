@@ -55,7 +55,10 @@ import {
   ChevronRight,
   MapPin,
   Truck,
-  Store
+  Store,
+  Search,
+  Star,
+  X
 } from 'lucide-react';
 import { 
   calculatePackageInfo, 
@@ -329,11 +332,56 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
   const [showPricesInEmail, setShowPricesInEmail] = useState<boolean>(true);
   const [showPricesInTable, setShowPricesInTable] = useState<boolean>(true);
   const [orderNotes, setOrderNotes] = useState<string>('');
+  
+  // Search and favorites state
+  const [searchTerm, setSearchTerm] = useState<string>('');
+  const [favoriteSuppliers, setFavoriteSuppliers] = useState<number[]>([]);
 
   // Data queries
   const { data: suppliers, isLoading: suppliersLoading } = useQuery({
     queryKey: ['/api/suppliers'],
     staleTime: 1000 * 60 * 10, // Increased cache time
+  });
+
+  // Load user favorites
+  const { data: userFavorites } = useQuery({
+    queryKey: ['/api/supplier-favorites'],
+    staleTime: 1000 * 60 * 5,
+  });
+
+  // Update local favorites state when API data loads
+  useEffect(() => {
+    if (userFavorites) {
+      const favoriteIds = (userFavorites as any[])?.map((fav: any) => fav.supplierId) || [];
+      setFavoriteSuppliers(favoriteIds);
+    }
+  }, [userFavorites]);
+
+  // Favorites mutations
+  const addFavoriteMutation = useMutation({
+    mutationFn: (supplierId: number) => 
+      apiRequest('/api/supplier-favorites', { supplierId }, 'POST'),
+    onSuccess: (data, supplierId) => {
+      setFavoriteSuppliers(prev => [...prev, supplierId]);
+      queryClient.invalidateQueries({ queryKey: ['/api/supplier-favorites'] });
+      toast({ title: "Lieferant zu Favoriten hinzugefügt" });
+    },
+    onError: () => {
+      toast({ title: "Fehler beim Hinzufügen zu Favoriten", variant: "destructive" });
+    }
+  });
+
+  const removeFavoriteMutation = useMutation({
+    mutationFn: (supplierId: number) => 
+      apiRequest(`/api/supplier-favorites/${supplierId}`, {}, 'DELETE'),
+    onSuccess: (data, supplierId) => {
+      setFavoriteSuppliers(prev => prev.filter(id => id !== supplierId));
+      queryClient.invalidateQueries({ queryKey: ['/api/supplier-favorites'] });
+      toast({ title: "Lieferant von Favoriten entfernt" });
+    },
+    onError: () => {
+      toast({ title: "Fehler beim Entfernen von Favoriten", variant: "destructive" });
+    }
   });
 
   const { data: supplierAnalytics, isLoading: analyticsLoading } = useQuery({
@@ -894,42 +942,157 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
   );
 
   // Render supplier selection step
-  const renderSupplierSelection = () => (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Package className="h-5 w-5" />
-          Lieferant für Großbestellung auswählen
-        </CardTitle>
-        <CardDescription>
-          Wählen Sie den Lieferanten für Ihre Großbestellung aus. Sortiert nach Verkaufsvolumen.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        {suppliersLoading ? (
-          <div className="space-y-2">
-            {[1, 2, 3].map(i => (
-              <div key={i} className="h-12 bg-muted animate-pulse rounded" />
-            ))}
+  // Helper functions for favorites
+  const toggleFavorite = (supplierId: number) => {
+    if (favoriteSuppliers.includes(supplierId)) {
+      removeFavoriteMutation.mutate(supplierId);
+    } else {
+      addFavoriteMutation.mutate(supplierId);
+    }
+  };
+
+  // Enhanced supplier filtering and sorting
+  const getFilteredAndSortedSuppliers = () => {
+    if (!suppliers || !supplierAnalytics) return [];
+    
+    const suppliersList = Array.isArray(suppliers) ? suppliers : (suppliers as any)?.data || [];
+    const analyticsMap = new Map(
+      (supplierAnalytics as any[])?.map(item => [item.supplierId, item]) || []
+    );
+    
+    // Filter by search term
+    const filtered = suppliersList.filter((supplier: any) => 
+      supplier.name?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+    
+    // Sort with favorites first, then by order volume
+    return filtered.sort((a: any, b: any) => {
+      const aIsFavorite = favoriteSuppliers.includes(a.id);
+      const bIsFavorite = favoriteSuppliers.includes(b.id);
+      
+      // Favorites first
+      if (aIsFavorite && !bIsFavorite) return -1;
+      if (!aIsFavorite && bIsFavorite) return 1;
+      
+      // Then by order volume (highest first)
+      const aAnalytics = analyticsMap.get(a.id);
+      const bAnalytics = analyticsMap.get(b.id);
+      const aOrderVolume = aAnalytics?.orderVolume || 0;
+      const bOrderVolume = bAnalytics?.orderVolume || 0;
+      
+      return bOrderVolume - aOrderVolume;
+    });
+  };
+
+  const renderSupplierSelection = () => {
+    const filteredSuppliers = getFilteredAndSortedSuppliers();
+    
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Package className="h-5 w-5" />
+            Lieferant für Großbestellung auswählen
+          </CardTitle>
+          <CardDescription>
+            Wählen Sie den Lieferanten für Ihre Großbestellung aus. Favoriten werden zuerst angezeigt, dann nach Verkaufsvolumen sortiert.
+          </CardDescription>
+          
+          {/* Search field */}
+          <div className="flex items-center gap-2 mt-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                type="text"
+                placeholder="Lieferant suchen..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 pr-10"
+              />
+              {searchTerm && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSearchTerm('')}
+                  className="absolute right-1 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0 hover:bg-muted"
+                >
+                  <X className="h-3 w-3" />
+                </Button>
+              )}
+            </div>
           </div>
-        ) : (
-          <div className="space-y-2">
-            {suppliersList.map((supplier: any) => (
-              <Card 
-                key={supplier.id}
-                className="cursor-pointer hover:bg-accent/50 transition-colors"
-                onClick={() => handleSupplierSelect(supplier.id, supplier.name)}
-              >
-                <CardContent className="p-3">
-                  <h3 className="font-medium">{supplier.name}</h3>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
+        </CardHeader>
+        <CardContent>
+          {suppliersLoading || analyticsLoading ? (
+            <div className="space-y-2">
+              {[1, 2, 3].map(i => (
+                <div key={i} className="h-12 bg-muted animate-pulse rounded" />
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {filteredSuppliers.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  {searchTerm ? `Keine Lieferanten gefunden für "${searchTerm}"` : 'Keine Lieferanten verfügbar'}
+                </div>
+              ) : (
+                filteredSuppliers.map((supplier: any) => {
+                  const analytics = (supplierAnalytics as any[])?.find(item => item.supplierId === supplier.id);
+                  const isFavorite = favoriteSuppliers.includes(supplier.id);
+                  
+                  return (
+                    <Card 
+                      key={supplier.id}
+                      className="cursor-pointer hover:bg-accent/50 transition-colors relative"
+                      onClick={() => handleSupplierSelect(supplier.id, supplier.name)}
+                    >
+                      <CardContent className="p-3 flex items-center justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <h3 className="font-medium">{supplier.name}</h3>
+                            {isFavorite && (
+                              <Badge variant="secondary" className="text-xs">
+                                Favorit
+                              </Badge>
+                            )}
+                          </div>
+                          {analytics && (
+                            <div className="text-xs text-muted-foreground mt-1">
+                              {analytics.productCount} Produkte • €{analytics.orderVolume.toLocaleString()} Umsatz
+                            </div>
+                          )}
+                        </div>
+                        
+                        {/* Star button */}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleFavorite(supplier.id);
+                          }}
+                          className="h-8 w-8 p-0 hover:bg-muted"
+                          disabled={addFavoriteMutation.isPending || removeFavoriteMutation.isPending}
+                        >
+                          <Star 
+                            className={`h-4 w-4 ${
+                              isFavorite 
+                                ? 'fill-yellow-400 text-yellow-400' 
+                                : 'text-muted-foreground hover:text-yellow-400'
+                            }`} 
+                          />
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  );
+                })
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    );
+  };
 
   // Render inventory overview step
   const renderInventoryOverview = () => (

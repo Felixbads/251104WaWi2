@@ -166,6 +166,26 @@ export const insertSupplierSchema = createInsertSchema(suppliers)
 export type InsertSupplier = z.infer<typeof insertSupplierSchema>;
 export type Supplier = typeof suppliers.$inferSelect;
 
+// Supplier Favorites table - für Benutzer-spezifische Favoriten-Lieferanten
+export const supplierFavorites = pgTable("supplier_favorites", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  supplierId: integer("supplier_id").notNull().references(() => suppliers.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => {
+  return {
+    unique: unique().on(table.userId, table.supplierId), // Ein Favorit pro User+Supplier Kombination
+  };
+});
+
+export const insertSupplierFavoriteSchema = createInsertSchema(supplierFavorites).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertSupplierFavorite = z.infer<typeof insertSupplierFavoriteSchema>;
+export type SupplierFavorite = typeof supplierFavorites.$inferSelect;
+
 // Supplier Email Templates table
 export const supplierEmailTemplates = pgTable("supplier_email_templates", {
   id: serial("id").primaryKey(),

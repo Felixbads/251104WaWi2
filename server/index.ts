@@ -10,7 +10,6 @@ import WebSocket from 'ws';
 import http from 'http';
 import inventoryApiRouter from './routes/inventory-api';
 import inventoryRouter from './routes/inventory';
-import inventorySimpleRouter from './routes/inventory-simple';
 import mailTemplatesRouter from './routes/mail-templates';
 import simpleEmailRouter from './routes/simple-email';
 import dbDirectRouter from './routes/db-direct';
@@ -58,8 +57,8 @@ import { retroactiveWeatherService } from './services/retroactiveWeatherCorrecti
 import enhancedOrdersRouter from './routes/enhanced-orders';
 import enhancedEmailTemplatesRouter from './routes/enhanced-email-templates';
 import profitabilityRouter from './routes/profitability-simple';
-import { locationCostsRouter } from './routes/location-costs';
-import { enhancedProfitabilityRouter } from './routes/enhanced-profitability';
+import locationCostsRouter from './routes/location-costs';
+import enhancedProfitabilityRouter from './routes/enhanced-profitability';
 import { recurringOrdersRouter } from './routes/recurring-orders';
 import { recurringOrderCronService } from './services/recurringOrderCron';
 import RecurringOrderScheduler from './services/recurringOrderScheduler';
@@ -70,6 +69,7 @@ import inventoryItemsUnassignedRouter from './routes/inventory-items-unassigned'
 import stockRatiosRouter from './routes/stock-ratios';
 import inventorySimpleRouter from './routes/inventory-simple';
 import { SupplierAnalyticsCache } from './services/supplierAnalyticsCache';
+import supplierFavoritesRouter from './routes/supplier-favorites';
 
 const app = express();
 
@@ -1618,6 +1618,9 @@ app.get('/orders-data', (req, res) => {
   const supplierAnalyticsRouter = (await import('./routes/supplier-analytics')).default;
   app.use('/api/supplier-analytics', supplierAnalyticsRouter);
   console.log('[SERVER] Supplier analytics router mounted at /api/supplier-analytics BEFORE registerRoutes');
+  
+  app.use('/api/supplier-favorites', supplierFavoritesRouter);
+  console.log('[SERVER] Supplier favorites router mounted at /api/supplier-favorites BEFORE registerRoutes');
   
   // Mount retroactive inventory router BEFORE registerRoutes for retroactive inventory count functionality
   const retroactiveInventoryRouter = (await import('./routes/retroactive-inventory')).default;
