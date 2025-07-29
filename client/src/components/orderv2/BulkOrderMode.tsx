@@ -336,7 +336,13 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
     staleTime: 1000 * 60 * 10, // Increased cache time
   });
 
-  // Remove analytics query entirely for faster loading
+  const { data: supplierAnalytics, isLoading: analyticsLoading } = useQuery({
+    queryKey: ['/api/supplier-analytics/overview'],
+    staleTime: 1000 * 60 * 15,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    enabled: step === 'supplier',
+  });
 
   const { data: warehouses, isLoading: warehousesLoading } = useQuery({
     queryKey: ['/api/warehouses'],
@@ -357,14 +363,38 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
     }
   }, [warehouses]);
 
-  // Simple suppliers list without analytics for fast loading
+  // Combine suppliers with analytics and sort by sales volume (simplified interface)
   const suppliersList = useMemo(() => {
     const supplierData = Array.isArray(suppliers) ? suppliers : 
                         ((suppliers as any)?.data && Array.isArray((suppliers as any).data)) ? (suppliers as any).data : [];
     
-    // Sort alphabetically by name for consistent ordering
-    return supplierData.sort((a: any, b: any) => (a.name || '').localeCompare(b.name || ''));
-  }, [suppliers]);
+    if (supplierData.length === 0) return [];
+    
+    // If analytics is loading, show suppliers alphabetically for now
+    if (analyticsLoading || !supplierAnalytics) {
+      return supplierData.sort((a: any, b: any) => (a.name || '').localeCompare(b.name || ''));
+    }
+    
+    const analyticsData = Array.isArray(supplierAnalytics) ? supplierAnalytics :
+                         ((supplierAnalytics as any)?.data && Array.isArray((supplierAnalytics as any).data)) ? (supplierAnalytics as any).data : [];
+    
+    const combined = supplierData.map((supplier: any) => {
+      const analytics = analyticsData.find((a: SupplierAnalytics) => a.supplierId === supplier.id);
+      return {
+        ...supplier,
+        analytics: analytics || {
+          supplierId: supplier.id,
+          openOrders: 0,
+          annualRevenue: 0,
+          productCount: 0,
+          orderVolume: 0
+        }
+      };
+    });
+    
+    // Sort by order volume (sales volume) in descending order
+    return combined.sort((a: any, b: any) => (b.analytics?.orderVolume || 0) - (a.analytics?.orderVolume || 0));
+  }, [suppliers, supplierAnalytics, analyticsLoading]);
 
   const { data: inventoryData, isLoading: inventoryLoading } = useQuery({
     queryKey: [`/api/bulk-orders/inventory/bulk/${selectedSupplierId}`],
@@ -872,7 +902,7 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
           Lieferant für Großbestellung auswählen
         </CardTitle>
         <CardDescription>
-          Wählen Sie den Lieferanten für Ihre Großbestellung aus.
+          Wählen Sie den Lieferanten für Ihre Großbestellung aus. Sortiert nach Verkaufsvolumen.
         </CardDescription>
       </CardHeader>
       <CardContent>
