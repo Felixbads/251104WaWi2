@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
@@ -107,6 +107,15 @@ interface SalesAnalysis {
   avgWeeklySales: number;
   trendDirection: 'up' | 'down' | 'stable';
   trendPercentage: number;
+}
+
+interface SupplierAnalytics {
+  supplierId: number;
+  openOrders: number;
+  annualRevenue: number;
+  productCount: number;
+  orderVolume: number;
+  lastOrderDate?: string;
 }
 
 interface ForecastData {
@@ -327,6 +336,11 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
     staleTime: 1000 * 60 * 5,
   });
 
+  const { data: supplierAnalytics, isLoading: analyticsLoading } = useQuery({
+    queryKey: ['/api/supplier-analytics/overview'],
+    staleTime: 1000 * 60 * 5,
+  });
+
   const { data: warehouses, isLoading: warehousesLoading } = useQuery({
     queryKey: ['/api/warehouses'],
     staleTime: 1000 * 60 * 5,
@@ -345,6 +359,34 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
       });
     }
   }, [warehouses]);
+
+  // Combine suppliers with analytics and sort by sales volume
+  const suppliersWithAnalytics = useMemo(() => {
+    const supplierData = Array.isArray(suppliers) ? suppliers : 
+                        ((suppliers as any)?.data && Array.isArray((suppliers as any).data)) ? (suppliers as any).data : [];
+    
+    const analyticsData = Array.isArray(supplierAnalytics) ? supplierAnalytics :
+                         ((supplierAnalytics as any)?.data && Array.isArray((supplierAnalytics as any).data)) ? (supplierAnalytics as any).data : [];
+    
+    if (supplierData.length === 0) return [];
+    
+    const combined = supplierData.map((supplier: any) => {
+      const analytics = analyticsData.find((a: SupplierAnalytics) => a.supplierId === supplier.id);
+      return {
+        ...supplier,
+        analytics: analytics || {
+          supplierId: supplier.id,
+          openOrders: 0,
+          annualRevenue: 0,
+          productCount: 0,
+          orderVolume: 0
+        }
+      };
+    });
+    
+    // Sort by order volume (sales volume) in descending order
+    return combined.sort((a: any, b: any) => (b.analytics?.orderVolume || 0) - (a.analytics?.orderVolume || 0));
+  }, [suppliers, supplierAnalytics]);
 
   const { data: inventoryData, isLoading: inventoryLoading } = useQuery({
     queryKey: [`/api/bulk-orders/inventory/bulk/${selectedSupplierId}`],
@@ -852,11 +894,11 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
           Lieferant für Großbestellung auswählen
         </CardTitle>
         <CardDescription>
-          Wählen Sie den Lieferanten für Ihre Großbestellung an alle Lager aus.
+          Wählen Sie den Lieferanten für Ihre Großbestellung an alle Lager aus. Sortiert nach Verkaufsvolumen.
         </CardDescription>
       </CardHeader>
       <CardContent>
-        {suppliersLoading ? (
+        {suppliersLoading || analyticsLoading ? (
           <div className="space-y-2">
             {[1, 2, 3].map(i => (
               <div key={i} className="h-16 bg-muted animate-pulse rounded" />
@@ -864,7 +906,7 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
           </div>
         ) : (
           <div className="space-y-2">
-            {(suppliers as any)?.data?.map((supplier: any) => (
+            {suppliersWithAnalytics.map((supplier: any) => (
               <Card 
                 key={supplier.id}
                 className="cursor-pointer hover:bg-accent/50 transition-colors"
@@ -872,15 +914,31 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
               >
                 <CardContent className="p-4">
                   <div className="flex justify-between items-center">
-                    <div>
+                    <div className="flex-1">
                       <h3 className="font-medium">{supplier.name}</h3>
                       {supplier.email && (
                         <p className="text-sm text-muted-foreground">{supplier.email}</p>
                       )}
+                      <div className="flex gap-4 mt-2 text-xs text-muted-foreground">
+                        <span>Verkaufsvolumen: <strong className="text-foreground">€{Number(supplier.analytics?.orderVolume || 0).toLocaleString('de-DE', { minimumFractionDigits: 2 })}</strong></span>
+                        <span>Produkte: <strong className="text-foreground">{supplier.analytics?.productCount || 0}</strong></span>
+                      </div>
                     </div>
-                    <Badge variant="outline" className="text-xs">
-                      Lieferant
-                    </Badge>
+                    <div className="flex flex-col items-end gap-2">
+                      <Badge variant="outline" className="text-xs">
+                        Lieferant
+                      </Badge>
+                      {supplier.analytics?.orderVolume > 0 && (
+                        <Badge 
+                          variant={supplier.analytics.orderVolume > 50000 ? "default" : 
+                                  supplier.analytics.orderVolume > 20000 ? "secondary" : "outline"}
+                          className="text-xs"
+                        >
+                          {supplier.analytics.orderVolume > 50000 ? "Top-Lieferant" : 
+                           supplier.analytics.orderVolume > 20000 ? "Mittel" : "Klein"}
+                        </Badge>
+                      )}
+                    </div>
                   </div>
                 </CardContent>
               </Card>
