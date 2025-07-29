@@ -341,7 +341,7 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
     staleTime: 1000 * 60 * 15,
     refetchOnWindowFocus: false,
     refetchOnMount: false,
-    enabled: step === 'supplier',
+    enabled: true, // Always load analytics for sorting
   });
 
   const { data: warehouses, isLoading: warehousesLoading } = useQuery({

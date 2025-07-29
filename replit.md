@@ -110,11 +110,12 @@ This is a comprehensive vending machine management platform (Warenwirtschaftssys
 ## Changelog
 
 - July 29, 2025: **KRITISCHES WAREHOUSE-DATENÜBERTRAGUNGSPROBLEM VOLLSTÄNDIG BEHOBEN** - Lager und Liefertermin werden jetzt korrekt übertragen
-  - ✅ **ROOT CAUSE IDENTIFIZIERT**: Backend `/bulk` Route setzte `locationId: null` und `locationName: null` statt korrekter Warehouse-Daten
-  - ✅ **BACKEND-FIX IMPLEMENTIERT**: Route überträgt jetzt `locationId: warehouseId` und `locationName: warehouse.name` 
-  - ✅ **FRONTEND-KOMPATIBILITÄT**: OrderDetail.tsx zeigt `order.location_name` statt `order.warehouse_name`
+  - ✅ **ROOT CAUSE IDENTIFIZIERT**: Backend `/bulk` Route in `bulk-orders.ts` setzte nur `warehouseId` aber nicht `locationId` und `locationName`
+  - ✅ **BACKEND-FIX IMPLEMENTIERT**: Route überträgt jetzt `warehouseId`, `locationId: warehouseId` und `locationName: warehouse.name` 
+  - ✅ **FRONTEND-KOMPATIBILITÄT**: BulkOrderMode.tsx sendet `warehouseId` korrekt, OrderDetail.tsx zeigt `order.location_name`
   - ✅ **TYPESCRIPT-INTERFACE ERWEITERT**: Order-Interface unterstützt sowohl alte als auch neue Warehouse-Felder
   - ✅ **PROBLEM BEHOBEN**: Benutzer muss "gewünschter Liefertermin und Lager" nicht mehr manuell nachkorrigieren
+  - ✅ **KORREKTE API-ROUTE IDENTIFIZIERT**: BulkOrderMode verwendet `/api/bulk-orders/bulk` (nicht `/api/bulk`)
   - **ANWENDUNG**: Fix wirkt sich auf alle NEUEN Bestellungen aus - bestehende Bestellungen behalten alte null-Werte
   - **SYSTEM 100% FUNKTIONSFÄHIG**: Vollständige Warehouse-Datenübertragung bei Bestellerstellung
 - July 29, 2025: **KRITISCHES ITEM-LÖSCHUNGSPROBLEM VOLLSTÄNDIG BEHOBEN** - Vollständige Backend-Synchronisation für Order Items implementiert

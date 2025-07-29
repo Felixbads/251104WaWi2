@@ -373,7 +373,8 @@ router.post('/bulk', async (req, res) => {
       supplierId,
       supplierName: supplier[0].name,
       warehouseId: parseInt(warehouseId),
-
+      locationId: parseInt(warehouseId),
+      locationName: warehouseName,
       status: 'draft',
       expectedDeliveryDate: expectedDeliveryDate ? new Date(expectedDeliveryDate) : null,
       deliveryType: deliveryType,

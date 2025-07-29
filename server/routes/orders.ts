@@ -326,6 +326,7 @@ router.post('/bulk', async (req: Request, res: Response) => {
   try {
     const {
       supplierId,
+      warehouseId,
       orderType = 'bulk',
       expectedDeliveryDate,
       notes,
@@ -359,6 +360,20 @@ router.post('/bulk', async (req: Request, res: Response) => {
     }
 
     const supplier = supplierDetails[0];
+
+    // Warehouse validieren (falls warehouseId übergeben wurde)
+    let warehouse = null;
+    if (warehouseId) {
+      const warehouseDetails = await db
+        .select()
+        .from(warehouses)
+        .where(eq(warehouses.id, warehouseId))
+        .limit(1);
+
+      if (warehouseDetails.length > 0) {
+        warehouse = warehouseDetails[0];
+      }
+    }
 
     // Bestellnummer generieren
     const today = new Date();
@@ -396,8 +411,8 @@ router.post('/bulk', async (req: Request, res: Response) => {
         orderNumber,
         supplierId,
         supplierName: supplier.name,
-        locationId: warehouseId,
-        locationName: warehouse.name,
+        locationId: warehouseId || null,
+        locationName: warehouse?.name || null,
         status: 'draft',
         priority,
         expectedDeliveryDate: expectedDeliveryDate ? new Date(expectedDeliveryDate) : null,
