@@ -333,12 +333,15 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
   // Data queries
   const { data: suppliers, isLoading: suppliersLoading } = useQuery({
     queryKey: ['/api/suppliers'],
-    staleTime: 1000 * 60 * 5,
+    staleTime: 1000 * 60 * 10, // Increased cache time
   });
 
   const { data: supplierAnalytics, isLoading: analyticsLoading } = useQuery({
     queryKey: ['/api/supplier-analytics/overview'],
-    staleTime: 1000 * 60 * 5,
+    staleTime: 1000 * 60 * 15, // Even longer cache time
+    refetchOnWindowFocus: false, 
+    refetchOnMount: false, // Don't refetch when component mounts if cached data exists
+    enabled: step === 'supplier', // Only load when on supplier selection step
   });
 
   const { data: warehouses, isLoading: warehousesLoading } = useQuery({
@@ -365,10 +368,24 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
     const supplierData = Array.isArray(suppliers) ? suppliers : 
                         ((suppliers as any)?.data && Array.isArray((suppliers as any).data)) ? (suppliers as any).data : [];
     
+    if (supplierData.length === 0) return [];
+    
+    // If analytics is still loading, show suppliers without analytics data first for better UX
+    if (analyticsLoading || !supplierAnalytics) {
+      return supplierData.map((supplier: any) => ({
+        ...supplier,
+        analytics: {
+          supplierId: supplier.id,
+          openOrders: 0,
+          annualRevenue: 0,
+          productCount: 0,
+          orderVolume: 0
+        }
+      }));
+    }
+    
     const analyticsData = Array.isArray(supplierAnalytics) ? supplierAnalytics :
                          ((supplierAnalytics as any)?.data && Array.isArray((supplierAnalytics as any).data)) ? (supplierAnalytics as any).data : [];
-    
-    if (supplierData.length === 0) return [];
     
     const combined = supplierData.map((supplier: any) => {
       const analytics = analyticsData.find((a: SupplierAnalytics) => a.supplierId === supplier.id);
@@ -386,7 +403,7 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
     
     // Sort by order volume (sales volume) in descending order
     return combined.sort((a: any, b: any) => (b.analytics?.orderVolume || 0) - (a.analytics?.orderVolume || 0));
-  }, [suppliers, supplierAnalytics]);
+  }, [suppliers, supplierAnalytics, analyticsLoading]);
 
   const { data: inventoryData, isLoading: inventoryLoading } = useQuery({
     queryKey: [`/api/bulk-orders/inventory/bulk/${selectedSupplierId}`],
@@ -898,10 +915,10 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
         </CardDescription>
       </CardHeader>
       <CardContent>
-        {suppliersLoading || analyticsLoading ? (
+        {suppliersLoading ? (
           <div className="space-y-2">
-            {[1, 2, 3].map(i => (
-              <div key={i} className="h-16 bg-muted animate-pulse rounded" />
+            {[1, 2, 3, 4].map(i => (
+              <div key={i} className="h-20 bg-muted animate-pulse rounded" />
             ))}
           </div>
         ) : (
@@ -924,20 +941,8 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
                         <span>Produkte: <strong className="text-foreground">{supplier.analytics?.productCount || 0}</strong></span>
                       </div>
                     </div>
-                    <div className="flex flex-col items-end gap-2">
-                      <Badge variant="outline" className="text-xs">
-                        Lieferant
-                      </Badge>
-                      {supplier.analytics?.orderVolume > 0 && (
-                        <Badge 
-                          variant={supplier.analytics.orderVolume > 50000 ? "default" : 
-                                  supplier.analytics.orderVolume > 20000 ? "secondary" : "outline"}
-                          className="text-xs"
-                        >
-                          {supplier.analytics.orderVolume > 50000 ? "Top-Lieferant" : 
-                           supplier.analytics.orderVolume > 20000 ? "Mittel" : "Klein"}
-                        </Badge>
-                      )}
+                    <div className="text-right text-sm text-muted-foreground">
+                      Zum Auswählen klicken →
                     </div>
                   </div>
                 </CardContent>
