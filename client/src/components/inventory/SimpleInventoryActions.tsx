@@ -18,6 +18,8 @@ export const SimpleInventoryActions: React.FC<SimpleInventoryActionsProps> = ({
   showSaveButton = true
 }) => {
   
+
+  
   const handleStart = () => {
     onAction('start');
   };
@@ -41,7 +43,7 @@ export const SimpleInventoryActions: React.FC<SimpleInventoryActionsProps> = ({
   // Zeige verschiedene Buttons basierend auf Status
   return (
     <div className="flex gap-3 my-4">
-      {status === 'pending' && (
+      {(status === 'pending' || status === 'open') && (
         <Button 
           onClick={handleStart}
           disabled={isLoading}

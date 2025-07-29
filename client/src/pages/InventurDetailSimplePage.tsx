@@ -304,10 +304,11 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
 
         <div className="flex items-center space-x-2">
           <Badge variant={inventurData?.status === 'completed' ? 'default' : 'secondary'}>
-            {inventurData?.status === 'pending' && 'Geplant'}
+            {(inventurData?.status === 'pending' || inventurData?.status === 'open') && 'Geplant'}
             {inventurData?.status === 'in_progress' && 'Läuft'}
             {inventurData?.status === 'completed' && 'Abgeschlossen'}
           </Badge>
+
         </div>
       </div>
 
