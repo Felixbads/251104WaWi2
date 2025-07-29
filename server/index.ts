@@ -1300,6 +1300,114 @@ app.get('/orders-data', (req, res) => {
     }
   });
 
+  // 🚨 KRITISCHE ROUTE: Vollständige Synchronisation für Order Items - ALLERERSTE PRIORITÄT!
+  app.put('/api/orders/:id/items', async (req, res) => {
+    try {
+      const orderId = parseInt(req.params.id);
+      const { items } = req.body;
+      
+      console.log(`🔄 PUT /api/orders/${orderId}/items - VOLLSTÄNDIGE Synchronisation für ${items?.length || 0} Bestellpositionen...`);
+      
+      if (isNaN(orderId) || !items || !Array.isArray(items)) {
+        return res.status(400).json({ 
+          error: 'Ungültige Daten', 
+          message: 'Bestell-ID oder Items-Array ist ungültig' 
+        });
+      }
+      
+      // Start transaction
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        
+        // 1. Alle bestehenden Items für diese Bestellung abrufen
+        const existingItemsResult = await client.query(`
+          SELECT id FROM order_items WHERE order_id = $1
+        `, [orderId]);
+        
+        const existingItemIds = existingItemsResult.rows.map(row => row.id);
+        const newItemIds = items
+          .filter(item => item.id && !isNaN(parseInt(item.id)))
+          .map(item => parseInt(item.id));
+        
+        console.log(`📋 Bestehende Items: [${existingItemIds.join(', ')}]`);
+        console.log(`📋 Neue Items: [${newItemIds.join(', ')}]`);
+        
+        // 2. Items identifizieren, die gelöscht werden sollen
+        const itemsToDelete = existingItemIds.filter(id => !newItemIds.includes(id));
+        
+        if (itemsToDelete.length > 0) {
+          console.log(`🗑️ Lösche ${itemsToDelete.length} Items: [${itemsToDelete.join(', ')}]`);
+          await client.query(`
+            DELETE FROM order_items 
+            WHERE id = ANY($1) AND order_id = $2
+          `, [itemsToDelete, orderId]);
+        }
+        
+        // 3. Verbleibende Items aktualisieren
+        let updatedCount = 0;
+        for (const item of items) {
+          const { id, quantity, unitPrice, totalPrice } = item;
+          
+          if (!id || isNaN(parseInt(id))) {
+            console.warn(`⚠️ Überspringe Item ohne gültige ID:`, item);
+            continue;
+          }
+          
+          const result = await client.query(`
+            UPDATE order_items 
+            SET 
+              quantity = $1,
+              unit_price = $2,
+              total_price = $3,
+              updated_at = NOW()
+            WHERE id = $4 AND order_id = $5
+          `, [
+            quantity || 1,
+            unitPrice || 0,
+            totalPrice || (quantity || 1) * (unitPrice || 0),
+            parseInt(id),
+            orderId
+          ]);
+          
+          if (result.rowCount && result.rowCount > 0) {
+            console.log(`✅ Updated item ${id}: ${quantity} @ ${unitPrice} = ${totalPrice}`);
+            updatedCount++;
+          } else {
+            console.warn(`⚠️ Item ${id} not found for update`);
+          }
+        }
+        
+        await client.query('COMMIT');
+        console.log(`🎉 VOLLSTÄNDIGE Synchronisation für Bestellung ${orderId} erfolgreich:`);
+        console.log(`   - ${itemsToDelete.length} Items gelöscht`);
+        console.log(`   - ${updatedCount} Items aktualisiert`);
+        
+        return res.json({ 
+          success: true, 
+          message: `Synchronisation erfolgreich: ${itemsToDelete.length} gelöscht, ${updatedCount} aktualisiert`,
+          deletedItems: itemsToDelete.length,
+          updatedItems: updatedCount,
+          totalItems: items.length
+        });
+        
+      } catch (updateError) {
+        await client.query('ROLLBACK');
+        throw updateError;
+      } finally {
+        client.release();
+      }
+      
+    } catch (error) {
+      console.error('❌ Fehler bei der vollständigen Synchronisation der Bestellpositionen:', error);
+      return res.status(500).json({ 
+        error: 'Datenbankfehler bei der Synchronisation', 
+        message: error instanceof Error ? error.message : 'Unbekannter Fehler' 
+      });
+    }
+  });
+  console.log('[SERVER] 🚨 KRITISCHE ROUTE: Order Items vollständige Synchronisation mounted ALLERERSTE PRIORITÄT');
+
   // Mount supplier portal router FIRST to prevent Vite middleware conflicts
   const supplierPortalRouter = (await import('./routes/supplier-portal')).default;
   app.use('/api/supplier-portal', supplierPortalRouter);
@@ -1321,6 +1429,114 @@ app.get('/orders-data', (req, res) => {
   const forecastFactorsRouter = (await import('./routes/forecast-factors-simple')).default;
   app.use('/api/bulk-orders/forecast-factors', forecastFactorsRouter);
   console.log('[SERVER] Forecast factors router mounted successfully');
+  
+  // 🚨 KRITISCHE ROUTE: Vollständige Synchronisation für Order Items - MUSS VOR ordersRouter stehen!
+  app.put('/api/orders/:id/items', async (req, res) => {
+    try {
+      const orderId = parseInt(req.params.id);
+      const { items } = req.body;
+      
+      console.log(`🔄 PUT /api/orders/${orderId}/items - VOLLSTÄNDIGE Synchronisation für ${items?.length || 0} Bestellpositionen...`);
+      
+      if (isNaN(orderId) || !items || !Array.isArray(items)) {
+        return res.status(400).json({ 
+          error: 'Ungültige Daten', 
+          message: 'Bestell-ID oder Items-Array ist ungültig' 
+        });
+      }
+      
+      // Start transaction
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        
+        // 1. Alle bestehenden Items für diese Bestellung abrufen
+        const existingItemsResult = await client.query(`
+          SELECT id FROM order_items WHERE order_id = $1
+        `, [orderId]);
+        
+        const existingItemIds = existingItemsResult.rows.map(row => row.id);
+        const newItemIds = items
+          .filter(item => item.id && !isNaN(parseInt(item.id)))
+          .map(item => parseInt(item.id));
+        
+        console.log(`📋 Bestehende Items: [${existingItemIds.join(', ')}]`);
+        console.log(`📋 Neue Items: [${newItemIds.join(', ')}]`);
+        
+        // 2. Items identifizieren, die gelöscht werden sollen
+        const itemsToDelete = existingItemIds.filter(id => !newItemIds.includes(id));
+        
+        if (itemsToDelete.length > 0) {
+          console.log(`🗑️ Lösche ${itemsToDelete.length} Items: [${itemsToDelete.join(', ')}]`);
+          await client.query(`
+            DELETE FROM order_items 
+            WHERE id = ANY($1) AND order_id = $2
+          `, [itemsToDelete, orderId]);
+        }
+        
+        // 3. Verbleibende Items aktualisieren
+        let updatedCount = 0;
+        for (const item of items) {
+          const { id, quantity, unitPrice, totalPrice } = item;
+          
+          if (!id || isNaN(parseInt(id))) {
+            console.warn(`⚠️ Überspringe Item ohne gültige ID:`, item);
+            continue;
+          }
+          
+          const result = await client.query(`
+            UPDATE order_items 
+            SET 
+              quantity = $1,
+              unit_price = $2,
+              total_price = $3,
+              updated_at = NOW()
+            WHERE id = $4 AND order_id = $5
+          `, [
+            quantity || 1,
+            unitPrice || 0,
+            totalPrice || (quantity || 1) * (unitPrice || 0),
+            parseInt(id),
+            orderId
+          ]);
+          
+          if (result.rowCount > 0) {
+            console.log(`✅ Updated item ${id}: ${quantity} @ ${unitPrice} = ${totalPrice}`);
+            updatedCount++;
+          } else {
+            console.warn(`⚠️ Item ${id} not found for update`);
+          }
+        }
+        
+        await client.query('COMMIT');
+        console.log(`🎉 VOLLSTÄNDIGE Synchronisation für Bestellung ${orderId} erfolgreich:`);
+        console.log(`   - ${itemsToDelete.length} Items gelöscht`);
+        console.log(`   - ${updatedCount} Items aktualisiert`);
+        
+        return res.json({ 
+          success: true, 
+          message: `Synchronisation erfolgreich: ${itemsToDelete.length} gelöscht, ${updatedCount} aktualisiert`,
+          deletedItems: itemsToDelete.length,
+          updatedItems: updatedCount,
+          totalItems: items.length
+        });
+        
+      } catch (updateError) {
+        await client.query('ROLLBACK');
+        throw updateError;
+      } finally {
+        client.release();
+      }
+      
+    } catch (error) {
+      console.error('❌ Fehler bei der vollständigen Synchronisation der Bestellpositionen:', error);
+      return res.status(500).json({ 
+        error: 'Datenbankfehler bei der Synchronisation', 
+        message: error instanceof Error ? error.message : 'Unbekannter Fehler' 
+      });
+    }
+  });
+  console.log('[SERVER] 🚨 KRITISCHE ROUTE: Order Items vollständige Synchronisation mounted FIRST PRIORITY');
   
   // Mount orders router BEFORE registerRoutes to bypass Vite wildcard routing
   const ordersRouter = (await import('./routes/orders')).default;
