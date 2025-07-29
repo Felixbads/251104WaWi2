@@ -53,12 +53,12 @@ import {
   Minus,
   ChevronDown,
   ChevronRight,
+  Search,
+  X,
+  Star,
   MapPin,
   Truck,
-  Store,
-  Search,
-  Star,
-  X
+  Store
 } from 'lucide-react';
 import { 
   calculatePackageInfo, 
@@ -953,17 +953,30 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
 
   // Enhanced supplier filtering and sorting
   const getFilteredAndSortedSuppliers = () => {
-    if (!suppliers || !supplierAnalytics) return [];
+    if (!suppliers) return [];
     
     const suppliersList = Array.isArray(suppliers) ? suppliers : (suppliers as any)?.data || [];
-    const analyticsMap = new Map(
-      (supplierAnalytics as any[])?.map(item => [item.supplierId, item]) || []
-    );
     
-    // Filter by search term
-    const filtered = suppliersList.filter((supplier: any) => 
-      supplier.name?.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    // CRITICAL FIX: Robust analytics data handling
+    let analyticsMap = new Map();
+    if (supplierAnalytics && Array.isArray(supplierAnalytics)) {
+      try {
+        supplierAnalytics.forEach((item: any) => {
+          if (item && typeof item === 'object' && item.supplierId) {
+            analyticsMap.set(item.supplierId, item);
+          }
+        });
+      } catch (error) {
+        console.error('Error processing supplier analytics:', error);
+        analyticsMap = new Map(); // Fallback to empty map
+      }
+    }
+    
+    // Filter by search term with null safety
+    const filtered = suppliersList.filter((supplier: any) => {
+      if (!supplier || !supplier.name) return false;
+      return supplier.name.toLowerCase().includes(searchTerm.toLowerCase());
+    });
     
     // Sort with favorites first, then by order volume
     return filtered.sort((a: any, b: any) => {
@@ -974,11 +987,11 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
       if (aIsFavorite && !bIsFavorite) return -1;
       if (!aIsFavorite && bIsFavorite) return 1;
       
-      // Then by order volume (highest first)
+      // Then by order volume (highest first) with null safety
       const aAnalytics = analyticsMap.get(a.id);
       const bAnalytics = analyticsMap.get(b.id);
-      const aOrderVolume = aAnalytics?.orderVolume || 0;
-      const bOrderVolume = bAnalytics?.orderVolume || 0;
+      const aOrderVolume = (aAnalytics && typeof aAnalytics.orderVolume === 'number') ? aAnalytics.orderVolume : 0;
+      const bOrderVolume = (bAnalytics && typeof bAnalytics.orderVolume === 'number') ? bAnalytics.orderVolume : 0;
       
       return bOrderVolume - aOrderVolume;
     });
@@ -1037,7 +1050,17 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
                 </div>
               ) : (
                 filteredSuppliers.map((supplier: any) => {
-                  const analytics = (supplierAnalytics as any[])?.find(item => item.supplierId === supplier.id);
+                  // CRITICAL FIX: Safe analytics lookup
+                  let analytics = null;
+                  if (supplierAnalytics && Array.isArray(supplierAnalytics)) {
+                    try {
+                      analytics = supplierAnalytics.find(item => 
+                        item && typeof item === 'object' && item.supplierId === supplier.id
+                      );
+                    } catch (error) {
+                      console.error('Error finding analytics for supplier:', supplier.id, error);
+                    }
+                  }
                   const isFavorite = favoriteSuppliers.includes(supplier.id);
                   
                   return (
