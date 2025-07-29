@@ -69,6 +69,7 @@ import syncRouter from './routes/sync';
 import inventoryItemsUnassignedRouter from './routes/inventory-items-unassigned';
 import stockRatiosRouter from './routes/stock-ratios';
 import inventorySimpleRouter from './routes/inventory-simple';
+import { SupplierAnalyticsCache } from './services/supplierAnalyticsCache';
 
 const app = express();
 
@@ -3323,5 +3324,28 @@ app.get('/orders-data', (req, res) => {
     // Synchronization can be run manually via API endpoints when needed
     log('Automatische Synchronisierung ist für bessere Performance deaktiviert.');
     log('Bei Bedarf kann die Synchronisierung manuell über API-Endpunkte gestartet werden.');
+
+    // Start Supplier Analytics Cache Background Service
+    const supplierAnalyticsCache = SupplierAnalyticsCache.getInstance();
+    log('🔄 Starting Supplier Analytics Cache Background Service...');
+    
+    // Initial cache population
+    try {
+      await supplierAnalyticsCache.updateCache();
+      log('✅ Initial Supplier Analytics Cache populated');
+    } catch (error) {
+      console.error('❌ Error populating initial Supplier Analytics Cache:', error);
+    }
+    
+    // Set up hourly cache refresh
+    setInterval(async () => {
+      try {
+        log('🔄 Hourly Supplier Analytics Cache refresh...');
+        await supplierAnalyticsCache.updateCache();
+        log('✅ Supplier Analytics Cache refreshed');
+      } catch (error) {
+        console.error('❌ Error refreshing Supplier Analytics Cache:', error);
+      }
+    }, 60 * 60 * 1000); // 1 hour in milliseconds
   });
 })();

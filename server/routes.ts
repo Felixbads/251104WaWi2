@@ -1992,101 +1992,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // GET /supplier-analytics/overview - Analytics für alle Lieferanten
+  // GET /supplier-analytics/overview - Analytics für alle Lieferanten (CACHE-OPTIMIERT)
   app.get(`${API_PREFIX}/supplier-analytics/overview`, async (_req: Request, res: Response) => {
     try {
-      // Berechne Analytics-Daten für jeden Lieferanten
-      // Direkte SQL-Abfrage statt storage.getSuppliers
-      const suppliersResult = await rawDb.query('SELECT * FROM suppliers ORDER BY name');
-      const suppliers = suppliersResult.rows;
-      const analyticsData = [];
+      console.log('🚀 CACHE-OPTIMIERTE Supplier Analytics abgerufen');
+      
+      // Direkte Abfrage aus Cache-Tabelle - VIEL SCHNELLER!
+      const analyticsData = await rawDb.query(`
+        SELECT 
+          supplier_id as "supplierId",
+          supplier_name as "supplierName", 
+          order_volume as "orderVolume",
+          annual_revenue as "annualRevenue",
+          product_count as "productCount",
+          open_orders as "openOrders",
+          last_order_date as "lastOrderDate",
+          last_updated as "lastUpdated"
+        FROM supplier_analytics_cache
+        ORDER BY order_volume DESC, annual_revenue DESC
+      `);
 
-      for (const supplier of suppliers) {
-        // Berechne Jahresumsatz (12 Monate)
-        const oneYearAgo = new Date();
-        oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+      console.log(`✅ ${analyticsData.rows.length} Lieferanten aus Cache geladen`);
 
-        // Hole Produkte des Lieferanten über purchase_conditions
-        const productsQuery = `
-          SELECT DISTINCT p.id, p.product_name
-          FROM products p
-          INNER JOIN purchase_conditions pc ON p.id = pc.product_id
-          WHERE pc.supplier_id = $1
-        `;
-        
-        let products = [];
-        try {
-          const productsResult = await rawDb.query(productsQuery, [supplier.id]);
-          products = productsResult.rows;
-        } catch (error) {
-          console.warn(`Fehler beim Abrufen der Produkte für Lieferant ${supplier.id}:`, error);
-        }
-        
-        // Berechne Umsatz basierend auf Transaktionen mit Produkten dieses Lieferanten
-        let annualRevenue = 0;
-        let orderVolume = 0;
-        let transactionCount = 0;
-        
-        if (products.length > 0) {
-          // Verwende SQL-Abfrage für bessere Performance
-          const productNames = products.map(p => `'${p.product_name?.replace(/'/g, "''")}'`).join(',');
-          const revenueQuery = `
-            SELECT 
-              COALESCE(SUM(CAST(t.price AS DECIMAL)), 0) as revenue,
-              COUNT(t.id) as transaction_count
-            FROM transactions t
-            WHERE t.product_name IN (${productNames})
-              AND t.datetime >= $1
-          `;
-          
-          try {
-            const revenueResult = await rawDb.query(revenueQuery, [oneYearAgo.toISOString()]);
-            if (revenueResult.rows.length > 0) {
-              annualRevenue = parseFloat(revenueResult.rows[0].revenue) || 0;
-              transactionCount = parseInt(revenueResult.rows[0].transaction_count) || 0;
-              // Bestellvolumen = Umsatz * 0.7 (geschätzter Einkaufsfaktor)
-              orderVolume = annualRevenue * 0.7;
-            }
-          } catch (sqlError) {
-            console.warn(`SQL-Fehler für Lieferant ${supplier.id}:`, sqlError);
-          }
-        }
-
-        // Berechne offene Bestellungen (vereinfacht als 0, da keine Bestelltabelle vorhanden)
-        const openOrders = 0;
-
-        // Letzte Bestellung (basierend auf letzter Transaktion)
-        let lastOrderDate = null;
-        if (products.length > 0) {
-          try {
-            const productNames = products.map(p => `'${p.product_name?.replace(/'/g, "''")}'`).join(',');
-            const lastOrderQuery = `
-              SELECT MAX(t.datetime) as last_order
-              FROM transactions t
-              WHERE t.product_name IN (${productNames})
-            `;
-            const lastOrderResult = await rawDb.query(lastOrderQuery);
-            if (lastOrderResult.rows.length > 0 && lastOrderResult.rows[0].last_order) {
-              lastOrderDate = lastOrderResult.rows[0].last_order;
-            }
-          } catch (sqlError) {
-            console.warn(`Fehler beim Abrufen der letzten Bestellung für Lieferant ${supplier.id}:`, sqlError);
-          }
-        }
-
-        analyticsData.push({
-          supplierId: supplier.id,
-          openOrders,
-          annualRevenue,
-          productCount: products.length,
-          orderVolume,
-          lastOrderDate
-        });
-      }
-
-      res.json({ success: true, data: analyticsData });
+      res.json({ 
+        success: true, 
+        data: analyticsData.rows,
+        cached: true,
+        lastUpdated: analyticsData.rows[0]?.lastUpdated || null
+      });
     } catch (error) {
-      console.error("Error fetching supplier analytics:", error);
+      console.error("Error fetching supplier analytics from cache:", error);
       res.status(500).json({ 
         success: false, 
         error: "Failed to fetch supplier analytics", 
