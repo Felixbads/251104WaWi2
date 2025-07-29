@@ -349,11 +349,24 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
     staleTime: 1000 * 60 * 5,
   });
 
-  // Update local favorites state when API data loads
+  // Update local favorites state when API data loads - ROBUSTE ERROR-HANDLING
   useEffect(() => {
-    if (userFavorites) {
-      const favoriteIds = (userFavorites as any[])?.map((fav: any) => fav.supplierId) || [];
-      setFavoriteSuppliers(favoriteIds);
+    try {
+      if (userFavorites && Array.isArray(userFavorites)) {
+        const favoriteIds: number[] = [];
+        userFavorites.forEach((fav: any) => {
+          if (fav && typeof fav === 'object' && typeof fav.supplierId === 'number') {
+            favoriteIds.push(fav.supplierId);
+          }
+        });
+        setFavoriteSuppliers(favoriteIds);
+      } else {
+        // Fallback wenn userFavorites undefined oder nicht array ist
+        setFavoriteSuppliers([]);
+      }
+    } catch (error) {
+      console.error('Error processing userFavorites:', error);
+      setFavoriteSuppliers([]);
     }
   }, [userFavorites]);
 

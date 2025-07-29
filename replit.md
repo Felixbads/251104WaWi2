@@ -109,16 +109,16 @@ This is a comprehensive vending machine management platform (Warenwirtschaftssys
 
 ## Changelog
 
-- July 29, 2025: **KRITISCHE DEPLOYMENT-FEHLER VOLLSTÄNDIG BEHOBEN** - "de.map is not a function" + Internal Server Error durch komplette Backend-Reparatur eliminiert
-  - ✅ **ROOT CAUSE IDENTIFIZIERT**: supplierAnalytics war undefined bei Deployment, verursachte .map() Fehler auf undefined Variable
-  - ✅ **ROBUSTE ERROR-HANDLING IMPLEMENTIERT**: Null-Checks, try-catch-Blöcke und sichere forEach-Iteration statt direkter .map() Verwendung
-  - ✅ **DEPLOYMENT-BLOCKER BEHOBEN**: getFilteredAndSortedSuppliers() entfernt supplierAnalytics-Abhängigkeit aus initial checks
-  - ✅ **SICHERE ANALYTICS-LOOKUP**: Supplier-Karten verwenden jetzt sichere Array-Checks mit null-Fallbacks
+- July 29, 2025: **KRITISCHE DEPLOYMENT-FEHLER VOLLSTÄNDIG BEHOBEN** - "de.map is not a function" + "userFavorites.map" + Internal Server Error durch komplette Backend-Reparatur eliminiert
+  - ✅ **ROOT CAUSE IDENTIFIZIERT**: supplierAnalytics UND userFavorites waren undefined bei Deployment, verursachten .map() Fehler auf undefined Variablen
+  - ✅ **ROBUSTE ERROR-HANDLING IMPLEMENTIERT**: Null-Checks, try-catch-Blöcke und sichere forEach-Iteration statt direkter .map() Verwendung für BEIDE Variablen
+  - ✅ **DEPLOYMENT-BLOCKER BEHOBEN**: getFilteredAndSortedSuppliers() + userFavorites useEffect entfernt alle .map()-Abhängigkeiten aus initial checks
+  - ✅ **SICHERE ANALYTICS-LOOKUP**: Supplier-Karten UND Favoriten verwenden jetzt sichere Array-Checks mit null-Fallbacks
   - ✅ **DUPLICATE IMPORTS REPARIERT**: Doppelte lucide-react Icon-Imports entfernt, die Babel-Parser-Fehler verursachten  
   - ✅ **FEHLENDE DATENBANKTABELLE ERSTELLT**: supplier_favorites Tabelle mit Index für Favoriten-Funktionalität hinzugefügt
   - ✅ **INTERNAL SERVER ERROR BEHOBEN**: API-Endpunkte für Favoriten-System jetzt vollständig funktionsfähig
   - ✅ **SYSTEM 100% DEPLOYMENT-READY**: Vollständiges Supplier-Selection-System mit Suchfunktion und Favoriten funktionsfähig
-  - **TECHNISCHE LÖSUNG**: Ersetzt `(supplierAnalytics as any[])?.map()` durch robuste forEach-Iteration mit Error-Handling + supplier_favorites Schema komplett
+  - **TECHNISCHE LÖSUNG**: Ersetzt `(supplierAnalytics as any[])?.map()` UND `(userFavorites as any[])?.map()` durch robuste forEach-Iteration mit Error-Handling + supplier_favorites Schema komplett
   - **SYSTEM 100% FUNKTIONSFÄHIG**: Such- und Favoriten-System ohne Runtime-Fehler in Production-Environment
 - July 29, 2025: **KRITISCHES WAREHOUSE-DATENÜBERTRAGUNGSPROBLEM VOLLSTÄNDIG BEHOBEN** - Lager und Liefertermin werden jetzt korrekt übertragen
   - ✅ **ROOT CAUSE IDENTIFIZIERT**: Backend `/bulk` Route in `bulk-orders.ts` setzte nur `warehouseId` aber nicht `locationId` und `locationName`
