@@ -813,8 +813,9 @@ app.get('/orders-data', (req, res) => {
       const order = orderResult.rows[0];
       
       // Bestellpositionen mit korrekten Preisen UND GEBINDE-INFORMATIONEN laden
+      // CRITICAL FIX: DISTINCT ON (oi.id) eliminiert Duplikate durch mehrfache purchase_conditions
       const itemsResult = await pool.query(`
-        SELECT 
+        SELECT DISTINCT ON (oi.id)
           oi.*,
           p.product_name,
           p.units as product_unit,
