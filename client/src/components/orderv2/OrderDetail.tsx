@@ -558,6 +558,16 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
         });
         throw new Error(`Data reload failed in loadOrderItems: ${itemsError instanceof Error ? itemsError.message : String(itemsError)}`);
       }
+
+      // CRITICAL FIX: Reload email template with updated data
+      try {
+        console.log('Reloading email template with updated order data...');
+        await loadEmailTemplate();
+        console.log('Email template reloaded successfully');
+      } catch (emailError) {
+        console.error('ERROR reloading email template:', emailError);
+        // Don't throw error for email template - it's not critical for saving
+      }
       
       console.log('About to set editing states to false...');
       setIsEditing(false);

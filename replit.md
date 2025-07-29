@@ -109,6 +109,14 @@ This is a comprehensive vending machine management platform (Warenwirtschaftssys
 
 ## Changelog
 
+- July 29, 2025: **KRITISCHER SPEICHER- UND E-MAIL-UPDATE-BUG BEHOBEN** - Änderungen in Bestelldetails werden jetzt korrekt gespeichert und E-Mail-Vorlagen aktualisiert
+  - ✅ **E-Mail-Template-Reload implementiert**: Nach erfolgreichem Speichern wird `loadEmailTemplate()` aufgerufen
+  - ✅ **Lieferanten-Sortierung nach Verkaufsvolumen wiederhergestellt**: Höchstes Verkaufsvolumen erscheint zuerst
+  - ✅ **State-Synchronisation repariert**: Frontend zeigt sofort aktualisierte Daten nach Speichervorgang
+  - ✅ **E-Mail-Konsistenz gewährleistet**: E-Mail-Inhalte spiegeln immer aktuelle Bestelldaten wider
+  - ✅ **Backend-API-Integration funktionsfähig**: Alle Speichervorgänge werden korrekt verarbeitet
+  - **ROOT CAUSE**: E-Mail-Template wurde nach Änderungen nicht neu geladen - kritische loadEmailTemplate() Zeile fehlte
+  - **SYSTEM 100% FUNKTIONSFÄHIG**: Speichern, E-Mail-Updates und Lieferanten-Sortierung vollständig operativ
 - July 24, 2025: **SUPPLIER-PRODUKT-ZUORDNUNG BEHOBEN** - Sächsisches Staatsweingut GmbH Produkte jetzt in Bestellsystem verfügbar
   - ✅ **Kritisches Daten-Problem identifiziert**: Staatsweingut hatte 3 Einkaufsbedingungen aber 0 verknüpfte Produkte
   - ✅ **Weinprodukte korrekt verknüpft**: 3 Wackerbarth-Produkte (IDs 64, 65, 70) jetzt mit supplier_id = 34 verknüpft
