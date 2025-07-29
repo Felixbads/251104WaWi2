@@ -1232,8 +1232,11 @@ export interface Order {
   orderNumber: string;
   supplierId: number;
   supplierName: string;
-  warehouseId: number;
-  warehouseName: string;
+  warehouseId?: number;
+  warehouseName?: string;
+  locationId?: number;
+  location_name?: string;
+  delivery_location?: string;
   status: string;
   createdAt: string;
   updatedAt: string;

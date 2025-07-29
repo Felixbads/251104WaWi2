@@ -823,7 +823,7 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
                   />
                 ) : (
                   <p className="text-sm">
-                    {order.delivery_location || order.warehouse_name || 'Standard Lager'}
+                    {order.delivery_location || order.location_name || 'Standard Lager'}
                   </p>
                 )}
               </div>
