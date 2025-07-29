@@ -142,7 +142,15 @@ export default function OrderDetail() {
       if (!response.ok) {
         throw new Error('Fehler beim Laden der Bestellpositionen');
       }
-      return response.json();
+      const data = await response.json();
+      console.log(`🔍 [DEBUG] OrderDetail API Response für Bestellung ${id}:`, data);
+      console.log(`🔍 [DEBUG] Anzahl Items von API:`, data.length);
+      console.log(`🔍 [DEBUG] Item Details:`, data.map(item => ({
+        id: item.id,
+        productName: item.productName || item.product_name,
+        quantity: item.quantity
+      })));
+      return data;
     }
   });
 
@@ -232,6 +240,14 @@ export default function OrderDetail() {
   }
 
   // Berechne Gesamtwerte
+  console.log(`🔍 [DEBUG] OrderItems in Component State:`, orderItems);
+  console.log(`🔍 [DEBUG] Anzahl Items im State:`, orderItems.length);
+  console.log(`🔍 [DEBUG] OrderItems mit React Keys:`, orderItems.map(item => ({
+    reactKey: item.id,
+    productName: item.productName || item.product_name,
+    quantity: item.quantity
+  })));
+  
   const totalQuantity = orderItems.reduce((sum: number, item: any) => sum + (item.quantity || 0), 0);
   const totalAmount = orderItems.reduce((sum: number, item: any) => sum + ((item.quantity || 0) * (item.unitPrice || item.unit_price || 0)), 0);
 
