@@ -336,13 +336,7 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
     staleTime: 1000 * 60 * 10, // Increased cache time
   });
 
-  const { data: supplierAnalytics, isLoading: analyticsLoading } = useQuery({
-    queryKey: ['/api/supplier-analytics/overview'],
-    staleTime: 1000 * 60 * 15, // Even longer cache time
-    refetchOnWindowFocus: false, 
-    refetchOnMount: false, // Don't refetch when component mounts if cached data exists
-    enabled: step === 'supplier', // Only load when on supplier selection step
-  });
+  // Remove analytics query entirely for faster loading
 
   const { data: warehouses, isLoading: warehousesLoading } = useQuery({
     queryKey: ['/api/warehouses'],
@@ -363,47 +357,14 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
     }
   }, [warehouses]);
 
-  // Combine suppliers with analytics and sort by sales volume
-  const suppliersWithAnalytics = useMemo(() => {
+  // Simple suppliers list without analytics for fast loading
+  const suppliersList = useMemo(() => {
     const supplierData = Array.isArray(suppliers) ? suppliers : 
                         ((suppliers as any)?.data && Array.isArray((suppliers as any).data)) ? (suppliers as any).data : [];
     
-    if (supplierData.length === 0) return [];
-    
-    // If analytics is still loading, show suppliers without analytics data first for better UX
-    if (analyticsLoading || !supplierAnalytics) {
-      return supplierData.map((supplier: any) => ({
-        ...supplier,
-        analytics: {
-          supplierId: supplier.id,
-          openOrders: 0,
-          annualRevenue: 0,
-          productCount: 0,
-          orderVolume: 0
-        }
-      }));
-    }
-    
-    const analyticsData = Array.isArray(supplierAnalytics) ? supplierAnalytics :
-                         ((supplierAnalytics as any)?.data && Array.isArray((supplierAnalytics as any).data)) ? (supplierAnalytics as any).data : [];
-    
-    const combined = supplierData.map((supplier: any) => {
-      const analytics = analyticsData.find((a: SupplierAnalytics) => a.supplierId === supplier.id);
-      return {
-        ...supplier,
-        analytics: analytics || {
-          supplierId: supplier.id,
-          openOrders: 0,
-          annualRevenue: 0,
-          productCount: 0,
-          orderVolume: 0
-        }
-      };
-    });
-    
-    // Sort by order volume (sales volume) in descending order
-    return combined.sort((a: any, b: any) => (b.analytics?.orderVolume || 0) - (a.analytics?.orderVolume || 0));
-  }, [suppliers, supplierAnalytics, analyticsLoading]);
+    // Sort alphabetically by name for consistent ordering
+    return supplierData.sort((a: any, b: any) => (a.name || '').localeCompare(b.name || ''));
+  }, [suppliers]);
 
   const { data: inventoryData, isLoading: inventoryLoading } = useQuery({
     queryKey: [`/api/bulk-orders/inventory/bulk/${selectedSupplierId}`],
@@ -911,40 +872,26 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
           Lieferant für Großbestellung auswählen
         </CardTitle>
         <CardDescription>
-          Wählen Sie den Lieferanten für Ihre Großbestellung an alle Lager aus. Sortiert nach Verkaufsvolumen.
+          Wählen Sie den Lieferanten für Ihre Großbestellung aus.
         </CardDescription>
       </CardHeader>
       <CardContent>
         {suppliersLoading ? (
           <div className="space-y-2">
-            {[1, 2, 3, 4].map(i => (
-              <div key={i} className="h-20 bg-muted animate-pulse rounded" />
+            {[1, 2, 3].map(i => (
+              <div key={i} className="h-12 bg-muted animate-pulse rounded" />
             ))}
           </div>
         ) : (
           <div className="space-y-2">
-            {suppliersWithAnalytics.map((supplier: any) => (
+            {suppliersList.map((supplier: any) => (
               <Card 
                 key={supplier.id}
                 className="cursor-pointer hover:bg-accent/50 transition-colors"
                 onClick={() => handleSupplierSelect(supplier.id, supplier.name)}
               >
-                <CardContent className="p-4">
-                  <div className="flex justify-between items-center">
-                    <div className="flex-1">
-                      <h3 className="font-medium">{supplier.name}</h3>
-                      {supplier.email && (
-                        <p className="text-sm text-muted-foreground">{supplier.email}</p>
-                      )}
-                      <div className="flex gap-4 mt-2 text-xs text-muted-foreground">
-                        <span>Verkaufsvolumen: <strong className="text-foreground">€{Number(supplier.analytics?.orderVolume || 0).toLocaleString('de-DE', { minimumFractionDigits: 2 })}</strong></span>
-                        <span>Produkte: <strong className="text-foreground">{supplier.analytics?.productCount || 0}</strong></span>
-                      </div>
-                    </div>
-                    <div className="text-right text-sm text-muted-foreground">
-                      Zum Auswählen klicken →
-                    </div>
-                  </div>
+                <CardContent className="p-3">
+                  <h3 className="font-medium">{supplier.name}</h3>
                 </CardContent>
               </Card>
             ))}
