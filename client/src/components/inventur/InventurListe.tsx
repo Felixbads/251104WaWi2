@@ -93,7 +93,8 @@ export default function InventurListe() {
   });
   
   // Extrahiere die Lager aus der Antwort oder verwende leeres Array
-  const warehouses: Warehouse[] = (warehousesResponse?.data || []);
+  const warehouses: Warehouse[] = Array.isArray(warehousesResponse?.data) ? warehousesResponse.data : 
+                                  Array.isArray(warehousesResponse) ? warehousesResponse : [];
 
   // Filtere Inventuren nach ausgewähltem Lager
   const filteredInventuren = inventurDaten.filter((inventur) => {

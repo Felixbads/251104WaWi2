@@ -40,15 +40,15 @@ const SupplierSelector: React.FC<SupplierSelectorProps> = ({
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   
-  // Fetch suppliers directly from database
+  // Fetch suppliers with analytics (SORTIERT NACH VERKAUFSVOLUMEN)
   const { data: suppliersResponse, isLoading, error, refetch } = useQuery({
-    queryKey: ['/api/db-direct/suppliers'],
+    queryKey: ['/api/supplier-analytics/overview'],
     queryFn: async () => {
       try {
-        console.log("SupplierSelector: Lade Lieferanten direkt aus der Datenbank...");
+        console.log("🚀 SupplierSelector: Lade Lieferanten mit Analytics (sortiert nach Verkaufsvolumen)...");
         
-        // Direkten SQL-Endpunkt nutzen
-        const response = await fetch('/api/db-direct/suppliers', {
+        // Analytics-Endpunkt nutzen - BEREITS NACH VERKAUFSVOLUMEN SORTIERT!
+        const response = await fetch('/api/supplier-analytics/overview', {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
@@ -61,7 +61,7 @@ const SupplierSelector: React.FC<SupplierSelectorProps> = ({
         }
         
         const data = await response.json();
-        console.log("SupplierSelector: Lieferantendaten direkt aus DB geladen:", data);
+        console.log("📊 SupplierSelector: Analytics-Daten geladen (SORTIERT):", data);
         
         return data;
       } catch (error) {
@@ -71,39 +71,34 @@ const SupplierSelector: React.FC<SupplierSelectorProps> = ({
     }
   });
   
-  // Extract suppliers from response and sort by revenue (highest first)
+  // Extract suppliers from analytics response (BEREITS NACH VERKAUFSVOLUMEN SORTIERT!)
   const suppliers = React.useMemo(() => {
     if (!suppliersResponse) return [];
     
     let suppliersList = [];
     
-    // Handle direct array response
-    if (Array.isArray(suppliersResponse)) {
-      suppliersList = suppliersResponse;
-    }
-    // Handle response with rows property (from db-direct endpoint)
-    else if (suppliersResponse.rows && Array.isArray(suppliersResponse.rows)) {
-      suppliersList = suppliersResponse.rows;
-    }
-    // Handle response with data property
-    else if (suppliersResponse.data && Array.isArray(suppliersResponse.data)) {
-      suppliersList = suppliersResponse.data;
-    }
-    // Handle response with success and data properties
-    else if (suppliersResponse.success && suppliersResponse.data && Array.isArray(suppliersResponse.data)) {
-      suppliersList = suppliersResponse.data;
+    // Handle analytics response - bereits nach orderVolume DESC sortiert
+    if (suppliersResponse.success && suppliersResponse.data && Array.isArray(suppliersResponse.data)) {
+      suppliersList = suppliersResponse.data.map((analytics: any) => ({
+        id: analytics.supplierId,
+        name: analytics.supplierName,
+        // Analytics-Daten für Anzeige
+        orderVolume: analytics.orderVolume,
+        annualRevenue: analytics.annualRevenue,
+        productCount: analytics.productCount,
+        // Standard-Felder (falls verfügbar)
+        contactPerson: analytics.contactPerson || '',
+        email: analytics.email || '',
+        phone: analytics.phone || ''
+      }));
     }
     else {
-      console.warn("Unbekanntes Antwortformat für Lieferanten:", suppliersResponse);
+      console.warn("❌ Unbekanntes Analytics-Antwortformat:", suppliersResponse);
       return [];
     }
     
-    // Sort by revenue (highest first) - use annual_revenue, revenue, or fallback
-    return suppliersList.sort((a: any, b: any) => {
-      const revenueA = (a as any).annual_revenue || (a as any).revenue || 0;
-      const revenueB = (b as any).annual_revenue || (b as any).revenue || 0;
-      return revenueB - revenueA;
-    });
+    console.log(`🎯 ${suppliersList.length} Lieferanten geladen (BEREITS SORTIERT nach Verkaufsvolumen)`);
+    return suppliersList; // KEINE weitere Sortierung nötig - Backend sortiert bereits!
   }, [suppliersResponse]);
   
   // Filter suppliers based on search query
