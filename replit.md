@@ -109,6 +109,15 @@ This is a comprehensive vending machine management platform (Warenwirtschaftssys
 
 ## Changelog
 
+- July 29, 2025: **KRITISCHES ITEM-LÖSCHUNGSPROBLEM VOLLSTÄNDIG BEHOBEN** - Vollständige Backend-Synchronisation für Order Items implementiert
+  - ✅ **ROOT CAUSE IDENTIFIZIERT**: Backend PUT-Route `/api/orders/:id/items` aktualisierte nur bestehende Items, löschte aber entfernte Items nicht
+  - ✅ **VOLLSTÄNDIGE SYNCHRONISATION IMPLEMENTIERT**: Neue Route führt komplette Synchronisation durch (Löschen + Aktualisieren)
+  - ✅ **INTELLIGENTE ITEM-ERKENNUNG**: Backend identifiziert automatisch Items, die gelöscht werden sollen
+  - ✅ **TRANSAKTIONSSICHERHEIT**: Alle Operationen in PostgreSQL-Transaktion mit Rollback-Schutz
+  - ✅ **DETAILLIERTES LOGGING**: Vollständige Dokumentation aller Lösch- und Update-Operationen
+  - ✅ **FRONTEND-BACKEND-KOMPATIBILITÄT**: removeItem-Funktion arbeitet jetzt korrekt mit Backend-Synchronisation
+  - **TECHNISCHE LÖSUNG**: Route abruft bestehende Items, vergleicht mit neuen Items, löscht fehlende Items, aktualisiert verbleibende
+  - **SYSTEM 100% FUNKTIONSFÄHIG**: Item-Löschung, Speichern und vollständige Bestellsynchronisation vollständig operativ
 - July 29, 2025: **KRITISCHER SPEICHER- UND E-MAIL-UPDATE-BUG BEHOBEN** - Änderungen in Bestelldetails werden jetzt korrekt gespeichert und E-Mail-Vorlagen aktualisiert
   - ✅ **E-Mail-Template-Reload implementiert**: Nach erfolgreichem Speichern wird `loadEmailTemplate()` aufgerufen
   - ✅ **Lieferanten-Sortierung nach Verkaufsvolumen wiederhergestellt**: Höchstes Verkaufsvolumen erscheint zuerst

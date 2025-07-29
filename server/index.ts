@@ -670,13 +670,13 @@ app.get('/orders-data', (req, res) => {
     }
   });
 
-  // Bulk Update für Bestellpositionen - KRITISCHE FEHLENDE ROUTE
+  // Bulk Update für Bestellpositionen - VOLLSTÄNDIGE SYNCHRONISATION (inkl. Löschung)
   app.put('/api/orders/:id/items', async (req, res) => {
     try {
       const orderId = parseInt(req.params.id);
       const { items } = req.body;
       
-      console.log(`PUT /api/orders/${orderId}/items - Bulk-Update für ${items?.length || 0} Bestellpositionen...`);
+      console.log(`PUT /api/orders/${orderId}/items - VOLLSTÄNDIGE Synchronisation für ${items?.length || 0} Bestellpositionen...`);
       
       if (isNaN(orderId) || !items || !Array.isArray(items)) {
         return res.status(400).json({ 
@@ -690,6 +690,32 @@ app.get('/orders-data', (req, res) => {
       try {
         await client.query('BEGIN');
         
+        // 1. Alle bestehenden Items für diese Bestellung abrufen
+        const existingItemsResult = await client.query(`
+          SELECT id FROM order_items WHERE order_id = $1
+        `, [orderId]);
+        
+        const existingItemIds = existingItemsResult.rows.map(row => row.id);
+        const newItemIds = items
+          .filter(item => item.id && !isNaN(parseInt(item.id)))
+          .map(item => parseInt(item.id));
+        
+        console.log(`Bestehende Items: [${existingItemIds.join(', ')}]`);
+        console.log(`Neue Items: [${newItemIds.join(', ')}]`);
+        
+        // 2. Items identifizieren, die gelöscht werden sollen
+        const itemsToDelete = existingItemIds.filter(id => !newItemIds.includes(id));
+        
+        if (itemsToDelete.length > 0) {
+          console.log(`🗑️ Lösche ${itemsToDelete.length} Items: [${itemsToDelete.join(', ')}]`);
+          await client.query(`
+            DELETE FROM order_items 
+            WHERE id = ANY($1) AND order_id = $2
+          `, [itemsToDelete, orderId]);
+        }
+        
+        // 3. Verbleibende Items aktualisieren
+        let updatedCount = 0;
         for (const item of items) {
           const { id, quantity, unitPrice, totalPrice } = item;
           
@@ -698,7 +724,7 @@ app.get('/orders-data', (req, res) => {
             continue;
           }
           
-          await client.query(`
+          const result = await client.query(`
             UPDATE order_items 
             SET 
               quantity = $1,
@@ -714,16 +740,25 @@ app.get('/orders-data', (req, res) => {
             orderId
           ]);
           
-          console.log(`Updated item ${id}: ${quantity} @ ${unitPrice} = ${totalPrice}`);
+          if (result.rowCount > 0) {
+            console.log(`✅ Updated item ${id}: ${quantity} @ ${unitPrice} = ${totalPrice}`);
+            updatedCount++;
+          } else {
+            console.warn(`⚠️ Item ${id} not found for update`);
+          }
         }
         
         await client.query('COMMIT');
-        console.log(`Bulk-Update für Bestellung ${orderId} erfolgreich - ${items.length} Items aktualisiert`);
+        console.log(`🎉 VOLLSTÄNDIGE Synchronisation für Bestellung ${orderId} erfolgreich:`);
+        console.log(`   - ${itemsToDelete.length} Items gelöscht`);
+        console.log(`   - ${updatedCount} Items aktualisiert`);
         
         return res.json({ 
           success: true, 
-          message: `${items.length} Bestellpositionen erfolgreich aktualisiert`,
-          updatedItems: items.length
+          message: `Synchronisation erfolgreich: ${itemsToDelete.length} gelöscht, ${updatedCount} aktualisiert`,
+          deletedItems: itemsToDelete.length,
+          updatedItems: updatedCount,
+          totalItems: items.length
         });
         
       } catch (updateError) {
@@ -734,9 +769,9 @@ app.get('/orders-data', (req, res) => {
       }
       
     } catch (error) {
-      console.error('Fehler beim Bulk-Update der Bestellpositionen:', error);
+      console.error('Fehler bei der vollständigen Synchronisation der Bestellpositionen:', error);
       return res.status(500).json({ 
-        error: 'Datenbankfehler beim Bulk-Update', 
+        error: 'Datenbankfehler bei der Synchronisation', 
         message: error instanceof Error ? error.message : 'Unbekannter Fehler' 
       });
     }
