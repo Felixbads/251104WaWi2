@@ -191,9 +191,18 @@ const formatDate = (date?: Date | string) => {
 const parsePackageSize = (product: any): number => {
   if (!product) return 1;
   
-  // Priorität 1: Gebindegröße aus Einkaufsbedingungen (packagingQuantity)
-  if (product.packagingQuantity && typeof product.packagingQuantity === 'number' && product.packagingQuantity > 0) {
-    return product.packagingQuantity;
+  // Priorität 1: Gebindegröße aus Einkaufsbedingungen (packageQuantity)
+  if (product.packageQuantity && typeof product.packageQuantity === 'number' && product.packageQuantity > 0) {
+    return product.packageQuantity;
+  }
+  
+  // Priorität 2: Legacy packageSize Feld parsen (z.B. "6x0,5L", "24x330ml")
+  if (product.packageSize && typeof product.packageSize === 'string') {
+    const match = product.packageSize.match(/^(\d+)x/i);
+    if (match) {
+      const size = parseInt(match[1]);
+      if (size > 0) return size;
+    }
   }
   
   // Fallback: Direkt auf 1 setzen (Einzelstück)
