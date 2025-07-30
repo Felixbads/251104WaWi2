@@ -741,7 +741,7 @@ app.get('/orders-data', (req, res) => {
             orderId
           ]);
           
-          if (result.rowCount > 0) {
+          if ((result.rowCount ?? 0) > 0) {
             console.log(`✅ Updated item ${id}: ${quantity} @ ${unitPrice} = ${totalPrice}`);
             updatedCount++;
           } else {
@@ -856,12 +856,12 @@ app.get('/orders-data', (req, res) => {
       console.log(`E-Mail-Template für Bestellung ${orderId}: showPricesInEmail = ${showPrices}`);
       
       // Hilfsfunktion für professionelle HTML-Template-Generierung (11-Punkte-Struktur)
-      function generateComprehensiveHtmlTemplate(order, items, showPrices, orderNumber, orderDate, deliveryDate, isPickup, paymentTerms, isUrgent = false, orderType = 'Standard') {
+      const generateComprehensiveHtmlTemplate = (order: any, items: any[], showPrices: boolean, orderNumber: string, orderDate: string, deliveryDate: string, isPickup: boolean, paymentTerms: string, isUrgent: boolean = false, orderType: string = 'Standard') => {
         let totalAmount = 0;
         
         // Bestellpositionen-Tabelle erstellen
         let itemsTableRows = '';
-        items.forEach((item, index) => {
+        items.forEach((item: any, index: number) => {
           const unitPrice = parseFloat(item.unit_price || 0);
           const quantity = parseInt(item.quantity || 1);
           const itemTotal = quantity * unitPrice;
@@ -1502,7 +1502,7 @@ app.get('/orders-data', (req, res) => {
             orderId
           ]);
           
-          if (result.rowCount > 0) {
+          if ((result.rowCount ?? 0) > 0) {
             console.log(`✅ Updated item ${id}: ${quantity} @ ${unitPrice} = ${totalPrice}`);
             updatedCount++;
           } else {
