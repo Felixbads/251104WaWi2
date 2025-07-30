@@ -103,6 +103,10 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
   const [showBatchDialog, setShowBatchDialog] = useState(false);
   const [selectedItem, setSelectedItem] = useState<SimpleInventoryItem | null>(null);
   
+  // Neue State-Variablen für Gebinde-Eingabe
+  const [packageCounts, setPackageCounts] = useState<Record<number, number>>({});
+  const [individualCounts, setIndividualCounts] = useState<Record<number, number>>({});
+  
   // Vereinfachter Inventur-Hook
   const { inventoryActionMutation, updateItemMutation, isLoading } = useSimpleInventory(inventoryId);
 
@@ -180,13 +184,43 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
   const parsePackageSize = (product: SimpleInventoryItem['product']): number => {
     if (!product) return 1;
     
-    // Priorität 1: Gebindegröße aus Einkaufsbedingungen (packagingQuantity)
+    // Priorität 1: Gebindegröße aus Einkaufsbedingungen (packageQuantity)
+    if (product.packageQuantity && typeof product.packageQuantity === 'number' && product.packageQuantity > 0) {
+      return product.packageQuantity;
+    }
+    
+    // Priorität 2: Gebindegröße aus Einkaufsbedingungen (packagingQuantity - Legacy)
     if (product.packagingQuantity && typeof product.packagingQuantity === 'number' && product.packagingQuantity > 0) {
       return product.packagingQuantity;
     }
     
+    // Priorität 3: Legacy packageSize Feld parsen (z.B. "6x0,5L", "24x330ml")
+    if (product.packageSize && typeof product.packageSize === 'string') {
+      const match = product.packageSize.match(/^(\d+)x/i);
+      if (match) {
+        const size = parseInt(match[1]);
+        if (size > 0) return size;
+      }
+    }
+    
     // Fallback: Einzelstück
     return 1;
+  };
+
+  // Funktion zur Berechnung der Gesamtmenge basierend auf Gebinden und Einzelartikeln
+  const calculateTotalQuantity = (itemId: number, product?: SimpleInventoryItem['product']) => {
+    const packageCount = packageCounts[itemId] || 0;
+    const individualCount = individualCounts[itemId] || 0;
+    const packageSize = parsePackageSize(product);
+    
+    const totalFromPackages = packageCount * packageSize;
+    const total = totalFromPackages + individualCount;
+    
+    return {
+      totalFromPackages,
+      individualCount,
+      total
+    };
   };
 
   const formatDate = (date?: Date | string) => {
@@ -196,6 +230,33 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
       month: '2-digit',
       day: '2-digit',
     }).format(new Date(date));
+  };
+
+  // Hilfsfunktion um abgelaufene Chargen zu identifizieren
+  const isBatchExpired = (expiryDate?: string | null): boolean => {
+    if (!expiryDate) return false;
+    const today = new Date();
+    const expiry = new Date(expiryDate);
+    return expiry < today;
+  };
+
+  // Sortiere Chargen: aktive zuerst, dann abgelaufene
+  const sortBatches = (batches: ProductBatch[]): ProductBatch[] => {
+    return [...batches].sort((a, b) => {
+      const aExpired = isBatchExpired(a.expiryDate);
+      const bExpired = isBatchExpired(b.expiryDate);
+      
+      // Aktive Chargen zuerst
+      if (aExpired && !bExpired) return 1;
+      if (!aExpired && bExpired) return -1;
+      
+      // Innerhalb der gleichen Kategorie (aktiv/abgelaufen) nach Ablaufdatum sortieren
+      if (a.expiryDate && b.expiryDate) {
+        return new Date(a.expiryDate).getTime() - new Date(b.expiryDate).getTime();
+      }
+      
+      return 0;
+    });
   };
 
   // Toggle für erweiterte Item-Details
@@ -430,71 +491,103 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex flex-col items-end space-y-2">
-                            {packageSize > 1 ? (
-                              <div className="space-y-2 w-full max-w-[200px]">
-                                {/* Gebinde + Einzelstück Eingabe */}
-                                <div className="bg-gray-50 rounded-lg p-2 space-y-2">
-                                  <div className="flex items-center justify-between space-x-2">
-                                    <div className="flex flex-col items-center space-y-1">
-                                      <span className="text-xs font-medium text-gray-600">Gebinde</span>
-                                      <Input
-                                        type="number"
-                                        value={Math.floor(countedQty / packageSize)}
-                                        onChange={(e) => {
-                                          const packages = parseInt(e.target.value) || 0;
-                                          const remainder = countedQty % packageSize;
-                                          const total = packages * packageSize + remainder;
-                                          handleQuantityChange(item.id, total.toString());
-                                        }}
-                                        className="w-16 text-center text-sm"
-                                        min="0"
-                                        placeholder="0"
-                                      />
+                            {inventurData?.status === 'pending' || inventurData?.status === 'in_progress' || inventurData?.status === 'open' ? (
+                              packageSize > 1 ? (
+                                <div className="space-y-3 w-full max-w-[250px]">
+                                  {/* Kompakte Grid-Layout für nebeneinander liegende Eingaben */}
+                                  <div className="grid grid-cols-2 gap-2">
+                                    {/* Gebinde-Eingabe */}
+                                    <div className="space-y-1 p-2 bg-blue-50 rounded border">
+                                      <div className="text-xs font-medium text-blue-800">
+                                        Gebinde ({packageSize} Stk./Gebinde)
+                                      </div>
+                                      <div className="flex items-center space-x-1">
+                                        <Input
+                                          type="number" 
+                                          min="0"
+                                          placeholder="0"
+                                          value={packageCounts[item.id] ?? ''}
+                                          onChange={(e) => {
+                                            const count = e.target.value === '' ? 0 : Math.max(0, parseInt(e.target.value) || 0);
+                                            setPackageCounts({ ...packageCounts, [item.id]: count });
+                                            
+                                            // Automatische Berechnung der Gesamtmenge
+                                            const calculation = calculateTotalQuantity(item.id, item.product);
+                                            calculation.total = count * packageSize + (individualCounts[item.id] || 0);
+                                            setEditedCounts({ ...editedCounts, [item.id]: calculation.total });
+                                          }}
+                                          className="w-16 text-center text-sm"
+                                        />
+                                        <span className="text-xs text-muted-foreground">
+                                          = {(packageCounts[item.id] || 0) * packageSize} Stk.
+                                        </span>
+                                      </div>
                                     </div>
-                                    <div className="flex flex-col items-center">
-                                      <span className="text-xs text-muted-foreground">×{packageSize}</span>
-                                      <span className="text-lg text-muted-foreground">+</span>
-                                    </div>
-                                    <div className="flex flex-col items-center space-y-1">
-                                      <span className="text-xs font-medium text-gray-600">Einzelstück</span>
-                                      <Input
-                                        type="number"
-                                        value={countedQty % packageSize}
-                                        onChange={(e) => {
-                                          const remainder = parseInt(e.target.value) || 0;
-                                          const packages = Math.floor(countedQty / packageSize);
-                                          const total = packages * packageSize + remainder;
-                                          handleQuantityChange(item.id, total.toString());
-                                        }}
-                                        className="w-16 text-center text-sm"
-                                        min="0"
-                                        max={packageSize - 1}
-                                        placeholder="0"
-                                      />
+                                    
+                                    {/* Einzelartikel-Eingabe */}
+                                    <div className="space-y-1 p-2 bg-green-50 rounded border">
+                                      <div className="text-xs font-medium text-green-800">
+                                        Zusätzliche Einzelartikel
+                                      </div>
+                                      <div className="flex items-center space-x-1">
+                                        <Input
+                                          type="number" 
+                                          min="0"
+                                          placeholder="0"
+                                          value={individualCounts[item.id] ?? ''}
+                                          onChange={(e) => {
+                                            const count = e.target.value === '' ? 0 : Math.max(0, parseInt(e.target.value) || 0);
+                                            setIndividualCounts({ ...individualCounts, [item.id]: count });
+                                            
+                                            // Automatische Berechnung der Gesamtmenge
+                                            const calculation = calculateTotalQuantity(item.id, item.product);
+                                            calculation.total = (packageCounts[item.id] || 0) * packageSize + count;
+                                            setEditedCounts({ ...editedCounts, [item.id]: calculation.total });
+                                          }}
+                                          className="w-16 text-center text-sm"
+                                        />
+                                        <span className="text-xs text-muted-foreground">Stk.</span>
+                                      </div>
                                     </div>
                                   </div>
-                                  {/* Total Anzeige */}
-                                  <div className="border-t pt-2">
-                                    <div className="flex items-center justify-center space-x-2">
-                                      <span className="text-xs font-medium text-gray-600">Total:</span>
-                                      <span className="text-sm font-bold text-blue-600">
-                                        {countedQty} Stück
-                                      </span>
-                                    </div>
+                                  
+                                  {/* Kompakte Gesamtmenge */}
+                                  <div className="flex items-center justify-center space-x-2 p-2 bg-gray-50 rounded border">
+                                    <span className="text-xs text-gray-600">Gesamt:</span>
+                                    <Input
+                                      type="number" 
+                                      min="0"
+                                      value={editedCounts[item.id] !== undefined ? editedCounts[item.id] : countedQty ?? ''}
+                                      onChange={(e) => {
+                                        const count = e.target.value === '' ? 0 : Math.max(0, parseInt(e.target.value) || 0);
+                                        setEditedCounts({ ...editedCounts, [item.id]: count });
+                                      }}
+                                      onBlur={() => {
+                                        if (editedCounts[item.id] !== undefined) {
+                                          handleQuantityChange(item.id, editedCounts[item.id].toString());
+                                        }
+                                      }}
+                                      className="w-20 text-center font-bold text-sm"
+                                    />
+                                    <span className="text-xs text-gray-600">{item.product?.units || 'Stk.'}</span>
                                   </div>
                                 </div>
-                              </div>
+                              ) : (
+                                <div className="space-y-1">
+                                  <span className="text-xs font-medium text-gray-600">Anzahl</span>
+                                  <Input
+                                    type="number"
+                                    value={currentCount.toString()}
+                                    onChange={(e) => handleQuantityChange(item.id, e.target.value)}
+                                    className="w-20 text-center"
+                                    min="0"
+                                    placeholder="0"
+                                  />
+                                </div>
+                              )
                             ) : (
-                              <div className="space-y-1">
-                                <span className="text-xs font-medium text-gray-600">Anzahl</span>
-                                <Input
-                                  type="number"
-                                  value={currentCount.toString()}
-                                  onChange={(e) => handleQuantityChange(item.id, e.target.value)}
-                                  className="w-20 text-center"
-                                  min="0"
-                                  placeholder="0"
-                                />
+                              <div className="text-center">
+                                <span className="text-sm font-medium">{countedQty ?? 'Nicht gezählt'}</span>
                               </div>
                             )}
                           </div>
@@ -553,24 +646,42 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
                               
                               {productBatches && productBatches.length > 0 ? (
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                                  {productBatches.map((batch) => (
-                                    <div key={batch.id} className="border rounded-lg p-3 bg-white">
-                                      <div className="flex justify-between items-start mb-2">
-                                        <span className="font-mono text-sm font-medium">
-                                          {batch.batchNumber}
-                                        </span>
-                                        <Badge variant="outline" className="text-xs">
-                                          {batch.currentQuantity} Stück
-                                        </Badge>
+                                  {sortBatches(productBatches).map((batch) => {
+                                    const isExpired = isBatchExpired(batch.expiryDate);
+                                    return (
+                                      <div 
+                                        key={batch.id} 
+                                        className={`border rounded-lg p-3 transition-opacity ${
+                                          isExpired 
+                                            ? 'bg-gray-50 opacity-50 border-gray-200' 
+                                            : 'bg-white border-gray-300'
+                                        }`}
+                                      >
+                                        <div className="flex justify-between items-start mb-2">
+                                          <span className={`font-mono text-sm font-medium ${
+                                            isExpired ? 'text-gray-400' : 'text-gray-900'
+                                          }`}>
+                                            {batch.batchNumber}
+                                            {isExpired && <span className="ml-2 text-red-500 text-xs">(Abgelaufen)</span>}
+                                          </span>
+                                          <Badge 
+                                            variant={isExpired ? "secondary" : "outline"} 
+                                            className={`text-xs ${isExpired ? 'bg-gray-200 text-gray-500' : ''}`}
+                                          >
+                                            {batch.currentQuantity} Stück
+                                          </Badge>
+                                        </div>
+                                        <div className={`text-sm ${isExpired ? 'text-gray-400' : 'text-muted-foreground'}`}>
+                                          <div className={isExpired ? 'text-red-400' : ''}>
+                                            MHD: {batch.expiryDate ? formatDate(batch.expiryDate) : 'Kein MHD'}
+                                          </div>
+                                          {batch.notes && (
+                                            <div className="mt-1 text-xs">{batch.notes}</div>
+                                          )}
+                                        </div>
                                       </div>
-                                      <div className="text-sm text-muted-foreground">
-                                        <div>MHD: {batch.expiryDate ? formatDate(batch.expiryDate) : 'Kein MHD'}</div>
-                                        {batch.notes && (
-                                          <div className="mt-1 text-xs">{batch.notes}</div>
-                                        )}
-                                      </div>
-                                    </div>
-                                  ))}
+                                    );
+                                  })}
                                 </div>
                               ) : (
                                 <div className="text-center py-4 text-muted-foreground">

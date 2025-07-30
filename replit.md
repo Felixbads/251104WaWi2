@@ -6,6 +6,15 @@ This is a comprehensive vending machine management platform (Warenwirtschaftssys
 
 ## Recent Changes
 
+### July 30, 2025 - Comprehensive Package-Based Inventory System Implementation
+✓ Fixed critical parsePackageSize function bug - now correctly recognizes packageQuantity, packagingQuantity, and packageSize fields
+✓ Implemented separate input fields for package quantities (Gebinde) and individual items (Einzelstück) with automatic total calculation
+✓ Enhanced inventory counting interface with visual feedback: blue for packages, green for individual items, gray for totals
+✓ Added automated batch sorting and styling for expired batches - expired batches are grayed out and moved to the back
+✓ Integrated purchasing conditions package data into inventory counting workflow
+✓ System now supports complete package handling: X Gebinde × Y Stück/Gebinde + Z Einzelstück = Total automatically calculated
+✓ Enhanced user experience with compact grid layout and clear visual distinction between package types
+
 ### July 30, 2025 - Production Deployment Fix
 ✓ Resolved internal server error during deployment
 ✓ Fixed TypeScript compilation errors in server/index.ts:
