@@ -1022,8 +1022,8 @@ app.get('/orders-data', (req, res) => {
             </table>
 
             <!-- ADRESSEN -->
-            <p style="margin: 20px 0; font-size: 10pt;"><strong>Rechnungsadresse:</strong> Elbsandstein Proviant & Quartier GmbH | Am Bahnhof 5 | 01814 Bad Schandau</p>
-            <p style="margin: 0 0 30px 0; font-size: 10pt;"><strong>Lieferadresse:</strong> ${isPickup ? 'Abholung durch Auftraggeber' : 'Elbsandstein Proviant & Quartier GmbH | Am Bahnhof 5 | 01814 Bad Schandau'}</p>
+            <p style="margin: 20px 0; font-size: 10pt;"><strong>Rechnungsadresse:</strong> Elbsandstein Proviant & Quartier GmbH | Seifhennersdorfer Str. 14 | 01099 Dresden</p>
+            <p style="margin: 0 0 30px 0; font-size: 10pt;"><strong>Lieferadresse:</strong> ${isPickup ? 'Abholung durch Auftraggeber' : 'Elbsandstein Proviant & Quartier GmbH | Seifhennersdorfer Str. 14 | 01099 Dresden'}</p>
 
             <!-- BESTELLPOSITIONEN TABELLE -->
             <table style="width: 100%; border-collapse: collapse; margin: 30px 0;">

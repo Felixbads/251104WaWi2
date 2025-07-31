@@ -11,7 +11,8 @@ import {
   inventoryMovements,
   users,
   inventoryItems,
-  productBatches
+  productBatches,
+  purchaseConditions
 } from '../../shared/schema';
 import { format, addWeeks } from 'date-fns';
 import { createAndSendOrderEmail } from '../utils/orderEmailUtils';
@@ -1536,6 +1537,35 @@ router.get('/orders/:id/email-template', async (req: Request, res: Response) => 
       }
     }
 
+    // Bestellpositionen mit supplier_article_number aus purchase_conditions holen
+    const { createOrderItemsTable } = await import('../utils/orderEmailUtils');
+    const items = await db
+      .select({
+        id: orderItems.id,
+        orderId: orderItems.orderId,
+        productId: orderItems.productId,
+        productName: orderItems.productName,
+        quantity: orderItems.quantity,
+        unit: orderItems.unit,
+        unitPrice: orderItems.unitPrice,
+        totalPrice: orderItems.totalPrice,
+        sku: orderItems.sku,
+        supplierSku: orderItems.supplierSku,
+        supplier_article_number: purchaseConditions.supplierArticleNumber,
+        vatRate: orderItems.vatRate
+      })
+      .from(orderItems)
+      .leftJoin(purchaseConditions, eq(orderItems.productId, purchaseConditions.productId))
+      .where(eq(orderItems.orderId, orderId));
+
+    console.log(`[email-template] ${items.length} Bestellpositionen geladen`);
+    for (const item of items) {
+      console.log(`[email-template] Produkt: ${item.productName}, supplier_article_number: ${item.supplier_article_number}`);
+    }
+
+    // HTML-Tabelle für Bestellpositionen erstellen
+    const itemsTableHtml = createOrderItemsTable(items);
+
     // E-Mail-Vorlage erstellen mit neuer Utility-Funktion
     const emailTemplate = createOrderEmailTemplate(order, supplier || {}, templateType);
 
@@ -1544,19 +1574,19 @@ router.get('/orders/:id/email-template', async (req: Request, res: Response) => 
     switch (templateType) {
       case "urgent":
       case "dringend":
-        subject = `DRINGEND: Bestellung ${order.orderNumber} - ${order.supplierName || supplier?.name || 'Unbekannt'}`;
+        subject = `DRINGEND: Bestellung ${order.orderNumber} - Elbsandstein Proviant & Quartier GmbH`;
         break;
       case "reorder":
       case "nachbestellung":
-        subject = `Nachbestellung ${order.orderNumber} - ${order.supplierName || supplier?.name || 'Unbekannt'}`;
+        subject = `Nachbestellung ${order.orderNumber} - Elbsandstein Proviant & Quartier GmbH`;
         break;
       default:
-        subject = `Bestellung ${order.orderNumber} - ${order.supplierName || supplier?.name || 'Unbekannt'}`;
+        subject = `Bestellung ${order.orderNumber} - Elbsandstein Proviant & Quartier GmbH`;
     }
 
     res.json({
       subject,
-      content: emailTemplate.replace('{{orderItems}}', 'ARTIKELLISTE WIRD AUTOMATISCH EINGEFÜGT')
+      content: emailTemplate.replace('{{orderItems}}', itemsTableHtml)
     });
   } catch (error) {
     console.error("Fehler beim Generieren der E-Mail-Vorlage:", error);
