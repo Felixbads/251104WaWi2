@@ -4851,6 +4851,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const { productId, receivedQuantity, expiryDate } = item;
           
           if (receivedQuantity > 0) {
+            // Default expiry date: 1 year from now if not provided
+            const finalExpiryDate = expiryDate || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+            
             // Create product batch with expiry date
             await client.query(`
               INSERT INTO product_batches (
@@ -4862,7 +4865,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               warehouseId, 
               receivedQuantity,    // initial_quantity
               receivedQuantity,    // current_quantity (initial gleich current)
-              expiryDate || null,
+              finalExpiryDate,     // expiry_date (never null)
               `BATCH-${Date.now()}-${productId}`,
             ]);
             
