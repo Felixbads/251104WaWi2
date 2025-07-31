@@ -652,30 +652,21 @@ const BestellungV2: React.FC = () => {
       console.log("✅ Goods receipt mutation input:", goodsReceiptData);
       console.log("✅ Received items:", receivedItems);
       
-      // Transform the data to match the goods-receipt-batches API expectations
-      const transformedItems = [];
+      // Transform data for the /receipt API endpoint (expects receivedItems format)
+      const transformedItems = receivedItems
+        .filter((item: any) => item.receivedQuantity > 0)
+        .map((item: any) => ({
+          productId: item.productId || item.product_id,
+          orderItemId: item.orderItemId || item.id, 
+          receivedQuantity: item.receivedQuantity,
+          expiryDate: item.expiryDate || null,
+          batchNumber: item.batchNumber || null
+        }));
       
-      for (const item of receivedItems) {
-        if (item.receivedQuantity > 0) {
-          transformedItems.push({
-            id: item.orderItemId, // Verwende order_item_id statt productId
-            deliveredQuantity: item.receivedQuantity, // deliveredQuantity statt receivedQuantity
-            expiryDate: item.expiryDate || null,
-            batchNumber: item.batchNumber || null
-          });
-        }
-      }
+      console.log("✅ Transformed receivedItems for /receipt API:", transformedItems);
       
-      const transformedData = {
-        deliveryDate: new Date().toISOString(), // Aktuelles Datum als Lieferdatum
-        notes: 'Wareneingang über Frontend bestätigt',
-        items: transformedItems // Backend erwartet 'items' nicht 'receivedItems'
-      };
-      
-      console.log("✅ Transformed data for goods-receipt-batches API:", transformedData);
-      
-      // KRITISCHER FIX: Verwende goods-receipt-batches Endpunkt für MHD-Tracking
-      return apiRequest(`/api/orders/${orderId}/goods-receipt-batches`, transformedData, 'post');
+      // KORRIGIERT: Verwende korrekten /receipt Endpunkt der tatsächlich existiert
+      return apiRequest(`/api/orders/${orderId}/receipt`, { receivedItems: transformedItems }, 'post');
     },
     onSuccess: (data, variables) => {
       toast({
