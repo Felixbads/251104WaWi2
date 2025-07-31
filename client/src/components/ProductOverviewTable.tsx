@@ -33,9 +33,9 @@ interface ProductOverviewTableProps {
 export default function ProductOverviewTable({ supplierId, supplierName }: ProductOverviewTableProps) {
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Fetch products for this supplier
+  // Fetch products with business data for this supplier
   const { data: productsResponse, isLoading, error } = useQuery({
-    queryKey: ['/api/products', { supplierId }],
+    queryKey: [`/api/suppliers/${supplierId}/products-with-business-data`],
     staleTime: 1000 * 60, // 1 minute
   });
 
@@ -175,7 +175,7 @@ export default function ProductOverviewTable({ supplierId, supplierName }: Produ
                           <span className="font-medium">
                             {formatPrice(product.purchasePrice)}
                           </span>
-                          {(product as any).hasRealCosts && (
+                          {product.hasRealCosts && (
                             <span className="text-xs text-green-600">
                               ✓ Echte Kosten
                             </span>
@@ -186,15 +186,15 @@ export default function ProductOverviewTable({ supplierId, supplierName }: Produ
                       )}
                     </TableCell>
                     <TableCell className="text-right">
-                      {(product as any).hasRealCosts && (product as any).profitMargin !== undefined ? (
+                      {product.hasRealCosts && product.profitMargin !== undefined ? (
                         <div className="flex flex-col items-end">
                           <span className={`font-medium text-sm ${
-                            (product as any).profitMargin > 20 ? 'text-green-600' : 
-                            (product as any).profitMargin > 10 ? 'text-yellow-600' : 'text-red-600'
+                            product.profitMargin > 20 ? 'text-green-600' : 
+                            product.profitMargin > 10 ? 'text-yellow-600' : 'text-red-600'
                           }`}>
-                            {(product as any).profitMargin.toFixed(1)}%
+                            {product.profitMargin.toFixed(1)}%
                           </span>
-                          {(product as any).discountApplied && (
+                          {product.discountApplied && (
                             <span className="text-xs text-blue-600">
                               🏷️ Rabatt
                             </span>
@@ -205,9 +205,9 @@ export default function ProductOverviewTable({ supplierId, supplierName }: Produ
                       )}
                     </TableCell>
                     <TableCell className="text-right">
-                      {(product as any).hasRealCosts && (product as any).profitPerUnit > 0 ? (
+                      {product.hasRealCosts && product.profitPerUnit > 0 ? (
                         <span className="font-medium text-sm text-green-600">
-                          +{formatPrice((product as any).profitPerUnit)}
+                          +{formatPrice(product.profitPerUnit)}
                         </span>
                       ) : (
                         <span className="text-muted-foreground text-sm">–</span>

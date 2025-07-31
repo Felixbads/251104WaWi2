@@ -2121,6 +2121,132 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // GET /suppliers/:id/products-with-business-data - Produkte mit Geschäftskennzahlen für einen Lieferanten
+  app.get(`${API_PREFIX}/suppliers/:id/products-with-business-data`, async (req: Request, res: Response) => {
+    try {
+      const supplierId = parseInt(req.params.id);
+      if (isNaN(supplierId)) {
+        return res.status(400).json({ error: 'Invalid supplier ID' });
+      }
+
+      // Get products with purchase conditions and calculate business metrics
+      const result = await rawDb.query(`
+        SELECT 
+          p.id,
+          p.vendon_id,
+          p.product_name,
+          p.sku,
+          p.barcode,
+          p.price as sale_price,
+          p.vat,
+          p.status,
+          p.category,
+          p.short_description,
+          p.description,
+          p.package_size,
+          p.min_order_quantity,
+          p.shelf_life_days,
+          p.photos,
+          p.created_at,
+          p.updated_at,
+          
+          -- Purchase conditions data
+          pc.unit_price as purchase_price,
+          pc.tax_rate,
+          pc.gross_price,
+          pc.min_quantity,
+          pc.packaging_unit,
+          pc.packaging_quantity,
+          pc.delivery_time,
+          pc.valid_from,
+          pc.valid_to,
+          pc.is_preferred,
+          pc.notes,
+          pc.lead_time,
+          pc.packaging_type,
+          pc.min_quantity_unit,
+          pc.deposit_per_unit,
+          pc.supplier_article_number,
+          
+          -- Business calculations
+          CASE 
+            WHEN pc.unit_price IS NOT NULL THEN true 
+            ELSE false 
+          END as has_real_costs,
+          
+          CASE 
+            WHEN pc.unit_price IS NOT NULL AND p.price > 0 THEN 
+              ROUND(((p.price - pc.unit_price) / p.price * 100)::numeric, 2)
+            ELSE NULL 
+          END as profit_margin,
+          
+          CASE 
+            WHEN pc.unit_price IS NOT NULL AND p.price > 0 THEN 
+              ROUND((p.price - pc.unit_price)::numeric, 2)
+            ELSE NULL 
+          END as profit_per_unit,
+          
+          CASE 
+            WHEN sd.discount_value IS NOT NULL THEN true 
+            ELSE false 
+          END as discount_applied
+          
+        FROM products p
+        LEFT JOIN purchase_conditions pc ON p.id = pc.product_id AND pc.supplier_id = $1
+        LEFT JOIN supplier_discounts sd ON sd.supplier_id = $1 AND sd.product_id = p.id
+        WHERE pc.supplier_id = $1
+          AND p.status = 'active'
+        ORDER BY p.product_name ASC
+      `, [supplierId]);
+
+      // Transform the data to match frontend expectations
+      const products = result.rows.map(row => ({
+        id: row.id,
+        vendon_id: row.vendon_id,
+        product_name: row.product_name,
+        productName: row.product_name,
+        name: row.product_name,
+        sku: row.sku,
+        barcode: row.barcode,
+        price: row.sale_price,
+        vat: row.vat,
+        status: row.status,
+        category: row.category,
+        short_description: row.short_description,
+        shortDescription: row.short_description,
+        description: row.description,
+        package_size: row.package_size,
+        packageSize: row.package_size,
+        min_order_quantity: row.min_order_quantity,
+        shelf_life_days: row.shelf_life_days,
+        photos: row.photos,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+        
+        // Purchase conditions
+        purchasePrice: row.purchase_price || 0,
+        depositPerUnit: row.deposit_per_unit || 0,
+        packaging_unit: row.packaging_unit,
+        packaging_quantity: row.packaging_quantity,
+        supplier_article_number: row.supplier_article_number,
+        
+        // Business metrics
+        hasRealCosts: row.has_real_costs,
+        profitMargin: row.profit_margin,
+        profitPerUnit: row.profit_per_unit,
+        discountApplied: row.discount_applied
+      }));
+
+      res.json(products);
+    } catch (error) {
+      console.error(`Error fetching supplier products with business data:`, error);
+      res.status(500).json({ 
+        error: 'Failed to fetch supplier products with business data',
+        details: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+
   // GET /supplier-analytics/overview - Analytics für alle Lieferanten (CACHE-OPTIMIERT)
   app.get(`${API_PREFIX}/supplier-analytics/overview`, async (_req: Request, res: Response) => {
     try {
