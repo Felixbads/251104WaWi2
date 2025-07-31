@@ -2025,7 +2025,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const orderStatsResult = await rawDb.query(`
         SELECT 
           COUNT(*) as total_orders,
-          COALESCE(SUM(total_net), 0) as total_revenue,
+          COALESCE(SUM(total_amount), 0) as total_revenue,
           MAX(order_date) as last_order_date,
           COUNT(CASE WHEN status = 'open' THEN 1 END) as open_orders
         FROM orders 
@@ -2043,7 +2043,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const monthlyRevenueResult = await rawDb.query(`
         SELECT 
           DATE_TRUNC('month', order_date) as month,
-          COALESCE(SUM(total_net), 0) as revenue,
+          COALESCE(SUM(total_amount), 0) as revenue,
           COUNT(*) as order_count
         FROM orders 
         WHERE supplier_id = $1 
@@ -2069,38 +2069,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
           order_number, 
           order_date, 
           status,
-          total_net,
-          total_gross
+          total_amount,
+          vat_amount
         FROM orders 
         WHERE supplier_id = $1
         ORDER BY order_date DESC
         LIMIT 10
       `, [supplierId]);
 
+      // Transform to expected frontend structure
       const dashboardData = {
-        supplierId,
-        supplierName: supplier.name,
-        contactPerson: supplier.contact_person,
-        email: supplier.email,
-        phone: supplier.phone,
-        orderVolume: parseInt(orderStats.total_orders) || 0,
-        totalRevenue: parseFloat(orderStats.total_revenue) || 0,
-        lastOrderDate: orderStats.last_order_date,
-        openOrders: parseInt(orderStats.open_orders) || 0,
-        productCount,
-        monthlyRevenue: monthlyRevenueResult.rows.map(row => ({
-          month: row.month,
+        overview: {
+          totalProducts: productCount,
+          activeProducts: productCount,
+          totalOrders: parseInt(orderStats.total_orders) || 0,
+          openOrders: parseInt(orderStats.open_orders) || 0,
+          totalRevenue: parseFloat(orderStats.total_revenue) || 0,
+          monthlyRevenue: monthlyRevenueResult.rows.length > 0 ? parseFloat(monthlyRevenueResult.rows[0].revenue) || 0 : 0,
+          lastOrderDate: orderStats.last_order_date,
+        },
+        inventory: [], // Will be populated by separate query if needed
+        salesData: monthlyRevenueResult.rows.map(row => ({
+          date: row.month,
           revenue: parseFloat(row.revenue) || 0,
-          orderCount: parseInt(row.order_count) || 0
+          orders: parseInt(row.order_count) || 0,
+          products: 0
         })),
+        topLocations: [], // Will be populated by separate query if needed
+        topProducts: [], // Will be populated by separate query if needed
         recentOrders: recentOrdersResult.rows.map(row => ({
           id: row.id,
           orderNumber: row.order_number,
           orderDate: row.order_date,
           status: row.status,
-          totalNet: parseFloat(row.total_net) || 0,
-          totalGross: parseFloat(row.total_gross) || 0
-        }))
+          totalAmount: parseFloat(row.total_amount) || 0,
+          vatAmount: parseFloat(row.vat_amount) || 0
+        })),
+        // Additional supplier info
+        supplierId,
+        supplierName: supplier.name,
+        contactPerson: supplier.contact_person,
+        email: supplier.email,
+        phone: supplier.phone
       };
 
       console.log(`[SUPPLIER-ANALYTICS-ROUTES] Returning dashboard data for supplier ${supplierId}: ${orderStats.total_orders} orders, €${orderStats.total_revenue} revenue`);

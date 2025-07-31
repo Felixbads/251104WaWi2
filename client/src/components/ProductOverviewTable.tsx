@@ -33,13 +33,22 @@ interface ProductOverviewTableProps {
 export default function ProductOverviewTable({ supplierId, supplierName }: ProductOverviewTableProps) {
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Fetch products using the fixed API
+  // Fetch products for this supplier
   const { data: productsResponse, isLoading, error } = useQuery({
-    queryKey: ['supplier-products-fixed', supplierId],
-    queryFn: () => fetch(`/api/suppliers/${supplierId}/products-fixed`).then(res => res.json())
+    queryKey: ['/api/products', { supplierId }],
+    staleTime: 1000 * 60, // 1 minute
   });
 
-  const products: Product[] = productsResponse?.data || [];
+  // Extract products from response (handle multiple possible formats)
+  const products: Product[] = (() => {
+    if (!productsResponse) return [];
+    if (Array.isArray(productsResponse)) return productsResponse;
+    if (productsResponse && typeof productsResponse === 'object') {
+      if (Array.isArray((productsResponse as any).data)) return (productsResponse as any).data;
+      if (Array.isArray((productsResponse as any).products)) return (productsResponse as any).products;
+    }
+    return [];
+  })();
 
   // Filter products based on search term
   const filteredProducts = products.filter(product =>
@@ -166,7 +175,7 @@ export default function ProductOverviewTable({ supplierId, supplierName }: Produ
                           <span className="font-medium">
                             {formatPrice(product.purchasePrice)}
                           </span>
-                          {product.hasRealCosts && (
+                          {(product as any).hasRealCosts && (
                             <span className="text-xs text-green-600">
                               ✓ Echte Kosten
                             </span>
@@ -177,15 +186,15 @@ export default function ProductOverviewTable({ supplierId, supplierName }: Produ
                       )}
                     </TableCell>
                     <TableCell className="text-right">
-                      {product.hasRealCosts && product.profitMargin !== undefined ? (
+                      {(product as any).hasRealCosts && (product as any).profitMargin !== undefined ? (
                         <div className="flex flex-col items-end">
                           <span className={`font-medium text-sm ${
-                            product.profitMargin > 20 ? 'text-green-600' : 
-                            product.profitMargin > 10 ? 'text-yellow-600' : 'text-red-600'
+                            (product as any).profitMargin > 20 ? 'text-green-600' : 
+                            (product as any).profitMargin > 10 ? 'text-yellow-600' : 'text-red-600'
                           }`}>
-                            {product.profitMargin.toFixed(1)}%
+                            {(product as any).profitMargin.toFixed(1)}%
                           </span>
-                          {product.discountApplied && (
+                          {(product as any).discountApplied && (
                             <span className="text-xs text-blue-600">
                               🏷️ Rabatt
                             </span>
@@ -196,9 +205,9 @@ export default function ProductOverviewTable({ supplierId, supplierName }: Produ
                       )}
                     </TableCell>
                     <TableCell className="text-right">
-                      {product.hasRealCosts && product.profitPerUnit > 0 ? (
+                      {(product as any).hasRealCosts && (product as any).profitPerUnit > 0 ? (
                         <span className="font-medium text-sm text-green-600">
-                          +{formatPrice(product.profitPerUnit)}
+                          +{formatPrice((product as any).profitPerUnit)}
                         </span>
                       ) : (
                         <span className="text-muted-foreground text-sm">–</span>

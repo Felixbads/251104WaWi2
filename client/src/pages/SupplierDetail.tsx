@@ -1467,7 +1467,7 @@ export default function SupplierDetail() {
       <div>
         <h1 className="text-2xl font-bold">{supplier.name}</h1>
         <div className="text-muted-foreground flex items-center gap-2">
-          <span>Lieferantendetails</span>
+          <span>{supplier.contactPerson ? `Kontakt: ${supplier.contactPerson}` : 'Lieferant'}</span>
           {getStatusBadge(supplier.status || "ACTIVE")}
         </div>
       </div>
