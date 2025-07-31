@@ -4741,7 +4741,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       query += ` ORDER BY r.datetime DESC`;
       
-      const result = await pool.query(query, params);
+      const result = await rawDb.query(query, params);
       
       // Excel-Export mit xlsx
       const XLSX = require('xlsx');

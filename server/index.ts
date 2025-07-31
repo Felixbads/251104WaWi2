@@ -461,7 +461,10 @@ app.get('/orders-data', (req, res) => {
     } catch (error) {
       console.error('Error loading order:', error);
       res.setHeader('Content-Type', 'application/json');
-      res.status(500).json({ error: 'Database error', details: error.message });
+      res.status(500).json({ 
+        error: 'Database error', 
+        details: error instanceof Error ? error.message : String(error) 
+      });
     }
   });
 
