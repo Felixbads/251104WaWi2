@@ -45,7 +45,56 @@ router.get('/dashboard/:supplierId', async (req, res) => {
       ORDER BY month DESC
     `;
     
+    // Inventory data per warehouse
+    const inventoryQuery = `
+      SELECT 
+        p.id as product_id,
+        p.product_name,
+        p.sku,
+        w.id as warehouse_id,
+        w.name as warehouse_name,
+        w.location,
+        COALESCE(ii.quantity, 0) as stock,
+        COALESCE(ii.min_stock_level, 0) as reorder_level,
+        CASE 
+          WHEN COALESCE(ii.quantity, 0) <= COALESCE(ii.min_stock_level, 0) * 0.5 THEN 'critical'
+          WHEN COALESCE(ii.quantity, 0) <= COALESCE(ii.min_stock_level, 0) THEN 'warning'
+          ELSE 'good'
+        END as status
+      FROM products p
+      CROSS JOIN warehouses w
+      LEFT JOIN inventory_items ii ON ii.product_id = p.id AND ii.warehouse_id = w.id
+      WHERE p.supplier_id = $1 AND w.status = 'active'
+      ORDER BY p.product_name, w.name
+    `;
+    
+    // Top locations by revenue
+    const topLocationsQuery = `
+      SELECT 
+        m.id as location_id,
+        m.machine_name as location_name,
+        SUM(t.price) as revenue,
+        COUNT(t.id) as orders,
+        (SUM(t.price) * 100.0 / NULLIF((
+          SELECT SUM(t2.price) FROM transactions t2 
+          WHERE t2.product_name IN (
+            SELECT p2.product_name FROM products p2 WHERE p2.supplier_id = $1
+          ) AND t2.datetime >= NOW() - INTERVAL '3 months'
+        ), 0)) as percentage
+      FROM machines m
+      INNER JOIN transactions t ON t.machine_id = m.id
+      WHERE t.product_name IN (
+        SELECT p.product_name FROM products p WHERE p.supplier_id = $1
+      ) AND t.datetime >= NOW() - INTERVAL '3 months'
+      GROUP BY m.id, m.machine_name
+      HAVING COUNT(t.id) > 0
+      ORDER BY revenue DESC
+      LIMIT 10
+    `;
+    
     const monthlyResult = await rawDb.query(monthlyRevenueQuery, [supplierId]);
+    const inventoryResult = await rawDb.query(inventoryQuery, [supplierId]);
+    const topLocationsResult = await rawDb.query(topLocationsQuery, [supplierId]);
     
     // Top-Produkte Performance  
     const productsQuery = `
@@ -80,11 +129,46 @@ router.get('/dashboard/:supplierId', async (req, res) => {
         avg_order_value: 0,
         products_sold: 0
       },
-      monthlyRevenue: monthlyResult.rows.map(row => ({
-        month: row.month,
+      salesData: monthlyResult.rows.map(row => ({
+        date: row.month ? new Date(row.month).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
         revenue: parseFloat(row.revenue) || 0,
         orders: parseInt(row.orders) || 0,
-        avgOrderValue: parseFloat(row.avg_order_value) || 0
+        products: 1 // Simplified for chart
+      })),
+      inventory: inventoryResult.rows.reduce((acc, row) => {
+        let product = acc.find(p => p.productId === row.product_id);
+        if (!product) {
+          product = {
+            productId: row.product_id,
+            productName: row.product_name,
+            sku: row.sku || '',
+            warehouses: [],
+            totalStock: 0,
+            averageStock: 0
+          };
+          acc.push(product);
+        }
+        
+        product.warehouses.push({
+          warehouseId: row.warehouse_id,
+          warehouseName: row.warehouse_name,
+          location: row.location || '',
+          stock: parseInt(row.stock) || 0,
+          reorderLevel: parseInt(row.reorder_level) || 0,
+          status: row.status
+        });
+        
+        product.totalStock += parseInt(row.stock) || 0;
+        product.averageStock = Math.round(product.totalStock / product.warehouses.length);
+        
+        return acc;
+      }, []),
+      topLocations: topLocationsResult.rows.map(row => ({
+        locationId: row.location_id,
+        locationName: row.location_name,
+        revenue: parseFloat(row.revenue) || 0,
+        orders: parseInt(row.orders) || 0,
+        percentage: parseFloat(row.percentage) || 0
       })),
       productPerformance: productsResult.rows.map(row => ({
         productId: row.product_id,

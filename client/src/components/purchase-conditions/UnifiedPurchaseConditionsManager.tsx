@@ -80,12 +80,6 @@ interface PurchaseCondition {
   notes?: string;
   lead_time?: number;
   delivery_time?: string;
-  discount_type?: string;
-  discount_value?: number;
-  discount_min_quantity?: number;
-  discount_description?: string;
-  discount_valid_from?: string;
-  discount_valid_to?: string;
   created_at: string;
   updated_at: string;
   supplier_article_number?: string; // Neue Lieferanten-Artikelnummer
@@ -108,12 +102,6 @@ interface FormData {
   leadTime: number;
   deliveryTime: string;
   supplierArticleNumber: string; // Neue Lieferanten-Artikelnummer
-  discount_type: string;
-  discount_value: number;
-  discount_min_quantity: number;
-  discount_description: string;
-  discount_valid_from: string;
-  discount_valid_to: string;
 }
 
 export default function UnifiedPurchaseConditionsManager({ 
@@ -148,13 +136,7 @@ export default function UnifiedPurchaseConditionsManager({
     notes: '',
     leadTime: 3,
     deliveryTime: '',
-    supplierArticleNumber: '', // Neue Lieferanten-Artikelnummer
-    discount_type: '',
-    discount_value: 0,
-    discount_min_quantity: 0,
-    discount_description: '',
-    discount_valid_from: '',
-    discount_valid_to: ''
+    supplierArticleNumber: '' // Neue Lieferanten-Artikelnummer
   });
 
   // API-Endpunkt basierend auf Modus
@@ -455,10 +437,10 @@ export default function UnifiedPurchaseConditionsManager({
   const stats = {
     totalConditions: conditions.length,
     averagePrice: conditions.length > 0 ? 
-      conditions.reduce((sum, c) => sum + (c.unit_price || c.unitPrice || 0), 0) / conditions.length : 0,
+      conditions.reduce((sum: number, c: PurchaseCondition) => sum + (c.unit_price || 0), 0) / conditions.length : 0,
     bestPrice: conditions.length > 0 ? 
-      Math.min(...conditions.map(c => c.unit_price || c.unitPrice || 0)) : 0,
-    preferredConditions: conditions.filter(c => c.is_preferred || c.isPreferred).length
+      Math.min(...conditions.map((c: PurchaseCondition) => c.unit_price || 0)) : 0,
+    preferredConditions: conditions.filter((c: PurchaseCondition) => c.is_preferred).length
   };
 
   if (isLoading) {
@@ -603,7 +585,6 @@ export default function UnifiedPurchaseConditionsManager({
                   <TableHead>Pfand</TableHead>
                   <TableHead>Mindestmenge</TableHead>
                   <TableHead>Gebinde</TableHead>
-                  <TableHead>Rabatt</TableHead>
                   <TableHead>Gültig bis</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Aktionen</TableHead>
@@ -644,14 +625,6 @@ export default function UnifiedPurchaseConditionsManager({
                     <TableCell>
                       {condition.packaging_unit && condition.packaging_quantity ? 
                         `${condition.packaging_quantity} ${condition.packaging_unit}` : '-'}
-                    </TableCell>
-                    <TableCell>
-                      {condition.discount_type ? (
-                        <div className="text-xs">
-                          <div>{condition.discount_type}</div>
-                          <div className="text-gray-500">{condition.discount_value}%</div>
-                        </div>
-                      ) : '-'}
                     </TableCell>
                     <TableCell>
                       {formatDate(condition.valid_to)}

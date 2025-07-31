@@ -1248,9 +1248,9 @@ app.get('/orders-data', (req, res) => {
     }
   });
 
-  // NEUE PRODUKTLISTEN-API FÜR KOREKTE NAMEN
+  // ERWEITERTE PRODUKTLISTEN-API MIT RABATTBERECHNUNG UND WIRTSCHAFTLICHKEIT
   app.get('/api/suppliers/:supplierId/products-fixed', async (req, res) => {
-    console.log('[PRODUCTS-FIXED] Fetching products with correct names for supplier:', req.params.supplierId);
+    console.log('[PRODUCTS-FIXED] Fetching products with purchase prices and discounts for supplier:', req.params.supplierId);
     
     try {
       const supplierId = parseInt(req.params.supplierId);
@@ -1259,7 +1259,7 @@ app.get('/orders-data', (req, res) => {
         return res.status(400).json({ error: 'Invalid supplier ID' });
       }
 
-      // DIREKTE SQL-ABFRAGE FÜR AUTHENTISCHE PRODUKTNAMEN
+      // ERWEITERTE SQL-ABFRAGE MIT RABATTBERECHNUNG
       const query = `
         SELECT 
           p.id,
@@ -1275,9 +1275,15 @@ app.get('/orders-data', (req, res) => {
           pc.packaging_unit,
           pc.packaging_quantity,
           pc.deposit_per_unit,
-          pc.min_quantity
+          pc.min_quantity,
+          sd.discount_type,
+          sd.discount_value,
+          sd.min_quantity as discount_min_quantity,
+          sd.min_order_value
         FROM products p
         LEFT JOIN purchase_conditions pc ON p.id = pc.product_id AND pc.supplier_id = $1
+        LEFT JOIN supplier_discounts sd ON sd.supplier_id = $1 
+          AND (sd.product_id IS NULL OR sd.product_id = p.id)
         WHERE (pc.supplier_id = $1 OR p.supplier_id = $1)
           AND p.product_name IS NOT NULL 
           AND p.product_name != ''
@@ -1286,34 +1292,92 @@ app.get('/orders-data', (req, res) => {
       `;
       
       const result = await pool.query(query, [supplierId]);
+
+      // Rabatt-Berechnung für Produkte
+      const calculateNetPrice = (purchasePrice, depositPerUnit, discountType, discountValue, minQuantity) => {
+        if (!purchasePrice || purchasePrice <= 0) return 0;
+        
+        let basePrice = purchasePrice;
+        
+        // Pfand abziehen (ist steuerfrei)
+        if (depositPerUnit && depositPerUnit > 0) {
+          basePrice = basePrice - depositPerUnit;
+        }
+        
+        // Rabatt anwenden wenn vorhanden
+        if (discountType && discountValue && discountValue > 0) {
+          if (discountType === 'percentage') {
+            basePrice = basePrice * (1 - discountValue / 100);
+          } else if (discountType === 'fixed') {
+            basePrice = Math.max(0, basePrice - discountValue);
+          }
+        }
+        
+        // Netto-Preis (ohne MwSt.)
+        return basePrice / 1.19;
+      };
+
+      // VERBESSERTE DATENKONVERTIERUNG MIT WIRTSCHAFTLICHKEITSBERECHNUNG
+      const products = result.rows.map(product => {
+        const purchasePrice = product.purchase_price || 0;
+        const depositPerUnit = product.deposit_per_unit || 0;
+        const netPrice = calculateNetPrice(
+          purchasePrice, 
+          depositPerUnit, 
+          product.discount_type, 
+          product.discount_value,
+          product.min_quantity
+        );
+        
+        // Wirtschaftlichkeitsberechnung
+        const sellingPrice = product.price || 0;
+        const sellingPriceNet = sellingPrice / 1.19;
+        const profitMargin = netPrice > 0 ? ((sellingPriceNet - netPrice) / sellingPriceNet * 100) : 0;
+        const profitPerUnit = Math.max(0, sellingPriceNet - netPrice);
+        
+        return {
+          id: product.id,
+          productName: product.product_name,
+          name: product.product_name,
+          category: product.category || 'Ohne Kategorie',
+          price: sellingPrice,
+          purchasePrice: netPrice,
+          purchasePriceGross: purchasePrice,
+          units: product.units || 'Stück',
+          packageSize: product.package_size || '',
+          packagingUnit: product.packaging_unit || 'Stück',
+          packagingQuantity: product.packaging_quantity || 1,
+          depositPerUnit: depositPerUnit,
+          minQuantity: product.min_quantity || 0,
+          shortDescription: product.short_description || '',
+          vendonId: product.vendon_id || '',
+          status: product.status || 'active',
+          // NEUE WIRTSCHAFTLICHKEITSFELDER
+          profitMargin: Math.round(profitMargin * 100) / 100,
+          profitPerUnit: Math.round(profitPerUnit * 100) / 100,
+          hasRealCosts: purchasePrice > 0,
+          discountApplied: product.discount_type && product.discount_value > 0
+        };
+      });
       
-      // SICHERE DATENKONVERTIERUNG
-      const products = result.rows.map(product => ({
-        id: product.id,
-        productName: product.product_name,
-        name: product.product_name,
-        category: product.category || 'Ohne Kategorie',
-        price: product.price || 0,
-        purchasePrice: product.purchase_price || 0,
-        units: product.units || 'Stück',
-        packageSize: product.package_size || '',
-        packagingUnit: product.packaging_unit || 'Stück',
-        packagingQuantity: product.packaging_quantity || 1,
-        depositPerUnit: product.deposit_per_unit || 0,
-        minQuantity: product.min_quantity || 0,
-        shortDescription: product.short_description || '',
-        vendonId: product.vendon_id || '',
-        status: product.status || 'active'
-      }));
-      
-      console.log(`[PRODUCTS-FIXED] SUCCESS: Found ${products.length} products with names:`, 
-        products.slice(0, 3).map(p => ({ id: p.id, name: p.productName })));
+      console.log(`[PRODUCTS-FIXED] SUCCESS: Found ${products.length} products with purchase prices:`, 
+        products.slice(0, 3).map(p => ({ 
+          id: p.id, 
+          name: p.productName, 
+          netPrice: p.purchasePrice,
+          profitMargin: p.profitMargin + '%'
+        })));
       
       res.json({
         success: true,
         data: products,
         count: products.length,
-        supplierId: supplierId
+        supplierId: supplierId,
+        analytics: {
+          withRealCosts: products.filter(p => p.hasRealCosts).length,
+          avgProfitMargin: products.filter(p => p.hasRealCosts).reduce((sum, p) => sum + p.profitMargin, 0) / products.filter(p => p.hasRealCosts).length || 0,
+          totalProducts: products.length
+        }
       });
       
     } catch (error) {

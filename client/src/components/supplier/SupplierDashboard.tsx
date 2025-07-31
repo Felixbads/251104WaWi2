@@ -92,10 +92,10 @@ export default function SupplierDashboard({ supplierId, supplier }: SupplierDash
           totalOrders: parseInt(apiData.overview.total_orders) || 0,
           openOrders: 0, // Not provided by API
           totalRevenue: parseFloat(apiData.overview.total_revenue) || 0,
-          monthlyRevenue: apiData.monthlyRevenue?.[0]?.revenue || 0,
+          monthlyRevenue: apiData.salesData?.[0]?.revenue || 0,
           lastOrderDate: null, // Not provided by API
         },
-        salesData: apiData.monthlyRevenue || [],
+        salesData: apiData.salesData || [],
         topProducts: apiData.productPerformance?.map((product: any) => ({
           productId: product.productId,
           productName: product.productName,
@@ -103,8 +103,8 @@ export default function SupplierDashboard({ supplierId, supplier }: SupplierDash
           quantity: product.quantitySold,
           growth: 0,
         })) || [],
-        inventory: [],
-        topLocations: [],
+        inventory: apiData.inventory || [],
+        topLocations: apiData.topLocations || [],
       };
     }
     

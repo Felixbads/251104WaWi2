@@ -126,16 +126,17 @@ export default function ProductOverviewTable({ supplierId, supplierName }: Produ
                 <TableHead>Produkt</TableHead>
                 <TableHead>Kategorie</TableHead>
                 <TableHead className="text-right">Preis (netto)</TableHead>
+                <TableHead className="text-right">Marge</TableHead>
+                <TableHead className="text-right">Gewinn/Stk</TableHead>
                 <TableHead className="text-right">Pfand</TableHead>
                 <TableHead>Gebinde</TableHead>
-                <TableHead className="text-right">Mindest</TableHead>
                 <TableHead>Status</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredProducts.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                     {searchTerm ? 'Keine Produkte gefunden' : 'Keine Produkte verfügbar'}
                   </TableCell>
                 </TableRow>
@@ -165,10 +166,40 @@ export default function ProductOverviewTable({ supplierId, supplierName }: Produ
                           <span className="font-medium">
                             {formatPrice(product.purchasePrice)}
                           </span>
-                          <span className="text-xs text-muted-foreground">
-                            Brutto: {formatPrice(product.purchasePrice * 1.19)}
-                          </span>
+                          {product.hasRealCosts && (
+                            <span className="text-xs text-green-600">
+                              ✓ Echte Kosten
+                            </span>
+                          )}
                         </div>
+                      ) : (
+                        <span className="text-muted-foreground text-sm">–</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {product.hasRealCosts && product.profitMargin !== undefined ? (
+                        <div className="flex flex-col items-end">
+                          <span className={`font-medium text-sm ${
+                            product.profitMargin > 20 ? 'text-green-600' : 
+                            product.profitMargin > 10 ? 'text-yellow-600' : 'text-red-600'
+                          }`}>
+                            {product.profitMargin.toFixed(1)}%
+                          </span>
+                          {product.discountApplied && (
+                            <span className="text-xs text-blue-600">
+                              🏷️ Rabatt
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground text-sm">–</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {product.hasRealCosts && product.profitPerUnit > 0 ? (
+                        <span className="font-medium text-sm text-green-600">
+                          +{formatPrice(product.profitPerUnit)}
+                        </span>
                       ) : (
                         <span className="text-muted-foreground text-sm">–</span>
                       )}
@@ -185,11 +216,6 @@ export default function ProductOverviewTable({ supplierId, supplierName }: Produ
                     <TableCell>
                       <div className="text-sm">
                         {formatPackaging(product)}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="text-sm">
-                        {product.minQuantity || 0}
                       </div>
                     </TableCell>
                     <TableCell>
