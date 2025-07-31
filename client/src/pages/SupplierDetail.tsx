@@ -671,9 +671,6 @@ export default function SupplierDetail() {
     staleTime: 1000 * 60, // 1 Minute
     enabled: !!id && !isNaN(parseInt(id)),
     retry: 2,
-    onError: (error) => {
-      console.error('Fehler beim Laden der Produkte:', error);
-    }
   });
   
   // Produkte extrahieren und als Array zur Verfügung stellen
@@ -714,9 +711,6 @@ export default function SupplierDetail() {
     staleTime: 1000 * 60, // 1 Minute
     enabled: !!id && !isNaN(parseInt(id)),
     retry: 2,
-    onError: (error) => {
-      console.error('Fehler beim Laden der Bestellungen:', error);
-    }
   });
   
   // Bestellungen extrahieren und als Array zur Verfügung stellen
@@ -744,9 +738,6 @@ export default function SupplierDetail() {
     staleTime: 1000 * 60, // 1 Minute
     enabled: !!id && !isNaN(parseInt(id)),
     retry: 2,
-    onError: (error) => {
-      console.error('Fehler beim Laden der Einkaufsbedingungen:', error);
-    }
   });
   
   // Extract purchase conditions from response
@@ -1540,7 +1531,11 @@ export default function SupplierDetail() {
         
         {/* Einkaufsbedingungen Tab */}
         <TabsContent value="purchaseConditions" className="space-y-6">
-          <UnifiedPurchaseConditionsManager supplierId={parseInt(id!)} />
+          <UnifiedPurchaseConditionsManager 
+            mode="supplier"
+            entityId={parseInt(id!)}
+            entityName={supplier?.name || 'Lieferant'}
+          />
         </TabsContent>
         
         {/* Rabattbedingungen Tab */}

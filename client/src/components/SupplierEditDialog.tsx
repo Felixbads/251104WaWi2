@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { SupplierPhotoUpload } from '@/components/SupplierPhotoUpload';
-import { PurchaseConditionsTab } from '@/components/PurchaseConditionsTab';
+
 import { useToast } from '@/hooks/use-toast';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
@@ -354,11 +354,7 @@ export function SupplierEditDialog({ supplier, isOpen, onOpenChange, onSave }: S
                 </div>
               </CardContent>
             </Card>
-            
-            <PurchaseConditionsTab 
-              supplierId={supplier.id} 
-              supplierName={supplier.name}
-            />
+
           </TabsContent>
 
           <TabsContent value="ordering" className="space-y-4">

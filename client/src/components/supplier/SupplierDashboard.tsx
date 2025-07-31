@@ -81,14 +81,31 @@ export default function SupplierDashboard({ supplierId, supplier }: SupplierDash
   const dashboardData = React.useMemo(() => {
     if (!rawDashboardData) return null;
     
-    // If the response is directly the dashboard data
-    if (rawDashboardData.overview) {
-      return rawDashboardData;
-    }
+    // Transform the API response to match our expected format
+    const apiData = rawDashboardData as any;
     
-    // If the response has a data property
-    if ((rawDashboardData as any).data && (rawDashboardData as any).data.overview) {
-      return (rawDashboardData as any).data;
+    if (apiData.overview) {
+      return {
+        overview: {
+          totalProducts: parseInt(apiData.overview.products_sold) || 0,
+          activeProducts: parseInt(apiData.overview.products_sold) || 0,
+          totalOrders: parseInt(apiData.overview.total_orders) || 0,
+          openOrders: 0, // Not provided by API
+          totalRevenue: parseFloat(apiData.overview.total_revenue) || 0,
+          monthlyRevenue: apiData.monthlyRevenue?.[0]?.revenue || 0,
+          lastOrderDate: null, // Not provided by API
+        },
+        salesData: apiData.monthlyRevenue || [],
+        topProducts: apiData.productPerformance?.map((product: any) => ({
+          productId: product.productId,
+          productName: product.productName,
+          revenue: product.revenue,
+          quantity: product.quantitySold,
+          growth: 0,
+        })) || [],
+        inventory: [],
+        topLocations: [],
+      };
     }
     
     return null;
@@ -255,8 +272,8 @@ export default function SupplierDashboard({ supplierId, supplier }: SupplierDash
               </TableHeader>
               <TableBody>
                 {dashboardData.inventory && dashboardData.inventory.length > 0 ? (
-                  dashboardData.inventory.flatMap((product) =>
-                    product.warehouses.map((warehouse) => (
+                  dashboardData.inventory.flatMap((product: any) =>
+                    product.warehouses.map((warehouse: any) => (
                       <TableRow key={`${product.productId}-${warehouse.warehouseId}`}>
                         <TableCell className="font-medium">{product.productName}</TableCell>
                         <TableCell className="font-mono text-sm">{product.sku}</TableCell>
@@ -384,7 +401,7 @@ export default function SupplierDashboard({ supplierId, supplier }: SupplierDash
         <CardContent>
           <div className="space-y-4">
             {dashboardData.topProducts && dashboardData.topProducts.length > 0 ? (
-              dashboardData.topProducts.map((product, index) => (
+              dashboardData.topProducts.map((product: any, index: number) => (
               <div key={product.productId} className="flex items-center justify-between p-4 border rounded-lg">
                 <div className="flex items-center space-x-4">
                   <div className="bg-primary/10 rounded-full w-8 h-8 flex items-center justify-center text-sm font-medium">
