@@ -246,7 +246,8 @@ export default function UnifiedPurchaseConditionsManager({
         isPreferred: data.isPreferred,
         leadTime: data.leadTime,
         deliveryTime: data.deliveryTime,
-        notes: data.notes
+        notes: data.notes,
+        supplierArticleNumber: data.supplierArticleNumber
       };
 
       const response = await fetch(url, {
@@ -317,6 +318,7 @@ export default function UnifiedPurchaseConditionsManager({
       notes: '',
       leadTime: 3,
       deliveryTime: '',
+      supplierArticleNumber: '', // Reset supplier article number
       discount_type: '',
       discount_value: 0,
       discount_min_quantity: 0,
@@ -886,6 +888,16 @@ export default function UnifiedPurchaseConditionsManager({
                       placeholder="wöchentlich, monatlich..."
                     />
                   </div>
+                </div>
+
+                <div>
+                  <Label htmlFor="supplierArticleNumber">Lieferantenartikelnummer</Label>
+                  <Input
+                    id="supplierArticleNumber"
+                    value={formData.supplierArticleNumber}
+                    onChange={(e) => setFormData(prev => ({ ...prev, supplierArticleNumber: e.target.value }))}
+                    placeholder="Artikelnummer vom Lieferanten"
+                  />
                 </div>
 
                 <div className="flex items-center space-x-2">
