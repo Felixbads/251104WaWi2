@@ -1,5 +1,5 @@
 import { createTransport } from 'nodemailer';
-import { orders, orderItems, suppliers } from '../../shared/schema';
+import { orders, orderItems, suppliers, purchaseConditions } from '../../shared/schema';
 import { db } from '../db';
 import { eq } from 'drizzle-orm';
 import sgMail from '@sendgrid/mail';
@@ -38,36 +38,35 @@ export function createOrderItemsTable(items: any[]): string {
     return '<p>Keine Positionen in dieser Bestellung.</p>';
   }
 
-  // HTML-Tabelle erstellen
+  // HTML-Tabelle erstellen mit separater "Art.-Nr. Lieferant"-Spalte
   let tableHtml = `
     <table style="width: 100%; border-collapse: collapse; margin-top: 15px; margin-bottom: 15px;">
       <thead>
         <tr style="background-color: #f3f4f6;">
-          <th style="border: 1px solid #e5e7eb; padding: 8px; text-align: left;">Artikel</th>
-          <th style="border: 1px solid #e5e7eb; padding: 8px; text-align: left;">Artikelnummer</th>
+          <th style="border: 1px solid #e5e7eb; padding: 8px; text-align: center;">Pos.</th>
+          <th style="border: 1px solid #e5e7eb; padding: 8px; text-align: left;">Art.-Nr.</th>
+          <th style="border: 1px solid #e5e7eb; padding: 8px; text-align: left;">Bezeichnung</th>
+          <th style="border: 1px solid #e5e7eb; padding: 8px; text-align: left;">Art.-Nr. Lieferant</th>
           <th style="border: 1px solid #e5e7eb; padding: 8px; text-align: right;">Menge</th>
           <th style="border: 1px solid #e5e7eb; padding: 8px; text-align: left;">Einheit</th>
-          <th style="border: 1px solid #e5e7eb; padding: 8px; text-align: right;">Einzelpreis</th>
-          <th style="border: 1px solid #e5e7eb; padding: 8px; text-align: right;">Gesamtpreis</th>
         </tr>
       </thead>
       <tbody>
   `;
 
   // Zeilen für jede Position
-  items.forEach((item) => {
-    const unitPrice = item.unitPrice || 0;
+  items.forEach((item, index) => {
     const quantity = item.quantity || 0;
-    const totalPrice = unitPrice * quantity;
+    const positionNumber = index + 1;
 
     tableHtml += `
       <tr>
+        <td style="border: 1px solid #e5e7eb; padding: 8px; text-align: center;">${positionNumber}</td>
+        <td style="border: 1px solid #e5e7eb; padding: 8px;">${item.sku || '-'}</td>
         <td style="border: 1px solid #e5e7eb; padding: 8px;">${item.productName || 'Unbekanntes Produkt'}</td>
-        <td style="border: 1px solid #e5e7eb; padding: 8px;">${item.sku || item.supplierSku || '-'}</td>
+        <td style="border: 1px solid #e5e7eb; padding: 8px;">${item.supplier_article_number || '-'}</td>
         <td style="border: 1px solid #e5e7eb; padding: 8px; text-align: right;">${quantity}</td>
         <td style="border: 1px solid #e5e7eb; padding: 8px;">${item.unit || 'Stk.'}</td>
-        <td style="border: 1px solid #e5e7eb; padding: 8px; text-align: right;">${formatCurrency(unitPrice)}</td>
-        <td style="border: 1px solid #e5e7eb; padding: 8px; text-align: right;">${formatCurrency(totalPrice)}</td>
       </tr>
     `;
   });
@@ -217,10 +216,24 @@ export async function sendOrderEmail(
     console.log(`[sendOrderEmail] Von: ${from}`);
     console.log(`[sendOrderEmail] Betreff: ${subject}`);
 
-    // Bestellpositionen holen
+    // Bestellpositionen mit supplier_article_number aus purchase_conditions holen
     const items = await db
-      .select()
+      .select({
+        id: orderItems.id,
+        orderId: orderItems.orderId,
+        productId: orderItems.productId,
+        productName: orderItems.productName,
+        quantity: orderItems.quantity,
+        unit: orderItems.unit,
+        unitPrice: orderItems.unitPrice,
+        totalPrice: orderItems.totalPrice,
+        sku: orderItems.sku,
+        supplierSku: orderItems.supplierSku,
+        supplier_article_number: purchaseConditions.supplierArticleNumber,
+        vatRate: orderItems.vatRate
+      })
       .from(orderItems)
+      .leftJoin(purchaseConditions, eq(orderItems.productId, purchaseConditions.productId))
       .where(eq(orderItems.orderId, orderId));
 
     console.log(`[sendOrderEmail] ${items.length} Bestellpositionen gefunden`);
