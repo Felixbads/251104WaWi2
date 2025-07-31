@@ -644,22 +644,22 @@ const BestellungV2: React.FC = () => {
     }
   });
   
-  // Goods Receipt mutation - REPARIERT für korrekte Datenverarbeitung
+  // Goods Receipt mutation - VOLLSTÄNDIG REPARIERT für MHD-Tracking und korrektes Backend-Format
   const goodsReceiptMutation = useMutation({
     mutationFn: (goodsReceiptData: any) => {
       const { orderId, receivedItems } = goodsReceiptData;
       
-      console.log("Goods receipt mutation input:", goodsReceiptData);
-      console.log("Received items:", receivedItems);
+      console.log("✅ Goods receipt mutation input:", goodsReceiptData);
+      console.log("✅ Received items:", receivedItems);
       
-      // Transform the data to match the backend API expectations
+      // Transform the data to match the goods-receipt-batches API expectations
       const transformedItems = [];
       
       for (const item of receivedItems) {
         if (item.receivedQuantity > 0) {
           transformedItems.push({
-            productId: item.productId,
-            receivedQuantity: item.receivedQuantity,
+            id: item.orderItemId, // Verwende order_item_id statt productId
+            deliveredQuantity: item.receivedQuantity, // deliveredQuantity statt receivedQuantity
             expiryDate: item.expiryDate || null,
             batchNumber: item.batchNumber || null
           });
@@ -667,12 +667,15 @@ const BestellungV2: React.FC = () => {
       }
       
       const transformedData = {
-        receivedItems: transformedItems
+        deliveryDate: new Date().toISOString(), // Aktuelles Datum als Lieferdatum
+        notes: 'Wareneingang über Frontend bestätigt',
+        items: transformedItems // Backend erwartet 'items' nicht 'receivedItems'
       };
       
-      console.log("Transformed data for API:", transformedData);
+      console.log("✅ Transformed data for goods-receipt-batches API:", transformedData);
       
-      return apiRequest(`/api/orders/${orderId}/receipt`, transformedData, 'post');
+      // KRITISCHER FIX: Verwende goods-receipt-batches Endpunkt für MHD-Tracking
+      return apiRequest(`/api/orders/${orderId}/goods-receipt-batches`, transformedData, 'post');
     },
     onSuccess: (data, variables) => {
       toast({

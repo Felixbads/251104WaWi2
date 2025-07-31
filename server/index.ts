@@ -2142,6 +2142,7 @@ app.get('/orders-data', (req, res) => {
       console.log(`Lade Bestellung mit ID ${orderId} direkt aus der Datenbank...`);
       
       // Bestellung mit JOIN für Lieferanten- und Lagerdaten
+      // KRITISCHER FIX: LEFT JOIN auf warehouse_id UND location_id für Order 186 (warehouse_id=NULL, location_id=3)
       const orderResult = await pool.query(`
         SELECT 
           o.*,
@@ -2151,7 +2152,7 @@ app.get('/orders-data', (req, res) => {
           w.address as warehouse_location
         FROM orders o
         LEFT JOIN suppliers s ON o.supplier_id = s.id
-        LEFT JOIN warehouses w ON o.warehouse_id = w.id
+        LEFT JOIN warehouses w ON o.warehouse_id = w.id OR o.location_id = w.id
         WHERE o.id = $1
       `, [orderId]);
       
