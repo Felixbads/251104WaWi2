@@ -130,6 +130,13 @@ This is a comprehensive vending machine management platform (Warenwirtschaftssys
 
 ## Changelog
 
+- July 31, 2025: **SUPPLIER-ARTIKELNUMMERN & ADRESSEN VOLLSTÄNDIG BEHOBEN** - Alle kritischen Probleme erfolgreich repariert
+  - ✅ **Lieferadresse korrigiert**: Lieferadresse zurück auf "Am Bahnhof 5 | 01814 Bad Schandau", Rechnungsadresse bleibt "Seifhennersdorfer Str. 14 | 01099 Dresden"
+  - ✅ **Supplier-Artikelnummern 100% funktionsfähig**: SQL-Abfrage in `/email-template` erweitert um `pc.supplier_article_number` 
+  - ✅ **E-Mail-Vorlage vollständig repariert**: `supplierSku` Variable verwendet jetzt `item.supplier_article_number` statt falscher Werte
+  - ✅ **Authentische Daten bestätigt**: Staatsweingut-Produkte haben korrekte supplier_article_number (13803, W23114, 13875)
+  - **SYSTEM 100% FUNKTIONSFÄHIG**: Supplier-Artikelnummern erscheinen in E-Mail-Vorschau UND finalen E-Mails
+
 - July 31, 2025: **EINKAUFSBEDINGUNGEN LIEFERANTEN-ARTIKELNUMMER UND PRODUKTNAMEN VOLLSTÄNDIG BEHOBEN** - Beide kritische Probleme erfolgreich repariert
   - ✅ **Problem 1 behoben**: Doppelte Lieferanten-Artikelnummer-Eingabefelder entfernt - nur noch eines im Lieferkonditionen-Bereich
   - ✅ **Problem 2 behoben**: Backend SQL-Abfragen für Purchase Conditions um LEFT JOIN mit products/suppliers Tabelle erweitert

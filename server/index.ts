@@ -843,6 +843,8 @@ app.get('/orders-data', (req, res) => {
           p.units as product_unit,
           COALESCE(oi.unit_price, 0) as unit_price,
           COALESCE(oi.total_price, oi.quantity * COALESCE(oi.unit_price, 0)) as total_price,
+          -- SUPPLIER ARTICLE NUMBER AUS PURCHASE CONDITIONS LADEN
+          pc.supplier_article_number,
           -- GEBINDE-INFORMATIONEN KORREKT AUS PURCHASE_CONDITIONS LADEN
           CASE 
             WHEN pc.packaging_quantity > 1 THEN FLOOR(oi.quantity::float / pc.packaging_quantity)
@@ -892,8 +894,8 @@ app.get('/orders-data', (req, res) => {
           const productName = item.product_name || `Produkt-ID ${item.product_id}`;
           const unit = item.product_unit || item.unit || 'Stk';
           
-          // Nur echte Artikelnummer verwenden oder leer lassen
-          const supplierSku = item.supplier_sku || '';
+          // Supplier Artikelnummer aus purchase_conditions verwenden
+          const supplierSku = item.supplier_article_number || '';
           
           // GEBINDE-INFORMATIONEN BERECHNEN UND ANZEIGEN - MIT SQL-KORREKTEN WERTEN
           const packageCount = parseInt(item.package_count || 1);
@@ -1023,7 +1025,7 @@ app.get('/orders-data', (req, res) => {
 
             <!-- ADRESSEN -->
             <p style="margin: 20px 0; font-size: 10pt;"><strong>Rechnungsadresse:</strong> Elbsandstein Proviant & Quartier GmbH | Seifhennersdorfer Str. 14 | 01099 Dresden</p>
-            <p style="margin: 0 0 30px 0; font-size: 10pt;"><strong>Lieferadresse:</strong> ${isPickup ? 'Abholung durch Auftraggeber' : 'Elbsandstein Proviant & Quartier GmbH | Seifhennersdorfer Str. 14 | 01099 Dresden'}</p>
+            <p style="margin: 0 0 30px 0; font-size: 10pt;"><strong>Lieferadresse:</strong> ${isPickup ? 'Abholung durch Auftraggeber' : 'Elbsandstein Proviant & Quartier GmbH | Am Bahnhof 5 | 01814 Bad Schandau'}</p>
 
             <!-- BESTELLPOSITIONEN TABELLE -->
             <table style="width: 100%; border-collapse: collapse; margin: 30px 0;">
