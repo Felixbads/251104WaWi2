@@ -1703,10 +1703,8 @@ app.get('/orders-data', (req, res) => {
   app.use('/api/cleanup', cleanupRouter);
   console.log('[SERVER] Cleanup router mounted at /api/cleanup BEFORE registerRoutes');
   
-  // Supplier Analytics Router  
-  const supplierAnalyticsRouter = (await import('./routes/supplier-analytics')).default;
-  app.use('/api/supplier-analytics', supplierAnalyticsRouter);
-  console.log('[SERVER] Supplier analytics router mounted at /api/supplier-analytics BEFORE registerRoutes');
+  // Supplier Analytics Router - now implemented directly in routes.ts to avoid conflicts
+  // No separate router needed since routes are directly in registerRoutes
   
   app.use('/api/supplier-favorites', supplierFavoritesRouter);
   console.log('[SERVER] Supplier favorites router mounted at /api/supplier-favorites BEFORE registerRoutes');
@@ -3206,8 +3204,7 @@ app.get('/orders-data', (req, res) => {
 
 
 
-  // Register supplier analytics router BEFORE Vite to prevent routing conflicts
-  app.use('/api/supplier-analytics', supplierAnalyticsRouter);
+  // Supplier analytics router already mounted above at line 1708 - removing duplicate to prevent conflicts
   app.use('/api/suppliers-fast', suppliersFastRouter);
   app.use('/api/support-tickets', supportTicketsRouter);
   

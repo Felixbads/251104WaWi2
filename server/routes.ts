@@ -1992,6 +1992,125 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // TEST Route für supplier-analytics debug
+  app.get(`${API_PREFIX}/supplier-analytics/test`, async (req: Request, res: Response) => {
+    console.log('[SUPPLIER-ANALYTICS-ROUTES] TEST ROUTE HIT!');
+    res.json({ message: 'Test route working from routes.ts!', timestamp: new Date().toISOString() });
+  });
+
+  // Dashboard-Statistiken für einzelne Lieferanten
+  app.get(`${API_PREFIX}/supplier-analytics/dashboard/:supplierId`, async (req: Request, res: Response) => {
+    console.log(`[SUPPLIER-ANALYTICS-ROUTES] Dashboard request for supplier ${req.params.supplierId}`);
+    
+    try {
+      const supplierId = parseInt(req.params.supplierId);
+      if (isNaN(supplierId)) {
+        return res.status(400).json({ error: 'Invalid supplier ID' });
+      }
+
+      // Get supplier basic info
+      const supplierResult = await rawDb.query(`
+        SELECT id, name, contact_person, email, phone 
+        FROM suppliers 
+        WHERE id = $1
+      `, [supplierId]);
+
+      if (!supplierResult.rows || supplierResult.rows.length === 0) {
+        return res.status(404).json({ error: 'Supplier not found' });
+      }
+
+      const supplier = supplierResult.rows[0];
+
+      // Get order statistics for this supplier
+      const orderStatsResult = await rawDb.query(`
+        SELECT 
+          COUNT(*) as total_orders,
+          COALESCE(SUM(total_net), 0) as total_revenue,
+          MAX(order_date) as last_order_date,
+          COUNT(CASE WHEN status = 'open' THEN 1 END) as open_orders
+        FROM orders 
+        WHERE supplier_id = $1
+      `, [supplierId]);
+
+      const orderStats = orderStatsResult.rows[0] || {
+        total_orders: 0,
+        total_revenue: 0,
+        last_order_date: null,
+        open_orders: 0
+      };
+
+      // Get monthly revenue data for charts (last 12 months)
+      const monthlyRevenueResult = await rawDb.query(`
+        SELECT 
+          DATE_TRUNC('month', order_date) as month,
+          COALESCE(SUM(total_net), 0) as revenue,
+          COUNT(*) as order_count
+        FROM orders 
+        WHERE supplier_id = $1 
+          AND order_date >= NOW() - INTERVAL '12 months'
+        GROUP BY DATE_TRUNC('month', order_date)
+        ORDER BY month DESC
+      `, [supplierId]);
+
+      // Get product count
+      const productCountResult = await rawDb.query(`
+        SELECT COUNT(DISTINCT p.id) as product_count
+        FROM products p
+        INNER JOIN purchase_conditions pc ON p.id = pc.product_id
+        WHERE pc.supplier_id = $1
+      `, [supplierId]);
+
+      const productCount = productCountResult.rows[0]?.product_count || 0;
+
+      // Get recent orders
+      const recentOrdersResult = await rawDb.query(`
+        SELECT 
+          id, 
+          order_number, 
+          order_date, 
+          status,
+          total_net,
+          total_gross
+        FROM orders 
+        WHERE supplier_id = $1
+        ORDER BY order_date DESC
+        LIMIT 10
+      `, [supplierId]);
+
+      const dashboardData = {
+        supplierId,
+        supplierName: supplier.name,
+        contactPerson: supplier.contact_person,
+        email: supplier.email,
+        phone: supplier.phone,
+        orderVolume: parseInt(orderStats.total_orders) || 0,
+        totalRevenue: parseFloat(orderStats.total_revenue) || 0,
+        lastOrderDate: orderStats.last_order_date,
+        openOrders: parseInt(orderStats.open_orders) || 0,
+        productCount,
+        monthlyRevenue: monthlyRevenueResult.rows.map(row => ({
+          month: row.month,
+          revenue: parseFloat(row.revenue) || 0,
+          orderCount: parseInt(row.order_count) || 0
+        })),
+        recentOrders: recentOrdersResult.rows.map(row => ({
+          id: row.id,
+          orderNumber: row.order_number,
+          orderDate: row.order_date,
+          status: row.status,
+          totalNet: parseFloat(row.total_net) || 0,
+          totalGross: parseFloat(row.total_gross) || 0
+        }))
+      };
+
+      console.log(`[SUPPLIER-ANALYTICS-ROUTES] Returning dashboard data for supplier ${supplierId}: ${orderStats.total_orders} orders, €${orderStats.total_revenue} revenue`);
+      res.json(dashboardData);
+    } catch (error) {
+      console.error(`[SUPPLIER-ANALYTICS-ROUTES] Dashboard error:`, error);
+      res.status(500).json({ error: 'Fehler beim Laden der Statistiken' });
+    }
+  });
+
   // GET /supplier-analytics/overview - Analytics für alle Lieferanten (CACHE-OPTIMIERT)
   app.get(`${API_PREFIX}/supplier-analytics/overview`, async (_req: Request, res: Response) => {
     try {
