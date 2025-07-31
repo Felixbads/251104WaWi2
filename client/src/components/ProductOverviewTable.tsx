@@ -23,6 +23,11 @@ interface Product {
   minQuantity: number;
   shortDescription: string;
   status: string;
+  // Business data properties
+  profitMargin?: number;
+  hasRealCosts?: boolean;
+  profitPerUnit?: number;
+  discountApplied?: boolean;
 }
 
 interface ProductOverviewTableProps {
@@ -186,7 +191,7 @@ export default function ProductOverviewTable({ supplierId, supplierName }: Produ
                       )}
                     </TableCell>
                     <TableCell className="text-right">
-                      {product.hasRealCosts && product.profitMargin !== undefined ? (
+                      {product.hasRealCosts && typeof product.profitMargin === 'number' ? (
                         <div className="flex flex-col items-end">
                           <span className={`font-medium text-sm ${
                             product.profitMargin > 20 ? 'text-green-600' : 
@@ -205,7 +210,7 @@ export default function ProductOverviewTable({ supplierId, supplierName }: Produ
                       )}
                     </TableCell>
                     <TableCell className="text-right">
-                      {product.hasRealCosts && product.profitPerUnit > 0 ? (
+                      {product.hasRealCosts && typeof product.profitPerUnit === 'number' && product.profitPerUnit > 0 ? (
                         <span className="font-medium text-sm text-green-600">
                           +{formatPrice(product.profitPerUnit)}
                         </span>

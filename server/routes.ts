@@ -2286,10 +2286,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         packaging_quantity: row.packaging_quantity,
         supplier_article_number: row.supplier_article_number,
         
-        // Business metrics
+        // Business metrics (convert strings to numbers)
         hasRealCosts: row.has_real_costs,
-        profitMargin: row.profit_margin,
-        profitPerUnit: row.profit_per_unit,
+        profitMargin: row.profit_margin ? parseFloat(row.profit_margin) : null,
+        profitPerUnit: row.profit_per_unit ? parseFloat(row.profit_per_unit) : null,
         discountApplied: row.discount_applied
       }));
 
