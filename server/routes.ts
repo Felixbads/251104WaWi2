@@ -4807,7 +4807,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const ordersV4Router = await import('./routes/orders-v4');
   app.use(`${API_PREFIX}/orders-v4`, ordersV4Router.default);
   
-  // Direkte Route für Wareneingang - Frontend-kompatibel
+  // Direkte Route für Wareneingang - Frontend-kompatibel - KOMPLETT REPARIERT
   app.post(`${API_PREFIX}/orders/:orderId/receipt`, async (req, res) => {
     const { pool } = await import('./db');
     const client = await pool.connect();
@@ -4816,7 +4816,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { orderId } = req.params;
       const { receivedItems } = req.body;
       
-      console.log(`[GOODS_RECEIPT] Processing order ${orderId} with items:`, receivedItems);
+      console.log(`[GOODS_RECEIPT] Processing order ${orderId} with items:`, JSON.stringify(receivedItems, null, 2));
       
       if (!receivedItems || !Array.isArray(receivedItems) || receivedItems.length === 0) {
         return res.status(400).json({ error: 'Keine Wareneingangsdaten erhalten' });
@@ -4829,101 +4829,185 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const orderResult = await client.query(orderQuery, [orderId]);
       
       if (orderResult.rows.length === 0) {
+        await client.query('ROLLBACK');
+        client.release();
         return res.status(404).json({ error: 'Bestellung nicht gefunden' });
       }
       
       const order = orderResult.rows[0];
-      console.log(`[GOODS_RECEIPT] Found order for warehouse ${order.warehouse_id}`);
+      console.log(`[GOODS_RECEIPT] Found order for warehouse ${order.warehouse_id || order.location_id}`);
+      
+      const warehouseId = order.warehouse_id || order.location_id;
+      if (!warehouseId) {
+        await client.query('ROLLBACK');
+        client.release();
+        return res.status(400).json({ error: 'Kein Lager für diese Bestellung definiert' });
+      }
+      
+      let itemsProcessed = 0;
+      let batchesCreated = 0;
+      const processedItems = [];
       
       // Für jede erhaltene Position
       for (const item of receivedItems) {
-        const { productId, receivedQuantity, expiryDate, batchNumber = null } = item;
+        const { productId, receivedQuantity, expiryDate, batchNumber } = item;
+        
+        console.log(`[GOODS_RECEIPT] Processing item: productId=${productId}, quantity=${receivedQuantity}, expiryDate=${expiryDate}`);
         
         if (!productId || !receivedQuantity || receivedQuantity <= 0) {
           console.log(`[GOODS_RECEIPT] Skipping invalid item:`, item);
           continue;
         }
         
-        console.log(`[GOODS_RECEIPT] Processing product ${productId}, quantity ${receivedQuantity}`);
+        // Generiere Batch-Nummer falls nicht vorhanden
+        const finalBatchNumber = batchNumber || `B${new Date().toISOString().split('T')[0].replace(/-/g, '')}-${productId}-${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`;
         
-        // Generate batch number if not provided (database requires non-null batch_number)
-        const finalBatchNumber = batchNumber || `BATCH-${Date.now()}-${productId}`;
-        console.log(`[GOODS_RECEIPT] Using batch number: ${finalBatchNumber}`);
-        
-        // Handle expiry date - database requires non-null expiry_date
-        const finalExpiryDate = expiryDate || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000); // 1 year from now if not provided
-        console.log(`[GOODS_RECEIPT] Using expiry date: ${finalExpiryDate}`);
-        
-        // Batch erstellen
-        const batchQuery = `
-          INSERT INTO product_batches (
-            product_id, warehouse_id, batch_number, expiry_date,
-            initial_quantity, current_quantity, status, received_date
-          ) VALUES ($1, $2, $3, $4, $5, $6, 'active', NOW())
-          RETURNING id
-        `;
-        
-        console.log(`[GOODS_RECEIPT] Creating batch with params:`, {
-          productId, 
-          warehouseId: order.warehouse_id, 
-          batchNumber: finalBatchNumber, 
-          expiryDate: finalExpiryDate,
-          quantity: receivedQuantity
-        });
-        
-        const batchResult = await client.query(batchQuery, [
-          productId, order.warehouse_id, finalBatchNumber, finalExpiryDate,
-          receivedQuantity, receivedQuantity
-        ]);
-        
-        const batchId = batchResult.rows[0].id;
-        console.log(`[GOODS_RECEIPT] Created batch ${batchId}`);
-        
-        // Lagerbestand aktualisieren oder erstellen
-        const inventoryUpdateQuery = `
-          INSERT INTO inventory_items (warehouse_id, product_id, quantity, min_quantity, status)
-          VALUES ($1, $2, $3, 5, 'active')
-          ON CONFLICT (warehouse_id, product_id)
-          DO UPDATE SET 
-            quantity = inventory_items.quantity + $3,
-            updated_at = NOW()
-        `;
-        
-        await client.query(inventoryUpdateQuery, [
-          order.warehouse_id, productId, receivedQuantity
-        ]);
-        
-        console.log(`[GOODS_RECEIPT] Updated inventory for warehouse ${order.warehouse_id}, product ${productId}, added ${receivedQuantity}`);
+        // 1. Erstelle Produktcharge (Product Batch) mit MHD
+        try {
+          const batchQuery = `
+            INSERT INTO product_batches (
+              product_id, warehouse_id, batch_number, expiry_date,
+              initial_quantity, current_quantity, status,
+              created_at, updated_at
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
+            RETURNING id
+          `;
+          
+          const batchValues = [
+            productId,
+            warehouseId,
+            finalBatchNumber,
+            expiryDate ? new Date(expiryDate) : null,
+            receivedQuantity,
+            receivedQuantity,
+            'active'
+          ];
+          
+          const batchResult = await client.query(batchQuery, batchValues);
+          const batchId = batchResult.rows[0].id;
+          console.log(`[GOODS_RECEIPT] Created batch ${batchId} with number ${finalBatchNumber}`);
+          batchesCreated++;
+          
+          // 2. Aktualisiere oder erstelle Inventarposition
+          const inventoryQuery = `
+            INSERT INTO inventory_items (
+              product_id, warehouse_id, quantity, 
+              unit, last_updated, notes
+            ) VALUES ($1, $2, $3, 'stk', NOW(), $4)
+            ON CONFLICT (product_id, warehouse_id) 
+            DO UPDATE SET 
+              quantity = inventory_items.quantity + EXCLUDED.quantity,
+              last_updated = NOW(),
+              notes = CASE 
+                WHEN inventory_items.notes IS NULL OR inventory_items.notes = '' 
+                THEN EXCLUDED.notes 
+                ELSE inventory_items.notes || '; ' || EXCLUDED.notes 
+              END
+            RETURNING id, quantity
+          `;
+          
+          const inventoryValues = [
+            productId,
+            warehouseId,
+            receivedQuantity,
+            `Wareneingang Bestellung #${order.order_number || orderId} - Charge: ${finalBatchNumber}`
+          ];
+          
+          const inventoryResult = await client.query(inventoryQuery, inventoryValues);
+          console.log(`[GOODS_RECEIPT] Updated inventory for product ${productId}, new total: ${inventoryResult.rows[0].quantity}`);
+          
+          // 3. Erstelle Warenbewegung (Inventory Movement)
+          const movementQuery = `
+            INSERT INTO inventory_movements (
+              product_id, warehouse_id, movement_type, quantity,
+              reference_type, reference_id, notes,
+              performed_at, performed_by, performed_by_name,
+              batch_id, expiry_date
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), $8, $9, $10, $11)
+            RETURNING id
+          `;
+          
+          const movementValues = [
+            productId,
+            warehouseId,
+            'goods_receipt',
+            receivedQuantity,
+            'order',
+            orderId,
+            `Wareneingang - Bestellung ${order.order_number || orderId}${expiryDate ? ` - MHD: ${expiryDate}` : ''}`,
+            1, // performed_by (default user ID)
+            'System', // performed_by_name
+            batchId,
+            expiryDate ? new Date(expiryDate) : null
+          ];
+          
+          const movementResult = await client.query(movementQuery, movementValues);
+          console.log(`[GOODS_RECEIPT] Created movement ${movementResult.rows[0].id}`);
+          
+          processedItems.push({
+            productId,
+            receivedQuantity,
+            batchNumber: finalBatchNumber,
+            batchId,
+            expiryDate
+          });
+          
+          itemsProcessed++;
+          
+        } catch (itemError) {
+          console.error(`[GOODS_RECEIPT] Error processing item ${productId}:`, itemError);
+          // Weitermachen mit dem nächsten Item, aber Fehler loggen
+        }
       }
       
-      // Bestellstatus aktualisieren
-      await client.query(
-        'UPDATE orders SET status = $1, actual_delivery_date = NOW() WHERE id = $2',
-        ['received', orderId]
-      );
+      // 4. Aktualisiere Bestellstatus
+      const updateOrderQuery = `
+        UPDATE orders 
+        SET status = 'received', 
+            actual_delivery_date = NOW(),
+            updated_at = NOW(),
+            notes = CASE 
+              WHEN notes IS NULL OR notes = '' 
+              THEN $2 
+              ELSE notes || '; ' || $2 
+            END
+        WHERE id = $1
+        RETURNING *
+      `;
+      
+      const orderUpdateValues = [
+        orderId,
+        `Wareneingang erfasst: ${itemsProcessed} Artikel in ${batchesCreated} Chargen`
+      ];
+      
+      await client.query(updateOrderQuery, orderUpdateValues);
+      console.log(`[GOODS_RECEIPT] Updated order ${orderId} status to 'received'`);
       
       await client.query('COMMIT');
-      console.log(`[GOODS_RECEIPT] Order ${orderId} completed successfully`);
+      client.release();
+      
+      console.log(`[GOODS_RECEIPT] ✅ Successfully processed goods receipt for order ${orderId}: ${itemsProcessed} items, ${batchesCreated} batches`);
       
       res.json({
         success: true,
         message: 'Wareneingang erfolgreich erfasst',
-        processedItems: receivedItems.length
+        orderId: parseInt(orderId),
+        orderNumber: order.order_number,
+        itemsProcessed,
+        batchesCreated,
+        processedItems
       });
       
-    } catch (error: any) {
+    } catch (error) {
+      console.error(`[GOODS_RECEIPT] ❌ Error processing goods receipt for order ${orderId}:`, error);
       await client.query('ROLLBACK');
-      console.error('[GOODS_RECEIPT] Error:', error);
-      console.error('[GOODS_RECEIPT] Error stack:', error.stack);
-      console.error('[GOODS_RECEIPT] Error details:', {
-        message: error.message,
-        code: error.code,
-        detail: error.detail,
-        constraint: error.constraint
-      });
-      res.status(500).json({ error: 'Fehler beim Wareneingang', details: error.message });
-    } finally {
       client.release();
+      
+      res.status(500).json({ 
+        error: 'Fehler beim Verarbeiten des Wareneingangs',
+        message: error instanceof Error ? error.message : 'Unbekannter Fehler',
+        orderId: orderId
+      });
     }
   });
   

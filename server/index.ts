@@ -419,7 +419,7 @@ app.get('/orders-data', (req, res) => {
     }
   });
 
-  // Direct order API routes to bypass frontend routing
+  // Direct order API routes to bypass frontend routing - ENHANCED with JOINs
   app.get('/api/orders/:id', async (req, res) => {
     try {
       const orderId = parseInt(req.params.id);
@@ -428,21 +428,40 @@ app.get('/orders-data', (req, res) => {
         return res.status(400).json({ error: 'Invalid order ID' });
       }
       
-      console.log(`Loading order ${orderId}`);
-      const result = await pool.query('SELECT * FROM orders WHERE id = $1', [orderId]);
+      console.log(`Loading order ${orderId} with enhanced details`);
+      
+      // Erweiterte Abfrage mit JOINs für Lieferanten- und Lagerdaten
+      const result = await pool.query(`
+        SELECT 
+          o.*,
+          o.order_number as orderNumber,
+          s.name as supplier_name,
+          s.name as supplierName,
+          s.email as supplier_email,
+          w.name as warehouse_name,
+          w.name as warehouseName,
+          w.address as warehouse_address,
+          w.location as warehouse_location
+        FROM orders o
+        LEFT JOIN suppliers s ON o.supplier_id = s.id
+        LEFT JOIN warehouses w ON o.warehouse_id = w.id OR o.location_id = w.id
+        WHERE o.id = $1
+      `, [orderId]);
       
       if (result.rows.length === 0) {
         res.setHeader('Content-Type', 'application/json');
         return res.status(404).json({ error: 'Order not found' });
       }
       
-      console.log(`Order found: ${result.rows[0].order_number}`);
+      const orderData = result.rows[0];
+      console.log(`Order found: ${orderData.order_number || orderData.orderNumber} with supplier: ${orderData.supplier_name} and warehouse: ${orderData.warehouse_name}`);
+      
       res.setHeader('Content-Type', 'application/json');
-      res.json(result.rows[0]);
+      res.json(orderData);
     } catch (error) {
       console.error('Error loading order:', error);
       res.setHeader('Content-Type', 'application/json');
-      res.status(500).json({ error: 'Database error' });
+      res.status(500).json({ error: 'Database error', details: error.message });
     }
   });
 

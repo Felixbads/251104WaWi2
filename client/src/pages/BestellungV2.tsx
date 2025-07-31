@@ -644,20 +644,20 @@ const BestellungV2: React.FC = () => {
     }
   });
   
-  // Goods Receipt mutation
+  // Goods Receipt mutation - REPARIERT für korrekte Datenverarbeitung
   const goodsReceiptMutation = useMutation({
     mutationFn: (goodsReceiptData: any) => {
-      const { orderId, receiptData } = goodsReceiptData;
+      const { orderId, receivedItems } = goodsReceiptData;
       
       console.log("Goods receipt mutation input:", goodsReceiptData);
-      console.log("Receipt data:", receiptData);
+      console.log("Received items:", receivedItems);
       
       // Transform the data to match the backend API expectations
-      const receivedItems = [];
+      const transformedItems = [];
       
-      for (const item of receiptData) {
+      for (const item of receivedItems) {
         if (item.receivedQuantity > 0) {
-          receivedItems.push({
+          transformedItems.push({
             productId: item.productId,
             receivedQuantity: item.receivedQuantity,
             expiryDate: item.expiryDate || null,
@@ -667,7 +667,7 @@ const BestellungV2: React.FC = () => {
       }
       
       const transformedData = {
-        receivedItems: receivedItems
+        receivedItems: transformedItems
       };
       
       console.log("Transformed data for API:", transformedData);
