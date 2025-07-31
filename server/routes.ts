@@ -2060,7 +2060,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
         WHERE pc.supplier_id = $1
       `, [supplierId]);
 
-      const productCount = productCountResult.rows[0]?.product_count || 0;
+      const productCount = parseInt(productCountResult.rows[0]?.product_count) || 0;
+
+      console.log(`[SUPPLIER-ANALYTICS-ROUTES] Product count for supplier ${supplierId}: ${productCount}`);
+
+      // Get top locations (best performing locations by revenue for this supplier)
+      const topLocationsResult = await rawDb.query(`
+        SELECT 
+          m.id as location_id,
+          m.machine_name as location_name,
+          COALESCE(SUM(t.price), 0) as revenue,
+          COUNT(t.id) as orders,
+          ROUND(CAST((COALESCE(SUM(t.price), 0) / NULLIF((
+            SELECT SUM(t2.price) 
+            FROM transactions t2 
+            INNER JOIN products p2 ON TRIM(LOWER(t2.product_name)) = TRIM(LOWER(p2.product_name))
+            INNER JOIN purchase_conditions pc2 ON p2.id = pc2.product_id
+            WHERE pc2.supplier_id = $1 AND t2.datetime >= NOW() - INTERVAL '30 days'
+          ), 0)) * 100 AS NUMERIC), 2) as percentage
+        FROM transactions t
+        INNER JOIN machines m ON t.machine_id = m.id
+        INNER JOIN products p ON TRIM(LOWER(t.product_name)) = TRIM(LOWER(p.product_name))
+        INNER JOIN purchase_conditions pc ON p.id = pc.product_id
+        WHERE pc.supplier_id = $1 
+          AND t.datetime >= NOW() - INTERVAL '30 days'
+        GROUP BY m.id, m.machine_name
+        ORDER BY revenue DESC
+        LIMIT 5
+      `, [supplierId]);
+
+      // Get top products (best performing products by revenue for this supplier)
+      const topProductsResult = await rawDb.query(`
+        SELECT 
+          p.id as product_id,
+          p.product_name,
+          COALESCE(SUM(t.price), 0) as revenue,
+          COUNT(t.id) as quantity
+        FROM transactions t
+        INNER JOIN products p ON TRIM(LOWER(t.product_name)) = TRIM(LOWER(p.product_name))
+        INNER JOIN purchase_conditions pc ON p.id = pc.product_id
+        WHERE pc.supplier_id = $1 
+          AND t.datetime >= NOW() - INTERVAL '30 days'
+        GROUP BY p.id, p.product_name
+        ORDER BY revenue DESC
+        LIMIT 5
+      `, [supplierId]);
 
       // Get recent orders
       const recentOrdersResult = await rawDb.query(`
@@ -2095,8 +2139,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
           orders: parseInt(row.order_count) || 0,
           products: 0
         })),
-        topLocations: [], // Will be populated by separate query if needed
-        topProducts: [], // Will be populated by separate query if needed
+        topLocations: topLocationsResult.rows.map(row => ({
+          locationId: row.location_id,
+          locationName: row.location_name,
+          revenue: parseFloat(row.revenue) || 0,
+          orders: parseInt(row.orders) || 0,
+          percentage: parseFloat(row.percentage) || 0
+        })),
+        topProducts: topProductsResult.rows.map(row => ({
+          productId: row.product_id,
+          productName: row.product_name,
+          revenue: parseFloat(row.revenue) || 0,
+          quantity: parseInt(row.quantity) || 0
+        })),
         recentOrders: recentOrdersResult.rows.map(row => ({
           id: row.id,
           orderNumber: row.order_number,
@@ -2116,8 +2171,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`[SUPPLIER-ANALYTICS-ROUTES] Returning dashboard data for supplier ${supplierId}: ${orderStats.total_orders} orders, €${orderStats.total_revenue} revenue`);
       res.json(dashboardData);
     } catch (error) {
-      console.error(`[SUPPLIER-ANALYTICS-ROUTES] Dashboard error:`, error);
-      res.status(500).json({ error: 'Fehler beim Laden der Statistiken' });
+      console.error(`[SUPPLIER-ANALYTICS-ROUTES] Dashboard error for supplier ${supplierId}:`, error);
+      console.error(`[SUPPLIER-ANALYTICS-ROUTES] Error stack:`, error.stack);
+      res.status(500).json({ error: 'Fehler beim Laden der Statistiken', details: error.message });
     }
   });
 
@@ -2193,7 +2249,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
         FROM products p
         LEFT JOIN purchase_conditions pc ON p.id = pc.product_id AND pc.supplier_id = $1
-        LEFT JOIN supplier_discounts sd ON sd.supplier_id = $1 AND sd.product_id = p.id
+        LEFT JOIN supplier_discounts sd ON sd.supplier_id = $1
         WHERE pc.supplier_id = $1
           AND p.status = 'active'
         ORDER BY p.product_name ASC
