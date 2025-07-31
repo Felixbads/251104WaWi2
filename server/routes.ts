@@ -4854,13 +4854,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
             // Create product batch with expiry date
             await client.query(`
               INSERT INTO product_batches (
-                product_id, warehouse_id, quantity, expiry_date, 
+                product_id, warehouse_id, initial_quantity, current_quantity, expiry_date, 
                 batch_number, received_date, created_at
-              ) VALUES ($1, $2, $3, $4, $5, CURRENT_DATE, NOW())
+              ) VALUES ($1, $2, $3, $4, $5, $6, CURRENT_DATE, NOW())
             `, [
               productId, 
               warehouseId, 
-              receivedQuantity, 
+              receivedQuantity,    // initial_quantity
+              receivedQuantity,    // current_quantity (initial gleich current)
               expiryDate || null,
               `BATCH-${Date.now()}-${productId}`,
             ]);
