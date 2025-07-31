@@ -32,6 +32,7 @@ export default function EmailDialog({
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [useTemplate, setUseTemplate] = useState(true);
+  const [sendAsPdf, setSendAsPdf] = useState(false);
   const [emailData, setEmailData] = useState({
     to: '',
     cc: 'andreas@proviantomat.de,einkauf@proviantomat.de',
@@ -140,6 +141,7 @@ export default function EmailDialog({
           bcc: emailData.bcc.trim() || undefined,
           subject: emailData.subject.trim(),
           content: emailData.htmlContent.trim() || undefined,
+          sendAsPdf: sendAsPdf,
         }),
       });
 
@@ -230,8 +232,21 @@ export default function EmailDialog({
             </div>
           </div>
 
+          {/* PDF-Option hinzufügen */}
+          <div className="flex items-center space-x-2 p-4 bg-gray-50 rounded-lg">
+            <Switch
+              id="pdf-mode"
+              checked={sendAsPdf}
+              onCheckedChange={setSendAsPdf}
+              disabled={isLoading}
+            />
+            <Label htmlFor="pdf-mode" className="text-sm font-medium">
+              Als PDF-Anhang senden (statt HTML-Inhalt)
+            </Label>
+          </div>
+
           {/* Template Tabs */}
-          <Tabs defaultValue="preview" className="w-full">
+          <Tabs value={previewTab} onValueChange={setPreviewTab} className="w-full">
             <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="preview" className="flex items-center gap-2">
                 <Eye className="h-4 w-4" />
@@ -302,7 +317,7 @@ export default function EmailDialog({
             ) : (
               <Send className="h-4 w-4" />
             )}
-            E-Mail senden
+            {sendAsPdf ? 'Als PDF senden' : 'E-Mail senden'}
           </Button>
         </DialogFooter>
       </DialogContent>

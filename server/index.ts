@@ -1119,7 +1119,7 @@ app.get('/orders-data', (req, res) => {
     
     try {
       const orderId = parseInt(req.params.id);
-      const { to, cc, bcc, subject, content } = req.body;
+      const { to, cc, bcc, subject, content, sendAsPdf } = req.body;
 
       if (!to || !subject || !content) {
         return res.status(400).json({
