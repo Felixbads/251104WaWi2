@@ -647,10 +647,20 @@ const BestellungV2: React.FC = () => {
   // Goods Receipt mutation - VOLLSTÄNDIG REPARIERT für MHD-Tracking und korrektes Backend-Format
   const goodsReceiptMutation = useMutation({
     mutationFn: (goodsReceiptData: any) => {
+      console.log("🚨 MUTATION DEBUG - Input:", goodsReceiptData);
+      console.log("🚨 MUTATION DEBUG - Keys:", Object.keys(goodsReceiptData));
+      
       const { orderId, receivedItems } = goodsReceiptData;
       
-      console.log("✅ Goods receipt mutation input:", goodsReceiptData);
-      console.log("✅ Received items:", receivedItems);
+      console.log("🚨 MUTATION DEBUG - orderId:", orderId);
+      console.log("🚨 MUTATION DEBUG - receivedItems:", receivedItems);
+      console.log("🚨 MUTATION DEBUG - receivedItems type:", typeof receivedItems);
+      console.log("🚨 MUTATION DEBUG - receivedItems Array?:", Array.isArray(receivedItems));
+      
+      if (!receivedItems) {
+        console.error("❌ CRITICAL: receivedItems is undefined/null!");
+        throw new Error("receivedItems ist undefined - Frontend/Backend Parameter-Mismatch!");
+      }
       
       // Transform data for the /receipt API endpoint (expects receivedItems format)
       const transformedItems = receivedItems

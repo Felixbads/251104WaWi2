@@ -4805,14 +4805,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // WORKING GOODS RECEIPT ROUTE - FULL IMPLEMENTATION 
   app.post(`${API_PREFIX}/orders/:orderId/receipt`, async (req, res) => {
+    console.log("🚨 BACKEND DEBUG - Receipt API aufgerufen");
+    console.log("🚨 BACKEND DEBUG - req.params:", req.params);
+    console.log("🚨 BACKEND DEBUG - req.body:", req.body);
+    console.log("🚨 BACKEND DEBUG - req.body keys:", Object.keys(req.body));
+    
     const orderId = parseInt(req.params.orderId);
     const { receivedItems } = req.body;
     
+    console.log("🚨 BACKEND DEBUG - orderId:", orderId);
+    console.log("🚨 BACKEND DEBUG - receivedItems:", receivedItems);
+    console.log("🚨 BACKEND DEBUG - receivedItems type:", typeof receivedItems);
+    console.log("🚨 BACKEND DEBUG - receivedItems Array?:", Array.isArray(receivedItems));
+    
     if (isNaN(orderId)) {
+      console.error("❌ BACKEND ERROR: Ungültige orderId");
       return res.status(400).json({ error: 'Ungültige Bestellnummer' });
     }
     
     if (!receivedItems || !Array.isArray(receivedItems) || receivedItems.length === 0) {
+      console.error("❌ BACKEND ERROR: Keine receivedItems erhalten");
       return res.status(400).json({ error: 'Keine Wareneingangsdaten erhalten' });
     }
     
