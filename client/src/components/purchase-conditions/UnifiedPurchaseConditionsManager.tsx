@@ -760,16 +760,7 @@ export default function UnifiedPurchaseConditionsManager({
                   <p className="text-xs text-gray-500 mt-1">Pfandbeträge sind steuerbefreit</p>
                 </div>
 
-                <div>
-                  <Label htmlFor="supplierArticleNumber">Lieferanten-Artikelnummer</Label>
-                  <Input
-                    id="supplierArticleNumber"
-                    type="text"
-                    value={formData.supplierArticleNumber}
-                    onChange={(e) => setFormData(prev => ({ ...prev, supplierArticleNumber: e.target.value }))}
-                    placeholder="Art.-Nr. des Lieferanten"
-                  />
-                </div>
+
 
                 <div className="bg-gray-50 p-3 rounded">
                   <p className="text-sm font-medium">Bruttopreis: {formatCurrency(formData.unitPrice * (1 + formData.taxRate / 100))}</p>

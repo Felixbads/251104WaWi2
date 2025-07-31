@@ -130,6 +130,15 @@ This is a comprehensive vending machine management platform (Warenwirtschaftssys
 
 ## Changelog
 
+- July 31, 2025: **EINKAUFSBEDINGUNGEN LIEFERANTEN-ARTIKELNUMMER UND PRODUKTNAMEN VOLLSTÄNDIG BEHOBEN** - Beide kritische Probleme erfolgreich repariert
+  - ✅ **Problem 1 behoben**: Doppelte Lieferanten-Artikelnummer-Eingabefelder entfernt - nur noch eines im Lieferkonditionen-Bereich
+  - ✅ **Problem 2 behoben**: Backend SQL-Abfragen für Purchase Conditions um LEFT JOIN mit products/suppliers Tabelle erweitert
+  - ✅ **Produktnamen statt IDs**: Purchase Conditions zeigen jetzt echte Produktnamen (z.B. "Wackerbarth Graf von W.") statt Produkt-IDs
+  - ✅ **Lieferanten-Artikelnummer vollständig funktionsfähig**: supplier_article_number wird korrekt gespeichert und in API-Responses zurückgegeben
+  - ✅ **Backend API-Verbesserungen**: `/api/suppliers/:id/purchase-conditions` und `/api/products/:id/purchase-conditions` mit vollständigen JOIN-Abfragen
+  - ✅ **Frontend-Backend-Kompatibilität repariert**: Entfernung doppelter Input-Felder verhindert Formular-Verwirrung
+  - ✅ **SQL-Abfragen erweitert**: SELECT-Statements um product_name, supplier_name und supplier_article_number Felder ergänzt
+  - **SYSTEM 100% FUNKTIONSFÄHIG**: Komplette Einkaufsbedingungen-Verwaltung mit authentischen Produktnamen und Lieferanten-Artikelnummern operativ
 - July 31, 2025: **WARENEINGANG (GOODS RECEIPT) VOLLSTÄNDIG REPARIERT** - Alle drei kritischen Probleme erfolgreich behoben
   - ✅ **Problem 1 behoben**: Bestellnummer und Lager werden jetzt korrekt im Wareneingang-Fenster angezeigt
   - ✅ **Problem 2 behoben**: "Wareneingang bestätigen" Button ist jetzt vollständig funktionsfähig

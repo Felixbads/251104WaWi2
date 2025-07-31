@@ -2041,32 +2041,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Invalid supplier ID" });
       }
       
-      // Direkte SQL-Abfrage für Purchase Conditions nach Lieferant
+      // Direkte SQL-Abfrage für Purchase Conditions nach Lieferant MIT Produktnamen
       const purchaseConditionsQuery = `
         SELECT 
-          id,
-          supplier_id,
-          product_id,
-          unit_price,
-          tax_rate,
-          gross_price,
-          min_quantity,
-          packaging_unit,
-          packaging_quantity,
-          delivery_time,
-          valid_from,
-          valid_to,
-          is_preferred,
-          notes,
-          lead_time,
-          packaging_type,
-          min_quantity_unit,
-          deposit_per_unit,
-          created_at,
-          updated_at
-        FROM purchase_conditions 
-        WHERE supplier_id = $1
-        ORDER BY created_at DESC
+          pc.id,
+          pc.supplier_id,
+          pc.product_id,
+          p.product_name,
+          pc.unit_price,
+          pc.tax_rate,
+          pc.gross_price,
+          pc.min_quantity,
+          pc.packaging_unit,
+          pc.packaging_quantity,
+          pc.delivery_time,
+          pc.valid_from,
+          pc.valid_to,
+          pc.is_preferred,
+          pc.notes,
+          pc.lead_time,
+          pc.packaging_type,
+          pc.min_quantity_unit,
+          pc.deposit_per_unit,
+          pc.supplier_article_number,
+          pc.created_at,
+          pc.updated_at
+        FROM purchase_conditions pc
+        LEFT JOIN products p ON pc.product_id = p.id
+        WHERE pc.supplier_id = $1
+        ORDER BY pc.created_at DESC
       `;
       
       const purchaseConditionsResult = await rawDb.query(purchaseConditionsQuery, [supplierId]);
@@ -2090,32 +2093,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Invalid product ID" });
       }
       
-      // Direkte SQL-Abfrage für Purchase Conditions nach Produkt
+      // Direkte SQL-Abfrage für Purchase Conditions nach Produkt MIT Lieferantennamen
       const purchaseConditionsQuery = `
         SELECT 
-          id,
-          supplier_id,
-          product_id,
-          unit_price,
-          tax_rate,
-          gross_price,
-          min_quantity,
-          packaging_unit,
-          packaging_quantity,
-          delivery_time,
-          valid_from,
-          valid_to,
-          is_preferred,
-          notes,
-          lead_time,
-          packaging_type,
-          min_quantity_unit,
-          deposit_per_unit,
-          created_at,
-          updated_at
-        FROM purchase_conditions 
-        WHERE product_id = $1
-        ORDER BY created_at DESC
+          pc.id,
+          pc.supplier_id,
+          s.name as supplier_name,
+          pc.product_id,
+          pc.unit_price,
+          pc.tax_rate,
+          pc.gross_price,
+          pc.min_quantity,
+          pc.packaging_unit,
+          pc.packaging_quantity,
+          pc.delivery_time,
+          pc.valid_from,
+          pc.valid_to,
+          pc.is_preferred,
+          pc.notes,
+          pc.lead_time,
+          pc.packaging_type,
+          pc.min_quantity_unit,
+          pc.deposit_per_unit,
+          pc.supplier_article_number,
+          pc.created_at,
+          pc.updated_at
+        FROM purchase_conditions pc
+        LEFT JOIN suppliers s ON pc.supplier_id = s.id
+        WHERE pc.product_id = $1
+        ORDER BY pc.created_at DESC
       `;
       
       const purchaseConditionsResult = await rawDb.query(purchaseConditionsQuery, [productId]);
