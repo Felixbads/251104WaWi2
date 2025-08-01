@@ -640,8 +640,8 @@ export function registerForecastRoutes(app: Express): void {
         WITH product_forecasts AS (
           SELECT 
             f.product_id,
-            p.name as product_name,
-            p.supplier_id,
+            p.product_name,
+            pc.supplier_id,
             s.name as supplier_name,
             p.price,
             SUM(f.predicted_quantity) as total_predicted_sales,
@@ -649,11 +649,12 @@ export function registerForecastRoutes(app: Express): void {
             COUNT(DISTINCT f.forecast_date) as forecast_days
           FROM forecasts f
           INNER JOIN products p ON f.product_id = p.id::text
-          LEFT JOIN suppliers s ON p.supplier_id = s.id
+          LEFT JOIN purchase_conditions pc ON p.id = pc.product_id
+          LEFT JOIN suppliers s ON pc.supplier_id = s.id
           WHERE f.forecast_date >= ${startDate.toISOString().split('T')[0]}
             AND f.forecast_date <= ${endDate.toISOString().split('T')[0]}
             AND f.product_id IS NOT NULL
-          GROUP BY f.product_id, p.name, p.supplier_id, s.name, p.price
+          GROUP BY f.product_id, p.product_name, pc.supplier_id, s.name, p.price
         ),
         current_inventory AS (
           SELECT 
