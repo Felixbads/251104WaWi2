@@ -619,9 +619,6 @@ export default function SupplierDetail() {
   const [_, navigate] = useLocation();
   const { toast } = useToast();
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [showAddPurchaseCondition, setShowAddPurchaseCondition] = useState(false);
-  const [editingPurchaseCondition, setEditingPurchaseCondition] = useState<PurchaseCondition | null>(null);
-  const [deletingPurchaseConditionId, setDeletingPurchaseConditionId] = useState<number | null>(null);
   const [showProductAssignmentDialog, setShowProductAssignmentDialog] = useState(false);
   const [productSearchTerm, setProductSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -779,80 +776,7 @@ export default function SupplierDetail() {
     }
   });
   
-  // Mutation für das Erstellen einer neuen Einkaufsbedingung
-  const createPurchaseConditionMutation = useMutation({
-    mutationFn: (data: any) => {
-      console.log("Erstelle Einkaufsbedingung mit Daten:", data);
-      // Stelle sicher, dass alle erforderlichen Felder vorhanden sind
-      const condition = {
-        ...data,
-        supplierId: parseInt(id), // Stelle sicher, dass die ID als Nummer vorliegt
-        productId: Number(data.productId), // Stelle sicher, dass die Produkt-ID als Nummer vorliegt
-        unitPrice: Number(data.unitPrice), // Stelle sicher, dass der Preis als Nummer vorliegt
-        isPreferred: !!data.isPreferred // Standardwert für isPreferred
-      };
-      console.log("Formatierte Daten:", condition);
-      return createPurchaseCondition(condition);
-    },
-    onSuccess: () => {
-      toast({
-        title: "Erfolg",
-        description: "Einkaufsbedingung erfolgreich erstellt",
-      });
-      queryClient.invalidateQueries({ queryKey: [`/api/suppliers/${id}/purchase-conditions`] });
-      setShowAddPurchaseCondition(false);
-    },
-    onError: (error) => {
-      console.error("Fehler beim Erstellen der Einkaufsbedingung:", error);
-      toast({
-        title: "Fehler",
-        description: `Fehler beim Erstellen der Einkaufsbedingung: ${error}`,
-        variant: "destructive",
-      });
-    }
-  });
-  
-  // Mutation für das Aktualisieren einer Einkaufsbedingung
-  const updatePurchaseConditionMutation = useMutation({
-    mutationFn: (data: { id: number, data: Partial<PurchaseCondition> }) => 
-      updatePurchaseCondition(data.id, data.data),
-    onSuccess: () => {
-      toast({
-        title: "Erfolg",
-        description: "Einkaufsbedingung erfolgreich aktualisiert",
-      });
-      queryClient.invalidateQueries({ queryKey: [`/api/suppliers/${id}/purchase-conditions`] });
-      setEditingPurchaseCondition(null);
-    },
-    onError: (error) => {
-      toast({
-        title: "Fehler",
-        description: `Fehler beim Aktualisieren der Einkaufsbedingung: ${error}`,
-        variant: "destructive",
-      });
-    }
-  });
-  
-  // Mutation für das Löschen einer Einkaufsbedingung
-  const deletePurchaseConditionMutation = useMutation({
-    mutationFn: (id: number) => 
-      deletePurchaseCondition(id),
-    onSuccess: () => {
-      toast({
-        title: "Erfolg",
-        description: "Einkaufsbedingung erfolgreich gelöscht",
-      });
-      queryClient.invalidateQueries({ queryKey: [`/api/suppliers/${id}/purchase-conditions`] });
-      setDeletingPurchaseConditionId(null);
-    },
-    onError: (error) => {
-      toast({
-        title: "Fehler",
-        description: `Fehler beim Löschen der Einkaufsbedingung: ${error}`,
-        variant: "destructive",
-      });
-    }
-  });
+
   
   // Mutation für das Zuweisen eines Produkts zu einem Lieferanten
   const assignProductToSupplierMutation = useMutation({
@@ -939,41 +863,8 @@ export default function SupplierDetail() {
     updateMutation.mutate(values);
   };
   
-  // Handler für Einkaufsbedingungen
-  const handleAddPurchaseCondition = () => {
-    setShowAddPurchaseCondition(true);
-  };
-  
-  const handleEditPurchaseCondition = (condition: PurchaseCondition) => {
-    setEditingPurchaseCondition(condition);
-  };
-  
-  const handleDeletePurchaseCondition = (id: number) => {
-    setDeletingPurchaseConditionId(id);
-  };
-
   const handleUpdateSupplier = (updatedData: Partial<Supplier>) => {
     updateSupplierMutation.mutate(updatedData);
-  };
-  
-  // Handler für die Einkaufsbedingungsformulare
-  const handleCreatePurchaseCondition = (data: any) => {
-    createPurchaseConditionMutation.mutate(data);
-  };
-  
-  const handleUpdatePurchaseCondition = (data: any) => {
-    if (editingPurchaseCondition) {
-      updatePurchaseConditionMutation.mutate({
-        id: editingPurchaseCondition.id,
-        data
-      });
-    }
-  };
-  
-  const handleConfirmDelete = () => {
-    if (deletingPurchaseConditionId) {
-      deletePurchaseConditionMutation.mutate(deletingPurchaseConditionId);
-    }
   };
   
   // Helper für den Status
@@ -1683,70 +1574,9 @@ export default function SupplierDetail() {
         </TabsContent>
       </Tabs>
 
-      {/* Dialog zum Erstellen einer neuen Einkaufsbedingung */}
-      <Dialog open={showAddPurchaseCondition} onOpenChange={setShowAddPurchaseCondition}>
-        <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Neue Einkaufsbedingung erstellen</DialogTitle>
-            <DialogDescription>
-              Erstellen Sie eine neue Einkaufsbedingung für diesen Lieferanten.
-            </DialogDescription>
-          </DialogHeader>
-          <PurchaseConditionForm
-            supplierId={parseInt(id)}
-            onSubmit={handleCreatePurchaseCondition}
-            onCancel={() => setShowAddPurchaseCondition(false)}
-            isLoading={createPurchaseConditionMutation.isPending}
-          />
-        </DialogContent>
-      </Dialog>
 
-      {/* Dialog zum Bearbeiten einer Einkaufsbedingung */}
-      <Dialog open={!!editingPurchaseCondition} onOpenChange={(open) => !open && setEditingPurchaseCondition(null)}>
-        <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Einkaufsbedingung bearbeiten</DialogTitle>
-            <DialogDescription>
-              Bearbeiten Sie die ausgewählte Einkaufsbedingung.
-            </DialogDescription>
-          </DialogHeader>
-          {editingPurchaseCondition && (
-            <PurchaseConditionForm
-              supplierId={parseInt(id)}
-              initialData={editingPurchaseCondition}
-              onSubmit={handleUpdatePurchaseCondition}
-              onCancel={() => setEditingPurchaseCondition(null)}
-              isLoading={updatePurchaseConditionMutation.isPending}
-            />
-          )}
-        </DialogContent>
-      </Dialog>
 
-      {/* Dialog zum Löschen einer Einkaufsbedingung */}
-      <AlertDialog 
-        open={!!deletingPurchaseConditionId} 
-        onOpenChange={(open) => !open && setDeletingPurchaseConditionId(null)}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Einkaufsbedingung löschen</AlertDialogTitle>
-            <AlertDialogDescription>
-              Sind Sie sicher, dass Sie diese Einkaufsbedingung löschen möchten? 
-              Diese Aktion kann nicht rückgängig gemacht werden.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Abbrechen</AlertDialogCancel>
-            <AlertDialogAction 
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={handleConfirmDelete}
-              disabled={deletePurchaseConditionMutation.isPending}
-            >
-              {deletePurchaseConditionMutation.isPending ? "Löschen..." : "Löschen"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+
       
       {/* Dialog zur Produktzuordnung */}
       <Dialog open={showProductAssignmentDialog} onOpenChange={setShowProductAssignmentDialog}>
