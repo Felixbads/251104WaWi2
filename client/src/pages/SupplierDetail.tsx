@@ -1522,20 +1522,6 @@ export default function SupplierDetail() {
           </Card>
         </TabsContent>
         
-        {/* Einkaufsbedingungen Tab */}
-        <TabsContent value="purchaseConditions">
-          <UnifiedPurchaseConditionsManager 
-            mode="supplier"
-            entityId={parseInt(id!)} 
-            entityName={supplier.name}
-          />
-        </TabsContent>
-
-        {/* Rabattbedingungen Tab */}
-        <TabsContent value="discountConditions">
-          <SupplierDiscountManager supplierId={parseInt(id!)} />
-        </TabsContent>
-        
         {/* Statistiken Tab */}
         <TabsContent value="stats" className="space-y-6">
           <SupplierStatistics supplierId={parseInt(id!)} supplier={supplier} />
