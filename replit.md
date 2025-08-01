@@ -6,6 +6,17 @@ This is a comprehensive vending machine management platform (Warenwirtschaftssys
 ## User Preferences
 Preferred communication style: Simple, everyday language.
 
+## Recent Changes (2025-08-01)
+### Bulk Order Product Visibility Fix
+**Issue**: Products with Gustav Müller purchase conditions (e.g., Apfelschorle) were not appearing in bulk order dialogs because SQL queries filtered only by `p.supplier_id = ${supplierId}`, excluding products with purchase conditions but no direct supplier_id relationship.
+
+**Solution**: Updated all SQL queries in `server/routes/bulk-orders.ts` to include products with purchase conditions:
+- Changed `WHERE p.supplier_id = ${supplierId}` to `WHERE (p.supplier_id = ${supplierId} OR pc.supplier_id = ${supplierId})`
+- Applied fix to all three query types: inventory, sales analysis, and forecast queries
+- Now includes all products with Gustav Müller purchase conditions regardless of supplier_id field setting
+
+**Impact**: Ensures complete product visibility in bulk ordering system, preventing missed ordering opportunities for products with valid purchase conditions.
+
 ## System Architecture
 
 ### Frontend Architecture
