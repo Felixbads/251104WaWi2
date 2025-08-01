@@ -49,76 +49,37 @@ router.get('/:id/products', async (req: Request, res: Response) => {
 
     console.log(`[SUPPLIER-PRODUCTS] Supplier ${supplierId} has purchase conditions: ${hasPurchaseConditions}`);
 
-    // GEÄNDERT: Immer ALLE Produkte des Lieferanten anzeigen (konsistent mit Bulk Orders)
-    // KRITISCH: Verwende EINKAUFSPREISE (purchase_conditions.unitPrice) statt Verkaufspreise (products.price)
-    console.log(`[SUPPLIER-PRODUCTS] Using comprehensive approach for supplier ${supplierId} - showing ALL products with PURCHASE PRICES`);
+    // GEÄNDERT: ALLE Produkte des Lieferanten anzeigen - sowohl mit Einkaufsbedingungen ALS AUCH mit direkter supplier_id
+    console.log(`[SUPPLIER-PRODUCTS] Using comprehensive UNION approach for supplier ${supplierId} - showing ALL products`);
     
-    let supplierProducts;
+    // SQL-Query mit UNION um ALLE Produkte zu bekommen (konsistent mit bulk-orders.ts)
+    const supplierProductsQuery = sql`
+      SELECT DISTINCT
+        p.id,
+        p.vendon_id as "vendonId",
+        p.product_name as "productName", 
+        p.sku,
+        p.barcode,
+        COALESCE(pc.unit_price, p.price) as price,
+        p.category,
+        p.description,
+        p.status,
+        p.supplier_sku as "supplierSku", 
+        p.package_size as "packageSize",
+        p.min_order_quantity as "minOrderQuantity",
+        p.shelf_life_days as "shelfLifeDays",
+        p.supplier_id as "supplierId",
+        p.created_at as "createdAt",
+        p.updated_at as "updatedAt"
+      FROM products p
+      LEFT JOIN purchase_conditions pc ON p.id = pc.product_id AND pc.supplier_id = ${supplierId}
+      WHERE (p.supplier_id = ${supplierId} OR pc.supplier_id = ${supplierId})
+        AND p.status = 'active'
+      ORDER BY p.product_name
+    `;
     
-    if (hasPurchaseConditions) {
-      // Mit Purchase Conditions: Nutze Einkaufspreise
-      console.log(`[SUPPLIER-PRODUCTS] Using PURCHASE PRICES from purchase_conditions for supplier ${supplierId}`);
-      supplierProducts = await db
-        .select({
-          id: products.id,
-          vendonId: products.vendonId,
-          productName: products.productName,
-          sku: products.sku,
-          barcode: products.barcode,
-          price: purchaseConditions.unitPrice, // EINKAUFSPREIS statt Verkaufspreis
-          category: products.category,
-          description: products.description,
-          status: products.status,
-          supplierSku: products.supplierSku,
-          packageSize: products.packageSize,
-          minOrderQuantity: products.minOrderQuantity,
-          shelfLifeDays: products.shelfLifeDays,
-          supplierId: products.supplierId,
-          createdAt: products.createdAt,
-          updatedAt: products.updatedAt,
-        })
-        .from(products)
-        .innerJoin(purchaseConditions, eq(products.id, purchaseConditions.productId))
-        .where(
-          and(
-            eq(purchaseConditions.supplierId, supplierId),
-            eq(products.status, 'active')
-          )
-        )
-        .orderBy(asc(products.productName));
-    } else {
-      // Ohne Purchase Conditions: Fallback auf Produkt-Preise (für Kompatibilität)
-      console.log(`[SUPPLIER-PRODUCTS] No purchase conditions found, using product prices for supplier ${supplierId}`);
-      supplierProducts = await db
-        .select({
-          id: products.id,
-          vendonId: products.vendonId,
-          productName: products.productName,
-          sku: products.sku,
-          barcode: products.barcode,
-          price: products.price,
-          category: products.category,
-          description: products.description,
-          status: products.status,
-          supplierSku: products.supplierSku,
-          packageSize: products.packageSize,
-          minOrderQuantity: products.minOrderQuantity,
-          shelfLifeDays: products.shelfLifeDays,
-          supplierId: products.supplierId,
-          createdAt: products.createdAt,
-          updatedAt: products.updatedAt,
-        })
-        .from(products)
-        .where(
-          and(
-            eq(products.supplierId, supplierId),
-            eq(products.status, 'active')
-          )
-        )
-        .orderBy(asc(products.productName));
-    }
-
-
+    const supplierProductsResult = await db.execute(supplierProductsQuery);
+    const supplierProducts = supplierProductsResult.rows;
 
     console.log(`[SUPPLIER-PRODUCTS] Found ${supplierProducts.length} products for supplier ${supplierId}`);
 
@@ -128,7 +89,7 @@ router.get('/:id/products', async (req: Request, res: Response) => {
       supplierName: supplier[0]?.name,
       hasPurchaseConditions,
       productCount: supplierProducts.length,
-      queryType: hasPurchaseConditions ? 'purchase_conditions' : 'direct_assignment'
+      queryType: 'comprehensive_union'
     };
 
     res.json({
@@ -176,65 +137,30 @@ router.get('/:id/products/search', async (req: Request, res: Response) => {
       });
     }
 
-    // First check if supplier has purchase conditions
-    const purchaseConditionsCount = await db
-      .select({ count: sql<number>`COUNT(*)` })
-      .from(purchaseConditions)
-      .where(eq(purchaseConditions.supplierId, supplierId));
+    // Use comprehensive search approach (consistent with main products endpoint) 
+    const searchQuery = sql`
+      SELECT DISTINCT
+        p.id,
+        p.product_name as "productName", 
+        p.sku,
+        COALESCE(pc.unit_price, p.price) as price,
+        p.category,
+        p.status
+      FROM products p
+      LEFT JOIN purchase_conditions pc ON p.id = pc.product_id AND pc.supplier_id = ${supplierId}
+      WHERE (p.supplier_id = ${supplierId} OR pc.supplier_id = ${supplierId})
+        AND p.status = 'active'
+        AND (
+          p.product_name ILIKE ${`%${searchTerm}%`} OR 
+          p.sku ILIKE ${`%${searchTerm}%`} OR 
+          p.barcode ILIKE ${`%${searchTerm}%`}
+        )
+      ORDER BY p.product_name
+      LIMIT ${limit} OFFSET ${offset}
+    `;
 
-    const hasPurchaseConditions = purchaseConditionsCount[0]?.count > 0;
-
-    let searchQuery;
-    
-    if (hasPurchaseConditions) {
-      searchQuery = db
-        .select({
-          id: products.id,
-          productName: products.productName,
-          sku: products.sku,
-          price: purchaseConditions.unitPrice,
-          category: products.category,
-          status: products.status,
-        })
-        .from(products)
-        .innerJoin(purchaseConditions, eq(products.id, purchaseConditions.productId))
-        .where(
-          and(
-            eq(purchaseConditions.supplierId, supplierId),
-            or(
-              ilike(products.productName, `%${searchTerm}%`),
-              ilike(products.sku, `%${searchTerm}%`),
-              ilike(products.barcode, `%${searchTerm}%`)
-            )
-          )
-        );
-    } else {
-      searchQuery = db
-        .select({
-          id: products.id,
-          productName: products.productName,
-          sku: products.sku,
-          price: products.price,
-          category: products.category,
-          status: products.status,
-        })
-        .from(products)
-        .where(
-          and(
-            eq(products.supplierId, supplierId),
-            or(
-              ilike(products.productName, `%${searchTerm}%`),
-              ilike(products.sku, `%${searchTerm}%`),
-              ilike(products.barcode, `%${searchTerm}%`)
-            )
-          )
-        );
-    }
-
-    const results = await searchQuery
-      .limit(limit)
-      .offset(offset)
-      .orderBy(asc(products.productName));
+    const searchResults = await db.execute(searchQuery);
+    const results = searchResults.rows;
 
     res.json({
       success: true,
@@ -243,8 +169,7 @@ router.get('/:id/products/search', async (req: Request, res: Response) => {
         total: results.length,
         limit,
         offset,
-        searchTerm,
-        hasPurchaseConditions
+        searchTerm
       }
     });
 
