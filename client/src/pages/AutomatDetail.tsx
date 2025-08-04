@@ -271,9 +271,9 @@ export default function AutomatDetail() {
       };
       
       try {
-        // Tägliche Stats über die API abrufen - Backend resolves ID automatically
-        console.log(`Hole KPIs für Automat mit ID ${inputId}`);
-        const response = await fetch(`/api/machines/${inputId}/daily-stats`);
+        // Tägliche Stats über die API abrufen - Use resolved machine ID
+        console.log(`Hole KPIs für Automat mit ID ${machineData.id} (ursprünglich: ${inputId})`);
+        const response = await fetch(`/api/machines/${machineData.id}/daily-stats`);
         
         if (response.ok) {
           const stats = await response.json();
@@ -327,48 +327,48 @@ export default function AutomatDetail() {
     enabled: !!inputId
   });
 
-  // Transaktionen für diese Maschine abrufen - Backend resolves ID automatically
+  // Transaktionen für diese Maschine abrufen - Use resolved machine ID
   const { 
     data: transactions, 
     isLoading: transactionsLoading
   } = useQuery({
-    queryKey: ['/api/machines', inputId, 'transactions'],
-    queryFn: () => getTransactionsByMachine(inputId!, 20),
-    enabled: !!inputId && activeTab === "transaktionen"
+    queryKey: ['/api/machines', resolvedMachineId, 'transactions'],
+    queryFn: () => getTransactionsByMachine(resolvedMachineId!.toString(), 20),
+    enabled: !!resolvedMachineId && activeTab === "transaktionen"
   });
 
-  // Auffüllungen für diese Maschine abrufen - Backend resolves ID automatically
+  // Auffüllungen für diese Maschine abrufen - Use resolved machine ID
   const {
     data: refills,
     isLoading: refillsLoading
   } = useQuery({
-    queryKey: ['/api/machines', inputId, 'refills'],
-    queryFn: () => getRefillsByMachine(inputId!, 20),
-    enabled: !!inputId && activeTab === "auffullungen"
+    queryKey: ['/api/machines', resolvedMachineId, 'refills'],
+    queryFn: () => getRefillsByMachine(resolvedMachineId!.toString(), 20),
+    enabled: !!resolvedMachineId && activeTab === "auffullungen"
   });
   
-  // Machine Analytics abrufen - Backend resolves ID automatically
+  // Machine Analytics abrufen - Use resolved machine ID
   const {
     data: machineAnalytics,
     isLoading: analyticsLoading,
     error: analyticsError
   } = useQuery({
-    queryKey: ['/statistics/machines', inputId, 'analytics'],
-    queryFn: () => getMachineAnalytics(inputId!),
-    enabled: !!inputId && (activeTab === "analysen" || activeTab === "auswertung")
+    queryKey: ['/statistics/machines', resolvedMachineId, 'analytics'],
+    queryFn: () => getMachineAnalytics(resolvedMachineId!.toString()),
+    enabled: !!resolvedMachineId && (activeTab === "analysen" || activeTab === "auswertung")
   });
 
   // Maschine aktualisieren
   const handleRefresh = () => {
     refetchMachine();
-    if (activeTab === "transaktionen") {
-      queryClient.invalidateQueries({ queryKey: ['/api/machines', inputId, 'transactions'] });
+    if (activeTab === "transaktionen" && resolvedMachineId) {
+      queryClient.invalidateQueries({ queryKey: ['/api/machines', resolvedMachineId, 'transactions'] });
     }
-    if (activeTab === "auffullungen") {
-      queryClient.invalidateQueries({ queryKey: ['/api/machines', inputId, 'refills'] });
+    if (activeTab === "auffullungen" && resolvedMachineId) {
+      queryClient.invalidateQueries({ queryKey: ['/api/machines', resolvedMachineId, 'refills'] });
     }
-    if (activeTab === "analysen" || activeTab === "auswertung") {
-      queryClient.invalidateQueries({ queryKey: ['/statistics/machines', inputId, 'analytics'] });
+    if ((activeTab === "analysen" || activeTab === "auswertung") && resolvedMachineId) {
+      queryClient.invalidateQueries({ queryKey: ['/statistics/machines', resolvedMachineId, 'analytics'] });
     }
   };
 
