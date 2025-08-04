@@ -6,7 +6,20 @@ This is a comprehensive vending machine management platform (Warenwirtschaftssys
 ## User Preferences
 Preferred communication style: Simple, everyday language.
 
-## Recent Changes (2025-08-01)
+## Recent Changes (2025-08-04)
+### Transaction Display and Net Profit Calculation Fix
+**Issue**: Transaction overview showed incorrect NETTO values - displaying gross sales price instead of actual net profit. Vita Cola showed €2.80 in NETTO column instead of correct €2.00 after deducting purchase price (€0.65) and deposit (€0.15).
+
+**Solution**: Complete overhaul of transaction calculation system:
+- **Database**: Fixed Vita Cola deposit_price from 0 to correct 0.15€
+- **Backend**: Enhanced SQL queries in transaction endpoints to JOIN with products and purchase_conditions tables
+- **Formula**: Implemented correct net profit calculation: `COALESCE(price_wo_vat, price - price_vat) - unit_price - deposit_price`
+- **API**: Added comprehensive fields: priceWoVat, priceVat, purchasePriceNet, depositPrice, netResult
+- **Frontend**: Transaction table already correctly configured to display netResult in NETTO column
+
+**Impact**: Transaction overview now shows realistic profit margins instead of gross sales amounts. Example: Vita Cola correctly shows €2.00 net profit (€2.80 - €0.65 - €0.15) rather than €2.80 gross price.
+
+## Previous Changes (2025-08-01)
 ### Bulk Order Product Visibility Fix
 **Issue**: Products with Gustav Müller purchase conditions (e.g., Apfelschorle) were not appearing in bulk order dialogs because SQL queries filtered only by `p.supplier_id = ${supplierId}`, excluding products with purchase conditions but no direct supplier_id relationship.
 
