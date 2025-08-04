@@ -15,7 +15,8 @@ import { de } from 'date-fns/locale';
 import EmailDialog from './EmailDialog';
 
 interface OrderItem {
-  id: number;
+  id: number | null;
+  tempId?: number;
   productId: number;
   productName: string;
   quantity: number;
@@ -391,21 +392,22 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
     }
   };
 
-  const updateItemQuantity = (itemId: number, newQuantity: number) => {
+  const updateItemQuantity = (itemId: number | null, newQuantity: number) => {
     setEditingItems(prev => prev.map(item => 
-      item.id === itemId 
+      (item.id === itemId || item.tempId === itemId)
         ? { ...item, quantity: newQuantity, totalPrice: newQuantity * item.unitPrice }
         : item
     ));
   };
 
-  const removeItem = (itemId: number) => {
-    setEditingItems(prev => prev.filter(item => item.id !== itemId));
+  const removeItem = (itemId: number | null) => {
+    setEditingItems(prev => prev.filter(item => item.id !== itemId && item.tempId !== itemId));
   };
 
   const addNewItem = (product: any, quantity: number) => {
     const newItem: OrderItem = {
-      id: -Math.random(), // Temporary negative ID for new items
+      id: null, // New items have no ID until saved
+      tempId: -Math.random(), // Temporary ID for React rendering
       productId: product.id,
       productName: product.productName || product.name,
       quantity: quantity,
@@ -955,7 +957,7 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
               ) : (
                 <div className="space-y-4">
                   {(isEditing ? editingItems : orderItems).map((item, index) => (
-                    <div key={item.id} className="flex items-center justify-between py-3 border-b last:border-b-0">
+                    <div key={item.id || item.tempId || index} className="flex items-center justify-between py-3 border-b last:border-b-0">
                       <div className="flex-1">
                         <h4 className="font-medium">{item.productName}</h4>
                         <div className="flex items-center space-x-4 mt-2">
@@ -967,7 +969,7 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
                                   type="number"
                                   min="1"
                                   value={item.quantity}
-                                  onChange={(e) => updateItemQuantity(item.id, parseInt(e.target.value) || 1)}
+                                  onChange={(e) => updateItemQuantity(item.id || item.tempId, parseInt(e.target.value) || 1)}
                                   className="w-20"
                                 />
                                 <span className="text-sm text-gray-600">{item.unit}</span>
@@ -989,7 +991,7 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
                         </div>
                         {isEditing && (
                           <Button
-                            onClick={() => removeItem(item.id)}
+                            onClick={() => removeItem(item.id || item.tempId)}
                             variant="ghost"
                             size="sm"
                             className="text-red-600 hover:text-red-800"

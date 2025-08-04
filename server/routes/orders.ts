@@ -1208,42 +1208,72 @@ router.put('/:id/items', async (req: Request, res: Response) => {
       });
     }
     
-    // Use database transaction for bulk update
     let updatedCount = 0;
+    let insertedCount = 0;
+    const newlyInsertedIds = [];
     
     for (const item of items) {
-      const { id, quantity, unitPrice, totalPrice } = item;
+      const { id, productId, productName, quantity, unit, unitPrice, totalPrice } = item;
       
-      if (!id || isNaN(parseInt(id))) {
-        console.warn(`Überspringe Item ohne gültige ID:`, item);
-        continue;
-      }
-      
-      try {
-        await db
-          .update(orderItems)
-          .set({
-            quantity: quantity || 1,
-            unitPrice: unitPrice || 0,
-            totalPrice: totalPrice || (quantity || 1) * (unitPrice || 0),
-            updatedAt: new Date()
-          })
-          .where(and(eq(orderItems.id, parseInt(id)), eq(orderItems.orderId, orderId)));
-        
-        console.log(`Updated item ${id}: ${quantity} @ ${unitPrice} = ${totalPrice}`);
-        updatedCount++;
-      } catch (itemError) {
-        console.error(`Fehler beim Update von Item ${id}:`, itemError);
+      // Check if this is a new item (no ID or negative ID)
+      if (!id || id <= 0) {
+        console.log(`Inserting new item:`, item);
+        try {
+          const newItem = await db
+            .insert(orderItems)
+            .values({
+              orderId,
+              productId: productId || null,
+              productName: productName || 'Unbenanntes Produkt',
+              quantity: quantity || 1,
+              unit: unit || 'Stk.',
+              unitPrice: unitPrice || 0,
+              totalPrice: totalPrice || (quantity || 1) * (unitPrice || 0),
+              vatRate: 19,
+              vatAmount: ((quantity || 1) * (unitPrice || 0)) * 19 / 100,
+              netAmount: ((quantity || 1) * (unitPrice || 0)) - (((quantity || 1) * (unitPrice || 0)) * 19 / 100),
+              grossAmount: (quantity || 1) * (unitPrice || 0)
+            })
+            .returning();
+          
+          if (newItem && newItem.length > 0) {
+            newlyInsertedIds.push(newItem[0]);
+            insertedCount++;
+            console.log(`Inserted new item with ID ${newItem[0].id}: ${quantity} @ ${unitPrice} = ${totalPrice}`);
+          }
+        } catch (itemError) {
+          console.error(`Fehler beim Einfügen von neuem Item:`, itemError);
+        }
+      } else {
+        // Update existing item
+        try {
+          await db
+            .update(orderItems)
+            .set({
+              quantity: quantity || 1,
+              unitPrice: unitPrice || 0,
+              totalPrice: totalPrice || (quantity || 1) * (unitPrice || 0),
+              updatedAt: new Date()
+            })
+            .where(and(eq(orderItems.id, parseInt(id)), eq(orderItems.orderId, orderId)));
+          
+          console.log(`Updated item ${id}: ${quantity} @ ${unitPrice} = ${totalPrice}`);
+          updatedCount++;
+        } catch (itemError) {
+          console.error(`Fehler beim Update von Item ${id}:`, itemError);
+        }
       }
     }
     
-    console.log(`Bulk-Update für Bestellung ${orderId} erfolgreich - ${updatedCount} Items aktualisiert`);
+    console.log(`Bulk-Update für Bestellung ${orderId} erfolgreich - ${updatedCount} Items aktualisiert, ${insertedCount} Items hinzugefügt`);
     
     res.setHeader('Content-Type', 'application/json');
     return res.json({ 
       success: true, 
-      message: `${updatedCount} Bestellpositionen erfolgreich aktualisiert`,
-      updatedItems: updatedCount
+      message: `${updatedCount} Bestellpositionen aktualisiert, ${insertedCount} neue Positionen hinzugefügt`,
+      updatedItems: updatedCount,
+      insertedItems: insertedCount,
+      newItems: newlyInsertedIds
     });
     
   } catch (error) {
