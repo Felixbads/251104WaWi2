@@ -484,65 +484,85 @@ export default function Dashboard() {
     }
   }, [transactions, isLoadingTransactions]);
 
-  // Top Maschinen nach Transaktionen
-  const machineTransactions = transactions?.reduce((acc: Record<string, {count: number, revenue: number}>, tx) => {
-    const machineName = tx.machineName || 'Unbekannte Maschine';
-    if (!acc[machineName]) {
-      acc[machineName] = { count: 0, revenue: 0 };
-    }
-    acc[machineName].count += 1;
+  // Top Maschinen nach Transaktionen mit flexiblem Zeitraum
+  const machineTransactions = React.useMemo(() => {
+    if (!transactions || !Array.isArray(transactions)) return {};
     
-    // Calculate revenue with product price lookup
-    let price = tx.price || 0;
-    if (price === 0 && tx.productName) {
-      const productPrice = productPriceMap.get(tx.productName.trim());
-      if (productPrice) {
-        price = productPrice;
-      }
-    }
-    if (price === 0 && (tx as any).productId) {
-      const productPrice = productPriceMap.get((tx as any).productId.toString());
-      if (productPrice) {
-        price = productPrice;
-      }
-    }
+    const startDate = getStartDate(timeRange);
+    const endDate = getEndDate(timeRange);
     
-    acc[machineName].revenue += price * (tx.quantity || 1);
-    return acc;
-  }, {}) || {};
+    return transactions
+      .filter(tx => {
+        const txDate = new Date(tx.datetime);
+        return txDate >= startDate && txDate <= endDate;
+      })
+      .reduce((acc: Record<string, {count: number, revenue: number}>, tx) => {
+        const normalized = normalizeTx(tx);
+        const machineName = normalized.machineName || 'Unbekannte Maschine';
+        if (!acc[machineName]) {
+          acc[machineName] = { count: 0, revenue: 0 };
+        }
+        acc[machineName].count += 1;
+        
+        // Calculate revenue with product price lookup
+        let price = normalized.price || 0;
+        if (price === 0) {
+          const productPrice = productPriceMap.get(normalized.productName?.trim()) || productPriceMap.get(normalized.productId?.toString());
+          if (productPrice) {
+            price = productPrice;
+          }
+        }
+        
+        acc[machineName].revenue += price * normalized.quantity;
+        return acc;
+      }, {});
+  }, [transactions, timeRange, productPriceMap]);
 
-  // Zahlungsmethoden nach Standort
-  const locationPaymentMethods = transactions?.reduce((acc: Record<string, {
-    machineName: string,
-    cash: number,
-    cashless: number,
-    total: number,
-    cashlessPercentage: number
-  }>, tx) => {
-    const machineKey = (tx.machineId || 'unknown').toString();
-    if (!acc[machineKey]) {
-      acc[machineKey] = {
-        machineName: tx.machineName || 'Unbekannte Maschine',
-        cash: 0,
-        cashless: 0,
-        total: 0,
-        cashlessPercentage: 0
-      };
-    }
+  // Zahlungsmethoden nach Standort mit flexiblem Zeitraum
+  const locationPaymentMethods = React.useMemo(() => {
+    if (!transactions || !Array.isArray(transactions)) return {};
+    
+    const startDate = getStartDate(timeRange);
+    const endDate = getEndDate(timeRange);
+    
+    return transactions
+      .filter(tx => {
+        const txDate = new Date(tx.datetime);
+        return txDate >= startDate && txDate <= endDate;
+      })
+      .reduce((acc: Record<string, {
+        machineName: string,
+        cash: number,
+        cashless: number,
+        total: number,
+        cashlessPercentage: number
+      }>, tx) => {
+        const normalized = normalizeTx(tx);
+        const machineKey = (normalized.machineId || 'unknown').toString();
+        if (!acc[machineKey]) {
+          acc[machineKey] = {
+            machineName: normalized.machineName || 'Unbekannte Maschine',
+            cash: 0,
+            cashless: 0,
+            total: 0,
+            cashlessPercentage: 0
+          };
+        }
 
-    acc[machineKey].total += 1;
+        acc[machineKey].total += 1;
 
-    if (tx.paymentMethod === 'CASH') {
-      acc[machineKey].cash += 1;
-    } else if (tx.paymentMethod === 'CASHLESS') {
-      acc[machineKey].cashless += 1;
-    }
+        if (tx.paymentMethod === 'CASH') {
+          acc[machineKey].cash += 1;
+        } else if (tx.paymentMethod === 'CASHLESS') {
+          acc[machineKey].cashless += 1;
+        }
 
-    // Prozentsatz berechnen
-    acc[machineKey].cashlessPercentage = acc[machineKey].total > 0 ? (acc[machineKey].cashless / acc[machineKey].total) * 100 : 0;
+        // Prozentsatz berechnen
+        acc[machineKey].cashlessPercentage = acc[machineKey].total > 0 ? (acc[machineKey].cashless / acc[machineKey].total) * 100 : 0;
 
-    return acc;
-  }, {}) || {};
+        return acc;
+      }, {});
+  }, [transactions, timeRange]);
 
   // Entfernte Produkte aus der REST-API holen
   const { data: removedProductsData, isLoading: isLoadingRemovedProducts } = useQuery({
@@ -1604,7 +1624,11 @@ export default function Dashboard() {
         <CardHeader className="pb-2">
           <CardTitle className="text-lg flex items-center">
             <BarChart3 className="h-5 w-5 mr-2 text-blue-500" />
-            Top-Automaten nach Umsatz
+            Top-Automaten nach Umsatz ({timeRange === 'today' ? 'Heute' : 
+                              timeRange === 'last7' ? 'Letzte 7 Tage' : 
+                              timeRange === 'thisMonth' ? 'Dieser Monat' : 
+                              timeRange === 'lastMonth' ? 'Letzter Monat' : 
+                              timeRange === 'thisYear' ? 'Dieses Jahr' : 'Zeitraum'})
           </CardTitle>
           <CardDescription>Automaten mit höchstem Umsatz und bestem Netto-Ergebnis</CardDescription>
         </CardHeader>

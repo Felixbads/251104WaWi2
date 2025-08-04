@@ -7,6 +7,33 @@ This is a comprehensive vending machine management platform (Warenwirtschaftssys
 Preferred communication style: Simple, everyday language.
 
 ## Recent Changes (2025-08-04)
+
+### Dashboard Time Range Flexibility and Data Normalization Enhancement
+**Issue**: Dashboard widgets were hardcoded to 7-day periods with inconsistent transaction field access, causing:
+1. **Fixed Time Ranges**: "Aktive Automaten", "Top 10 Produkte", and "Top-Automaten nach Umsatz" widgets were locked to 7-day calculations
+2. **Inconsistent Field Access**: Multiple direct accesses to tx.product_name vs tx.productName and tx.machine_name vs tx.machineName led to potential data inconsistencies
+3. **No User Control**: Users couldn't analyze different time periods (today, this month, last month, this year)
+
+**Solution**: Complete dashboard time range and data normalization overhaul:
+- **Time Range State**: Added flexible `timeRange` state with options: "today", "last7", "thisMonth", "lastMonth", "thisYear"
+- **UI Controls**: Implemented select dropdown in dashboard header for time range selection with calendar icon
+- **Utility Functions**: Created `getStartDate()` and `getEndDate()` functions for consistent time calculations
+- **Data Normalization**: Added `normalizeTx()` function to standardize transaction field access (productName, machineName, price, quantity, etc.)
+- **Widget Updates**: Converted all widgets to use React.useMemo with timeRange dependency:
+  - "Aktive Automaten" with dynamic title showing selected period
+  - "Top 10 Produkte" with time-filtered calculations
+  - "Top-Automaten nach Umsatz" with period-specific revenue data
+  - "Zahlungsmethoden nach Standort" with timeRange filtering
+- **Consistent Implementation**: All widgets now use normalized transaction data and respect selected time range
+
+**Impact**: 
+- Users can now analyze performance across any time period, enabling better business insights
+- Eliminated data inconsistencies from mixed field naming (product_name vs productName)
+- All dashboard metrics now accurately reflect the selected time range
+- Dynamic widget titles clearly show which period is being analyzed
+- Improved code maintainability with centralized data normalization
+
+## Recent Changes (2025-08-04)
 ### Warehouse Refill Logic Enhancement with Fallback System
 **Issue**: Three critical problems with warehouse and refill management:
 1. **Missing Fallback Logic**: When refilling machines, stock was only taken from assigned warehouse without fallback to main warehouse when insufficient
