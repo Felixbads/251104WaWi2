@@ -1675,6 +1675,11 @@ app.get('/orders-data', (req, res) => {
   // Mount recurring orders router BEFORE registerRoutes for automated recurring orders functionality
   app.use('/api/recurring-orders', recurringOrdersRouter);
   console.log('[SERVER] Recurring orders router mounted successfully');
+
+  // Mount daily summary router BEFORE registerRoutes for daily email summaries
+  const dailySummaryRouter = (await import('./routes/daily-summary')).default;
+  app.use('/api/daily-summary', dailySummaryRouter);
+  console.log('[SERVER] Daily summary router mounted successfully');
   
   // Mount weekly report router BEFORE registerRoutes for automated weekly email reports
   app.use('/api/weekly-reports', weeklyReportRouter);
@@ -1772,16 +1777,18 @@ app.get('/orders-data', (req, res) => {
   retroactiveWeatherService.scheduleDailyCorrection();
   console.log('[SERVER] Daily weather correction cron job started (6:00 AM)');
   
-  // Start recurring orders cron service for automated order generation
-  recurringOrderCronService.start();
-  console.log('[SERVER] Recurring orders cron service started (daily 6:00 AM)');
-  
-  // CRITICAL FIX: Start the RecurringOrderScheduler that the API endpoints actually use
-  // Import and start the same scheduler instance that the routes use
+  // FIXED: Only start the RecurringOrderScheduler (not the duplicate cron service)
+  // This scheduler handles both order processing AND email notifications
   const { getRecurringOrderSchedulerInstance } = await import('./routes/recurring-orders');
   const recurringOrderScheduler = getRecurringOrderSchedulerInstance();
   recurringOrderScheduler.start();
-  console.log('[SERVER] RecurringOrderScheduler (API) started - automation now active');
+  console.log('[SERVER] ✅ RecurringOrderScheduler started - handles orders AND emails (daily 6:00 AM)');
+  
+  // Start daily summary service for morning email aggregation
+  const { getDailySummaryServiceInstance } = await import('./routes/daily-summary');
+  const dailySummaryService = getDailySummaryServiceInstance();
+  dailySummaryService.start();
+  console.log('[SERVER] ✅ Daily Summary Service started - sends daily overview to einkauf@proviantomat.de (daily 6:00 AM)');
   
   // Start weekly report cron service for automated weekly email reports
   weeklyReportCron.start();
