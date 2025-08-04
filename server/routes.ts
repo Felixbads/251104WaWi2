@@ -1555,27 +1555,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const transactionsQuery = `
         SELECT 
           t.id,
-          t.vendon_id,
-          t.machine_id,
-          t.product_id,
-          t.product_name,
+          t.vendon_id AS "vendonId",
+          t.machine_id AS "machineId",
+          t.product_id AS "productId",
+          t.product_name AS "productName",
           t.quantity,
           t.amount,
           t.price,
-          t.price_vat,
-          t.price_wo_vat,
-          t.payment_method,
+          t.price_vat AS "priceVat",
+          t.price_wo_vat AS "priceWoVat",
+          t.payment_method AS "paymentMethod",
           t.datetime,
-          t.created_at,
-          m.machine_name,
-          p.deposit_price,
-          p.deposit_vat,
+          t.created_at AS "createdAt",
+          m.machine_name AS "machineName",
+          p.deposit_price AS "depositPrice",
+          p.deposit_vat AS "depositVat",
           -- Einkaufspreis aus purchase_conditions
-          COALESCE(pc.unit_price, 0) AS purchase_price_net,
+          COALESCE(pc.unit_price, 0) AS "purchasePriceNet",
           -- Berechne Netto-Ergebnis: Verkaufspreis ohne MwSt - Einkaufspreis - Pfand
           (COALESCE(t.price_wo_vat, t.price - COALESCE(t.price_vat, 0)) - 
            COALESCE(pc.unit_price, 0) - 
-           COALESCE(p.deposit_price, 0)) AS net_result
+           COALESCE(p.deposit_price, 0)) AS "netResult"
         FROM transactions t
         LEFT JOIN machines m ON t.machine_id = m.id
         LEFT JOIN products p ON (t.product_id = p.vendon_id OR t.product_name = p.product_name)
@@ -1585,26 +1585,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       `;
       
       const transactionsResult = await rawDb.query(transactionsQuery, [limit]);
-      const transactions = transactionsResult.rows.map(row => ({
-        id: row.id,
-        vendonId: row.vendon_id,
-        machineId: row.machine_id,
-        productId: row.product_id,
-        productName: row.product_name,
-        quantity: row.quantity,
-        amount: row.amount,
-        price: row.price,
-        priceVat: row.price_vat,
-        priceWoVat: row.price_wo_vat,
-        paymentMethod: row.payment_method,
-        datetime: row.datetime,
-        createdAt: row.created_at,
-        machineName: row.machine_name,
-        depositPrice: row.deposit_price,
-        depositVat: row.deposit_vat,
-        purchasePriceNet: row.purchase_price_net,
-        netResult: row.net_result
-      }));
+      const transactions = transactionsResult.rows;
       res.json(transactions);
     } catch (error) {
       console.error("Error fetching transactions:", error);
@@ -1654,7 +1635,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
              COALESCE(p.deposit_price, 0)) AS "netResult"
           FROM transactions t
           LEFT JOIN machines m ON t.machine_id = m.id
-          LEFT JOIN products p ON t.product_id = p.vendon_id
+          LEFT JOIN products p ON (t.product_id = p.vendon_id OR t.product_name = p.product_name)
           LEFT JOIN purchase_conditions pc ON p.id = pc.product_id AND pc.is_preferred = true
           WHERE t.datetime >= $1 AND t.datetime <= $2
           ORDER BY t.datetime DESC
