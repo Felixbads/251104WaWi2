@@ -7,6 +7,25 @@ This is a comprehensive vending machine management platform (Warenwirtschaftssys
 Preferred communication style: Simple, everyday language.
 
 ## Recent Changes (2025-08-04)
+### Warehouse Refill Logic Enhancement with Fallback System
+**Issue**: Three critical problems with warehouse and refill management:
+1. **Missing Fallback Logic**: When refilling machines, stock was only taken from assigned warehouse without fallback to main warehouse when insufficient
+2. **Missing Movement Tracking**: Warehouse movement queries didn't show who performed movements (`performed_by` field missing)
+3. **Incomplete Refill Attribution**: Refill creation didn't properly validate and capture the responsible person
+
+**Solution**: Complete overhaul of warehouse refill system:
+- **Fallback Logic**: Enhanced `createRefillTrackingItem` to automatically use main warehouse ("Bahnhof", ID 3) when assigned warehouse lacks sufficient stock
+- **Dual Movement Tracking**: System now creates separate inventory movements for both assigned warehouse and main warehouse when fallback occurs
+- **Movement Attribution**: Fixed `getWarehouseMovements` query to include `performed_by` and `performed_by_name` fields with user table JOIN
+- **Refill Validation**: Added explicit `performedBy` validation in refill routes to ensure all movements are properly attributed
+- **Comprehensive Logging**: Added detailed console logs to track stock calculations and fallback decisions
+
+**Impact**: 
+- Prevents stockouts by automatically using main warehouse inventory when local warehouse is insufficient
+- Complete audit trail shows who performed each movement and which warehouses were involved
+- No more "ghost" movements without responsible persons - all refill activities are properly attributed
+- Better inventory visibility with detailed movement history including fallback sources
+
 ### Product Addition to Orders Bug Fix
 **Issue**: "Produkt hinzufügen" (Add Product) button in order detail view was not working properly. Products could be selected but newly added products weren't appearing in the order or persisting to the database.
 

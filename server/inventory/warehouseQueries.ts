@@ -132,11 +132,15 @@ export async function getWarehouseMovements(warehouseId: number, limit = 100) {
         m.movement_type,
         m.reference_type,
         m.reason,
-        m.notes
+        m.notes,
+        m.performed_by,
+        u.name as performed_by_name
       FROM 
         inventory_movements m
       JOIN 
         products p ON m.product_id = p.id
+      LEFT JOIN 
+        users u ON m.performed_by = u.id
       WHERE 
         (m.source_type = 'warehouse' AND m.source_id = $1) OR
         (m.destination_type = 'warehouse' AND m.destination_id = $1)

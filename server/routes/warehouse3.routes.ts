@@ -1002,11 +1002,21 @@ router.post("/warehouses/:warehouseId/refills", async (req, res) => {
       return res.status(404).json({ success: false, message: "Lager nicht gefunden" });
     }
     
-    // Daten mit Lager-ID ergänzen
+    // Daten mit Lager-ID ergänzen und sicherstellen, dass performedBy übernommen wird
     const refillData = {
       ...req.body,
-      warehouseId
+      warehouseId,
+      // Explizit performedBy aus req.body übernehmen
+      performedBy: req.body.performedBy || null
     };
+    
+    // Validierung - prüfen, ob performedBy gesetzt ist
+    if (!refillData.performedBy) {
+      return res.status(400).json({
+        success: false,
+        message: "performedBy ist erforderlich - bitte geben Sie an, wer die Auffüllung durchführt"
+      });
+    }
     
     // Validierung
     const validatedData = insertRefillTrackingSchema.parse(refillData);

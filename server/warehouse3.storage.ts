@@ -1514,6 +1514,9 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
       throw new Error(`Refill mit ID ${data.refillId} nicht gefunden`);
     }
     
+    // Konstante für Hauptlager (Bahnhof)
+    const MAIN_WAREHOUSE_ID = 3;
+    
     // Lagerbestand vor der Entnahme abrufen
     const [inventory] = await db
       .select()
@@ -1524,9 +1527,76 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
       ));
     
     const stockBefore = inventory?.quantity || 0;
+    let totalMovements = [];
     
-    // Lagerbestand reduzieren
-    await this.updateProductStock(refill.warehouseId, data.productId, -data.quantity);
+    // Überprüfen, ob genügend Bestand im zugeordneten Lager vorhanden ist
+    if (stockBefore < data.quantity) {
+      const shortage = data.quantity - stockBefore;
+      
+      console.log(`Nicht genügend Bestand im Lager ${refill.warehouseId}. Benötigt: ${data.quantity}, Verfügbar: ${stockBefore}, Fehlmenge: ${shortage}`);
+      
+      // Versuche, die fehlende Menge aus dem Hauptlager zu entnehmen
+      if (refill.warehouseId !== MAIN_WAREHOUSE_ID) {
+        const [mainInventory] = await db
+          .select()
+          .from(inventoryItems)
+          .where(and(
+            eq(inventoryItems.warehouseId, MAIN_WAREHOUSE_ID),
+            eq(inventoryItems.productId, data.productId)
+          ));
+        
+        const mainStock = mainInventory?.quantity || 0;
+        
+        if (mainStock >= shortage) {
+          console.log(`Entnehme ${shortage} Einheiten aus Hauptlager (Bahnhof)`);
+          
+          // Bestand aus Hauptlager reduzieren
+          await this.updateProductStock(MAIN_WAREHOUSE_ID, data.productId, -shortage);
+          
+          // Bewegung vom Hauptlager zum Automaten erstellen
+          await this.createInventoryMovement({
+            sourceType: "warehouse",
+            sourceId: MAIN_WAREHOUSE_ID,
+            destinationType: "machine",
+            destinationId: refill.machineId,
+            productId: data.productId,
+            batchId: data.batchId,
+            quantity: shortage,
+            movementType: "OUT",
+            referenceType: "REFILL",
+            referenceId: `refill-${data.refillId}-main`,
+            reason: "Automaten-Auffüllung (Hauptlager-Fallback)",
+            notes: `Fallback-Entnahme aus Hauptlager: ${shortage} Einheiten`,
+            performedBy: refill.performedBy
+          });
+          
+          totalMovements.push({
+            source: "Hauptlager (Bahnhof)",
+            quantity: shortage
+          });
+        } else {
+          console.warn(`Auch im Hauptlager nicht genügend Bestand. Verfügbar: ${mainStock}, Benötigt: ${shortage}`);
+        }
+      }
+      
+      // Verfügbaren Bestand aus zugeordnetem Lager entnehmen (wenn vorhanden)
+      if (stockBefore > 0) {
+        await this.updateProductStock(refill.warehouseId, data.productId, -stockBefore);
+        
+        totalMovements.push({
+          source: `Zugeordnetes Lager (${refill.warehouseId})`,
+          quantity: stockBefore
+        });
+      }
+    } else {
+      // Vollständige Entnahme aus zugeordnetem Lager
+      await this.updateProductStock(refill.warehouseId, data.productId, -data.quantity);
+      
+      totalMovements.push({
+        source: `Zugeordnetes Lager (${refill.warehouseId})`,
+        quantity: data.quantity
+      });
+    }
     
     // Batch-Bestand reduzieren (falls anwendbar)
     if (data.batchId) {
@@ -1554,26 +1624,33 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
       })
       .returning();
     
-    // Bewegung erstellen
-    await this.createInventoryMovement({
-      sourceType: "warehouse",
-      sourceId: refill.warehouseId,
-      destinationType: "machine",
-      destinationId: refill.machineId,
-      productId: data.productId,
-      batchId: data.batchId,
-      quantity: data.quantity,
-      previousStock: stockBefore,
-      currentStock: stockAfter,
-      movementType: "OUT",
-      referenceType: "REFILL",
-      referenceId: `refill-${data.refillId}`,
-      reason: "Automaten-Auffüllung",
-      notes: `Auffüllung des Automaten mit ${data.quantity} Einheiten`,
-      performedBy: refill.performedBy
-    });
+    // Hauptbewegung erstellen (vom zugeordneten Lager, wenn Bestand vorhanden war)
+    if (stockBefore > 0) {
+      const quantityFromAssigned = Math.min(stockBefore, data.quantity);
+      
+      await this.createInventoryMovement({
+        sourceType: "warehouse",
+        sourceId: refill.warehouseId,
+        destinationType: "machine",
+        destinationId: refill.machineId,
+        productId: data.productId,
+        batchId: data.batchId,
+        quantity: quantityFromAssigned,
+        previousStock: stockBefore,
+        currentStock: stockAfter,
+        movementType: "OUT",
+        referenceType: "REFILL",
+        referenceId: `refill-${data.refillId}`,
+        reason: "Automaten-Auffüllung",
+        notes: `Auffüllung des Automaten: ${quantityFromAssigned} Einheiten aus zugeordnetem Lager`,
+        performedBy: refill.performedBy
+      });
+    }
     
-    return result;
+    return {
+      ...result,
+      movements: totalMovements
+    };
   }
   
   async getRefillTrackingItems(refillId: number): Promise<any[]> {
