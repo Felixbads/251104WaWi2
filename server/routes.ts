@@ -1551,7 +1551,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get(`${API_PREFIX}/transactions`, async (req: Request, res: Response) => {
     try {
       const limit = req.query.limit ? parseInt(req.query.limit as string) : 200;
-      // Direkte SQL-Abfrage für Transaktionen
+      // Direkte SQL-Abfrage für Transaktionen mit Produktdaten für Netto-Berechnung
       const transactionsQuery = `
         SELECT 
           t.id,
@@ -1562,12 +1562,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
           t.quantity,
           t.amount,
           t.price,
+          t.price_vat,
+          t.price_wo_vat,
           t.payment_method,
           t.datetime,
           t.created_at,
-          m.machine_name
+          m.machine_name,
+          p.deposit_price,
+          p.deposit_vat,
+          -- Berechne Netto-Ergebnis: Preis ohne MwSt minus Pfand (ohne MwSt)
+          COALESCE(t.price_wo_vat, t.price - COALESCE(t.price_vat, 0)) - 
+          COALESCE(p.deposit_price - COALESCE(p.deposit_vat, 0), 0) AS net_result
         FROM transactions t
         LEFT JOIN machines m ON t.machine_id = m.id
+        LEFT JOIN products p ON t.product_id = p.vendon_id
         ORDER BY t.datetime DESC
         LIMIT $1
       `;
@@ -1582,10 +1590,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         quantity: row.quantity,
         amount: row.amount,
         price: row.price,
+        priceVat: row.price_vat,
+        priceWoVat: row.price_wo_vat,
         paymentMethod: row.payment_method,
         datetime: row.datetime,
         createdAt: row.created_at,
-        machineName: row.machine_name
+        machineName: row.machine_name,
+        depositPrice: row.deposit_price,
+        depositVat: row.deposit_vat,
+        netResult: row.net_result
       }));
       res.json(transactions);
     } catch (error) {
@@ -1608,24 +1621,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const startDateObj = new Date();
         startDateObj.setMonth(startDateObj.getMonth() - 1);
         
-        // Direkte SQL-Abfrage für Transaktionen
+        // Direkte SQL-Abfrage für Transaktionen mit Produktdaten für Netto-Berechnung
         const transactionsQuery = `
           SELECT 
             t.id,
-            t.vendon_id,
-            t.machine_id,
-            t.product_id,
-            t.product_name,
+            t.vendon_id AS "vendonId",
+            t.machine_id AS "machineId",
+            t.product_id AS "productId",
+            t.product_name AS "productName",
             t.quantity,
             t.amount,
             t.price,
-            t.payment_method,
+            t.price_vat AS "priceVat",
+            t.price_wo_vat AS "priceWoVat",
+            t.payment_method AS "paymentMethod",
             t.datetime,
-            t.created_at,
-            m.machine_name,
-            m.location_name
+            t.created_at AS "createdAt",
+            m.machine_name AS "machineName",
+            m.location_name AS "locationName",
+            p.deposit_price AS "depositPrice",
+            p.deposit_vat AS "depositVat",
+            -- Berechne Netto-Ergebnis: Preis ohne MwSt minus Pfand (ohne MwSt)
+            COALESCE(t.price_wo_vat, t.price - COALESCE(t.price_vat, 0)) - 
+            COALESCE(p.deposit_price - COALESCE(p.deposit_vat, 0), 0) AS "netResult"
           FROM transactions t
           LEFT JOIN machines m ON t.machine_id = m.id
+          LEFT JOIN products p ON t.product_id = p.vendon_id
           WHERE t.datetime >= $1 AND t.datetime <= $2
           ORDER BY t.datetime DESC
           LIMIT $3
@@ -1640,22 +1661,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.json(transactionsResult.rows);
       }
       
-      // Direkte SQL-Abfrage für normale Transaktions-Abfrage
+      // Direkte SQL-Abfrage für normale Transaktions-Abfrage mit Produktdaten für Netto-Berechnung
       const transactionsQuery = `
         SELECT 
           t.id,
-          t.vendon_id,
-          t.machine_id,
-          t.product_id,
-          t.product_name,
+          t.vendon_id AS "vendonId",
+          t.machine_id AS "machineId",
+          t.product_id AS "productId",
+          t.product_name AS "productName",
           t.quantity,
           t.amount,
-          t.payment_method,
+          t.price,
+          t.price_vat AS "priceVat",
+          t.price_wo_vat AS "priceWoVat",
+          t.payment_method AS "paymentMethod",
           t.datetime,
-          t.created_at,
-          m.machine_name
+          t.created_at AS "createdAt",
+          m.machine_name AS "machineName",
+          p.deposit_price AS "depositPrice",
+          p.deposit_vat AS "depositVat",
+          -- Berechne Netto-Ergebnis: Preis ohne MwSt minus Pfand (ohne MwSt)
+          COALESCE(t.price_wo_vat, t.price - COALESCE(t.price_vat, 0)) - 
+          COALESCE(p.deposit_price - COALESCE(p.deposit_vat, 0), 0) AS "netResult"
         FROM transactions t
         LEFT JOIN machines m ON t.machine_id = m.id
+        LEFT JOIN products p ON t.product_id = p.vendon_id
         WHERE t.datetime >= $1 AND t.datetime <= $2
         ORDER BY t.datetime DESC
         LIMIT $3

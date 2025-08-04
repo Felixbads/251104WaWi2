@@ -34,6 +34,7 @@ import {
 interface ExtendedTransaction extends BaseTransaction {
   status?: string;
   source?: string;
+  netResult?: number; // Netto-Ergebnis: Preis ohne MwSt minus Pfand
   // Andere benötigte Felder hier hinzufügen
 }
 import { format } from "date-fns";
@@ -551,6 +552,9 @@ export default function Transactions() {
                     Preis
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Netto
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Maschine
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -568,6 +572,7 @@ export default function Transactions() {
                       <td className="px-4 py-3"><Skeleton className="h-5 w-10" /></td>
                       <td className="px-4 py-3"><Skeleton className="h-5 w-32" /></td>
                       <td className="px-4 py-3"><Skeleton className="h-5 w-24" /></td>
+                      <td className="px-4 py-3"><Skeleton className="h-5 w-16" /></td>
                       <td className="px-4 py-3"><Skeleton className="h-5 w-16" /></td>
                       <td className="px-4 py-3"><Skeleton className="h-5 w-32" /></td>
                       <td className="px-4 py-3"><Skeleton className="h-5 w-20" /></td>
@@ -596,6 +601,9 @@ export default function Transactions() {
                         {transaction.price?.toFixed(2)} {transaction.currency || "€"}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-500">
+                        {transaction.netResult !== undefined ? `${transaction.netResult.toFixed(2)} €` : '-'}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-500">
                         {transaction.machineName || '-'}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-500">
@@ -618,7 +626,7 @@ export default function Transactions() {
                   ))
                 ) : (
                   <tr className="border-b">
-                    <td colSpan={7} className="px-4 py-6 text-center text-sm text-gray-500">
+                    <td colSpan={8} className="px-4 py-6 text-center text-sm text-gray-500">
                       {error ? `Fehler beim Laden der Daten: ${error}` : "Keine Transaktionen gefunden"}
                     </td>
                   </tr>

@@ -257,13 +257,21 @@ export interface Transaction {
   id: number;
   vendonId: string;
   machineId: string;
+  productId?: string;
   machineName: string;
   datetime: string;
   quantity: number;
+  amount?: number;
   price: number;
-  currency: string;
+  priceVat?: number;
+  priceWoVat?: number;
+  currency?: string;
   productName: string;
   paymentMethod: string;
+  createdAt?: string;
+  depositPrice?: number;
+  depositVat?: number;
+  netResult?: number; // Netto-Ergebnis: Preis ohne MwSt minus Pfand
 }
 
 export interface Machine {
