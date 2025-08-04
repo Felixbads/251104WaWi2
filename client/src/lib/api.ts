@@ -634,10 +634,43 @@ export async function getMachines(): Promise<Machine[]> {
   return apiRequest<Machine[]>('get', '/machines');
 }
 
+// ID Resolution Response Interface
+export interface MachineIdResolution {
+  machineId: number;
+  source: 'internal' | 'vendon' | 'location';
+}
+
+// ID Resolution API function - uses backend resolveMachineId
+export async function resolveMachineId(inputId: string | number): Promise<MachineIdResolution | null> {
+  try {
+    // Backend Endpunkt erwartet String-ID für Resolution
+    const id = String(inputId);
+    console.log(`[Frontend ID-Resolution] Resolving ID: ${id}`);
+    
+    // Use the machine endpoint which has ID resolution built-in
+    const response = await apiRequest<Machine>('get', `/machines/${id}`);
+    
+    // If successful, the backend resolved the ID - extract machine ID from response
+    if (response && response.id) {
+      console.log(`[Frontend ID-Resolution] Resolved to machine ID: ${response.id}`);
+      return {
+        machineId: response.id,
+        source: 'internal' // Backend tells us it found the machine
+      };
+    }
+    
+    return null;
+  } catch (error) {
+    console.error(`[Frontend ID-Resolution] Failed to resolve ID ${inputId}:`, error);
+    return null;
+  }
+}
+
 export async function getMachine(id: number | string): Promise<Machine> {
-  // Stelle sicher, dass wir die interne ID als Nummer verwenden
-  const numericId = typeof id === 'string' ? parseInt(id, 10) : id;
-  return apiRequest<Machine>('get', `/machines/${numericId}`);
+  // Backend handles ID resolution automatically
+  const inputId = String(id);
+  console.log(`[getMachine] Fetching machine with ID: ${inputId}`);
+  return apiRequest<Machine>('get', `/machines/${inputId}`);
 }
 
 // Machine Analytics Interface

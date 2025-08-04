@@ -61,6 +61,8 @@ import {
   getTransactionsByMachine,
   getRefillsByMachine,
   getMachineAnalytics,
+  resolveMachineId,
+  MachineIdResolution,
   MachineAnalytics,
   Machine, 
   Transaction,
@@ -228,20 +230,31 @@ function getTopRemovedProducts(refills: Refill[] = []) {
 export default function AutomatDetail() {
   const params = useParams<{ id: string }>();
   const [, setLocation] = useLocation();
-  const id = params?.id;
+  const inputId = params?.id;
   const [activeTab, setActiveTab] = useState("allgemein");
+  const [resolvedMachineId, setResolvedMachineId] = useState<number | null>(null);
 
-  // Maschine abrufen
+  // ID Resolution und Maschine abrufen
   const { 
     data: machine, 
     isLoading: machineLoading, 
     error: machineError,
     refetch: refetchMachine
   } = useQuery({
-    queryKey: ['/api/machines', id],
+    queryKey: ['/api/machines', inputId],
     queryFn: async () => {
-      // Grundlegende Maschinendaten abrufen
-      const machineData = await getMachine(id);
+      if (!inputId) throw new Error('Keine Maschinen-ID angegeben');
+      
+      console.log(`[AutomatDetail] Fetching machine data for input ID: ${inputId}`);
+      
+      // Backend handles ID resolution - getMachine can accept location_id or machine_id
+      const machineData = await getMachine(inputId);
+      
+      // Store the resolved machine ID for other API calls
+      if (machineData && machineData.id) {
+        setResolvedMachineId(machineData.id);
+        console.log(`[AutomatDetail] Resolved machine ID: ${machineData.id}`);
+      }
       
       // Leer KPIs für die zu erweiternde Maschine
       const enhancedMachine: EnhancedMachine = {
@@ -258,9 +271,9 @@ export default function AutomatDetail() {
       };
       
       try {
-        // Tägliche Stats über die API abrufen - mit interner Maschinen-ID
-        console.log(`Hole KPIs für Automat mit ID ${id}`);
-        const response = await fetch(`/api/machines/${id}/daily-stats`);
+        // Tägliche Stats über die API abrufen - Backend resolves ID automatically
+        console.log(`Hole KPIs für Automat mit ID ${inputId}`);
+        const response = await fetch(`/api/machines/${inputId}/daily-stats`);
         
         if (response.ok) {
           const stats = await response.json();
@@ -311,51 +324,51 @@ export default function AutomatDetail() {
       
       return enhancedMachine;
     },
-    enabled: !!id
+    enabled: !!inputId
   });
 
-  // Transaktionen für diese Maschine abrufen
+  // Transaktionen für diese Maschine abrufen - Backend resolves ID automatically
   const { 
     data: transactions, 
     isLoading: transactionsLoading
   } = useQuery({
-    queryKey: ['/api/machines', id, 'transactions'],
-    queryFn: () => getTransactionsByMachine(id, 20),
-    enabled: !!id && activeTab === "transaktionen"
+    queryKey: ['/api/machines', inputId, 'transactions'],
+    queryFn: () => getTransactionsByMachine(inputId!, 20),
+    enabled: !!inputId && activeTab === "transaktionen"
   });
 
-  // Auffüllungen für diese Maschine abrufen
+  // Auffüllungen für diese Maschine abrufen - Backend resolves ID automatically
   const {
     data: refills,
     isLoading: refillsLoading
   } = useQuery({
-    queryKey: ['/api/machines', id, 'refills'],
-    queryFn: () => getRefillsByMachine(id, 20),
-    enabled: !!id && activeTab === "auffullungen"
+    queryKey: ['/api/machines', inputId, 'refills'],
+    queryFn: () => getRefillsByMachine(inputId!, 20),
+    enabled: !!inputId && activeTab === "auffullungen"
   });
   
-  // Machine Analytics abrufen
+  // Machine Analytics abrufen - Backend resolves ID automatically
   const {
     data: machineAnalytics,
     isLoading: analyticsLoading,
     error: analyticsError
   } = useQuery({
-    queryKey: ['/statistics/machines', id, 'analytics'],
-    queryFn: () => getMachineAnalytics(id),
-    enabled: !!id && (activeTab === "analysen" || activeTab === "auswertung")
+    queryKey: ['/statistics/machines', inputId, 'analytics'],
+    queryFn: () => getMachineAnalytics(inputId!),
+    enabled: !!inputId && (activeTab === "analysen" || activeTab === "auswertung")
   });
 
   // Maschine aktualisieren
   const handleRefresh = () => {
     refetchMachine();
     if (activeTab === "transaktionen") {
-      queryClient.invalidateQueries({ queryKey: ['/api/machines', id, 'transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/machines', inputId, 'transactions'] });
     }
     if (activeTab === "auffullungen") {
-      queryClient.invalidateQueries({ queryKey: ['/api/machines', id, 'refills'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/machines', inputId, 'refills'] });
     }
     if (activeTab === "analysen" || activeTab === "auswertung") {
-      queryClient.invalidateQueries({ queryKey: ['/statistics/machines', id, 'analytics'] });
+      queryClient.invalidateQueries({ queryKey: ['/statistics/machines', inputId, 'analytics'] });
     }
   };
 
@@ -1198,7 +1211,7 @@ export default function AutomatDetail() {
                             size="sm" 
                             onClick={() => {
                               // Hier zur Detailseite navigieren
-                              setLocation(`/automaten/${id}/refills/${refill.id}`);
+                              setLocation(`/automaten/${inputId}/refills/${refill.id}`);
                             }}
                           >
                             Details
@@ -1516,22 +1529,22 @@ export default function AutomatDetail() {
 
         {/* MHD Tab */}
         <TabsContent value="mhd" className="mt-4">
-          <MHDTab machineId={parseInt(params.id)} />
+          <MHDTab machineId={inputId ? parseInt(inputId, 10) : 0} />
         </TabsContent>
 
         {/* Entnommene Produkte Tab */}
         <TabsContent value="entnommene-produkte" className="mt-4">
-          <RemovedProductsMachineTab machineId={parseInt(params.id)} />
+          <RemovedProductsMachineTab machineId={inputId ? parseInt(inputId, 10) : 0} />
         </TabsContent>
 
         {/* Kosten Tab */}
         <TabsContent value="kosten" className="mt-4">
-          <MachineCostsTab machineId={parseInt(params.id)} />
+          <MachineCostsTab machineId={inputId ? parseInt(inputId, 10) : 0} />
         </TabsContent>
 
         {/* Wirtschaftlichkeit Tab */}
         <TabsContent value="wirtschaftlichkeit" className="mt-4">
-          <MachineProfitabilityTab machineId={parseInt(params.id)} />
+          <MachineProfitabilityTab machineId={inputId ? parseInt(inputId, 10) : 0} />
         </TabsContent>
       </Tabs>
     </div>
