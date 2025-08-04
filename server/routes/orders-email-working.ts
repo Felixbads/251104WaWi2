@@ -3,8 +3,16 @@ import { createTransport } from 'nodemailer';
 import { db } from '../db';
 import { orders, orderItems, suppliers } from '../../shared/schema';
 import { eq } from 'drizzle-orm';
+import { createOrderPdf } from '../services/pdfService';
 
 const router = Router();
+
+// Interface for email attachments
+interface Attachment {
+  filename: string;
+  content: Buffer;
+  contentType: string;
+}
 
 // Working email service with corrected SMTP configuration
 function createEmailTransporter() {
@@ -177,7 +185,7 @@ router.post('/:orderId/send-email-working', async (req: Request, res: Response) 
   
   try {
     const orderId = parseInt(req.params.orderId);
-    const { emailAddress, subject, content } = req.body;
+    const { emailAddress, subject, content, usePdf, coverText } = req.body;
     
     if (!orderId || isNaN(orderId)) {
       return res.status(400).json({
@@ -244,16 +252,48 @@ router.post('/:orderId/send-email-working', async (req: Request, res: Response) 
     
     console.log(`[WorkingOrderEmail] Found ${items.length} order items`);
     
-    // Create email content
+    // Create email content and handle PDF attachment
     let emailContent = content;
+    let attachments: Attachment[] = [];
     
-    if (!emailContent) {
-      emailContent = createOrderEmailTemplate(order, supplier);
+    if (usePdf) {
+      console.log('[WorkingOrderEmail] PDF attachment requested, generating PDF...');
+      
+      try {
+        // Generate PDF
+        const pdfBuffer = await createOrderPdf(orderId);
+        
+        // Add PDF as attachment
+        attachments.push({
+          filename: `Bestellung_${order.orderNumber || orderId}.pdf`,
+          content: pdfBuffer,
+          contentType: 'application/pdf'
+        });
+        
+        // Use cover text if provided, otherwise create a simple cover message
+        emailContent = coverText || `
+          <p>Sehr geehrte Damen und Herren,</p>
+          <p>anbei erhalten Sie unsere Bestellung ${order.orderNumber || orderId} als PDF-Anhang.</p>
+          <p>Bitte bestätigen Sie den Empfang und teilen Sie uns den voraussichtlichen Liefertermin mit.</p>
+          <p>Mit freundlichen Grüßen<br>
+          Ihr Proviantomat Team</p>
+        `;
+        
+        console.log('[WorkingOrderEmail] PDF generated and attached successfully');
+      } catch (error) {
+        console.error('[WorkingOrderEmail] Error generating PDF:', error);
+        throw new Error('PDF konnte nicht generiert werden: ' + (error instanceof Error ? error.message : 'Unbekannter Fehler'));
+      }
+    } else {
+      // Standard HTML email content
+      if (!emailContent) {
+        emailContent = createOrderEmailTemplate(order, supplier);
+      }
+      
+      // Insert order items table
+      const itemsTable = createOrderItemsTable(items);
+      emailContent = emailContent.replace('{{orderItems}}', itemsTable);
     }
-    
-    // Insert order items table
-    const itemsTable = createOrderItemsTable(items);
-    const fullHtml = emailContent.replace('{{orderItems}}', itemsTable);
     
     // Create email subject
     let emailSubject = subject;
@@ -271,12 +311,21 @@ router.post('/:orderId/send-email-working', async (req: Request, res: Response) 
     await transporter.verify();
     console.log('[WorkingOrderEmail] SMTP connection verified');
     
-    const mailOptions = {
+    const mailOptions: any = {
       from: process.env.SMTP_FROM || 'einkauf@proviantomat.de',
       to: emailAddress,
       subject: emailSubject,
-      html: fullHtml
+      html: emailContent
     };
+    
+    // Add attachments if present
+    if (attachments.length > 0) {
+      mailOptions.attachments = attachments.map(attachment => ({
+        filename: attachment.filename,
+        content: attachment.content,
+        contentType: attachment.contentType
+      }));
+    }
     
     console.log('[WorkingOrderEmail] Sending email...');
     const result = await transporter.sendMail(mailOptions);

@@ -57,6 +57,8 @@ const OrderEmailPage: React.FC<OrderEmailPageProps> = ({
   const [orderItems, setOrderItems] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [supplierId, setSupplierId] = useState<number | null>(null);
+  const [usePdf, setUsePdf] = useState(false);
+  const [coverText, setCoverText] = useState('');
 
   // Load complete email data using the new fixed API endpoint
   useEffect(() => {
@@ -98,7 +100,7 @@ const OrderEmailPage: React.FC<OrderEmailPageProps> = ({
             setAvailableTemplates(data.emailTemplates);
             
             // Find and apply default template
-            const defaultTemplate = data.emailTemplates.find(t => t.isDefault) || data.emailTemplates[0];
+            const defaultTemplate = data.emailTemplates.find((t: any) => t.isDefault) || data.emailTemplates[0];
             if (defaultTemplate) {
               console.log('Verwende Standard-Vorlage:', defaultTemplate.name);
               setSelectedTemplate(defaultTemplate);
@@ -317,14 +319,14 @@ USt-IdNr.: DE353967134`);
     
     try {
       console.log(`[OrderEmailPage] Sende E-Mail für Bestellung ${orderId} an ${emailAddress}`);
-      // API-Anfrage zum Senden der E-Mail - verwende POST Methode explizit
-      const response = await apiRequest(`/api/orders/${orderId}/send-email`, {
-        to: emailAddress,
-        supplierEmail: emailAddress, // Backend erwartet auch supplierEmail
+      
+      // Use the working email API endpoint with PDF support
+      const response = await apiRequest(`/api/orders-email-working/${orderId}/send-email-working`, {
+        emailAddress: emailAddress,
         subject: emailSubject,
-        content: prepareEmailContent(),
-        templateType: selectedTemplate,
-        additionalNotes: ''
+        content: usePdf ? undefined : prepareEmailContent(),
+        usePdf: usePdf,
+        coverText: usePdf ? coverText : undefined
       }, 'post');
       
       if (response && response.success) {
@@ -527,9 +529,48 @@ USt-IdNr.: DE353967134`);
         
         <Card>
           <CardHeader>
+            <CardTitle>Versandoptionen</CardTitle>
+            <CardDescription>
+              Wählen Sie das gewünschte Format für die Bestellung
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id="usePdf"
+                checked={usePdf}
+                onChange={(e) => setUsePdf(e.target.checked)}
+                className="rounded border-gray-300"
+              />
+              <Label htmlFor="usePdf" className="text-sm font-medium">
+                Als PDF-Anhang versenden
+              </Label>
+            </div>
+            
+            {usePdf && (
+              <div className="space-y-2">
+                <Label htmlFor="coverText">Begleittext für PDF</Label>
+                <Textarea
+                  id="coverText"
+                  value={coverText}
+                  onChange={(e) => setCoverText(e.target.value)}
+                  className="h-[100px]"
+                  placeholder="Sehr geehrte Damen und Herren,&#10;&#10;anbei erhalten Sie unsere Bestellung als PDF-Anhang.&#10;&#10;Mit freundlichen Grüßen&#10;Ihr Proviantomat Team"
+                />
+                <div className="text-xs text-gray-500">
+                  Lassen Sie das Feld leer, um einen Standardtext zu verwenden.
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader>
             <CardTitle>E-Mail-Inhalt</CardTitle>
             <CardDescription>
-              Der Inhalt der E-Mail mit den Bestellpositionen
+              {usePdf ? 'PDF-Bestellung wird als Anhang versandt' : 'Der Inhalt der E-Mail mit den Bestellpositionen'}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -543,6 +584,8 @@ USt-IdNr.: DE353967134`);
                 value={emailText}
                 onChange={(e) => setEmailText(e.target.value)}
                 className="h-[200px] font-mono"
+                disabled={usePdf}
+                placeholder={usePdf ? "Bei PDF-Versand wird der E-Mail-Inhalt automatisch durch den Begleittext ersetzt" : undefined}
               />
             )}
           </CardContent>

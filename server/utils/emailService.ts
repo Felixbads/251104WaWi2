@@ -32,6 +32,12 @@ const transporter = nodemailer.createTransport({
   requireTLS: true
 });
 
+export interface Attachment {
+  filename: string;
+  content: Buffer;
+  contentType?: string;
+}
+
 interface EmailParams {
   to: string;
   cc?: string;
@@ -40,6 +46,7 @@ interface EmailParams {
   subject: string;
   text?: string;
   html?: string;
+  attachments?: Attachment[];
 }
 
 export async function sendEmail(params: EmailParams): Promise<boolean> {
@@ -69,6 +76,14 @@ export async function sendEmail(params: EmailParams): Promise<boolean> {
 
     if (params.html) {
       emailData.html = params.html;
+    }
+
+    if (params.attachments && params.attachments.length > 0) {
+      emailData.attachments = params.attachments.map(attachment => ({
+        filename: attachment.filename,
+        content: attachment.content,
+        contentType: attachment.contentType || 'application/pdf'
+      }));
     }
 
     await transporter.sendMail(emailData);

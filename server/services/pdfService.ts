@@ -13,6 +13,18 @@ import { Request, Response } from 'express';
 
 // Diese Funktion wird vom alten Code erwartet
 // Wir behalten den alten Namen, verbessern aber die Implementation
+export async function createOrderPdf(orderId: number): Promise<Buffer> {
+  console.log("PDF generieren für Bestellung:", orderId);
+  
+  try {
+    const pdfBuffer = await generatePdf({ id: orderId });
+    return pdfBuffer;
+  } catch (error) {
+    console.error("Fehler bei der PDF-Generierung:", error);
+    throw error;
+  }
+}
+
 export async function generatePdf(orderId: any) {
   console.log("PDF generieren für Bestellung:", orderId);
   
@@ -100,7 +112,7 @@ export async function generatePdf(orderId: any) {
               
             if (productResult && productResult.length > 0) {
               product = productResult[0];
-              console.log(`Produkt gefunden für Position ${index+1}:`, product.name);
+              console.log(`Produkt gefunden für Position ${index+1}:`, product.productName);
             } else {
               console.warn(`Kein Produkt gefunden für ID ${item.productId} (Position ${index+1})`);
             }
