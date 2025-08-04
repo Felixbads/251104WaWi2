@@ -1,0 +1,23 @@
+Entnahme aus Lager
+Es ist die Logik dass bei Refill aus dem Lager die Waren zum Refill entnommen werden, das dem Automaten zugeordnet ist. Aber das gilt nur für waren, die tatsächlich im betreffenden Lager vorhanden sind. Bitte als Backup noch die Lösung einbauen, dass nicht vorhandene Waren aus dem Lager Bahnhof entnommen werden (Hauptlager). Überprüf bitte ob und das bisher implementiert ist. Ich möchte auch, dass im Lager jeweils zu jedem Produkt zu sehen ist, wann wieviel von dem Produkt von wem entnommen wurde (Refill oder Umlagerung oder Entnahme)...
+Fehlende Fallback‑Logik bei Auffüllungen
+Beim Erstellen eines Refill-Items wird der Bestand ausschließlich vom dem Automaten zugeordneten Lager abgezogen. Fehlt das Produkt dort oder reicht die Menge nicht aus, erfolgt kein Ausgleich aus dem Hauptlager, sodass Bestände auf 0 fallen können, ohne dass automatisch das „Bahnhof“-Lager genutzt wird
+
+1. Datei `server/warehouse3.storage.ts`, Funktion `createRefillTrackingItem`: * Vor dem Aufruf von `updateProductStock` prüfen, ob `stockBefore < data.quantity`. * Wenn ja, fehlende Menge aus dem Hauptlager (z.B. ID 3, „Bahnhof“) entnehmen: * `updateProductStock(mainWarehouseId, data.productId, -fehlmenge)` ausführen. * Zusätzliche `createInventoryMovement` mit `sourceId` = Hauptlager und gleicher `destinationId` anlegen. 2. Sicherstellen, dass beide Bewegungen im Ergebnis zurückgegeben oder protokolliert werden, damit nachvollziehbar bleibt, aus welchem Lager der Artikel stammt.
+
+Bewegungsprotokoll ohne Verantwortliche
+Die Abfrage der Warenbewegungen liefert keine Information darüber, wer eine Bewegung durchgeführt hat; das Feld performed_by fehlt in der Auswahl und kann daher nicht angezeigt werden
+1. Datei `server/inventory/warehouseQueries.ts`, Funktion `getWarehouseMovements`: * SQL erweitern: `m.performed_by` in der SELECT-Liste aufnehmen. * Optional: `LEFT JOIN users u ON m.performed_by = u.id` hinzufügen, um den Benutzernamen zu ermitteln. 2. Rückgabewerte anpassen, damit `performed_by` (bzw. Benutzername) im Ergebnisobjekt enthalten ist.
+
+Refill erstellt keinen Verantwortlichen
+Beim Anlegen eines Refills wird kein Benutzer als Ausführender gesetzt; die Route übernimmt nur die Lager-ID und ignoriert ein mögliches performedBy, wodurch spätere Bewegungen ohne Verantwortliche protokolliert werden
+
+1. Datei `server/routes/warehouse3.routes.ts`, Route `POST /warehouses/:warehouseId/refills`: * `performedBy` aus `req.body` übernehmen und in `refillData` einfügen. * In `insertRefillTrackingSchema` sicherstellen, dass `performedBy` nicht optional ist, falls immer ein Benutzer angegeben werden muss. 2. Beim Aufruf von `createRefillTracking` das Feld `performedBy` übergeben, sodass nachfolgende `createRefillTrackingItem`-Aufrufe den richtigen Benutzer in `inventory_movements` speichern.
+
+Tests
+Keine Tests wurden ausgeführt; siehe Hinweise zu fehlender Fallback-Logik und unvollständigen Bewegungsprotokollen.
+Notes
+Die tatsächliche ID des Hauptlagers („Bahnhof“) muss im Code oder in der Datenbankkonfiguration verifiziert werden, bevor die Fallback-Logik implementiert wird.
+Erledigt - Leere Kacheln auf Status Seite
+/standort-status - Die Kacheln sind zwar da aber ohne Inhalt aus der Datenbank. Warum?
+Die Seite /standort-status lädt ihre Inhalte über getMachineStatusData, das /api/location-status aufruft. Wenn dieses API zwar Maschinen liefert, aber in den Tabellen transactions, refills, events oder machine_stocks keine passenden Datensätze vorhanden sind (z. B. keine Verkäufe, Füllungen oder Türöffnungen), bleiben die Felder lastRefill, lastSale, todayRevenue usw. leer. Die Kacheln erscheinen dennoch, weil die Maschinenliste selbst aus der machines‑Tabelle kommt. Ohne ergänzende Einträge in den genannten Tabellen zeigen die Kacheln daher keine Inhalte aus der Datenbank
