@@ -480,8 +480,16 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
         let itemsUpdateResponse;
         try {
           console.log('About to serialize editingItems for API call...');
-          const itemsPayload = { items: editingItems };
+          
+          // Remove tempId before sending to server
+          const itemsForServer = editingItems.map(item => {
+            const { tempId, ...itemWithoutTempId } = item;
+            return itemWithoutTempId;
+          });
+          
+          const itemsPayload = { items: itemsForServer };
           console.log('Items payload structure:', Object.keys(itemsPayload));
+          console.log('Items for server (tempIds removed):', itemsForServer);
           
           const serializedPayload = JSON.stringify(itemsPayload);
           console.log('Successfully serialized items payload, length:', serializedPayload.length);

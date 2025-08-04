@@ -1565,37 +1565,69 @@ app.get('/orders-data', (req, res) => {
           `, [itemsToDelete, orderId]);
         }
         
-        // 3. Verbleibende Items aktualisieren
+        // 3. Items aktualisieren oder neu hinzufügen
         let updatedCount = 0;
+        let insertedCount = 0;
+        const insertedItems = [];
+        
         for (const item of items) {
-          const { id, quantity, unitPrice, totalPrice } = item;
+          const { id, productId, productName, quantity, unit, unitPrice, totalPrice } = item;
           
-          if (!id || isNaN(parseInt(id))) {
-            console.warn(`⚠️ Überspringe Item ohne gültige ID:`, item);
-            continue;
-          }
-          
-          const result = await client.query(`
-            UPDATE order_items 
-            SET 
-              quantity = $1,
-              unit_price = $2,
-              total_price = $3,
-              updated_at = NOW()
-            WHERE id = $4 AND order_id = $5
-          `, [
-            quantity || 1,
-            unitPrice || 0,
-            totalPrice || (quantity || 1) * (unitPrice || 0),
-            parseInt(id),
-            orderId
-          ]);
-          
-          if ((result.rowCount ?? 0) > 0) {
-            console.log(`✅ Updated item ${id}: ${quantity} @ ${unitPrice} = ${totalPrice}`);
-            updatedCount++;
+          if (!id || id === null || isNaN(parseInt(id)) || parseInt(id) < 0) {
+            // Neue Items hinzufügen
+            console.log(`➕ Füge neues Item hinzu:`, { productId, productName, quantity });
+            
+            const insertResult = await client.query(`
+              INSERT INTO order_items (
+                order_id, product_id, product_name, quantity, unit, 
+                unit_price, total_price, vat_rate, vat_amount, net_amount, gross_amount, status
+              ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+              RETURNING id
+            `, [
+              orderId,
+              productId || null,
+              productName || 'Unbenanntes Produkt',
+              quantity || 1,
+              unit || 'Stk.',
+              unitPrice || 0,
+              totalPrice || (quantity || 1) * (unitPrice || 0),
+              19, // VAT rate
+              ((quantity || 1) * (unitPrice || 0)) * 19 / 100, // VAT amount  
+              ((quantity || 1) * (unitPrice || 0)) - (((quantity || 1) * (unitPrice || 0)) * 19 / 100), // Net amount
+              (quantity || 1) * (unitPrice || 0), // Gross amount
+              'pending'
+            ]);
+            
+            if (insertResult.rows.length > 0) {
+              const newId = insertResult.rows[0].id;
+              insertedItems.push({ tempId: item.tempId, newId });
+              console.log(`✅ Inserted new item with ID ${newId}: ${quantity} x ${productName}`);
+              insertedCount++;
+            }
           } else {
-            console.warn(`⚠️ Item ${id} not found for update`);
+            // Bestehende Items aktualisieren
+            const result = await client.query(`
+              UPDATE order_items 
+              SET 
+                quantity = $1,
+                unit_price = $2,
+                total_price = $3,
+                updated_at = NOW()
+              WHERE id = $4 AND order_id = $5
+            `, [
+              quantity || 1,
+              unitPrice || 0,
+              totalPrice || (quantity || 1) * (unitPrice || 0),
+              parseInt(id),
+              orderId
+            ]);
+            
+            if ((result.rowCount ?? 0) > 0) {
+              console.log(`✅ Updated item ${id}: ${quantity} @ ${unitPrice} = ${totalPrice}`);
+              updatedCount++;
+            } else {
+              console.warn(`⚠️ Item ${id} not found for update`);
+            }
           }
         }
         
