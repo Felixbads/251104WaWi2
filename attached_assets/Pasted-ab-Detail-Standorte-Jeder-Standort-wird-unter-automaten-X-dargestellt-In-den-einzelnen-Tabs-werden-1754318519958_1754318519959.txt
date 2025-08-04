@@ -1,0 +1,48 @@
+ab Detail Standorte
+Jeder Standort wird unter /automaten/X dargestellt. In den einzelnen Tabs werden die Daten aber leider nicht dargestellt. Die Daten fehlen! Warum? Analysiere für jedes Tab!
+
+
+Gesamtursache
+Alle Tabs beziehen ihre Daten über Maschinen-spezifische API-Aufrufe. Wird /automaten/X mit einer Standort-ID statt einer Maschinen-ID aufgerufen, liefern die Endpunkte keine Resultate. Stelle sicher, dass X der internen Maschinen-ID entspricht und dass die Backend-Datenbank für jede Maschine vollständige Informationen enthält.
+
+
+Allgemein
+Die Stammdaten und Tages-KPIs werden über getMachine und einen zusätzlichen Aufruf zu /api/machines/:id/daily-stats geladen. Fehlerhafte oder nicht vorhandene Maschinen-IDs führen dazu, dass keine Daten angezeigt werden
+* In `client/src/pages/AutomatDetail.tsx` sicherstellen, dass `params.id` eine gültige Maschinen-ID ist. * Falls Standorte statt Maschinen-IDs benutzt werden, Routing anpassen oder ID auf die interne Maschinen-ID abbilden. * Backend-Endpunkt `/api/machines/:id/daily-stats` überprüfen, ob er Daten zurückliefert.
+
+
+Transaktionen
+Der Tab „Transaktionen“ nutzt getTransactionsByMachine und ruft /api/machines/:id/transactions nur bei aktivem Tab auf. Wenn keine Transaktionen existieren oder die ID nicht passt, bleibt der Bereich leer
+
+* In `AutomatDetail.tsx` den Aufruf `getTransactionsByMachine(id, 20)` testen. * Backend-Routinen in `server/routes.ts` für `/machines/:id/transactions` prüfen und ggf. Daten in der DB hinterlegen.
+
+
+Analysen
+„Analysen“ bezieht Kennzahlen über getMachineAnalytics, das /statistics/machines/:id/analytics anspricht. Bei Fehlern oder fehlenden Auswertungen erscheinen keine Diagramme
+* In `server/routes/statistics.ts` sicherstellen, dass `/machines/:id/analytics` für die verwendete ID Daten liefert. * Fehlermeldungen oder leere Antworten im Frontend abfangen und aussagekräftig darstellen.
+
+
+Auswertung
+Die „Auswertung“-Ansicht nutzt dieselben Analytics-Daten wie der Tab „Analysen“. Fehlt dort etwas, bleibt auch dieser Tab leer
+* Backend-Analytics für `/machines/:id/analytics` erweitern oder korrigieren. * Sicherstellen, dass `machineAnalytics.timeSeries` gefüllt ist, damit die Diagramme Daten erhalten.
+
+
+Auffüllungen
+Hier werden mit getRefillsByMachine Daten von /api/machines/:id/refills geladen. Ohne Auffüllungen oder mit falscher ID wird nur die leere Meldung angezeigt
+
+* Route `/machines/:id/refills` in `server/routes.ts` prüfen. * Datenquelle `storage.getRefillsByMachine` kontrollieren und ggf. mit Testdaten füllen.
+
+
+Entnommene Produkte
+RemovedProductsMachineTab ruft /machines/:id/removed-products auf. Ohne passende Datensätze bleiben Statistik und Tabelle leer
+
+* Backend-Endpunkt `/machines/:id/removed-products` implementieren oder testen. * Sicherstellen, dass Datum- und Seitenparameter (`page`, `limit`) korrekt verarbeitet werden.
+
+
+Kosten
+Der Tab „Kosten“ nutzt MachineCostsTab, der /api/machines/:id/costs anspricht. Liegen keine Kosten vor, bleibt der Bereich leer
+* Kosten in `location_costs` oder passender Tabelle eintragen. * Backend-Route `/machines/:id/costs` auf korrekte Rückgabe prüfen.
+
+Wirtschaftlichkeit
+MachineProfitabilityTab lädt /api/machines/:id/profitability für einen Datumsbereich. Ohne Verkaufs- oder Kostendaten kann kein Ergebnis berechnet werden
+* Backend-Routine `/machines/:id/profitability` verifizieren, ob sie Umsätze und Kosten korrekt zusammenführt. * Testdaten für den gewählten Zeitraum einspielen, um Ergebnis zu prüfen.
