@@ -281,8 +281,16 @@ router.post('/:orderId/send-email-working', async (req: Request, res: Response) 
         
         console.log('[WorkingOrderEmail] PDF generated and attached successfully');
       } catch (error) {
-        console.error('[WorkingOrderEmail] Error generating PDF:', error);
-        throw new Error('PDF konnte nicht generiert werden: ' + (error instanceof Error ? error.message : 'Unbekannter Fehler'));
+        console.warn('[WorkingOrderEmail] PDF generation failed, falling back to HTML email:', error);
+        
+        // Fallback: Use full HTML email content instead of PDF
+        if (!emailContent || emailContent === coverText) {
+          emailContent = createOrderEmailTemplate(order, supplier);
+          const itemsTable = createOrderItemsTable(items);
+          emailContent = emailContent.replace('{{orderItems}}', itemsTable);
+        }
+        
+        console.log('[WorkingOrderEmail] Continuing with HTML email fallback');
       }
     } else {
       // Standard HTML email content
@@ -334,9 +342,11 @@ router.post('/:orderId/send-email-working', async (req: Request, res: Response) 
     
     return res.json({
       success: true,
-      message: 'E-Mail erfolgreich gesendet',
+      message: usePdf && attachments.length > 0 ? 'E-Mail mit PDF-Anhang erfolgreich gesendet' : 'E-Mail als HTML erfolgreich gesendet',
       messageId: result.messageId,
-      orderNumber: order.orderNumber
+      orderNumber: order.orderNumber,
+      type: usePdf && attachments.length > 0 ? 'pdf' : 'html',
+      attachments: attachments.length
     });
     
   } catch (error: any) {
@@ -395,18 +405,30 @@ router.get('/:orderId/pdf-preview', async (req: Request, res: Response) => {
 
     console.log('[PDF Preview] Generating PDF for order:', orderId);
     
-    // Generate PDF using the existing service
-    const pdfBuffer = await createOrderPdf(orderId);
-    
-    console.log('[PDF Preview] PDF generated successfully, size:', pdfBuffer.length, 'bytes');
-    
-    // Set appropriate headers for PDF
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `inline; filename="Bestellung-${orderId}-Vorschau.pdf"`);
-    res.setHeader('Content-Length', pdfBuffer.length);
-    
-    // Send the PDF buffer
-    return res.send(pdfBuffer);
+    try {
+      // Generate PDF using the existing service
+      const pdfBuffer = await createOrderPdf(orderId);
+      
+      console.log('[PDF Preview] PDF generated successfully, size:', pdfBuffer.length, 'bytes');
+      
+      // Set appropriate headers for PDF
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `inline; filename="Bestellung-${orderId}-Vorschau.pdf"`);
+      res.setHeader('Content-Length', pdfBuffer.length);
+      
+      // Send the PDF buffer
+      return res.send(pdfBuffer);
+    } catch (pdfError) {
+      console.warn('[PDF Preview] PDF generation failed, returning error message:', pdfError.message);
+      
+      // Return a user-friendly error that explains the situation
+      return res.status(503).json({
+        success: false,
+        error: 'PDF-Vorschau nicht verfügbar',
+        details: 'PDF-Generierung ist aufgrund fehlender Systemabhängigkeiten temporär nicht verfügbar. Sie können die E-Mail trotzdem im HTML-Format versenden.',
+        fallback: true
+      });
+    }
     
   } catch (error: any) {
     console.error('[PDF Preview] Error generating PDF preview:', error);

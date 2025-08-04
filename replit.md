@@ -7,6 +7,19 @@ This is a comprehensive vending machine management platform (Warenwirtschaftssys
 Preferred communication style: Simple, everyday language.
 
 ## Recent Changes (2025-08-04)
+### PDF Email Attachment System with Fallback Implementation
+**Issue**: Implement PDF attachment feature for order emails with two modes - standard HTML emails and PDF attachments with cover letters. PDF preview functionality and editable cover letter text required.
+
+**Solution**: Complete PDF email system with robust fallback:
+- **Backend**: PDF service using Puppeteer with enhanced Chrome launch options for container environments
+- **Email System**: Two modes - HTML emails with full order details, or PDF attachments with short cover letters
+- **Fallback Handling**: When PDF generation fails (due to missing system dependencies), automatically falls back to HTML email
+- **API Endpoints**: `/api/orders-email-working/{id}/pdf-preview` and `/api/orders-email-working/{id}/send-email-working`
+- **Frontend**: EmailDialog with PDF toggle, cover text field, preview functionality, and user-friendly error handling
+- **Error Management**: Graceful degradation - system remains fully functional even when PDF is unavailable
+
+**Impact**: Complete email functionality for order processing. PDF mode provides professional attachments when available, HTML mode ensures reliable communication regardless of system constraints. Users receive clear feedback about delivery method used.
+
 ### Transaction Display and Net Profit Calculation Fix
 **Issue**: Transaction overview showed incorrect NETTO values - displaying gross sales price instead of actual net profit. Vita Cola showed €2.80 in NETTO column instead of correct €2.00 after deducting purchase price (€0.65) and deposit (€0.15).
 

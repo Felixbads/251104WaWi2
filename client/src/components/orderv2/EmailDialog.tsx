@@ -151,9 +151,15 @@ export default function EmailDialog({
       const result = await response.json();
 
       if (response.ok) {
+        // Show success message based on what was actually sent
+        const successMessage = result.type === 'html_fallback' 
+          ? `${result.message}${result.warning ? ` (${result.warning})` : ''}`
+          : result.message;
+          
         toast({
           title: "Erfolg",
-          description: "E-Mail erfolgreich gesendet",
+          description: successMessage,
+          variant: result.type === 'html_fallback' ? "default" : "default",
         });
         onSendEmail(true);
         onOpenChange(false);
@@ -198,7 +204,23 @@ export default function EmailDialog({
           }
         };
       } else {
-        throw new Error('PDF-Vorschau konnte nicht generiert werden');
+        // Handle fallback response from backend
+        const errorData = await response.json();
+        
+        if (errorData.fallback && response.status === 503) {
+          // PDF not available, but system can send HTML emails
+          toast({
+            title: "PDF-Vorschau nicht verfügbar",
+            description: errorData.details || "PDF-Generierung ist aufgrund fehlender Systemabhängigkeiten temporär nicht verfügbar. Sie können die E-Mail trotzdem im HTML-Format versenden.",
+            variant: "default",
+          });
+          
+          // Automatically disable PDF mode
+          setSendAsPdf(false);
+          
+        } else {
+          throw new Error(errorData.error || 'PDF-Vorschau konnte nicht generiert werden');
+        }
       }
     } catch (error) {
       console.error('Error generating PDF preview:', error);

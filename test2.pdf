@@ -1,0 +1,1 @@
+{"success":false,"error":"PDF-Vorschau konnte nicht generiert werden: Failed to launch the browser process!\n/home/runner/.cache/puppeteer/chrome/linux-135.0.7049.114/chrome-linux64/chrome: error while loading shared libraries: libgobject-2.0.so.0: cannot open shared object file: No such file or directory\n\n\nTROUBLESHOOTING: https://pptr.dev/troubleshooting\n"}
