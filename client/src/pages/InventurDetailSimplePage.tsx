@@ -5,6 +5,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useSimpleInventory } from '@/hooks/useSimpleInventory';
 import { SimpleInventoryActions } from '@/components/inventory/SimpleInventoryActions';
 import InventoryCountBatchDialog from '@/components/inventory/batch/InventoryCountBatchDialog';
+import NewBatchDialog from '@/components/inventory/batch/NewBatchDialog';
 import { generateBatchNumber, getDefaultExpiryDate, createAndLinkBatch } from '@/components/inventory/batch/CreateAndLinkBatchHandler';
 import {
   ArrowLeft, Search, TrendingUp, TrendingDown, Equal, Plus, Package, Calendar, ChevronDown, ChevronUp
@@ -957,16 +958,40 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
       </Card>
 
       {/* Batch Create/Edit Modal */}
-      {showBatchModal && selectedInventoryItem && (
-        <CreateBatchModal
-          isOpen={showBatchModal}
-          onClose={() => {
-            setShowBatchModal(false);
-            setSelectedInventoryItem(null);
+      {showBatchDialog && selectedItem && inventurData && (
+        <NewBatchDialog
+          open={showBatchDialog}
+          onOpenChange={(open) => {
+            setShowBatchDialog(open);
+            if (!open) {
+              setSelectedItem(null);
+            }
           }}
-          onBatchCreated={handleBatchCreated}
-          product={selectedInventoryItem.product}
-          warehouseId={selectedInventoryItem.warehouseId}
+          warehouses={[{ id: inventurData.warehouseId, name: inventurData.warehouseName || 'Lager' }]}
+          products={[{ 
+            id: selectedItem.productId, 
+            productName: selectedItem.product?.productName || 'Unbekanntes Produkt' 
+          }]}
+          onSuccess={() => {
+            // Query invalidieren für Live-Update der availableBatches
+            queryClient.invalidateQueries({ 
+              queryKey: [`/api/inventory-count-batches/warehouse/${inventurData?.warehouseId}/products`]
+            });
+            
+            // Optional: Auch die Inventur-Items-Query invalidieren für vollständige Konsistenz
+            queryClient.invalidateQueries({ 
+              queryKey: [`/api/inventory-counts/${inventoryId}/items`]
+            });
+            
+            toast({
+              title: "MHD-Batch erstellt",
+              description: `Neue Charge wurde erfolgreich angelegt`,
+            });
+            
+            // Dialog schließen
+            setShowBatchDialog(false);
+            setSelectedItem(null);
+          }}
         />
       )}
     </div>
