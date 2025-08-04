@@ -19,6 +19,7 @@ import {
   Trophy
 } from "lucide-react";
 import PageHeader from "@/components/layout/PageHeader";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 
 
@@ -58,11 +59,65 @@ import {
 import TransactionsTable from "@/components/tables/TransactionsTable";
 import TopRemovedProductsTile from "@/components/TopRemovedProductsTile";
 
+// Utility-Funktion für Transaktionsnormalisierung
+const normalizeTx = (tx: any) => ({
+  productName: tx.productName || tx.product_name || '',
+  machineName: tx.machineName || tx.machine_name || '',
+  price: tx.price || 0,
+  quantity: tx.quantity || 1,
+  datetime: tx.datetime,
+  machineId: tx.machineId || tx.machine_id,
+  productId: tx.productId || tx.product_id
+});
+
+// Utility-Funktion für Zeitraumberechnung
+const getStartDate = (timeRange: string) => {
+  const now = new Date();
+  switch (timeRange) {
+    case 'today':
+      const today = new Date(now);
+      today.setHours(0, 0, 0, 0);
+      return today;
+    case 'last7':
+      const sevenDaysAgo = new Date(now);
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      return sevenDaysAgo;
+    case 'thisMonth':
+      return new Date(now.getFullYear(), now.getMonth(), 1);
+    case 'lastMonth':
+      return new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    case 'thisYear':
+      return new Date(now.getFullYear(), 0, 1);
+    default:
+      const defaultSevenDaysAgo = new Date(now);
+      defaultSevenDaysAgo.setDate(defaultSevenDaysAgo.getDate() - 7);
+      return defaultSevenDaysAgo;
+  }
+};
+
+const getEndDate = (timeRange: string) => {
+  const now = new Date();
+  switch (timeRange) {
+    case 'today':
+      const tomorrow = new Date(now);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      tomorrow.setHours(0, 0, 0, 0);
+      return tomorrow;
+    case 'lastMonth':
+      return new Date(now.getFullYear(), now.getMonth(), 1);
+    default:
+      return now;
+  }
+};
+
 export default function Dashboard() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
   const { isAuthenticated } = useAuth();
+  
+  // Zeitraum-State
+  const [timeRange, setTimeRange] = React.useState<string>('last7');
 
   // Wenn nicht authentifiziert, zeigen wir stattdessen die Login-Komponente an
   if (!isAuthenticated) {
@@ -298,59 +353,66 @@ export default function Dashboard() {
     ? ((dailyRevenue - yesterdayRevenue) / yesterdayRevenue * 100) 
     : 0;
 
-  // Top Produkte
-  const topProducts = transactions?.reduce((acc: Record<string, {count: number, revenue: number}>, tx) => {
-    // Verwende product_name aus der API Response
-    const productName = tx.productName;
-    
-    // Überspringe Transaktionen ohne echten Produktnamen
-    if (!productName || productName.trim() === '') {
-      return acc;
-    }
-    
-    const cleanProductName = productName.trim();
-    if (!acc[cleanProductName]) {
-      acc[cleanProductName] = { count: 0, revenue: 0 };
-    }
-    acc[cleanProductName].count += tx.quantity || 1;
-    
-    // Calculate revenue with product price lookup
-    let price = tx.price || 0;
-    if (price === 0 && tx.productName) {
-      const productPrice = productPriceMap.get(tx.productName.trim());
-      if (productPrice) {
-        price = productPrice;
-      }
-    }
-    if (price === 0 && (tx as any).productId) {
-      const productPrice = productPriceMap.get((tx as any).productId.toString());
-      if (productPrice) {
-        price = productPrice;
-      }
-    }
-    
-    acc[cleanProductName].revenue += price * (tx.quantity || 1);
-    return acc;
-  }, {}) || {};
-
-  // CRITICAL FIX: Refill Removed Items für "Top 5 verkaufte Waren" Widget
-  const refillRemovedItems = React.useMemo(() => {
+  // Top Produkte mit flexiblem Zeitraum
+  const topProducts = React.useMemo(() => {
     if (!transactions || !Array.isArray(transactions)) return {};
     
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const startDate = getStartDate(timeRange);
+    const endDate = getEndDate(timeRange);
     
     return transactions
       .filter(tx => {
         const txDate = new Date(tx.datetime);
-        return txDate >= sevenDaysAgo && tx.productName;
+        return txDate >= startDate && txDate <= endDate;
       })
-      .reduce((acc: Record<string, number>, tx) => {
-        const productName = tx.productName || 'Unbekanntes Produkt';
-        acc[productName] = (acc[productName] || 0) + (tx.quantity || 1);
+      .reduce((acc: Record<string, {count: number, revenue: number}>, tx) => {
+        const normalized = normalizeTx(tx);
+        
+        // Überspringe Transaktionen ohne echten Produktnamen
+        if (!normalized.productName || normalized.productName.trim() === '') {
+          return acc;
+        }
+        
+        const cleanProductName = normalized.productName.trim();
+        if (!acc[cleanProductName]) {
+          acc[cleanProductName] = { count: 0, revenue: 0 };
+        }
+        acc[cleanProductName].count += normalized.quantity;
+        
+        // Calculate revenue with product price lookup
+        let price = normalized.price || 0;
+        if (price === 0) {
+          const productPrice = productPriceMap.get(cleanProductName) || productPriceMap.get(normalized.productId?.toString());
+          if (productPrice) {
+            price = productPrice;
+          }
+        }
+        
+        acc[cleanProductName].revenue += price * normalized.quantity;
         return acc;
       }, {});
-  }, [transactions]);
+  }, [transactions, timeRange, productPriceMap]);
+
+  // CRITICAL FIX: Refill Removed Items für "Top 5 verkaufte Waren" Widget mit flexiblem Zeitraum
+  const refillRemovedItems = React.useMemo(() => {
+    if (!transactions || !Array.isArray(transactions)) return {};
+    
+    const startDate = getStartDate(timeRange);
+    const endDate = getEndDate(timeRange);
+    
+    return transactions
+      .filter(tx => {
+        const txDate = new Date(tx.datetime);
+        const normalized = normalizeTx(tx);
+        return txDate >= startDate && txDate <= endDate && normalized.productName;
+      })
+      .reduce((acc: Record<string, number>, tx) => {
+        const normalized = normalizeTx(tx);
+        const productName = normalized.productName || 'Unbekanntes Produkt';
+        acc[productName] = (acc[productName] || 0) + normalized.quantity;
+        return acc;
+      }, {});
+  }, [transactions, timeRange]);
 
   // Debug Feldnamen und Revenue-Details
   React.useEffect(() => {
@@ -549,8 +611,23 @@ export default function Dashboard() {
     <div className="space-y-6">
       {/* Einheitliche Filter- und Aktionsleiste */}
       <div className="w-full flex flex-col md:flex-row gap-3 mb-6">
-        {/* Linke Seite: Nichts oder Datum */}
-        <div className="flex-grow flex items-center">
+        {/* Linke Seite: Zeitraumauswahl */}
+        <div className="flex-grow flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <Calendar className="h-4 w-4 text-muted-foreground" />
+            <Select value={timeRange} onValueChange={setTimeRange}>
+              <SelectTrigger className="w-[140px] h-9">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="today">Heute</SelectItem>
+                <SelectItem value="last7">Letzte 7 Tage</SelectItem>
+                <SelectItem value="thisMonth">Dieser Monat</SelectItem>
+                <SelectItem value="lastMonth">Letzter Monat</SelectItem>
+                <SelectItem value="thisYear">Dieses Jahr</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           {isSyncRunning && (
             <div className="flex items-center text-amber-600 bg-amber-50 px-3 py-1 rounded-md h-9">
               <div className="animate-spin h-3 w-3 mr-2 border-2 border-amber-600 border-t-transparent rounded-full"></div>
@@ -1264,12 +1341,16 @@ export default function Dashboard() {
 
 
 
-      {/* Aktive Automaten (letzte 7 Tage) */}
+      {/* Aktive Automaten mit flexiblem Zeitraum */}
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-lg flex items-center">
             <Coffee className="h-5 w-5 mr-2 text-blue-500" />
-            Aktive Automaten (letzte 7 Tage)
+            Aktive Automaten ({timeRange === 'today' ? 'Heute' : 
+                              timeRange === 'last7' ? 'Letzte 7 Tage' : 
+                              timeRange === 'thisMonth' ? 'Dieser Monat' : 
+                              timeRange === 'lastMonth' ? 'Letzter Monat' : 
+                              timeRange === 'thisYear' ? 'Dieses Jahr' : 'Zeitraum'})
           </CardTitle>
           <CardDescription>Automaten mit Produktentnahmen und Anzahl der verkauften Produkte</CardDescription>
         </CardHeader>
@@ -1279,36 +1360,34 @@ export default function Dashboard() {
               <div className="animate-spin h-5 w-5 border-2 border-primary border-t-transparent rounded-full"></div>
             </div>
           ) : (() => {
-            // Calculate machines with removals in last 7 days
-            const sevenDaysAgo = new Date();
-            sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+            // Calculate machines with removals in selected time range
+            const startDate = getStartDate(timeRange);
+            const endDate = getEndDate(timeRange);
             
             const machineActivity = transactions
               ?.filter((tx: any) => {
                 const txDate = new Date(tx.datetime);
-                const productName = tx.productName;
-                const machineName = tx.machineName;
-                return txDate >= sevenDaysAgo && productName && machineName;
+                const normalized = normalizeTx(tx);
+                return txDate >= startDate && txDate <= endDate && normalized.productName && normalized.machineName;
               })
               .reduce((acc: Record<string, { machineId: number; machineName: string; count: number; revenue: number; products: Set<string> }>, tx: any) => {
-                const machineName = tx.machineName;
-                const productName = tx.productName;
-                const key = machineName;
+                const normalized = normalizeTx(tx);
+                const key = normalized.machineName;
                 if (!acc[key]) {
                   acc[key] = {
-                    machineId: tx.machineId,
-                    machineName: machineName,
+                    machineId: normalized.machineId,
+                    machineName: normalized.machineName,
                     count: 0,
                     revenue: 0,
                     products: new Set()
                   };
                 }
-                acc[key].count += tx.quantity || 1;
+                acc[key].count += normalized.quantity;
                 
                 // CRITICAL FIX: Produktpreis aus Map für korrekte Umsätze
-                const productPrice = productPriceMap.get(productName?.trim()) || tx.price || 0;
-                acc[key].revenue += productPrice * (tx.quantity || 1);
-                acc[key].products.add(productName);
+                const productPrice = productPriceMap.get(normalized.productName?.trim()) || normalized.price || 0;
+                acc[key].revenue += productPrice * normalized.quantity;
+                acc[key].products.add(normalized.productName);
                 return acc;
               }, {}) || {};
 
