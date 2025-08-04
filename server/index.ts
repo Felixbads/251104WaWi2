@@ -1294,7 +1294,7 @@ app.get('/orders-data', (req, res) => {
       const result = await pool.query(query, [supplierId]);
 
       // Rabatt-Berechnung für Produkte
-      const calculateNetPrice = (purchasePrice, depositPerUnit, discountType, discountValue, minQuantity) => {
+      const calculateNetPrice = (purchasePrice: number, depositPerUnit: number, discountType: string, discountValue: number, minQuantity: number) => {
         if (!purchasePrice || purchasePrice <= 0) return 0;
         
         let basePrice = purchasePrice;
