@@ -14,13 +14,17 @@ import {
   Search,
   RefreshCw,
   Euro,
-  PackageX
+  PackageX,
+  Play,
+  Pause
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 
 interface MachineStatusData {
   id: number;
@@ -76,15 +80,17 @@ async function getMachineStatusData(): Promise<MachineStatusData[]> {
 
 export default function StandortStatus() {
   const [searchTerm, setSearchTerm] = useState("");
+  const [autoRefresh, setAutoRefresh] = useState(false);
   
   const { data: machineStatus, isLoading, error, refetch } = useQuery({
-    queryKey: ['/api/location-status', new Date().toISOString().split('T')[0]], // Täglich neuer Cache-Key
+    queryKey: ['/api/location-status'],
     queryFn: getMachineStatusData,
-    refetchInterval: 30 * 1000, // Alle 30 Sekunden aktualisieren für aktuelle Daten
-    staleTime: 0, // Daten sofort als veraltet markieren
-    gcTime: 0, // Keine Zwischenspeicherung (React Query v5)
-    refetchOnMount: 'always', // Immer neu laden beim Mount
-    refetchOnWindowFocus: true, // Neu laden bei Fokus
+    staleTime: 5 * 60 * 1000, // 5 minutes - data stays fresh for 5 minutes
+    gcTime: 10 * 60 * 1000, // 10 minutes - keep data in cache for 10 minutes
+    refetchOnMount: false, // Don't automatically refetch on mount if data is fresh
+    refetchOnWindowFocus: false, // Don't refetch on window focus
+    refetchInterval: autoRefresh ? 2 * 60 * 1000 : false, // Only refetch every 2 minutes if auto-refresh enabled
+    refetchIntervalInBackground: false, // Don't refetch when tab is not active
   });
 
   // Gefilterte Maschinen basierend auf Suchbegriff
@@ -138,10 +144,27 @@ export default function StandortStatus() {
       {/* Header */}
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">Standort-Status</h1>
-        <Button onClick={() => refetch()} variant="outline" size="sm">
-          <RefreshCw className="h-4 w-4 mr-2" />
-          Aktualisieren
-        </Button>
+        <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-2">
+            <Label htmlFor="auto-refresh" className="text-sm">
+              Auto-Aktualisierung
+            </Label>
+            <Switch
+              id="auto-refresh"
+              checked={autoRefresh}
+              onCheckedChange={setAutoRefresh}
+            />
+            {autoRefresh ? (
+              <Play className="h-4 w-4 text-green-500" />
+            ) : (
+              <Pause className="h-4 w-4 text-gray-400" />
+            )}
+          </div>
+          <Button onClick={() => refetch()} variant="outline" size="sm">
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Aktualisieren
+          </Button>
+        </div>
       </div>
 
 

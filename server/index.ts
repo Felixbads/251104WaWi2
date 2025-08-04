@@ -35,7 +35,7 @@ import criticalInventoryFinalRouter from './routes/critical-inventory-final';
 import inventoryHealthRouter from './routes/inventory-health';
 import locationAnalysisRouter from './routes/location-analysis';
 import weatherRouter from './routes/weather.js';
-import supplierAnalyticsRouter from './routes/supplier-analytics';
+// import supplierAnalyticsRouter from './routes/supplier-analytics'; // temporarily commented out
 import supportTicketsRouter from './routes/support-tickets';
 import productsRouter from './routes/products';
 import { pool } from './db';
