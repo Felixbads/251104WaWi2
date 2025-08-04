@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { db } from '../db';
+import { db, rawDb } from '../db';
 import { 
   transactions, orders, products, machines, suppliers, events, 
   refills, refillDetails, weatherData 
@@ -9,6 +9,66 @@ import {
   startOfDay, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, 
   format, parseISO, addDays 
 } from 'date-fns';
+
+// Centralized function to resolve machine ID from various input formats
+async function resolveMachineId(inputId: string): Promise<{ machineId: number; source: 'internal' | 'vendon' | 'location' } | null> {
+  console.log(`[STATISTICS-ID-RESOLVER] Resolving machine ID for input: ${inputId}`);
+  
+  // First try parsing as internal machine ID (number)
+  const parsedId = parseInt(inputId);
+  
+  if (!isNaN(parsedId)) {
+    // Check if a machine exists with this internal ID
+    try {
+      const machineCheckResult = await rawDb.query(
+        'SELECT id FROM machines WHERE id = $1 LIMIT 1', 
+        [parsedId]
+      );
+      
+      if (machineCheckResult.rows.length > 0) {
+        console.log(`[STATISTICS-ID-RESOLVER] Found machine with internal ID: ${parsedId}`);
+        return { machineId: parsedId, source: 'internal' };
+      }
+    } catch (error) {
+      console.error(`[STATISTICS-ID-RESOLVER] Error checking internal ID ${parsedId}:`, error);
+    }
+    
+    // If no machine found with internal ID, try as location ID
+    try {
+      const locationMachineResult = await rawDb.query(
+        'SELECT id FROM machines WHERE location_id = $1 LIMIT 1', 
+        [parsedId]
+      );
+      
+      if (locationMachineResult.rows.length > 0) {
+        const machineId = locationMachineResult.rows[0].id;
+        console.log(`[STATISTICS-ID-RESOLVER] Found machine with location ID ${parsedId}, machine ID: ${machineId}`);
+        return { machineId, source: 'location' };
+      }
+    } catch (error) {
+      console.error(`[STATISTICS-ID-RESOLVER] Error checking location ID ${parsedId}:`, error);
+    }
+  }
+  
+  // Try as vendon_id (string)
+  try {
+    const machineByVendonIdResult = await rawDb.query(
+      'SELECT id FROM machines WHERE vendon_id = $1 LIMIT 1', 
+      [inputId]
+    );
+    
+    if (machineByVendonIdResult.rows.length > 0) {
+      const machineId = machineByVendonIdResult.rows[0].id;
+      console.log(`[STATISTICS-ID-RESOLVER] Found machine with vendon ID ${inputId}, machine ID: ${machineId}`);
+      return { machineId, source: 'vendon' };
+    }
+  } catch (error) {
+    console.error(`[STATISTICS-ID-RESOLVER] Error checking vendon ID ${inputId}:`, error);
+  }
+  
+  console.log(`[STATISTICS-ID-RESOLVER] No machine found for input: ${inputId}`);
+  return null;
+}
 
 const router = Router();
 
@@ -1015,18 +1075,24 @@ function calculateCorrelation(x, y) {
  */
 router.get('/machines/:id/analytics', async (req, res) => {
   try {
-    console.log('Starte Automatenanalyse für Maschine ID:', req.params.id);
-    const { id } = req.params;
+    const inputId = req.params.id;
+    console.log(`[MACHINE-ANALYTICS] Starting analytics for input ID: ${inputId}`);
+    
+    // Use centralized ID resolution
+    const resolved = await resolveMachineId(inputId);
+    if (!resolved) {
+      return res.status(404).json({ error: `Machine not found with ID: ${inputId}` });
+    }
+
+    const { machineId } = resolved;
+    console.log(`[MACHINE-ANALYTICS] Resolved to internal machine ID: ${machineId}`);
+
     const { 
       period = 'month', 
       startDate: customStartDate, 
       endDate: customEndDate 
     } = req.query;
-    console.log('Parameter:', { period, customStartDate, customEndDate });
-
-    if (!id) {
-      return res.status(400).json({ error: 'Keine Automaten-ID angegeben' });
-    }
+    console.log('Analytics parameters:', { period, customStartDate, customEndDate });
 
     // Zeitraum für die Analyse definieren
     let startDate = new Date();

@@ -2,6 +2,66 @@ import type { Express, Request as ExpressRequest, Response, NextFunction } from 
 import { User, insertPurchaseConditionSchema, insertInventoryCountItemSchema, machines, transactions, refills, syncLogs } from '../shared/schema';
 import { z } from 'zod';
 
+// Centralized function to resolve machine ID from various input formats
+async function resolveMachineId(inputId: string): Promise<{ machineId: number; source: 'internal' | 'vendon' | 'location' } | null> {
+  console.log(`[ID-RESOLVER] Resolving machine ID for input: ${inputId}`);
+  
+  // First try parsing as internal machine ID (number)
+  const parsedId = parseInt(inputId);
+  
+  if (!isNaN(parsedId)) {
+    // Check if a machine exists with this internal ID
+    try {
+      const machineCheckResult = await rawDb.query(
+        'SELECT id FROM machines WHERE id = $1 LIMIT 1', 
+        [parsedId]
+      );
+      
+      if (machineCheckResult.rows.length > 0) {
+        console.log(`[ID-RESOLVER] Found machine with internal ID: ${parsedId}`);
+        return { machineId: parsedId, source: 'internal' };
+      }
+    } catch (error) {
+      console.error(`[ID-RESOLVER] Error checking internal ID ${parsedId}:`, error);
+    }
+    
+    // If no machine found with internal ID, try as location ID
+    try {
+      const locationMachineResult = await rawDb.query(
+        'SELECT id FROM machines WHERE location_id = $1 LIMIT 1', 
+        [parsedId]
+      );
+      
+      if (locationMachineResult.rows.length > 0) {
+        const machineId = locationMachineResult.rows[0].id;
+        console.log(`[ID-RESOLVER] Found machine with location ID ${parsedId}, machine ID: ${machineId}`);
+        return { machineId, source: 'location' };
+      }
+    } catch (error) {
+      console.error(`[ID-RESOLVER] Error checking location ID ${parsedId}:`, error);
+    }
+  }
+  
+  // Try as vendon_id (string)
+  try {
+    const machineByVendonIdResult = await rawDb.query(
+      'SELECT id FROM machines WHERE vendon_id = $1 LIMIT 1', 
+      [inputId]
+    );
+    
+    if (machineByVendonIdResult.rows.length > 0) {
+      const machineId = machineByVendonIdResult.rows[0].id;
+      console.log(`[ID-RESOLVER] Found machine with vendon ID ${inputId}, machine ID: ${machineId}`);
+      return { machineId, source: 'vendon' };
+    }
+  } catch (error) {
+    console.error(`[ID-RESOLVER] Error checking vendon ID ${inputId}:`, error);
+  }
+  
+  console.log(`[ID-RESOLVER] No machine found for input: ${inputId}`);
+  return null;
+}
+
 // Erweitern der Request-Schnittstelle zur Unterstützung des user-Objekts
 interface Request extends ExpressRequest {
   user?: User;
@@ -969,75 +1029,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get(`${API_PREFIX}/machines/:id/daily-stats`, async (req: Request, res: Response) => {
     try {
       const inputId = req.params.id;
-      let internalMachineId: number;
+      console.log(`[MACHINE-DAILY-STATS] Fetching daily stats for input ID: ${inputId}`);
       
-      console.log(`[INFO] Abrufen von täglichen KPIs für Maschine mit ID ${inputId}`);
-      
-      // Zuerst versuchen, die ID als Zahl zu parsen (interne ID)
-      const parsedId = parseInt(inputId);
-      
-      if (!isNaN(parsedId)) {
-        // Prüfen, ob eine Maschine mit dieser internen ID existiert
-        try {
-          const machineCheckResult = await rawDb.query(
-            'SELECT id FROM machines WHERE id = $1 LIMIT 1', [parsedId]
-          );
-          const machineCheck = machineCheckResult.rows.length > 0 ? machineCheckResult.rows[0] : null;
-          if (machineCheck) {
-            internalMachineId = parsedId;
-            console.log(`[DEBUG] Interne Maschinen-ID ${internalMachineId} gefunden`);
-          } else {
-            throw new Error('Machine not found with internal ID');
-          }
-        } catch {
-          // Falls keine Maschine mit interner ID gefunden, versuche als Vendon-ID
-          console.log(`[DEBUG] Keine Maschine mit interner ID ${parsedId} gefunden, versuche als Vendon-ID`);
-          const machineByVendonIdResult = await rawDb.query(
-            'SELECT id, machine_name FROM machines WHERE vendon_id = $1 LIMIT 1', [inputId]
-          );
-          const machineByVendonId = machineByVendonIdResult.rows.length > 0 ? machineByVendonIdResult.rows[0] : null;
-          if (machineByVendonId) {
-            internalMachineId = machineByVendonId.id;
-            console.log(`[DEBUG] Maschine mit Vendon-ID ${inputId} gefunden, interne ID: ${internalMachineId}`);
-          } else {
-            return res.status(404).json({ error: `Keine Maschine mit ID ${inputId} gefunden` });
-          }
-        }
-      } else {
-        // ID ist keine Zahl, behandle als Vendon-ID (String)
-        console.log(`[DEBUG] ID ${inputId} ist keine Zahl, behandle als Vendon-ID`);
-        const machineByVendonIdResult = await rawDb.query(
-          'SELECT id, machine_name FROM machines WHERE vendon_id = $1 LIMIT 1', [inputId]
-        );
-        const machineByVendonId = machineByVendonIdResult.rows.length > 0 ? machineByVendonIdResult.rows[0] : null;
-        if (machineByVendonId) {
-          internalMachineId = machineByVendonId.id;
-          console.log(`[DEBUG] Maschine mit Vendon-ID ${inputId} gefunden, interne ID: ${internalMachineId}`);
-        } else {
-          return res.status(404).json({ error: `Keine Maschine mit Vendon-ID ${inputId} gefunden` });
-        }
+      // Use centralized ID resolution
+      const resolved = await resolveMachineId(inputId);
+      if (!resolved) {
+        return res.status(404).json({ error: `Machine not found with ID: ${inputId}` });
       }
+
+      const { machineId } = resolved;
+      console.log(`[MACHINE-DAILY-STATS] Resolved to internal machine ID: ${machineId}`);
       
       // Jetzt mit der korrekten internen ID die Statistiken abrufen
       try {
-        const stats = await storage.getMachineDailyStats(internalMachineId);
-        console.log(`[DEBUG] Statistiken für Maschine ${internalMachineId} (Input: ${inputId}) abgerufen:`, JSON.stringify(stats));
+        const stats = await storage.getMachineDailyStats(machineId);
+        console.log(`[MACHINE-DAILY-STATS] Successfully fetched stats for machine ${machineId} (Input: ${inputId})`);
         
         // Füge spezifisches Debug-Log für lastSale hinzu
         if (stats.lastSale) {
-          console.log(`[DEBUG] lastSale für Maschine ${internalMachineId} gefunden:`, 
+          console.log(`[MACHINE-DAILY-STATS] lastSale for machine ${machineId} found:`, 
             typeof stats.lastSale === 'object' ? 
-              (stats.lastSale.datetime ? new Date(stats.lastSale.datetime).toISOString() : "Kein datetime-Feld") : 
-              "Kein Objekt");
+              (stats.lastSale.datetime ? new Date(stats.lastSale.datetime).toISOString() : "No datetime field") : 
+              "Not an object");
         } else {
-          console.log(`[DEBUG] Kein lastSale für Maschine ${internalMachineId} gefunden!`);
+          console.log(`[MACHINE-DAILY-STATS] No lastSale found for machine ${machineId}!`);
         }
         
         res.json(stats);
       } catch (storageError) {
         // Detaillierter Fehler-Log der Storage-Methode
-        console.error(`[ERROR] Storage-Fehler für Maschine ${internalMachineId}:`, storageError);
-        console.error(`Stack Trace:`, storageError instanceof Error ? storageError.stack : 'Kein Stack Trace verfügbar');
+        console.error(`[MACHINE-DAILY-STATS] Storage error for machine ${machineId}:`, storageError);
+        console.error(`Stack Trace:`, storageError instanceof Error ? storageError.stack : 'No stack trace available');
         
         // Fallback für Fehlerfall: Leere Statistik-Struktur
         res.json({
@@ -3542,13 +3564,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Location status route handled by dedicated router
 
-  // Get machine by ID - Direct SQL
+  // Get machine by ID - Using centralized ID resolution
   app.get(`${API_PREFIX}/machines/:id`, async (req: Request, res: Response) => {
     try {
-      const machineId = parseInt(req.params.id);
-      if (isNaN(machineId)) {
-        return res.status(400).json({ error: 'Invalid machine ID' });
+      const inputId = req.params.id;
+      console.log(`[MACHINE-DETAIL] Fetching machine with input ID: ${inputId}`);
+      
+      // Use centralized ID resolution
+      const resolved = await resolveMachineId(inputId);
+      if (!resolved) {
+        return res.status(404).json({ error: `Machine not found with ID: ${inputId}` });
       }
+
+      const { machineId } = resolved;
+      console.log(`[MACHINE-DETAIL] Resolved to internal machine ID: ${machineId}`);
 
       // Direkte SQL-Abfrage für Maschinendaten
       const machineQuery = `
@@ -3569,9 +3598,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const machineResult = await rawDb.query(machineQuery, [machineId]);
       
       if (machineResult.rows.length === 0) {
-        return res.status(404).json({ error: 'Machine not found' });
+        return res.status(404).json({ error: 'Machine data not found after ID resolution' });
       }
 
+      console.log(`[MACHINE-DETAIL] Successfully fetched machine data for ID ${machineId}`);
       res.json(machineResult.rows[0]);
     } catch (error) {
       console.error(`Error fetching machine with ID ${req.params.id}:`, error);
@@ -3582,10 +3612,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get transactions by machine ID
+  // Get transactions by machine ID - Using centralized ID resolution
   app.get(`${API_PREFIX}/machines/:id/transactions`, async (req: Request, res: Response) => {
     try {
-      const machineId = parseInt(req.params.id);
+      const inputId = req.params.id;
+      console.log(`[MACHINE-TRANSACTIONS] Fetching transactions for input ID: ${inputId}`);
+      
+      // Use centralized ID resolution
+      const resolved = await resolveMachineId(inputId);
+      if (!resolved) {
+        return res.status(404).json({ error: `Machine not found with ID: ${inputId}` });
+      }
+
+      const { machineId } = resolved;
+      console.log(`[MACHINE-TRANSACTIONS] Resolved to internal machine ID: ${machineId}`);
+
       const limit = req.query.limit ? parseInt(req.query.limit as string) : 200;
       
       // Direkte SQL-Abfrage für Maschinen-Transaktionen
@@ -3611,6 +3652,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const transactionsResult = await rawDb.query(transactionsQuery, [machineId, limit]);
       const transactions = transactionsResult.rows;
+      console.log(`[MACHINE-TRANSACTIONS] Found ${transactions.length} transactions for machine ${machineId}`);
       res.json(transactions);
     } catch (error) {
       console.error(`Error fetching transactions for machine ID ${req.params.id}:`, error);
@@ -3624,14 +3666,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Die Route für tägliche Statistiken wurde konsolidiert und befindet sich weiter oben
   // Siehe die Route für `/api/machines/:id/daily-stats` weiter oben in dieser Datei
   
-  // GET /machines/:id/costs - Get machine-specific costs
+  // GET /machines/:id/costs - Get machine-specific costs - Using centralized ID resolution
   app.get(`${API_PREFIX}/machines/:id/costs`, async (req: Request, res: Response) => {
     try {
-      const machineId = parseInt(req.params.id);
+      const inputId = req.params.id;
+      console.log(`[MACHINE-COSTS] Fetching costs for input ID: ${inputId}`);
       
-      if (isNaN(machineId)) {
-        return res.status(400).json({ error: "Invalid machine ID" });
+      // Use centralized ID resolution
+      const resolved = await resolveMachineId(inputId);
+      if (!resolved) {
+        return res.status(404).json({ error: `Machine not found with ID: ${inputId}` });
       }
+
+      const { machineId } = resolved;
+      console.log(`[MACHINE-COSTS] Resolved to internal machine ID: ${machineId}`);
       
       // Get machine information directly via SQL to avoid storage method dependency
       const machineQuery = `
@@ -3642,10 +3690,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const machineResult = await rawDb.query(machineQuery, [machineId]);
       
       if (machineResult.rows.length === 0) {
-        return res.status(404).json({ error: "Machine not found" });
+        return res.status(404).json({ error: "Machine data not found after ID resolution" });
       }
       
       const machine = machineResult.rows[0];
+      console.log(`[MACHINE-COSTS] Successfully fetched machine data for costs`);
       
       // Return empty array since location_costs table doesn't exist yet  
       res.json([]);
@@ -3733,12 +3782,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // GET /machines/:id/profitability - Enhanced machine-specific profitability (CRITICAL: BEFORE registerRoutes)
+  // GET /machines/:id/profitability - Enhanced machine-specific profitability - Using centralized ID resolution
   app.get(`${API_PREFIX}/machines/:id/profitability`, async (req: Request, res: Response) => {
     console.log(`🔥 API HIT: /machines/${req.params.id}/profitability`);
     res.setHeader('Content-Type', 'application/json');
     try {
-      const machineId = parseInt(req.params.id);
+      const inputId = req.params.id;
+      console.log(`[MACHINE-PROFITABILITY] Fetching profitability for input ID: ${inputId}`);
+      
+      // Use centralized ID resolution
+      const resolved = await resolveMachineId(inputId);
+      if (!resolved) {
+        return res.status(404).json({ error: `Machine not found with ID: ${inputId}` });
+      }
+
+      const { machineId } = resolved;
+      console.log(`[MACHINE-PROFITABILITY] Resolved to internal machine ID: ${machineId}`);
+
       const { startDate, endDate } = req.query;
       
       if (isNaN(machineId)) {
@@ -3907,13 +3967,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get refills by machine ID
+  // Get refills by machine ID - Using centralized ID resolution
   app.get(`${API_PREFIX}/machines/:id/refills`, async (req: Request, res: Response) => {
     try {
-      const machineId = parseInt(req.params.id);
+      const inputId = req.params.id;
+      console.log(`[MACHINE-REFILLS] Fetching refills for input ID: ${inputId}`);
+      
+      // Use centralized ID resolution
+      const resolved = await resolveMachineId(inputId);
+      if (!resolved) {
+        return res.status(404).json({ error: `Machine not found with ID: ${inputId}` });
+      }
+
+      const { machineId } = resolved;
+      console.log(`[MACHINE-REFILLS] Resolved to internal machine ID: ${machineId}`);
+
       const limit = req.query.limit ? parseInt(req.query.limit as string) : 200;
       
       const refills = await storage.getRefillsByMachine(machineId, limit);
+      console.log(`[MACHINE-REFILLS] Found ${refills.length} refills for machine ${machineId}`);
       res.json(refills);
     } catch (error) {
       console.error(`Error fetching refills for machine ID ${req.params.id}:`, error);
@@ -3944,18 +4016,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get removed products by machine ID
+  // Get removed products by machine ID - Using centralized ID resolution
   app.get(`${API_PREFIX}/machines/:id/removed-products`, async (req: Request, res: Response) => {
     try {
-      const machineId = parseInt(req.params.id);
+      const inputId = req.params.id;
+      console.log(`[MACHINE-REMOVED-PRODUCTS] Fetching removed products for input ID: ${inputId}`);
+      
+      // Use centralized ID resolution
+      const resolved = await resolveMachineId(inputId);
+      if (!resolved) {
+        return res.status(404).json({ error: `Machine not found with ID: ${inputId}` });
+      }
+
+      const { machineId } = resolved;
+      console.log(`[MACHINE-REMOVED-PRODUCTS] Resolved to internal machine ID: ${machineId}`);
+
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 50;
       const startDate = req.query.startDate as string;
       const endDate = req.query.endDate as string;
-      
-      if (isNaN(machineId)) {
-        return res.status(400).json({ error: "Ungültige Maschinen-ID" });
-      }
 
       const offset = (page - 1) * limit;
       
