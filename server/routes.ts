@@ -1579,7 +1579,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         FROM transactions t
         LEFT JOIN machines m ON t.machine_id = m.id
         LEFT JOIN products p ON (t.product_id = p.vendon_id OR t.product_name = p.product_name)
-        LEFT JOIN purchase_conditions pc ON p.id = pc.product_id AND pc.is_preferred = true
+        LEFT JOIN LATERAL (
+          SELECT unit_price
+          FROM purchase_conditions pc_sub 
+          WHERE pc_sub.product_id = p.id 
+          ORDER BY pc_sub.is_preferred DESC, pc_sub.unit_price ASC 
+          LIMIT 1
+        ) pc ON true
         ORDER BY t.datetime DESC
         LIMIT $1
       `;
@@ -1636,7 +1642,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           FROM transactions t
           LEFT JOIN machines m ON t.machine_id = m.id
           LEFT JOIN products p ON (t.product_id = p.vendon_id OR t.product_name = p.product_name)
-          LEFT JOIN purchase_conditions pc ON p.id = pc.product_id AND pc.is_preferred = true
+          LEFT JOIN LATERAL (
+            SELECT unit_price
+            FROM purchase_conditions pc_sub 
+            WHERE pc_sub.product_id = p.id 
+            ORDER BY pc_sub.is_preferred DESC, pc_sub.unit_price ASC 
+            LIMIT 1
+          ) pc ON true
           WHERE t.datetime >= $1 AND t.datetime <= $2
           ORDER BY t.datetime DESC
           LIMIT $3
@@ -1679,7 +1691,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         FROM transactions t
         LEFT JOIN machines m ON t.machine_id = m.id
         LEFT JOIN products p ON (t.product_id = p.vendon_id OR t.product_name = p.product_name)
-        LEFT JOIN purchase_conditions pc ON p.id = pc.product_id AND pc.is_preferred = true
+        LEFT JOIN LATERAL (
+          SELECT unit_price
+          FROM purchase_conditions pc_sub 
+          WHERE pc_sub.product_id = p.id 
+          ORDER BY pc_sub.is_preferred DESC, pc_sub.unit_price ASC 
+          LIMIT 1
+        ) pc ON true
         WHERE t.datetime >= $1 AND t.datetime <= $2
         ORDER BY t.datetime DESC
         LIMIT $3
