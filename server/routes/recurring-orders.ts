@@ -24,8 +24,8 @@ import RecurringOrderScheduler from '../services/recurringOrderScheduler';
 import GoodsReceiptService from '../services/goodsReceiptService';
 
 // Services initialisieren
-const scheduler = new RecurringOrderScheduler({ drizzle: db });
-const goodsReceiptService = new GoodsReceiptService({ drizzle: db });
+const scheduler = new RecurringOrderScheduler();
+const goodsReceiptService = new GoodsReceiptService();
 
 // Export scheduler instance für Server-Initialisierung
 export function getRecurringOrderSchedulerInstance() {

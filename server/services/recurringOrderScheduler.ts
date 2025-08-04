@@ -6,7 +6,7 @@
  */
 
 import cron from 'node-cron';
-import { DatabaseClient } from '../storage/database-storage';
+import { db } from '../db';
 import { recurringOrders, recurringOrderItems, orders, orderItems, recurringOrderExecutions } from '../../shared/schema';
 import { eq, and, lte, gte, sql } from 'drizzle-orm';
 import { sendEmail } from './emailService';
@@ -26,13 +26,12 @@ interface SchedulerConfig {
 }
 
 class RecurringOrderScheduler {
-  private db: DatabaseClient;
+  private db = db;
   private isRunning: boolean = false;
-  private scheduledTasks: Map<string, cron.ScheduledTask> = new Map();
+  private scheduledTasks: Map<string, any> = new Map();
   private config: SchedulerConfig;
 
-  constructor(db: DatabaseClient) {
-    this.db = db;
+  constructor() {
     this.config = {
       enabledHours: [6, 7, 8], // Ausführung nur zwischen 6-8 Uhr
       maxConcurrentExecutions: 5,
@@ -117,7 +116,7 @@ class RecurringOrderScheduler {
       const today = new Date().toISOString().split('T')[0];
       
       // Finde alle aktiven wiederkehrenden Bestellungen, die heute fällig sind
-      const dueOrders = await this.db.drizzle
+      const dueOrders = await this.db
         .select()
         .from(recurringOrders)
         .where(

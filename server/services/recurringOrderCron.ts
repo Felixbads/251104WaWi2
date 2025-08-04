@@ -41,7 +41,6 @@ class RecurringOrderCronService {
         this.isRunning = false;
       }
     }, {
-      scheduled: true,
       timezone: 'Europe/Berlin'
     });
 
