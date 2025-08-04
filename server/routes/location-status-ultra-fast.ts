@@ -8,6 +8,8 @@ let locationStatusCache: any = null;
 let cacheTimestamp: number = 0;
 const CACHE_DURATION = 2 * 60 * 1000; // 2 minutes cache
 
+
+
 // Helper function to calculate days ago
 function getDaysAgo(date: Date | string | null): number {
   if (!date) return 999;
@@ -33,15 +35,23 @@ router.get('/', async (req: Request, res: Response) => {
     // Simplified and highly optimized query with minimal JOINs
     const result = await db.execute(`
       WITH base_machines AS (
+        -- Prioritize machines that have actual transactions, not just newest records
         SELECT DISTINCT ON (vendon_id)
-          id as machine_id,
-          machine_name,
-          location_name,
-          vendon_id
-        FROM machines 
-        WHERE vendon_id IS NOT NULL 
-          AND CAST(vendon_id AS text) != '1001'
-        ORDER BY vendon_id, id DESC
+          m.id as machine_id,
+          m.machine_name,
+          m.location_name,
+          m.vendon_id,
+          COALESCE(t_count.transaction_count, 0) as has_transactions
+        FROM machines m
+        LEFT JOIN (
+          SELECT machine_id, COUNT(*) as transaction_count
+          FROM transactions 
+          WHERE datetime >= CURRENT_DATE - INTERVAL '90 days'
+          GROUP BY machine_id
+        ) t_count ON m.id = t_count.machine_id
+        WHERE m.vendon_id IS NOT NULL 
+          AND CAST(m.vendon_id AS text) != '1001'
+        ORDER BY m.vendon_id, COALESCE(t_count.transaction_count, 0) DESC, m.id DESC
       ),
       machine_stats AS (
         SELECT 
@@ -74,7 +84,7 @@ router.get('/', async (req: Request, res: Response) => {
             machine_id,
             MAX(datetime) as last_sale,
             COALESCE(SUM(CASE WHEN datetime >= CURRENT_DATE THEN price ELSE 0 END), 0) as today_revenue,
-            MAX(CASE WHEN payment_method != 'CASH' THEN datetime END) as last_cashless_sale
+            MAX(CASE WHEN payment_method IN ('CASHLESS', 'CARD') THEN datetime END) as last_cashless_sale
           FROM transactions
           WHERE datetime >= CURRENT_DATE - INTERVAL '30 days'  -- Only look at recent data
           GROUP BY machine_id
@@ -130,6 +140,8 @@ router.get('/', async (req: Request, res: Response) => {
       FROM machine_stats
       ORDER BY machine_name
     `);
+
+
 
     // Process results without additional database queries - optimized for speed
     const machineStatusData = result.rows.map((row: any) => {
