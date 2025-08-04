@@ -46,6 +46,7 @@ import InterAppConnections from "@/pages/InterAppConnections";
 import SupplierPortal from "@/pages/SupplierPortal";
 import SupplierPortalNew from "@/pages/SupplierPortalNew";
 import UmsatzErgebnisUebersicht from "@/pages/UmsatzErgebnisUebersicht";
+import BatchManagement from "@/pages/BatchManagement";
 
 /**
  * HOC, der eine geschützte Route mit Benutzerfreigabe-Prüfung erstellt
@@ -397,6 +398,12 @@ function AuthenticatedRouter() {
         <Route path="/kritische-bestaende" component={props => (
           <ApprovedUserRoute>
             <CriticalInventory {...props} />
+          </ApprovedUserRoute>
+        )} />
+
+        <Route path="/chargenverwaltung" component={props => (
+          <ApprovedUserRoute>
+            <BatchManagement {...props} />
           </ApprovedUserRoute>
         )} />
 
