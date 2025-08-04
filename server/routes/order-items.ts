@@ -41,53 +41,30 @@ router.post('/orders/:orderId/add-product', async (req: Request, res: Response) 
 
     const productData = product[0];
 
-    // Check if product already exists in order
-    const existingItem = await db
-      .select()
-      .from(orderItems)
-      .where(and(
-        eq(orderItems.orderId, parseInt(orderId)),
-        eq(orderItems.productId, parseInt(productId))
-      ))
-      .limit(1);
+    // Always add as new item to order (allow multiple entries of same product)
+    const newItem = await db
+      .insert(orderItems)
+      .values({
+        orderId: parseInt(orderId),
+        productId: parseInt(productId),
+        productName: productData.productName,
+        quantity: parseInt(quantity),
+        unit: 'Stk.',
+        unitPrice: productData.price || 0,
+        totalPrice: parseInt(quantity) * (productData.price || 0),
+        vatRate: 19,
+        vatAmount: (parseInt(quantity) * (productData.price || 0)) * 19 / 100,
+        netAmount: (parseInt(quantity) * (productData.price || 0)) - ((parseInt(quantity) * (productData.price || 0)) * 19 / 100),
+        grossAmount: parseInt(quantity) * (productData.price || 0),
+        status: 'pending'
+      })
+      .returning();
 
-    if (existingItem.length > 0) {
-      // Update existing item quantity
-      const updatedItem = await db
-        .update(orderItems)
-        .set({ 
-          quantity: existingItem[0].quantity + parseInt(quantity),
-          totalPrice: (existingItem[0].quantity + parseInt(quantity)) * (productData.price || 0)
-        })
-        .where(eq(orderItems.id, existingItem[0].id))
-        .returning();
-
-      res.json({
-        success: true,
-        message: 'Product quantity updated in order',
-        item: updatedItem[0]
-      });
-    } else {
-      // Add new item to order
-      const newItem = await db
-        .insert(orderItems)
-        .values({
-          orderId: parseInt(orderId),
-          productId: parseInt(productId),
-          productName: productData.productName,
-          quantity: parseInt(quantity),
-          unitPrice: productData.price || 0,
-          totalPrice: parseInt(quantity) * (productData.price || 0),
-          status: 'pending'
-        })
-        .returning();
-
-      res.json({
-        success: true,
-        message: 'Product added to order',
-        item: newItem[0]
-      });
-    }
+    res.json({
+      success: true,
+      message: 'Product added to order',
+      item: newItem[0]
+    });
   } catch (error) {
     console.error('Error adding product to order:', error);
     res.status(500).json({ error: 'Failed to add product to order' });

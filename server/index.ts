@@ -70,6 +70,7 @@ import stockRatiosRouter from './routes/stock-ratios';
 import inventorySimpleRouter from './routes/inventory-simple';
 import { SupplierAnalyticsCache } from './services/supplierAnalyticsCache';
 import supplierFavoritesRouter from './routes/supplier-favorites';
+import orderItemsRouter from './routes/order-items';
 
 const app = express();
 
@@ -1632,6 +1633,10 @@ app.get('/orders-data', (req, res) => {
   const ordersRouter = (await import('./routes/orders')).default;
   app.use('/api/orders', ordersRouter);
   console.log('[SERVER] Orders router mounted successfully');
+  
+  // Mount order-items router for direct product addition to orders
+  app.use('/api', orderItemsRouter);
+  console.log('[SERVER] Order items router mounted successfully');
   
   // Mount enhanced orders router BEFORE registerRoutes for enhanced ordering functionality
   app.use('/api/enhanced-orders', enhancedOrdersRouter);

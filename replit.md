@@ -7,6 +7,18 @@ This is a comprehensive vending machine management platform (Warenwirtschaftssys
 Preferred communication style: Simple, everyday language.
 
 ## Recent Changes (2025-08-04)
+### Product Addition to Orders Bug Fix
+**Issue**: "Produkt hinzufügen" (Add Product) button in order detail view was not working properly. Products could be selected but newly added products weren't appearing in the order or persisting to the database.
+
+**Root Cause**: The backend `/api/orders/:id/add-product` endpoint was checking if the product already existed in the order and only updating the quantity instead of creating new line items. Additionally, the `order-items.ts` router containing the fixed endpoint was not mounted in the main server.
+
+**Solution**: Complete fix for product addition functionality:
+- **Backend Logic**: Modified the add-product endpoint to always create new line items instead of updating existing quantities, allowing multiple entries of the same product
+- **Router Integration**: Properly imported and mounted the `order-items.ts` router in `server/index.ts` at `/api` path  
+- **Database Fields**: Added proper VAT calculations, unit specifications, and price breakdowns for new order items
+- **Endpoint Path**: Fixed endpoint now available at `/api/orders/:orderId/add-product`
+
+**Impact**: Users can now successfully add products to orders via the "Produkt hinzufügen" dialog. Each addition creates a separate line item, allowing for better inventory control and order management.
 ### PDF Email Attachment System with Fallback Implementation
 **Issue**: Implement PDF attachment feature for order emails with two modes - standard HTML emails and PDF attachments with cover letters. PDF preview functionality and editable cover letter text required.
 

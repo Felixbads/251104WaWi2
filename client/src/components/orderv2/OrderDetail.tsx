@@ -969,7 +969,7 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
                                   type="number"
                                   min="1"
                                   value={item.quantity}
-                                  onChange={(e) => updateItemQuantity(item.id || item.tempId, parseInt(e.target.value) || 1)}
+                                  onChange={(e) => updateItemQuantity(item.id || item.tempId || null, parseInt(e.target.value) || 1)}
                                   className="w-20"
                                 />
                                 <span className="text-sm text-gray-600">{item.unit}</span>
@@ -991,7 +991,7 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
                         </div>
                         {isEditing && (
                           <Button
-                            onClick={() => removeItem(item.id || item.tempId)}
+                            onClick={() => removeItem(item.id || item.tempId || null)}
                             variant="ghost"
                             size="sm"
                             className="text-red-600 hover:text-red-800"
