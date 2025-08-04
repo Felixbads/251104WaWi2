@@ -100,8 +100,10 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
   const [editedCounts, setEditedCounts] = useState<Record<number, number>>({});
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedItems, setExpandedItems] = useState<Set<number>>(new Set());
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [showBatchDialog, setShowBatchDialog] = useState(false);
   const [selectedItem, setSelectedItem] = useState<SimpleInventoryItem | null>(null);
+  const [groupView, setGroupView] = useState(true); // Toggle für gruppierte Ansicht
   
   // Neue State-Variablen für Gebinde-Eingabe
   const [packageCounts, setPackageCounts] = useState<Record<number, number>>({});
@@ -295,6 +297,71 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
     });
   }, [inventurItems, searchTerm]);
 
+  // Group items by product name for duplicate handling
+  const groupedItems = React.useMemo(() => {
+    if (!groupView) return null;
+    
+    const groups = new Map<string, SimpleInventoryItem[]>();
+    
+    filteredItems.forEach((item: SimpleInventoryItem) => {
+      const productName = item.product?.productName || 'Unbekanntes Produkt';
+      if (!groups.has(productName)) {
+        groups.set(productName, []);
+      }
+      groups.get(productName)!.push(item);
+    });
+    
+    // Convert to array format with summary data
+    return Array.from(groups.entries()).map(([productName, items]) => {
+      const totalExpected = items.reduce((sum, item) => sum + (item.expectedQuantity || 0), 0);
+      const totalCounted = items.reduce((sum, item) => sum + (item.countedQuantity || 0), 0);
+      const allCounted = items.every(item => item.countedQuantity !== null && item.countedQuantity !== undefined);
+      
+      // Get MHD info from available batches
+      const uniqueBatches = new Set<string>();
+      items.forEach(item => {
+        const productBatches = availableBatches?.filter(batch => batch.productId === item.productId);
+        productBatches?.forEach(batch => {
+          if (batch.expiryDate) {
+            uniqueBatches.add(batch.expiryDate);
+          }
+        });
+      });
+      
+      const earliestMHD = Array.from(uniqueBatches).sort()[0];
+      
+      return {
+        productName,
+        items,
+        totalExpected,
+        totalCounted,
+        difference: totalCounted - totalExpected,
+        allCounted,
+        itemCount: items.length,
+        earliestMHD,
+        hasMultipleEntries: items.length > 1
+      };
+    }).sort((a, b) => {
+      // Duplikate zuerst, dann alphabetisch
+      if (a.hasMultipleEntries && !b.hasMultipleEntries) return -1;
+      if (!a.hasMultipleEntries && b.hasMultipleEntries) return 1;
+      return a.productName.localeCompare(b.productName);
+    });
+  }, [filteredItems, groupView, availableBatches]);
+
+  // Toggle group expansion
+  const toggleGroupExpansion = (productName: string) => {
+    setExpandedGroups(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(productName)) {
+        newSet.delete(productName);
+      } else {
+        newSet.add(productName);
+      }
+      return newSet;
+    });
+  };
+
   // Berechne Statistiken
   const itemStats = React.useMemo(() => {
     if (!filteredItems.length) return { total: 0, counted: 0, progress: 0 };
@@ -408,6 +475,15 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
             className="pl-10"
           />
         </div>
+        <Button
+          variant={groupView ? "default" : "outline"}
+          size="sm"
+          onClick={() => setGroupView(!groupView)}
+          className="flex items-center space-x-2"
+        >
+          <Package className="h-4 w-4" />
+          <span>Gruppiert</span>
+        </Button>
       </div>
 
       {/* Items Table */}
@@ -433,301 +509,468 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredItems.map((item: SimpleInventoryItem) => {
-                  const currentCount = editedCounts[item.id] ?? item.countedQuantity ?? '';
-                  const expectedQty = item.expectedQuantity || 0;
-                  const countedQty = typeof currentCount === 'number' ? currentCount : 0;
-                  const difference = countedQty - expectedQty;
-                  const packageSize = parsePackageSize(item.product);
-                  const isExpanded = expandedItems.has(item.id);
-                  
-                  // Filtere verfügbare Batches für dieses Produkt
-                  const productBatches = availableBatches?.filter(batch => 
-                    batch.productId === item.productId
-                  ) || [];
-                  
-                  return (
-                    <React.Fragment key={`fragment-${item.id}-${item.productId}`}>
-                      <TableRow key={`row-${item.id}`}>
-                        <TableCell>
-                          <div className="flex items-center space-x-2">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => toggleItemExpansion(item.id)}
-                              className="h-6 w-6 p-0"
-                            >
-                              {isExpanded ? (
-                                <ChevronUp className="h-4 w-4" />
-                              ) : (
-                                <ChevronDown className="h-4 w-4" />
+                {groupView && groupedItems ? (
+                  // Gruppierte Ansicht - Produkte gruppiert anzeigen
+                  groupedItems.map((group) => {
+                    const isGroupExpanded = expandedGroups.has(group.productName);
+                    return (
+                      <React.Fragment key={`group-${group.productName}`}>
+                        {/* Hauptgruppe */}
+                        <TableRow 
+                          className={`cursor-pointer hover:bg-muted/50 ${group.hasMultipleEntries ? 'bg-blue-50/50' : ''}`}
+                          onClick={() => toggleGroupExpansion(group.productName)}
+                        >
+                          <TableCell>
+                            <div className="flex items-center space-x-2">
+                              {group.hasMultipleEntries && (
+                                isGroupExpanded ? 
+                                  <ChevronDown className="h-4 w-4 text-muted-foreground" /> : 
+                                  <ChevronUp className="h-4 w-4 text-muted-foreground" />
                               )}
-                            </Button>
-                            <div>
-                              <div className="font-medium">
-                                {item.product?.productName || 'Unbekanntes Produkt'}
-                              </div>
-                              <div className="text-sm text-muted-foreground">
-                                {item.product?.sku && `SKU: ${item.product.sku}`}
-                                {packageSize > 1 && (
-                                  <span className="ml-2 inline-flex items-center">
-                                    <Package className="h-3 w-3 mr-1" />
-                                    {packageSize} {item.product?.packagingUnit || 'Stück'}/Gebinde
-                                  </span>
-                                )}
+                              <div>
+                                <div className="font-medium">{group.productName}</div>
+                                <div className="text-sm text-muted-foreground flex items-center space-x-2">
+                                  {group.hasMultipleEntries && (
+                                    <Badge variant="outline" className="text-xs">
+                                      {group.itemCount} Einträge
+                                    </Badge>
+                                  )}
+                                  {group.earliestMHD && (
+                                    <Badge variant={
+                                      isBatchExpired(group.earliestMHD) ? "destructive" : "outline"
+                                    } className="text-xs">
+                                      MHD: {formatDate(group.earliestMHD)}
+                                    </Badge>
+                                  )}
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div>
-                            <div className="font-medium">{expectedQty}</div>
-                            {packageSize > 1 && (
-                              <div className="text-xs text-muted-foreground">
-                                ≈ {Math.ceil(expectedQty / packageSize)} Gebinde
-                              </div>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex flex-col items-end space-y-2">
-                            {inventurData?.status === 'pending' || inventurData?.status === 'in_progress' || inventurData?.status === 'open' ? (
-                              packageSize > 1 ? (
-                                <div className="space-y-3 w-full max-w-[250px]">
-                                  {/* Kompakte Grid-Layout für nebeneinander liegende Eingaben */}
-                                  <div className="grid grid-cols-2 gap-2">
-                                    {/* Gebinde-Eingabe */}
-                                    <div className="space-y-1 p-2 bg-blue-50 rounded border">
-                                      <div className="text-xs font-medium text-blue-800">
-                                        Gebinde ({packageSize} Stk./Gebinde)
-                                      </div>
-                                      <div className="flex items-center space-x-1">
-                                        <Input
-                                          type="number" 
-                                          min="0"
-                                          placeholder="0"
-                                          value={packageCounts[item.id] ?? ''}
-                                          onChange={(e) => {
-                                            const count = e.target.value === '' ? 0 : Math.max(0, parseInt(e.target.value) || 0);
-                                            setPackageCounts({ ...packageCounts, [item.id]: count });
-                                            
-                                            // Automatische Berechnung der Gesamtmenge
-                                            const calculation = calculateTotalQuantity(item.id, item.product);
-                                            calculation.total = count * packageSize + (individualCounts[item.id] || 0);
-                                            setEditedCounts({ ...editedCounts, [item.id]: calculation.total });
-                                          }}
-                                          className="w-16 text-center text-sm"
-                                        />
-                                        <span className="text-xs text-muted-foreground">
-                                          = {(packageCounts[item.id] || 0) * packageSize} Stk.
-                                        </span>
-                                      </div>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="font-medium">{group.totalExpected}</div>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="font-medium">{group.totalCounted}</div>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className={`flex items-center justify-end space-x-1 ${
+                              group.difference > 0 ? 'text-green-600' : 
+                              group.difference < 0 ? 'text-red-600' : 
+                              'text-gray-600'
+                            }`}>
+                              {group.difference > 0 && <TrendingUp className="h-4 w-4" />}
+                              {group.difference < 0 && <TrendingDown className="h-4 w-4" />}
+                              {group.difference === 0 && <Equal className="h-4 w-4" />}
+                              <span>{group.difference > 0 ? '+' : ''}{group.difference}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <div className="flex flex-col items-center space-y-1">
+                              {group.hasMultipleEntries ? (
+                                <Badge variant="outline" className="text-xs">
+                                  {group.itemCount} Chargen
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="text-xs">
+                                  1 Charge
+                                </Badge>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <Badge variant={group.allCounted ? "default" : "secondary"} className="text-xs">
+                              {group.allCounted ? 'Gezählt' : 'Offen'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell></TableCell>
+                        </TableRow>
+                        
+                        {/* Erweiterte Einzeleinträge bei mehreren Duplikaten */}
+                        {isGroupExpanded && group.hasMultipleEntries && (
+                          group.items.map((item: SimpleInventoryItem) => {
+                            const currentCount = editedCounts[item.id] ?? item.countedQuantity ?? '';
+                            const expectedQty = item.expectedQuantity || 0;
+                            const countedQty = typeof currentCount === 'number' ? currentCount : 0;
+                            const difference = countedQty - expectedQty;
+                            const packageSize = parsePackageSize(item.product);
+                            
+                            // Filtere verfügbare Batches für dieses Produkt
+                            const productBatches = availableBatches?.filter(batch => 
+                              batch.productId === item.productId
+                            ) || [];
+                            
+                            return (
+                              <TableRow key={`expanded-item-${item.id}`} className="bg-muted/25">
+                                <TableCell className="pl-8">
+                                  <div className="flex items-center space-x-2">
+                                    <div className="text-sm text-muted-foreground">
+                                      ID: {item.id} • Batch: {item.batchId || 'Keine'}
                                     </div>
-                                    
-                                    {/* Einzelartikel-Eingabe */}
-                                    <div className="space-y-1 p-2 bg-green-50 rounded border">
-                                      <div className="text-xs font-medium text-green-800">
-                                        Zusätzliche Einzelartikel
-                                      </div>
-                                      <div className="flex items-center space-x-1">
-                                        <Input
-                                          type="number" 
-                                          min="0"
-                                          placeholder="0"
-                                          value={individualCounts[item.id] ?? ''}
-                                          onChange={(e) => {
-                                            const count = e.target.value === '' ? 0 : Math.max(0, parseInt(e.target.value) || 0);
-                                            setIndividualCounts({ ...individualCounts, [item.id]: count });
-                                            
-                                            // Automatische Berechnung der Gesamtmenge
-                                            const calculation = calculateTotalQuantity(item.id, item.product);
-                                            calculation.total = (packageCounts[item.id] || 0) * packageSize + count;
-                                            setEditedCounts({ ...editedCounts, [item.id]: calculation.total });
-                                          }}
-                                          className="w-16 text-center text-sm"
-                                        />
-                                        <span className="text-xs text-muted-foreground">Stk.</span>
-                                      </div>
-                                    </div>
+                                    {item.batch?.expiryDate && (
+                                      <Badge variant={
+                                        isBatchExpired(item.batch.expiryDate) ? "destructive" : "outline"
+                                      } className="text-xs">
+                                        MHD: {formatDate(item.batch.expiryDate)}
+                                      </Badge>
+                                    )}
                                   </div>
-                                  
-                                  {/* Kompakte Gesamtmenge */}
-                                  <div className="flex items-center justify-center space-x-2 p-2 bg-gray-50 rounded border">
-                                    <span className="text-xs text-gray-600">Gesamt:</span>
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  <div>{expectedQty}</div>
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  {inventurData?.status === 'pending' || inventurData?.status === 'in_progress' || inventurData?.status === 'open' ? (
                                     <Input
-                                      type="number" 
+                                      type="number"
+                                      value={currentCount.toString()}
+                                      onChange={(e) => handleQuantityChange(item.id, e.target.value)}
+                                      className="w-20 text-center"
                                       min="0"
-                                      value={editedCounts[item.id] !== undefined ? editedCounts[item.id] : countedQty ?? ''}
-                                      onChange={(e) => {
-                                        const count = e.target.value === '' ? 0 : Math.max(0, parseInt(e.target.value) || 0);
-                                        setEditedCounts({ ...editedCounts, [item.id]: count });
-                                      }}
-                                      onBlur={() => {
-                                        if (editedCounts[item.id] !== undefined) {
-                                          handleQuantityChange(item.id, editedCounts[item.id].toString());
-                                        }
-                                      }}
-                                      className="w-20 text-center font-bold text-sm"
+                                      placeholder="0"
                                     />
-                                    <span className="text-xs text-gray-600">{item.product?.units || 'Stk.'}</span>
+                                  ) : (
+                                    <div className="text-center">
+                                      <span className="text-sm font-medium">{countedQty ?? 'Nicht gezählt'}</span>
+                                    </div>
+                                  )}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  <div className={`flex items-center justify-end space-x-1 ${
+                                    difference > 0 ? 'text-green-600' : 
+                                    difference < 0 ? 'text-red-600' : 
+                                    'text-gray-600'
+                                  }`}>
+                                    {difference > 0 && <TrendingUp className="h-4 w-4" />}
+                                    {difference < 0 && <TrendingDown className="h-4 w-4" />}
+                                    {difference === 0 && <Equal className="h-4 w-4" />}
+                                    <span>{difference > 0 ? '+' : ''}{difference}</span>
                                   </div>
+                                </TableCell>
+                                <TableCell className="text-center">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handleCreateBatch(item)}
+                                    className="h-6 text-xs"
+                                  >
+                                    <Plus className="h-3 w-3 mr-1" />
+                                    MHD
+                                  </Button>
+                                </TableCell>
+                                <TableCell className="text-center">
+                                  {countedQty !== null && countedQty !== 0 ? (
+                                    <Badge variant="default" className="text-xs">
+                                      Gezählt
+                                    </Badge>
+                                  ) : (
+                                    <Badge variant="secondary" className="text-xs">
+                                      Offen
+                                    </Badge>
+                                  )}
+                                </TableCell>
+                                <TableCell></TableCell>
+                              </TableRow>
+                            );
+                          })
+                        )}
+                      </React.Fragment>
+                    );
+                  })
+                ) : (
+                  // Normale Einzelansicht - alle Items einzeln anzeigen
+                  filteredItems.map((item: SimpleInventoryItem) => {
+                    const currentCount = editedCounts[item.id] ?? item.countedQuantity ?? '';
+                    const expectedQty = item.expectedQuantity || 0;
+                    const countedQty = typeof currentCount === 'number' ? currentCount : 0;
+                    const difference = countedQty - expectedQty;
+                    const packageSize = parsePackageSize(item.product);
+                    const isExpanded = expandedItems.has(item.id);
+                    
+                    // Filtere verfügbare Batches für dieses Produkt
+                    const productBatches = availableBatches?.filter(batch => 
+                      batch.productId === item.productId
+                    ) || [];
+                    
+                    return (
+                      <React.Fragment key={`fragment-${item.id}-${item.productId}`}>
+                        <TableRow key={`row-${item.id}`}>
+                          <TableCell>
+                            <div className="flex items-center space-x-2">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => toggleItemExpansion(item.id)}
+                                className="h-6 w-6 p-0"
+                              >
+                                {isExpanded ? (
+                                  <ChevronUp className="h-4 w-4" />
+                                ) : (
+                                  <ChevronDown className="h-4 w-4" />
+                                )}
+                              </Button>
+                              <div>
+                                <div className="font-medium">
+                                  {item.product?.productName || 'Unbekanntes Produkt'}
                                 </div>
-                              ) : (
-                                <div className="space-y-1">
-                                  <span className="text-xs font-medium text-gray-600">Anzahl</span>
-                                  <Input
-                                    type="number"
-                                    value={currentCount.toString()}
-                                    onChange={(e) => handleQuantityChange(item.id, e.target.value)}
-                                    className="w-20 text-center"
-                                    min="0"
-                                    placeholder="0"
-                                  />
+                                <div className="text-sm text-muted-foreground flex items-center space-x-2">
+                                  {item.product?.sku && <span>SKU: {item.product.sku}</span>}
+                                  {item.batch?.expiryDate && (
+                                    <Badge variant={
+                                      isBatchExpired(item.batch.expiryDate) ? "destructive" : "outline"
+                                    } className="text-xs">
+                                      MHD: {formatDate(item.batch.expiryDate)}
+                                    </Badge>
+                                  )}
+                                  {packageSize > 1 && (
+                                    <span className="inline-flex items-center">
+                                      <Package className="h-3 w-3 mr-1" />
+                                      {packageSize} {item.product?.packagingUnit || 'Stück'}/Gebinde
+                                    </span>
+                                  )}
                                 </div>
-                              )
-                            ) : (
-                              <div className="text-center">
-                                <span className="text-sm font-medium">{countedQty ?? 'Nicht gezählt'}</span>
                               </div>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className={`flex items-center justify-end space-x-1 ${
-                            difference > 0 ? 'text-green-600' : 
-                            difference < 0 ? 'text-red-600' : 
-                            'text-gray-600'
-                          }`}>
-                            {difference > 0 && <TrendingUp className="h-4 w-4" />}
-                            {difference < 0 && <TrendingDown className="h-4 w-4" />}
-                            {difference === 0 && <Equal className="h-4 w-4" />}
-                            <span>{difference > 0 ? '+' : ''}{difference}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <div className="flex flex-col items-center space-y-1">
-                            <Badge variant="outline" className="text-xs">
-                              {productBatches?.length || 0} MHD-Einträge
-                            </Badge>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleCreateBatch(item)}
-                              className="h-6 text-xs"
-                            >
-                              <Plus className="h-3 w-3 mr-1" />
-                              MHD
-                            </Button>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-center">
-                          {currentCount !== null && currentCount !== 0 ? (
-                            <Badge variant="default" className="text-xs">
-                              Gezählt
-                            </Badge>
-                          ) : (
-                            <Badge variant="secondary" className="text-xs">
-                              Offen
-                            </Badge>
-                          )}
-                        </TableCell>
-                        <TableCell></TableCell>
-                      </TableRow>
-                      
-                      {/* Erweiterte MHD-Details */}
-                      {isExpanded && (
-                        <TableRow key={`expanded-${item.id}`} className="bg-muted/50">
-                          <TableCell colSpan={7}>
-                            <div className="p-4 space-y-3">
-                              <h4 className="font-medium flex items-center">
-                                <Calendar className="h-4 w-4 mr-2" />
-                                MHD-Chargen für {item.product?.productName}
-                              </h4>
-                              
-                              {productBatches && productBatches.length > 0 ? (
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                                  {sortBatches(productBatches).map((batch) => {
-                                    const isExpired = isBatchExpired(batch.expiryDate);
-                                    return (
-                                      <div 
-                                        key={batch.id} 
-                                        className={`border rounded-lg p-3 transition-opacity ${
-                                          isExpired 
-                                            ? 'bg-gray-50 opacity-50 border-gray-200' 
-                                            : 'bg-white border-gray-300'
-                                        }`}
-                                      >
-                                        <div className="flex justify-between items-start mb-2">
-                                          <span className={`font-mono text-sm font-medium ${
-                                            isExpired ? 'text-gray-400' : 'text-gray-900'
-                                          }`}>
-                                            {batch.batchNumber}
-                                            {isExpired && <span className="ml-2 text-red-500 text-xs">(Abgelaufen)</span>}
-                                          </span>
-                                          <Badge 
-                                            variant={isExpired ? "secondary" : "outline"} 
-                                            className={`text-xs ${isExpired ? 'bg-gray-200 text-gray-500' : ''}`}
-                                          >
-                                            {batch.currentQuantity} Stück
-                                          </Badge>
-                                        </div>
-                                        <div className={`text-sm ${isExpired ? 'text-gray-400' : 'text-muted-foreground'}`}>
-                                          <div className={isExpired ? 'text-red-400' : ''}>
-                                            MHD: {batch.expiryDate ? formatDate(batch.expiryDate) : 'Kein MHD'}
-                                          </div>
-                                          {batch.notes && (
-                                            <div className="mt-1 text-xs">{batch.notes}</div>
-                                          )}
-                                        </div>
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              ) : (
-                                <div className="text-center py-4 text-muted-foreground">
-                                  <Package className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                                  <p>Noch keine MHD-Einträge vorhanden</p>
-                                  <p className="text-xs">Klicken Sie auf "MHD" um eine neue Charge anzulegen</p>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div>
+                              <div className="font-medium">{expectedQty}</div>
+                              {packageSize > 1 && (
+                                <div className="text-xs text-muted-foreground">
+                                  ≈ {Math.ceil(expectedQty / packageSize)} Gebinde
                                 </div>
                               )}
                             </div>
                           </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex flex-col items-end space-y-2">
+                              {inventurData?.status === 'pending' || inventurData?.status === 'in_progress' || inventurData?.status === 'open' ? (
+                                packageSize > 1 ? (
+                                  <div className="space-y-3 w-full max-w-[250px]">
+                                    {/* Kompakte Grid-Layout für nebeneinander liegende Eingaben */}
+                                    <div className="grid grid-cols-2 gap-2">
+                                      {/* Gebinde-Eingabe */}
+                                      <div className="space-y-1 p-2 bg-blue-50 rounded border">
+                                        <div className="text-xs font-medium text-blue-800">
+                                          Gebinde ({packageSize} Stk./Gebinde)
+                                        </div>
+                                        <div className="flex items-center space-x-1">
+                                          <Input
+                                            type="number" 
+                                            min="0"
+                                            placeholder="0"
+                                            value={packageCounts[item.id] ?? ''}
+                                            onChange={(e) => {
+                                              const count = e.target.value === '' ? 0 : Math.max(0, parseInt(e.target.value) || 0);
+                                              setPackageCounts({ ...packageCounts, [item.id]: count });
+                                              
+                                              // Automatische Berechnung der Gesamtmenge
+                                              const calculation = calculateTotalQuantity(item.id, item.product);
+                                              calculation.total = count * packageSize + (individualCounts[item.id] || 0);
+                                              setEditedCounts({ ...editedCounts, [item.id]: calculation.total });
+                                            }}
+                                            className="w-16 text-center text-sm"
+                                          />
+                                          <span className="text-xs text-muted-foreground">
+                                            = {(packageCounts[item.id] || 0) * packageSize} Stk.
+                                          </span>
+                                        </div>
+                                      </div>
+                                      
+                                      {/* Einzelartikel-Eingabe */}
+                                      <div className="space-y-1 p-2 bg-green-50 rounded border">
+                                        <div className="text-xs font-medium text-green-800">
+                                          Zusätzliche Einzelartikel
+                                        </div>
+                                        <div className="flex items-center space-x-1">
+                                          <Input
+                                            type="number" 
+                                            min="0"
+                                            placeholder="0"
+                                            value={individualCounts[item.id] ?? ''}
+                                            onChange={(e) => {
+                                              const count = e.target.value === '' ? 0 : Math.max(0, parseInt(e.target.value) || 0);
+                                              setIndividualCounts({ ...individualCounts, [item.id]: count });
+                                              
+                                              // Automatische Berechnung der Gesamtmenge
+                                              const calculation = calculateTotalQuantity(item.id, item.product);
+                                              calculation.total = (packageCounts[item.id] || 0) * packageSize + count;
+                                              setEditedCounts({ ...editedCounts, [item.id]: calculation.total });
+                                            }}
+                                            className="w-16 text-center text-sm"
+                                          />
+                                          <span className="text-xs text-muted-foreground">Stk.</span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                    
+                                    {/* Kompakte Gesamtmenge */}
+                                    <div className="flex items-center justify-center space-x-2 p-2 bg-gray-50 rounded border">
+                                      <span className="text-xs text-gray-600">Gesamt:</span>
+                                      <Input
+                                        type="number" 
+                                        min="0"
+                                        value={editedCounts[item.id] !== undefined ? editedCounts[item.id] : countedQty ?? ''}
+                                        onChange={(e) => {
+                                          const count = e.target.value === '' ? 0 : Math.max(0, parseInt(e.target.value) || 0);
+                                          setEditedCounts({ ...editedCounts, [item.id]: count });
+                                        }}
+                                        onBlur={() => {
+                                          if (editedCounts[item.id] !== undefined) {
+                                            handleQuantityChange(item.id, editedCounts[item.id].toString());
+                                          }
+                                        }}
+                                        className="w-20 text-center font-bold text-sm"
+                                      />
+                                      <span className="text-xs text-gray-600">{item.product?.units || 'Stk.'}</span>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="space-y-1">
+                                    <span className="text-xs font-medium text-gray-600">Anzahl</span>
+                                    <Input
+                                      type="number"
+                                      value={currentCount.toString()}
+                                      onChange={(e) => handleQuantityChange(item.id, e.target.value)}
+                                      className="w-20 text-center"
+                                      min="0"
+                                      placeholder="0"
+                                    />
+                                  </div>
+                                )
+                              ) : (
+                                <div className="text-center">
+                                  <span className="text-sm font-medium">{countedQty ?? 'Nicht gezählt'}</span>
+                                </div>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className={`flex items-center justify-end space-x-1 ${
+                              difference > 0 ? 'text-green-600' : 
+                              difference < 0 ? 'text-red-600' : 
+                              'text-gray-600'
+                            }`}>
+                              {difference > 0 && <TrendingUp className="h-4 w-4" />}
+                              {difference < 0 && <TrendingDown className="h-4 w-4" />}
+                              {difference === 0 && <Equal className="h-4 w-4" />}
+                              <span>{difference > 0 ? '+' : ''}{difference}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <div className="flex flex-col items-center space-y-1">
+                              <Badge variant="outline" className="text-xs">
+                                {productBatches?.length || 0} MHD-Einträge
+                              </Badge>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleCreateBatch(item)}
+                                className="h-6 text-xs"
+                              >
+                                <Plus className="h-3 w-3 mr-1" />
+                                MHD
+                              </Button>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {countedQty !== null && countedQty !== 0 ? (
+                              <Badge variant="default" className="text-xs">
+                                Gezählt
+                              </Badge>
+                            ) : (
+                              <Badge variant="secondary" className="text-xs">
+                                Offen
+                              </Badge>
+                            )}
+                          </TableCell>
+                          <TableCell></TableCell>
                         </TableRow>
-                      )}
-                    </React.Fragment>
-                  );
-                })}
+                        
+                        {/* Erweiterte MHD-Details */}
+                        {isExpanded && (
+                          <TableRow key={`expanded-${item.id}`} className="bg-muted/50">
+                            <TableCell colSpan={7}>
+                              <div className="p-4 space-y-3">
+                                <h4 className="font-medium flex items-center">
+                                  <Calendar className="h-4 w-4 mr-2" />
+                                  MHD-Chargen für {item.product?.productName}
+                                </h4>
+                                
+                                {productBatches && productBatches.length > 0 ? (
+                                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                    {sortBatches(productBatches).map((batch) => {
+                                      const isExpired = isBatchExpired(batch.expiryDate);
+                                      return (
+                                        <div 
+                                          key={batch.id} 
+                                          className={`border rounded-lg p-3 transition-opacity ${
+                                            isExpired 
+                                              ? 'bg-gray-50 opacity-50 border-gray-200' 
+                                              : 'bg-white border-gray-300'
+                                          }`}
+                                        >
+                                          <div className="flex justify-between items-start mb-2">
+                                            <span className={`font-mono text-sm font-medium ${
+                                              isExpired ? 'text-gray-400' : 'text-gray-900'
+                                            }`}>
+                                              {batch.batchNumber}
+                                              {isExpired && <span className="ml-2 text-red-500 text-xs">(Abgelaufen)</span>}
+                                            </span>
+                                            <Badge 
+                                              variant={isExpired ? "secondary" : "outline"} 
+                                              className={`text-xs ${isExpired ? 'bg-gray-200 text-gray-500' : ''}`}
+                                            >
+                                              {batch.currentQuantity} Stück
+                                            </Badge>
+                                          </div>
+                                          <div className={`text-sm ${isExpired ? 'text-gray-400' : 'text-muted-foreground'}`}>
+                                            <div className={isExpired ? 'text-red-400' : ''}>
+                                              MHD: {batch.expiryDate ? formatDate(batch.expiryDate) : 'Kein MHD'}
+                                            </div>
+                                            {batch.notes && (
+                                              <div className="mt-1 text-xs">{batch.notes}</div>
+                                            )}
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                ) : (
+                                  <div className="text-center py-4 text-muted-foreground">
+                                    <Package className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                                    <p>Noch keine MHD-Einträge vorhanden</p>
+                                    <p className="text-xs">Klicken Sie auf "MHD" um eine neue Charge anzulegen</p>
+                                  </div>
+                                )}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </React.Fragment>
+                    );
+                  })
+                )}
               </TableBody>
             </Table>
           </div>
         </CardContent>
       </Card>
 
-      {/* MHD-Batch Dialog */}
-      {showBatchDialog && selectedItem && (
-        <InventoryCountBatchDialog
-          open={showBatchDialog}
-          onOpenChange={(open) => {
-            if (!open) {
-              setShowBatchDialog(false);
-              setSelectedItem(null);
-            }
+      {/* Batch Create/Edit Modal */}
+      {showBatchModal && selectedInventoryItem && (
+        <CreateBatchModal
+          isOpen={showBatchModal}
+          onClose={() => {
+            setShowBatchModal(false);
+            setSelectedInventoryItem(null);
           }}
-          selectedItem={{
-            ...selectedItem,
-            productName: selectedItem.product?.productName || 'Unbekanntes Produkt'
-          }}
-          availableBatches={availableBatches?.filter(batch => 
-            batch.productId === selectedItem.productId
-          ) || []}
-          onBatchSelect={() => {}}
-          inventoryId={inventoryId.toString()}
-          warehouseId={inventurData?.warehouseId || 0}
           onBatchCreated={handleBatchCreated}
+          product={selectedInventoryItem.product}
+          warehouseId={selectedInventoryItem.warehouseId}
         />
       )}
     </div>
   );
-};
+}
 
 export default SimpleInventurDetailPage;
