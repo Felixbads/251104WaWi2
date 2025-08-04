@@ -1,0 +1,54 @@
+Prompt zur Analyse und Optimierung der Funktion „Wiederkehrende Bestellungen“
+
+⸻
+
+Ziel:
+Untersuche und optimiere die Funktionalität wiederkehrender Bestellungen in der bestehenden Systemumgebung (Proviantomat-Plattform). Die Funktion soll ermöglichen, dass regelmäßig wiederkehrende Bestellvorgänge automatisiert vorbereitet, ggf. direkt verarbeitet oder zur manuellen Prüfung angestoßen werden – je nach Konfiguration des Lieferanten.
+
+⸻
+
+1. Analysebestandteile:
+
+Untersuche folgende Teilfunktionen systematisch:
+
+A) Wiederkehrende Bestellungen mit Prognose-Vorschlag:
+	•	Ist es aktuell möglich, im System wiederkehrende Bestellungen mit Intervall (z. B. wöchentlich, zweiwöchentlich, monatlich) zu definieren?
+	•	Wird zum geplanten Bestellzeitpunkt automatisch eine Bedarfsprognose durchgeführt (z. B. auf Basis Lagerbestand, Abverkaufszahlen, Saisonalität, Ferien)?
+	•	Wird auf Basis der Prognose ein Bestellvorschlag generiert?
+	•	Wird der Nutzer über diesen Vorschlag informiert (z. B. per E-Mail-Benachrichtigung)?
+	•	Ist ein manueller Eingriff zur Anpassung oder Freigabe des Vorschlags vorgesehen?
+
+B) Wiederkehrende Lieferungen ohne Bestell-Trigger („Lieferant liefert automatisch“):
+	•	Gibt es eine Option, eine Bestellung anzulegen, die zwar „als versendet“ markiert wird, aber nicht wirklich versendet wird (weil der Lieferant ohnehin regelmäßig liefert)?
+	•	Wird zu einem definierten Zeitpunkt automatisch ein solcher Platzhalter-Bestellbeleg erstellt?
+	•	Wird dieser Bestellbeleg direkt in den Status „versendet“ gesetzt, obwohl keine Aktion im System erforderlich ist?
+	•	Erfolgt daraufhin nur eine Prüfung des Wareneingangs, z. B. durch einfaches Abhaken / Eintragen?
+
+C) Wareneingang / Lagerlogik:
+	•	Wird beim automatisierten Ablauf sauber zwischen „echten“ Bestellungen und „wiederkehrenden Lieferanten-Lieferungen“ unterschieden?
+	•	Kann beim Wareneingang klar nachvollzogen werden, ob eine Bestellung manuell oder automatisch ausgelöst wurde?
+	•	Funktioniert der Prozess der Einlagerung inkl. MHD, Menge, Chargen bei diesen wiederkehrenden Lieferungen wie gewohnt?
+
+⸻
+
+2. Bewertungskriterien:
+	•	Welche der o. g. Funktionen sind nicht oder nur teilweise implementiert?
+	•	Gibt es Inkonsistenzen in der Statuslogik (z. B. Bestellung als versendet markiert, aber nie angelegt)?
+	•	Werden wiederkehrende Bestellungen und Lieferlogik im Frontend übersichtlich dargestellt?
+	•	Gibt es eine Möglichkeit, den Turnus zu verändern oder zu pausieren?
+	•	Sind Lieferanten eindeutig zuweisbar, für die solche Automatismen gelten sollen (z. B. Eierlieferant)?
+
+⸻
+
+3. Vorschläge zur Verbesserung (nach Analyse):
+
+Bitte entwickle im Anschluss an die Analyse:
+	•	eine Empfehlung zur technischen Erweiterung der Funktion (inkl. Zeitplan und Aufwand)
+	•	eine UI/UX-Empfehlung, wie wiederkehrende Bestellungen intuitiv gepflegt und dargestellt werden
+	•	eine Logik, wie sich Lieferantenrollen (aktiv liefernd vs. passiv wartend) differenzieren lassen
+	•	eine Prüfung, ob automatisierte Lieferungen ggf. auch direkt in den Lagerbestand überführt werden könnten (Option!)
+
+⸻
+
+Zusatzhinweis:
+Prüfe auch, ob aktuelle Limitierungen (z. B. keine Terminlogik, keine Prognose-Kopplung, keine Pseudo-Bestellungen) ursächlich für die Probleme sind – und wie man sie durch eine Erweiterung der Stammdaten und Abläufe auflösen könnte.
