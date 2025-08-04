@@ -1,0 +1,14 @@
+In der Ansicht /transactions werden folgende Spalten als "-" dargestellt: PRODUKT, MASCHINE, ZAHLUNGSART und eigentlich möglich ich gerne zu jeder Transaktion auch das ERGEBNIS NETTO (also bereits Steuer und Pfand abgezogen sehen)
+
+Festgestellte Probleme
+1. Felder werden im Frontend als „-” angezeigt In der Transaktionsliste greifen die React-Komponenten auf transaction.productName, transaction.machineName und transaction.paymentMethod zu. Wenn diese Felder fehlen, zeigt der Code „-” an . Der Server liefert die Daten jedoch in snake_case (product_name, machine_name, payment_method), sodass im Frontend keine passenden Keys gefunden werden . Dadurch bleiben die genannten Spalten leer.
+* * Datei `server/routes.ts` öffnen. * In den SELECT-Statements der Endpunkte `/transactions` und `/transactions/byDateRange` alle Spalten mit `AS` auf camelCase aliasen, z. B. `t.product_name AS "productName"`, `m.machine_name AS "machineName"`, `t.payment_method AS "paymentMethod"`, `t.price AS "price"`, `t.price_vat AS "priceVat"`, `t.price_wo_vat AS "priceWoVat"`. * Ergebnis testen: GET `/api/transactions/byDateRange` sollte nun camelCase-Felder liefern.
+
+Kein „Ergebnis netto“ für Transaktionen Das Datenmodell enthält zwar Felder für Netto‑Beträge und Pfand im Produkt (depositPrice, depositVat)
+
+, aber die Transaktions-Endpunkte berechnen oder liefern keinen Nettowert. Somit kann im Frontend kein „Ergebnis netto“ angezeigt werden.
+
+* In `server/routes.ts` die Abfrage um einen JOIN auf `products` erweitern (`LEFT JOIN products p ON t.product_id = p.vendon_id` o. Ä.). * In SELECT den Nettobetrag berechnen, z. B.\ `COALESCE(t.price_wo_vat, t.price - t.price_vat) - COALESCE(p.deposit_price - p.deposit_vat, 0) AS "netResult"`. * Das Feld `"netResult"` im JSON zurückgeben. * Client-seitig in `client/src/lib/api.ts` die Schnittstellen `Transaction` und `ExtendedTransaction` um `netResult?: number` ergänzen. * In `client/src/pages/Transactions.tsx` eine zusätzliche Tabellen-Spalte „Ergebnis netto“ einfügen und `transaction.netResult?.toFixed(2)` anzeigen.
+Hinweise zur Umsetzung
+* Nach Anpassung der Routen sollten auch ältere Abfragen (/transactions) auf die gleiche Namenskonvention umgestellt werden, um Konsistenz zu gewährleisten.
+	•	Frontend und Backend müssen gemeinsam angepasst werden; beide Seiten sollten erst nach erfolgreicher API‑Antwort auf camelCase-Felder deployt werden, um Laufzeitfehler zu vermeiden.
