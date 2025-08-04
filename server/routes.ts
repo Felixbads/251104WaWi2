@@ -2304,39 +2304,180 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // GET /supplier-analytics/overview - Analytics für alle Lieferanten (CACHE-OPTIMIERT)
-  app.get(`${API_PREFIX}/supplier-analytics/overview`, async (_req: Request, res: Response) => {
+  // GET /supplier-analytics/overview - Analytics für alle Lieferanten mit Favoriten
+  app.get(`${API_PREFIX}/supplier-analytics/overview`, async (req: Request, res: Response) => {
     try {
-      console.log('🚀 CACHE-OPTIMIERTE Supplier Analytics abgerufen');
+      console.log('🚀 Supplier Analytics mit Favoriten abgerufen');
       
-      // Direkte Abfrage aus Cache-Tabelle - VIEL SCHNELLER!
-      const analyticsData = await rawDb.query(`
-        SELECT 
-          supplier_id as "supplierId",
-          supplier_name as "supplierName", 
-          order_volume as "orderVolume",
-          annual_revenue as "annualRevenue",
-          product_count as "productCount",
-          open_orders as "openOrders",
-          last_order_date as "lastOrderDate",
-          last_updated as "lastUpdated"
+      // Get current user from auth token
+      const userId = req.user?.email || 'admin@example.com'; // Fallback for admin
+      
+      // Check if cache has valid data (non-zero order volumes)
+      const cacheValidationResult = await rawDb.query(`
+        SELECT COUNT(*) as total_suppliers, 
+               COUNT(CASE WHEN order_volume > 0 THEN 1 END) as suppliers_with_orders
         FROM supplier_analytics_cache
-        ORDER BY order_volume DESC, annual_revenue DESC
       `);
+      
+      const cacheIsValid = cacheValidationResult.rows[0]?.suppliers_with_orders > 0;
+      
+      let analyticsData;
+      
+      if (cacheIsValid) {
+        console.log('📊 Cache enthält gültige Daten, verwende Cache');
+        // Use cache data if it's valid
+        analyticsData = await rawDb.query(`
+          SELECT 
+            sac.supplier_id as "supplierId",
+            sac.supplier_name as "supplierName", 
+            sac.order_volume as "orderVolume",
+            sac.annual_revenue as "annualRevenue",
+            sac.product_count as "productCount",
+            sac.open_orders as "openOrders",
+            sac.last_order_date as "lastOrderDate",
+            sac.last_updated as "lastUpdated",
+            CASE WHEN sf.supplier_id IS NOT NULL THEN true ELSE false END as "isFavorite",
+            s.email,
+            s.phone,
+            s.contact_person as "contactPerson"
+          FROM supplier_analytics_cache sac
+          LEFT JOIN supplier_favorites sf ON sac.supplier_id = sf.supplier_id AND sf.user_id = $1
+          LEFT JOIN suppliers s ON sac.supplier_id = s.id
+          WHERE s.status = 'active'
+          ORDER BY 
+            CASE WHEN sf.supplier_id IS NOT NULL THEN 0 ELSE 1 END,
+            sac.order_volume DESC, 
+            sac.annual_revenue DESC,
+            sac.supplier_name ASC
+        `, [userId]);
+      } else {
+        console.log('🔄 Cache ist leer, berechne Analytics in Echtzeit');
+        // Fallback: Calculate analytics in real-time when cache is empty
+        analyticsData = await rawDb.query(`
+          SELECT 
+            s.id as "supplierId",
+            s.name as "supplierName",
+            COALESCE(order_stats.order_count, 0) as "orderVolume",
+            COALESCE(order_stats.total_revenue, 0) as "annualRevenue",
+            COALESCE(product_stats.product_count, 0) as "productCount",
+            COALESCE(order_stats.open_orders, 0) as "openOrders",
+            order_stats.last_order_date as "lastOrderDate",
+            NOW() as "lastUpdated",
+            CASE WHEN sf.supplier_id IS NOT NULL THEN true ELSE false END as "isFavorite",
+            s.email,
+            s.phone,
+            s.contact_person as "contactPerson"
+          FROM suppliers s
+          LEFT JOIN supplier_favorites sf ON s.id = sf.supplier_id AND sf.user_id = $1
+          LEFT JOIN (
+            SELECT 
+              supplier_id,
+              COUNT(*) as order_count,
+              SUM(total_amount) as total_revenue,
+              MAX(order_date) as last_order_date,
+              COUNT(CASE WHEN status = 'open' THEN 1 END) as open_orders
+            FROM orders 
+            WHERE order_date >= NOW() - INTERVAL '12 months'
+            GROUP BY supplier_id
+          ) order_stats ON s.id = order_stats.supplier_id
+          LEFT JOIN (
+            SELECT 
+              supplier_id,
+              COUNT(DISTINCT product_id) as product_count
+            FROM purchase_conditions 
+            GROUP BY supplier_id
+          ) product_stats ON s.id = product_stats.supplier_id
+          WHERE s.status = 'active'
+          ORDER BY 
+            CASE WHEN sf.supplier_id IS NOT NULL THEN 0 ELSE 1 END,
+            COALESCE(order_stats.order_count, 0) DESC,
+            COALESCE(order_stats.total_revenue, 0) DESC,
+            s.name ASC
+        `, [userId]);
+      }
 
-      console.log(`✅ ${analyticsData.rows.length} Lieferanten aus Cache geladen`);
+      console.log(`✅ ${analyticsData.rows.length} Lieferanten geladen (${cacheIsValid ? 'aus Cache' : 'in Echtzeit'})`);
 
       res.json({ 
         success: true, 
         data: analyticsData.rows,
-        cached: true,
-        lastUpdated: analyticsData.rows[0]?.lastUpdated || null
+        cached: cacheIsValid,
+        lastUpdated: analyticsData.rows[0]?.lastUpdated || null,
+        favoritesCount: analyticsData.rows.filter(row => row.isFavorite).length
       });
     } catch (error) {
-      console.error("Error fetching supplier analytics from cache:", error);
+      console.error("Error fetching supplier analytics:", error);
       res.status(500).json({ 
         success: false, 
         error: "Failed to fetch supplier analytics", 
+        details: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
+
+  // POST /supplier-analytics/favorites - Lieferant zu Favoriten hinzufügen
+  app.post(`${API_PREFIX}/supplier-analytics/favorites`, async (req: Request, res: Response) => {
+    try {
+      const { supplierId } = req.body;
+      const userId = req.user?.email || 'admin@example.com';
+      
+      if (!supplierId) {
+        return res.status(400).json({ error: 'Supplier ID is required' });
+      }
+
+      // Check if favorite already exists
+      const existingFavorite = await rawDb.query(`
+        SELECT id FROM supplier_favorites 
+        WHERE user_id = $1 AND supplier_id = $2
+      `, [userId, supplierId]);
+
+      if (existingFavorite.rows.length > 0) {
+        return res.json({ success: true, message: 'Supplier is already a favorite' });
+      }
+
+      // Add to favorites
+      await rawDb.query(`
+        INSERT INTO supplier_favorites (user_id, supplier_id, created_at)
+        VALUES ($1, $2, NOW())
+      `, [userId, supplierId]);
+
+      console.log(`✅ Lieferant ${supplierId} zu Favoriten hinzugefügt für Benutzer ${userId}`);
+      res.json({ success: true, message: 'Supplier added to favorites' });
+    } catch (error) {
+      console.error("Error adding supplier to favorites:", error);
+      res.status(500).json({ 
+        error: "Failed to add supplier to favorites", 
+        details: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
+
+  // DELETE /supplier-analytics/favorites/:supplierId - Lieferant aus Favoriten entfernen
+  app.delete(`${API_PREFIX}/supplier-analytics/favorites/:supplierId`, async (req: Request, res: Response) => {
+    try {
+      const supplierId = parseInt(req.params.supplierId);
+      const userId = req.user?.email || 'admin@example.com';
+      
+      if (isNaN(supplierId)) {
+        return res.status(400).json({ error: 'Invalid supplier ID' });
+      }
+
+      // Remove from favorites
+      const result = await rawDb.query(`
+        DELETE FROM supplier_favorites 
+        WHERE user_id = $1 AND supplier_id = $2
+      `, [userId, supplierId]);
+
+      if (result.rowCount === 0) {
+        return res.status(404).json({ error: 'Favorite not found' });
+      }
+
+      console.log(`🗑️ Lieferant ${supplierId} aus Favoriten entfernt für Benutzer ${userId}`);
+      res.json({ success: true, message: 'Supplier removed from favorites' });
+    } catch (error) {
+      console.error("Error removing supplier from favorites:", error);
+      res.status(500).json({ 
+        error: "Failed to remove supplier from favorites", 
         details: error instanceof Error ? error.message : String(error) 
       });
     }
