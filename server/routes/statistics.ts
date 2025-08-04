@@ -1178,7 +1178,7 @@ router.get('/machines/:id/analytics', async (req, res) => {
         lastSync: machines.lastSync
       })
       .from(machines)
-      .where(eq(machines.id, Number(id)))
+      .where(eq(machines.id, machineId))
       .limit(1),
 
       // 2. Transaktionsstatistiken (Anzahl, Umsatz, Durchschnittspreis)
@@ -1190,7 +1190,7 @@ router.get('/machines/:id/analytics', async (req, res) => {
       .from(transactions)
       .where(
         and(
-          eq(transactions.machineId, Number(id)),
+          eq(transactions.machineId, machineId),
           gte(sql`${transactions.datetime}::text`, sql`${startDateStr}::text`),
           lte(sql`${transactions.datetime}::text`, sql`${endDateStr}::text`)
         )
@@ -1204,7 +1204,7 @@ router.get('/machines/:id/analytics', async (req, res) => {
       .from(events)
       .where(
         and(
-          eq(events.machineId, Number(id)),
+          eq(events.machineId, machineId),
           gte(sql`${events.datetime}::text`, sql`${startDateStr}::text`),
           lte(sql`${events.datetime}::text`, sql`${endDateStr}::text`)
         )
@@ -1219,7 +1219,7 @@ router.get('/machines/:id/analytics', async (req, res) => {
       .from(refills)
       .where(
         and(
-          eq(refills.machineId, Number(id)),
+          eq(refills.machineId, machineId),
           gte(sql`${refills.datetime}::text`, sql`${startDateStr}::text`),
           lte(sql`${refills.datetime}::text`, sql`${endDateStr}::text`)
         )
@@ -1234,7 +1234,7 @@ router.get('/machines/:id/analytics', async (req, res) => {
       .from(transactions)
       .where(
         and(
-          eq(transactions.machineId, Number(id)),
+          eq(transactions.machineId, machineId),
           gte(sql`${transactions.datetime}::text`, sql`${startDateStr}::text`),
           lte(sql`${transactions.datetime}::text`, sql`${endDateStr}::text`)
         )
@@ -1252,7 +1252,7 @@ router.get('/machines/:id/analytics', async (req, res) => {
       .from(transactions)
       .where(
         and(
-          eq(transactions.machineId, Number(id)),
+          eq(transactions.machineId, machineId),
           gte(sql`${transactions.datetime}::text`, sql`${startDateStr}::text`),
           lte(sql`${transactions.datetime}::text`, sql`${endDateStr}::text`)
         )
@@ -1271,7 +1271,7 @@ router.get('/machines/:id/analytics', async (req, res) => {
       .from(transactions)
       .where(
         and(
-          eq(transactions.machineId, Number(id)),
+          eq(transactions.machineId, machineId),
           gte(sql`${transactions.datetime}::text`, sql`${startDateStr}::text`),
           lte(sql`${transactions.datetime}::text`, sql`${endDateStr}::text`)
         )
