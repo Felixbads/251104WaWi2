@@ -33,6 +33,7 @@ export default function EmailDialog({
   const [isLoading, setIsLoading] = useState(false);
   const [useTemplate, setUseTemplate] = useState(true);
   const [sendAsPdf, setSendAsPdf] = useState(false);
+  const [coverText, setCoverText] = useState('');
   const [emailData, setEmailData] = useState({
     to: '',
     cc: 'andreas@proviantomat.de,einkauf@proviantomat.de',
@@ -45,6 +46,8 @@ export default function EmailDialog({
   const [selectedTemplate, setSelectedTemplate] = useState<any>(null);
   const [previewTab, setPreviewTab] = useState('preview');
   const [editTab, setEditTab] = useState('edit');
+  const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
   // Load supplier template and default values when dialog opens
   useEffect(() => {
@@ -130,18 +133,18 @@ export default function EmailDialog({
     try {
       setIsLoading(true);
 
-      const response = await fetch(`/api/send-email-simple/${orderId}`, {
+      // Use the correct PDF-enabled endpoint
+      const response = await fetch(`/api/orders-email-working/${orderId}/send-email-working`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          to: emailData.to.trim(),
-          cc: emailData.cc.trim() || undefined,
-          bcc: emailData.bcc.trim() || undefined,
+          emailAddress: emailData.to.trim(),
           subject: emailData.subject.trim(),
-          content: emailData.htmlContent.trim() || undefined,
-          sendAsPdf: sendAsPdf,
+          content: sendAsPdf ? undefined : emailData.htmlContent.trim(),
+          usePdf: sendAsPdf,
+          coverText: sendAsPdf ? coverText : undefined,
         }),
       });
 
@@ -168,6 +171,44 @@ export default function EmailDialog({
       onSendEmail(false);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // PDF preview function
+  const generatePdfPreview = async () => {
+    try {
+      setIsGeneratingPdf(true);
+      
+      const response = await fetch(`/api/orders-email-working/${orderId}/pdf-preview`, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/pdf',
+        },
+      });
+
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        setPdfPreviewUrl(url);
+        
+        // Cleanup old URL to prevent memory leaks
+        return () => {
+          if (pdfPreviewUrl) {
+            URL.revokeObjectURL(pdfPreviewUrl);
+          }
+        };
+      } else {
+        throw new Error('PDF-Vorschau konnte nicht generiert werden');
+      }
+    } catch (error) {
+      console.error('Error generating PDF preview:', error);
+      toast({
+        title: "Fehler",
+        description: "PDF-Vorschau konnte nicht erstellt werden",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGeneratingPdf(false);
     }
   };
 
@@ -232,17 +273,80 @@ export default function EmailDialog({
             </div>
           </div>
 
-          {/* PDF-Option hinzufügen */}
-          <div className="flex items-center space-x-2 p-4 bg-gray-50 rounded-lg">
-            <Switch
-              id="pdf-mode"
-              checked={sendAsPdf}
-              onCheckedChange={setSendAsPdf}
-              disabled={isLoading}
-            />
-            <Label htmlFor="pdf-mode" className="text-sm font-medium">
-              Als PDF-Anhang senden (statt HTML-Inhalt)
-            </Label>
+          {/* PDF-Option und Versandoptionen */}
+          <div className="p-4 bg-gray-50 rounded-lg space-y-4">
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="pdf-mode"
+                checked={sendAsPdf}
+                onCheckedChange={setSendAsPdf}
+                disabled={isLoading}
+              />
+              <Label htmlFor="pdf-mode" className="text-sm font-medium">
+                Als PDF-Anhang senden
+              </Label>
+            </div>
+            
+            {sendAsPdf && (
+              <div className="space-y-3">
+                <div className="space-y-2">
+                  <Label htmlFor="cover-text">Begleittext für PDF-Anhang</Label>
+                  <Textarea
+                    id="cover-text"
+                    value={coverText}
+                    onChange={(e) => setCoverText(e.target.value)}
+                    className="h-[100px]"
+                    placeholder="Sehr geehrte Damen und Herren,&#10;&#10;anbei erhalten Sie unsere Bestellung als PDF-Anhang.&#10;&#10;Mit freundlichen Grüßen&#10;Ihr Proviantomat Team"
+                    disabled={isLoading}
+                  />
+                  <div className="text-xs text-gray-500">
+                    Lassen Sie das Feld leer, um einen Standardtext zu verwenden.
+                  </div>
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={generatePdfPreview}
+                    disabled={isGeneratingPdf || isLoading}
+                    className="flex items-center gap-2"
+                  >
+                    {isGeneratingPdf ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
+                    PDF-Vorschau generieren
+                  </Button>
+                  {pdfPreviewUrl && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => window.open(pdfPreviewUrl, '_blank')}
+                      className="flex items-center gap-2"
+                    >
+                      <Eye className="h-4 w-4" />
+                      PDF öffnen
+                    </Button>
+                  )}
+                </div>
+              </div>
+            )}
+            
+            <div className="text-sm text-gray-600">
+              {sendAsPdf ? (
+                <>
+                  📄 <strong>PDF-Modus:</strong> Die Bestellung wird als PDF-Datei angehängt und der E-Mail-Inhalt wird durch den Begleittext ersetzt.
+                </>
+              ) : (
+                <>
+                  📧 <strong>HTML-Modus:</strong> Die vollständigen Bestelldetails werden direkt im E-Mail-Inhalt angezeigt.
+                </>
+              )}
+            </div>
           </div>
 
           {/* Template Tabs */}
@@ -264,21 +368,65 @@ export default function EmailDialog({
             
             <TabsContent value="preview" className="mt-4">
               <div className="border rounded-lg p-4 bg-white min-h-[400px] max-h-[500px] overflow-y-auto">
-                <div dangerouslySetInnerHTML={{ __html: emailData.htmlContent }} />
+                {sendAsPdf ? (
+                  <div className="space-y-4">
+                    <div className="text-sm text-gray-600 bg-blue-50 p-3 rounded">
+                      <strong>PDF-Modus:</strong> Die E-Mail wird mit dem Begleittext versendet und die vollständige Bestellung als PDF angehängt.
+                    </div>
+                    <div>
+                      <h4 className="font-medium mb-2">E-Mail-Inhalt (Begleittext):</h4>
+                      <div className="bg-gray-50 p-3 rounded whitespace-pre-wrap">
+                        {coverText || `Sehr geehrte Damen und Herren,
+
+anbei erhalten Sie unsere Bestellung ${orderNumber} als PDF-Anhang.
+
+Bitte bestätigen Sie den Empfang und teilen Sie uns den voraussichtlichen Liefertermin mit.
+
+Mit freundlichen Grüßen
+Ihr Proviantomat Team`}
+                      </div>
+                    </div>
+                    {pdfPreviewUrl && (
+                      <div>
+                        <h4 className="font-medium mb-2">PDF-Anhang:</h4>
+                        <iframe
+                          src={pdfPreviewUrl}
+                          className="w-full h-[300px] border rounded"
+                          title="PDF-Vorschau"
+                        />
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div dangerouslySetInnerHTML={{ __html: emailData.htmlContent }} />
+                )}
               </div>
             </TabsContent>
             
             <TabsContent value="edit" className="mt-4">
               <div>
-                <Label htmlFor="content">E-Mail Inhalt</Label>
-                <Textarea
-                  id="content"
-                  value={emailData.htmlContent}
-                  onChange={(e) => setEmailData(prev => ({ ...prev, htmlContent: e.target.value }))}
-                  className="min-h-[400px] font-mono text-sm"
-                  placeholder="E-Mail-Inhalt..."
-                  disabled={isLoading}
-                />
+                <Label htmlFor="content">
+                  {sendAsPdf ? 'Begleittext (PDF wird angehängt)' : 'E-Mail Inhalt'}
+                </Label>
+                {sendAsPdf ? (
+                  <Textarea
+                    id="content"
+                    value={coverText}
+                    onChange={(e) => setCoverText(e.target.value)}
+                    className="min-h-[200px] font-mono text-sm"
+                    placeholder="Sehr geehrte Damen und Herren,&#10;&#10;anbei erhalten Sie unsere Bestellung als PDF-Anhang.&#10;&#10;Mit freundlichen Grüßen&#10;Ihr Proviantomat Team"
+                    disabled={isLoading}
+                  />
+                ) : (
+                  <Textarea
+                    id="content"
+                    value={emailData.htmlContent}
+                    onChange={(e) => setEmailData(prev => ({ ...prev, htmlContent: e.target.value }))}
+                    className="min-h-[400px] font-mono text-sm"
+                    placeholder="E-Mail-Inhalt..."
+                    disabled={isLoading}
+                  />
+                )}
               </div>
             </TabsContent>
             

@@ -378,4 +378,43 @@ router.get('/test-smtp', async (req: Request, res: Response) => {
   }
 });
 
+// PDF Preview Endpoint
+router.get('/:orderId/pdf-preview', async (req: Request, res: Response) => {
+  console.log('[PDF Preview] PDF preview request started');
+  console.log('[PDF Preview] Order ID:', req.params.orderId);
+  
+  try {
+    const orderId = parseInt(req.params.orderId);
+    
+    if (!orderId || isNaN(orderId)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Ungültige Bestell-ID'
+      });
+    }
+
+    console.log('[PDF Preview] Generating PDF for order:', orderId);
+    
+    // Generate PDF using the existing service
+    const pdfBuffer = await createOrderPdf(orderId);
+    
+    console.log('[PDF Preview] PDF generated successfully, size:', pdfBuffer.length, 'bytes');
+    
+    // Set appropriate headers for PDF
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="Bestellung-${orderId}-Vorschau.pdf"`);
+    res.setHeader('Content-Length', pdfBuffer.length);
+    
+    // Send the PDF buffer
+    return res.send(pdfBuffer);
+    
+  } catch (error: any) {
+    console.error('[PDF Preview] Error generating PDF preview:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'PDF-Vorschau konnte nicht generiert werden: ' + (error instanceof Error ? error.message : 'Unbekannter Fehler')
+    });
+  }
+});
+
 export default router;
