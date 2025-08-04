@@ -1,0 +1,24 @@
+Überprüfe warum bei der Inventur die Position  "6 frische Eier, Struppen" 7 mal angezeigt wird?! Und bitte gib eine Anleitung wie es möglich ist auch alte Chargen anzupassen, Anzahl, MHD oder ganz zu löschen.
+
+Warum erscheint „6 frische Eier, Struppen“ siebenmal?
+* Die Inventuransicht entfernt Dubletten nur anhand der Produkt-ID. In WarehouseDetail.tsx wird das Inventar in einer Map nach productId gruppiert; mehrere Produkte mit identischem Namen, aber unterschiedlichen IDs bleiben daher mehrfach erhalten 
+* Die Dokumentation bestätigt, dass frühere Vendon-Synchronisationen zahlreiche Produktduplikate erzeugten (ca. 6 100 statt ~120 eindeutiger Produkte). Diese Duplikate führen zu mehrfachen Lagerbestands-Einträgen und einer unübersichtlichen Inventuransicht 
+➡️ Für „6 frische Eier, Struppen“ existieren offenbar sieben unterschiedliche Produktdatensätze mit identischem Namen. Die Inventur zeigt jeden Datensatz separat.
+
+Anleitung: Alte Chargen anpassen oder löschen
+1. Bestehende Chargen auflisten GET /warehouses/{warehouseId}/batches – liefert alle Batches eines Lagers.
+2. Charge bearbeiten (Anzahl, MHD, andere Felder)
+    * Route: PUT /warehouses/{warehouseId}/batches/{batchId}
+    * Körper (Beispiel):  {
+    *   "currentQuantity": 12,
+    *   "expiryDate": "2025-12-31"
+    * }
+    *  
+    *  
+    * Der Handler validiert die Eingaben und ruft updateProductBatch auf, das Mengenänderungen protokolliert und den Lagerbestand aktualisiert  
+3. Charge löschen
+    * Es existiert kein eigener Delete-Endpunkt.
+    * Löschen per SQL:  DELETE FROM product_batches WHERE id = <batchId>;
+    *    server/routes.ts demonstriert das Löschen nach Lager-ID bzw. global für die gesamte Tabelle 
+    * Alternativ kann ein DELETE-Endpunkt analog zu obigem PUT-Handler implementiert werden, der DELETE FROM product_batches WHERE id = $1 ausführt.
+4. Dubletten bereinigen (optional) Das Skript full_inventory_cleanup.ts konsolidiert Produkt- und Lagerbestands-Dubletten und entfernt überzählige Einträge
