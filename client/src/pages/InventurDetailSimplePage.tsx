@@ -331,6 +331,11 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
       
       const earliestMHD = Array.from(uniqueBatches).sort()[0];
       
+      // Calculate packaging info from first item (assuming all items in group have same packaging)
+      const firstItem = items[0];
+      const packageSize = parsePackageSize(firstItem.product);
+      const hasPackaging = packageSize > 1;
+      
       return {
         productName,
         items,
@@ -340,7 +345,9 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
         allCounted,
         itemCount: items.length,
         earliestMHD,
-        hasMultipleEntries: items.length > 1
+        hasMultipleEntries: items.length > 1,
+        hasPackaging,
+        packageSize
       };
     }).sort((a, b) => {
       // Duplikate zuerst, dann alphabetisch
@@ -549,9 +556,115 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="font-medium">{group.totalExpected}</div>
+                            {group.hasPackaging && (
+                              <div className="text-xs text-muted-foreground">
+                                ≈ {Math.ceil(group.totalExpected / group.packageSize)} Gebinde
+                              </div>
+                            )}
                           </TableCell>
                           <TableCell className="text-right">
-                            <div className="font-medium">{group.totalCounted}</div>
+                            {inventurData?.status === 'pending' || inventurData?.status === 'in_progress' || inventurData?.status === 'open' ? (
+                              group.hasMultipleEntries ? (
+                                // Für mehrere Einträge: Summe anzeigen aber auf Einzeleinträge verweisen
+                                <div className="text-center">
+                                  <div className="font-medium">{group.totalCounted || '—'}</div>
+                                  {group.hasPackaging && group.totalCounted && (
+                                    <div className="text-xs text-muted-foreground">
+                                      ≈ {Math.ceil(group.totalCounted / group.packageSize)} Gebinde
+                                    </div>
+                                  )}
+                                  <div className="text-xs text-orange-600 mt-1">
+                                    Einzeln bearbeiten →
+                                  </div>
+                                </div>
+                              ) : (
+                                // Für einzelne Einträge: Direkte Eingabe ermöglichen
+                                (() => {
+                                  const singleItem = group.items[0];
+                                  const currentCount = editedCounts[singleItem.id] ?? singleItem.countedQuantity ?? '';
+                                  const packageSize = parsePackageSize(singleItem.product);
+                                  
+                                  return packageSize > 1 ? (
+                                    <div className="space-y-2 w-full max-w-[200px]">
+                                      {/* Kompakte Gebinde-Eingaben für gruppierte Ansicht */}
+                                      <div className="grid grid-cols-2 gap-1">
+                                        <div className="space-y-1 p-1 bg-blue-50 rounded text-xs">
+                                          <div className="font-medium text-blue-800">Gebinde</div>
+                                          <Input
+                                            type="number" 
+                                            min="0"
+                                            placeholder="0"
+                                            value={packageCounts[singleItem.id] ?? ''}
+                                            onChange={(e) => {
+                                              const count = e.target.value === '' ? 0 : Math.max(0, parseInt(e.target.value) || 0);
+                                              setPackageCounts({ ...packageCounts, [singleItem.id]: count });
+                                              const total = count * packageSize + (individualCounts[singleItem.id] || 0);
+                                              setEditedCounts({ ...editedCounts, [singleItem.id]: total });
+                                            }}
+                                            className="w-12 text-center text-xs"
+                                          />
+                                        </div>
+                                        
+                                        <div className="space-y-1 p-1 bg-green-50 rounded text-xs">
+                                          <div className="font-medium text-green-800">Einzeln</div>
+                                          <Input
+                                            type="number" 
+                                            min="0"
+                                            placeholder="0"
+                                            value={individualCounts[singleItem.id] ?? ''}
+                                            onChange={(e) => {
+                                              const count = e.target.value === '' ? 0 : Math.max(0, parseInt(e.target.value) || 0);
+                                              setIndividualCounts({ ...individualCounts, [singleItem.id]: count });
+                                              const total = (packageCounts[singleItem.id] || 0) * packageSize + count;
+                                              setEditedCounts({ ...editedCounts, [singleItem.id]: total });
+                                            }}
+                                            className="w-12 text-center text-xs"
+                                          />
+                                        </div>
+                                      </div>
+                                      
+                                      {/* Gesamtmenge */}
+                                      <div className="flex items-center justify-center space-x-1 p-1 bg-gray-50 rounded">
+                                        <span className="text-xs text-gray-600">Gesamt:</span>
+                                        <Input
+                                          type="number" 
+                                          min="0"
+                                          value={editedCounts[singleItem.id] !== undefined ? editedCounts[singleItem.id] : currentCount}
+                                          onChange={(e) => {
+                                            const count = e.target.value === '' ? 0 : Math.max(0, parseInt(e.target.value) || 0);
+                                            setEditedCounts({ ...editedCounts, [singleItem.id]: count });
+                                          }}
+                                          onBlur={() => {
+                                            if (editedCounts[singleItem.id] !== undefined) {
+                                              handleQuantityChange(singleItem.id, editedCounts[singleItem.id].toString());
+                                            }
+                                          }}
+                                          className="w-16 text-center font-bold text-xs"
+                                        />
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <Input
+                                      type="number"
+                                      value={currentCount.toString()}
+                                      onChange={(e) => handleQuantityChange(singleItem.id, e.target.value)}
+                                      className="w-20 text-center"
+                                      min="0"
+                                      placeholder="0"
+                                    />
+                                  );
+                                })()
+                              )
+                            ) : (
+                              <div className="text-center">
+                                <div className="font-medium">{group.totalCounted || '—'}</div>
+                                {group.hasPackaging && group.totalCounted && (
+                                  <div className="text-xs text-muted-foreground">
+                                    ≈ {Math.ceil(group.totalCounted / group.packageSize)} Gebinde
+                                  </div>
+                                )}
+                              </div>
+                            )}
                           </TableCell>
                           <TableCell className="text-right">
                             <div className={`flex items-center justify-end space-x-1 ${
