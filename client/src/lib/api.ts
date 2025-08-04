@@ -271,7 +271,8 @@ export interface Transaction {
   createdAt?: string;
   depositPrice?: number;
   depositVat?: number;
-  netResult?: number; // Netto-Ergebnis: Preis ohne MwSt minus Pfand
+  purchasePriceNet?: number; // Einkaufspreis netto (aus purchase_conditions oder inventory_movements)
+  netResult?: number; // Netto-Ergebnis: Verkaufspreis netto - Einkaufspreis - Pfand
 }
 
 export interface Machine {

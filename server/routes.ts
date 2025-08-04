@@ -1551,7 +1551,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get(`${API_PREFIX}/transactions`, async (req: Request, res: Response) => {
     try {
       const limit = req.query.limit ? parseInt(req.query.limit as string) : 200;
-      // Direkte SQL-Abfrage für Transaktionen mit Produktdaten für Netto-Berechnung
+      // Direkte SQL-Abfrage für Transaktionen mit vollständiger Netto-Berechnung
       const transactionsQuery = `
         SELECT 
           t.id,
@@ -1570,12 +1570,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
           m.machine_name,
           p.deposit_price,
           p.deposit_vat,
-          -- Berechne Netto-Ergebnis: Preis ohne MwSt minus Pfand (ohne MwSt)
-          COALESCE(t.price_wo_vat, t.price - COALESCE(t.price_vat, 0)) - 
-          COALESCE(p.deposit_price - COALESCE(p.deposit_vat, 0), 0) AS net_result
+          -- Einkaufspreis aus purchase_conditions
+          COALESCE(pc.unit_price, 0) AS purchase_price_net,
+          -- Berechne Netto-Ergebnis: Verkaufspreis ohne MwSt - Einkaufspreis - Pfand
+          (COALESCE(t.price_wo_vat, t.price - COALESCE(t.price_vat, 0)) - 
+           COALESCE(pc.unit_price, 0) - 
+           COALESCE(p.deposit_price, 0)) AS net_result
         FROM transactions t
         LEFT JOIN machines m ON t.machine_id = m.id
-        LEFT JOIN products p ON t.product_id = p.vendon_id
+        LEFT JOIN products p ON (t.product_id = p.vendon_id OR t.product_name = p.product_name)
+        LEFT JOIN purchase_conditions pc ON p.id = pc.product_id AND pc.is_preferred = true
         ORDER BY t.datetime DESC
         LIMIT $1
       `;
@@ -1598,6 +1602,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         machineName: row.machine_name,
         depositPrice: row.deposit_price,
         depositVat: row.deposit_vat,
+        purchasePriceNet: row.purchase_price_net,
         netResult: row.net_result
       }));
       res.json(transactions);
@@ -1621,7 +1626,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const startDateObj = new Date();
         startDateObj.setMonth(startDateObj.getMonth() - 1);
         
-        // Direkte SQL-Abfrage für Transaktionen mit Produktdaten für Netto-Berechnung
+        // Direkte SQL-Abfrage für Transaktionen mit vollständiger Netto-Berechnung (Monatsübersicht)
         const transactionsQuery = `
           SELECT 
             t.id,
@@ -1641,12 +1646,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
             m.location_name AS "locationName",
             p.deposit_price AS "depositPrice",
             p.deposit_vat AS "depositVat",
-            -- Berechne Netto-Ergebnis: Preis ohne MwSt minus Pfand (ohne MwSt)
-            COALESCE(t.price_wo_vat, t.price - COALESCE(t.price_vat, 0)) - 
-            COALESCE(p.deposit_price - COALESCE(p.deposit_vat, 0), 0) AS "netResult"
+            -- Einkaufspreis aus purchase_conditions
+            COALESCE(pc.unit_price, 0) AS "purchasePriceNet",
+            -- Berechne Netto-Ergebnis: Verkaufspreis ohne MwSt - Einkaufspreis - Pfand
+            (COALESCE(t.price_wo_vat, t.price - COALESCE(t.price_vat, 0)) - 
+             COALESCE(pc.unit_price, 0) - 
+             COALESCE(p.deposit_price, 0)) AS "netResult"
           FROM transactions t
           LEFT JOIN machines m ON t.machine_id = m.id
           LEFT JOIN products p ON t.product_id = p.vendon_id
+          LEFT JOIN purchase_conditions pc ON p.id = pc.product_id AND pc.is_preferred = true
           WHERE t.datetime >= $1 AND t.datetime <= $2
           ORDER BY t.datetime DESC
           LIMIT $3
@@ -1661,7 +1670,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.json(transactionsResult.rows);
       }
       
-      // Direkte SQL-Abfrage für normale Transaktions-Abfrage mit Produktdaten für Netto-Berechnung
+      // Direkte SQL-Abfrage für normale Transaktions-Abfrage mit vollständiger Netto-Berechnung
       const transactionsQuery = `
         SELECT 
           t.id,
@@ -1680,12 +1689,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
           m.machine_name AS "machineName",
           p.deposit_price AS "depositPrice",
           p.deposit_vat AS "depositVat",
-          -- Berechne Netto-Ergebnis: Preis ohne MwSt minus Pfand (ohne MwSt)
-          COALESCE(t.price_wo_vat, t.price - COALESCE(t.price_vat, 0)) - 
-          COALESCE(p.deposit_price - COALESCE(p.deposit_vat, 0), 0) AS "netResult"
+          -- Einkaufspreis aus purchase_conditions
+          COALESCE(pc.unit_price, 0) AS "purchasePriceNet",
+          -- Berechne Netto-Ergebnis: Verkaufspreis ohne MwSt - Einkaufspreis - Pfand
+          (COALESCE(t.price_wo_vat, t.price - COALESCE(t.price_vat, 0)) - 
+           COALESCE(pc.unit_price, 0) - 
+           COALESCE(p.deposit_price, 0)) AS "netResult"
         FROM transactions t
         LEFT JOIN machines m ON t.machine_id = m.id
-        LEFT JOIN products p ON t.product_id = p.vendon_id
+        LEFT JOIN products p ON (t.product_id = p.vendon_id OR t.product_name = p.product_name)
+        LEFT JOIN purchase_conditions pc ON p.id = pc.product_id AND pc.is_preferred = true
         WHERE t.datetime >= $1 AND t.datetime <= $2
         ORDER BY t.datetime DESC
         LIMIT $3

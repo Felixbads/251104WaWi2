@@ -34,7 +34,8 @@ import {
 interface ExtendedTransaction extends BaseTransaction {
   status?: string;
   source?: string;
-  netResult?: number; // Netto-Ergebnis: Preis ohne MwSt minus Pfand
+  purchasePriceNet?: number; // Einkaufspreis netto
+  netResult?: number; // Netto-Ergebnis: Verkaufspreis netto - Einkaufspreis - Pfand
   // Andere benötigte Felder hier hinzufügen
 }
 import { format } from "date-fns";
@@ -552,7 +553,16 @@ export default function Transactions() {
                     Preis
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Netto
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="cursor-help">Netto</span>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Netto-Ergebnis: Verkaufspreis ohne MwSt - Einkaufspreis - Pfand</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Maschine
