@@ -71,6 +71,7 @@ import inventorySimpleRouter from './routes/inventory-simple';
 import { SupplierAnalyticsCache } from './services/supplierAnalyticsCache';
 import supplierFavoritesRouter from './routes/supplier-favorites';
 import orderItemsRouter from './routes/order-items';
+import pagePermissionsRouter from './routes/page-permissions';
 
 const app = express();
 
@@ -1669,6 +1670,10 @@ app.get('/orders-data', (req, res) => {
   // Mount order-items router for direct product addition to orders
   app.use('/api', orderItemsRouter);
   console.log('[SERVER] Order items router mounted successfully');
+  
+  // Mount page-permissions router for admin page access control
+  app.use('/api/page-permissions', pagePermissionsRouter);
+  console.log('[SERVER] Page permissions router mounted successfully');
   
   // Mount enhanced orders router BEFORE registerRoutes for enhanced ordering functionality
   app.use('/api/enhanced-orders', enhancedOrdersRouter);

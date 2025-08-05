@@ -240,6 +240,32 @@ export const insertUserSchema = createInsertSchema(users).omit({
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 
+// Page Permissions table for controlling access to app pages by role
+export const pagePermissions = pgTable("page_permissions", {
+  pageId: text("page_id").primaryKey(), // Unique identifier for each page
+  pageTitle: text("page_title").notNull(), // Display name for the page
+  visibleForEmployee: boolean("visible_for_employee").default(false), // Whether employees can see this page
+  category: text("category"), // Optional: grouping pages (e.g., "inventory", "orders", "settings")
+  description: text("description"), // Optional: description of what the page does
+  sortOrder: integer("sort_order").default(0), // For custom ordering in UI
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertPagePermissionSchema = createInsertSchema(pagePermissions)
+  .omit({
+    createdAt: true,
+    updatedAt: true,
+  })
+  .extend({
+    pageId: z.string().min(1, "Seiten-ID ist erforderlich"),
+    pageTitle: z.string().min(1, "Seitentitel ist erforderlich"),
+    visibleForEmployee: z.boolean().optional(),
+  });
+
+export type InsertPagePermission = z.infer<typeof insertPagePermissionSchema>;
+export type PagePermission = typeof pagePermissions.$inferSelect;
+
 // Wir verwenden ein In-Memory Token-Store statt einer Token-Tabelle für vereinfachte Implementierung
 
 // Locations table

@@ -129,6 +129,7 @@ import VendonSync from "@/pages/admin/VendonSync";
 import RecurringOrdersPage from "@/pages/RecurringOrdersPage";
 import Fuellstaende from "@/pages/Fuellstaende";
 import LocationDetail from "@/pages/LocationDetail";
+import PagePermissions from "@/pages/PagePermissions";
 
 // Authentifizierte und nicht-authentifizierte Router
 function AuthenticatedRouter() {
@@ -691,6 +692,13 @@ function AuthenticatedRouter() {
         <Route path="/admin/vendon-sync" component={props => (
           <AdminRoute>
             <VendonSync {...props} />
+          </AdminRoute>
+        )} />
+
+        {/* Seitenfreigabe für Admins */}
+        <Route path="/seitenfreigabe" component={props => (
+          <AdminRoute>
+            <PagePermissions {...props} />
           </AdminRoute>
         )} />
 

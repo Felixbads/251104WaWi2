@@ -113,6 +113,7 @@ import { getSuppliersSchedules } from './routes/suppliers-schedules';
 import packageTypesRouter from './routes/packageTypes';
 import inventoryTransfersRouter from './routes/inventoryTransfers';
 import inventoryMovementsRouter from './routes/inventoryMovements';
+import pagePermissionsRouter from './routes/page-permissions';
 import { MhdFifoService } from './services/mhdFifoService';
 import warehouseProductsRouter from './routes/warehouseProducts';
 import seasonalBackwardSyncRouter from './routes/seasonalBackwardSync';

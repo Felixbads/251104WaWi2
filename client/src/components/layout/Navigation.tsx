@@ -13,7 +13,8 @@ import {
   ShoppingCart,
   Calendar,
   Sync,
-  Server
+  Server,
+  Shield
 } from 'lucide-react';
 import { useAuth } from '@/lib';
 
@@ -30,6 +31,7 @@ const navigationItems = [
   { href: '/enhanced-forecast', label: 'Prognosen', icon: BarChart3, roles: ['user', 'admin'] },
   { href: '/sync', label: 'Synchronisation', icon: Sync, roles: ['user', 'admin'] },
   { href: '/benutzer', label: 'Benutzer', icon: Users, roles: ['admin'] },
+  { href: '/seitenfreigabe', label: 'Seitenfreigabe', icon: Shield, roles: ['admin'] },
   { href: '/inter-app-verbindungen', label: 'App-Verbindungen', icon: Server, roles: ['admin'] },
   { href: '/settings', label: 'Einstellungen', icon: Settings, roles: ['user', 'admin'] },
 ];
