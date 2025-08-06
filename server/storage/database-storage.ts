@@ -309,18 +309,85 @@ export class DatabaseStorage implements IStorage {
   }
 
   /**
-   * Get machines with optional limit
+   * Get machines with optional limit - prioritize machines with recent activity
    */
   async getMachines(limit?: number): Promise<any[]> {
     try {
-      const query = db.select().from(machines).orderBy(asc(machines.machineName));
+      // If limit is specified, prioritize machines with recent daily stats
       if (limit && limit > 0) {
-        return await query.limit(limit);
+        // Join with machine_daily_stats to get machines with recent activity
+        const recentMachinesQuery = `
+          SELECT m.*, 
+            COALESCE(mds.today_transactions, 0) as today_transactions,
+            COALESCE(mds.today_revenue, 0) as today_revenue,
+            mds.last_sale_datetime,
+            CASE WHEN COALESCE(mds.today_transactions, 0) > 0 THEN 0 ELSE 1 END as has_transactions
+          FROM machines m
+          LEFT JOIN machine_daily_stats mds ON m.id = mds.machine_id 
+            AND mds.date = CURRENT_DATE
+          WHERE m.id != 1  -- Exclude demo machine
+          ORDER BY 
+            has_transactions,
+            today_revenue DESC,
+            mds.last_sale_datetime DESC NULLS LAST,
+            m.machine_name ASC
+          LIMIT $1
+        `;
+        
+        console.log('[getMachines] Using optimized query with machine_daily_stats, limit:', limit);
+        const result = await rawDb.query(recentMachinesQuery, [limit]);
+        
+        console.log(`[getMachines] Query returned ${result.rows.length} machines`);
+        if (result.rows.length > 0) {
+          console.log(`[getMachines] First machine: ID ${result.rows[0].id}, transactions: ${result.rows[0].today_transactions}`);
+        }
+        
+        return result.rows.map(row => ({
+          id: row.id,
+          vendonId: row.vendon_id,
+          machineName: row.machine_name,
+          machineType: row.machine_type,
+          status: row.status,
+          model: row.model,
+          serialNumber: row.serial_number,
+          telemetryUnitId: row.telemetry_unit_id,
+          power: row.power,
+          powerStatus: row.power_status,
+          currency: row.currency,
+          description: row.description,
+          lastSync: row.last_sync,
+          additionalData: row.additional_data,
+          createdAt: row.created_at,
+          updatedAt: row.updated_at,
+          locationId: row.location_id,
+          locationName: row.location_name,
+          locationAddress: row.location_address,
+          lastPing: row.last_ping,
+          lastVend: row.last_vend,
+          extraData: row.extra_data
+        }));
+      } else {
+        // Return all machines (careful with large datasets)
+        const query = db.select().from(machines)
+          .where(ne(machines.id, 1))  // Exclude demo machine
+          .orderBy(asc(machines.machineName));
+        return await query;
       }
-      return await query;
     } catch (error) {
-      console.error("Error fetching machines:", error);
-      return [];
+      console.error("Error fetching machines with stats:", error);
+      // Fallback to simple query if complex one fails
+      try {
+        console.log('[getMachines] Falling back to simple query due to error');
+        const query = db.select().from(machines)
+          .orderBy(asc(machines.machineName));
+        if (limit && limit > 0) {
+          return await query.limit(limit);
+        }
+        return await query;
+      } catch (fallbackError) {
+        console.error("Fallback query also failed:", fallbackError);
+        return [];
+      }
     }
   }
 
