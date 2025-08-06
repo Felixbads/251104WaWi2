@@ -8,8 +8,16 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Clipboard, CopyPlus, Boxes, LineChart, CheckCircle2 } from 'lucide-react';
+import { Clipboard, CopyPlus, Boxes, LineChart, CheckCircle2, Clock, Package2 } from 'lucide-react';
 import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 // Export type for OrderMode
 export type OrderMode = 'new' | 'copy' | 'forecast' | 'bulk';
@@ -126,9 +134,10 @@ const OrderModeSelector: React.FC<OrderModeSelectorProps> = ({
         {mode === 'copy' && (
           <div className="mt-6">
             <h3 className="font-medium text-lg mb-4">Bestellung als Vorlage auswählen</h3>
-            <div className="bg-muted p-4 rounded-md text-muted-foreground text-center">
-              Dieses Feature wird in einer zukünftigen Version verfügbar sein.
-            </div>
+            <TemplateSelector 
+              selectedOrderId={sourceOrderId}
+              onSelectOrder={onSourceOrderChange}
+            />
           </div>
         )}
         
@@ -136,13 +145,189 @@ const OrderModeSelector: React.FC<OrderModeSelectorProps> = ({
         {mode === 'forecast' && (
           <div className="mt-6">
             <h3 className="font-medium text-lg mb-4">Prognosemodell auswählen</h3>
-            <div className="bg-muted p-4 rounded-md text-muted-foreground text-center">
-              Dieses Feature wird in einer zukünftigen Version verfügbar sein.
-            </div>
+            <ForecastModelSelector />
           </div>
         )}
       </CardContent>
     </Card>
+  );
+};
+
+// Template Selector Component
+const TemplateSelector: React.FC<{
+  selectedOrderId?: number | null;
+  onSelectOrder?: (id: number) => void;
+}> = ({ selectedOrderId, onSelectOrder }) => {
+  const { data: recentOrders, isLoading } = useQuery({
+    queryKey: ['/api/orders', { limit: 10, status: 'delivered' }],
+    queryFn: async () => {
+      const response = await fetch('/api/orders?limit=10&status=delivered');
+      if (!response.ok) throw new Error('Failed to fetch orders');
+      return response.json();
+    }
+  });
+
+  if (isLoading) {
+    return (
+      <div className="space-y-3">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="flex items-center space-x-3 p-3 border rounded-md">
+            <Skeleton className="h-4 w-4" />
+            <div className="flex-1">
+              <Skeleton className="h-4 w-32 mb-1" />
+              <Skeleton className="h-3 w-24" />
+            </div>
+            <Skeleton className="h-6 w-16" />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (!recentOrders || recentOrders.length === 0) {
+    return (
+      <div className="bg-muted p-4 rounded-md text-center">
+        <Package2 className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+        <p className="text-muted-foreground">Keine vorherigen Bestellungen gefunden</p>
+        <p className="text-sm text-muted-foreground mt-1">
+          Erstellen Sie zuerst eine Bestellung, um sie später als Vorlage zu verwenden.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      {recentOrders.map((order: any) => (
+        <Card 
+          key={order.id} 
+          className={`cursor-pointer border-2 transition-colors ${
+            selectedOrderId === order.id ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'
+          }`}
+          onClick={() => onSelectOrder?.(order.id)}
+        >
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="flex-1">
+                  <div className="flex items-center space-x-2">
+                    <h4 className="font-medium">{order.orderNumber}</h4>
+                    <Badge variant="secondary">{order.supplierName}</Badge>
+                  </div>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    {new Date(order.orderDate).toLocaleDateString('de-DE')} • 
+                    {order.totalAmount ? ` €${order.totalAmount.toFixed(2)}` : ' Kein Preis'}
+                  </p>
+                  {order.locationName && (
+                    <p className="text-xs text-muted-foreground">{order.locationName}</p>
+                  )}
+                </div>
+              </div>
+              {selectedOrderId === order.id && (
+                <CheckCircle2 className="h-5 w-5 text-primary" />
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+};
+
+// Forecast Model Selector Component
+const ForecastModelSelector: React.FC = () => {
+  const { data: forecastModels, isLoading } = useQuery({
+    queryKey: ['/api/forecast/models'],
+    queryFn: async () => {
+      const response = await fetch('/api/forecast/models');
+      if (!response.ok) throw new Error('Failed to fetch forecast models');
+      return response.json();
+    }
+  });
+
+  if (isLoading) {
+    return (
+      <div className="space-y-3">
+        {[1, 2].map((i) => (
+          <Skeleton key={i} className="h-20 w-full" />
+        ))}
+      </div>
+    );
+  }
+
+  if (!forecastModels || forecastModels.length === 0) {
+    return (
+      <div className="space-y-4">
+        <div className="bg-muted p-4 rounded-md text-center">
+          <LineChart className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+          <p className="text-muted-foreground">Keine Prognosemodelle verfügbar</p>
+          <p className="text-sm text-muted-foreground mt-1">
+            Prognosemodelle werden automatisch basierend auf Ihren Verkaufsdaten erstellt.
+          </p>
+        </div>
+        
+        {/* Default forecast options */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Card className="cursor-pointer border-2 border-border hover:border-primary/50">
+            <CardContent className="p-4">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
+                  <Clock className="h-5 w-5 text-blue-600" />
+                </div>
+                <div className="flex-1">
+                  <h4 className="font-medium">7-Tage Prognose</h4>
+                  <p className="text-sm text-muted-foreground">
+                    Basierend auf Verkaufstrends der letzten 4 Wochen
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card className="cursor-pointer border-2 border-border hover:border-primary/50">
+            <CardContent className="p-4">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center">
+                  <LineChart className="h-5 w-5 text-green-600" />
+                </div>
+                <div className="flex-1">
+                  <h4 className="font-medium">14-Tage Prognose</h4>
+                  <p className="text-sm text-muted-foreground">
+                    Erweiterte Prognose mit Saisonalität
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {forecastModels.map((model: any) => (
+        <Card key={model.id} className="cursor-pointer border-2 border-border hover:border-primary/50">
+          <CardContent className="p-4">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                <LineChart className="h-5 w-5 text-primary" />
+              </div>
+              <div className="flex-1">
+                <h4 className="font-medium">{model.name}</h4>
+                <p className="text-sm text-muted-foreground">{model.description}</p>
+                <div className="flex items-center space-x-2 mt-2">
+                  <Badge variant="outline">{model.type}</Badge>
+                  <span className="text-xs text-muted-foreground">
+                    Genauigkeit: {model.accuracy ? `${Math.round(model.accuracy * 100)}%` : 'N/A'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
   );
 };
 

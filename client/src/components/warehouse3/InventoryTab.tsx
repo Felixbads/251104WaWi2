@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,6 +35,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   ChevronLeft, 
   ChevronRight, 
@@ -76,6 +86,8 @@ export default function InventoryTab({ warehouseId }: InventoryTabProps) {
   const queryClient = useQueryClient();
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<any>(null);
   const [filters, setFilters] = useState<InventoryFilters>({
     search: '',
     sortBy: 'productName',
@@ -94,6 +106,35 @@ export default function InventoryTab({ warehouseId }: InventoryTabProps) {
   const { data: categories } = useQuery({
     queryKey: ['/api/warehouse3/products/categories'],
     retry: 1,
+  });
+
+  // Delete mutation
+  const deleteMutation = useMutation({
+    mutationFn: async (itemId: number) => {
+      const response = await apiRequest(`/api/warehouse3/warehouses/${warehouseId}/inventory/${itemId}`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) throw new Error('Failed to delete inventory item');
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ['/api/warehouse3/warehouses', warehouseId, 'inventory']
+      });
+      toast({
+        title: "Artikel entfernt",
+        description: "Der Artikel wurde erfolgreich aus dem Lager entfernt.",
+      });
+      setDeleteDialogOpen(false);
+      setItemToDelete(null);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Fehler beim Entfernen",
+        description: error.message || "Der Artikel konnte nicht entfernt werden.",
+        variant: "destructive",
+      });
+    },
   });
 
   // Aktualisiere den Filter
@@ -487,11 +528,8 @@ export default function InventoryTab({ warehouseId }: InventoryTabProps) {
                           <DropdownMenuItem
                             className="text-destructive"
                             onClick={() => {
-                              // Hier könnte ein Bestätigungsdialog eingefügt werden
-                              toast({
-                                title: "Produkt entfernen",
-                                description: "Diese Funktion ist noch nicht implementiert.",
-                              });
+                              setItemToDelete(item);
+                              setDeleteDialogOpen(true);
                             }}
                           >
                             <Trash2 className="mr-2 h-4 w-4" /> Entfernen
@@ -549,5 +587,43 @@ export default function InventoryTab({ warehouseId }: InventoryTabProps) {
         </div>
       </CardContent>
     </Card>
+
+    {/* Delete Confirmation Dialog */}
+    <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Artikel aus Lager entfernen</AlertDialogTitle>
+          <AlertDialogDescription>
+            Sind Sie sicher, dass Sie "{itemToDelete?.productName}" aus dem Lager entfernen möchten?
+            <br /><br />
+            Diese Aktion kann nicht rückgängig gemacht werden. Der Artikel wird dauerhaft aus dem Bestand entfernt.
+            {itemToDelete?.currentStock > 0 && (
+              <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded-md">
+                <div className="flex items-center space-x-2 text-amber-800">
+                  <AlertTriangle className="h-4 w-4" />
+                  <span className="text-sm font-medium">
+                    Achtung: Es sind noch {itemToDelete.currentStock} {itemToDelete.unit || 'Stück'} auf Lager
+                  </span>
+                </div>
+              </div>
+            )}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={() => {
+              if (itemToDelete) {
+                deleteMutation.mutate(itemToDelete.id);
+              }
+            }}
+            disabled={deleteMutation.isPending}
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+          >
+            {deleteMutation.isPending ? "Entferne..." : "Endgültig entfernen"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }

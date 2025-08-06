@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,6 +40,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   ChevronLeft, 
   ChevronRight, 
@@ -83,6 +93,8 @@ export default function RefillsTab({ warehouseId }: RefillsTabProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState<string | null>(null);
   const [filterMachine, setFilterMachine] = useState<string | null>(null);
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+  const [refillToCancel, setRefillToCancel] = useState<any>(null);
   const [dateRange, setDateRange] = useState<{
     from: Date | undefined;
     to: Date | undefined;
@@ -108,6 +120,35 @@ export default function RefillsTab({ warehouseId }: RefillsTabProps) {
   const { data: machines } = useQuery({
     queryKey: ['/api/warehouse3/warehouses', warehouseId, 'machines'],
     retry: 1,
+  });
+
+  // Cancel refill mutation
+  const cancelMutation = useMutation({
+    mutationFn: async (refillId: number) => {
+      const response = await apiRequest(`/api/warehouse3/warehouses/${warehouseId}/refills/${refillId}/cancel`, {
+        method: 'POST',
+      });
+      if (!response.ok) throw new Error('Failed to cancel refill');
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ['/api/warehouse3/warehouses', warehouseId, 'refills']
+      });
+      toast({
+        title: "Auffüllung storniert",
+        description: "Die Auffüllung wurde erfolgreich storniert.",
+      });
+      setCancelDialogOpen(false);
+      setRefillToCancel(null);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Fehler beim Stornieren",
+        description: error.message || "Die Auffüllung konnte nicht storniert werden.",
+        variant: "destructive",
+      });
+    },
   });
 
   // Formatiere das Datum für die Anzeige
@@ -569,10 +610,8 @@ export default function RefillsTab({ warehouseId }: RefillsTabProps) {
                             <DropdownMenuItem
                               className="text-destructive"
                               onSelect={() => {
-                                toast({
-                                  title: "Auffüllung stornieren",
-                                  description: "Diese Funktion ist noch nicht implementiert.",
-                                });
+                                setRefillToCancel(refill);
+                                setCancelDialogOpen(true);
                               }}
                             >
                               <Clock className="mr-2 h-4 w-4" /> Stornieren
@@ -642,5 +681,46 @@ export default function RefillsTab({ warehouseId }: RefillsTabProps) {
         </Link>
       </CardFooter>
     </Card>
+
+    {/* Cancel Confirmation Dialog */}
+    <AlertDialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Auffüllung stornieren</AlertDialogTitle>
+          <AlertDialogDescription>
+            Sind Sie sicher, dass Sie die Auffüllung für "{refillToCancel?.machineName}" stornieren möchten?
+            <br /><br />
+            Diese Aktion kann nicht rückgängig gemacht werden. Die bereits reservierten Produkte werden wieder zum verfügbaren Lagerbestand hinzugefügt.
+            {refillToCancel?.items && refillToCancel.items.length > 0 && (
+              <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-md">
+                <div className="flex items-center space-x-2 text-amber-800">
+                  <AlertTriangle className="h-4 w-4" />
+                  <span className="text-sm font-medium">
+                    Betroffene Produkte: {refillToCancel.items.length} Artikel
+                  </span>
+                </div>
+                <div className="mt-2 text-xs text-amber-700">
+                  Alle reservierten Mengen werden zurück ins Lager gebucht.
+                </div>
+              </div>
+            )}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={() => {
+              if (refillToCancel) {
+                cancelMutation.mutate(refillToCancel.id);
+              }
+            }}
+            disabled={cancelMutation.isPending}
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+          >
+            {cancelMutation.isPending ? "Storniere..." : "Auffüllung stornieren"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
