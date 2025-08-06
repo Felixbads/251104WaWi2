@@ -28,7 +28,8 @@ import {
   purchaseConditions, type PurchaseCondition, type InsertPurchaseCondition,
   refillBatchMovements, type RefillBatchMovement, type InsertRefillBatchMovement,
   productBatches, type ProductBatch, type InsertProductBatch,
-  productMovements, type ProductMovement, type InsertProductMovement
+  productMovements, type ProductMovement, type InsertProductMovement,
+  pagePermissions, type PagePermission, type InsertPagePermission
 } from "@shared/schema";
 import { IStorage } from "../storage";
 
@@ -368,13 +369,8 @@ export class DatabaseStorage implements IStorage {
     return parseInt(result[0]?.count?.toString() || '0');
   }
 
-  // Core stub methods for IStorage interface compatibility
-  async getUserById(id: number): Promise<any | undefined> { return undefined; }
-  async getUserByUsername(username: string): Promise<any | undefined> { return undefined; }
+  // Core stub methods for IStorage interface compatibility (removed duplicate implementations)
   async getUserByEmail(email: string): Promise<any | undefined> { return undefined; }
-  async createUser(user: any): Promise<any> { throw new Error("Not implemented"); }
-  async updateUser(id: number, updates: any): Promise<any> { throw new Error("Not implemented"); }
-  async deleteUser(id: number): Promise<void> { throw new Error("Not implemented"); }
   async listUsers(): Promise<any[]> { return []; }
   
   async getProducts(): Promise<any[]> { return []; }
@@ -869,4 +865,92 @@ export class DatabaseStorage implements IStorage {
   async createUserSession(session: any): Promise<any> { throw new Error("Not implemented"); }
   async updateUserSession(id: string, updates: any): Promise<any> { throw new Error("Not implemented"); }
   async deleteUserSession(id: string): Promise<void> { throw new Error("Not implemented"); }
+
+  // Page Permissions operations
+  async getPagePermissions(): Promise<PagePermission[]> {
+    try {
+      return await db.select().from(pagePermissions).orderBy(pagePermissions.pageTitle);
+    } catch (error) {
+      console.error("Error fetching page permissions:", error);
+      return [];
+    }
+  }
+
+  async getPagePermission(pageId: string): Promise<PagePermission | undefined> {
+    try {
+      const [permission] = await db.select().from(pagePermissions).where(eq(pagePermissions.pageId, pageId));
+      return permission;
+    } catch (error) {
+      console.error("Error fetching page permission:", error);
+      return undefined;
+    }
+  }
+
+  async createPagePermission(permission: InsertPagePermission): Promise<PagePermission> {
+    try {
+      const [result] = await db.insert(pagePermissions).values(permission).returning();
+      return result;
+    } catch (error) {
+      console.error("Error creating page permission:", error);
+      throw error;
+    }
+  }
+
+  async updatePagePermission(pageId: string, updates: Partial<PagePermission>): Promise<PagePermission> {
+    try {
+      const [result] = await db
+        .update(pagePermissions)
+        .set({
+          ...updates,
+          updatedAt: new Date()
+        })
+        .where(eq(pagePermissions.pageId, pageId))
+        .returning();
+      return result;
+    } catch (error) {
+      console.error("Error updating page permission:", error);
+      throw error;
+    }
+  }
+
+  async deletePagePermission(pageId: string): Promise<boolean> {
+    try {
+      await db.delete(pagePermissions).where(eq(pagePermissions.pageId, pageId));
+      return true;
+    } catch (error) {
+      console.error("Error deleting page permission:", error);
+      return false;
+    }
+  }
+
+  // Admin user seed function
+  async ensureAdminUserExists(): Promise<User> {
+    try {
+      // Check if Admin user exists
+      let adminUser = await this.getUserByUsername('Admin');
+      
+      if (!adminUser) {
+        console.log('Creating default Admin user...');
+        const bcrypt = require('bcryptjs');
+        const hashedPassword = await bcrypt.hash('admin123', 10);
+        
+        adminUser = await this.createUser({
+          username: 'Admin',
+          email: 'admin@example.com',
+          password: hashedPassword,
+          role: 'admin',
+          approved: true,
+          approvedBy: null,
+          approvedAt: new Date()
+        });
+        
+        console.log('✅ Default Admin user created successfully');
+      }
+      
+      return adminUser;
+    } catch (error) {
+      console.error("Error ensuring admin user exists:", error);
+      throw error;
+    }
+  }
 }
