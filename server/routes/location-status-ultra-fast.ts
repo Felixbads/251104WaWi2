@@ -34,25 +34,33 @@ router.get('/', async (req: Request, res: Response) => {
     
     // Query to get data grouped by LOCATION (extracted from machine_name)
     const result = await db.execute(`
-      WITH active_machines AS (
-        -- Get only REAL machines with actual transactions
-        SELECT DISTINCT
+      WITH all_machines_by_location AS (
+        -- Get ALL machines grouped by location (including duplicates)
+        SELECT 
           m.id as machine_id,
           m.machine_name,
-          -- Extract location from machine name (everything before the comma or the full name if no comma)
+          m.vendon_id,
+          -- Extract location from machine name
           CASE 
             WHEN POSITION(',' IN m.machine_name) > 0 
             THEN TRIM(SUBSTRING(m.machine_name FROM 1 FOR POSITION(',' IN m.machine_name) - 1))
             ELSE m.machine_name
-          END as location,
-          m.vendon_id
+          END as location
         FROM machines m
-        INNER JOIN transactions t ON m.id = t.machine_id
-        WHERE m.id >= 235329
-          AND m.machine_name IS NOT NULL
+        WHERE m.machine_name IS NOT NULL
           AND m.machine_name NOT LIKE '%*%'
           AND m.machine_name NOT LIKE '%Test%'
-          AND t.datetime >= CURRENT_DATE - INTERVAL '30 days'
+          AND m.id != 1  -- Exclude demo machine
+      ),
+      active_machines AS (
+        -- Filter to locations with recent transactions
+        SELECT DISTINCT aml.*
+        FROM all_machines_by_location aml
+        WHERE EXISTS (
+          SELECT 1 FROM transactions t 
+          WHERE t.machine_id = aml.machine_id 
+            AND t.datetime >= CURRENT_DATE - INTERVAL '30 days'
+        )
       ),
       location_aggregated AS (
         SELECT 
@@ -179,14 +187,9 @@ router.get('/', async (req: Request, res: Response) => {
         warnings.push(`${warningCount} Produkte laufen bald ab`);
       }
       
-      // Add machine count to location name for clarity
-      const locationDisplay = machineCount > 1 
-        ? `${row.machine_name} (${machineCount} Automaten)`
-        : row.machine_name;
-
       return {
         id: row.id,
-        machineName: locationDisplay,  // Show location with machine count
+        machineName: row.machine_name,  // Show only location name without count
         location: row.machine_names,   // List of all machine names at this location
         machineCount,                  // Number of machines at location
         lastRefill: row.last_refill ? {
