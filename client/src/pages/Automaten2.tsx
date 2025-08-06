@@ -38,102 +38,115 @@ export default function Automaten2() {
   const [, setLocation] = useLocation();
   const [statusFilter, setStatusFilter] = useState<string>('all');
 
-  // Daten abrufen und aktuelle Werte aus der API verwenden
+  // Optimized data fetching with parallel requests
   const { data: machines, isLoading, error, refetch } = useQuery({
     queryKey: ['/api/machines'],
     queryFn: async () => {
-      const data = await getMachines();
+      console.log('Fetching machines and stats...');
+      
+      // First get all machines
+      const machinesData = await getMachines();
+      console.log(`Loaded ${machinesData.length} machines`);
 
-      // Wir verwenden die echten Daten aus der API
-      const enhancedMachines = data.map(machine => ({
-        ...machine,
-        // Initiale Werte setzen, die später durch API-Daten ersetzt werden
-        todayTransactions: 0,
-        todayRevenue: 0,
-        cashlessStatus: 'error',
-        alcoholStatus: 'error'
-      } as EnhancedMachine));
+      // Filter out demo machine (ID 1) early
+      const validMachines = machinesData.filter(machine => machine.id !== 1);
 
-      // Für jede Maschine die täglichen Statistiken abrufen
-      for (const machine of enhancedMachines) {
+      // Create parallel requests for all machine stats
+      const statsPromises = validMachines.map(async (machine) => {
         try {
-          // Wir verwenden die interne ID (nicht die Vendon-ID)
           const response = await fetch(`/api/machines/${machine.id}/daily-stats`);
           
-          if (response.ok) {
-            const stats = await response.json();
-            
-            // Tägliche Transaktionen und Umsatz
-            machine.todayTransactions = stats.todayTransactions || 0;
-            machine.todayRevenue = stats.todayRevenue || 0;
-            
-            // Letzter Verkauf
-            if (stats.lastSale) {
-              try {
-                if (stats.lastSale.datetime) {
-                  machine.lastSale = new Date(stats.lastSale.datetime).toISOString();
-                } else if (typeof stats.lastSale === 'string') {
-                  machine.lastSale = new Date(stats.lastSale).toISOString();
-                }
-              } catch (dateError) {
-                console.error('Fehler bei der Datums-Formatierung:', dateError);
-                machine.lastSale = undefined;
-              }
-            }
-            
-            // Letzter Alkoholverkauf
-            if (stats.lastAlcoholSale) {
-              try {
-                if (stats.lastAlcoholSale.datetime) {
-                  machine.lastAlcoholSale = new Date(stats.lastAlcoholSale.datetime).toISOString();
-                  
-                  // Prüfe, ob der letzte Alkoholverkauf innerhalb der letzten 14 Tage war
-                  const now = new Date();
-                  const lastAlcoholDate = new Date(stats.lastAlcoholSale.datetime);
-                  const daysSinceLastAlcohol = (now.getTime() - lastAlcoholDate.getTime()) / (1000 * 60 * 60 * 24);
-                  
-                  if (daysSinceLastAlcohol <= 14) {
-                    machine.alcoholStatus = 'ok';
-                  } else {
-                    machine.alcoholStatus = 'warning';
-                  }
-                }
-              } catch (error) {
-                console.error('Fehler beim Verarbeiten des letzten Alkoholverkaufs:', error);
-                machine.alcoholStatus = 'error';
-              }
-            }
-            
-            // Letzter bargeldloser Verkauf
-            if (stats.lastCashlessSale) {
-              try {
-                if (stats.lastCashlessSale.datetime) {
-                  machine.lastCashlessSale = new Date(stats.lastCashlessSale.datetime).toISOString();
-                  
-                  // Prüfe, ob der letzte bargeldlose Verkauf innerhalb der letzten 14 Tage war
-                  const now = new Date();
-                  const lastCashlessDate = new Date(stats.lastCashlessSale.datetime);
-                  const daysSinceLastCashless = (now.getTime() - lastCashlessDate.getTime()) / (1000 * 60 * 60 * 24);
-                  
-                  if (daysSinceLastCashless <= 14) {
-                    machine.cashlessStatus = 'ok';
-                  } else {
-                    machine.cashlessStatus = 'warning';
-                  }
-                }
-              } catch (error) {
-                console.error('Fehler beim Verarbeiten des letzten bargeldlosen Verkaufs:', error);
-                machine.cashlessStatus = 'error';
-              }
-            }
+          if (!response.ok) {
+            console.warn(`Failed to fetch stats for machine ${machine.id}: ${response.status}`);
+            return null;
           }
-        } catch (err) {
-          console.error(`Fehler beim Abrufen der KPIs für Maschine ${machine.id}:`, err);
+          
+          const stats = await response.json();
+          return { machineId: machine.id, stats };
+        } catch (error) {
+          console.error(`Error fetching stats for machine ${machine.id}:`, error);
+          return null;
         }
-      }
+      });
 
+      // Wait for all stats requests to complete (or fail)
+      const statsResults = await Promise.allSettled(statsPromises);
+      
+      // Create a map of machine stats for fast lookup
+      const statsMap = new Map<number, any>();
+      statsResults.forEach((result, index) => {
+        if (result.status === 'fulfilled' && result.value) {
+          const { machineId, stats } = result.value;
+          statsMap.set(machineId, stats);
+        }
+      });
+
+      console.log(`Successfully loaded stats for ${statsMap.size}/${validMachines.length} machines`);
+
+      // Helper function to process sale data
+      const processSaleData = (sale: any): string | undefined => {
+        if (!sale) return undefined;
+        try {
+          const datetime = sale.datetime || sale;
+          return new Date(datetime).toISOString();
+        } catch (error) {
+          console.error('Date formatting error:', error);
+          return undefined;
+        }
+      };
+
+      // Helper function to calculate status based on days since last activity
+      const calculateStatus = (datetime?: string): 'ok' | 'warning' | 'error' => {
+        if (!datetime) return 'error';
+        try {
+          const lastDate = new Date(datetime);
+          const now = new Date();
+          const daysSince = (now.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24);
+          return daysSince <= 14 ? 'ok' : 'warning';
+        } catch (error) {
+          return 'error';
+        }
+      };
+
+      // Combine machines with their stats
+      const enhancedMachines: EnhancedMachine[] = validMachines.map(machine => {
+        const stats = statsMap.get(machine.id);
+        
+        if (!stats) {
+          // Default values when stats are not available
+          return {
+            ...machine,
+            todayTransactions: 0,
+            todayRevenue: 0,
+            cashlessStatus: 'error' as const,
+            alcoholStatus: 'error' as const
+          };
+        }
+
+        // Process sale data
+        const lastSale = processSaleData(stats.lastSale);
+        const lastCashlessSale = processSaleData(stats.lastCashlessSale);
+        const lastAlcoholSale = processSaleData(stats.lastAlcoholSale);
+
+        return {
+          ...machine,
+          todayTransactions: stats.todayTransactions || 0,
+          todayRevenue: stats.todayRevenue || 0,
+          lastSale,
+          lastCashlessSale,
+          lastAlcoholSale,
+          cashlessStatus: calculateStatus(lastCashlessSale),
+          alcoholStatus: calculateStatus(lastAlcoholSale)
+        };
+      });
+
+      console.log('Enhanced machines data processed successfully');
       return enhancedMachines;
     },
+    // Refetch every 5 minutes for fresh data
+    refetchInterval: 5 * 60 * 1000,
+    // Keep data fresh but don't refetch on every window focus
+    staleTime: 2 * 60 * 1000,
   });
 
   // Filter- und Suchfunktionen

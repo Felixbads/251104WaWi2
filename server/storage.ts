@@ -127,6 +127,31 @@ export interface Machine {
   updatedAt?: Date;
 }
 
+export interface MachineDailyStats {
+  todayTransactions: number;
+  todayRevenue: number;
+  lastSale?: {
+    datetime: string;
+    productName?: string;
+    amount?: number;
+  } | null;
+  lastCashlessSale?: {
+    datetime: string;
+    productName?: string;
+    amount?: number;
+  } | null;
+  lastAlcoholSale?: {
+    datetime: string;
+    productName?: string;
+    amount?: number;
+  } | null;
+  alcoholSales?: {
+    today: number;
+    weekAvg: number;
+    monthAvg: number;
+  };
+}
+
 export interface InventoryItem {
   id: number;
   warehouseId: number;
@@ -439,9 +464,10 @@ export interface IStorage {
   getTransactionsByDateRange(startDate: Date, endDate: Date): Promise<Transaction[]>;
   
   // Machine operations
-  getMachines(): Promise<Machine[]>;
+  getMachines(limit?: number): Promise<Machine[]>;
   getMachineById(id: number): Promise<Machine | undefined>;
   getMachineByVendonId(vendonId: string): Promise<Machine | undefined>;
+  getMachineDailyStats(machineId: number): Promise<MachineDailyStats>;
   createMachine(machine: Omit<Machine, 'id' | 'createdAt' | 'updatedAt'>): Promise<Machine>;
   updateMachine(id: number, updates: Partial<Machine>): Promise<Machine>;
   deleteMachine(id: number): Promise<void>;

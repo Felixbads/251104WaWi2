@@ -53,125 +53,130 @@ export default function Automaten() {
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<string>("automaten");
 
-  // Daten abrufen und aktuelle Werte aus der API verwenden
+  // Optimized data fetching with parallel requests and correct API calls
   const { data: machines, isLoading, error, refetch } = useQuery({
     queryKey: ['/api/machines'],
     queryFn: async () => {
-      const data = await getMachines();
+      console.log('Fetching machines and stats...');
+      
+      // First get all machines
+      const machinesData = await getMachines();
+      console.log(`Loaded ${machinesData.length} machines`);
 
-      // Wir verwenden die echten Daten aus der API
-      const enhancedMachines = data.map(machine => ({
-        ...machine,
-        // Initiale Werte setzen, die später durch API-Daten ersetzt werden
-        todayTransactions: 0,
-        todayRevenue: 0,
-        cashlessStatus: machine.status === 'online' ? 'ok' : 'warning',
-        ageVerificationStatus: 'ok'
-      } as EnhancedMachine));
+      // Filter out demo machine (ID 1) early
+      const validMachines = machinesData.filter(machine => machine.id !== 1);
 
-      // Für jede Maschine die täglichen Statistiken abrufen
-      for (const machine of enhancedMachines) {
+      // Create parallel requests for all machine stats
+      const statsPromises = validMachines.map(async (machine) => {
         try {
-          console.log(`DEBUG: Abrufen von KPIs für Maschine ${machine.id} (${machine.machineName}) mit Vendon-ID: ${machine.vendonId}`);
+          // Use machine.id instead of machine.vendonId (FIXED BUG)
+          const response = await fetch(`/api/machines/${machine.id}/daily-stats`);
           
-          // Wir müssen die Vendon-ID statt der internen ID verwenden
-          const response = await fetch(`/api/machines/${machine.vendonId}/daily-stats`);
-          console.log(`DEBUG: API-Status für Maschine ${machine.id} mit Vendon-ID ${machine.vendonId}:`, response.status);
-          
-          if (response.ok) {
-            const stats = await response.json();
-            console.log(`DEBUG: API-Antwort für Maschine ${machine.id}:`, JSON.stringify(stats));
-            
-            // Überprüfen der API-Antwort
-            if (Object.keys(stats).length === 0) {
-              console.error(`Fehler: Leere API-Antwort für Maschine ${machine.id}`);
-              continue; // Überspringe diese Maschine
-            }
-            
-            // Tägliche Transaktionen und Umsatz
-            machine.todayTransactions = stats.todayTransactions || 0;
-            machine.todayRevenue = stats.todayRevenue || 0;
-            console.log(`DEBUG: Heutige Transaktionen: ${machine.todayTransactions}, Umsatz: ${machine.todayRevenue}`);
-            
-            // Letzter Verkauf
-            console.log(`DEBUG: lastSale aus API:`, stats.lastSale);
-            if (stats.lastSale) {
-              try {
-                // Prüfen, ob stats.lastSale.datetime existiert und gültig ist
-                if (stats.lastSale.datetime) {
-                  machine.lastSale = new Date(stats.lastSale.datetime).toISOString();
-                  console.log('Letzter Verkauf gesetzt aus datetime:', machine.lastSale);
-                } else if (typeof stats.lastSale === 'object') {
-                  // Falls stats.lastSale ein Objekt ist, aber kein datetime hat
-                  console.log('lastSale ist ein Objekt ohne datetime-Feld:', stats.lastSale);
-                  
-                  // Fallback: Wenn das Objekt ein vollständiges Transaction-Objekt ist, 
-                  // könnte das Datumswert in einem anderen Feld sein
-                  const possibleDateFields = ['datetime', 'createdAt', 'updatedAt', 'date', 'timestamp'];
-                  for (const field of possibleDateFields) {
-                    if (stats.lastSale[field] && !isNaN(new Date(stats.lastSale[field]).getTime())) {
-                      machine.lastSale = new Date(stats.lastSale[field]).toISOString();
-                      console.log(`Letzter Verkauf aus alternativer Eigenschaft '${field}':`, machine.lastSale);
-                      break;
-                    }
-                  }
-                  
-                  if (!machine.lastSale) {
-                    // Falls kein passendes Feld gefunden wurde
-                    console.log('Kein gültiges Datumfeld gefunden in:', Object.keys(stats.lastSale));
-                    machine.lastSale = undefined;
-                  }
-                } else {
-                  // Falls stats.lastSale direkt ein Datum ist (String oder Date)
-                  machine.lastSale = new Date(stats.lastSale).toISOString();
-                  console.log('Letzter Verkauf direkt aus stats.lastSale:', machine.lastSale);
-                }
-              } catch (dateError) {
-                console.error('Fehler bei der Datums-Formatierung:', dateError);
-                console.log('Problematischer Wert war:', stats.lastSale);
-                machine.lastSale = undefined;
-              }
-            }
-            
-            // Letzter bargeldloser Verkauf und Status-Indikator
-            if (stats.lastCashlessSale) {
-              const now = new Date();
-              const lastCashlessDate = new Date(stats.lastCashlessSale.datetime);
-              const hoursSinceLastCashless = (now.getTime() - lastCashlessDate.getTime()) / (1000 * 60 * 60);
-              
-              // Status basierend auf der Zeit seit dem letzten bargeldlosen Verkauf
-              if (hoursSinceLastCashless < 1) {
-                machine.cashlessStatus = 'ok';
-              } else if (hoursSinceLastCashless < 4) {
-                machine.cashlessStatus = 'warning';
-              } else {
-                machine.cashlessStatus = 'error';
-              }
-            } else {
-              machine.cashlessStatus = 'error'; // Keine bargeldlosen Verkäufe
-            }
-            
-            // Alkoholverkaufs-Status-Indikator
-            if (stats.alcoholSales) {
-              const { today, weekAvg, monthAvg } = stats.alcoholSales;
-              
-              // Status basierend auf Abweichung vom Durchschnitt
-              if (today <= monthAvg * 1.2 && today >= monthAvg * 0.8) {
-                machine.ageVerificationStatus = 'ok'; // Im normalen Bereich
-              } else if (today > monthAvg * 1.5 || today < monthAvg * 0.5) {
-                machine.ageVerificationStatus = 'error'; // Starke Abweichung
-              } else {
-                machine.ageVerificationStatus = 'warning'; // Leichte Abweichung
-              }
-            }
+          if (!response.ok) {
+            console.warn(`Failed to fetch stats for machine ${machine.id}: ${response.status}`);
+            return null;
           }
-        } catch (err) {
-          console.error(`Fehler beim Abrufen der KPIs für Maschine ${machine.id}:`, err);
+          
+          const stats = await response.json();
+          return { machineId: machine.id, stats };
+        } catch (error) {
+          console.error(`Error fetching stats for machine ${machine.id}:`, error);
+          return null;
         }
-      }
+      });
 
+      // Wait for all stats requests to complete (or fail)
+      const statsResults = await Promise.allSettled(statsPromises);
+      
+      // Create a map of machine stats for fast lookup
+      const statsMap = new Map();
+      statsResults.forEach((result, index) => {
+        if (result.status === 'fulfilled' && result.value) {
+          const { machineId, stats } = result.value;
+          statsMap.set(machineId, stats);
+        }
+      });
+
+      console.log(`Successfully loaded stats for ${statsMap.size}/${validMachines.length} machines`);
+
+      // Helper function to process sale data
+      const processSaleData = (sale: any): string | undefined => {
+        if (!sale) return undefined;
+        try {
+          const datetime = sale.datetime || sale;
+          return new Date(datetime).toISOString();
+        } catch (error) {
+          console.error('Date formatting error:', error);
+          return undefined;
+        }
+      };
+
+      // Helper function to calculate cashless status
+      const calculateCashlessStatus = (datetime?: string): 'ok' | 'warning' | 'error' => {
+        if (!datetime) return 'error';
+        try {
+          const lastDate = new Date(datetime);
+          const now = new Date();
+          const hoursSince = (now.getTime() - lastDate.getTime()) / (1000 * 60 * 60);
+          
+          if (hoursSince < 1) return 'ok';
+          if (hoursSince < 4) return 'warning';
+          return 'error';
+        } catch (error) {
+          return 'error';
+        }
+      };
+
+      // Helper function to calculate alcohol verification status
+      const calculateAlcoholStatus = (alcoholSales?: any): 'ok' | 'warning' | 'error' => {
+        if (!alcoholSales) return 'ok';
+        
+        const { today, monthAvg } = alcoholSales;
+        if (today <= monthAvg * 1.2 && today >= monthAvg * 0.8) {
+          return 'ok'; // Normal range
+        } else if (today > monthAvg * 1.5 || today < monthAvg * 0.5) {
+          return 'error'; // Strong deviation
+        } else {
+          return 'warning'; // Slight deviation
+        }
+      };
+
+      // Combine machines with their stats
+      const enhancedMachines: EnhancedMachine[] = validMachines.map(machine => {
+        const stats = statsMap.get(machine.id);
+        
+        if (!stats) {
+          // Default values when stats are not available
+          return {
+            ...machine,
+            todayTransactions: 0,
+            todayRevenue: 0,
+            cashlessStatus: machine.status === 'online' ? 'warning' : 'error',
+            ageVerificationStatus: 'ok'
+          };
+        }
+
+        // Process sale data
+        const lastSale = processSaleData(stats.lastSale);
+        const lastCashlessSale = processSaleData(stats.lastCashlessSale);
+
+        return {
+          ...machine,
+          todayTransactions: stats.todayTransactions || 0,
+          todayRevenue: stats.todayRevenue || 0,
+          lastSale,
+          cashlessStatus: calculateCashlessStatus(lastCashlessSale),
+          ageVerificationStatus: calculateAlcoholStatus(stats.alcoholSales)
+        };
+      });
+
+      console.log('Enhanced machines data processed successfully');
       return enhancedMachines;
     },
+    // Refetch every 5 minutes for fresh data
+    refetchInterval: 5 * 60 * 1000,
+    // Keep data fresh but don't refetch on every window focus
+    staleTime: 2 * 60 * 1000,
   });
 
   // Extrahiere verfügbare Standorte und Maschinentypen für die Filter
