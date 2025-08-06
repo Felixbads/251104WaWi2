@@ -1,0 +1,19 @@
+Unfertige oder fehlerhafte Inhalte im Frontend
+Route/Seite	Betroffenes Element	Hinweis
+/automaten	Kartenansicht	„Die Kartenansicht … wird in einem kommenden Update verfügbar sein“ – Feature noch nicht implementiert
+/machines	Kartenansicht	Platzhalter „Kartenansicht wird in Kürze verfügbar sein“
+/automaten/:id	Umsatzdiagramm	Hinweis „Diagramm wird in Kürze verfügbar sein“
+/automaten/:id → MachineCostsTab	Löschen‑Button	Button deaktiviert + Tooltip „Löschen (nicht implementiert)“
+/nachhaltigkeit (SustainableVending)	EcoImpactDashboard	Text „Hier sehen Sie bald … Bald verfügbar“
+/warehouses/:id/warenbewegung? (ältere Seite)	„Neuen Ausgang erfassen“-Button	Toast „Funktion … wird noch implementiert“
+Warehouse3‑Bereich (/warehouse3/...)	InventoryTab, RefillsTab, MovementsTab	Aktionen wie Löschen/Stornieren nur mit Hinweis „Diese Funktion ist noch nicht implementiert“
+Warehouse3‑Detailseite	ExpiredProductsList	Informationskarte: Tabellen für abgelaufene Produkte fehlen; Funktion noch deaktiviert
+/lieferanten/:id → SupplierEditDialog	Foto‑Upload	Platzhalter „Foto‑Upload wird implementiert“ + TODO im Code
+/lieferanten/:id	Export	Toast „Export‑Funktion wird implementiert“
+(kommentierte alte Route /warenentnahme/:id)	Export & Bericht	Beide Aktionen nur mit Hinweis „… wird implementiert“
+/bestellungen/neu, /bestellungen/workflow, …	OrderModeSelector	Bereiche „Vorlage auswählen“ und „Prognosemodell“ zeigen „Dieses Feature wird in einer zukünftigen Version verfügbar sein“
+/bestellungen/... → OrderDetailTab	Tabs „Bestellpositionen“ & „Bestellverlauf“	Meldung „Diese Ansicht wird in einem zukünftigen Update implementiert“
+Beliebige Seiten mit Dokumenten (z. B. Bestellungen)	DocumentViewer	Upload‑Funktion & Vorschau fehlen („Diese Funktion wird … implementiert“, „Vorschau … noch nicht verfügbar“)
+Dashboard	Prognose‑Initialisierung	Toast „Die Prognosen werden in Kürze verfügbar sein“
+Pagination‑Komponente in Einstellungen (/settings/database o. Ä.)	Links ohne Ziel	<PaginationPrevious>, <PaginationLink>, <PaginationNext> nutzen href="#" (nur JS‑Handler)
+Diese Liste deckt alle gefundenen Platzhalter‑ oder noch nicht implementierten Bereiche im Frontend ab
