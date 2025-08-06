@@ -32,53 +32,49 @@ router.get('/', async (req: Request, res: Response) => {
       return res.json(locationStatusCache);
     }
     
-    // Simplified and highly optimized query with minimal JOINs
+    // Optimized query using machine_daily_stats for better performance
     const result = await db.execute(`
-      WITH base_machines AS (
-        -- Prioritize machines that have actual transactions, not just newest records
-        SELECT DISTINCT ON (vendon_id)
+      WITH active_machines AS (
+        -- Get all machines with recent activity
+        SELECT 
           m.id as machine_id,
           m.machine_name,
           m.location_name,
-          m.vendon_id,
-          COALESCE(t_count.transaction_count, 0) as has_transactions
+          m.vendon_id
         FROM machines m
-        LEFT JOIN (
-          SELECT machine_id, COUNT(*) as transaction_count
-          FROM transactions 
-          WHERE datetime >= CURRENT_DATE - INTERVAL '90 days'
-          GROUP BY machine_id
-        ) t_count ON m.id = t_count.machine_id
-        WHERE m.vendon_id IS NOT NULL 
-          AND CAST(m.vendon_id AS text) != '1001'
-        ORDER BY m.vendon_id, COALESCE(t_count.transaction_count, 0) DESC, m.id DESC
+        WHERE m.id != 1  -- Exclude demo machine
+          AND m.machine_name IS NOT NULL
       ),
       machine_stats AS (
         SELECT 
-          bm.machine_id,
-          bm.machine_name,
-          bm.location_name,
+          am.machine_id,
+          am.machine_name,
+          am.location_name,
           
-          -- Basic stats with indexes
-          t_stats.last_sale,
-          t_stats.today_revenue,
-          t_stats.last_cashless_sale,
+          -- Use pre-calculated daily stats
+          COALESCE(mds.last_sale_datetime, t_stats.last_sale) as last_sale,
+          COALESCE(mds.today_revenue, t_stats.today_revenue, 0) as today_revenue,
+          COALESCE(mds.last_cashless_sale_datetime, t_stats.last_cashless_sale) as last_cashless_sale,
           
           -- Refill stats
           r_stats.last_refill,
           r_stats.last_operator,
           
-          -- Event stats (simplified)
+          -- Event stats
           e_stats.last_door_open,
           
-          -- MHD stats (simplified)
-          mhd_stats.expired_count,
-          mhd_stats.warning_count,
+          -- MHD stats
+          COALESCE(mhd_stats.expired_count, 0) as expired_count,
+          COALESCE(mhd_stats.warning_count, 0) as warning_count,
           mhd_stats.earliest_expiry
           
-        FROM base_machines bm
+        FROM active_machines am
         
-        -- Transaction stats aggregation
+        -- Use machine_daily_stats for today's data
+        LEFT JOIN machine_daily_stats mds ON am.machine_id = mds.machine_id 
+          AND mds.date = CURRENT_DATE
+        
+        -- Fallback to transaction aggregation if daily stats not available
         LEFT JOIN (
           SELECT 
             machine_id,
@@ -86,9 +82,9 @@ router.get('/', async (req: Request, res: Response) => {
             COALESCE(SUM(CASE WHEN datetime >= CURRENT_DATE THEN price ELSE 0 END), 0) as today_revenue,
             MAX(CASE WHEN payment_method IN ('CASHLESS', 'CARD') THEN datetime END) as last_cashless_sale
           FROM transactions
-          WHERE datetime >= CURRENT_DATE - INTERVAL '30 days'  -- Only look at recent data
+          WHERE datetime >= CURRENT_DATE - INTERVAL '7 days'
           GROUP BY machine_id
-        ) t_stats ON bm.machine_id = t_stats.machine_id
+        ) t_stats ON am.machine_id = t_stats.machine_id
         
         -- Refill stats
         LEFT JOIN (
@@ -97,22 +93,25 @@ router.get('/', async (req: Request, res: Response) => {
             MAX(datetime) as last_refill,
             (array_agg(operator ORDER BY datetime DESC))[1] as last_operator
           FROM refills
-          WHERE datetime >= CURRENT_DATE - INTERVAL '30 days'  -- Only recent refills
+          WHERE datetime >= CURRENT_DATE - INTERVAL '30 days'
           GROUP BY machine_id
-        ) r_stats ON bm.machine_id = r_stats.machine_id
+        ) r_stats ON am.machine_id = r_stats.machine_id
         
-        -- Event stats (simplified, only recent)
+        -- Event stats - check for door openings  
         LEFT JOIN (
           SELECT 
             machine_id,
             MAX(datetime) as last_door_open
           FROM events
-          WHERE event_name = 'Automatentüre offen'
-            AND datetime >= CURRENT_DATE - INTERVAL '7 days'  -- Only last week
+          WHERE (event_name = 'Automatentüre offen' 
+            OR event_name LIKE '%door%' 
+            OR event_name LIKE '%Door%'
+            OR event_name LIKE '%Tür%')
+            AND datetime >= CURRENT_DATE - INTERVAL '30 days'
           GROUP BY machine_id
-        ) e_stats ON bm.machine_id = e_stats.machine_id
+        ) e_stats ON am.machine_id = e_stats.machine_id
         
-        -- MHD stats (simplified)
+        -- MHD stats
         LEFT JOIN (
           SELECT 
             machine_id,
@@ -121,8 +120,9 @@ router.get('/', async (req: Request, res: Response) => {
             MIN(expiry_date) FILTER (WHERE expiry_date < CURRENT_DATE) as earliest_expiry
           FROM machine_stocks
           WHERE expiry_date IS NOT NULL
+            AND quantity > 0
           GROUP BY machine_id
-        ) mhd_stats ON bm.machine_id = mhd_stats.machine_id
+        ) mhd_stats ON am.machine_id = mhd_stats.machine_id
       )
       SELECT 
         machine_id as id,
@@ -134,11 +134,15 @@ router.get('/', async (req: Request, res: Response) => {
         last_refill,
         last_operator,
         last_door_open,
-        COALESCE(expired_count, 0) as expired_count,
-        COALESCE(warning_count, 0) as warning_count,
+        expired_count,
+        warning_count,
         earliest_expiry
       FROM machine_stats
-      ORDER BY machine_name
+      WHERE machine_name IS NOT NULL
+      ORDER BY 
+        CASE WHEN today_revenue > 0 THEN 0 ELSE 1 END,  -- Active machines first
+        today_revenue DESC,
+        machine_name
     `);
 
 
