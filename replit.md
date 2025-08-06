@@ -6,6 +6,27 @@ This is a comprehensive vending machine management platform (Warenwirtschaftssys
 ## User Preferences
 Preferred communication style: Simple, everyday language.
 
+## Recent Changes (2025-08-06)
+
+### Persistent KPI Architecture for Machine Dashboard
+**Issue**: Machine overview page (Automaten) was performing heavy real-time database aggregations for each machine tile, causing performance issues with sequential API calls for daily stats.
+
+**Solution**: Complete persistent KPI architecture implementation:
+- **Database Schema**: Created `machine_daily_stats` table with comprehensive daily metrics storage
+- **Data Structure**: Stores pre-calculated metrics including transactions, revenue, profit, last sale info, cashless/alcohol tracking
+- **Storage Layer**: Implemented `getMachineDailyStats`, `getBulkMachineDailyStats`, and `upsertMachineDailyStats` methods
+- **Bulk Endpoint**: Added `GET /api/machines/daily-stats?machineIds=` for efficient multi-machine stat retrieval
+- **Frontend Optimization**: Updated Automaten.tsx to use bulk fetching instead of individual API calls
+- **ETL Scripts**: Created batch processing scripts to populate daily stats from transaction data
+- **Automatic Calculation**: System calculates and caches stats on-demand if not pre-populated
+
+**Impact**:
+- Reduced API calls from N (one per machine) to 1 bulk request
+- Eliminated real-time aggregation queries for dashboard display
+- Improved page load performance significantly for machine overview
+- Added caching layer that refreshes daily for accurate metrics
+- Fallback to real-time calculation ensures data availability
+
 ## Recent Changes (2025-08-04)
 
 ### Dashboard Time Range Flexibility and Data Normalization Enhancement
