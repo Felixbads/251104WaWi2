@@ -35,15 +35,19 @@ router.get('/', async (req: Request, res: Response) => {
     // Optimized query using machine_daily_stats for better performance
     const result = await db.execute(`
       WITH active_machines AS (
-        -- Get all machines with recent activity
-        SELECT 
+        -- Get only REAL machines with actual transactions (not test data)
+        SELECT DISTINCT
           m.id as machine_id,
           m.machine_name,
           m.location_name,
           m.vendon_id
         FROM machines m
-        WHERE m.id != 1  -- Exclude demo machine
+        INNER JOIN transactions t ON m.id = t.machine_id  -- Only machines with transactions
+        WHERE m.id >= 235329  -- Only real Vendon machines with actual IDs
           AND m.machine_name IS NOT NULL
+          AND m.machine_name NOT LIKE '%*%'  -- Exclude test machines
+          AND m.machine_name NOT LIKE '%Test%'  -- Exclude test machines
+          AND t.datetime >= CURRENT_DATE - INTERVAL '30 days'  -- Must have recent activity
       ),
       machine_stats AS (
         SELECT 
@@ -143,6 +147,7 @@ router.get('/', async (req: Request, res: Response) => {
         CASE WHEN today_revenue > 0 THEN 0 ELSE 1 END,  -- Active machines first
         today_revenue DESC,
         machine_name
+      LIMIT 200  -- Limit to 200 most relevant machines for performance
     `);
 
 
