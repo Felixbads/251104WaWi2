@@ -6,7 +6,8 @@ import {
   supplierAccessPins, productCategories, 
   packageTypes, purchaseConditions, recurringOrders, recurringOrderItems, 
   forecasts, users, events,
-  locationCosts
+  locationCosts, machineDailyStats,
+  type MachineDailyStats, type InsertMachineDailyStats
 } from '../shared/schema.js';
 
 // Core types and interfaces
@@ -467,10 +468,15 @@ export interface IStorage {
   getMachines(limit?: number): Promise<Machine[]>;
   getMachineById(id: number): Promise<Machine | undefined>;
   getMachineByVendonId(vendonId: string): Promise<Machine | undefined>;
-  getMachineDailyStats(machineId: number): Promise<MachineDailyStats>;
   createMachine(machine: Omit<Machine, 'id' | 'createdAt' | 'updatedAt'>): Promise<Machine>;
   updateMachine(id: number, updates: Partial<Machine>): Promise<Machine>;
   deleteMachine(id: number): Promise<void>;
+  
+  // Machine Daily Stats - Persistent KPIs
+  getMachineDailyStats(machineId: number, date?: string): Promise<MachineDailyStats | null>;
+  getBulkMachineDailyStats(machineIds: number[], date?: string): Promise<MachineDailyStats[]>;
+  upsertMachineDailyStats(stats: InsertMachineDailyStats): Promise<MachineDailyStats>;
+  calculateAndStoreDailyStats(machineId: number, date: string): Promise<MachineDailyStats>;
 
   // Location operations
   getLocations(): Promise<any[]>;

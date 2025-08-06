@@ -29,7 +29,8 @@ import {
   refillBatchMovements, type RefillBatchMovement, type InsertRefillBatchMovement,
   productBatches, type ProductBatch, type InsertProductBatch,
   productMovements, type ProductMovement, type InsertProductMovement,
-  pagePermissions, type PagePermission, type InsertPagePermission
+  pagePermissions, type PagePermission, type InsertPagePermission,
+  machineDailyStats, type MachineDailyStats, type InsertMachineDailyStats
 } from "@shared/schema";
 import { IStorage } from "../storage";
 
@@ -349,38 +350,110 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  /**
-   * Get daily statistics for a specific machine
-   */
-  async getMachineDailyStats(machineId: number): Promise<any> {
+  // Persistent Machine Daily Stats methods for efficient KPI display
+  async getMachineDailyStats(machineId: number, date?: string): Promise<MachineDailyStats | null> {
     try {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const tomorrow = new Date(today);
-      tomorrow.setDate(tomorrow.getDate() + 1);
+      const targetDate = date || new Date().toISOString().split('T')[0];
       
-      const oneWeekAgo = new Date(today);
-      oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+      const result = await db
+        .select()
+        .from(machineDailyStats)
+        .where(and(
+          eq(machineDailyStats.machineId, machineId),
+          eq(machineDailyStats.date, targetDate)
+        ))
+        .limit(1);
       
-      const oneMonthAgo = new Date(today);
-      oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+      if (result.length === 0) {
+        // If no persistent data exists, calculate and store it
+        return await this.calculateAndStoreDailyStats(machineId, targetDate);
+      }
+      
+      return result[0];
+    } catch (error) {
+      console.error("Error fetching machine daily stats:", error);
+      return null;
+    }
+  }
 
-      // Get today's transactions and revenue
-      const todayStatsQuery = `
+  async getBulkMachineDailyStats(machineIds: number[], date?: string): Promise<MachineDailyStats[]> {
+    try {
+      const targetDate = date || new Date().toISOString().split('T')[0];
+      
+      const result = await db
+        .select()
+        .from(machineDailyStats)
+        .where(and(
+          inArray(machineDailyStats.machineId, machineIds),
+          eq(machineDailyStats.date, targetDate)
+        ));
+      
+      // For missing machines, calculate and store stats
+      const existingMachineIds = result.map(r => r.machineId);
+      const missingMachineIds = machineIds.filter(id => !existingMachineIds.includes(id));
+      
+      for (const machineId of missingMachineIds) {
+        const calculated = await this.calculateAndStoreDailyStats(machineId, targetDate);
+        if (calculated) {
+          result.push(calculated);
+        }
+      }
+      
+      return result;
+    } catch (error) {
+      console.error("Error fetching bulk machine daily stats:", error);
+      return [];
+    }
+  }
+
+  async upsertMachineDailyStats(stats: InsertMachineDailyStats): Promise<MachineDailyStats> {
+    try {
+      const result = await db
+        .insert(machineDailyStats)
+        .values({
+          ...stats,
+          updatedAt: sql`NOW()`
+        })
+        .onConflictDoUpdate({
+          target: [machineDailyStats.machineId, machineDailyStats.date],
+          set: {
+            ...stats,
+            updatedAt: sql`NOW()`
+          }
+        })
+        .returning();
+      
+      return result[0];
+    } catch (error) {
+      console.error("Error upserting machine daily stats:", error);
+      throw error;
+    }
+  }
+
+  async calculateAndStoreDailyStats(machineId: number, date: string): Promise<MachineDailyStats> {
+    try {
+      const startDate = new Date(date + 'T00:00:00.000Z');
+      const endDate = new Date(date + 'T23:59:59.999Z');
+      
+      // Calculate daily metrics using real transaction data
+      const dailyStatsQuery = `
         SELECT 
           COUNT(*) as transaction_count,
-          COALESCE(SUM(amount), 0) as total_revenue
+          COALESCE(SUM(price), 0) as total_revenue,
+          COALESCE(SUM(net_result), 0) as total_profit,
+          COUNT(CASE WHEN payment_method != 'CASH' THEN 1 END) as cashless_count,
+          COALESCE(SUM(CASE WHEN payment_method != 'CASH' THEN price ELSE 0 END), 0) as cashless_revenue,
+          COUNT(CASE WHEN LOWER(product_name) LIKE '%bier%' OR LOWER(product_name) LIKE '%wine%' OR LOWER(product_name) LIKE '%alcohol%' THEN 1 END) as alcohol_count,
+          COALESCE(SUM(CASE WHEN LOWER(product_name) LIKE '%bier%' OR LOWER(product_name) LIKE '%wine%' OR LOWER(product_name) LIKE '%alcohol%' THEN price ELSE 0 END), 0) as alcohol_revenue
         FROM transactions 
-        WHERE machine_id = $1 
-          AND datetime >= $2 
-          AND datetime < $3
+        WHERE machine_id = $1 AND datetime >= $2 AND datetime <= $3
       `;
       
-      const todayStats = await rawDb.query(todayStatsQuery, [machineId, today.toISOString(), tomorrow.toISOString()]);
+      const dailyStats = await rawDb.query(dailyStatsQuery, [machineId, startDate.toISOString(), endDate.toISOString()]);
       
-      // Get last sale
+      // Get last sale information
       const lastSaleQuery = `
-        SELECT datetime, product_name, amount
+        SELECT datetime, product_name, price
         FROM transactions 
         WHERE machine_id = $1 
         ORDER BY datetime DESC 
@@ -391,81 +464,81 @@ export class DatabaseStorage implements IStorage {
       
       // Get last cashless sale
       const lastCashlessSaleQuery = `
-        SELECT datetime, product_name, amount
+        SELECT datetime, product_name, price
         FROM transactions 
-        WHERE machine_id = $1 
-          AND payment_method != 'cash'
+        WHERE machine_id = $1 AND payment_method != 'CASH'
         ORDER BY datetime DESC 
         LIMIT 1
       `;
       
       const lastCashlessSale = await rawDb.query(lastCashlessSaleQuery, [machineId]);
       
-      // Get alcohol sales stats
-      const alcoholSalesQuery = `
-        SELECT 
-          COUNT(CASE WHEN datetime >= $2 AND datetime < $3 THEN 1 END) as today_count,
-          (
-            SELECT COUNT(*) / 7.0 
-            FROM transactions 
-            WHERE machine_id = $1 
-              AND datetime >= $4 
-              AND datetime < $2
-              AND (LOWER(product_name) LIKE '%bier%' OR LOWER(product_name) LIKE '%wine%' OR LOWER(product_name) LIKE '%alcohol%')
-          ) as week_avg,
-          (
-            SELECT COUNT(*) / 30.0 
-            FROM transactions 
-            WHERE machine_id = $1 
-              AND datetime >= $5 
-              AND datetime < $2
-              AND (LOWER(product_name) LIKE '%bier%' OR LOWER(product_name) LIKE '%wine%' OR LOWER(product_name) LIKE '%alcohol%')
-          ) as month_avg
+      // Get last alcohol sale
+      const lastAlcoholSaleQuery = `
+        SELECT datetime, product_name
         FROM transactions 
         WHERE machine_id = $1 
           AND (LOWER(product_name) LIKE '%bier%' OR LOWER(product_name) LIKE '%wine%' OR LOWER(product_name) LIKE '%alcohol%')
+        ORDER BY datetime DESC 
+        LIMIT 1
       `;
       
-      const alcoholSales = await rawDb.query(alcoholSalesQuery, [
-        machineId, 
-        today.toISOString(), 
-        tomorrow.toISOString(),
-        oneWeekAgo.toISOString(),
-        oneMonthAgo.toISOString()
-      ]);
-
-      return {
-        todayTransactions: parseInt(todayStats.rows[0]?.transaction_count || '0'),
-        todayRevenue: parseFloat(todayStats.rows[0]?.total_revenue || '0'),
-        lastSale: lastSale.rows[0] ? {
-          datetime: lastSale.rows[0].datetime,
-          productName: lastSale.rows[0].product_name,
-          amount: parseFloat(lastSale.rows[0].amount || '0')
-        } : null,
-        lastCashlessSale: lastCashlessSale.rows[0] ? {
-          datetime: lastCashlessSale.rows[0].datetime,
-          productName: lastCashlessSale.rows[0].product_name,
-          amount: parseFloat(lastCashlessSale.rows[0].amount || '0')
-        } : null,
-        alcoholSales: {
-          today: parseInt(alcoholSales.rows[0]?.today_count || '0'),
-          weekAvg: parseFloat(alcoholSales.rows[0]?.week_avg || '0'),
-          monthAvg: parseFloat(alcoholSales.rows[0]?.month_avg || '0')
-        }
+      const lastAlcoholSale = await rawDb.query(lastAlcoholSaleQuery, [machineId]);
+      
+      // Calculate weekly and monthly averages
+      const weekStart = new Date(startDate);
+      weekStart.setDate(weekStart.getDate() - 7);
+      
+      const monthStart = new Date(startDate);
+      monthStart.setMonth(monthStart.getMonth() - 1);
+      
+      const avgQuery = `
+        SELECT 
+          (SELECT COUNT(*) / 7.0 FROM transactions WHERE machine_id = $1 AND datetime >= $2 AND datetime < $3) as weekly_avg_transactions,
+          (SELECT COALESCE(SUM(price), 0) / 7.0 FROM transactions WHERE machine_id = $1 AND datetime >= $2 AND datetime < $3) as weekly_avg_revenue,
+          (SELECT COUNT(*) / 30.0 FROM transactions WHERE machine_id = $1 AND datetime >= $4 AND datetime < $3) as monthly_avg_transactions,
+          (SELECT COALESCE(SUM(price), 0) / 30.0 FROM transactions WHERE machine_id = $1 AND datetime >= $4 AND datetime < $3) as monthly_avg_revenue
+      `;
+      
+      const avgStats = await rawDb.query(avgQuery, [machineId, weekStart.toISOString(), startDate.toISOString(), monthStart.toISOString()]);
+      
+      const daily = dailyStats.rows[0];
+      const last = lastSale.rows[0];
+      const lastCashless = lastCashlessSale.rows[0];
+      const lastAlcohol = lastAlcoholSale.rows[0];
+      const avg = avgStats.rows[0];
+      
+      const statsData: InsertMachineDailyStats = {
+        machineId,
+        date,
+        todayTransactions: parseInt(daily?.transaction_count || 0),
+        todayRevenue: parseFloat(daily?.total_revenue || 0),
+        todayProfit: parseFloat(daily?.total_profit || 0),
+        lastSaleDatetime: last?.datetime || null,
+        lastSaleProductName: last?.product_name || null,
+        lastSaleAmount: parseFloat(last?.price || 0),
+        lastCashlessSaleDatetime: lastCashless?.datetime || null,
+        lastCashlessSaleProductName: lastCashless?.product_name || null,
+        lastCashlessSaleAmount: parseFloat(lastCashless?.price || 0),
+        cashlessTransactions: parseInt(daily?.cashless_count || 0),
+        cashlessRevenue: parseFloat(daily?.cashless_revenue || 0),
+        alcoholTransactions: parseInt(daily?.alcohol_count || 0),
+        alcoholRevenue: parseFloat(daily?.alcohol_revenue || 0),
+        lastAlcoholSaleDatetime: lastAlcohol?.datetime || null,
+        lastAlcoholSaleProductName: lastAlcohol?.product_name || null,
+        weeklyAvgTransactions: parseFloat(avg?.weekly_avg_transactions || 0),
+        weeklyAvgRevenue: parseFloat(avg?.weekly_avg_revenue || 0),
+        monthlyAvgTransactions: parseFloat(avg?.monthly_avg_transactions || 0),
+        monthlyAvgRevenue: parseFloat(avg?.monthly_avg_revenue || 0),
+        cashlessStatus: 'ok', // Can be enhanced with business logic
+        alcoholStatus: 'ok',  // Can be enhanced with business logic
+        calculationSource: 'batch'
       };
+      
+      return await this.upsertMachineDailyStats(statsData);
     } catch (error) {
-      console.error("Error fetching machine daily stats:", error);
-      return {
-        todayTransactions: 0,
-        todayRevenue: 0,
-        lastSale: null,
-        lastCashlessSale: null,
-        alcoholSales: {
-          today: 0,
-          weekAvg: 0,
-          monthAvg: 0
-        }
-      };
+      console.error("Error calculating and storing daily stats:", error);
+      throw error;
     }
   }
 

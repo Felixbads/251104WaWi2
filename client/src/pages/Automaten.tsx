@@ -66,44 +66,60 @@ export default function Automaten() {
       // Filter out demo machine (ID 1) early
       const validMachines = machinesData.filter(machine => machine.id !== 1);
 
-      // Create parallel requests for all machine stats
-      const statsPromises = validMachines.map(async (machine) => {
-        try {
-          // Use machine.id instead of machine.vendonId (FIXED BUG)
-          const response = await fetch(`/api/machines/${machine.id}/daily-stats`);
-          
-          if (!response.ok) {
-            console.warn(`Failed to fetch stats for machine ${machine.id}: ${response.status}`);
-            return null;
-          }
-          
-          const stats = await response.json();
-          return { machineId: machine.id, stats };
-        } catch (error) {
-          console.error(`Error fetching stats for machine ${machine.id}:`, error);
-          return null;
-        }
-      });
-
-      // Wait for all stats requests to complete (or fail)
-      const statsResults = await Promise.allSettled(statsPromises);
+      // Optimized bulk fetch for all machine stats in one request
+      let statsMap = new Map();
       
-      // Create a map of machine stats for fast lookup
-      const statsMap = new Map();
-      statsResults.forEach((result, index) => {
-        if (result.status === 'fulfilled' && result.value) {
-          const { machineId, stats } = result.value;
-          statsMap.set(machineId, stats);
-        }
-      });
-
-      console.log(`Successfully loaded stats for ${statsMap.size}/${validMachines.length} machines`);
-
-      // Helper function to process sale data
-      const processSaleData = (sale: any): string | undefined => {
-        if (!sale) return undefined;
+      if (validMachines.length > 0) {
         try {
-          const datetime = sale.datetime || sale;
+          const machineIds = validMachines.map(m => m.id).join(',');
+          console.log(`Fetching bulk stats for ${validMachines.length} machines...`);
+          
+          const response = await fetch(`/api/machines/daily-stats?machineIds=${machineIds}`);
+          
+          if (response.ok) {
+            const bulkStats = await response.json();
+            
+            // Create map from bulk response
+            bulkStats.forEach((stat: any) => {
+              if (stat.machineId) {
+                statsMap.set(stat.machineId, stat);
+              }
+            });
+            
+            console.log(`Successfully loaded bulk stats for ${statsMap.size}/${validMachines.length} machines`);
+          } else {
+            console.warn(`Bulk stats fetch failed: ${response.status}, falling back to individual calls`);
+            
+            // Fallback to individual calls if bulk fails
+            const statsPromises = validMachines.map(async (machine) => {
+              try {
+                const response = await fetch(`/api/machines/${machine.id}/daily-stats`);
+                if (!response.ok) return null;
+                const stats = await response.json();
+                return { machineId: machine.id, stats };
+              } catch (error) {
+                console.error(`Error fetching stats for machine ${machine.id}:`, error);
+                return null;
+              }
+            });
+
+            const statsResults = await Promise.allSettled(statsPromises);
+            statsResults.forEach((result) => {
+              if (result.status === 'fulfilled' && result.value) {
+                const { machineId, stats } = result.value;
+                statsMap.set(machineId, stats);
+              }
+            });
+          }
+        } catch (error) {
+          console.error('Error in bulk stats fetch:', error);
+        }
+      }
+
+      // Helper function to process sale data from persistent schema
+      const processSaleData = (datetime: string | null): string | undefined => {
+        if (!datetime) return undefined;
+        try {
           return new Date(datetime).toISOString();
         } catch (error) {
           console.error('Date formatting error:', error);
@@ -112,7 +128,7 @@ export default function Automaten() {
       };
 
       // Helper function to calculate cashless status
-      const calculateCashlessStatus = (datetime?: string): 'ok' | 'warning' | 'error' => {
+      const calculateCashlessStatus = (datetime?: string | null): 'ok' | 'warning' | 'error' => {
         if (!datetime) return 'error';
         try {
           const lastDate = new Date(datetime);
@@ -128,8 +144,8 @@ export default function Automaten() {
       };
 
       // Helper function to calculate alcohol verification status
-      const calculateAlcoholStatus = (alcoholSales?: any): 'ok' | 'warning' | 'error' => {
-        if (!alcoholSales) return 'ok';
+      const calculateAlcoholStatus = (alcoholSales?: { today: number, monthAvg: number }): 'ok' | 'warning' | 'error' => {
+        if (!alcoholSales || alcoholSales.monthAvg === 0) return 'ok';
         
         const { today, monthAvg } = alcoholSales;
         if (today <= monthAvg * 1.2 && today >= monthAvg * 0.8) {
@@ -156,17 +172,20 @@ export default function Automaten() {
           };
         }
 
-        // Process sale data
-        const lastSale = processSaleData(stats.lastSale);
-        const lastCashlessSale = processSaleData(stats.lastCashlessSale);
+        // Process sale data using persistent schema field names
+        const lastSale = processSaleData(stats.lastSaleDatetime);
+        const lastCashlessSale = processSaleData(stats.lastCashlessSaleDatetime);
 
         return {
           ...machine,
           todayTransactions: stats.todayTransactions || 0,
           todayRevenue: stats.todayRevenue || 0,
           lastSale,
-          cashlessStatus: calculateCashlessStatus(lastCashlessSale),
-          ageVerificationStatus: calculateAlcoholStatus(stats.alcoholSales)
+          cashlessStatus: calculateCashlessStatus(lastCashlessSale) || stats.cashlessStatus || 'unknown',
+          ageVerificationStatus: calculateAlcoholStatus({
+            today: stats.alcoholTransactions || 0,
+            monthAvg: stats.monthlyAvgTransactions || 0
+          })
         };
       });
 

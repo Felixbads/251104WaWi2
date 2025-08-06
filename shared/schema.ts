@@ -919,6 +919,68 @@ export const insertMachineStockSchema = createInsertSchema(machineStocks).omit({
 export type InsertMachineStock = z.infer<typeof insertMachineStockSchema>;
 export type MachineStock = typeof machineStocks.$inferSelect;
 
+// Machine Daily Stats table - Persistent daily KPIs for efficient display
+export const machineDailyStats = pgTable("machine_daily_stats", {
+  id: serial("id").primaryKey(),
+  machineId: integer("machine_id").references(() => machines.id).notNull(),
+  date: date("date").notNull(), // YYYY-MM-DD
+  
+  // Daily transaction metrics
+  todayTransactions: integer("today_transactions").default(0),
+  todayRevenue: real("today_revenue").default(0),
+  todayProfit: real("today_profit").default(0),
+  
+  // Last sale information
+  lastSaleDatetime: timestamp("last_sale_datetime"),
+  lastSaleProductName: text("last_sale_product_name"),
+  lastSaleAmount: real("last_sale_amount"),
+  
+  // Cashless payment tracking
+  lastCashlessSaleDatetime: timestamp("last_cashless_sale_datetime"),
+  lastCashlessSaleProductName: text("last_cashless_sale_product_name"),
+  lastCashlessSaleAmount: real("last_cashless_sale_amount"),
+  cashlessTransactions: integer("cashless_transactions").default(0),
+  cashlessRevenue: real("cashless_revenue").default(0),
+  
+  // Alcohol sales tracking
+  alcoholTransactions: integer("alcohol_transactions").default(0),
+  alcoholRevenue: real("alcohol_revenue").default(0),
+  lastAlcoholSaleDatetime: timestamp("last_alcohol_sale_datetime"),
+  lastAlcoholSaleProductName: text("last_alcohol_sale_product_name"),
+  
+  // Weekly and monthly averages for comparison
+  weeklyAvgTransactions: real("weekly_avg_transactions").default(0),
+  weeklyAvgRevenue: real("weekly_avg_revenue").default(0),
+  monthlyAvgTransactions: real("monthly_avg_transactions").default(0),
+  monthlyAvgRevenue: real("monthly_avg_revenue").default(0),
+  
+  // Machine status indicators
+  cashlessStatus: text("cashless_status").default("unknown"), // ok, warning, error
+  alcoholStatus: text("alcohol_status").default("unknown"),   // ok, warning, error
+  
+  // Calculation metadata
+  calculatedAt: timestamp("calculated_at").defaultNow(),
+  calculationSource: text("calculation_source").default("batch"), // batch, realtime, manual
+  
+  // Tracking
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => {
+  return {
+    // Unique constraint per machine per day
+    uniqueMachineDate: unique().on(table.machineId, table.date),
+  };
+});
+
+export const insertMachineDailyStatsSchema = createInsertSchema(machineDailyStats).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertMachineDailyStats = z.infer<typeof insertMachineDailyStatsSchema>;
+export type MachineDailyStats = typeof machineDailyStats.$inferSelect;
+
 // Note: The sync_logs table is already defined at the top of the file
 
 // Define relations

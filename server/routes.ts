@@ -1026,11 +1026,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Wir verwenden stattdessen einen normalen Polling-Ansatz für Updates
   // WebSocket wurde deaktiviert, um Verbindungsprobleme zu vermeiden
 
-  // GET /machines/:id/daily-stats - Tägliche KPIs für einen Automaten abrufen
+  // GET /machines/daily-stats - Bulk daily stats for multiple machines (efficient for tile view)
+  app.get(`${API_PREFIX}/machines/daily-stats`, async (req: Request, res: Response) => {
+    try {
+      const machineIdsParam = req.query.machineIds as string;
+      const date = req.query.date as string;
+      
+      if (!machineIdsParam) {
+        return res.status(400).json({ error: "machineIds query parameter is required" });
+      }
+      
+      const machineIds = machineIdsParam.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
+      
+      if (machineIds.length === 0) {
+        return res.status(400).json({ error: "Valid machine IDs are required" });
+      }
+      
+      console.log(`[BULK-DAILY-STATS] Fetching stats for ${machineIds.length} machines for date: ${date || 'today'}`);
+      
+      const stats = await storage.getBulkMachineDailyStats(machineIds, date);
+      
+      console.log(`[BULK-DAILY-STATS] Successfully fetched stats for ${stats.length} machines`);
+      res.json(stats);
+    } catch (error) {
+      console.error("[BULK-DAILY-STATS] Error:", error);
+      res.status(500).json({ 
+        error: "Failed to fetch bulk machine daily stats", 
+        details: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
+
+  // GET /machines/:id/daily-stats - Daily KPIs for a single machine (now using persistent data)
   app.get(`${API_PREFIX}/machines/:id/daily-stats`, async (req: Request, res: Response) => {
     try {
       const inputId = req.params.id;
-      console.log(`[MACHINE-DAILY-STATS] Fetching daily stats for input ID: ${inputId}`);
+      const date = req.query.date as string;
+      console.log(`[MACHINE-DAILY-STATS] Fetching daily stats for input ID: ${inputId}, date: ${date || 'today'}`);
       
       // Use centralized ID resolution
       const resolved = await resolveMachineId(inputId);
@@ -1041,38 +1073,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { machineId } = resolved;
       console.log(`[MACHINE-DAILY-STATS] Resolved to internal machine ID: ${machineId}`);
       
-      // Jetzt mit der korrekten internen ID die Statistiken abrufen
       try {
-        const stats = await storage.getMachineDailyStats(machineId);
-        console.log(`[MACHINE-DAILY-STATS] Successfully fetched stats for machine ${machineId} (Input: ${inputId})`);
+        const stats = await storage.getMachineDailyStats(machineId, date);
+        console.log(`[MACHINE-DAILY-STATS] Successfully fetched persistent stats for machine ${machineId} (Input: ${inputId})`);
         
-        // Füge spezifisches Debug-Log für lastSale hinzu
-        if (stats.lastSale) {
-          console.log(`[MACHINE-DAILY-STATS] lastSale for machine ${machineId} found:`, 
-            typeof stats.lastSale === 'object' ? 
-              (stats.lastSale.datetime ? new Date(stats.lastSale.datetime).toISOString() : "No datetime field") : 
-              "Not an object");
-        } else {
-          console.log(`[MACHINE-DAILY-STATS] No lastSale found for machine ${machineId}!`);
+        if (!stats) {
+          return res.status(404).json({ error: `No stats found for machine ${machineId}` });
         }
         
         res.json(stats);
       } catch (storageError) {
-        // Detaillierter Fehler-Log der Storage-Methode
         console.error(`[MACHINE-DAILY-STATS] Storage error for machine ${machineId}:`, storageError);
-        console.error(`Stack Trace:`, storageError instanceof Error ? storageError.stack : 'No stack trace available');
-        
-        // Fallback für Fehlerfall: Leere Statistik-Struktur
-        res.json({
-          todayTransactions: 0,
-          todayRevenue: 0,
-          lastSale: null,
-          lastCashlessSale: null,
-          alcoholSales: {
-            today: 0, 
-            weekAvg: 0,
-            monthAvg: 0
-          }
+        res.status(500).json({ 
+          error: "Failed to fetch machine daily stats", 
+          details: storageError instanceof Error ? storageError.message : String(storageError) 
         });
       }
     } catch (error) {
