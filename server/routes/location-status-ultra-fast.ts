@@ -20,10 +20,10 @@ function getDaysAgo(date: Date | string | null): number {
   return Math.floor((today.getTime() - targetDate.getTime()) / (1000 * 60 * 60 * 24));
 }
 
-// Ultra-fast Location Status API with heavily optimized performance
+// Ultra-fast Location Status API - GROUPED BY LOCATION
 router.get('/', async (req: Request, res: Response) => {
   try {
-    console.log('🚀 ULTRA-FAST LOCATION-STATUS WITH PERFORMANCE OPTIMIZATION! 🚀');
+    console.log('🚀 LOCATION-STATUS GROUPED BY LOCATION! 🚀');
     
     // Check cache first
     const now = Date.now();
@@ -32,53 +32,54 @@ router.get('/', async (req: Request, res: Response) => {
       return res.json(locationStatusCache);
     }
     
-    // Optimized query using machine_daily_stats for better performance
+    // Query to get data grouped by LOCATION (extracted from machine_name)
     const result = await db.execute(`
       WITH active_machines AS (
-        -- Get only REAL machines with actual transactions (not test data)
+        -- Get only REAL machines with actual transactions
         SELECT DISTINCT
           m.id as machine_id,
           m.machine_name,
-          m.location_name,
+          -- Extract location from machine name (everything before the comma or the full name if no comma)
+          CASE 
+            WHEN POSITION(',' IN m.machine_name) > 0 
+            THEN TRIM(SUBSTRING(m.machine_name FROM 1 FOR POSITION(',' IN m.machine_name) - 1))
+            ELSE m.machine_name
+          END as location,
           m.vendon_id
         FROM machines m
-        INNER JOIN transactions t ON m.id = t.machine_id  -- Only machines with transactions
-        WHERE m.id >= 235329  -- Only real Vendon machines with actual IDs
+        INNER JOIN transactions t ON m.id = t.machine_id
+        WHERE m.id >= 235329
           AND m.machine_name IS NOT NULL
-          AND m.machine_name NOT LIKE '%*%'  -- Exclude test machines
-          AND m.machine_name NOT LIKE '%Test%'  -- Exclude test machines
-          AND t.datetime >= CURRENT_DATE - INTERVAL '30 days'  -- Must have recent activity
+          AND m.machine_name NOT LIKE '%*%'
+          AND m.machine_name NOT LIKE '%Test%'
+          AND t.datetime >= CURRENT_DATE - INTERVAL '30 days'
       ),
-      machine_stats AS (
+      location_aggregated AS (
         SELECT 
-          am.machine_id,
-          am.machine_name,
-          am.location_name,
+          am.location,
+          COUNT(DISTINCT am.machine_id) as machine_count,
+          STRING_AGG(DISTINCT am.machine_name, ', ' ORDER BY am.machine_name) as machine_names,
           
-          -- Use pre-calculated daily stats
-          COALESCE(mds.last_sale_datetime, t_stats.last_sale) as last_sale,
-          COALESCE(mds.today_revenue, t_stats.today_revenue, 0) as today_revenue,
-          COALESCE(mds.last_cashless_sale_datetime, t_stats.last_cashless_sale) as last_cashless_sale,
+          -- Aggregate sales data
+          MAX(t.last_sale) as last_sale,
+          SUM(t.today_revenue) as today_revenue,
+          MAX(t.last_cashless_sale) as last_cashless_sale,
           
-          -- Refill stats
-          r_stats.last_refill,
-          r_stats.last_operator,
+          -- Latest refill across all machines at location
+          MAX(r.last_refill) as last_refill,
+          (array_agg(r.last_operator ORDER BY r.last_refill DESC NULLS LAST))[1] as last_operator,
           
-          -- Event stats
-          e_stats.last_door_open,
+          -- Latest door opening across all machines
+          MAX(e.last_door_open) as last_door_open,
           
-          -- MHD stats
-          COALESCE(mhd_stats.expired_count, 0) as expired_count,
-          COALESCE(mhd_stats.warning_count, 0) as warning_count,
-          mhd_stats.earliest_expiry
+          -- Total MHD stats for location
+          SUM(mhd.expired_count) as expired_count,
+          SUM(mhd.warning_count) as warning_count,
+          MIN(mhd.earliest_expiry) as earliest_expiry
           
         FROM active_machines am
         
-        -- Use machine_daily_stats for today's data
-        LEFT JOIN machine_daily_stats mds ON am.machine_id = mds.machine_id 
-          AND mds.date = CURRENT_DATE
-        
-        -- Fallback to transaction aggregation if daily stats not available
+        -- Transaction stats per machine
         LEFT JOIN (
           SELECT 
             machine_id,
@@ -88,9 +89,9 @@ router.get('/', async (req: Request, res: Response) => {
           FROM transactions
           WHERE datetime >= CURRENT_DATE - INTERVAL '7 days'
           GROUP BY machine_id
-        ) t_stats ON am.machine_id = t_stats.machine_id
+        ) t ON am.machine_id = t.machine_id
         
-        -- Refill stats
+        -- Refill stats per machine
         LEFT JOIN (
           SELECT 
             machine_id,
@@ -99,9 +100,9 @@ router.get('/', async (req: Request, res: Response) => {
           FROM refills
           WHERE datetime >= CURRENT_DATE - INTERVAL '30 days'
           GROUP BY machine_id
-        ) r_stats ON am.machine_id = r_stats.machine_id
+        ) r ON am.machine_id = r.machine_id
         
-        -- Event stats - check for door openings  
+        -- Event stats per machine
         LEFT JOIN (
           SELECT 
             machine_id,
@@ -113,9 +114,9 @@ router.get('/', async (req: Request, res: Response) => {
             OR event_name LIKE '%Tür%')
             AND datetime >= CURRENT_DATE - INTERVAL '30 days'
           GROUP BY machine_id
-        ) e_stats ON am.machine_id = e_stats.machine_id
+        ) e ON am.machine_id = e.machine_id
         
-        -- MHD stats
+        -- MHD stats per machine
         LEFT JOIN (
           SELECT 
             machine_id,
@@ -126,12 +127,15 @@ router.get('/', async (req: Request, res: Response) => {
           WHERE expiry_date IS NOT NULL
             AND quantity > 0
           GROUP BY machine_id
-        ) mhd_stats ON am.machine_id = mhd_stats.machine_id
+        ) mhd ON am.machine_id = mhd.machine_id
+        
+        GROUP BY am.location
       )
       SELECT 
-        machine_id as id,
-        machine_name,
-        location_name,
+        ROW_NUMBER() OVER (ORDER BY today_revenue DESC, location) as id,
+        location as machine_name,  -- Using location as machine_name for compatibility
+        machine_count,
+        machine_names,
         last_sale,
         today_revenue,
         last_cashless_sale,
@@ -141,21 +145,20 @@ router.get('/', async (req: Request, res: Response) => {
         expired_count,
         warning_count,
         earliest_expiry
-      FROM machine_stats
-      WHERE machine_name IS NOT NULL
+      FROM location_aggregated
       ORDER BY 
-        CASE WHEN today_revenue > 0 THEN 0 ELSE 1 END,  -- Active machines first
+        CASE WHEN today_revenue > 0 THEN 0 ELSE 1 END,
         today_revenue DESC,
-        machine_name
-      LIMIT 200  -- Limit to 200 most relevant machines for performance
+        location
     `);
 
 
 
-    // Process results without additional database queries - optimized for speed
+    // Process results for LOCATION-based tiles
     const machineStatusData = result.rows.map((row: any) => {
       const expiredCount = Number(row.expired_count || 0);
       const warningCount = Number(row.warning_count || 0);
+      const machineCount = Number(row.machine_count || 1);
       
       let mhdStatus = {
         expiredCount,
@@ -175,11 +178,17 @@ router.get('/', async (req: Request, res: Response) => {
         status = 'warning';
         warnings.push(`${warningCount} Produkte laufen bald ab`);
       }
+      
+      // Add machine count to location name for clarity
+      const locationDisplay = machineCount > 1 
+        ? `${row.machine_name} (${machineCount} Automaten)`
+        : row.machine_name;
 
       return {
         id: row.id,
-        machineName: row.machine_name,
-        location: row.location_name,
+        machineName: locationDisplay,  // Show location with machine count
+        location: row.machine_names,   // List of all machine names at this location
+        machineCount,                  // Number of machines at location
         lastRefill: row.last_refill ? {
           datetime: new Date(row.last_refill).toISOString(),
           operator: row.last_operator || 'Unbekannt',
@@ -198,9 +207,9 @@ router.get('/', async (req: Request, res: Response) => {
           datetime: new Date(row.last_door_open).toISOString(),
           daysAgo: getDaysAgo(row.last_door_open)
         } : null,
-        lastAlcoholSale: null, // Removed alcohol data for performance
+        lastAlcoholSale: null,
         todayRevenue: Number(row.today_revenue || 0),
-        recentTransactions: [], // Removed recent transactions for performance
+        recentTransactions: [],
         status: status as 'ok' | 'warning' | 'error',
         warnings,
         mhdStatus
