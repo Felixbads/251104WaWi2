@@ -1,0 +1,61 @@
+{
+  "task": "Replit User Authentication Integration",
+  "description": "Integriere Replit's native Benutzer-Authentifizierung in die bestehende Warenwirtschafts-Anwendung als Alternative zum aktuellen Demo-Modus",
+  "requirements": [
+    "Ersetze den Demo-Authentifizierungsmodus durch echte Replit User Authentication",
+    "Nutze Replit's X-Replit-User-Id, X-Replit-User-Name und X-Replit-User-Roles Headers",
+    "Implementiere automatische Benutzerregistrierung beim ersten Login",
+    "Behalte das bestehende Rollen-System (admin, employee) bei",
+    "Stelle sicher, dass nur autorisierte Replit-Nutzer Zugang haben",
+    "Verwende Private Deployments für zusätzliche Sicherheit"
+  ],
+  "implementation_steps": [
+    {
+      "step": 1,
+      "action": "Server-seitige Repl Auth Middleware erstellen",
+      "details": "Neue Middleware in server/auth/repl-auth-middleware.ts die Replit Headers extrahiert und validiert"
+    },
+    {
+      "step": 2,
+      "action": "Client-seitige Auth Context erweitern",
+      "details": "client/src/lib/auth.tsx um Replit Authentication erweitern, Demo-Modus entfernen"
+    },
+    {
+      "step": 3,
+      "action": "Automatische Benutzerregistrierung",
+      "details": "Service für automatische Anlage neuer Benutzer basierend auf Replit User Info"
+    },
+    {
+      "step": 4,
+      "action": "Rollen-Mapping System",
+      "details": "Konfiguration welche Replit-Nutzer Admin-Rechte erhalten (z.B. über Environment Variables)"
+    },
+    {
+      "step": 5,
+      "action": "Login-Komponente anpassen",
+      "details": "Login-Seite zeigt Repl Auth Script und entfernt manuelle Anmeldung"
+    }
+  ],
+  "files_to_modify": [
+    "server/auth/repl-auth-middleware.ts",
+    "client/src/lib/auth.tsx", 
+    "client/src/pages/Login.tsx",
+    "server/routes/auth.ts",
+    "server/index.ts"
+  ],
+  "environment_variables": [
+    "REPL_AUTH_ADMINS=username1,username2,username3",
+    "REPL_AUTH_ENABLED=true"
+  ],
+  "security_considerations": [
+    "Validiere alle Replit Headers server-seitig",
+    "Implementiere Rate Limiting für neue Registrierungen", 
+    "Logs für Authentifizierungs-Versuche",
+    "Graceful Fallback falls Replit Headers fehlen"
+  ],
+  "deployment_settings": [
+    "Aktiviere Private Deployments in Replit",
+    "Konfiguriere Team-Zugang für autorisierte Nutzer",
+    "Teste Authentication im Deployment-Modus"
+  ]
+}
