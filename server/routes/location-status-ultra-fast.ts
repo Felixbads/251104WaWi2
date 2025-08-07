@@ -25,9 +25,12 @@ router.get('/', async (req: Request, res: Response) => {
   try {
     console.log('🚀 LOCATION-STATUS GROUPED BY LOCATION! 🚀');
     
-    // Cache temporarily disabled for debugging
+    // Cache disabled and clear any residual cache
     locationStatusCache = null;
     cacheTimestamp = 0;
+    
+    // Force refresh parameter
+    const forceRefresh = req.query.refresh === '1' || req.query.force === '1';
     
     // Query to get data grouped by LOCATION (extracted directly from transactions)
     const result = await db.execute(`
@@ -61,7 +64,7 @@ router.get('/', async (req: Request, res: Response) => {
           MAX(tbl.datetime) as last_sale,
           COALESCE(SUM(CASE WHEN tbl.datetime >= CURRENT_DATE THEN tbl.price ELSE 0 END), 0) as today_revenue,
           COUNT(CASE WHEN tbl.datetime >= CURRENT_DATE THEN 1 END) as today_transactions,
-          MAX(CASE WHEN tbl.payment_method IN ('CASHLESS', 'CARD') THEN tbl.datetime END) as last_cashless_sale,
+          MAX(CASE WHEN UPPER(TRIM(tbl.payment_method)) IN ('CASHLESS', 'CARD') THEN tbl.datetime END) as last_cashless_sale,
           MAX(CASE WHEN EXISTS(SELECT 1 FROM products p WHERE LOWER(TRIM(tbl.product_name)) = LOWER(TRIM(p.product_name)) AND p."isAlcoholic" = true) THEN tbl.datetime END) as last_alcohol_sale,
           
           -- Latest refill across all machines at location
@@ -78,30 +81,32 @@ router.get('/', async (req: Request, res: Response) => {
           
         FROM transactions_by_location tbl
         
-        -- Refill stats per machine
+        -- Refill stats per machine (JOIN by machine name, aggregate all machines with same name)
         LEFT JOIN (
           SELECT 
-            machine_id,
-            MAX(datetime) as last_refill,
-            (array_agg(operator ORDER BY datetime DESC))[1] as last_operator
-          FROM refills
-          WHERE datetime >= CURRENT_DATE - INTERVAL '30 days'
-          GROUP BY machine_id
-        ) r ON tbl.machine_id = r.machine_id
+            COALESCE(m.machine_name, r.machine_id::text) as machine_name,
+            MAX(r.datetime) as last_refill,
+            (array_agg(r.operator ORDER BY r.datetime DESC))[1] as last_operator
+          FROM refills r
+          LEFT JOIN machines m ON r.machine_id = m.id
+          WHERE r.datetime >= CURRENT_DATE - INTERVAL '90 days'
+          GROUP BY COALESCE(m.machine_name, r.machine_id::text)
+        ) r ON tbl.machine_name = r.machine_name
         
-        -- Event stats per machine
+        -- Event stats per machine (JOIN by machine name, aggregate all machines with same name)
         LEFT JOIN (
           SELECT 
-            machine_id,
-            MAX(datetime) as last_door_open
-          FROM events
-          WHERE (event_name = 'Automatentüre offen' 
-            OR event_name LIKE '%door%' 
-            OR event_name LIKE '%Door%'
-            OR event_name LIKE '%Tür%')
-            AND datetime >= CURRENT_DATE - INTERVAL '30 days'
-          GROUP BY machine_id
-        ) e ON tbl.machine_id = e.machine_id
+            COALESCE(m.machine_name, e.machine_id::text) as machine_name,
+            MAX(e.datetime) as last_door_open
+          FROM events e
+          LEFT JOIN machines m ON e.machine_id = m.id
+          WHERE (e.event_name = 'Automatentüre offen' 
+            OR e.event_name LIKE '%door%' 
+            OR e.event_name LIKE '%Door%'
+            OR e.event_name LIKE '%Tür%')
+            AND e.datetime >= CURRENT_DATE - INTERVAL '90 days'
+          GROUP BY COALESCE(m.machine_name, e.machine_id::text)
+        ) e ON tbl.machine_name = e.machine_name
         
         -- MHD stats per machine
         LEFT JOIN (
