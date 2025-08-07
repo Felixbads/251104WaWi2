@@ -2,6 +2,7 @@ import express, { Request, Response } from 'express';
 import { db } from '../db';
 import { eq, and, gte, desc, asc, lt, isNull, min, sql } from 'drizzle-orm';
 import { productBatches, products, warehouses } from '@shared/schema';
+import { pool } from '../db';
 
 const router = express.Router();
 
@@ -11,60 +12,66 @@ router.get('/', async (req: Request, res: Response) => {
     const productId = req.query.productId ? parseInt(req.query.productId as string) : undefined;
     const warehouseId = req.query.warehouseId ? parseInt(req.query.warehouseId as string) : undefined;
     const expiringSoon = req.query.expiringSoon === 'true';
-    const currentDate = new Date();
     
-    // Setzt das Ablaufdatum für "bald ablaufend" auf 14 Tage in der Zukunft
-    const expiryThreshold = new Date();
-    expiryThreshold.setDate(expiryThreshold.getDate() + 14);
+    console.log(`[PRODUCT-BATCHES] Fetching batches for productId: ${productId}, warehouseId: ${warehouseId}, expiringSoon: ${expiringSoon}`);
     
-    let query = db.select()
-      .from(productBatches)
-      .leftJoin(products, eq(productBatches.productId, products.id))
-      .leftJoin(warehouses, eq(productBatches.warehouseId, warehouses.id));
+    // Build SQL query with filters
+    let sqlQuery = `
+      SELECT 
+        pb.*,
+        p.product_name,
+        w.name as warehouse_name
+      FROM product_batches pb
+      LEFT JOIN products p ON pb.product_id = p.id
+      LEFT JOIN warehouses w ON pb.warehouse_id = w.id
+      WHERE 1=1
+    `;
     
-    // Filter anwenden
+    const queryParams: any[] = [];
+    let paramIndex = 1;
+    
     if (productId) {
-      query = query.where(eq(productBatches.productId, productId));
+      sqlQuery += ` AND pb.product_id = $${paramIndex}`;
+      queryParams.push(productId);
+      paramIndex++;
     }
     
     if (warehouseId) {
-      query = query.where(eq(productBatches.warehouseId, warehouseId));
+      sqlQuery += ` AND pb.warehouse_id = $${paramIndex}`;
+      queryParams.push(warehouseId);
+      paramIndex++;
     }
     
     if (expiringSoon) {
-      query = query.where(
-        and(
-          // Nur Batches mit einem Ablaufdatum
-          lt(productBatches.expiryDate, expiryThreshold),
-          gte(productBatches.expiryDate, currentDate),
-          // Nur Batches mit einer Menge > 0
-          gte(productBatches.currentQuantity, 1)
-        )
-      );
+      const expiryThreshold = new Date();
+      expiryThreshold.setDate(expiryThreshold.getDate() + 14);
+      sqlQuery += ` AND pb.expiry_date BETWEEN CURRENT_DATE AND $${paramIndex}`;
+      queryParams.push(expiryThreshold.toISOString().split('T')[0]);
+      paramIndex++;
+      sqlQuery += ` AND pb.current_quantity > 0`;
     }
     
-    // Nach Ablaufdatum sortieren (aufsteigend = zuerst ablaufende)
-    query = query.orderBy(asc(productBatches.expiryDate));
+    sqlQuery += ` ORDER BY pb.expiry_date ASC`;
     
-    const batches = await query;
+    const result = await pool.query(sqlQuery, queryParams);
     
-    // Formatiere das Ergebnis
-    const formattedBatches = batches.map((row) => ({
-      id: row.product_batches.id,
-      batchNumber: row.product_batches.batchNumber,
-      productId: row.product_batches.productId,
-      warehouseId: row.product_batches.warehouseId,
-      initialQuantity: row.product_batches.initialQuantity,
-      currentQuantity: row.product_batches.currentQuantity,
-      expiryDate: row.product_batches.expiryDate,
-      manufacturingDate: row.product_batches.manufacturingDate,
-      notes: row.product_batches.notes,
-      locationInWarehouse: row.product_batches.locationInWarehouse,
-      status: row.product_batches.status,
-      createdAt: row.product_batches.createdAt,
-      updatedAt: row.product_batches.updatedAt,
-      productName: row.products?.productName || null,
-      warehouseName: row.warehouses?.name || null
+    // Format the result  
+    const formattedBatches = result.rows.map((row: any) => ({
+      id: row.id,
+      batchNumber: row.batch_number,
+      productId: row.product_id,
+      warehouseId: row.warehouse_id,
+      initialQuantity: row.initial_quantity,
+      currentQuantity: row.current_quantity,
+      expiryDate: row.expiry_date,
+      manufacturingDate: row.manufacturing_date,
+      notes: row.notes,
+      locationInWarehouse: row.location_in_warehouse,
+      status: row.status,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+      productName: row.product_name || null,
+      warehouseName: row.warehouse_name || null
     }));
     
     res.json(formattedBatches);
@@ -107,10 +114,10 @@ router.get('/next-expiring', async (req: Request, res: Response) => {
       ORDER BY expiry_date ASC NULLS LAST;
     `;
     
-    const nextExpiringBatches = await db.execute(query);
+    const nextExpiringBatches = await pool.query(query);
     
     // Formatiere das Ergebnis
-    const formattedBatches = nextExpiringBatches.map((row: any) => ({
+    const formattedBatches = nextExpiringBatches.rows.map((row: any) => ({
       id: row.id,
       batchNumber: row.batch_number,
       productId: row.product_id,
@@ -559,7 +566,7 @@ router.get('/warehouse/:warehouseId', async (req: Request, res: Response) => {
         totalQuantity: group.totalQuantity,
         batchCount: group.batches.length,
         productIdCount: group.productIds.size,
-        batches: group.batches.sort((a, b) => 
+        batches: group.batches.sort((a: any, b: any) => 
           new Date(a.expiryDate || '9999-12-31').getTime() - 
           new Date(b.expiryDate || '9999-12-31').getTime()
         )

@@ -19,8 +19,14 @@ export default function ProductInventoryViewSimple({ productId, productName }: P
     queryKey: [`/api/products/${productId}/inventory`],
     queryFn: async () => {
       console.log(`[INVENTORY] Fetching inventory for product ${productId}`);
+      const token = localStorage.getItem('authToken');
+      if (!token) {
+        console.warn('[INVENTORY] No auth token available');
+        return { machineStocks: [], warehouseStocks: [] };
+      }
+      
       const response = await fetch(`/api/products/${productId}/inventory`, {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('authToken') || 'test'}` }
+        headers: { 'Authorization': `Bearer ${token}` }
       });
       
       if (!response.ok) {
@@ -43,14 +49,48 @@ export default function ProductInventoryViewSimple({ productId, productName }: P
     }
   });
 
-  // Fetch refill history
+  // Fetch refill history (fixed query key mismatch and auth token issue)
   const { data: refillData, isLoading: refillLoading, refetch: refetchRefills } = useQuery({
-    queryKey: [`/api/products/${productId}/refills`],
+    queryKey: [`/api/products/${productId}/refill-history`],
     queryFn: async () => {
+      const token = localStorage.getItem('authToken');
+      if (!token) {
+        console.warn('[REFILL-HISTORY] No auth token available');
+        return [];
+      }
+      
       const response = await fetch(`/api/products/${productId}/refill-history`, {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('authToken') || 'test'}` }
+        headers: { 'Authorization': `Bearer ${token}` }
       });
-      if (!response.ok) return [];
+      
+      if (!response.ok) {
+        console.error(`[REFILL-HISTORY] API error: ${response.status} ${response.statusText}`);
+        return [];
+      }
+      
+      return response.json();
+    }
+  });
+
+  // Fetch product batches for MHD information
+  const { data: batchData, isLoading: batchLoading, refetch: refetchBatches } = useQuery({
+    queryKey: [`/api/product-batches`, productId],
+    queryFn: async () => {
+      const token = localStorage.getItem('authToken');
+      if (!token) {
+        console.warn('[PRODUCT-BATCHES] No auth token available');
+        return [];
+      }
+      
+      const response = await fetch(`/api/product-batches?productId=${productId}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (!response.ok) {
+        console.error(`[PRODUCT-BATCHES] API error: ${response.status} ${response.statusText}`);
+        return [];
+      }
+      
       return response.json();
     }
   });
@@ -59,12 +99,30 @@ export default function ProductInventoryViewSimple({ productId, productName }: P
     console.log('[INVENTORY] Manual refresh triggered');
     refetchInventory();
     refetchRefills();
+    refetchBatches();
   };
 
-  // Extract data for easier access
-  const warehouseData = inventoryData?.warehouseStocks || [];
+  // Extract data for easier access and merge batch data with warehouse stocks
+  const warehouseData = (inventoryData?.warehouseStocks || []).map((warehouse: any) => {
+    // Find batches for this warehouse
+    const warehouseBatches = (batchData || []).filter((batch: any) => 
+      batch.warehouseId === warehouse.warehouse_id
+    );
+    
+    return {
+      ...warehouse,
+      batches: warehouseBatches.map((batch: any) => ({
+        batch_number: batch.batchNumber,
+        quantity: batch.currentQuantity,
+        expiry_date: batch.expiryDate,
+        location_in_warehouse: batch.locationInWarehouse,
+        status: batch.status || 'active'
+      }))
+    };
+  });
+  
   const machineData = inventoryData?.machineStocks || [];
-  const warehouseLoading = inventoryLoading;
+  const warehouseLoading = inventoryLoading || batchLoading;
   const machineLoading = inventoryLoading;
 
   return (

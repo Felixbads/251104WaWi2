@@ -499,52 +499,7 @@ router.delete('/:productId/purchase-conditions/:conditionId', async (req, res) =
   }
 });
 
-// GET /api/products/:id/refill-history - Nachfüllhistorie für Produkt
-router.get('/:id/refill-history', async (req, res) => {
-  try {
-    const { id } = req.params;
-    console.log('[PRODUCTS] Loading refill history for product ID:', id);
-    
-    // Echte Refill-Daten aus der Datenbank holen
-    const result = await pool.query(`
-      SELECT 
-        r.id,
-        r.datetime,
-        r.operator,
-        r.notes,
-        m.machine_name,
-        m.location_name,
-        r.created_at as refill_date
-      FROM refills r
-      LEFT JOIN machines m ON r.machine_id = m.id
-      WHERE r.id IS NOT NULL
-      ORDER BY r.datetime DESC
-      LIMIT 50
-    `);
-
-    console.log('[PRODUCTS] Found refill records:', result.rows.length);
-    
-    // Format the data for frontend
-    const formattedRefills = result.rows.map(row => ({
-      id: row.id,
-      quantity: 'N/A', // Quantity not in current refills table
-      refill_date: row.datetime || row.refill_date,
-      batch_id: null,
-      notes: row.notes,
-      machine_name: row.machine_name,
-      location_name: row.location_name,
-      operator: row.operator
-    }));
-
-    res.json(formattedRefills);
-  } catch (error) {
-    console.error('[PRODUCTS] Error loading refill history:', error);
-    res.status(500).json({ 
-      error: 'Serverfehler beim Laden der Nachfüllhistorie',
-      details: error instanceof Error ? error.message : 'Unknown error'
-    });
-  }
-});
+// Duplicate endpoint removed - using the one at line 270 with better product filtering
 
 // GET /api/products/:id/purchase-conditions - Einkaufsbedingungen für Produkt  
 router.get('/:id/purchase-conditions', async (req, res) => {

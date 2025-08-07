@@ -87,7 +87,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setIsAuthenticated(true);
           
           // Generate a token for consistency with existing code
-          const replitToken = Buffer.from(`replit:${user.username}:${Date.now()}`).toString('base64');
+          const replitToken = btoa(`replit:${user.username}:${Date.now()}`);
           setToken(replitToken);
           localStorage.setItem('auth_token', replitToken);
           
