@@ -49,6 +49,7 @@ const navigationSections = [
     items: [
       { href: '/sync', label: 'Synchronisation', icon: RefreshCw, roles: ['user', 'admin'] },
       { href: '/benutzer', label: 'Benutzer', icon: Users, roles: ['admin'] },
+      { href: '/admin/benutzer', label: 'Admin-Benutzer', icon: Shield, roles: ['admin'] },
       { href: '/seitenfreigabe', label: 'Seitenfreigabe', icon: Shield, roles: ['admin'] },
       { href: '/inter-app-verbindungen', label: 'App-Verbindungen', icon: Server, roles: ['admin'] },
       { href: '/settings', label: 'Einstellungen', icon: Settings, roles: ['user', 'admin'] },

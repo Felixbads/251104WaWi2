@@ -2,6 +2,7 @@ import express, { Request, Response, NextFunction } from 'express';
 import { storage } from '../storage';
 import { User } from '../../shared/schema';
 import bcrypt from 'bcryptjs';
+import { notifyAdminsOfNewUser, notifyUserOfApprovalStatus } from '../services/emailService';
 
 const router = express.Router();
 
@@ -37,11 +38,36 @@ const requireAdmin = async (req: AuthRequest, res: Response, next: NextFunction)
 router.get('/users', authenticate, requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const users = await storage.getUsers();
-    res.json(users);
+    res.json({
+      success: true,
+      users,
+      message: `${users.length} Benutzer gefunden`
+    });
   } catch (error) {
-    console.error('Error fetching users:', error);
+    console.error('❌ Fehler beim Abrufen der Benutzer:', error);
     res.status(500).json({
-      error: 'Failed to fetch users',
+      success: false,
+      error: 'Fehler beim Laden der Benutzer',
+      details: error instanceof Error ? error.message : String(error)
+    });
+  }
+});
+
+// Wartende Benutzer abrufen
+router.get('/users/pending', authenticate, requireAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const users = await storage.getUsers();
+    const pendingUsers = users.filter(user => !user.approved);
+    res.json({
+      success: true,
+      users: pendingUsers,
+      message: `${pendingUsers.length} wartende Benutzer gefunden`
+    });
+  } catch (error) {
+    console.error('❌ Fehler beim Abrufen wartender Benutzer:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Fehler beim Laden wartender Benutzer',
       details: error instanceof Error ? error.message : String(error)
     });
   }
@@ -74,10 +100,22 @@ router.post('/users', authenticate, requireAdmin, async (req: AuthRequest, res: 
       email: email || null,
       password: hashedPassword,
       role: role || 'user',
-      approved: true,
-      approvedBy: req.user?.id || null,
-      approvedAt: new Date(),
-    });
+    } as any);
+
+    // E-Mail-Benachrichtigung für neuen Benutzer (falls nicht sofort genehmigt)
+    if (!req.user?.id && email) {
+      try {
+        await notifyAdminsOfNewUser({
+          username,
+          email,
+          role: role || 'user',
+          createdAt: new Date()
+        });
+        console.log(`📧 Admin-Benachrichtigung für neuen Benutzer ${username} gesendet`);
+      } catch (emailError) {
+        console.error('⚠️ Fehler beim Senden der Admin-Benachrichtigung:', emailError);
+      }
+    }
 
     // Passwort aus der Antwort entfernen
     const { password: _, ...userResponse } = newUser;
@@ -147,7 +185,23 @@ router.post('/users/:id/approve', authenticate, requireAdmin, async (req: AuthRe
       approvedAt: new Date(),
     } as any);
     
-    res.json({ success: true, user: updatedUser });
+    // E-Mail-Benachrichtigung an den freigeschalteten Benutzer senden
+    if (updatedUser && updatedUser.email) {
+      try {
+        await notifyUserOfApprovalStatus(
+          updatedUser.email,
+          updatedUser.username,
+          true,
+          updatedUser.role || 'user'
+        );
+        console.log(`📧 Freigabe-Benachrichtigung für Benutzer ${updatedUser.username} gesendet`);
+      } catch (emailError) {
+        console.error('⚠️ Fehler beim Senden der Freigabe-Benachrichtigung:', emailError);
+        // E-Mail-Fehler sollte die Genehmigung nicht blockieren
+      }
+    }
+    
+    res.json({ success: true, user: updatedUser, message: `Benutzer ${updatedUser?.username} wurde erfolgreich freigegeben` });
   } catch (error) {
     console.error(`Error approving user ${req.params.id}:`, error);
     res.status(500).json({

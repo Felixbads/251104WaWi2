@@ -7,6 +7,7 @@ import { db } from './db';
 import { users, insertUserSchema } from '../shared/schema';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
+import { notifyAdminsOfNewUser, notifyUserOfApprovalStatus } from './services/emailService';
 
 // Token-Speicher (in Produktion sollte dies in der Datenbank oder in Redis gespeichert werden)
 // In dieser Version speichern wir das Token für längere Zeit (30 Tage)
@@ -49,12 +50,29 @@ export async function registerUser(userData: z.infer<typeof registerSchema>) {
     // Sensitiven Daten entfernen bevor Rückgabe
     if (newUser && newUser[0]) {
       const { password, ...userWithoutPassword } = newUser[0];
+      
+      // E-Mail-Benachrichtigung nur für nicht-Admin Benutzer
+      if (!isAdmin) {
+        try {
+          await notifyAdminsOfNewUser({
+            username: userDataToInsert.username,
+            email: userDataToInsert.email || undefined,
+            role: userDataToInsert.role,
+            createdAt: new Date()
+          });
+          console.log(`📧 Admin-Benachrichtigung für neuen Benutzer ${userDataToInsert.username} gesendet`);
+        } catch (emailError) {
+          console.error('⚠️ Fehler beim Senden der Admin-Benachrichtigung:', emailError);
+          // E-Mail-Fehler sollte die Registrierung nicht blockieren
+        }
+      }
+      
       return { 
         success: true, 
         user: userWithoutPassword,
         message: isAdmin 
           ? "Admin-Konto wurde erfolgreich erstellt." 
-          : "Dein Konto wurde erfolgreich erstellt. Bitte warte auf die Freigabe durch einen Administrator."
+          : "Dein Konto wurde erfolgreich erstellt. Du erhältst eine E-Mail, sobald ein Administrator deinen Account freigeschaltet hat."
       };
     }
     
@@ -109,6 +127,22 @@ export async function approveUser(userId: number, approvedById: number) {
     
     if (!updatedUser) {
       return { success: false, error: "Benutzer konnte nicht gefunden werden" };
+    }
+    
+    // E-Mail-Benachrichtigung an den freigeschalteten Benutzer senden
+    if (updatedUser.email) {
+      try {
+        await notifyUserOfApprovalStatus(
+          updatedUser.email,
+          updatedUser.username,
+          true,
+          updatedUser.role || 'user'
+        );
+        console.log(`📧 Freigabe-Benachrichtigung für Benutzer ${updatedUser.username} gesendet`);
+      } catch (emailError) {
+        console.error('⚠️ Fehler beim Senden der Freigabe-Benachrichtigung:', emailError);
+        // E-Mail-Fehler sollte die Genehmigung nicht blockieren
+      }
     }
     
     const { password, ...userWithoutPassword } = updatedUser;

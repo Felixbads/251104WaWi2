@@ -37,6 +37,7 @@ import Login from "@/pages/Login";
 import Register from "@/pages/Register";
 import NotApproved from "@/pages/NotApproved"; // Seite für nicht-freigegebene Benutzer
 import Unauthorized from "@/pages/Unauthorized"; // Seite für nicht-autorisierte Benutzer
+import AdminUsers from "@/pages/AdminUsers"; // Admin-Benutzerverwaltung
 import AppShell from "@/components/layout/AppShell";
 import Layout from "@/components/layout/Layout";
 import { AuthProvider, useAuth } from "@/lib";
@@ -684,6 +685,15 @@ function AuthenticatedRouter() {
           {() => (
             <AdminRoute>
               <UserManagement />
+            </AdminRoute>
+          )}
+        </Route>
+
+        {/* Admin-Benutzerverwaltung für Admins */}
+        <Route path="/admin/benutzer">
+          {() => (
+            <AdminRoute>
+              <AdminUsers />
             </AdminRoute>
           )}
         </Route>
