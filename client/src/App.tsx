@@ -156,7 +156,7 @@ function AuthenticatedRouter() {
         {/* Lieferanten-Portal Route entfernt - wird direkt im MainRouter gehandhabt */}
 
         {/* Geschützte Routen, die Freigabe erfordern */}
-        <Route path="/login">
+        <Route path="/dashboard">
           {() => (
             <ApprovedUserRoute>
               <Dashboard />
@@ -165,7 +165,7 @@ function AuthenticatedRouter() {
         </Route>
 
         <Route path="/">
-          <Redirect to="/login" />
+          <Redirect to="/dashboard" />
         </Route>
 
         <Route path="/transactions">
