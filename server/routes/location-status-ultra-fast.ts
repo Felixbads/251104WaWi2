@@ -197,14 +197,63 @@ router.get('/', async (req: Request, res: Response) => {
         } : null,
         todayRevenue: Number(row.today_revenue || 0),
         todayTransactions: Number(row.today_transactions || 0),
-        recentTransactions: [],
+        recentTransactions: [], // Will be populated in separate query
         status: status as 'ok' | 'warning' | 'error',
         warnings,
         mhdStatus
       };
     });
-    
 
+    // Get recent transactions for each location (last 3 per location)
+    const recentTransactionsQuery = await db.execute(`
+      WITH recent_by_location AS (
+        SELECT 
+          CASE 
+            WHEN POSITION(',' IN t.machine_name) > 0 
+            THEN TRIM(SUBSTRING(t.machine_name FROM 1 FOR POSITION(',' IN t.machine_name) - 1))
+            ELSE t.machine_name
+          END as location,
+          t.product_name,
+          t.datetime,
+          t.price,
+          ROW_NUMBER() OVER (
+            PARTITION BY CASE 
+              WHEN POSITION(',' IN t.machine_name) > 0 
+              THEN TRIM(SUBSTRING(t.machine_name FROM 1 FOR POSITION(',' IN t.machine_name) - 1))
+              ELSE t.machine_name
+            END 
+            ORDER BY t.datetime DESC
+          ) as rn
+        FROM transactions t
+        WHERE t.machine_name IS NOT NULL
+          AND t.machine_name NOT LIKE '%*%'
+          AND t.machine_name NOT LIKE '%Test%'
+          AND t.datetime >= CURRENT_DATE - INTERVAL '7 days'
+      )
+      SELECT location, product_name, datetime, price
+      FROM recent_by_location
+      WHERE rn <= 3
+      ORDER BY location, rn
+    `);
+
+    // Group recent transactions by location
+    const recentTransactionsByLocation: Record<string, any[]> = {};
+    for (const row of recentTransactionsQuery.rows) {
+      const location = String(row.location || '');
+      if (!recentTransactionsByLocation[location]) {
+        recentTransactionsByLocation[location] = [];
+      }
+      recentTransactionsByLocation[location].push({
+        productName: String(row.product_name || ''),
+        datetime: new Date(row.datetime as string).toISOString(),
+        price: Number(row.price || 0)
+      });
+    }
+
+    // Update each machine with its recent transactions
+    machineStatusData.forEach((machine: any) => {
+      machine.recentTransactions = recentTransactionsByLocation[machine.location] || [];
+    });
     
     // Update cache
     locationStatusCache = machineStatusData;
