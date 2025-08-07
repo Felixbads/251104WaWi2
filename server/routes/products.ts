@@ -122,45 +122,23 @@ router.get('/:id/inventory', async (req, res) => {
     const productId = parseInt(req.params.id);
     console.log(`[PRODUCT-INVENTORY] Getting real inventory for product ${productId}`);
     
-    // DIREKTE ECHTE VENDON-DATEN: Verkäufe aus Transaktionen
+    // Fetch actual machine stocks from database
     const machineStocksQuery = `
       SELECT 
         m.id as machine_id,
-        COALESCE(sales_data.total_sold, 0) as total_sold,
-        -- Echte Bestände basierend auf Verkäufen: Wenn User sagt "Pötzscha hat 3", dann ist das ECHT
-        CASE 
-          WHEN m.machine_name = 'Pötzscha' THEN 3
-          ELSE COALESCE(stock_data.stock_sum, 5)
-        END as current_stock,
-        20 as max_capacity,
         m.machine_name,
         m.location_name as location,
-        m.vendon_id
+        COALESCE(ms.quantity, 0) as current_stock,
+        COALESCE(ms.max_capacity, 50) as max_capacity,
+        ms.last_refill_date,
+        ms.updated_at
       FROM machines m
-      LEFT JOIN (
-        SELECT 
-          machine_id,
-          COUNT(*) as total_sold
-        FROM transactions 
-        WHERE product_name LIKE '%Oppacher%'
-        GROUP BY machine_id
-      ) sales_data ON m.id = sales_data.machine_id
-      LEFT JOIN (
-        SELECT 
-          machine_id,
-          SUM(quantity) as stock_sum
-        FROM machine_stocks
-        GROUP BY machine_id
-      ) stock_data ON m.id = stock_data.machine_id
-      WHERE m.id IN (
-        SELECT DISTINCT machine_id 
-        FROM transactions 
-        WHERE product_name LIKE '%Oppacher%'
-      )
-      ORDER BY COALESCE(sales_data.total_sold, 0) DESC
+      LEFT JOIN machine_stocks ms ON m.id = ms.machine_id AND ms.product_id = $1
+      WHERE m.is_active = true
+      ORDER BY m.machine_name
     `;
     
-    const machineStocksResult = await pool.query(machineStocksQuery);
+    const machineStocksResult = await pool.query(machineStocksQuery, [productId]);
     
     // Lagerdaten basierend auf Gesamtverkäufen berechnet
     const totalSales = await pool.query(`
@@ -169,15 +147,31 @@ router.get('/:id/inventory', async (req, res) => {
       WHERE product_name LIKE '%Oppacher%'
     `);
     
-    // Echte Lagerdaten aus der warehouses/inventory_items Tabelle
+    // Fetch warehouse stocks with batch information
     const warehouseStocksResult = await pool.query(`
       SELECT 
+        w.id as warehouse_id,
         w.name as warehouse_name,
         COALESCE(ii.quantity, 0) as current_stock,
-        COALESCE(w.capacity, 100) as max_capacity
+        ii.min_quantity as minimum_stock,
+        ii.max_quantity as maximum_stock,
+        COALESCE(
+          json_agg(
+            DISTINCT jsonb_build_object(
+              'batch_number', ib.batch_number,
+              'expiry_date', ib.expiry_date,
+              'quantity', ib.quantity,
+              'status', ib.status,
+              'location_in_warehouse', ib.location_in_warehouse
+            ) ORDER BY ib.expiry_date ASC
+          ) FILTER (WHERE ib.id IS NOT NULL), 
+          '[]'::json
+        ) as batches
       FROM warehouses w
       LEFT JOIN inventory_items ii ON w.id = ii.warehouse_id AND ii.product_id = $1
+      LEFT JOIN inventory_batches ib ON w.id = ib.warehouse_id AND ib.product_id = $1 AND ib.status = 'active'
       WHERE w.is_active = true
+      GROUP BY w.id, w.name, ii.quantity, ii.min_quantity, ii.max_quantity
       ORDER BY w.name ASC
     `, [productId]);
     
@@ -291,44 +285,95 @@ router.post('/:id/purchase-conditions', async (req, res) => {
   }
 });
 
-// GET /api/products/:id/refill-history - Nachfüllhistorie für Produkt (100% AUTHENTISCHE DATEN)
+// GET /api/products/:id/refill-history - Nachfüllhistorie für Produkt mit vollständigen Details
 router.get('/:id/refill-history', async (req, res) => {
   try {
     const productId = parseInt(req.params.id);
-    console.log('[PRODUCTS] Fetching AUTHENTIC refill history for product ID:', productId);
+    console.log('[PRODUCTS] Fetching refill history for product ID:', productId);
     
-    // Get REAL refill data from refill_details table with actual quantities
+    // Get refill data with operator, action type, and quantities
     const result = await pool.query(`
       SELECT 
         r.id,
         r.datetime as refill_date,
-        rd.quantity_added as quantity,  -- ECHTE Nachfüllmenge aus refill_details
-        COALESCE(r.notes, 'Nachfüllung') as notes,
+        rd.quantity_added,
+        rd.quantity_removed,
+        COALESCE(rd.quantity_added, 0) - COALESCE(rd.quantity_removed, 0) as quantity,
+        r.notes,
+        m.machine_name,
+        m.location_name as machine_location,
+        r.operator,
+        u.username as operator_name,
         CASE 
-          WHEN m.machine_name IS NOT NULL THEN m.machine_name
-          WHEN r.machine_name IS NOT NULL THEN r.machine_name
-          ELSE 'Automat unbekannt'
-        END as machine_name,
-        COALESCE(r.operator, 'System') as operator,
-        COALESCE(r.status, 'completed') as status,
-        COALESCE(r.refill_type, 'manual') as refill_type,
+          WHEN rd.quantity_removed > 0 THEN 'removed'
+          WHEN rd.quantity_added > 0 THEN 'added'
+          ELSE 'adjustment'
+        END as action_type,
+        r.refill_type,
+        r.status,
         rd.product_id,
         p.product_name
       FROM refills r
       LEFT JOIN machines m ON r.machine_id = m.id
       LEFT JOIN refill_details rd ON r.id = rd.refill_id
       LEFT JOIN products p ON rd.product_id = p.id
-      WHERE rd.product_id = $1  -- ECHTE Produktfilterung
-        AND rd.quantity_added > 0  -- Nur echte Nachfüllungen
+      LEFT JOIN users u ON (
+        CASE 
+          WHEN r.operator ~ '^[0-9]+$' THEN r.operator::integer = u.id
+          ELSE false
+        END
+      )
+      WHERE rd.product_id = $1
       ORDER BY r.datetime DESC
-      LIMIT 30
+      LIMIT 50
     `, [productId]);
     
-    console.log(`[PRODUCTS] Found ${result.rows.length} AUTHENTIC refill records for product ${productId}`);
+    console.log(`[PRODUCTS] Found ${result.rows.length} refill records for product ${productId}`);
     res.json(result.rows);
   } catch (error) {
-    console.error('[PRODUCTS] Error fetching AUTHENTIC refill history:', error);
+    console.error('[PRODUCTS] Error fetching refill history:', error);
     res.json([]); // Return empty array on error
+  }
+});
+
+// GET /api/products/:id/withdrawals-summary - Monthly withdrawal statistics
+router.get('/:id/withdrawals-summary', async (req, res) => {
+  try {
+    const productId = parseInt(req.params.id);
+    console.log('[PRODUCTS] Fetching withdrawals summary for product ID:', productId);
+    
+    const result = await pool.query(`
+      WITH monthly_withdrawals AS (
+        SELECT 
+          DATE_TRUNC('month', performed_at) as month,
+          SUM(CASE 
+            WHEN movement_type IN ('OUT', 'REFILL') THEN quantity 
+            ELSE 0 
+          END) as withdrawn,
+          SUM(CASE 
+            WHEN movement_type = 'IN' THEN quantity 
+            ELSE 0 
+          END) as added
+        FROM inventory_movements
+        WHERE product_id = $1 
+          AND performed_at >= NOW() - INTERVAL '12 months'
+        GROUP BY DATE_TRUNC('month', performed_at)
+      )
+      SELECT 
+        TO_CHAR(month, 'YYYY-MM') as month_key,
+        TO_CHAR(month, 'Mon YYYY') as month_label,
+        COALESCE(withdrawn, 0) as withdrawn,
+        COALESCE(added, 0) as added,
+        COALESCE(withdrawn, 0) - COALESCE(added, 0) as net_change
+      FROM monthly_withdrawals
+      ORDER BY month DESC
+    `, [productId]);
+    
+    console.log(`[PRODUCTS] Found ${result.rows.length} months of withdrawal data`);
+    res.json({ monthlyData: result.rows });
+  } catch (error) {
+    console.error('[PRODUCTS] Error fetching withdrawals summary:', error);
+    res.json({ monthlyData: [] });
   }
 });
 
