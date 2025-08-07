@@ -10,29 +10,33 @@ import { formatDistanceToNow, format, parseISO } from "date-fns";
 import { de } from "date-fns/locale";
 
 interface MachineData {
-  machineId: number;
+  id: string;
   machineName: string;
   location: string;
-  vendonId: string;
+  machineCount?: number;
   status: 'ok' | 'warning' | 'error';
   warnings: string[];
   mhdStatus: {
     expiredCount: number;
     warningCount: number;
     earliestExpiry?: string;
+    alertLevel?: string;
   };
-  lastFilling: {
+  lastRefill: {
     datetime?: string;
     operator?: string;
+    daysAgo?: number;
   };
-  lastDoorOpen?: string;
+  lastDoorOpening: {
+    datetime?: string;
+    daysAgo?: number;
+  } | null;
   lastAlcoholSale: {
     datetime?: string;
     productName?: string;
-  };
+  } | null;
   todayRevenue: number;
-  todayTransactions: number;
-  recentSales: Array<{
+  recentTransactions: Array<{
     product_name: string;
     amount: number;
     datetime: string;
@@ -42,26 +46,16 @@ interface MachineData {
     productName?: string;
     amount?: number;
     paymentMethod?: string;
-  };
-  totalStock: number;
+  } | null;
   lastSale: {
     datetime?: string;
     productName?: string;
     amount?: number;
+    daysAgo?: number;
   };
 }
 
-interface LocationStatusResponse {
-  machines: MachineData[];
-  summary: {
-    totalMachines: number;
-    okMachines: number;
-    warningMachines: number;
-    errorMachines: number;
-    totalTodayRevenue: number;
-    lastUpdated: string;
-  };
-}
+interface LocationStatusResponse extends Array<MachineData> {}
 
 function StatusBadge({ status, warnings }: { status: 'ok' | 'warning' | 'error'; warnings: string[] }) {
   const statusConfig = {
@@ -158,9 +152,9 @@ function MachineCard({ machine }: { machine: MachineData }) {
           <div>
             <p className="text-sm font-medium">Letzte Füllung</p>
             <p className="text-xs text-muted-foreground">
-              {machine.lastFilling.datetime ? formatDateTime(machine.lastFilling.datetime) : 'Nie'}
-              {machine.lastFilling.operator && (
-                <span className="ml-2">von {machine.lastFilling.operator}</span>
+              {machine.lastRefill?.datetime ? formatDateTime(machine.lastRefill.datetime) : 'Nie'}
+              {machine.lastRefill?.operator && (
+                <span className="ml-2">von {machine.lastRefill.operator}</span>
               )}
             </p>
           </div>
@@ -172,13 +166,13 @@ function MachineCard({ machine }: { machine: MachineData }) {
           <div>
             <p className="text-sm font-medium">Letzte Türöffnung</p>
             <p className="text-xs text-muted-foreground">
-              {machine.lastDoorOpen ? formatTimeAgo(machine.lastDoorOpen) : 'Keine in 7 Tagen'}
+              {machine.lastDoorOpening?.datetime ? formatTimeAgo(machine.lastDoorOpening.datetime) : 'Keine in 7 Tagen'}
             </p>
           </div>
         </div>
 
         {/* Letzter Alkoholverkauf */}
-        {machine.lastAlcoholSale.datetime && (
+        {machine.lastAlcoholSale?.datetime && (
           <div className="flex items-center space-x-2">
             <Wine className="w-4 h-4 text-red-500" />
             <div>
@@ -196,7 +190,7 @@ function MachineCard({ machine }: { machine: MachineData }) {
           <div>
             <p className="text-sm font-medium">Heutiger Umsatz</p>
             <p className="text-xs text-muted-foreground">
-              {machine.todayRevenue.toFixed(2)} EUR ({machine.todayTransactions} Verkäufe)
+              {machine.todayRevenue.toFixed(2)} EUR
             </p>
           </div>
         </div>
@@ -209,9 +203,9 @@ function MachineCard({ machine }: { machine: MachineData }) {
             <ShoppingCart className="w-4 h-4 text-blue-500" />
             <p className="text-sm font-medium">Letzte Verkäufe</p>
           </div>
-          {machine.recentSales && machine.recentSales.length > 0 ? (
+          {machine.recentTransactions && machine.recentTransactions.length > 0 ? (
             <div className="space-y-1">
-              {machine.recentSales.slice(0, 3).map((sale, idx) => (
+              {machine.recentTransactions.slice(0, 3).map((sale, idx) => (
                 <div key={idx} className="text-xs text-muted-foreground flex justify-between">
                   <span>{sale.product_name}</span>
                   <span>{sale.amount?.toFixed(2)} EUR - {formatTimeAgo(sale.datetime)}</span>
@@ -224,7 +218,7 @@ function MachineCard({ machine }: { machine: MachineData }) {
         </div>
 
         {/* Letzter bargeldloser Verkauf */}
-        {machine.lastCashlessSale.datetime && (
+        {machine.lastCashlessSale?.datetime && (
           <div className="flex items-center space-x-2">
             <CreditCard className="w-4 h-4 text-indigo-500" />
             <div>
@@ -274,7 +268,7 @@ export default function AutomatenNew() {
     refetch();
   };
 
-  const filteredMachines = locationData?.machines?.filter(machine =>
+  const filteredMachines = locationData?.filter(machine =>
     machine.machineName.toLowerCase().includes(searchTerm.toLowerCase()) ||
     machine.location.toLowerCase().includes(searchTerm.toLowerCase())
   ) || [];
@@ -336,36 +330,36 @@ export default function AutomatenNew() {
       </div>
 
       {/* Summary Cards */}
-      {locationData?.summary && (
+      {locationData && locationData.length > 0 && (
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <Card>
             <CardContent className="p-4">
-              <div className="text-2xl font-bold">{locationData.summary.totalMachines}</div>
+              <div className="text-2xl font-bold">{locationData.length}</div>
               <p className="text-xs text-muted-foreground">Gesamt Automaten</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-4">
-              <div className="text-2xl font-bold text-green-600">{locationData.summary.okMachines}</div>
+              <div className="text-2xl font-bold text-green-600">{locationData.filter(m => m.status === 'ok').length}</div>
               <p className="text-xs text-muted-foreground">OK</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-4">
-              <div className="text-2xl font-bold text-yellow-600">{locationData.summary.warningMachines}</div>
+              <div className="text-2xl font-bold text-yellow-600">{locationData.filter(m => m.status === 'warning').length}</div>
               <p className="text-xs text-muted-foreground">Warnungen</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-4">
-              <div className="text-2xl font-bold text-red-600">{locationData.summary.errorMachines}</div>
+              <div className="text-2xl font-bold text-red-600">{locationData.filter(m => m.status === 'error').length}</div>
               <p className="text-xs text-muted-foreground">Fehler</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-4">
               <div className="text-2xl font-bold text-blue-600">
-                {locationData.summary.totalTodayRevenue.toFixed(0)} EUR
+                {locationData.reduce((sum, m) => sum + (m.todayRevenue || 0), 0).toFixed(0)} EUR
               </div>
               <p className="text-xs text-muted-foreground">Heute Umsatz</p>
             </CardContent>
@@ -385,19 +379,17 @@ export default function AutomatenNew() {
       </div>
 
       {/* Last Updated */}
-      {locationData?.summary.lastUpdated && (
-        <div className="flex items-center space-x-2 text-sm text-muted-foreground">
-          <Clock className="w-4 h-4" />
-          <span>
-            Zuletzt aktualisiert: {formatDateTime(locationData.summary.lastUpdated)}
-          </span>
-        </div>
-      )}
+      <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+        <Clock className="w-4 h-4" />
+        <span>
+          Zuletzt aktualisiert: {formatDateTime(new Date().toISOString())}
+        </span>
+      </div>
 
       {/* Machine Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredMachines.map((machine) => (
-          <MachineCard key={machine.machineId} machine={machine} />
+          <MachineCard key={machine.id} machine={machine} />
         ))}
       </div>
 
