@@ -4764,61 +4764,86 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Registriere die Forecast-, Wetter- und Feiertags-Routen
-  // Authentication Routes
-  // Register new user
-  app.post(`${API_PREFIX}/auth/register`, async (req: Request, res: Response) => {
+  
+  // Replit Authentication Routes
+  
+  // Get current user info (Replit-based)
+  app.get(`${API_PREFIX}/auth/me`, async (req: Request, res: Response) => {
     try {
-      const parsedData = registerSchema.safeParse(req.body);
+      const { getCurrentReplitUser } = await import('./auth/replit-auth');
+      const user = await getCurrentReplitUser();
       
-      if (!parsedData.success) {
-        return res.status(400).json({ 
-          error: "Invalid registration data", 
-          details: parsedData.error 
+      if (!user) {
+        return res.status(401).json({ 
+          error: "Not authenticated",
+          message: "No Replit user found"
         });
       }
       
-      const result = await registerUser(parsedData.data);
-      res.status(201).json(result);
+      res.json({
+        success: true,
+        user: {
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          role: user.role,
+          approved: user.approved,
+          isOwner: user.isOwner
+        }
+      });
     } catch (error) {
-      console.error("Error during user registration:", error);
-      
-      if (error instanceof Error && error.message.includes("already exists")) {
-        return res.status(409).json({ error: "User already exists" });
-      }
-      
+      console.error("Error getting current user:", error);
       res.status(500).json({ 
-        error: "Registration failed", 
+        error: "Failed to get user info", 
         details: error instanceof Error ? error.message : String(error) 
       });
     }
   });
   
-  // Login
+  // Login with Replit (no credentials needed)
   app.post(`${API_PREFIX}/auth/login`, async (req: Request, res: Response) => {
     try {
-      const parsedData = loginSchema.safeParse(req.body);
+      const { getCurrentReplitUser } = await import('./auth/replit-auth');
+      const user = await getCurrentReplitUser();
       
-      if (!parsedData.success) {
-        return res.status(400).json({ 
-          error: "Invalid login data", 
-          details: parsedData.error 
+      if (!user) {
+        return res.status(401).json({ 
+          error: "Authentication failed",
+          message: "No Replit user found. Please ensure you are running this on Replit."
         });
       }
       
-      const result = await loginUser(parsedData.data);
+      // Generate a simple session token (in production, use proper JWT)
+      const token = Buffer.from(`replit:${user.username}:${Date.now()}`).toString('base64');
       
-      if (!result.success) {
-        return res.status(401).json({ error: "Invalid credentials" });
-      }
-      
-      res.json(result);
+      res.json({
+        success: true,
+        user: {
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          role: user.role,
+          approved: user.approved,
+          isOwner: user.isOwner
+        },
+        token,
+        message: `Welcome, ${user.username}!`
+      });
     } catch (error) {
-      console.error("Error during login:", error);
+      console.error("Error during Replit login:", error);
       res.status(500).json({ 
         error: "Login failed", 
         details: error instanceof Error ? error.message : String(error) 
       });
     }
+  });
+  
+  // Register is not needed for Replit auth - users are auto-created
+  app.post(`${API_PREFIX}/auth/register`, async (req: Request, res: Response) => {
+    res.status(400).json({
+      error: "Registration not needed",
+      message: "Users are automatically registered when they access the application through Replit."
+    });
   });
   
   // Logout

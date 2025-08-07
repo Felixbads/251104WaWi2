@@ -8,7 +8,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   user: User | null;
   token: string | null;
-  login: (credentials: { username: string; password: string }) => Promise<boolean>;
+  login: (credentials?: { username: string; password: string }) => Promise<boolean>;
   register: (userData: any) => Promise<boolean>;
   logout: () => void;
   isLoading: boolean;
@@ -70,57 +70,81 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, [token]);
   
-  // Prüfen, ob es einen gespeicherten Auth-Status gibt
+  // Check authentication status using Replit's native authentication
   useEffect(() => {
     const checkAuth = async () => {
-      const storedToken = localStorage.getItem('auth_token');
-      console.log("Gespeicherter Token gefunden:", !!storedToken);
-      
-      // DEMO MODUS: Im Demo-Modus immer automatisch einloggen
-      // Da wir zunächst mit dem Demo-Account arbeiten, setzen wir Admin manuell
-      const demoUser = {
-        id: 1,
-        username: "Admin",
-        email: "admin@example.com",
-        role: "admin",
-        approved: true
-      };
-      
-      // Im Demo-Modus immer als Admin einloggen
-      setUser(demoUser);
-      
-      if (!storedToken) {
-        // Neues Token generieren und speichern für Demo-Modus
-        const demoToken = Math.random().toString(36).substring(2) + Date.now().toString(36);
-        localStorage.setItem('auth_token', demoToken);
-        setToken(demoToken);
-      } else {
-        setToken(storedToken);
+      try {
+        console.log("[AUTH] Checking Replit authentication status...");
+        
+        // Try to get current user from Replit authentication
+        const response = await axios.get('/api/auth/me');
+        
+        if (response.data && response.data.success) {
+          const { user } = response.data;
+          console.log("[AUTH] Replit user authenticated:", user);
+          
+          setUser(user);
+          setIsAuthenticated(true);
+          
+          // Generate a token for consistency with existing code
+          const replitToken = Buffer.from(`replit:${user.username}:${Date.now()}`).toString('base64');
+          setToken(replitToken);
+          localStorage.setItem('auth_token', replitToken);
+          
+          // Set default authorization header
+          axios.defaults.headers.common['Authorization'] = `Bearer ${replitToken}`;
+        } else {
+          console.log("[AUTH] No Replit user found, user needs to authenticate");
+          setIsAuthenticated(false);
+          setUser(null);
+          setToken(null);
+          localStorage.removeItem('auth_token');
+        }
+      } catch (error) {
+        console.log("[AUTH] Authentication check failed:", error);
+        
+        // If running in development mode, try to login automatically
+        try {
+          const loginResponse = await axios.post('/api/auth/login');
+          if (loginResponse.data && loginResponse.data.success) {
+            const { user, token } = loginResponse.data;
+            console.log("[AUTH] Development mode login successful:", user);
+            
+            setUser(user);
+            setIsAuthenticated(true);
+            setToken(token);
+            localStorage.setItem('auth_token', token);
+            axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+          } else {
+            setIsAuthenticated(false);
+            setUser(null);
+            setToken(null);
+          }
+        } catch (loginError) {
+          console.error("[AUTH] Auto-login failed:", loginError);
+          setIsAuthenticated(false);
+          setUser(null);
+          setToken(null);
+        }
+      } finally {
+        setIsLoading(false);
       }
-      
-      setIsAuthenticated(true);
-      
-      // Token für alle zukünftigen Anfragen als Default setzen
-      const tokenToUse = storedToken || localStorage.getItem('auth_token');
-      if (tokenToUse) {
-        axios.defaults.headers.common['Authorization'] = `Bearer ${tokenToUse}`;
-      }
-      
-      console.log("Auth status:", {isAuthenticated: true, user: demoUser});
-      
-      setIsLoading(false);
     };
     
     checkAuth();
   }, []);
   
-  const login = async (credentials: { username: string; password: string }) => {
+  const login = async (credentials?: { username: string; password: string }) => {
     try {
       setIsLoading(true);
-      const response = await axios.post('/api/auth/login', credentials);
+      
+      // For Replit auth, credentials are not needed - authentication is based on environment
+      const response = await axios.post('/api/auth/login');
       
       if (response.data && response.data.success) {
         const { token, user } = response.data;
+        
+        console.log("[AUTH] Replit login successful:", user);
         
         // Token und User im localStorage speichern
         localStorage.setItem('auth_token', token);

@@ -45,20 +45,25 @@ export default function Login() {
     },
   });
 
-  // Form-Submission Handler
-  const onSubmit = async (data: LoginFormValues) => {
+  // Handle Replit authentication (no form submission needed)
+  const handleReplitLogin = async () => {
     setIsFormSubmitting(true);
     
     try {
-      const success = await login(data);
+      const success = await login(); // No credentials needed for Replit auth
       
       if (success) {
-        // Nach erfolgreichem Login machen wir nichts, da der Dashboard-Inhalt direkt angezeigt wird
-        // Wir verwenden keine Weiterleitungen mehr, um unnötige Seitenreloads zu vermeiden
-        setIsFormSubmitting(false);
+        toast({
+          title: "Erfolgreich angemeldet",
+          description: "Willkommen bei der Warenwirtschaft!",
+          variant: "default",
+        });
       } else {
-        // Fehler wird bereits in der Login-Funktion über Toast angezeigt
-        setIsFormSubmitting(false);
+        toast({
+          title: "Anmeldung fehlgeschlagen",
+          description: "Bitte stellen Sie sicher, dass Sie diese App auf Replit ausführen.",
+          variant: "destructive",
+        });
       }
     } catch (error) {
       toast({
@@ -66,8 +71,14 @@ export default function Login() {
         description: "Ein unerwarteter Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.",
         variant: "destructive",
       });
+    } finally {
       setIsFormSubmitting(false);
     }
+  };
+
+  // Legacy form submission handler (kept for compatibility)
+  const onSubmit = async (data: LoginFormValues) => {
+    await handleReplitLogin();
   };
 
   return (
@@ -91,45 +102,20 @@ export default function Login() {
           <CardHeader className="space-y-1 pb-6">
             <CardTitle className="text-xl text-center">Anmeldung</CardTitle>
             <CardDescription className="text-center">
-              Bitte melden Sie sich mit Ihren Zugangsdaten an
+              Authentifizierung über Replit
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-              <div className="space-y-2">
-                <Label htmlFor="username">Benutzername</Label>
-                <Input 
-                  id="username"
-                  placeholder="Ihr Benutzername" 
-                  {...form.register("username")}
-                  autoComplete="username"
-                  className="h-11"
-                />
-                {form.formState.errors.username && (
-                  <p className="text-sm text-destructive">{form.formState.errors.username.message}</p>
-                )}
+            <div className="text-center space-y-4">
+              <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-sm text-blue-800">
+                  Diese App verwendet Replit's native Authentifizierung. 
+                  Klicken Sie auf "Mit Replit anmelden" um sich automatisch anzumelden.
+                </p>
               </div>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="password">Passwort</Label>
-                  <Button variant="link" size="sm" className="text-xs p-0 h-auto text-muted-foreground hover:text-primary">
-                    Passwort vergessen?
-                  </Button>
-                </div>
-                <Input 
-                  id="password"
-                  type="password" 
-                  placeholder="Ihr Passwort" 
-                  {...form.register("password")}
-                  autoComplete="current-password"
-                  className="h-11"
-                />
-                {form.formState.errors.password && (
-                  <p className="text-sm text-destructive">{form.formState.errors.password.message}</p>
-                )}
-              </div>
+              
               <Button 
-                type="submit" 
+                onClick={handleReplitLogin}
                 className="w-full h-11 text-base font-medium" 
                 disabled={isFormSubmitting || isLoading}
               >
@@ -141,22 +127,60 @@ export default function Login() {
                 ) : (
                   <>
                     <LogIn className="h-4 w-4 mr-2" /> 
-                    Anmelden
+                    Mit Replit anmelden
                   </>
                 )}
               </Button>
-            </form>
+              
+              {/* Fallback form for development */}
+              <details className="text-left">
+                <summary className="text-sm text-muted-foreground cursor-pointer hover:text-primary">
+                  Entwicklermodus (für lokale Tests)
+                </summary>
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 mt-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="username">Benutzername</Label>
+                    <Input 
+                      id="username"
+                      placeholder="Ihr Benutzername" 
+                      {...form.register("username")}
+                      autoComplete="username"
+                      className="h-11"
+                    />
+                    {form.formState.errors.username && (
+                      <p className="text-sm text-destructive">{form.formState.errors.username.message}</p>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="password">Passwort</Label>
+                    <Input 
+                      id="password"
+                      type="password" 
+                      placeholder="Ihr Passwort" 
+                      {...form.register("password")}
+                      autoComplete="current-password"
+                      className="h-11"
+                    />
+                    {form.formState.errors.password && (
+                      <p className="text-sm text-destructive">{form.formState.errors.password.message}</p>
+                    )}
+                  </div>
+                  <Button 
+                    type="submit" 
+                    variant="outline"
+                    className="w-full h-11 text-base font-medium" 
+                    disabled={isFormSubmitting || isLoading}
+                  >
+                    Entwickler-Login
+                  </Button>
+                </form>
+              </details>
+            </div>
           </CardContent>
           <CardFooter className="justify-center pt-6">
-            <p className="text-sm text-muted-foreground">
-              Noch kein Konto?{" "}
-              <Button 
-                variant="link" 
-                className="p-0 h-auto text-primary font-medium" 
-                onClick={() => setLocation("/register")}
-              >
-                Registrieren
-              </Button>
+            <p className="text-sm text-muted-foreground text-center">
+              Bei Replit werden Benutzer automatisch registriert.<br />
+              Keine separate Registrierung erforderlich.
             </p>
           </CardFooter>
         </Card>
