@@ -43,7 +43,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } 
         // Falls nicht, prüfe auf localStorage
         else {
-          const storedToken = localStorage.getItem('auth_token');
+          const storedToken = localStorage.getItem('authToken');
           if (storedToken) {
             config.headers['Authorization'] = `Bearer ${storedToken}`;
             
@@ -89,7 +89,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // Generate a token for consistency with existing code
           const replitToken = btoa(`replit:${user.username}:${Date.now()}`);
           setToken(replitToken);
-          localStorage.setItem('auth_token', replitToken);
+          localStorage.setItem('authToken', replitToken);
           
           // Set default authorization header
           axios.defaults.headers.common['Authorization'] = `Bearer ${replitToken}`;
@@ -98,7 +98,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setIsAuthenticated(false);
           setUser(null);
           setToken(null);
-          localStorage.removeItem('auth_token');
+          localStorage.removeItem('authToken');
         }
       } catch (error) {
         console.log("[AUTH] Authentication check failed:", error);
@@ -113,7 +113,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setUser(user);
             setIsAuthenticated(true);
             setToken(token);
-            localStorage.setItem('auth_token', token);
+            localStorage.setItem('authToken', token);
             axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
           } else {
             setIsAuthenticated(false);

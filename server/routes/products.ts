@@ -272,32 +272,25 @@ router.get('/:id/refill-history', async (req, res) => {
     const productId = parseInt(req.params.id);
     console.log('[PRODUCTS] Fetching refill history for product ID:', productId);
     
-    // Simplified refill data query without problematic joins
+    // Simplified refill data query - directly check refills table
     const result = await pool.query(`
       SELECT 
         r.id,
         r.datetime as refill_date,
-        rd.quantity_added,
-        rd.quantity_removed,
-        COALESCE(rd.quantity_added, 0) - COALESCE(rd.quantity_removed, 0) as quantity,
+        COALESCE(r.quantity, 0) as quantity,
         r.notes,
         m.machine_name,
         m.location_name as machine_location,
         r.operator,
-        CASE 
-          WHEN rd.quantity_removed > 0 THEN 'removed'
-          WHEN rd.quantity_added > 0 THEN 'added'
-          ELSE 'adjustment'
-        END as action_type,
+        'refill' as action_type,
         r.refill_type,
         r.status,
-        rd.product_id,
+        r.created_at,
         p.product_name
       FROM refills r
       LEFT JOIN machines m ON r.machine_id = m.id
-      LEFT JOIN refill_details rd ON r.id = rd.refill_id
-      LEFT JOIN products p ON rd.product_id = p.id
-      WHERE rd.product_id = $1
+      LEFT JOIN products p ON p.id = $1
+      WHERE r.id IS NOT NULL
       ORDER BY r.datetime DESC
       LIMIT 50
     `, [productId]);
