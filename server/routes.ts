@@ -252,6 +252,7 @@ import unifiedProfitabilityRouter from "./routes/unified-profitability";
 import locationProfitabilityRouter from "./routes/location-profitability";
 import simpleProfitabilityRouter from "./routes/product-profitability-simple";
 import fixedProfitabilityRouter from "./routes/fixed-profitability";
+import locationStatusRouter from "./routes/location-status";
 import { WebSocketServer } from 'ws';
 
 // API route prefix
@@ -5396,7 +5397,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use(`${API_PREFIX}/admin`, adminRouter);
   app.use(`${API_PREFIX}/profitability-unified`, unifiedProfitabilityRouter);
   app.use(`${API_PREFIX}/location-profitability`, locationProfitabilityRouter);
-  // app.use(`${API_PREFIX}/location-status`, locationStatusRouter); // Moved above registerRoutes() for priority
+  app.use(`${API_PREFIX}/location-status`, locationStatusRouter);
   
   // Register FIXED profitability router at SEPARATE path to avoid conflicts
   console.log('[SERVER] FIXED profitability router mounting at /api/clean-profitability BEFORE registerRoutes()');

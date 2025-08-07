@@ -6,6 +6,32 @@ This is a comprehensive vending machine management platform (Warenwirtschaftssys
 ## User Preferences
 Preferred communication style: Simple, everyday language.
 
+## Recent Changes (2025-08-07)
+
+### New Automaten Overview Page with Tile-Based Layout
+**Issue**: User requested a completely new "Automaten" (vending machines) overview page with comprehensive tile-based layout showing real-time machine data including machine name, location, expiry status (MHD), last filling details, door openings, sales information, and today's revenue.
+
+**Solution**: Complete new Automaten overview implementation:
+- **Database API**: Created comprehensive `server/routes/location-status.ts` with optimized SQL queries
+  - Real-time machine status calculation (ok/warning/error) based on MHD and activity
+  - Efficient joins across machines, transactions, refills, events, and machine_stocks tables
+  - 30-second caching for performance with real-time data freshness
+- **Frontend Component**: Built `client/src/pages/AutomatenNew.tsx` with mobile-first design
+  - Tile-based layout with color-coded status borders (green/yellow/red)
+  - Comprehensive machine information display per tile
+  - Auto-refresh every 30 seconds with manual refresh option
+  - Search functionality for machine names and locations
+  - Summary cards showing total machines, status distribution, and daily revenue
+- **Navigation Integration**: Added "Automaten-Übersicht" to main navigation menu
+- **Data Display**: Each tile shows machine name, location, MHD status, last filling (date/operator), last door opening, alcohol sales, today's revenue, recent sales history, and cashless payment info
+- **Status Logic**: Automatic status calculation considering expired products, warning products, door activity, and daily sales
+
+**Impact**: 
+- New comprehensive real-time machine monitoring dashboard
+- Efficient tile-based layout replacing heavy individual API calls
+- Complete visibility into machine health, stock status, and performance metrics
+- User-friendly interface with search and auto-refresh for operational efficiency
+
 ## Recent Changes (2025-08-06)
 
 ### Persistent KPI Architecture for Machine Dashboard

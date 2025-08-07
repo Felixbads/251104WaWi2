@@ -12,7 +12,7 @@ import {
   Building,
   ShoppingCart,
   Calendar,
-  Sync,
+  RefreshCw,
   Server,
   Shield
 } from 'lucide-react';
@@ -21,7 +21,8 @@ import { useAuth } from '@/lib';
 const navigationItems = [
   { href: '/dashboard', label: 'Dashboard', icon: Home, roles: ['user', 'admin'] },
   { href: '/transactions', label: 'Transaktionen', icon: BarChart3, roles: ['user', 'admin'] },
-  { href: '/automaten', label: 'Automaten', icon: Zap, roles: ['user', 'admin'] },
+  { href: '/automaten-new', label: 'Automaten-Übersicht', icon: Zap, roles: ['user', 'admin'] },
+  { href: '/automaten', label: 'Automaten (Alt)', icon: Zap, roles: ['user', 'admin'] },
   { href: '/standort-status', label: 'Standort-Status', icon: Building, roles: ['user', 'admin'] },
   { href: '/produkte', label: 'Produkte', icon: Package, roles: ['user', 'admin'] },
   { href: '/lieferanten', label: 'Lieferanten', icon: Truck, roles: ['user', 'admin'] },
@@ -29,7 +30,7 @@ const navigationItems = [
   { href: '/lager-neu', label: 'Lager', icon: Database, roles: ['user', 'admin'] },
   { href: '/calendar-overview', label: 'Kalender', icon: Calendar, roles: ['user', 'admin'] },
   { href: '/enhanced-forecast', label: 'Prognosen', icon: BarChart3, roles: ['user', 'admin'] },
-  { href: '/sync', label: 'Synchronisation', icon: Sync, roles: ['user', 'admin'] },
+  { href: '/sync', label: 'Synchronisation', icon: RefreshCw, roles: ['user', 'admin'] },
   { href: '/benutzer', label: 'Benutzer', icon: Users, roles: ['admin'] },
   { href: '/seitenfreigabe', label: 'Seitenfreigabe', icon: Shield, roles: ['admin'] },
   { href: '/inter-app-verbindungen', label: 'App-Verbindungen', icon: Server, roles: ['admin'] },
