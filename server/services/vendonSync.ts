@@ -1144,10 +1144,19 @@ export class VendonSyncService {
         console.log(`${transactions.length} Transaktionen auf Seite ${page} gefunden`);
         totalItems += transactions.length;
         
-        // Verarbeite jede Transaktion
+        // 🚀 BATCH-OPTIMIERUNG: Effizienter Transaktions-Import
+        console.log(`⚡ Starte Batch-Verarbeitung für ${transactions.length} Transaktionen`);
+        
+        // Schritt 1: Bereite alle Transaktions-Objekte vor
+        const processedTransactions: Array<{
+          vendonId: string;
+          transaction: InsertTransaction;
+          originalData: any;
+        }> = [];
+        
         for (const transaction of transactions) {
           try {
-            // Prüfe, ob die Transaktion eine ID hat (entweder id oder transaction_id)
+            // Prüfe, ob die Transaktion eine ID hat
             const transactionId = transaction.id || transaction.transaction_id;
             if (!transactionId) {
               console.error("Transaktion ohne ID übersprungen:", transaction);
@@ -1155,14 +1164,13 @@ export class VendonSyncService {
               continue;
             }
             
-            // Prüfe, ob die Maschine existiert
-            let machineId: number;
+            // Maschinen-ID verarbeiten
+            let machineId: number = 1; // Standardwert
             if (transaction.machine_id) {
               const machineVendonId = transaction.machine_id.toString();
               let machineData = await storage.getMachineByVendonId(machineVendonId);
               
               if (!machineData) {
-                // Erstelle einen minimalen Maschinendatensatz, wenn er nicht existiert
                 const newMachine: InsertMachine = {
                   vendonId: machineVendonId,
                   machineName: transaction.machine_name || `Maschine ${machineVendonId}`,
@@ -1170,258 +1178,122 @@ export class VendonSyncService {
                 };
                 machineData = await storage.createMachine(newMachine);
               }
-              
               machineId = machineData.id;
-            } else {
-              console.warn(`Transaktion ${transactionId} hat keine Maschinen-ID. Verwende Standardwert.`);
-              machineId = 1; // Standardwert, wenn keine Maschinen-ID vorhanden ist
             }
             
-            // Datetime aus verschiedenen möglichen Formaten konvertieren
+            // Datetime konvertieren
             let transactionDate: Date;
             if (transaction.datetime) {
               if (typeof transaction.datetime === 'number') {
-                // Unix-Timestamp (Sekunden oder Millisekunden)
                 transactionDate = new Date(
-                  transaction.datetime > 1577836800000 // Wenn > 01.01.2020 in Millisekunden
-                    ? transaction.datetime // Ist bereits in Millisekunden
-                    : transaction.datetime * 1000 // Konvertiere Sekunden zu Millisekunden
+                  transaction.datetime > 1577836800000 
+                    ? transaction.datetime 
+                    : transaction.datetime * 1000
                 );
               } else {
-                // String-Datum
                 transactionDate = new Date(transaction.datetime);
               }
             } else {
-              console.warn(`Transaktion ${transactionId} hat kein Datum. Verwende aktuelles Datum.`);
               transactionDate = new Date();
             }
             
-            // JSON-Daten aus extraData extrahieren, falls vorhanden
-            const extraDataStr = transaction.extraData || transaction.extra_data;
-            const extraDataObj = extraDataStr
-              ? (typeof extraDataStr === 'string' ? JSON.parse(extraDataStr) : extraDataStr)
-              : {};
-              
-            // Finde den ursprünglichen Produktnamen - er kann in verschiedenen Feldern sein
-            let productId = null;
-            let productName = null;
+            // Produktname aus verschiedenen Quellen
+            let productName = transaction.name || 
+                             transaction.product_name || 
+                             transaction.product?.name || 
+                             'Unbekanntes Produkt';
             
-            // WICHTIG: Bei der Vendon API kommt der Produktname primär direkt im 'name'-Feld
-            // Wir priorisieren dies als erste Quelle
-            if (transaction.name) {
-              productName = transaction.name;
-              console.log(`Produktname direkt aus transaction.name: "${productName}"`);
-            }
+            const vendonId = transactionId.toString();
             
-            // Versuche, die Produkt-ID zu extrahieren
-            if (transaction.product_id) {
-              productId = transaction.product_id.toString();
-            } else if (transaction.product && transaction.product.id) {
-              productId = transaction.product.id.toString();
-            } else if (extraDataObj.product_id) {
-              productId = extraDataObj.product_id.toString();
-            } else if (extraDataObj.product && extraDataObj.product.id) {
-              productId = extraDataObj.product.id.toString();
-            }
-            
-            // Falls wir noch keinen Namen haben, versuche andere Felder
-            if (!productName) {
-              if (transaction.product_name) {
-                productName = transaction.product_name;
-                console.log(`Produktname aus transaction.product_name: "${productName}"`);
-              } else if (transaction.product && transaction.product.name) {
-                productName = transaction.product.name;
-                console.log(`Produktname aus transaction.product.name: "${productName}"`);
-              } else if (extraDataObj.product_name) {
-                productName = extraDataObj.product_name;
-                console.log(`Produktname aus extraDataObj.product_name: "${productName}"`);
-              } else if (extraDataObj.product && extraDataObj.product.name) {
-                productName = extraDataObj.product.name;
-                console.log(`Produktname aus extraDataObj.product.name: "${productName}"`);
-              } else if (extraDataObj.name) {
-                productName = extraDataObj.name;
-                console.log(`Produktname aus extraDataObj.name: "${productName}"`);
-              }
-            }
-            
-            // Hole detaillierte Produktinformationen über den stock_id Endpunkt, wenn vorhanden
-            const stockId = transaction.stock_id || extraDataObj.stock_id;
-            if (stockId && !productName) {
-              try {
-                console.log(`Hole Produktdetails für stock_id ${stockId}...`);
-                const machineId = transaction.machine_id ? transaction.machine_id.toString() : null;
-                
-                if (machineId) {
-                  const stockData = await this.api.getMachineStock(machineId);
-                  
-                  if (stockData && Array.isArray(stockData)) {
-                    // Finde das Produkt mit der passenden stock_id
-                    const stockItem = stockData.find(item => item.id?.toString() === stockId.toString());
-                    
-                    if (stockItem) {
-                      if (stockItem.product) {
-                        if (!productId && stockItem.product.id) {
-                          productId = stockItem.product.id.toString();
-                        }
-                        if (!productName && stockItem.product.name) {
-                          productName = stockItem.product.name;
-                        }
-                      } else if (stockItem.name) {
-                        productName = stockItem.name;
-                      }
-                    }
-                  }
-                }
-              } catch (error) {
-                console.error(`Fehler beim Abrufen von Produktdetails für stock_id ${stockId}:`, error);
-              }
-            }
-            
-            // Wenn immer noch kein Produktname gefunden wurde, verwende das Standard-Fallback
-            if (!productName) {
-              productName = 'Unbekanntes Produkt';
-              console.warn(`Kein Produktname für Transaktion ${transaction.id || ''} gefunden. Verwende '${productName}'`);
-            }
-              
-            // Extrahiere alle verfügbaren Daten aus dem Transaction-Objekt oder aus extraData
-            const vendonId = (transaction.id || transaction.transaction_id || extraDataObj.transaction_id || extraDataObj.id).toString();
-            const machineNameValue = transaction.machine_name || extraDataObj.machine_name || 'Unbekannte Maschine';
-            
-            // Extrahiere Preisdaten
-            const priceValue = transaction.price || extraDataObj.price || 0;
-            const priceVatValue = transaction.price_vat || extraDataObj.price_vat || null;
-            const priceWoVatValue = transaction.price_wo_vat || extraDataObj.price_wo_vat || null;
-            const vatValue = transaction.vat || extraDataObj.vat || null;
-            
-            // Extrahiere wichtige Zeitstempel
-            // transaction_dt und registered_dt sind oft in extraData vorhanden
-            const transactionDt = extraDataObj.transaction_dt 
-              ? new Date(extraDataObj.transaction_dt * 1000) 
-              : null;
-            const registeredDt = extraDataObj.registered_dt 
-              ? new Date(extraDataObj.registered_dt * 1000) 
-              : null;
-            const updatedAt = extraDataObj.updated_at 
-              ? new Date(extraDataObj.updated_at * 1000) 
-              : null;
-              
-            // Extrahiere Produktinformationen
-            // name in extraData ist oft der echte Produktname
-            const productNameValue = productName || extraDataObj.name || 'Unbekanntes Produkt';
-            const selectionValue = transaction.selection || extraDataObj.selection || null;
-            const stockIdValue = transaction.stock_id || extraDataObj.stock_id || null;
-            
-            // Zahlungsinformationen
-            const paymentMethodValue = transaction.payment_method || extraDataObj.payment_method || null;
-            const currencyValue = transaction.currency || extraDataObj.currency || null;
-            const discountCodeValue = transaction.discount_code || extraDataObj.discount_code || null;
-            const discountAmountValue = transaction.discount_amount || extraDataObj.discount_amount || null;
-            const statusValue = transaction.status || extraDataObj.status || null;
-            
-            // Zusätzliche Metadaten
-            const noteValue = transaction.note || extraDataObj.note || null;
-            const transactionDataValue = transaction.transaction_data || extraDataObj.transaction_data || null;
-            const metadataValue = transaction.metadata || extraDataObj.metadata || null;
-              
-            // Erstelle das vollständige Transaktionsobjekt
+            // Vollständiges Transaktions-Objekt erstellen
             const newTransaction: InsertTransaction = {
               vendonId: vendonId,
               machineId: machineId,
-              machineName: machineNameValue,
+              machineName: transaction.machine_name || 'Unbekannte Maschine',
               datetime: transactionDate,
-              transactionDt: transactionDt, 
-              registeredDt: registeredDt,
-              updatedAt: updatedAt,
+              transactionDt: transaction.transaction_dt ? new Date(transaction.transaction_dt * 1000) : null,
+              registeredDt: transaction.registered_dt ? new Date(transaction.registered_dt * 1000) : null,
+              updatedAt: transaction.updated_at ? new Date(transaction.updated_at * 1000) : null,
               amount: transaction.amount || 0,
-              price: priceValue,
-              priceVat: priceVatValue,
-              priceWoVat: priceWoVatValue,
-              vat: vatValue,
-              quantity: transaction.quantity || extraDataObj.quantity || 1,
-              productId: productId,
-              productName: productNameValue,
-              stockId: stockIdValue,
-              selection: selectionValue,
-              // Nur paymentMethod verwenden, paymentType existiert nicht mehr im Schema
-              paymentMethod: paymentMethodValue,
-              status: statusValue,
-              currency: currencyValue,
+              price: transaction.price || 0,
+              priceVat: transaction.price_vat || null,
+              priceWoVat: transaction.price_wo_vat || null,
+              vat: transaction.vat || null,
+              quantity: transaction.quantity || 1,
+              productId: transaction.product_id?.toString() || null,
+              productName: productName,
+              stockId: transaction.stock_id || null,
+              selection: transaction.selection || null,
+              paymentMethod: transaction.payment_method || null,
+              status: transaction.status || null,
+              currency: transaction.currency || null,
               coinCredit: transaction.coin_credit || 0,
               cardCredit: transaction.card_credit || 0,
               cashlessCredit: transaction.cashless_credit || 0,
-              discountCode: discountCodeValue,
-              discountAmount: discountAmountValue,
-              // Setze locationId auf null, um FK-Constraint-Fehler zu vermeiden
-              locationId: null, // war: transaction.location_id ? transaction.location_id.toString() : null,
+              discountCode: transaction.discount_code || null,
+              discountAmount: transaction.discount_amount || null,
+              locationId: null,
               locationName: transaction.location_name || null,
-              note: noteValue,
-              transactionData: transactionDataValue ? JSON.stringify(transactionDataValue) : null,
-              metadata: metadataValue ? JSON.stringify(metadataValue) : null,
-              source: extraDataObj.source || transaction.source || "vendon",
+              note: transaction.note || null,
+              transactionData: transaction.transaction_data ? JSON.stringify(transaction.transaction_data) : null,
+              metadata: transaction.metadata ? JSON.stringify(transaction.metadata) : null,
+              source: transaction.source || "vendon",
               isTest: transaction.is_test === true,
               extraData: JSON.stringify(transaction)
             };
             
-            // Prüfe, ob die Transaktion bereits existiert
-            // Stellen Sie sicher, dass vendonId nicht undefined ist
-            if (newTransaction.vendonId) {
+            processedTransactions.push({
+              vendonId,
+              transaction: newTransaction,
+              originalData: transaction
+            });
+          } catch (error) {
+            console.error("Fehler beim Verarbeiten einer Transaktion:", error);
+            errors++;
+          }
+        }
+        
+        // Schritt 2: Batch-Duplikatsprüfung (1 SQL-Abfrage statt hunderte)
+        const vendonIds = processedTransactions.map(pt => pt.vendonId);
+        const existingIds = await storage.getExistingTransactionIds(vendonIds);
+        
+        // Schritt 3: Filtere neue Transaktionen
+        const newTransactions: any[] = [];
+        let duplicatesInBatch = 0;
+        
+        for (const processed of processedTransactions) {
+          if (existingIds.has(processed.vendonId)) {
+            if (forceUpdate) {
+              // Bei forceUpdate: Update bestehende Transaktionen (TODO: Batch-Update implementieren)
               try {
-                console.log(`Prüfe, ob Transaktion ${newTransaction.vendonId} bereits existiert...`);
-                const existingTransaction = await storage.getTransactionByVendonId(newTransaction.vendonId);
-                
+                const existingTransaction = await storage.getTransactionByVendonId(processed.vendonId);
                 if (existingTransaction) {
-                  console.log(`Transaktion ${newTransaction.vendonId} existiert bereits.`);
-                  // Bei manueller Synchronisierung werden manchmal Transaktionen fälschlicherweise als Duplikate erkannt
-                  // Zusätzliche Überprüfung des Datums, um sicherzustellen, dass es tatsächlich die gleiche Transaktion ist
-                  const existingDate = existingTransaction.datetime.getTime();
-                  const newDate = newTransaction.datetime.getTime();
-                  
-                  if (existingDate === newDate && !forceUpdate) {
-                    // Überspringe nur echte Duplikate (gleiche ID UND gleiches Datum), wenn nicht forceUpdate
-                    console.log(`Echtes Duplikat gefunden: ${newTransaction.vendonId} mit Datum ${new Date(existingDate).toISOString()}`);
-                    duplicates++;
-                  } else if (forceUpdate) {
-                    // Bei forceUpdate aktualisieren wir die bestehende Transaktion
-                    console.log(`Force Update aktiviert - Aktualisiere Transaktion: ${newTransaction.vendonId}`);
-                    try {
-                      await storage.updateTransaction(existingTransaction.id, newTransaction);
-                      console.log(`Transaktion ${newTransaction.vendonId} erfolgreich aktualisiert.`);
-                      itemsUpdated++;
-                    } catch (error) {
-                      console.error(`Fehler beim Aktualisieren der Transaktion ${newTransaction.vendonId}:`, error);
-                      errors++;
-                    }
-                  } else {
-                    // Wenn das Datum unterschiedlich ist, trotz gleicher ID, könnten es verschiedene Transaktionen sein
-                    console.log(`Warnung: Transaktion mit ID ${newTransaction.vendonId} könnte ein Duplikat sein, hat aber ein anderes Datum. Alte: ${new Date(existingDate).toISOString()}, Neue: ${new Date(newDate).toISOString()}`);
-                    // Speichern mit modifizierter vendonId, um Duplikat zu vermeiden
-                    const modifiedTransaction = {
-                      ...newTransaction,
-                      vendonId: `${newTransaction.vendonId}_${newDate}`
-                    };
-                    console.log(`Speichere Transaktion mit modifizierter ID: ${modifiedTransaction.vendonId}`);
-                    await storage.createTransaction(modifiedTransaction);
-                    console.log(`Transaktion mit modifizierter ID ${modifiedTransaction.vendonId} gespeichert.`);
-                    itemsSaved++;
-                  }
-                } else {
-                  // Speichere neue Transaktion
-                  console.log(`Neue Transaktion ${newTransaction.vendonId} wird gespeichert...`);
-                  const savedTransaction = await storage.createTransaction(newTransaction);
-                  console.log(`Transaktion ${savedTransaction.vendonId} (ID: ${savedTransaction.id}) erfolgreich gespeichert.`);
-                  itemsSaved++;
+                  await storage.updateTransaction(existingTransaction.id, processed.transaction);
+                  itemsUpdated++;
                 }
-              } catch (transError) {
-                console.error(`Kritischer Fehler beim Speichern von Transaktion ${newTransaction.vendonId}:`, transError);
+              } catch (error) {
+                console.error(`Fehler beim Update von ${processed.vendonId}:`, error);
                 errors++;
               }
             } else {
-              console.error("Transaktion konnte nicht gespeichert werden, weil die vendonId fehlt");
-              errors++;
+              duplicatesInBatch++;
             }
-          } catch (transactionError) {
-            console.error(`Fehler bei der Verarbeitung von Transaktion:`, transactionError);
-            errors++;
+          } else {
+            newTransactions.push(processed.transaction);
+          }
+        }
+        
+        duplicates += duplicatesInBatch;
+        console.log(`📊 Batch-Analyse: ${newTransactions.length} neue, ${duplicatesInBatch} Duplikate`);
+        
+        // Schritt 4: Batch-Insertion (1 SQL-Operation statt hunderte)
+        if (newTransactions.length > 0) {
+          try {
+            const savedTransactions = await storage.createTransactionsBatch(newTransactions);
+            itemsSaved += savedTransactions.length;
+          } catch (error) {
+            console.error("Fehler bei Batch-Insertion:", error);
+            errors += newTransactions.length;
           }
         }
         

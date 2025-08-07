@@ -732,6 +732,71 @@ export class DatabaseStorage implements IStorage {
     }).from(transactions).where(eq(transactions.vendonId, vendonId)).limit(1);
     return result[0];
   }
+
+  /**
+   * Effiziente Batch-Duplikatsprüfung für Transaktionen
+   * Prüft alle vendon_ids auf einmal statt einzeln
+   */
+  async getExistingTransactionIds(vendonIds: string[]): Promise<Set<string>> {
+    console.log(`🔍 Batch-Duplikatsprüfung für ${vendonIds.length} vendon_ids`);
+    
+    if (vendonIds.length === 0) {
+      return new Set();
+    }
+
+    try {
+      // Eine einzige SQL-Abfrage für alle vendon_ids
+      const result = await db.select({ vendonId: transactions.vendonId })
+        .from(transactions)
+        .where(inArray(transactions.vendonId, vendonIds));
+      
+      const existingIds = new Set(result.map(row => row.vendonId));
+      console.log(`✅ Gefunden: ${existingIds.size}/${vendonIds.length} bereits existierende Transaktionen`);
+      
+      return existingIds;
+    } catch (error) {
+      console.error("Fehler bei Batch-Duplikatsprüfung:", error);
+      return new Set();
+    }
+  }
+
+  /**
+   * Batch-Insertion für neue Transaktionen
+   * Reduziert die Anzahl der Datenbankverbindungen erheblich
+   */
+  async createTransactionsBatch(transactionList: any[]): Promise<any[]> {
+    console.log(`📦 Batch-Insertion für ${transactionList.length} Transaktionen`);
+    
+    if (transactionList.length === 0) {
+      return [];
+    }
+
+    try {
+      // Bereite alle Transaktionen für Batch-Insert vor
+      const values = transactionList.map(transaction => ({
+        vendonId: transaction.vendonId,
+        machineId: transaction.machineId,
+        machineName: transaction.machineName,
+        datetime: transaction.datetime,
+        productName: transaction.productName,
+        price: transaction.price,
+        quantity: transaction.quantity,
+        source: transaction.source,
+        extraData: transaction.extraData || null
+      }));
+
+      // Eine einzige Batch-Insert-Operation
+      const result = await db.insert(transactions)
+        .values(values)
+        .returning();
+      
+      console.log(`✅ ${result.length} neue Transaktionen erfolgreich eingefügt`);
+      return result;
+    } catch (error) {
+      console.error("Fehler bei Batch-Insertion:", error);
+      throw error;
+    }
+  }
   async createTransaction(transaction: any): Promise<any> {
     // Direkte SQL-Insertion um Schema-Konflikte zu vermeiden
     const result = await rawDb.query(`

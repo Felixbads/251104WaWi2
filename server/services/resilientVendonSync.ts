@@ -313,11 +313,17 @@ export class ResilientVendonSync {
         const transactions = response.result;
         result.found += transactions.length;
         
+        // 🚀 BATCH-OPTIMIERUNG: Resilient Sync mit Batch-Verarbeitung
+        const vendonIds = transactions.map(t => t.id.toString());
+        const existingIds = await storage.getExistingTransactionIds(vendonIds);
+        
+        const newTransactions = [];
         for (const transaction of transactions) {
           try {
-            // Prüfe auf Duplikat
-            const existing = await storage.getTransactionByVendonId(transaction.id.toString());
-            if (existing) {
+            const vendonId = transaction.id.toString();
+            
+            // Prüfe Batch-Duplikat
+            if (existingIds.has(vendonId)) {
               result.duplicates++;
               continue;
             }
@@ -325,31 +331,50 @@ export class ResilientVendonSync {
             // Maschine sicherstellen
             const machineId = await this.ensureMachine(transaction.machine_id?.toString(), transaction.machine_name);
             
-            // Transaktion speichern
+            // Transaktion vorbereiten
             const newTransaction = {
-              vendonId: transaction.id.toString(),
+              vendonId: vendonId,
               machineId,
               machineName: transaction.machine_name || 'Unbekannt',
               datetime: new Date(transaction.datetime * 1000),
               amount: transaction.amount || 0,
               price: transaction.price || 0,
               productId: transaction.product_id?.toString() || null,
-              productName: transaction.product_name || 'Unbekannt',
+              productName: transaction.product_name || transaction.name || 'Unbekannt',
               coinCredit: transaction.coin_credit || 0,
               cardCredit: transaction.card_credit || 0,
               cashlessCredit: transaction.cashless_credit || 0,
-              paymentType: transaction.payment_type || 'unknown',
-              locationId: transaction.location_id?.toString() || null,
+              paymentMethod: transaction.payment_type || 'unknown',
+              locationId: null, // FK-Constraint vermeiden
               locationName: transaction.location_name || null,
               isTest: transaction.is_test === true,
+              source: 'vendon',
               extraData: JSON.stringify(transaction)
             };
             
-            await storage.createTransaction(newTransaction);
-            result.saved++;
+            newTransactions.push(newTransaction);
             
           } catch (error) {
-            console.error('Fehler beim Speichern der Transaktion:', error);
+            console.error('Fehler beim Vorbereiten der Transaktion:', error);
+          }
+        }
+        
+        // Batch-Insertion
+        if (newTransactions.length > 0) {
+          try {
+            const savedTransactions = await storage.createTransactionsBatch(newTransactions);
+            result.saved += savedTransactions.length;
+          } catch (error) {
+            console.error('Fehler bei Batch-Insertion:', error);
+            // Fallback: einzeln speichern
+            for (const transaction of newTransactions) {
+              try {
+                await storage.createTransaction(transaction);
+                result.saved++;
+              } catch (fallbackError) {
+                console.error('Fehler beim individuellen Speichern:', fallbackError);
+              }
+            }
           }
         }
         

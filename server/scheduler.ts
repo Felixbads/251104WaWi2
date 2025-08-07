@@ -18,8 +18,8 @@ const timers: Record<string, NodeJS.Timeout> = {};
 // Konfiguration für verschiedene Syncs
 const syncConfig = {
   immediate: {
-    interval: 10 * 60 * 1000, // 10 Minuten (erhöht von 5 Minuten)
-    syncTypes: ['transactions'] // Sehr schnelle Sync-Typen, die in Echtzeit benötigt werden
+    interval: 30 * 60 * 1000, // 30 Minuten (deutlich erhöht für bessere Performance)
+    syncTypes: ['transactions'] // Batch-optimierte Transaktions-Synchronisation
   },
   fast: {
     interval: 60 * 60 * 1000, // 60 Minuten (erhöht von 30 Minuten)
