@@ -34,6 +34,7 @@ interface MachineData {
   lastAlcoholSale: {
     datetime?: string;
     productName?: string;
+    daysAgo?: number;
   } | null;
   todayRevenue: number;
   recentTransactions: Array<{
@@ -46,6 +47,7 @@ interface MachineData {
     productName?: string;
     amount?: number;
     paymentMethod?: string;
+    daysAgo?: number;
   } | null;
   lastSale: {
     datetime?: string;
@@ -171,18 +173,7 @@ function MachineCard({ machine }: { machine: MachineData }) {
           </div>
         </div>
 
-        {/* Letzter Alkoholverkauf */}
-        {machine.lastAlcoholSale?.datetime && (
-          <div className="flex items-center space-x-2">
-            <Wine className="w-4 h-4 text-red-500" />
-            <div>
-              <p className="text-sm font-medium">Letzter Alkoholverkauf</p>
-              <p className="text-xs text-muted-foreground">
-                {machine.lastAlcoholSale.productName} - {formatTimeAgo(machine.lastAlcoholSale.datetime)}
-              </p>
-            </div>
-          </div>
-        )}
+
 
         {/* Heutiger Umsatz */}
         <div className="flex items-center space-x-2">
@@ -217,20 +208,85 @@ function MachineCard({ machine }: { machine: MachineData }) {
           )}
         </div>
 
-        {/* Letzter bargeldloser Verkauf */}
-        {machine.lastCashlessSale?.datetime && (
+        {/* Letzter bargeldloser Verkauf mit Ampel */}
+        <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
             <CreditCard className="w-4 h-4 text-indigo-500" />
             <div>
               <p className="text-sm font-medium">Letzter bargeldloser Verkauf</p>
-              <p className="text-xs text-muted-foreground">
-                {machine.lastCashlessSale.productName} - {machine.lastCashlessSale.amount?.toFixed(2)} EUR
-                <br />
-                {formatTimeAgo(machine.lastCashlessSale.datetime)} ({machine.lastCashlessSale.paymentMethod})
-              </p>
+              {machine.lastCashlessSale?.datetime ? (
+                <p className="text-xs text-muted-foreground">
+                  {machine.lastCashlessSale.productName} - {machine.lastCashlessSale.amount?.toFixed(2)} EUR
+                  <br />
+                  {formatTimeAgo(machine.lastCashlessSale.datetime)} ({machine.lastCashlessSale.paymentMethod})
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground">Keine bargeldlosen Verkäufe</p>
+              )}
             </div>
           </div>
-        )}
+          <div 
+            className={`w-3 h-3 rounded-full ${
+              machine.lastCashlessSale?.daysAgo === null || machine.lastCashlessSale?.daysAgo === undefined
+                ? 'bg-gray-300' 
+                : machine.lastCashlessSale.daysAgo === 0
+                  ? 'bg-green-500'
+                  : machine.lastCashlessSale.daysAgo <= 1
+                    ? 'bg-yellow-400'
+                    : machine.lastCashlessSale.daysAgo <= 3
+                      ? 'bg-orange-500'
+                      : 'bg-red-500'
+            }`}
+            title={
+              machine.lastCashlessSale?.daysAgo === null || machine.lastCashlessSale?.daysAgo === undefined
+                ? 'Keine Daten'
+                : machine.lastCashlessSale.daysAgo === 0
+                  ? 'Heute'
+                  : machine.lastCashlessSale.daysAgo <= 1
+                    ? 'Gestern'
+                    : `vor ${machine.lastCashlessSale.daysAgo} Tagen`
+            }
+          />
+        </div>
+
+        {/* Letzter Alkoholverkauf mit Ampel */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <Wine className="w-4 h-4 text-red-500" />
+            <div>
+              <p className="text-sm font-medium">Letzter Alkoholverkauf</p>
+              {machine.lastAlcoholSale?.datetime ? (
+                <p className="text-xs text-muted-foreground">
+                  {machine.lastAlcoholSale.productName} - {formatTimeAgo(machine.lastAlcoholSale.datetime)}
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground">Keine Alkoholverkäufe</p>
+              )}
+            </div>
+          </div>
+          <div 
+            className={`w-3 h-3 rounded-full ${
+              machine.lastAlcoholSale?.daysAgo === null || machine.lastAlcoholSale?.daysAgo === undefined
+                ? 'bg-gray-300' 
+                : machine.lastAlcoholSale.daysAgo === 0
+                  ? 'bg-green-500'
+                  : machine.lastAlcoholSale.daysAgo <= 1
+                    ? 'bg-yellow-400'
+                    : machine.lastAlcoholSale.daysAgo <= 3
+                      ? 'bg-orange-500'
+                      : 'bg-red-500'
+            }`}
+            title={
+              machine.lastAlcoholSale?.daysAgo === null || machine.lastAlcoholSale?.daysAgo === undefined
+                ? 'Keine Daten'
+                : machine.lastAlcoholSale.daysAgo === 0
+                  ? 'Heute'
+                  : machine.lastAlcoholSale.daysAgo <= 1
+                    ? 'Gestern'
+                    : `vor ${machine.lastAlcoholSale.daysAgo} Tagen`
+            }
+          />
+        </div>
       </CardContent>
     </Card>
   );
@@ -302,7 +358,7 @@ export default function AutomatenNew() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Automaten-Übersicht</h1>
+          <h1 className="text-3xl font-bold">Automaten</h1>
           <p className="text-muted-foreground">
             Echtzeitstatus aller Automaten mit MHD, Umsatz und Wartungshinweisen
           </p>

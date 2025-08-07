@@ -98,31 +98,40 @@ router.get('/', async (req: Request, res: Response) => {
           COALESCE(SUM(CASE WHEN t.datetime >= CURRENT_DATE THEN t.price ELSE 0 END), 0) as today_revenue,
           
           -- Recent sales (top 3)
-          ARRAY_AGG(
-            JSON_BUILD_OBJECT(
-              'product_name', t.product_name,
-              'amount', t.price,
-              'datetime', t.datetime
-            ) ORDER BY t.datetime DESC
-          ) FILTER (WHERE t.datetime >= CURRENT_DATE - INTERVAL '7 days') as recent_sales,
+          CASE 
+            WHEN COUNT(t.id) FILTER (WHERE t.datetime >= CURRENT_DATE - INTERVAL '7 days') > 0 THEN
+              ARRAY(
+                SELECT JSON_BUILD_OBJECT(
+                  'product_name', t2.product_name,
+                  'amount', t2.price,
+                  'datetime', t2.datetime
+                ) 
+                FROM transactions t2 
+                WHERE t2.machine_id = t.machine_id 
+                  AND t2.datetime >= CURRENT_DATE - INTERVAL '7 days'
+                ORDER BY t2.datetime DESC 
+                LIMIT 3
+              )
+            ELSE ARRAY[]::json[]
+          END as recent_sales,
           
           -- Last sale info
           MAX(t.datetime) as last_sale,
           (ARRAY_AGG(t.product_name ORDER BY t.datetime DESC))[1] as last_sale_product,
           (ARRAY_AGG(t.price ORDER BY t.datetime DESC))[1] as last_sale_amount,
           
-          -- Cashless payment tracking
-          MAX(CASE WHEN t.payment_method IN ('CASHLESS', 'CARD', 'cashless') THEN t.datetime END) as last_cashless_sale,
-          (ARRAY_AGG(t.product_name ORDER BY t.datetime DESC) FILTER (WHERE t.payment_method IN ('CASHLESS', 'CARD', 'cashless')))[1] as last_cashless_product,
-          (ARRAY_AGG(t.price ORDER BY t.datetime DESC) FILTER (WHERE t.payment_method IN ('CASHLESS', 'CARD', 'cashless')))[1] as last_cashless_amount,
-          (ARRAY_AGG(t.payment_method ORDER BY t.datetime DESC) FILTER (WHERE t.payment_method IN ('CASHLESS', 'CARD', 'cashless')))[1] as last_cashless_method,
+          -- Cashless payment tracking (wenn payment_method oft NULL ist, behandeln wir alle als Bargeld außer explizit markierte)
+          MAX(CASE WHEN t.vendon_id::text LIKE '%cashless%' OR t.product_name ILIKE '%card%' OR t.product_name ILIKE '%cashless%' THEN t.datetime END) as last_cashless_sale,
+          (ARRAY_AGG(t.product_name ORDER BY t.datetime DESC) FILTER (WHERE t.vendon_id::text LIKE '%cashless%' OR t.product_name ILIKE '%card%' OR t.product_name ILIKE '%cashless%'))[1] as last_cashless_product,
+          (ARRAY_AGG(t.price ORDER BY t.datetime DESC) FILTER (WHERE t.vendon_id::text LIKE '%cashless%' OR t.product_name ILIKE '%card%' OR t.product_name ILIKE '%cashless%'))[1] as last_cashless_amount,
+          (ARRAY_AGG(t.payment_method ORDER BY t.datetime DESC) FILTER (WHERE t.vendon_id::text LIKE '%cashless%' OR t.product_name ILIKE '%card%' OR t.product_name ILIKE '%cashless%'))[1] as last_cashless_method,
           
           -- Alcohol sales tracking
           MAX(CASE WHEN p.is_alcoholic = true THEN t.datetime END) as last_alcohol_sale,
           (ARRAY_AGG(t.product_name ORDER BY t.datetime DESC) FILTER (WHERE p.is_alcoholic = true))[1] as last_alcohol_product
           
         FROM transactions t
-        LEFT JOIN products p ON t.product_id = p.vendon_id
+        LEFT JOIN products p ON (t.product_id = p.vendon_id OR t.product_name = p.product_name)
         WHERE t.datetime >= CURRENT_DATE - INTERVAL '30 days'
         GROUP BY t.machine_id
       ),
@@ -223,6 +232,7 @@ router.get('/', async (req: Request, res: Response) => {
       const { status, warnings } = calculateMachineStatus(row);
 
       return {
+        id: row.machine_id.toString(),
         machineId: row.machine_id,
         machineName: row.machine_name,
         location: row.location,
@@ -240,62 +250,58 @@ router.get('/', async (req: Request, res: Response) => {
         },
         
         // Last filling
-        lastFilling: {
+        lastRefill: {
           datetime: row.last_refill,
-          operator: row.last_operator
+          operator: row.last_operator,
+          daysAgo: getDaysAgo(row.last_refill)
         },
         
         // Last door opening
-        lastDoorOpen: row.last_door_open,
+        lastDoorOpening: row.last_door_open ? {
+          datetime: row.last_door_open,
+          daysAgo: getDaysAgo(row.last_door_open)
+        } : null,
         
         // Last alcohol sale
-        lastAlcoholSale: {
+        lastAlcoholSale: row.last_alcohol_sale ? {
           datetime: row.last_alcohol_sale,
-          productName: row.last_alcohol_product
-        },
+          productName: row.last_alcohol_product,
+          daysAgo: getDaysAgo(row.last_alcohol_sale)
+        } : null,
         
         // Today's revenue
         todayRevenue: row.today_revenue || 0,
         todayTransactions: row.today_transactions || 0,
         
         // Recent sales (top 3)
-        recentSales,
+        recentTransactions: recentSales,
         
         // Last cashless sale
-        lastCashlessSale: {
+        lastCashlessSale: row.last_cashless_sale ? {
           datetime: row.last_cashless_sale,
           productName: row.last_cashless_product,
           amount: row.last_cashless_amount,
-          paymentMethod: row.last_cashless_method
-        },
+          paymentMethod: row.last_cashless_method,
+          daysAgo: getDaysAgo(row.last_cashless_sale)
+        } : null,
         
         // Additional info
         totalStock: row.total_stock || 0,
         lastSale: {
           datetime: row.last_sale,
           productName: row.last_sale_product,
-          amount: row.last_sale_amount
+          amount: row.last_sale_amount,
+          daysAgo: getDaysAgo(row.last_sale)
         }
       };
     });
 
-    const response = {
-      machines,
-      summary: {
-        totalMachines: machines.length,
-        okMachines: machines.filter(m => m.status === 'ok').length,
-        warningMachines: machines.filter(m => m.status === 'warning').length,
-        errorMachines: machines.filter(m => m.status === 'error').length,
-        totalTodayRevenue: machines.reduce((sum, m) => sum + (m.todayRevenue || 0), 0),
-        lastUpdated: new Date().toISOString()
-      }
-    };
-
-    // Update cache
-    locationStatusCache = response;
+    // Cache and return the machines array directly (not wrapped in response object)
+    locationStatusCache = machines;
     cacheTimestamp = now;
 
-    res.json(response);
+    console.log(`Ultra-fast location status with raw SQL: Returning ${machines.length} locations`);
+    res.json(machines);
   } catch (error) {
     console.error('❌ Location Status API Error:', error);
     res.status(500).json({ 
