@@ -222,7 +222,7 @@ export const users = pgTable("users", {
   email: text("email").unique(),
   role: text("role").default("user"),
   approved: boolean("approved").default(false), // Standardmäßig nicht freigeschaltet
-  approvedBy: integer("approved_by").references(() => users.id),
+  approvedBy: integer("approved_by"),
   approvedAt: timestamp("approved_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),

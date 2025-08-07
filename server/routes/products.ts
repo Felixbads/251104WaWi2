@@ -111,7 +111,7 @@ router.put('/:id', async (req, res) => {
     console.error('Fehler beim Aktualisieren des Produkts:', error);
     res.status(500).json({ 
       error: 'Serverfehler beim Aktualisieren des Produkts',
-      details: error.message 
+      details: error instanceof Error ? error.message : 'Unknown error'
     });
   }
 });
@@ -280,7 +280,7 @@ router.post('/:id/purchase-conditions', async (req, res) => {
     console.error('Fehler beim Erstellen der Einkaufsbedingung:', error);
     res.status(500).json({ 
       error: 'Serverfehler beim Erstellen der Einkaufsbedingung',
-      details: error.message 
+      details: error instanceof Error ? error.message : 'Unknown error'
     });
   }
 });
@@ -493,7 +493,7 @@ router.put('/:productId/purchase-conditions/:conditionId', async (req, res) => {
     console.error('Fehler beim Aktualisieren der Einkaufsbedingung:', error);
     res.status(500).json({ 
       error: 'Serverfehler beim Aktualisieren der Einkaufsbedingung',
-      details: error.message 
+      details: error instanceof Error ? error.message : 'Unknown error'
     });
   }
 });
@@ -520,7 +520,7 @@ router.delete('/:productId/purchase-conditions/:conditionId', async (req, res) =
     console.error('Fehler beim Löschen der Einkaufsbedingung:', error);
     res.status(500).json({ 
       error: 'Serverfehler beim Löschen der Einkaufsbedingung',
-      details: error.message 
+      details: error instanceof Error ? error.message : 'Unknown error'
     });
   }
 });
@@ -567,7 +567,7 @@ router.get('/:id/refill-history', async (req, res) => {
     console.error('[PRODUCTS] Error loading refill history:', error);
     res.status(500).json({ 
       error: 'Serverfehler beim Laden der Nachfüllhistorie',
-      details: error.message 
+      details: error instanceof Error ? error.message : 'Unknown error'
     });
   }
 });
@@ -606,7 +606,7 @@ router.get('/:id/purchase-conditions', async (req, res) => {
         AND (pc.valid_to IS NULL OR pc.valid_to >= CURRENT_DATE)  -- Nur gültige Bedingungen
       ORDER BY pc.purchase_price ASC
       LIMIT 10
-    `, [productId]);
+    `, [id]);
     
     console.log('[PRODUCTS] SQL query returned', result.rows.length, 'rows');
     
@@ -637,7 +637,7 @@ router.get('/:id/purchase-conditions', async (req, res) => {
     console.error('[PRODUCTS] Error loading purchase conditions:', error);
     res.status(500).json({ 
       error: 'Serverfehler beim Laden der Einkaufsbedingungen',
-      details: error.message 
+      details: error instanceof Error ? error.message : 'Unknown error'
     });
   }
 });
