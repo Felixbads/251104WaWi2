@@ -32,6 +32,8 @@ router.get('/', async (req: Request, res: Response) => {
     // Force refresh parameter
     const forceRefresh = req.query.refresh === '1' || req.query.force === '1';
     
+    console.log(`🔄 Force refresh: ${forceRefresh}, Query params:`, req.query);
+    
     // Query to get data grouped by LOCATION (extracted directly from transactions)
     const result = await db.execute(`
       WITH transactions_by_location AS (
@@ -65,7 +67,25 @@ router.get('/', async (req: Request, res: Response) => {
           COALESCE(SUM(CASE WHEN tbl.datetime >= CURRENT_DATE THEN tbl.price ELSE 0 END), 0) as today_revenue,
           COUNT(CASE WHEN tbl.datetime >= CURRENT_DATE THEN 1 END) as today_transactions,
           MAX(CASE WHEN UPPER(TRIM(tbl.payment_method)) IN ('CASHLESS', 'CARD') THEN tbl.datetime END) as last_cashless_sale,
+          (SELECT t2.product_name FROM transactions t2 WHERE 
+            CASE 
+              WHEN POSITION(',' IN t2.machine_name) > 0 
+              THEN TRIM(SUBSTRING(t2.machine_name FROM 1 FOR POSITION(',' IN t2.machine_name) - 1))
+              ELSE t2.machine_name
+            END = tbl.location 
+            AND UPPER(TRIM(t2.payment_method)) IN ('CASHLESS', 'CARD')
+            AND t2.datetime >= CURRENT_DATE - INTERVAL '30 days'
+            ORDER BY t2.datetime DESC LIMIT 1) as last_cashless_product,
           MAX(CASE WHEN EXISTS(SELECT 1 FROM products p WHERE LOWER(TRIM(tbl.product_name)) = LOWER(TRIM(p.product_name)) AND p."isAlcoholic" = true) THEN tbl.datetime END) as last_alcohol_sale,
+          (SELECT t3.product_name FROM transactions t3 WHERE 
+            CASE 
+              WHEN POSITION(',' IN t3.machine_name) > 0 
+              THEN TRIM(SUBSTRING(t3.machine_name FROM 1 FOR POSITION(',' IN t3.machine_name) - 1))
+              ELSE t3.machine_name
+            END = tbl.location 
+            AND EXISTS(SELECT 1 FROM products p WHERE LOWER(TRIM(t3.product_name)) = LOWER(TRIM(p.product_name)) AND p."isAlcoholic" = true)
+            AND t3.datetime >= CURRENT_DATE - INTERVAL '30 days'
+            ORDER BY t3.datetime DESC LIMIT 1) as last_alcohol_product,
           
           -- Latest refill across all machines at location
           MAX(r.last_refill) as last_refill,
@@ -74,9 +94,9 @@ router.get('/', async (req: Request, res: Response) => {
           -- Latest door opening across all machines
           MAX(e.last_door_open) as last_door_open,
           
-          -- Total MHD stats for location
-          SUM(mhd.expired_count) as expired_count,
-          SUM(mhd.warning_count) as warning_count,
+          -- Total MHD stats for location (aggregate properly without double-counting)
+          COALESCE(MAX(mhd.expired_count), 0) as expired_count,
+          COALESCE(MAX(mhd.warning_count), 0) as warning_count,
           MIN(mhd.earliest_expiry) as earliest_expiry
           
         FROM transactions_by_location tbl
@@ -108,18 +128,19 @@ router.get('/', async (req: Request, res: Response) => {
           GROUP BY COALESCE(m.machine_name, e.machine_id::text)
         ) e ON tbl.machine_name = e.machine_name
         
-        -- MHD stats per machine
+        -- MHD stats per machine (JOIN by machine name, aggregate all machines with same name)
         LEFT JOIN (
           SELECT 
-            machine_id,
-            COUNT(*) FILTER (WHERE expiry_date < CURRENT_DATE) as expired_count,
-            COUNT(*) FILTER (WHERE expiry_date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '7 days') as warning_count,
-            MIN(expiry_date) FILTER (WHERE expiry_date < CURRENT_DATE) as earliest_expiry
-          FROM machine_stocks
-          WHERE expiry_date IS NOT NULL
-            AND quantity > 0
-          GROUP BY machine_id
-        ) mhd ON tbl.machine_id = mhd.machine_id
+            COALESCE(m.machine_name, ms.machine_id::text) as machine_name,
+            COUNT(*) FILTER (WHERE ms.expiry_date < CURRENT_DATE) as expired_count,
+            COUNT(*) FILTER (WHERE ms.expiry_date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '7 days') as warning_count,
+            MIN(ms.expiry_date) FILTER (WHERE ms.expiry_date < CURRENT_DATE) as earliest_expiry
+          FROM machine_stocks ms
+          LEFT JOIN machines m ON ms.machine_id = m.id
+          WHERE ms.expiry_date IS NOT NULL
+            AND ms.quantity > 0
+          GROUP BY COALESCE(m.machine_name, ms.machine_id::text)
+        ) mhd ON tbl.machine_name = mhd.machine_name
         
         GROUP BY tbl.location
       )
@@ -132,7 +153,9 @@ router.get('/', async (req: Request, res: Response) => {
         today_revenue,
         today_transactions,
         last_cashless_sale,
+        last_cashless_product,
         last_alcohol_sale,
+        last_alcohol_product,
         last_refill,
         last_operator,
         last_door_open,
@@ -189,6 +212,7 @@ router.get('/', async (req: Request, res: Response) => {
         } : null,
         lastCashlessSale: row.last_cashless_sale ? {
           datetime: new Date(row.last_cashless_sale).toISOString(),
+          productName: row.last_cashless_product || 'Unbekannt',
           paymentMethod: 'CARD',
           daysAgo: getDaysAgo(row.last_cashless_sale)
         } : null,
@@ -198,6 +222,7 @@ router.get('/', async (req: Request, res: Response) => {
         } : null,
         lastAlcoholSale: row.last_alcohol_sale ? {
           datetime: new Date(row.last_alcohol_sale).toISOString(),
+          productName: row.last_alcohol_product || 'Unbekannt',
           daysAgo: getDaysAgo(row.last_alcohol_sale)
         } : null,
         todayRevenue: Number(row.today_revenue || 0),
