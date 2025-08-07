@@ -6,7 +6,15 @@ const router = Router();
 // Cache for location status data
 let locationStatusCache: any = null;
 let cacheTimestamp: number = 0;
-const CACHE_DURATION = 30 * 1000; // 30 seconds cache for real-time data
+const CACHE_DURATION = 100; // 0.1 second cache for debugging
+
+// Cache invalidation endpoint
+router.post('/clear-cache', (req: Request, res: Response) => {
+  locationStatusCache = null;
+  cacheTimestamp = 0;
+  console.log('✅ Location status cache cleared');
+  res.json({ status: 'success', message: 'Cache cleared' });
+});
 
 // Helper function to calculate days ago
 function getDaysAgo(date: Date | string | null): number {
@@ -56,43 +64,16 @@ router.get('/', async (req: Request, res: Response) => {
   try {
     console.log('🏪 LOCATION-STATUS API - Individual Machines');
     
-    // Check cache first
-    const now = Date.now();
-    if (locationStatusCache && (now - cacheTimestamp) < CACHE_DURATION) {
-      console.log('✅ Returning cached location status data');
-      return res.json(locationStatusCache);
-    }
+    // Cache temporarily COMPLETELY disabled for debugging
+    locationStatusCache = null;
+    cacheTimestamp = 0;
     
-    // Comprehensive query to get all machine data
+    // Comprehensive query to get all location data grouped by location
     const result = await db.execute(`
-      WITH active_machines AS (
-        -- Get all active machines with recent activity
+      WITH location_transactions AS (
+        -- Transaction statistics per location (machine_name)
         SELECT 
-          m.id as machine_id,
-          m.machine_name,
-          m.vendon_id,
-          m.location_name,
-          -- Extract clean location name
-          CASE 
-            WHEN POSITION(',' IN m.machine_name) > 0 
-            THEN TRIM(SUBSTRING(m.machine_name FROM 1 FOR POSITION(',' IN m.machine_name) - 1))
-            ELSE m.machine_name
-          END as location
-        FROM machines m
-        WHERE m.machine_name IS NOT NULL
-          AND m.machine_name NOT LIKE '%*%'
-          AND m.machine_name NOT LIKE '%Test%'
-          AND m.id != 1  -- Exclude demo machine
-          AND EXISTS (
-            SELECT 1 FROM transactions t 
-            WHERE t.machine_id = m.id 
-              AND t.datetime >= CURRENT_DATE - INTERVAL '30 days'
-          )
-      ),
-      machine_transactions AS (
-        -- Transaction statistics per machine
-        SELECT 
-          t.machine_id,
+          t.machine_name,
           -- Today's metrics
           COUNT(CASE WHEN t.datetime >= CURRENT_DATE THEN 1 END) as today_transactions,
           COALESCE(SUM(CASE WHEN t.datetime >= CURRENT_DATE THEN t.price ELSE 0 END), 0) as today_revenue,
@@ -107,7 +88,7 @@ router.get('/', async (req: Request, res: Response) => {
                   'datetime', t2.datetime
                 ) 
                 FROM transactions t2 
-                WHERE t2.machine_id = t.machine_id 
+                WHERE t2.machine_name = t.machine_name 
                   AND t2.datetime >= CURRENT_DATE - INTERVAL '7 days'
                 ORDER BY t2.datetime DESC 
                 LIMIT 3
@@ -120,37 +101,55 @@ router.get('/', async (req: Request, res: Response) => {
           (ARRAY_AGG(t.product_name ORDER BY t.datetime DESC))[1] as last_sale_product,
           (ARRAY_AGG(t.price ORDER BY t.datetime DESC))[1] as last_sale_amount,
           
-          -- Cashless payment tracking (wenn payment_method oft NULL ist, behandeln wir alle als Bargeld außer explizit markierte)
-          MAX(CASE WHEN t.vendon_id::text LIKE '%cashless%' OR t.product_name ILIKE '%card%' OR t.product_name ILIKE '%cashless%' THEN t.datetime END) as last_cashless_sale,
-          (ARRAY_AGG(t.product_name ORDER BY t.datetime DESC) FILTER (WHERE t.vendon_id::text LIKE '%cashless%' OR t.product_name ILIKE '%card%' OR t.product_name ILIKE '%cashless%'))[1] as last_cashless_product,
-          (ARRAY_AGG(t.price ORDER BY t.datetime DESC) FILTER (WHERE t.vendon_id::text LIKE '%cashless%' OR t.product_name ILIKE '%card%' OR t.product_name ILIKE '%cashless%'))[1] as last_cashless_amount,
-          (ARRAY_AGG(t.payment_method ORDER BY t.datetime DESC) FILTER (WHERE t.vendon_id::text LIKE '%cashless%' OR t.product_name ILIKE '%card%' OR t.product_name ILIKE '%cashless%'))[1] as last_cashless_method,
+          -- Cashless payment tracking (alle Transaktionen als bargeldlos da payment_method meist NULL/CASHLESS)
+          MAX(CASE 
+            WHEN t.payment_method = 'CASHLESS' THEN t.datetime
+            WHEN t.payment_method IS NULL THEN t.datetime  -- NULL = bargeldlos
+            WHEN t.payment_method != 'CASH' THEN t.datetime
+          END) as last_cashless_sale,
+          (ARRAY_AGG(t.product_name ORDER BY t.datetime DESC) FILTER (WHERE 
+            t.payment_method = 'CASHLESS' OR t.payment_method IS NULL OR t.payment_method != 'CASH'
+          ))[1] as last_cashless_product,
+          (ARRAY_AGG(t.price ORDER BY t.datetime DESC) FILTER (WHERE 
+            t.payment_method = 'CASHLESS' OR t.payment_method IS NULL OR t.payment_method != 'CASH'
+          ))[1] as last_cashless_amount,
+          (ARRAY_AGG(COALESCE(t.payment_method, 'CASHLESS') ORDER BY t.datetime DESC) FILTER (WHERE 
+            t.payment_method = 'CASHLESS' OR t.payment_method IS NULL OR t.payment_method != 'CASH'
+          ))[1] as last_cashless_method,
           
           -- Alcohol sales tracking
-          MAX(CASE WHEN p.is_alcoholic = true THEN t.datetime END) as last_alcohol_sale,
-          (ARRAY_AGG(t.product_name ORDER BY t.datetime DESC) FILTER (WHERE p.is_alcoholic = true))[1] as last_alcohol_product
+          MAX(CASE WHEN p."isAlcoholic" = true THEN t.datetime END) as last_alcohol_sale,
+          (ARRAY_AGG(t.product_name ORDER BY t.datetime DESC) FILTER (WHERE p."isAlcoholic" = true))[1] as last_alcohol_product,
+          
+          -- Machine count per location
+          COUNT(DISTINCT t.machine_id) as machine_count
           
         FROM transactions t
-        LEFT JOIN products p ON (t.product_id = p.vendon_id OR t.product_name = p.product_name)
+        LEFT JOIN products p ON LOWER(TRIM(t.product_name)) = LOWER(TRIM(p.product_name))
         WHERE t.datetime >= CURRENT_DATE - INTERVAL '30 days'
-        GROUP BY t.machine_id
+          AND t.machine_name IS NOT NULL
+          AND t.machine_name NOT LIKE '%*%'
+          AND t.machine_name NOT LIKE '%Test%'
+        GROUP BY t.machine_name
       ),
-      machine_refills AS (
-        -- Latest refill information per machine
+      location_refills AS (
+        -- Latest refill information per location
         SELECT 
-          r.machine_id,
+          m.machine_name,
           MAX(r.datetime) as last_refill,
           (ARRAY_AGG(r.operator ORDER BY r.datetime DESC))[1] as last_operator
         FROM refills r
+        JOIN machines m ON r.machine_id = m.id
         WHERE r.datetime >= CURRENT_DATE - INTERVAL '90 days'
-        GROUP BY r.machine_id
+        GROUP BY m.machine_name
       ),
-      machine_events AS (
-        -- Latest door opening events per machine
+      location_events AS (
+        -- Latest door opening events per location
         SELECT 
-          e.machine_id,
+          m.machine_name,
           MAX(e.datetime) as last_door_open
         FROM events e
+        JOIN machines m ON e.machine_id = m.id
         WHERE (
           e.event_name ILIKE '%door%' 
           OR e.event_name ILIKE '%tür%'
@@ -158,65 +157,76 @@ router.get('/', async (req: Request, res: Response) => {
           OR e.category = 'door'
         )
         AND e.datetime >= CURRENT_DATE - INTERVAL '30 days'
-        GROUP BY e.machine_id
+        GROUP BY m.machine_name
       ),
-      machine_stocks_mhd AS (
-        -- MHD and stock status per machine
+      location_stocks_mhd AS (
+        -- MHD and stock status per location
         SELECT 
-          ms.machine_id,
+          m.machine_name,
           COUNT(CASE WHEN ms.expiry_date < CURRENT_DATE THEN 1 END) as expired_count,
           COUNT(CASE WHEN ms.expiry_date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '7 days' THEN 1 END) as warning_count,
           MIN(ms.expiry_date) as earliest_expiry,
           SUM(ms.quantity) as total_stock
         FROM machine_stocks ms
+        JOIN machines m ON ms.machine_id = m.id
         WHERE ms.quantity > 0
-        GROUP BY ms.machine_id
+        GROUP BY m.machine_name
       )
       
       SELECT 
-        am.machine_id,
-        am.machine_name,
-        am.location,
-        am.vendon_id,
+        lt.machine_name,
+        lt.machine_name as location,
+        
+        -- Machine info
+        lt.machine_count,
         
         -- Transaction data
-        COALESCE(mt.today_transactions, 0) as today_transactions,
-        COALESCE(mt.today_revenue, 0) as today_revenue,
-        mt.recent_sales,
-        mt.last_sale,
-        mt.last_sale_product,
-        mt.last_sale_amount,
-        mt.last_cashless_sale,
-        mt.last_cashless_product,
-        mt.last_cashless_amount,
-        mt.last_cashless_method,
-        mt.last_alcohol_sale,
-        mt.last_alcohol_product,
+        COALESCE(lt.today_transactions, 0) as today_transactions,
+        COALESCE(lt.today_revenue, 0) as today_revenue,
+        lt.recent_sales,
+        lt.last_sale,
+        lt.last_sale_product,
+        lt.last_sale_amount,
+        lt.last_cashless_sale,
+        lt.last_cashless_product,
+        lt.last_cashless_amount,
+        lt.last_cashless_method,
+        lt.last_alcohol_sale,
+        lt.last_alcohol_product,
         
         -- Refill data
-        mr.last_refill,
-        mr.last_operator,
+        lr.last_refill,
+        lr.last_operator,
         
         -- Event data
-        me.last_door_open,
+        le.last_door_open,
         
         -- Stock/MHD data
-        COALESCE(mhd.expired_count, 0) as expired_count,
-        COALESCE(mhd.warning_count, 0) as warning_count,
-        mhd.earliest_expiry,
-        COALESCE(mhd.total_stock, 0) as total_stock
+        COALESCE(lmhd.expired_count, 0) as expired_count,
+        COALESCE(lmhd.warning_count, 0) as warning_count,
+        lmhd.earliest_expiry,
+        COALESCE(lmhd.total_stock, 0) as total_stock
         
-      FROM active_machines am
-      LEFT JOIN machine_transactions mt ON am.machine_id = mt.machine_id
-      LEFT JOIN machine_refills mr ON am.machine_id = mr.machine_id
-      LEFT JOIN machine_events me ON am.machine_id = me.machine_id
-      LEFT JOIN machine_stocks_mhd mhd ON am.machine_id = mhd.machine_id
+      FROM location_transactions lt
+      LEFT JOIN location_refills lr ON lt.machine_name = lr.machine_name
+      LEFT JOIN location_events le ON lt.machine_name = le.machine_name
+      LEFT JOIN location_stocks_mhd lmhd ON lt.machine_name = lmhd.machine_name
       
-      ORDER BY am.location, am.machine_name
+      ORDER BY lt.machine_name
     `);
 
     // Process the results
     const machines = result.rows.map((row: any) => {
+      // Debug: Log row data ONLY for Schöna to see what SQL returns
+      if (row.machine_name === 'Schöna') {
+        console.log('🔍 DETAILED DEBUG for Schöna:');
+        console.log('  today_transactions (raw):', row.today_transactions, typeof row.today_transactions);
+        console.log('  today_revenue (raw):', row.today_revenue, typeof row.today_revenue);
+        console.log('  last_cashless_sale (raw):', row.last_cashless_sale);
+        console.log('  last_alcohol_sale (raw):', row.last_alcohol_sale);
+        console.log('  Full row keys:', Object.keys(row));
+      }
+
       // Parse recent sales (limit to 3)
       let recentSales = [];
       try {
@@ -232,11 +242,10 @@ router.get('/', async (req: Request, res: Response) => {
       const { status, warnings } = calculateMachineStatus(row);
 
       return {
-        id: row.machine_id.toString(),
-        machineId: row.machine_id,
+        id: row.machine_name.replace(/[^a-zA-Z0-9]/g, ''),
         machineName: row.machine_name,
         location: row.location,
-        vendonId: row.vendon_id,
+        machineCount: row.machine_count || 1,
         
         // Status and warnings
         status,
@@ -265,25 +274,25 @@ router.get('/', async (req: Request, res: Response) => {
         // Last alcohol sale
         lastAlcoholSale: row.last_alcohol_sale ? {
           datetime: row.last_alcohol_sale,
-          productName: row.last_alcohol_product,
+          productName: row.last_alcohol_product || 'Alkohol',
           daysAgo: getDaysAgo(row.last_alcohol_sale)
         } : null,
-        
-        // Today's revenue
-        todayRevenue: row.today_revenue || 0,
-        todayTransactions: row.today_transactions || 0,
-        
-        // Recent sales (top 3)
-        recentTransactions: recentSales,
         
         // Last cashless sale
         lastCashlessSale: row.last_cashless_sale ? {
           datetime: row.last_cashless_sale,
-          productName: row.last_cashless_product,
-          amount: row.last_cashless_amount,
-          paymentMethod: row.last_cashless_method,
+          productName: row.last_cashless_product || 'Bargeldlos',
+          amount: row.last_cashless_amount || 0,
+          method: row.last_cashless_method || 'CASHLESS',
           daysAgo: getDaysAgo(row.last_cashless_sale)
         } : null,
+        
+        // Today's revenue - Fixed mapping with explicit types
+        todayRevenue: Number(row.today_revenue) || 0,
+        todayTransactions: Number(row.today_transactions) || 0,
+        
+        // Recent sales (top 3)
+        recentTransactions: recentSales,
         
         // Additional info
         totalStock: row.total_stock || 0,
@@ -296,9 +305,9 @@ router.get('/', async (req: Request, res: Response) => {
       };
     });
 
-    // Cache and return the machines array directly (not wrapped in response object)
-    locationStatusCache = machines;
-    cacheTimestamp = now;
+    // Cache disabled for debugging
+    // locationStatusCache = machines;
+    // cacheTimestamp = now;
 
     console.log(`Ultra-fast location status with raw SQL: Returning ${machines.length} locations`);
     res.json(machines);

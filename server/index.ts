@@ -3464,19 +3464,22 @@ app.get('/orders-data', (req, res) => {
     log('Automatische Synchronisierung ist für bessere Performance deaktiviert.');
     log('Bei Bedarf kann die Synchronisierung manuell über API-Endpunkte gestartet werden.');
 
-    // Start Supplier Analytics Cache Background Service
+    // Start Supplier Analytics Cache Background Service  
     const supplierAnalyticsCache = SupplierAnalyticsCache.getInstance();
-    log('🔄 Starting Supplier Analytics Cache Background Service...');
+    log('⏸️ Supplier Analytics Cache temporarily disabled due to SQL parameter issue');
     
-    // Initial cache population
+    // Initial cache population - DISABLED
+    /*
     try {
       await supplierAnalyticsCache.updateCache();
       log('✅ Initial Supplier Analytics Cache populated');
     } catch (error) {
       console.error('❌ Error populating initial Supplier Analytics Cache:', error);
     }
+    */
     
-    // Set up hourly cache refresh
+    // Set up hourly cache refresh - DISABLED
+    /*
     setInterval(async () => {
       try {
         log('🔄 Hourly Supplier Analytics Cache refresh...');
@@ -3486,5 +3489,6 @@ app.get('/orders-data', (req, res) => {
         console.error('❌ Error refreshing Supplier Analytics Cache:', error);
       }
     }, 60 * 60 * 1000); // 1 hour in milliseconds
+    */
   });
 })();

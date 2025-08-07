@@ -25,53 +25,44 @@ router.get('/', async (req: Request, res: Response) => {
   try {
     console.log('🚀 LOCATION-STATUS GROUPED BY LOCATION! 🚀');
     
-    // Check cache first
-    const now = Date.now();
-    if (locationStatusCache && (now - cacheTimestamp) < CACHE_DURATION) {
-      console.log('✅ Returning cached location status data');
-      return res.json(locationStatusCache);
-    }
+    // Cache temporarily disabled for debugging
+    locationStatusCache = null;
+    cacheTimestamp = 0;
     
-    // Query to get data grouped by LOCATION (extracted from machine_name)
+    // Query to get data grouped by LOCATION (extracted directly from transactions)
     const result = await db.execute(`
-      WITH all_machines_by_location AS (
-        -- Get ALL machines grouped by location (including duplicates)
+      WITH transactions_by_location AS (
+        -- Get transaction data grouped by location (extracted from machine_name)
         SELECT 
-          m.id as machine_id,
-          m.machine_name,
-          m.vendon_id,
-          -- Extract location from machine name
           CASE 
-            WHEN POSITION(',' IN m.machine_name) > 0 
-            THEN TRIM(SUBSTRING(m.machine_name FROM 1 FOR POSITION(',' IN m.machine_name) - 1))
-            ELSE m.machine_name
-          END as location
-        FROM machines m
-        WHERE m.machine_name IS NOT NULL
-          AND m.machine_name NOT LIKE '%*%'
-          AND m.machine_name NOT LIKE '%Test%'
-          AND m.id != 1  -- Exclude demo machine
-      ),
-      active_machines AS (
-        -- Filter to locations with recent transactions
-        SELECT DISTINCT aml.*
-        FROM all_machines_by_location aml
-        WHERE EXISTS (
-          SELECT 1 FROM transactions t 
-          WHERE t.machine_id = aml.machine_id 
-            AND t.datetime >= CURRENT_DATE - INTERVAL '30 days'
-        )
+            WHEN POSITION(',' IN t.machine_name) > 0 
+            THEN TRIM(SUBSTRING(t.machine_name FROM 1 FOR POSITION(',' IN t.machine_name) - 1))
+            ELSE t.machine_name
+          END as location,
+          t.machine_id,
+          t.machine_name,
+          t.datetime,
+          t.price,
+          t.payment_method,
+          t.product_name
+        FROM transactions t
+        WHERE t.machine_name IS NOT NULL
+          AND t.machine_name NOT LIKE '%*%'
+          AND t.machine_name NOT LIKE '%Test%'
+          AND t.datetime >= CURRENT_DATE - INTERVAL '30 days'
       ),
       location_aggregated AS (
         SELECT 
-          am.location,
-          COUNT(DISTINCT am.machine_id) as machine_count,
-          STRING_AGG(DISTINCT am.machine_name, ', ' ORDER BY am.machine_name) as machine_names,
+          tbl.location,
+          COUNT(DISTINCT tbl.machine_id) as machine_count,
+          STRING_AGG(DISTINCT tbl.machine_name, ', ' ORDER BY tbl.machine_name) as machine_names,
           
-          -- Aggregate sales data
-          MAX(t.last_sale) as last_sale,
-          SUM(t.today_revenue) as today_revenue,
-          MAX(t.last_cashless_sale) as last_cashless_sale,
+          -- Direct aggregation from transactions
+          MAX(tbl.datetime) as last_sale,
+          COALESCE(SUM(CASE WHEN tbl.datetime >= CURRENT_DATE THEN tbl.price ELSE 0 END), 0) as today_revenue,
+          COUNT(CASE WHEN tbl.datetime >= CURRENT_DATE THEN 1 END) as today_transactions,
+          MAX(CASE WHEN tbl.payment_method IN ('CASHLESS', 'CARD') THEN tbl.datetime END) as last_cashless_sale,
+          MAX(CASE WHEN EXISTS(SELECT 1 FROM products p WHERE LOWER(TRIM(tbl.product_name)) = LOWER(TRIM(p.product_name)) AND p."isAlcoholic" = true) THEN tbl.datetime END) as last_alcohol_sale,
           
           -- Latest refill across all machines at location
           MAX(r.last_refill) as last_refill,
@@ -85,19 +76,7 @@ router.get('/', async (req: Request, res: Response) => {
           SUM(mhd.warning_count) as warning_count,
           MIN(mhd.earliest_expiry) as earliest_expiry
           
-        FROM active_machines am
-        
-        -- Transaction stats per machine
-        LEFT JOIN (
-          SELECT 
-            machine_id,
-            MAX(datetime) as last_sale,
-            COALESCE(SUM(CASE WHEN datetime >= CURRENT_DATE THEN price ELSE 0 END), 0) as today_revenue,
-            MAX(CASE WHEN payment_method IN ('CASHLESS', 'CARD') THEN datetime END) as last_cashless_sale
-          FROM transactions
-          WHERE datetime >= CURRENT_DATE - INTERVAL '7 days'
-          GROUP BY machine_id
-        ) t ON am.machine_id = t.machine_id
+        FROM transactions_by_location tbl
         
         -- Refill stats per machine
         LEFT JOIN (
@@ -108,7 +87,7 @@ router.get('/', async (req: Request, res: Response) => {
           FROM refills
           WHERE datetime >= CURRENT_DATE - INTERVAL '30 days'
           GROUP BY machine_id
-        ) r ON am.machine_id = r.machine_id
+        ) r ON tbl.machine_id = r.machine_id
         
         -- Event stats per machine
         LEFT JOIN (
@@ -122,7 +101,7 @@ router.get('/', async (req: Request, res: Response) => {
             OR event_name LIKE '%Tür%')
             AND datetime >= CURRENT_DATE - INTERVAL '30 days'
           GROUP BY machine_id
-        ) e ON am.machine_id = e.machine_id
+        ) e ON tbl.machine_id = e.machine_id
         
         -- MHD stats per machine
         LEFT JOIN (
@@ -135,9 +114,9 @@ router.get('/', async (req: Request, res: Response) => {
           WHERE expiry_date IS NOT NULL
             AND quantity > 0
           GROUP BY machine_id
-        ) mhd ON am.machine_id = mhd.machine_id
+        ) mhd ON tbl.machine_id = mhd.machine_id
         
-        GROUP BY am.location
+        GROUP BY tbl.location
       )
       SELECT 
         ROW_NUMBER() OVER (ORDER BY today_revenue DESC, location) as id,
@@ -146,7 +125,9 @@ router.get('/', async (req: Request, res: Response) => {
         machine_names,
         last_sale,
         today_revenue,
+        today_transactions,
         last_cashless_sale,
+        last_alcohol_sale,
         last_refill,
         last_operator,
         last_door_open,
@@ -210,8 +191,12 @@ router.get('/', async (req: Request, res: Response) => {
           datetime: new Date(row.last_door_open).toISOString(),
           daysAgo: getDaysAgo(row.last_door_open)
         } : null,
-        lastAlcoholSale: null,
+        lastAlcoholSale: row.last_alcohol_sale ? {
+          datetime: new Date(row.last_alcohol_sale).toISOString(),
+          daysAgo: getDaysAgo(row.last_alcohol_sale)
+        } : null,
         todayRevenue: Number(row.today_revenue || 0),
+        todayTransactions: Number(row.today_transactions || 0),
         recentTransactions: [],
         status: status as 'ok' | 'warning' | 'error',
         warnings,
@@ -223,7 +208,7 @@ router.get('/', async (req: Request, res: Response) => {
     
     // Update cache
     locationStatusCache = machineStatusData;
-    cacheTimestamp = now;
+    cacheTimestamp = Date.now();
     
     console.log(`Ultra-fast location status with raw SQL: Returning ${machineStatusData.length} locations`);
     res.json(machineStatusData);
