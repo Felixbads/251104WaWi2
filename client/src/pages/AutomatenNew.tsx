@@ -38,8 +38,8 @@ interface MachineData {
   } | null;
   todayRevenue: number;
   recentTransactions: Array<{
-    product_name: string;
-    amount: number;
+    productName: string;
+    price: number;
     datetime: string;
   }>;
   lastCashlessSale: {
@@ -198,8 +198,8 @@ function MachineCard({ machine }: { machine: MachineData }) {
             <div className="space-y-1">
               {machine.recentTransactions.slice(0, 3).map((sale, idx) => (
                 <div key={idx} className="text-xs text-muted-foreground flex justify-between">
-                  <span>{sale.product_name}</span>
-                  <span>{sale.amount?.toFixed(2)} EUR - {formatTimeAgo(sale.datetime)}</span>
+                  <span>{sale.productName}</span>
+                  <span>{sale.price?.toFixed(2)} EUR - {formatTimeAgo(sale.datetime)}</span>
                 </div>
               ))}
             </div>
