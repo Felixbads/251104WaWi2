@@ -122,56 +122,37 @@ router.get('/:id/inventory', async (req, res) => {
     const productId = parseInt(req.params.id);
     console.log(`[PRODUCT-INVENTORY] Getting real inventory for product ${productId}`);
     
-    // Fetch actual machine stocks from database
-    const machineStocksQuery = `
+    // First get the product's vendon_id to join with machine_stocks
+    const productResult = await pool.query('SELECT vendon_id FROM products WHERE id = $1', [productId]);
+    const productVendonId = productResult.rows[0]?.vendon_id;
+    
+    console.log(`[PRODUCT-INVENTORY] Product ${productId} has vendon_id: ${productVendonId}`);
+    
+    // Fetch actual machine stocks from database using product_vendon_id
+    const machineStocksResult = await pool.query(`
       SELECT 
         m.id as machine_id,
         m.machine_name,
         m.location_name as location,
         COALESCE(ms.quantity, 0) as current_stock,
-        COALESCE(ms.max_capacity, 50) as max_capacity,
-        ms.last_refill_date,
+        50 as max_capacity,
+        ms.last_filled as last_refill_date,
         ms.updated_at
       FROM machines m
-      LEFT JOIN machine_stocks ms ON m.id = ms.machine_id AND ms.product_id = $1
-      WHERE m.is_active = true
+      LEFT JOIN machine_stocks ms ON m.id = ms.machine_id AND ms.product_vendon_id = $1
+      WHERE m.status = 'active' OR m.status IS NULL
       ORDER BY m.machine_name
-    `;
+    `, [productVendonId]);
     
-    const machineStocksResult = await pool.query(machineStocksQuery, [productId]);
-    
-    // Lagerdaten basierend auf Gesamtverkäufen berechnet
-    const totalSales = await pool.query(`
-      SELECT COUNT(*) as total_sold 
-      FROM transactions 
-      WHERE product_name LIKE '%Oppacher%'
-    `);
-    
-    // Fetch warehouse stocks with batch information
+    // Fetch warehouse stocks (very simplified)
     const warehouseStocksResult = await pool.query(`
       SELECT 
         w.id as warehouse_id,
         w.name as warehouse_name,
-        COALESCE(ii.quantity, 0) as current_stock,
-        ii.min_quantity as minimum_stock,
-        ii.max_quantity as maximum_stock,
-        COALESCE(
-          json_agg(
-            DISTINCT jsonb_build_object(
-              'batch_number', ib.batch_number,
-              'expiry_date', ib.expiry_date,
-              'quantity', ib.quantity,
-              'status', ib.status,
-              'location_in_warehouse', ib.location_in_warehouse
-            ) ORDER BY ib.expiry_date ASC
-          ) FILTER (WHERE ib.id IS NOT NULL), 
-          '[]'::json
-        ) as batches
+        COALESCE(ii.quantity, 0) as current_stock
       FROM warehouses w
       LEFT JOIN inventory_items ii ON w.id = ii.warehouse_id AND ii.product_id = $1
-      LEFT JOIN inventory_batches ib ON w.id = ib.warehouse_id AND ib.product_id = $1 AND ib.status = 'active'
       WHERE w.is_active = true
-      GROUP BY w.id, w.name, ii.quantity, ii.min_quantity, ii.max_quantity
       ORDER BY w.name ASC
     `, [productId]);
     
@@ -291,7 +272,7 @@ router.get('/:id/refill-history', async (req, res) => {
     const productId = parseInt(req.params.id);
     console.log('[PRODUCTS] Fetching refill history for product ID:', productId);
     
-    // Get refill data with operator, action type, and quantities
+    // Simplified refill data query without problematic joins
     const result = await pool.query(`
       SELECT 
         r.id,
@@ -303,7 +284,6 @@ router.get('/:id/refill-history', async (req, res) => {
         m.machine_name,
         m.location_name as machine_location,
         r.operator,
-        u.username as operator_name,
         CASE 
           WHEN rd.quantity_removed > 0 THEN 'removed'
           WHEN rd.quantity_added > 0 THEN 'added'
@@ -317,12 +297,6 @@ router.get('/:id/refill-history', async (req, res) => {
       LEFT JOIN machines m ON r.machine_id = m.id
       LEFT JOIN refill_details rd ON r.id = rd.refill_id
       LEFT JOIN products p ON rd.product_id = p.id
-      LEFT JOIN users u ON (
-        CASE 
-          WHEN r.operator ~ '^[0-9]+$' THEN r.operator::integer = u.id
-          ELSE false
-        END
-      )
       WHERE rd.product_id = $1
       ORDER BY r.datetime DESC
       LIMIT 50
