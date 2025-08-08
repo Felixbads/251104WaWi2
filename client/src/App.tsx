@@ -133,6 +133,7 @@ import RecurringOrdersPage from "@/pages/RecurringOrdersPage";
 import Fuellstaende from "@/pages/Fuellstaende";
 import LocationDetail from "@/pages/LocationDetail";
 import PagePermissions from "@/pages/PagePermissions";
+import DBIndex from "@/pages/DBIndex";
 
 // Authentifizierte und nicht-authentifizierte Router
 function AuthenticatedRouter() {
@@ -219,6 +220,12 @@ function AuthenticatedRouter() {
         <Route path="/standort-analyse" component={props => (
           <ApprovedUserRoute>
             <StandortAnalyse {...props} />
+          </ApprovedUserRoute>
+        )} />
+
+        <Route path="/db-index" component={props => (
+          <ApprovedUserRoute>
+            <DBIndex {...props} />
           </ApprovedUserRoute>
         )} />
 

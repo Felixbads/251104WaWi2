@@ -39,6 +39,7 @@ export const menuItems = {
   ] as MenuItem[],
   analysis: [
     { title: 'Umsatz- und Ergebnisübersicht', icon: <BarChart4 className="h-5 w-5 mr-3" />, path: '/umsatz-ergebnis-uebersicht' },
+    { title: 'DB-Index', icon: <BarChart2 className="h-5 w-5 mr-3" />, path: '/db-index' },
     { title: 'Auswertung', icon: <PieChart className="h-5 w-5 mr-3" />, path: '/auswertungen' },
     { title: 'Erweiterte Auswertung', icon: <PieChart className="h-5 w-5 mr-3" />, path: '/erweiterte-analyse' },
     { title: 'Standort-Analyse', icon: <PieChart className="h-5 w-5 mr-3" />, path: '/standort-analyse' },
@@ -143,6 +144,8 @@ export default function AppShell({ children }: AppShellProps) {
         return "Einstellungen";
       case "/umsatz-ergebnis-uebersicht":
         return "Umsatz- und Ergebnisübersicht";
+      case "/db-index":
+        return "DB-Index";
       default:
         return "Proviantomat";
     }

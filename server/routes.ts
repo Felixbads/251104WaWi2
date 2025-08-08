@@ -6235,5 +6235,172 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get(`${API_PREFIX}/umsatz-ergebnis-overview`, getUmsatzErgebnisOverview);
   app.get(`${API_PREFIX}/umsatz-ergebnis-chart`, getUmsatzErgebnisChart);
 
+  // DB-Index (Deckungsbeitragsindex) API Endpoint
+  app.get(`${API_PREFIX}/db-index`, async (req: Request, res: Response) => {
+    try {
+      console.log('[DB-INDEX] Starting DB-Index calculation...');
+      
+      // Calculate date ranges (30-day rolling windows)
+      const endDate = new Date();
+      const startDate = new Date();
+      startDate.setDate(endDate.getDate() - 30);
+      
+      const prevEndDate = new Date(startDate);
+      const prevStartDate = new Date(prevEndDate);
+      prevStartDate.setDate(prevEndDate.getDate() - 30);
+      
+      console.log(`[DB-INDEX] Current window: ${startDate.toISOString()} to ${endDate.toISOString()}`);
+      console.log(`[DB-INDEX] Previous window: ${prevStartDate.toISOString()} to ${prevEndDate.toISOString()}`);
+
+      // Complex SQL query for DB-Index calculation based on specifications
+      const dbIndexQuery = `
+        WITH current_sales AS (
+          SELECT 
+            COALESCE(t.product_id, p.vendon_id) AS product_vendon_id,
+            SUM(t.quantity * (COALESCE(t.price_wo_vat, t.price - COALESCE(t.price_vat, 0)) - COALESCE(p.deposit_price, 0))) AS monatsumsatz_netto,
+            SUM(t.quantity * ((COALESCE(t.price_wo_vat, t.price - COALESCE(t.price_vat, 0)) - COALESCE(p.deposit_price, 0)) - COALESCE(p.cost_price, 0))) AS gesamtmarge
+          FROM transactions t
+          LEFT JOIN products p ON (t.product_id = p.vendon_id OR t.product_name = p.product_name)
+          WHERE t.datetime >= $1 AND t.datetime < $2
+            AND p.vendon_id IS NOT NULL
+          GROUP BY COALESCE(t.product_id, p.vendon_id)
+        ),
+        current_withdrawals AS (
+          SELECT 
+            di.product_id AS product_vendon_id,
+            SUM(di.quantity * COALESCE(p.cost_price, 0)) AS wert_entnahmen
+          FROM product_disposal_items di
+          JOIN product_disposals d ON d.id = di.disposal_id
+          LEFT JOIN products p ON p.vendon_id = di.product_id
+          WHERE d.created_at >= $1 AND d.created_at < $2
+          GROUP BY di.product_id
+        ),
+        current_listing AS (
+          SELECT 
+            ms.product_vendon_id AS product_vendon_id,
+            COUNT(DISTINCT ms.machine_id) AS anzahl_automaten_gelistet
+          FROM machine_stocks ms
+          WHERE ms.product_vendon_id IS NOT NULL
+          GROUP BY ms.product_vendon_id
+        ),
+        previous_sales AS (
+          SELECT 
+            COALESCE(t.product_id, p.vendon_id) AS product_vendon_id,
+            SUM(t.quantity * (COALESCE(t.price_wo_vat, t.price - COALESCE(t.price_vat, 0)) - COALESCE(p.deposit_price, 0))) AS monatsumsatz_netto_prev,
+            SUM(t.quantity * ((COALESCE(t.price_wo_vat, t.price - COALESCE(t.price_vat, 0)) - COALESCE(p.deposit_price, 0)) - COALESCE(p.cost_price, 0))) AS gesamtmarge_prev
+          FROM transactions t
+          LEFT JOIN products p ON (t.product_id = p.vendon_id OR t.product_name = p.product_name)
+          WHERE t.datetime >= $3 AND t.datetime < $4
+            AND p.vendon_id IS NOT NULL
+          GROUP BY COALESCE(t.product_id, p.vendon_id)
+        ),
+        previous_withdrawals AS (
+          SELECT 
+            di.product_id AS product_vendon_id,
+            SUM(di.quantity * COALESCE(p.cost_price, 0)) AS wert_entnahmen_prev
+          FROM product_disposal_items di
+          JOIN product_disposals d ON d.id = di.disposal_id
+          LEFT JOIN products p ON p.vendon_id = di.product_id
+          WHERE d.created_at >= $3 AND d.created_at < $4
+          GROUP BY di.product_id
+        ),
+        combined_current AS (
+          SELECT 
+            p.id,
+            p.vendon_id AS product_vendon_id,
+            p.product_name AS produkt_name,
+            COALESCE(cs.monatsumsatz_netto, 0) AS monatsumsatz_netto,
+            COALESCE(cw.wert_entnahmen, 0) AS wert_entnahmen,
+            COALESCE(cs.gesamtmarge, 0) AS gesamtmarge,
+            (COALESCE(cs.gesamtmarge, 0) - COALESCE(cw.wert_entnahmen, 0)) AS delta_ergebnis_minus_entnahmen,
+            COALESCE(cl.anzahl_automaten_gelistet, 0) AS anzahl_automaten_gelistet,
+            CASE 
+              WHEN COALESCE(cl.anzahl_automaten_gelistet, 0) = 0 THEN NULL
+              ELSE (COALESCE(cs.gesamtmarge, 0) - COALESCE(cw.wert_entnahmen, 0))::numeric / NULLIF(cl.anzahl_automaten_gelistet, 0)
+            END AS deckungsbeitragsindex
+          FROM products p
+          LEFT JOIN current_sales cs ON cs.product_vendon_id = p.vendon_id
+          LEFT JOIN current_withdrawals cw ON cw.product_vendon_id = p.vendon_id
+          LEFT JOIN current_listing cl ON cl.product_vendon_id = p.vendon_id
+          WHERE p.vendon_id IS NOT NULL
+        ),
+        combined_previous AS (
+          SELECT 
+            p.vendon_id AS product_vendon_id,
+            CASE 
+              WHEN COALESCE(cl.anzahl_automaten_gelistet, 0) = 0 THEN NULL
+              ELSE ((COALESCE(ps.gesamtmarge_prev, 0) - COALESCE(pw.wert_entnahmen_prev, 0))::numeric / NULLIF(cl.anzahl_automaten_gelistet, 0))
+            END AS dbi_vorperiode
+          FROM products p
+          LEFT JOIN previous_sales ps ON ps.product_vendon_id = p.vendon_id
+          LEFT JOIN previous_withdrawals pw ON pw.product_vendon_id = p.vendon_id
+          LEFT JOIN current_listing cl ON cl.product_vendon_id = p.vendon_id
+          WHERE p.vendon_id IS NOT NULL
+        )
+        SELECT 
+          cc.*,
+          cp.dbi_vorperiode,
+          (cc.deckungsbeitragsindex - cp.dbi_vorperiode) AS dbi_delta_abs,
+          CASE 
+            WHEN cp.dbi_vorperiode = 0 OR cp.dbi_vorperiode IS NULL THEN NULL
+            ELSE (cc.deckungsbeitragsindex - cp.dbi_vorperiode) / NULLIF(cp.dbi_vorperiode, 0)
+          END AS dbi_delta_rel
+        FROM combined_current cc
+        LEFT JOIN combined_previous cp ON cp.product_vendon_id = cc.product_vendon_id
+        WHERE cc.monatsumsatz_netto > 0 OR cc.deckungsbeitragsindex IS NOT NULL
+        ORDER BY cc.deckungsbeitragsindex DESC NULLS LAST, cc.monatsumsatz_netto DESC
+        LIMIT 1000;
+      `;
+
+      console.log('[DB-INDEX] Executing complex DB-Index query...');
+      const result = await rawDb.query(dbIndexQuery, [
+        startDate.toISOString(),
+        endDate.toISOString(),
+        prevStartDate.toISOString(),
+        prevEndDate.toISOString()
+      ]);
+
+      const products = result.rows;
+      console.log(`[DB-INDEX] Query completed. Found ${products.length} products.`);
+
+      // Find top product (highest DBI)
+      const topProduct = products.length > 0 && products[0].deckungsbeitragsindex !== null 
+        ? products[0] 
+        : null;
+
+      const response = {
+        success: true,
+        data: {
+          products,
+          summary: {
+            topProduct,
+            totalProducts: products.length,
+            dateRange: {
+              current: {
+                startDate: startDate.toISOString().split('T')[0],
+                endDate: endDate.toISOString().split('T')[0]
+              },
+              previous: {
+                startDate: prevStartDate.toISOString().split('T')[0],
+                endDate: prevEndDate.toISOString().split('T')[0]
+              }
+            }
+          }
+        }
+      };
+
+      console.log(`[DB-INDEX] Response prepared with ${products.length} products, top DBI: ${topProduct?.deckungsbeitragsindex || 'null'}`);
+      res.json(response);
+
+    } catch (error: any) {
+      console.error('[DB-INDEX] Error calculating DB-Index:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Fehler beim Berechnen des Deckungsbeitragsindex',
+        details: error.message
+      });
+    }
+  });
+
   return httpServer;
 }
