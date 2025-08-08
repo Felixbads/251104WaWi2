@@ -1,6 +1,6 @@
 import express from "express";
 import { z } from "zod";
-import { db } from "../db";
+import { db, pool } from "../db";
 import { eq, and, like, gt, lt, gte, lte, desc, asc, sql, isNull, isNotNull, not } from "drizzle-orm";
 import { 
   warehouses, 
@@ -41,7 +41,7 @@ const handleServerError = (error: any, res: express.Response) => {
 // GET /api/warehouse3/warehouses - Alle Lager abrufen
 router.get("/warehouses", async (req, res) => {
   try {
-    const result = await db.query(`SELECT * FROM warehouses ORDER BY name`);
+    const result = await pool.query(`SELECT * FROM warehouses ORDER BY name`);
     return res.json(result.rows);
   } catch (error) {
     return handleServerError(error, res);
@@ -82,7 +82,7 @@ router.get("/warehouses/:id", async (req, res) => {
       return res.status(400).json({ success: false, message: "Ungültige Lager-ID" });
     }
 
-    const result = await db.query(`SELECT * FROM warehouses WHERE id = $1 LIMIT 1`, [warehouseId]);
+    const result = await pool.query(`SELECT * FROM warehouses WHERE id = $1 LIMIT 1`, [warehouseId]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, message: "Lager nicht gefunden" });
@@ -103,7 +103,7 @@ router.patch("/warehouses/:id", async (req, res) => {
     }
 
     // Prüfen, ob das Lager existiert
-    const existingWarehouseResult = await db.query(`SELECT * FROM warehouses WHERE id = $1 LIMIT 1`, [warehouseId]);
+    const existingWarehouseResult = await pool.query(`SELECT * FROM warehouses WHERE id = $1 LIMIT 1`, [warehouseId]);
     if (existingWarehouseResult.rows.length === 0) {
       return res.status(404).json({ success: false, message: "Lager nicht gefunden" });
     }
@@ -133,7 +133,7 @@ router.patch("/warehouses/:id", async (req, res) => {
     }
 
     // SQL-Abfrage ausführen
-    const updateResult = await db.query(
+    const updateResult = await pool.query(
       `UPDATE warehouses SET ${updateFields.join(', ')} WHERE id = $1 RETURNING *`,
       updateValues
     );
@@ -167,16 +167,45 @@ router.delete("/warehouses/:id", async (req, res) => {
     }
 
     // Prüfen, ob das Lager existiert
-    const existingWarehouseResult = await db.query(`SELECT * FROM warehouses WHERE id = $1 LIMIT 1`, [warehouseId]);
+    const existingWarehouseResult = await pool.query(`SELECT * FROM warehouses WHERE id = $1 LIMIT 1`, [warehouseId]);
     if (existingWarehouseResult.rows.length === 0) {
       return res.status(404).json({ success: false, message: "Lager nicht gefunden" });
     }
 
-    // TODO: Prüfen, ob Abhängigkeiten bestehen (Bestand, Bewegungen, etc.)
-    // Hier könnte man prüfen, ob es Produkte oder Bewegungen gibt, die auf dieses Lager verweisen
+    // Prüfen, ob Abhängigkeiten bestehen (Bestand, Bewegungen, etc.)
+    const dependencyChecks = [
+      {
+        table: "machine_warehouse_assignments",
+        field: "warehouse_id", 
+        name: "Maschinen-Zuordnungen",
+        query: `SELECT COUNT(*) as count FROM machine_warehouse_assignments WHERE warehouse_id = $1`
+      }
+    ];
 
-    // Lager löschen
-    await db.query(`DELETE FROM warehouses WHERE id = $1`, [warehouseId]);
+    const dependencies = [];
+    for (const check of dependencyChecks) {
+      const result = await pool.query(check.query, [warehouseId]);
+      const count = parseInt(result.rows[0].count);
+      if (count > 0) {
+        dependencies.push({
+          name: check.name,
+          count: count
+        });
+      }
+    }
+
+    // Falls Abhängigkeiten existieren, Löschung blockieren
+    if (dependencies.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Das Lager kann nicht gelöscht werden, da abhängige Datensätze existieren.",
+        dependencies: dependencies,
+        hint: "Entfernen Sie zuerst alle abhängigen Datensätze oder verschieben Sie sie in ein anderes Lager."
+      });
+    }
+
+    // Lager löschen (nur wenn keine Abhängigkeiten existieren)
+    await pool.query(`DELETE FROM warehouses WHERE id = $1`, [warehouseId]);
 
     return res.json({
       success: true,
@@ -196,14 +225,14 @@ router.get("/warehouses/:id/stats", async (req, res) => {
     }
 
     // Produkte im Lager zählen
-    const productCountResult = await db.query(
+    const productCountResult = await pool.query(
       `SELECT COUNT(*) FROM product_inventory WHERE warehouse_id = $1`,
       [warehouseId]
     );
     const productCount = parseInt(productCountResult.rows[0]?.count) || 0;
 
     // Produkte mit niedrigem Bestand zählen
-    const lowStockCountResult = await db.query(
+    const lowStockCountResult = await pool.query(
       `SELECT COUNT(*) FROM product_inventory 
        WHERE warehouse_id = $1 AND current_stock < minimum_stock`,
       [warehouseId]
@@ -211,7 +240,7 @@ router.get("/warehouses/:id/stats", async (req, res) => {
     const lowStockCount = parseInt(lowStockCountResult.rows[0]?.count) || 0;
 
     // Zugewiesene Automaten zählen
-    const machineCountResult = await db.query(
+    const machineCountResult = await pool.query(
       `SELECT COUNT(*) FROM machine_warehouse_assignments 
        WHERE warehouse_id = $1`,
       [warehouseId]
@@ -219,7 +248,7 @@ router.get("/warehouses/:id/stats", async (req, res) => {
     const machineCount = parseInt(machineCountResult.rows[0]?.count) || 0;
 
     // Datum der letzten Inventur
-    const lastInventoryResult = await db.query(
+    const lastInventoryResult = await pool.query(
       `SELECT end_date FROM inventory_counts 
        WHERE warehouse_id = $1 
        ORDER BY end_date DESC 
@@ -232,7 +261,7 @@ router.get("/warehouses/:id/stats", async (req, res) => {
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-    const movementCount30DaysResult = await db.query(
+    const movementCount30DaysResult = await pool.query(
       `SELECT COUNT(*) FROM inventory_movements 
        WHERE ((source_type = 'warehouse' AND source_id = $1) 
               OR (destination_type = 'warehouse' AND destination_id = $1))
@@ -334,7 +363,7 @@ router.get("/warehouses/:id/inventory", async (req, res) => {
     }
 
     // Gesamtanzahl der Einträge ermitteln
-    const countResult = await db.query(
+    const countResult = await pool.query(
       `SELECT COUNT(*) FROM product_inventory WHERE warehouse_id = $1`,
       [warehouseId]
     );
@@ -346,7 +375,7 @@ router.get("/warehouses/:id/inventory", async (req, res) => {
     queryParams.push(offset);
 
     // Abfrage ausführen
-    const result = await db.query(sqlQuery, queryParams);
+    const result = await pool.query(sqlQuery, queryParams);
     const items = result.rows;
 
     // Ergebnis zurückgeben
@@ -463,7 +492,7 @@ router.get("/warehouses/:id/movements", async (req, res) => {
     }
 
     // Gesamtanzahl der Einträge ermitteln
-    const countResult = await db.query(
+    const countResult = await pool.query(
       `SELECT COUNT(*) FROM inventory_movements im
        WHERE ((im.source_type = 'warehouse' AND im.source_id = $1)
               OR (im.destination_type = 'warehouse' AND im.destination_id = $1))`,
@@ -477,7 +506,7 @@ router.get("/warehouses/:id/movements", async (req, res) => {
     queryParams.push(offset);
 
     // Abfrage ausführen
-    const result = await db.query(sqlQuery, queryParams);
+    const result = await pool.query(sqlQuery, queryParams);
     const items = result.rows;
 
     // Ergebnis zurückgeben
