@@ -10,16 +10,21 @@ import {
   Truck,
   Cloud,
   RefreshCw,
-  Database,
+  Calculator,
   Clock,
-  Coffee,
   Trophy,
   Sun,
   CloudRain,
+  CloudSnow,
+  Wind,
   MapPin,
   Activity,
   Euro,
-  ChevronRight
+  ChevronRight,
+  Minus,
+  Calendar as CalendarIcon,
+  School,
+  Gift
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
@@ -94,10 +99,17 @@ export default function Dashboard() {
     return <Login />;
   }
 
-  // Essential data queries
+  // Essential data queries - Get all today's transactions
   const { data: transactions, isLoading: isLoadingTransactions } = useQuery({
     queryKey: ['/api/transactions'],
-    queryFn: () => getTransactions(100),
+    queryFn: () => getTransactions(1000), // Get more transactions for accurate daily totals
+  });
+
+  // Get removed products for weekly overview
+  const { data: removedProducts, isLoading: isLoadingRemovedProducts } = useQuery({
+    queryKey: ['/api/removed-products'],
+    queryFn: () => fetch('/api/removed-products').then(res => res.json()),
+    refetchInterval: 300000
   });
 
   const { data: machines, isLoading: isLoadingMachines } = useQuery({
@@ -146,21 +158,56 @@ export default function Dashboard() {
     refetchInterval: 300000
   });
 
-  // Calculate metrics
-  const todayTransactions = transactions?.filter(tx => {
-    const txDate = new Date(tx.datetime);
+  // Calculate enhanced daily metrics
+  const todayData = React.useMemo(() => {
+    if (!transactions) return { transactions: 0, revenue: 0, netAmount: 0, margin: 0, units: 0 };
+    
     const today = new Date();
-    return txDate.toDateString() === today.toDateString();
-  }).length || 0;
+    const todayTxs = transactions.filter(tx => {
+      const txDate = new Date(tx.datetime);
+      return txDate.toDateString() === today.toDateString();
+    });
+    
+    const revenue = todayTxs.reduce((sum, tx) => sum + (tx.price || 0), 0);
+    const netAmount = todayTxs.reduce((sum, tx) => sum + ((tx.netResult || 0) + (tx.price || 0)), 0); // Net before costs
+    const margin = revenue > 0 ? ((revenue - (revenue * 0.6)) / revenue * 100) : 0; // Estimated margin
+    const units = todayTxs.reduce((sum, tx) => sum + (tx.quantity || 1), 0);
+    
+    return {
+      transactions: todayTxs.length,
+      revenue,
+      netAmount: netAmount * 0.85, // Estimated net after operating costs
+      margin,
+      units
+    };
+  }, [transactions]);
 
-  const todayRevenue = transactions?.filter(tx => {
-    const txDate = new Date(tx.datetime);
-    const today = new Date();
-    return txDate.toDateString() === today.toDateString();
-  }).reduce((sum, tx) => sum + (tx.price || 0), 0) || 0;
-
-  const activeMachines = machines?.filter(m => m.status === "active").length || 0;
   const criticalMachines = locationStatus?.filter((l: any) => l.alerts?.length > 0 || l.warnings?.length > 0).length || 0;
+
+  // Calculate weekly removed products
+  const weeklyRemovedData = React.useMemo(() => {
+    if (!removedProducts?.items) return [];
+    
+    const weekAgo = new Date();
+    weekAgo.setDate(weekAgo.getDate() - 7);
+    
+    // Group by machine and calculate total value
+    const machineRemovals = removedProducts.items
+      .filter((item: any) => new Date(item.datetime) >= weekAgo)
+      .reduce((acc: any, item: any) => {
+        const key = item.machineName || 'Unbekannt';
+        if (!acc[key]) {
+          acc[key] = { machineName: key, count: 0, value: 0 };
+        }
+        acc[key].count += item.quantity || 1;
+        acc[key].value += (item.productPrice || 0) * (item.quantity || 1);
+        return acc;
+      }, {});
+    
+    return Object.values(machineRemovals)
+      .sort((a: any, b: any) => b.value - a.value)
+      .slice(0, 10);
+  }, [removedProducts]);
 
   // Get top and worst products by DB Index
   const topDBIProducts = React.useMemo(() => {
@@ -212,46 +259,49 @@ export default function Dashboard() {
       </div>
 
       <div className="px-4 py-6 sm:px-6 lg:px-8">
-        {/* Key Metrics Row - Mobile First */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          {/* Today's Revenue */}
-          <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
+        {/* Enhanced Key Metrics Row - Mobile First */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+          {/* Enhanced Revenue Card */}
+          <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200 sm:col-span-2 lg:col-span-1">
             <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
                   <p className="text-sm font-medium text-blue-600">Tagesumsatz</p>
-                  <p className="text-2xl font-bold text-blue-900">{formatCurrency(todayRevenue)}</p>
-                  <p className="text-xs text-blue-600 mt-1">{todayTransactions} Transaktionen</p>
+                  <Euro className="h-6 w-6 text-blue-500" />
                 </div>
-                <Euro className="h-8 w-8 text-blue-500" />
+                <div className="space-y-2">
+                  <p className="text-2xl font-bold text-blue-900">{formatCurrency(todayData.revenue)}</p>
+                  <div className="grid grid-cols-3 gap-2 text-xs">
+                    <div className="text-center">
+                      <p className="text-blue-700 font-medium">{todayData.units}</p>
+                      <p className="text-blue-600">Verkäufe</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-green-700 font-medium">{formatCurrency(todayData.netAmount)}</p>
+                      <p className="text-blue-600">Netto</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-green-700 font-medium">{todayData.margin.toFixed(1)}%</p>
+                      <p className="text-blue-600">Marge</p>
+                    </div>
+                  </div>
+                </div>
               </div>
             </CardContent>
           </Card>
 
-          {/* Active Machines */}
-          <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200">
+          {/* Weekly Removals Preview */}
+          <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200">
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-green-600">Aktive Automaten</p>
-                  <p className="text-2xl font-bold text-green-900">{activeMachines}</p>
-                  <p className="text-xs text-green-600 mt-1">von {machines?.length || 0} total</p>
+                  <p className="text-sm font-medium text-purple-600">Entnahmen (7 Tage)</p>
+                  <p className="text-2xl font-bold text-purple-900">
+                    {formatCurrency(weeklyRemovedData.reduce((sum: number, item: any) => sum + item.value, 0))}
+                  </p>
+                  <p className="text-xs text-purple-600 mt-1">{weeklyRemovedData.length} Automaten</p>
                 </div>
-                <Coffee className="h-8 w-8 text-green-500" />
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Open Orders */}
-          <Card className="bg-gradient-to-br from-orange-50 to-orange-100 border-orange-200">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-orange-600">Offene Bestellungen</p>
-                  <p className="text-2xl font-bold text-orange-900">{openOrders?.length || 0}</p>
-                  <p className="text-xs text-orange-600 mt-1">Warenlieferungen</p>
-                </div>
-                <Truck className="h-8 w-8 text-orange-500" />
+                <Minus className="h-8 w-8 text-purple-500" />
               </div>
             </CardContent>
           </Card>
@@ -276,7 +326,7 @@ export default function Dashboard() {
           {/* Left Column - Full width on mobile, 2/3 on desktop */}
           <div className="lg:col-span-2 space-y-6">
             
-            {/* Incoming Goods Tile */}
+            {/* Enhanced Incoming Goods Tile */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center text-lg">
@@ -294,15 +344,20 @@ export default function Dashboard() {
                   <div className="space-y-3">
                     {openOrders.slice(0, 5).map((order, index) => (
                       <div key={index} className="flex items-center justify-between p-3 bg-orange-50 rounded-lg border">
-                        <div>
-                          <p className="font-medium text-sm">{order.orderNumber}</p>
-                          <p className="text-xs text-gray-600">{order.supplierName}</p>
-                        </div>
-                        <div className="text-right">
-                          <Badge variant={(order as any).isOverdue ? "destructive" : "secondary"} className="text-xs">
-                            {(order as any).isOverdue ? 'Verspätet' : 'Offen'}
-                          </Badge>
-                          <p className="text-xs text-gray-600 mt-1">{formatCurrency((order as any).totalValue || 0)}</p>
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between mb-1">
+                            <p className="font-medium text-sm">{(order as any).supplierName || 'Unbekannter Lieferant'}</p>
+                            <p className="text-sm font-bold text-orange-900">{formatCurrency((order as any).totalValue || 0)}</p>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <p className="text-xs text-gray-600">
+                              <CalendarIcon className="h-3 w-3 inline mr-1" />
+                              {(order as any).orderDate ? new Date((order as any).orderDate).toLocaleDateString('de-DE') : 'Kein Datum'}
+                            </p>
+                            <Badge variant={(order as any).isOverdue ? "destructive" : "secondary"} className="text-xs">
+                              {(order as any).isOverdue ? 'Verspätet' : 'Offen'}
+                            </Badge>
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -344,7 +399,9 @@ export default function Dashboard() {
                       .filter((location: any) => location.alerts?.length > 0 || location.warnings?.length > 0)
                       .slice(0, 5)
                       .map((location: any, index: number) => (
-                      <div key={index} className="flex items-center justify-between p-3 bg-red-50 rounded-lg border">
+                      <div key={index} className="flex items-center justify-between p-3 bg-red-50 rounded-lg border hover:bg-red-100 cursor-pointer transition-colors"
+                           onClick={() => setLocation(`/standort-status`)}
+                           title={`Klicken um zur Standortübersicht zu gelangen`}>
                         <div className="flex items-center">
                           <MapPin className="h-4 w-4 mr-2 text-red-500" />
                           <div>
@@ -354,9 +411,12 @@ export default function Dashboard() {
                             </p>
                           </div>
                         </div>
-                        <Badge variant="destructive" className="text-xs">
-                          Kritisch
-                        </Badge>
+                        <div className="flex items-center">
+                          <Badge variant="destructive" className="text-xs mr-2">
+                            Kritisch
+                          </Badge>
+                          <ChevronRight className="h-4 w-4 text-red-500" />
+                        </div>
                       </div>
                     ))}
                     <Button 
@@ -425,14 +485,14 @@ export default function Dashboard() {
           {/* Right Column - Sidebar on desktop */}
           <div className="space-y-6">
             
-            {/* Weather Overview Tile */}
+            {/* Enhanced Weather, Holiday & Sales Forecast Tile */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center text-lg">
-                  <Cloud className="h-5 w-5 mr-2 text-blue-500" />
-                  Wetter & Prognose
+                  <Sun className="h-5 w-5 mr-2 text-blue-500" />
+                  Wetter, Ferien & Verkaufsprognose
                 </CardTitle>
-                <CardDescription>Einfluss auf Verkäufe</CardDescription>
+                <CardDescription>7-Tage-Einfluss auf Verkäufe</CardDescription>
               </CardHeader>
               <CardContent>
                 {isLoadingWeather ? (
@@ -440,46 +500,95 @@ export default function Dashboard() {
                     <RefreshCw className="h-5 w-5 animate-spin text-gray-400" />
                   </div>
                 ) : weatherForecast && Array.isArray(weatherForecast) && weatherForecast.length > 0 ? (
-                  <div className="space-y-3">
-                    {/* Today's Weather */}
+                  <div className="space-y-4">
+                    {/* Today's Detailed Weather */}
                     <div className="bg-blue-50 p-4 rounded-lg border">
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-center justify-between mb-2">
                         <div>
-                          <p className="font-medium">{Math.round((weatherForecast[0] as any)?.temperature?.max || 0)}°C</p>
+                          <p className="font-medium text-lg">{Math.round((weatherForecast[0] as any)?.temperature?.max || 0)}°C</p>
                           <p className="text-sm text-gray-600">{(weatherForecast[0] as any)?.description || 'Heute'}</p>
                         </div>
-                        <div className="text-right">
+                        <div className="flex items-center space-x-2">
                           {(weatherForecast[0] as any)?.temperature?.max > 25 ? 
                             <Sun className="h-6 w-6 text-yellow-500" /> :
                             (weatherForecast[0] as any)?.description?.toLowerCase().includes('regen') ?
                             <CloudRain className="h-6 w-6 text-blue-500" /> :
+                            (weatherForecast[0] as any)?.description?.toLowerCase().includes('schnee') ?
+                            <CloudSnow className="h-6 w-6 text-blue-300" /> :
                             <Cloud className="h-6 w-6 text-gray-500" />
                           }
+                          <Wind className="h-5 w-5 text-gray-400" />
                         </div>
                       </div>
+                      {(weatherForecast[0] as any)?.isHoliday && (
+                        <div className="flex items-center mb-2">
+                          <Gift className="h-4 w-4 mr-1 text-red-500" />
+                          <span className="text-sm text-red-600 font-medium">Feiertag</span>
+                        </div>
+                      )}
+                      {(weatherForecast[0] as any)?.isVacation && (
+                        <div className="flex items-center mb-2">
+                          <School className="h-4 w-4 mr-1 text-orange-500" />
+                          <span className="text-sm text-orange-600 font-medium">Schulferien</span>
+                        </div>
+                      )}
                       {(weatherForecast[0] as any)?.salesImpact !== undefined && (
                         <div className="mt-2">
                           <p className={`text-sm font-medium ${
                             ((weatherForecast[0] as any).salesImpact || 0) > 0 ? 'text-green-600' : 'text-red-600'
                           }`}>
                             {((weatherForecast[0] as any).salesImpact || 0) > 0 ? '+' : ''}
-                            {((weatherForecast[0] as any).salesImpact || 0).toFixed(1)}% Verkaufseinfluss
+                            {((weatherForecast[0] as any).salesImpact || 0).toFixed(1)}% Verkaufseinfluss erwartet
                           </p>
                         </div>
                       )}
                     </div>
                     
-                    {/* 3-Day Preview */}
-                    <div className="grid grid-cols-3 gap-2">
-                      {weatherForecast.slice(1, 4).map((day: any, index: number) => (
-                        <div key={index} className="text-center p-2 bg-gray-50 rounded">
-                          <p className="text-xs text-gray-600">
-                            {new Date(day.date).toLocaleDateString('de-DE', { weekday: 'short' })}
-                          </p>
-                          <p className="font-medium">{Math.round(day.temperature?.max || 0)}°</p>
-                          {day.isHoliday && <span className="text-xs text-red-600">🎉</span>}
-                        </div>
-                      ))}
+                    {/* 7-Day Extended Forecast */}
+                    <div>
+                      <h4 className="font-medium text-sm mb-3">7-Tage Prognose</h4>
+                      <div className="grid grid-cols-7 gap-1">
+                        {weatherForecast.slice(1, 8).map((day: any, index: number) => (
+                          <div key={index} className="text-center p-2 bg-gray-50 rounded text-xs">
+                            <p className="text-gray-600 mb-1">
+                              {new Date(day.date).toLocaleDateString('de-DE', { weekday: 'short' })}
+                            </p>
+                            <div className="mb-1">
+                              {day.temperature?.max > 25 ? 
+                                <Sun className="h-4 w-4 mx-auto text-yellow-500" /> :
+                                day.description?.toLowerCase().includes('regen') ?
+                                <CloudRain className="h-4 w-4 mx-auto text-blue-500" /> :
+                                day.description?.toLowerCase().includes('schnee') ?
+                                <CloudSnow className="h-4 w-4 mx-auto text-blue-300" /> :
+                                <Cloud className="h-4 w-4 mx-auto text-gray-500" />
+                              }
+                            </div>
+                            <p className="font-medium">{Math.round(day.temperature?.max || 0)}°</p>
+                            <div className="mt-1 space-y-1">
+                              {day.isHoliday && <Gift className="h-3 w-3 mx-auto text-red-500" />}
+                              {day.isVacation && <School className="h-3 w-3 mx-auto text-orange-500" />}
+                            </div>
+                            {day.salesImpact && (
+                              <p className={`text-xs mt-1 ${
+                                day.salesImpact > 0 ? 'text-green-600' : 'text-red-600'
+                              }`}>
+                                {day.salesImpact > 0 ? '+' : ''}{day.salesImpact}%
+                              </p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    
+                    {/* Summary */}
+                    <div className="bg-amber-50 p-3 rounded border">
+                      <h5 className="font-medium text-sm text-amber-800 mb-1">Wochenzusammenfassung</h5>
+                      <p className="text-xs text-amber-700">
+                        Erwarteter Verkaufseinfluss: {weatherForecast.slice(0, 7).reduce((sum: number, day: any) => sum + (day.salesImpact || 0), 0) > 0 ? '+' : ''}
+                        {(weatherForecast.slice(0, 7).reduce((sum: number, day: any) => sum + (day.salesImpact || 0), 0) / 7).toFixed(1)}% • 
+                        {weatherForecast.slice(0, 7).filter((day: any) => day.isHoliday).length} Feiertage • 
+                        {weatherForecast.slice(0, 7).filter((day: any) => day.isVacation).length} Ferientage
+                      </p>
                     </div>
                   </div>
                 ) : (
@@ -491,14 +600,14 @@ export default function Dashboard() {
               </CardContent>
             </Card>
 
-            {/* DB Index Overview Tile */}
+            {/* Deckungsbeitrags Index Overview Tile */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center text-lg">
-                  <Database className="h-5 w-5 mr-2 text-purple-500" />
-                  DB Index Übersicht
+                  <Calculator className="h-5 w-5 mr-2 text-purple-500" />
+                  Deckungsbeitrags-Index
                 </CardTitle>
-                <CardDescription>Top/Flop Produkte nach Deckungsbeitrag</CardDescription>
+                <CardDescription>Top 5 und schlechteste 5 Produkte</CardDescription>
               </CardHeader>
               <CardContent>
                 {isLoadingDBIndex ? (
@@ -584,6 +693,65 @@ export default function Dashboard() {
                   <div className="text-center py-6 text-gray-500">
                     <Database className="h-8 w-8 mx-auto mb-2 opacity-50" />
                     <p>DB Index Daten nicht verfügbar</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Weekly Removals Tile */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center text-lg">
+                  <Minus className="h-5 w-5 mr-2 text-purple-500" />
+                  Entnahmen der letzten Woche
+                </CardTitle>
+                <CardDescription>Automaten mit höchsten Entnahmen (7 Tage)</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {isLoadingRemovedProducts ? (
+                  <div className="flex justify-center py-4">
+                    <RefreshCw className="h-5 w-5 animate-spin text-gray-400" />
+                  </div>
+                ) : weeklyRemovedData.length > 0 ? (
+                  <div className="space-y-3">
+                    <div className="bg-purple-50 p-3 rounded-lg border">
+                      <div className="text-center">
+                        <p className="text-lg font-bold text-purple-900">
+                          {formatCurrency(weeklyRemovedData.reduce((sum: number, item: any) => sum + item.value, 0))}
+                        </p>
+                        <p className="text-sm text-purple-700">Gesamtwert der Entnahmen</p>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      {weeklyRemovedData.slice(0, 8).map((machine: any, index: number) => (
+                        <div key={index} className="flex items-center justify-between p-2 bg-purple-50 rounded border">
+                          <div className="flex-1">
+                            <p className="font-medium text-sm truncate" title={machine.machineName}>
+                              {machine.machineName}
+                            </p>
+                            <p className="text-xs text-gray-600">{machine.count} Entnahmen</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-bold text-sm text-purple-900">{formatCurrency(machine.value)}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    {weeklyRemovedData.length > 8 && (
+                      <Button 
+                        variant="outline" 
+                        className="w-full mt-3"
+                        onClick={() => setLocation('/ruecklaufer')}
+                      >
+                        Alle Entnahmen anzeigen ({weeklyRemovedData.length - 8} weitere)
+                        <ChevronRight className="h-4 w-4 ml-2" />
+                      </Button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-center py-6 text-gray-500">
+                    <Minus className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                    <p>Keine Entnahmen in den letzten 7 Tagen</p>
                   </div>
                 )}
               </CardContent>
