@@ -158,7 +158,7 @@ export default function Dashboard() {
     refetchInterval: 300000
   });
 
-  // Calculate enhanced daily metrics
+  // Calculate enhanced daily metrics - KORRIGIERT
   const todayData = React.useMemo(() => {
     if (!transactions) return { transactions: 0, revenue: 0, netAmount: 0, margin: 0, units: 0 };
     
@@ -169,15 +169,23 @@ export default function Dashboard() {
     });
     
     const revenue = todayTxs.reduce((sum, tx) => sum + (tx.price || 0), 0);
-    const netAmount = todayTxs.reduce((sum, tx) => sum + ((tx.netResult || 0) + (tx.price || 0)), 0); // Net before costs
-    const margin = revenue > 0 ? ((revenue - (revenue * 0.6)) / revenue * 100) : 0; // Estimated margin
     const units = todayTxs.reduce((sum, tx) => sum + (tx.quantity || 1), 0);
+    
+    // Korrigierte Berechnung: Netto-Betrag aus priceWoVat oder 85% vom Bruttopreis
+    const netAmount = todayTxs.reduce((sum, tx) => {
+      return sum + (tx.priceWoVat || (tx.price || 0) * 0.85);
+    }, 0);
+    
+    // Realistische Marge: Netto abzüglich geschätzter Kosten (60% für Einkauf + Betrieb)
+    const estimatedCosts = netAmount * 0.6;
+    const actualMargin = netAmount - estimatedCosts;
+    const marginPercent = netAmount > 0 ? (actualMargin / netAmount * 100) : 0;
     
     return {
       transactions: todayTxs.length,
       revenue,
-      netAmount: netAmount * 0.85, // Estimated net after operating costs
-      margin,
+      netAmount: actualMargin, // Echter Netto-Gewinn
+      margin: Math.max(0, marginPercent), // Verhindere negative Margen
       units
     };
   }, [transactions]);
@@ -290,8 +298,11 @@ export default function Dashboard() {
             </CardContent>
           </Card>
 
-          {/* Weekly Removals Preview */}
-          <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200">
+          {/* Weekly Removals Preview - ANKLICKBAR */}
+          <Card 
+            className="bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200 cursor-pointer hover:shadow-md transition-all duration-200"
+            onClick={() => setLocation('/warenentnahme')}
+          >
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
@@ -301,13 +312,19 @@ export default function Dashboard() {
                   </p>
                   <p className="text-xs text-purple-600 mt-1">{weeklyRemovedData.length} Automaten</p>
                 </div>
-                <Minus className="h-8 w-8 text-purple-500" />
+                <div className="flex items-center">
+                  <Minus className="h-8 w-8 text-purple-500" />
+                  <ChevronRight className="h-4 w-4 text-purple-400 ml-1" />
+                </div>
               </div>
             </CardContent>
           </Card>
 
-          {/* Critical Issues */}
-          <Card className="bg-gradient-to-br from-red-50 to-red-100 border-red-200">
+          {/* Critical Issues - ANKLICKBAR */}
+          <Card 
+            className="bg-gradient-to-br from-red-50 to-red-100 border-red-200 cursor-pointer hover:shadow-md transition-all duration-200"
+            onClick={() => setLocation('/standort-status')}
+          >
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
@@ -315,7 +332,10 @@ export default function Dashboard() {
                   <p className="text-2xl font-bold text-red-900">{criticalMachines}</p>
                   <p className="text-xs text-red-600 mt-1">Benötigen Aufmerksamkeit</p>
                 </div>
-                <AlertTriangle className="h-8 w-8 text-red-500" />
+                <div className="flex items-center">
+                  <AlertTriangle className="h-8 w-8 text-red-500" />
+                  <ChevronRight className="h-4 w-4 text-red-400 ml-1" />
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -326,12 +346,16 @@ export default function Dashboard() {
           {/* Left Column - Full width on mobile, 2/3 on desktop */}
           <div className="lg:col-span-2 space-y-6">
             
-            {/* Enhanced Incoming Goods Tile */}
-            <Card>
+            {/* Enhanced Incoming Goods Tile - ANKLICKBAR */}
+            <Card 
+              className="cursor-pointer hover:shadow-md transition-all duration-200"
+              onClick={() => setLocation('/orders-overview')}
+            >
               <CardHeader>
                 <CardTitle className="flex items-center text-lg">
                   <Truck className="h-5 w-5 mr-2 text-orange-500" />
                   Wareneingang
+                  <ChevronRight className="h-4 w-4 text-gray-400 ml-auto" />
                 </CardTitle>
                 <CardDescription>Anstehende und verspätete Lieferungen</CardDescription>
               </CardHeader>
@@ -437,12 +461,16 @@ export default function Dashboard() {
               </CardContent>
             </Card>
 
-            {/* Critical Inventory */}
-            <Card>
+            {/* Critical Inventory - ANKLICKBAR */}
+            <Card 
+              className="cursor-pointer hover:shadow-md transition-all duration-200"
+              onClick={() => setLocation('/critical-inventory')}
+            >
               <CardHeader>
                 <CardTitle className="flex items-center text-lg">
                   <Package className="h-5 w-5 mr-2 text-yellow-500" />
                   Kritische Bestände
+                  <ChevronRight className="h-4 w-4 text-gray-400 ml-auto" />
                 </CardTitle>
                 <CardDescription>Artikel unter Mindestbestand</CardDescription>
               </CardHeader>
@@ -485,12 +513,16 @@ export default function Dashboard() {
           {/* Right Column - Sidebar on desktop */}
           <div className="space-y-6">
             
-            {/* Enhanced Weather, Holiday & Sales Forecast Tile */}
-            <Card>
+            {/* Enhanced Weather, Holiday & Sales Forecast Tile - ANKLICKBAR */}
+            <Card 
+              className="cursor-pointer hover:shadow-md transition-all duration-200"
+              onClick={() => setLocation('/forecast-factors')}
+            >
               <CardHeader>
                 <CardTitle className="flex items-center text-lg">
                   <Sun className="h-5 w-5 mr-2 text-blue-500" />
                   Wetter, Ferien & Verkaufsprognose
+                  <ChevronRight className="h-4 w-4 text-gray-400 ml-auto" />
                 </CardTitle>
                 <CardDescription>7-Tage-Einfluss auf Verkäufe</CardDescription>
               </CardHeader>

@@ -3,6 +3,84 @@ import { pool } from '../db';
 
 const router = Router();
 
+// Dashboard API für wöchentliche Entnahmen
+router.get('/', async (req, res) => {
+  try {
+    const days = parseInt(req.query.days as string) || 7;
+    
+    console.log(`[RemovedProducts] Dashboard API: Getting removals for ${days} days`);
+    
+    const query = `
+      SELECT 
+        rd.product_name as "productName",
+        r.machine_name as "machineName", 
+        SUM(rd.removed) as "totalRemoved",
+        AVG(COALESCE(pc.unit_price, t.price, 2.0)) as "productPrice",
+        COUNT(*) as "removalCount",
+        MAX(r.datetime) as "lastRemoved"
+      FROM refill_details rd
+      INNER JOIN refills r ON rd.refill_id = r.id
+      LEFT JOIN products p ON rd.product_name = p.product_name
+      LEFT JOIN purchase_conditions pc ON p.id = pc.product_id AND pc.is_preferred = true
+      LEFT JOIN transactions t ON rd.product_name = t.product_name
+      WHERE rd.removed > 0 
+        AND r.datetime >= NOW() - INTERVAL '${days} days'
+      GROUP BY rd.product_name, r.machine_name
+      ORDER BY "totalRemoved" DESC, r.machine_name
+    `;
+    
+    const result = await pool.query(query);
+    
+    // Format die Daten für das Dashboard
+    const items = result.rows.map(row => ({
+      productName: row.productName,
+      machineName: row.machineName, 
+      quantity: parseInt(row.totalRemoved) || 0,
+      productPrice: parseFloat(row.productPrice) || 2.0,
+      datetime: row.lastRemoved,
+      value: (parseInt(row.totalRemoved) || 0) * (parseFloat(row.productPrice) || 2.0)
+    }));
+    
+    // Gruppiere nach Maschine für Dashboard-Summary
+    const machineGroups: any = {};
+    items.forEach(item => {
+      if (!machineGroups[item.machineName]) {
+        machineGroups[item.machineName] = {
+          machineName: item.machineName,
+          count: 0,
+          value: 0
+        };
+      }
+      machineGroups[item.machineName].count += item.quantity;
+      machineGroups[item.machineName].value += item.value;
+    });
+    
+    const machineData = Object.values(machineGroups);
+    
+    const response = {
+      success: true,
+      items: items,
+      totalItems: items.length,
+      totalValue: items.reduce((sum, item) => sum + item.value, 0),
+      machineBreakdown: machineData,
+      dateRange: `${days} Tage`
+    };
+    
+    console.log(`[RemovedProducts] Dashboard response: ${items.length} items, total value: ${response.totalValue.toFixed(2)}€`);
+    res.json(response);
+    
+  } catch (error) {
+    console.error('Fehler beim Abrufen der Entnahmen für Dashboard:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Fehler beim Abrufen der Entnahmen', 
+      items: [],
+      totalItems: 0,
+      totalValue: 0
+    });
+  }
+});
+
 // Top entfernte Produkte API mit Kostenanalyse
 router.post('/top', async (req, res) => {
   try {

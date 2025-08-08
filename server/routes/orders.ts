@@ -31,10 +31,22 @@ router.get('/dashboard/open', async (req: Request, res: Response) => {
   try {
     const limit = parseInt(req.query.limit as string) || 5;
     
-    // Hole nur verschickte aber noch nicht gelieferte Bestellungen
+    // Hole verschickte aber noch nicht gelieferte Bestellungen mit Lieferanten-Daten
     const openOrdersQuery = await db
-      .select()
+      .select({
+        id: orders.id,
+        orderNumber: orders.orderNumber,
+        status: orders.status,
+        createdAt: orders.createdAt,
+        orderDate: orders.orderDate,
+        expectedDeliveryDate: orders.expectedDeliveryDate,
+        actualDeliveryDate: orders.actualDeliveryDate,
+        totalAmount: orders.totalAmount,
+        supplierName: suppliers.name,
+        supplierId: orders.supplierId
+      })
       .from(orders)
+      .leftJoin(suppliers, eq(orders.supplierId, suppliers.id))
       .where(and(
         eq(orders.status, 'sent'), // Nur verschickte Bestellungen
         // Noch nicht geliefert (actualDeliveryDate ist null)
@@ -43,17 +55,25 @@ router.get('/dashboard/open', async (req: Request, res: Response) => {
       .orderBy(asc(orders.expectedDeliveryDate), desc(orders.createdAt))
       .limit(limit);
 
-    const formattedOrders = openOrdersQuery.map(order => ({
-      id: order.id,
-      orderNumber: order.orderNumber,
-      status: order.status,
-      createdAt: order.createdAt,
-      orderDate: order.orderDate,
-      expectedDeliveryDate: order.expectedDeliveryDate,
-      actualDeliveryDate: order.actualDeliveryDate,
-      supplierName: 'Lieferant', // Will be populated from join later
-      totalAmount: order.totalAmount || 0
-    }));
+    const formattedOrders = openOrdersQuery.map(order => {
+      // Berechne ob die Bestellung verspätet ist
+      const isOverdue = order.expectedDeliveryDate && 
+        new Date(order.expectedDeliveryDate) < new Date();
+      
+      return {
+        id: order.id,
+        orderNumber: order.orderNumber,
+        status: order.status,
+        createdAt: order.createdAt,
+        orderDate: order.orderDate,
+        expectedDeliveryDate: order.expectedDeliveryDate,
+        actualDeliveryDate: order.actualDeliveryDate,
+        supplierName: order.supplierName || 'Unbekannter Lieferant',
+        totalValue: order.totalAmount || 0,
+        totalAmount: order.totalAmount || 0, // Für Kompatibilität
+        isOverdue
+      };
+    });
 
     return res.json(formattedOrders);
   } catch (error) {

@@ -1197,15 +1197,96 @@ export function registerForecastRoutes(app: Express): void {
     }
   });
   
-  // Wettervorhersage abrufen
+  // Wettervorhersage abrufen mit Feiertagen und Schulferien
   app.get(`${API_PREFIX}/weather/forecast`, async (req: Request, res: Response) => {
     try {
-      const days = parseInt(req.query.days as string) || 5;
+      const days = parseInt(req.query.days as string) || 7;
       // Default-Standort verwenden (kann später parametrisiert werden)
       const location = "Dresden,DE"; 
       const forecastData = await openWeatherService.getWeatherForecast(location, days);
       
-      res.json(forecastData);
+      // Feiertage und Schulferien für den Zeitraum abrufen
+      const today = new Date();
+      const endDate = new Date();
+      endDate.setDate(today.getDate() + days);
+      
+      const holidays = await holidayService.getHolidaysByDateRange(
+        today.toISOString().split('T')[0],
+        endDate.toISOString().split('T')[0]
+      );
+      
+      // Erweitere Wetterdaten um Feiertage/Ferien
+      if (Array.isArray(forecastData) && forecastData.length > 0) {
+        const enhancedForecast = forecastData.map((day: any, index: number) => {
+          const dayDate = new Date();
+          dayDate.setDate(today.getDate() + index);
+          const dateStr = dayDate.toISOString().split('T')[0];
+          
+          // Suche nach Feiertagen für dieses Datum
+          const dayHolidays = holidays.filter(h => 
+            h.date.toISOString().split('T')[0] === dateStr
+          );
+          
+          const isHoliday = dayHolidays.some(h => h.type === 'PUBLIC_HOLIDAY');
+          const isVacation = dayHolidays.some(h => h.type === 'SCHOOL_HOLIDAY');
+          
+          // Verkaufseinfluss basierend auf Wetter, Feiertagen und Ferien berechnen
+          let salesImpact = 0;
+          
+          // Wetter-Einfluss
+          const temp = day.temperature?.max || day.temp || 20;
+          if (temp > 25) salesImpact += 15; // Warmes Wetter
+          else if (temp > 20) salesImpact += 5;
+          else if (temp < 10) salesImpact -= 10; // Kaltes Wetter
+          
+          // Feiertage erhöhen Verkäufe
+          if (isHoliday) salesImpact += 20;
+          // Schulferien erhöhen auch Verkäufe
+          if (isVacation) salesImpact += 10;
+          
+          // Regen reduziert Verkäufe
+          if (day.description?.toLowerCase().includes('regen') || day.weather?.toLowerCase().includes('rain')) {
+            salesImpact -= 5;
+          }
+          
+          return {
+            ...day,
+            isHoliday,
+            isVacation,
+            holidayNames: dayHolidays.map(h => h.name),
+            salesImpact: Math.round(salesImpact * 10) / 10 // Runden auf 1 Dezimalstelle
+          };
+        });
+        
+        res.json(enhancedForecast);
+      } else {
+        // Fallback ohne echte Wetterdaten - generiere Mock-Daten mit Feiertagen
+        const mockForecast = [];
+        for (let i = 0; i < days; i++) {
+          const dayDate = new Date();
+          dayDate.setDate(today.getDate() + i);
+          const dateStr = dayDate.toISOString().split('T')[0];
+          
+          const dayHolidays = holidays.filter(h => 
+            h.date.toISOString().split('T')[0] === dateStr
+          );
+          
+          const isHoliday = dayHolidays.some(h => h.type === 'PUBLIC_HOLIDAY');
+          const isVacation = dayHolidays.some(h => h.type === 'SCHOOL_HOLIDAY');
+          
+          mockForecast.push({
+            date: dateStr,
+            temperature: { min: 15, max: 22 },
+            description: 'Teilweise bewölkt',
+            isHoliday,
+            isVacation,
+            holidayNames: dayHolidays.map(h => h.name),
+            salesImpact: isHoliday ? 20 : (isVacation ? 10 : 0)
+          });
+        }
+        
+        res.json(mockForecast);
+      }
     } catch (error) {
       console.error("Fehler beim Abrufen der Wettervorhersage:", error);
       res.status(500).json({ error: "Interner Serverfehler" });
