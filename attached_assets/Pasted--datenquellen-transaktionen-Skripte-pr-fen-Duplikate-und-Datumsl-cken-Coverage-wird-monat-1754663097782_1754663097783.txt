@@ -1,0 +1,53 @@
+{ "datenquellen": { "transaktionen": "Skripte prüfen Duplikate und Datumslücken; Coverage wird monatlich berechnet
+
+
+", "wetterdaten": "OpenWeather One Call 3.0 (900 Anfragen/Tag, Bad Schandau) mit automatischem Abruf; historisch ergänzt durch Meteostat
+
+
+
+", "ferienkalender": "Feiertage (feiertage-api.de) und Schulferien (ferien-api.de) für alle 16 Bundesländer, mit automatischer Synchronisation
+
+" }, "prognosemodell": { "typ": "Hybrid aus internem Modell und Prophet-ML
+
+", "features": [ "wetter", "ferien", "maschinendaten", "wochentag" ], "update_intervall": "Modelltraining manuell über API; Datenquellen werden regelmäßig synchronisiert
+
+", "genauigkeit": "Fehler können über actual_quantity und error pro Prognose gespeichert werden
+
+" }, "aktualisierung": { "datenimport": "regelmäßig via Scheduler für Transaktionen, Wetter und Feiertage
+
+", "reaktion_auf_kurzfristige_änderung": "teilweise; Wetterdaten werden stündlich aktualisiert, Prognosen nicht automatisch neu berechnet
+
+
+", "automatisierung": "teilautomatisch (Datenimporte automatisch, Modelltraining manuell)
+
+
+" }, "system": { "technische_integration": "Node/Express-Backend mit Python-Prozess für Prophet
+
+
+", "api_nutzung": "OpenWeather begrenzt auf 900 Anfragen/Tag; Synchronisation über Scheduler gesteuert
+
+
+", "performance": "keine bekannten Probleme; großflächige Datenverarbeitung kann jedoch ressourcenintensiv sein" }, "empfehlungen": [ "Tageslängen-Faktor in Prognose integrieren", "Automatisches Retraining bei neuen Daten", "Dashboard zur Prognosegenauigkeit" ] }
+Prognosen berücksichtigen keine Tageslänge.
+1. In `server/services/openWeatherService.ts` und `shared/schema.ts` `day_length` aus `sunrise` und `sunset` berechnen und speichern. 2. In `server/services/forecastService.ts` `collectTrainingData` um `day_length` erweitern. 3. In `server/python/prophet_forecast.py` den neuen Regressor hinzufügen und beim Training berücksichtigen.
+
+Modelltraining erfolgt nicht automatisch.
+
+1. In `server/scheduler.ts` einen neuen Sync-Typ für periodisches Training definieren. 2. Im `performSync`-Switch `forecastService.trainForecastModel` mit aktuellem Zeitfenster aufrufen. 3. Nach erfolgreichem Training automatisch `forecastService.createForecast` für den kommenden Zeitraum auslösen.
+
+Fehler der Prognosen werden nicht visualisiert.
+1. In `server/services/forecastService.ts` eine Funktion erstellen, die aus der Tabelle `forecasts` Durchschnittsfehler je Zeitraum/Standort aggregiert. 2. In `server/routes/forecast.ts` einen Endpoint bereitstellen, der diese Kennzahlen liefert. 3. Im Frontend (z. B. `client/src/pages/Forecast.tsx`) ein Dashboard-Widget implementieren, das Abweichungen pro Woche und Standort grafisch darstellt.
+
+Vendon-Datenlücken automatisch prüfen und nachladen
+* Integriere `check_vendon_import_completeness.js` in einen geplanten Job (`server/scheduler.ts`) zur täglichen Prüfung. * Bei festgestellten Lücken `vendonSync.syncHistoricalBatch` oder entsprechende Import-Skripte ausführen. * Ergebnisse protokollieren und bei Fehlern Benachrichtigung auslösen.
+
+Ferien- und Feiertagssynchronisierung für alle Bundesländer aktivieren
+* Ergänze `server/services/holidayService.ts` um eine API-Anbindung für bundeslandspezifische Ferien. * Füge in `server/scheduler.ts` den Sync-Typ `holidays` wieder hinzu und plane täglichen Lauf. * Speichere neue Daten in der `holidays`-Tabelle und markiere Quelle/Region.
+
+Tageslängen- und Standortmerkmale in Prophet-Modell integrieren
+* Erstelle Service zum Abruf von Sonnenaufgang/-untergang (z. B. `sunrise-sunset` API) und speichere Werte pro Datum/Standort. * Erweitere `weather_data` oder neue Tabelle zur Ablage der Tageslänge. * Passe `server/python/prophet_forecast.py` an, um Tageslänge als Regressor hinzuzufügen.
+
+Regelmäßiges Retraining und automatische Neu-Berechnung bei Wetterumschwung einführen
+* Implementiere in `server/scheduler.ts` einen Job, der `forecastService.trainForecastModel` wöchentlich ausführt. * Trigger neue Prognosen, wenn `syncWeatherForecast` signifikante Änderungen meldet. * Aktualisiere betroffene Einträge in `forecasts`.
+
+Dashboard zur Überwachung von Prognosequalität und Datenstatus erstellen
