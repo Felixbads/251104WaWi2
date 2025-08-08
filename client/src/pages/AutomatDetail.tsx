@@ -798,8 +798,40 @@ export default function AutomatDetail() {
                 <CardTitle className="text-lg">Umsatzentwicklung</CardTitle>
                 <CardDescription>Verkäufe und Umsatz der letzten 7 Tage</CardDescription>
               </CardHeader>
-              <CardContent className="h-64 flex items-center justify-center">
-                <p className="text-gray-500">Diagramm wird in Kürze verfügbar sein</p>
+              <CardContent>
+                {machineAnalytics?.timeSeries && Array.isArray(machineAnalytics.timeSeries) && machineAnalytics.timeSeries.length > 0 ? (
+                  <div className="h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart
+                        data={machineAnalytics.timeSeries.slice(-7)}
+                        margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis 
+                          dataKey="date" 
+                          tickFormatter={(date) => new Date(date).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })}
+                        />
+                        <YAxis yAxisId="left" />
+                        <YAxis yAxisId="right" orientation="right" />
+                        <RechartTooltip 
+                          formatter={(value: any, name: any) => {
+                            if (name === 'revenue') return [`${value.toFixed(2)} €`, 'Umsatz'];
+                            if (name === 'count') return [value, 'Verkäufe'];
+                            return [value, name];
+                          }}
+                          labelFormatter={(label) => new Date(label).toLocaleDateString('de-DE')}
+                        />
+                        <Legend />
+                        <Line yAxisId="left" type="monotone" dataKey="count" stroke="#8884d8" name="Verkäufe" />
+                        <Line yAxisId="right" type="monotone" dataKey="revenue" stroke="#82ca9d" name="Umsatz (€)" />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                ) : (
+                  <div className="h-64 flex items-center justify-center">
+                    <p className="text-gray-500">Keine Umsatzdaten für die letzten 7 Tage verfügbar</p>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -835,7 +867,7 @@ export default function AutomatDetail() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {transactions.map((transaction: Transaction) => (
+                    {Array.from(new Map(transactions.map(t => [t.id, t])).values()).map((transaction: Transaction) => (
                       <TableRow key={transaction.id}>
                         <TableCell>{formatDateTime(transaction.datetime, 'datetime')}</TableCell>
                         <TableCell>{transaction.productName}</TableCell>
@@ -875,13 +907,13 @@ export default function AutomatDetail() {
                   Vorherige
                 </Button>
                 <div className="text-sm text-gray-500">
-                  Seite {transactionPage} {transactions && transactions.length === transactionLimit ? '(weitere verfügbar)' : ''}
+                  Seite {transactionPage} {transactions && Array.isArray(transactions) && transactions.length === transactionLimit ? '(weitere verfügbar)' : ''}
                 </div>
                 <Button 
                   variant="ghost" 
                   size="sm" 
                   onClick={() => setTransactionPage(p => p + 1)}
-                  disabled={!transactions || transactions.length < transactionLimit || transactionsLoading}
+                  disabled={!transactions || !Array.isArray(transactions) || transactions.length < transactionLimit || transactionsLoading}
                 >
                   Nächste
                 </Button>
@@ -1080,7 +1112,7 @@ export default function AutomatDetail() {
                     <div className="h-64">
                       <ResponsiveContainer width="100%" height="100%">
                         <LineChart
-                          data={machineAnalytics.timeSeries.map(ts => {
+                          data={machineAnalytics?.timeSeries?.map(ts => {
                             const weatherForDay = machineAnalytics.weatherData?.find(
                               w => new Date(w.date).toISOString().split('T')[0] === new Date(ts.date).toISOString().split('T')[0]
                             );
@@ -1091,7 +1123,7 @@ export default function AutomatDetail() {
                               temperature: weatherForDay?.avgTemperature || null,
                               conditions: weatherForDay?.conditions || null
                             };
-                          }).filter(d => d.temperature !== null)}
+                          }).filter(d => d.temperature !== null) || []}
                           margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
                         >
                           <CartesianGrid strokeDasharray="3 3" />
@@ -1326,7 +1358,7 @@ export default function AutomatDetail() {
                     <div className="h-72">
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart
-                          data={machineAnalytics?.timeSeries ? groupDataByWeek(machineAnalytics.timeSeries) : []}
+                          data={machineAnalytics?.timeSeries && Array.isArray(machineAnalytics.timeSeries) ? groupDataByWeek(machineAnalytics.timeSeries) : []}
                           margin={{ top: 10, right: 10, left: 10, bottom: 20 }}
                         >
                           <CartesianGrid strokeDasharray="3 3" />
@@ -1364,7 +1396,7 @@ export default function AutomatDetail() {
                     <div className="h-72">
                       <ResponsiveContainer width="100%" height="100%">
                         <LineChart
-                          data={machineAnalytics?.timeSeries ? groupDataByMonth(machineAnalytics.timeSeries) : []}
+                          data={machineAnalytics?.timeSeries && Array.isArray(machineAnalytics.timeSeries) ? groupDataByMonth(machineAnalytics.timeSeries) : []}
                           margin={{ top: 10, right: 10, left: 10, bottom: 20 }}
                         >
                           <CartesianGrid strokeDasharray="3 3" />
@@ -1583,6 +1615,7 @@ function MHDTab({ machineId }: { machineId: number }) {
   // Fetch MHD data for the machine
   const { data: mhdData, isLoading, refetch } = useQuery({
     queryKey: [`/api/machines/${machineId}/mhd`],
+    queryFn: () => getMachineMHDData(machineId),
     enabled: !!machineId,
     select: (data) => {
       console.log('MHD API Response:', data);
