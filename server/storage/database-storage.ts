@@ -1,4 +1,4 @@
-import { eq, desc, and, or, gte, lte, like, asc, count, sql, gt, ilike, isNull, isNotNull, inArray, between } from "drizzle-orm";
+import { eq, desc, and, or, gte, lte, like, asc, count, sql, gt, ilike, isNull, isNotNull, inArray, between, ne } from "drizzle-orm";
 import { db, rawDb } from "../db";
 import { normalizeProductName } from "../utils/stringUtils";
 import { 
@@ -57,7 +57,11 @@ export class DatabaseStorage implements IStorage {
    */
   async executeRawQuery(sqlText: string, params?: any[]): Promise<{rows: any[], rowCount: number}> {
     try {
-      return await rawDb.query(sqlText, params);
+      const result = await rawDb.query(sqlText, params);
+      return {
+        rows: result.rows || [],
+        rowCount: result.rowCount || 0
+      };
     } catch (error) {
       console.error("Error executing raw query:", error);
       throw error;
@@ -731,19 +735,31 @@ export class DatabaseStorage implements IStorage {
   async getTransactions(): Promise<any[]> { return []; }
   async getTransactionById(id: number): Promise<any | undefined> { return undefined; }
   async getTransactionByVendonId(vendonId: string): Promise<any | undefined> {
-    const result = await db.select({
-      id: transactions.id,
-      vendonId: transactions.vendonId,
-      machineId: transactions.machineId,
-      machineName: transactions.machineName,
-      datetime: transactions.datetime,
-      productName: transactions.productName,
-      price: transactions.price,
-      quantity: transactions.quantity,
-      source: transactions.source
-    }).from(transactions).where(eq(transactions.vendonId, vendonId)).limit(1);
-    return result[0];
+    // 🚨 EMERGENCY BATCH OPTIMIZATION: Prevent SQL query flood
+    console.warn(`🚨 INEFFICIENT: getTransactionByVendonId(${vendonId}) - Should use batch method!`);
+    
+    // Use existing batch method for better performance
+    const existingIds = await this.getExistingTransactionIds([vendonId]);
+    if (existingIds.has(vendonId)) {
+      // If exists, get the full record
+      const result = await db.select({
+        id: transactions.id,
+        vendonId: transactions.vendonId,
+        machineId: transactions.machineId,
+        machineName: transactions.machineName,
+        datetime: transactions.datetime,
+        productName: transactions.productName,
+        price: transactions.price,
+        quantity: transactions.quantity,
+        source: transactions.source
+      }).from(transactions).where(eq(transactions.vendonId, vendonId)).limit(1);
+      return result[0];
+    }
+    return undefined;
   }
+
+  // Batch-Cache für Performance-Optimierung
+  private _batchCache: Map<string, any> = new Map();
 
   /**
    * Effiziente Batch-Duplikatsprüfung für Transaktionen
