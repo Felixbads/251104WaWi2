@@ -1,0 +1,55 @@
+Issue: Duplicate scheduling logic (server/services/recurringOrderCron.ts and server/services/recurringOrderScheduler.ts) risks double executions and inconsistent state.
+1. Consolidate scheduling into `server/services/recurringOrderScheduler.ts`, migrating any missing features from `recurringOrderCron.ts`. 2. Remove `recurringOrderCron.ts` and related imports (e.g., in `server/index.ts`), ensuring only the unified scheduler starts. 3. Verify all routes (e.g., `/api/recurring-orders`) interact with the unified scheduler instance.
+Issue: Ambiguous test buttons (“🧪 Test-Sim”, “🚀 Test-Real”) appear alongside production actions in client/src/components/RecurringOrdersTab.tsx, potentially confusing users.
+1. Rename test buttons in `client/src/components/RecurringOrdersTab.tsx` to clearer labels (e.g., “Simulation (kein Auftrag)” and “Testauftrag”). 2. Group these buttons under a dedicated test section or restrict them to admin roles. 3. Update tooltips/help text to explain the difference between simulation and real test orders.
+Issue: “Ausführen” and “Test-Real” trigger real order creation without confirmation, risking accidental orders.
+1. Implement confirmation dialogs for the “Ausführen” and “Test-Real” buttons in `client/src/components/RecurringOrdersTab.tsx`. 2. Enforce role/permission checks in `/api/recurring-orders/:id/execute` and `/api/recurring-orders/test-execution` (server/routes/recurring-orders.ts). 3. Log the initiating user for audit purposes.
+Issue: Automatic execution failures are only stored in recurring_order_executions and server logs, with no user-facing alerts.
+1. Add an API endpoint in `server/routes/recurring-orders.ts` to fetch recent failed executions from `recurring_order_executions`. 2. Display a warning banner or notification in `client/src/components/RecurringOrdersTab.tsx` when failures are detected. 3. Optionally trigger email alerts to admins on repeated failures.
+{
+  "status": "warning",
+  "details": {
+    "system_logic": "Recurring orders reside in the recurring_orders table with fields for supplier, warehouse, interval, start/end, nextExecutionDate, and control flags (isActive, isAutoGenerate, requiresApproval, forecastEnabled, emailNotifications). Orders are processed by a daily 06:00 cron job and an hourly/daily scheduler; manual execution and test endpoints reuse the same executeRecurringOrder logic, updating nextExecutionDate and logging to recurring_order_executions.",
+    "execution_behavior": "Due orders (isActive, isAutoGenerate, nextExecutionDate <= today) create standard orders in status 'goods_receipt' or 'open'. Manual 'Ausführen' and 'Test-Real' also create real orders. Failures are recorded in recurring_order_executions but primarily logged server-side.",
+    "email_notifications": "Recipients stored in the emailNotifications field; RecurringOrderScheduler sends HTML emails after successful runs. A test-email endpoint uses nodemailer to send sample messages. No SMS or push notifications are implemented.",
+    "buttons": {
+      "Bearbeiten": "Öffnet das Formular zur Anpassung der Vorlage (Turnus, Produkte, Lager).",
+      "Ausführen": "Manuelle Auslösung: erstellt sofort eine echte Bestellung und protokolliert sie in recurring_order_executions.",
+      "Test E-Mail": "Sendet eine Beispiel-E-Mail an die angegebene Adresse mit realen Vorlagendaten.",
+      "Test SIM": "Simuliert die Bestellung über /api/recurring-orders/test-execution?dryRun=true; es wird keine Bestellung erzeugt.",
+      "Test Real": "Führt die Testausführung ohne dryRun aus und erzeugt eine echte Bestellung sowie einen Execution-Eintrag."
+    },
+    "issues_found": [
+      {
+        "type": "logic",
+        "description": "Zwei parallele Scheduler (Cron-Service und Scheduler) können doppelte Ausführungen verursachen.",
+        "severity": "medium",
+        "suggested_fix": "Einheitlichen Scheduler verwenden und Cron-Service entfernen."
+      },
+      {
+        "type": "UI",
+        "description": "Test-Buttons sind uneindeutig benannt und stehen neben Produktivfunktionen.",
+        "severity": "medium",
+        "suggested_fix": "Buttons umbenennen und Testfunktionen separieren."
+      },
+      {
+        "type": "UI",
+        "description": "\"Ausführen\" und \"Test Real\" lösen ohne Bestätigung echte Bestellungen aus.",
+        "severity": "high",
+        "suggested_fix": "Bestätigungsdialoge und Berechtigungsprüfungen einführen."
+      },
+      {
+        "type": "communication",
+        "description": "Fehlerhafte Ausführungen werden Benutzern nicht sichtbar gemeldet.",
+        "severity": "medium",
+        "suggested_fix": "Fehlerstatus im UI anzeigen und optional E-Mail-Alerts senden."
+      }
+    ],
+    "optimization_recommendations": [
+      "Scheduler-Logik zusammenführen und redundante Cron-Jobs entfernen.",
+      "Testfunktionen deutlich kennzeichnen oder nur für Administratoren sichtbar machen.",
+      "Bestätigungsdialoge und Rollenprüfung vor manueller oder Testausführung einführen.",
+      "Fehlerhafte Ausführungen in UI und optional per E-Mail transparent darstellen."
+    ]
+  }
+}
