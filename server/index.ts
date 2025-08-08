@@ -60,7 +60,7 @@ import profitabilityRouter from './routes/profitability-simple';
 import locationCostsRouter from './routes/location-costs';
 import enhancedProfitabilityRouter from './routes/enhanced-profitability';
 import { recurringOrdersRouter } from './routes/recurring-orders';
-import { recurringOrderCronService } from './services/recurringOrderCron';
+// ✅ UNIFIED SCHEDULING: Using only RecurringOrderScheduler (removed duplicate recurringOrderCron.ts)
 import RecurringOrderScheduler from './services/recurringOrderScheduler';
 import weeklyReportRouter from './routes/weekly-report';
 import { weeklyReportCron } from './services/weeklyReportCron';
@@ -1819,12 +1819,12 @@ app.get('/orders-data', (req, res) => {
   retroactiveWeatherService.scheduleDailyCorrection();
   console.log('[SERVER] Daily weather correction cron job started (6:00 AM)');
   
-  // FIXED: Only start the RecurringOrderScheduler (not the duplicate cron service)
-  // This scheduler handles both order processing AND email notifications
+  // ✅ CONSOLIDATED SCHEDULING: Only using RecurringOrderScheduler (removed duplicate cron service)
+  // This unified scheduler handles both order processing AND email notifications
   const { getRecurringOrderSchedulerInstance } = await import('./routes/recurring-orders');
   const recurringOrderScheduler = getRecurringOrderSchedulerInstance();
   recurringOrderScheduler.start();
-  console.log('[SERVER] ✅ RecurringOrderScheduler started - handles orders AND emails (daily 6:00 AM)');
+  console.log('[SERVER] ✅ Unified RecurringOrderScheduler started - handles orders AND emails (daily 6:00 AM)');
   
   // Start daily summary service for morning email aggregation
   const { getDailySummaryServiceInstance } = await import('./routes/daily-summary');

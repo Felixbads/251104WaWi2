@@ -1470,4 +1470,52 @@ router.post('/test-execution', async (req: Request, res: Response) => {
   }
 });
 
+// GET /api/recurring-orders/failed-executions - Get recent failed executions for alert display
+router.get('/failed-executions', async (req: Request, res: Response) => {
+  try {
+    const { days = '7' } = req.query;
+    const daysLimit = Math.min(parseInt(days as string) || 7, 30); // Max 30 days
+    
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - daysLimit);
+    
+    const failedExecutions = await db
+      .select({
+        id: recurringOrderExecutions.id,
+        recurringOrderId: recurringOrderExecutions.recurringOrderId,
+        recurringOrderName: recurringOrders.name,
+        scheduledDate: recurringOrderExecutions.scheduledDate,
+        executedAt: recurringOrderExecutions.executedAt,
+        errorMessage: recurringOrderExecutions.errorMessage,
+        retryCount: recurringOrderExecutions.retryCount,
+        supplierName: recurringOrders.supplierName,
+        warehouseName: recurringOrders.warehouseName
+      })
+      .from(recurringOrderExecutions)
+      .innerJoin(recurringOrders, eq(recurringOrderExecutions.recurringOrderId, recurringOrders.id))
+      .where(
+        and(
+          eq(recurringOrderExecutions.success, false),
+          gte(recurringOrderExecutions.scheduledDate, cutoffDate.toISOString().split('T')[0])
+        )
+      )
+      .orderBy(desc(recurringOrderExecutions.scheduledDate))
+      .limit(50);
+
+    res.json({
+      success: true,
+      data: failedExecutions,
+      count: failedExecutions.length,
+      period: `${daysLimit} Tage`
+    });
+  } catch (error) {
+    console.error('Fehler beim Abrufen fehlgeschlagener Ausführungen:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Fehler beim Abrufen fehlgeschlagener Ausführungen',
+      error: error instanceof Error ? error.message : 'Unbekannter Fehler'
+    });
+  }
+});
+
 export { router as recurringOrdersRouter, executeRecurringOrder };

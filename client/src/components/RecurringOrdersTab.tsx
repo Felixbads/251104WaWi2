@@ -11,10 +11,12 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { AlertTriangle, Calendar, Clock, Mail, Package, Play, Pause, Plus, RefreshCw, TrendingUp, Truck } from 'lucide-react';
+import { AlertTriangle, Calendar, Clock, Mail, Package, Play, Pause, Plus, RefreshCw, TrendingUp, Truck, CheckCircle, XCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import RecurringOrderConfigDialog from './RecurringOrderConfigDialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface RecurringOrder {
   id: number;
@@ -45,6 +47,7 @@ export default function RecurringOrdersTab() {
   
   const [configDialogOpen, setConfigDialogOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<RecurringOrder | undefined>();
+  const [confirmationAction, setConfirmationAction] = useState<{ type: string; orderId: number; orderName: string } | null>(null);
 
   // Query für wiederkehrende Bestellungen
   const { data: recurringOrders = [], isLoading: ordersLoading } = useQuery({
@@ -74,6 +77,12 @@ export default function RecurringOrdersTab() {
   const { data: pendingGoodsReceipts = [] } = useQuery({
     queryKey: ['/api/recurring-orders/goods-receipt/pending'],
     queryFn: () => apiRequest('/api/recurring-orders/goods-receipt/pending', undefined, 'GET').then(res => res)
+  });
+
+  // Query für fehlgeschlagene Ausführungen
+  const { data: failedExecutions = [] } = useQuery({
+    queryKey: ['/api/recurring-orders/failed-executions'],
+    queryFn: () => apiRequest('/api/recurring-orders/failed-executions?days=7', undefined, 'GET').then(res => res.data || [])
   });
 
   // Mutations
@@ -124,7 +133,9 @@ export default function RecurringOrdersTab() {
         title: "Bestellung ausgeführt",
         description: "Die wiederkehrende Bestellung wurde manuell ausgeführt."
       });
+      setConfirmationAction(null);
       queryClient.invalidateQueries({ queryKey: ['/api/recurring-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/recurring-orders/failed-executions'] });
     }
   });
 
@@ -156,11 +167,15 @@ export default function RecurringOrdersTab() {
         { recurringOrderId: id, dryRun }, 
         'POST'
       ),
-    onSuccess: (data) => {
+    onSuccess: (data, variables) => {
       toast({
-        title: dryRun ? "Test-Simulation erfolgreich" : "Test-Bestellung erstellt",
+        title: variables.dryRun ? "Simulation erfolgreich" : "Testauftrag erstellt",
         description: data.message
       });
+      setConfirmationAction(null);
+      if (!variables.dryRun) {
+        queryClient.invalidateQueries({ queryKey: ['/api/recurring-orders/failed-executions'] });
+      }
     },
     onError: (error: any) => {
       toast({
@@ -168,6 +183,7 @@ export default function RecurringOrdersTab() {
         description: error?.message || "Fehler bei der Test-Ausführung",
         variant: "destructive"
       });
+      setConfirmationAction(null);
     }
   });
 
@@ -238,6 +254,21 @@ export default function RecurringOrdersTab() {
     if (diffDays === 1) return 'Morgen';
     if (diffDays < 0) return `Überfällig (${Math.abs(diffDays)} Tage)`;
     return `In ${diffDays} Tagen`;
+  };
+
+  const handleConfirmedAction = () => {
+    if (!confirmationAction) return;
+    
+    switch (confirmationAction.type) {
+      case 'execute':
+        executeOrderMutation.mutate(confirmationAction.orderId);
+        break;
+      case 'test-real':
+        testExecutionMutation.mutate({ id: confirmationAction.orderId, dryRun: false });
+        break;
+      default:
+        setConfirmationAction(null);
+    }
   };
 
   if (ordersLoading) {
@@ -325,6 +356,18 @@ export default function RecurringOrdersTab() {
           )}
         </CardContent>
       </Card>
+
+      {/* Fehlgeschlagene Ausführungen Warnung */}
+      {failedExecutions.length > 0 && (
+        <Alert className="border-red-200 bg-red-50">
+          <AlertTriangle className="h-4 w-4 text-red-600" />
+          <AlertDescription className="text-red-800">
+            <strong>⚠️ {failedExecutions.length} fehlgeschlagene Ausführung(en)</strong> in den letzten 7 Tagen gefunden.
+            Letzte Fehler: {failedExecutions.slice(0, 2).map(f => f.recurringOrderName).join(', ')}
+            {failedExecutions.length > 2 && ` und ${failedExecutions.length - 2} weitere`}
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* Ausstehende Wareneingänge */}
       {pendingGoodsReceipts.length > 0 && (
@@ -460,14 +503,32 @@ export default function RecurringOrdersTab() {
                         >
                           Bearbeiten
                         </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => executeOrderMutation.mutate(order.id)}
-                          disabled={executeOrderMutation.isPending}
-                        >
-                          Ausführen
-                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled={executeOrderMutation.isPending}
+                            >
+                              Ausführen
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Bestellung ausführen</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Sind Sie sicher, dass Sie die wiederkehrende Bestellung "{order.name}" 
+                                jetzt ausführen möchten? Dies erstellt eine echte Bestellung im System.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => executeOrderMutation.mutate(order.id)}>
+                                Bestellung erstellen
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                         <Button
                           variant="outline"
                           size="sm"
@@ -483,18 +544,41 @@ export default function RecurringOrdersTab() {
                           onClick={() => testExecutionMutation.mutate({ id: order.id, dryRun: true })}
                           disabled={testExecutionMutation.isPending}
                           className="text-green-600"
+                          title="Simuliert die Bestellung ohne echte Erstellung"
                         >
-                          🧪 Test-Sim
+                          📋 Simulation
                         </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => testExecutionMutation.mutate({ id: order.id, dryRun: false })}
-                          disabled={testExecutionMutation.isPending}
-                          className="text-orange-600"
-                        >
-                          🚀 Test-Real
-                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled={testExecutionMutation.isPending}
+                              className="text-orange-600"
+                              title="Erstellt eine echte Testbestellung im System"
+                            >
+                              ⚡ Testauftrag
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Testauftrag erstellen</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Sind Sie sicher, dass Sie einen echten Testauftrag für "{order.name}" erstellen möchten? 
+                                Dies erstellt eine tatsächliche Bestellung im System, die später verarbeitet werden muss.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+                              <AlertDialogAction 
+                                onClick={() => testExecutionMutation.mutate({ id: order.id, dryRun: false })}
+                                className="bg-orange-600 hover:bg-orange-700"
+                              >
+                                Testauftrag erstellen
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                       </div>
                     </TableCell>
                   </TableRow>
