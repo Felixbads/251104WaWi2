@@ -834,26 +834,41 @@ export class DatabaseStorage implements IStorage {
     }
 
     try {
-      // Bereite alle Transaktionen für Batch-Insert vor
-      const values = transactionList.map(transaction => ({
-        vendonId: transaction.vendonId,
-        machineId: transaction.machineId,
-        machineName: transaction.machineName,
-        datetime: transaction.datetime,
-        productName: transaction.productName,
-        price: transaction.price,
-        quantity: transaction.quantity,
-        source: transaction.source,
-        extraData: transaction.extraData || null
-      }));
+      // Use raw SQL for batch insertion to avoid schema mismatch issues
+      // Build VALUES clause for multiple transactions
+      const values: string[] = [];
+      const params: any[] = [];
+      let paramIndex = 1;
 
-      // Eine einzige Batch-Insert-Operation
-      const result = await db.insert(transactions)
-        .values(values)
-        .returning();
+      for (const transaction of transactionList) {
+        values.push(`($${paramIndex}, $${paramIndex + 1}, $${paramIndex + 2}, $${paramIndex + 3}, $${paramIndex + 4}, $${paramIndex + 5}, $${paramIndex + 6}, $${paramIndex + 7}, $${paramIndex + 8})`);
+        params.push(
+          transaction.vendonId,
+          transaction.machineId,
+          transaction.machineName || 'Unbekannt',
+          transaction.datetime,
+          transaction.productName || 'Unbekanntes Produkt',
+          transaction.price || 0,
+          transaction.quantity || 1,
+          transaction.source || 'vendon',
+          transaction.extraData || null
+        );
+        paramIndex += 9;
+      }
+
+      const sql = `
+        INSERT INTO transactions (
+          vendon_id, machine_id, machine_name, datetime, 
+          product_name, price, quantity, source, extra_data
+        ) VALUES ${values.join(', ')}
+        RETURNING id, vendon_id, machine_id, machine_name, datetime, 
+                  product_name, price, quantity, source
+      `;
+
+      const result = await rawDb.query(sql, params);
       
-      console.log(`✅ ${result.length} neue Transaktionen erfolgreich eingefügt`);
-      return result;
+      console.log(`✅ ${result.rows.length} neue Transaktionen erfolgreich eingefügt`);
+      return result.rows;
     } catch (error) {
       console.error("Fehler bei Batch-Insertion:", error);
       throw error;

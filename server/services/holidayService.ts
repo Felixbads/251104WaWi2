@@ -180,7 +180,95 @@ export const holidayService = {
   }
 };
 
-export async function syncMissingHolidays(): Promise<number> {
-  console.log('Holiday synchronization function called');
-  return 0;
+/**
+ * Synchronizes missing holidays for specified years and states
+ * This function integrates with the comprehensive holiday sync service
+ * to ensure all German federal states have up-to-date holiday data
+ * 
+ * @param startYear Starting year for synchronization
+ * @param endYear Ending year for synchronization  
+ * @param states Optional array of state codes (defaults to all German states)
+ * @param includeSchoolHolidays Whether to include school holidays
+ * @returns Synchronization result with statistics
+ */
+export async function syncMissingHolidays(
+  startYear: number = new Date().getFullYear(),
+  endYear: number = new Date().getFullYear() + 1,
+  states?: string[],
+  includeSchoolHolidays: boolean = true
+): Promise<{
+  success: boolean;
+  totalHolidays: number;
+  totalCalendarDays: number;
+  yearsProcessed: number;
+  errors: string[];
+  message: string;
+}> {
+  console.log(`🗓️ Starting comprehensive holiday synchronization for years ${startYear}-${endYear}`);
+  
+  try {
+    // Import the comprehensive holiday sync functions
+    const { syncMultipleYears, syncComprehensiveHolidays } = await import('./comprehensiveHolidaySync');
+    
+    let result;
+    const errors: string[] = [];
+    
+    if (startYear === endYear) {
+      // Single year synchronization
+      console.log(`Syncing holidays for single year: ${startYear}`);
+      const singleYearResult = await syncComprehensiveHolidays(startYear);
+      
+      result = {
+        success: singleYearResult.success,
+        totalHolidays: singleYearResult.addedHolidays,
+        totalCalendarDays: singleYearResult.addedCalendarDays,
+        yearsProcessed: 1,
+        errors: singleYearResult.errors || []
+      };
+    } else {
+      // Multiple years synchronization
+      console.log(`Syncing holidays for multiple years: ${startYear}-${endYear}`);
+      const multiYearResult = await syncMultipleYears(startYear, endYear);
+      
+      result = {
+        success: multiYearResult.success,
+        totalHolidays: multiYearResult.totalHolidays,
+        totalCalendarDays: multiYearResult.totalCalendarDays,
+        yearsProcessed: endYear - startYear + 1,
+        errors: []
+      };
+      
+      // Collect errors from individual year results
+      Object.values(multiYearResult.results).forEach((yearResult: any) => {
+        if (yearResult.errors && yearResult.errors.length > 0) {
+          result.errors.push(...yearResult.errors);
+        }
+      });
+    }
+    
+    // Generate summary message
+    const message = result.success 
+      ? `✅ Holiday synchronization completed: ${result.totalHolidays} holidays and ${result.totalCalendarDays} calendar entries added across ${result.yearsProcessed} year(s)`
+      : `⚠️ Holiday synchronization completed with errors: ${result.totalHolidays} holidays added, ${result.errors.length} errors occurred`;
+    
+    console.log(message);
+    
+    return {
+      ...result,
+      message
+    };
+    
+  } catch (error) {
+    const errorMessage = `❌ Holiday synchronization failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
+    console.error(errorMessage, error);
+    
+    return {
+      success: false,
+      totalHolidays: 0,
+      totalCalendarDays: 0,
+      yearsProcessed: 0,
+      errors: [errorMessage],
+      message: errorMessage
+    };
+  }
 }

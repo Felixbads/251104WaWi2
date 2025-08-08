@@ -11,6 +11,7 @@ import { syncWeatherForecast, syncHistoricalWeatherBatch } from './services/open
 import { syncMissingHolidays } from './services/holidayService';
 import { reconcileWarehouseProducts } from './services/warehouseReconciliation';
 import { productSyncService } from './services/productSyncService'; // Neuer verbesserter Product-Sync-Service
+import { trainForecastModel, createForecast } from './services/forecastService';
 
 // Speichern der Timeout-IDs zur späteren Verwaltung
 const timers: Record<string, NodeJS.Timeout> = {};
@@ -28,6 +29,10 @@ const syncConfig = {
   medium: {
     interval: 2 * 60 * 60 * 1000, // 2 Stunden (erhöht von 1 Stunde)
     syncTypes: ['machines', 'products', 'events', 'weather_forecast'] // Mittelschnelle Sync-Typen - 'weather_historical_batch' entfernt, um Überlastung zu vermeiden
+  },
+  forecast: {
+    interval: 12 * 60 * 60 * 1000, // 12 Stunden für Prognose-Training
+    syncTypes: ['forecast_training', 'forecast_generation'] // Automatisches Modelltraining und Prognoseerstellung
   },
   slow: {
     interval: 24 * 60 * 60 * 1000, // 24 Stunden
@@ -111,6 +116,131 @@ async function performSync(syncType: string): Promise<void> {
         result = await reconcileWarehouseProducts(undefined, false, true);
         console.log(`Täglicher Lagerabgleich abgeschlossen: ${result.productsAdded} neue Produkte zu ${result.warehousesChecked} Lagern hinzugefügt.`);
         break;
+      case 'vendon_gap_check':
+        // Führe Vendon-Datenlücken-Analyse durch
+        console.log('🔍 Starte automatische Vendon-Datenlücken-Prüfung...');
+        try {
+          // Analysiere die letzten 14 Tage
+          const gapAnalysis = await vendonSync.analyzeDataGaps(
+            new Date(Date.now() - 14 * 24 * 60 * 60 * 1000), // 14 Tage zurück
+            new Date(),
+            {
+              minDailyTransactions: 30, // Niedrigere Schwelle für automatische Checks
+              criticalGapDays: 2, // 2+ aufeinanderfolgende Tage = kritisch
+              warningGapDays: 1   // 1+ Tag = Warnung
+            }
+          );
+          
+          console.log(`📊 Gap-Analyse abgeschlossen: ${gapAnalysis.summary.missingDays} fehlende, ${gapAnalysis.summary.incompleteDays} unvollständige Tage`);
+          
+          // Führe automatisches Backfill nur für kritische Lücken durch
+          if (gapAnalysis.summary.criticalGaps > 0) {
+            console.log(`🚨 ${gapAnalysis.summary.criticalGaps} kritische Lücken erkannt - starte automatisches Backfill...`);
+            
+            const backfillResult = await vendonSync.performAutomaticBackfill(gapAnalysis, {
+              priority: 'critical',
+              dryRun: false, // Echtes Backfill für kritische Lücken
+              maxDaysPerOperation: 5
+            });
+            
+            console.log(`✅ Automatisches Backfill abgeschlossen: ${backfillResult.summary.successful}/${backfillResult.summary.totalOperations} Operationen erfolgreich`);
+            
+            result = {
+              success: true,
+              gapAnalysis,
+              backfillResult,
+              message: `Gap-Check abgeschlossen: ${gapAnalysis.summary.criticalGaps} kritische Lücken, ${backfillResult.summary.transactionsSynced} Transaktionen nachgefüllt`
+            };
+          } else if (gapAnalysis.summary.warningGaps > 0) {
+            console.log(`⚠️ ${gapAnalysis.summary.warningGaps} Warnungs-Lücken gefunden - protokolliert für manuelle Überprüfung`);
+            
+            result = {
+              success: true,
+              gapAnalysis,
+              message: `Gap-Check abgeschlossen: ${gapAnalysis.summary.warningGaps} Warnungs-Lücken gefunden, keine kritischen Lücken`
+            };
+          } else {
+            console.log('✅ Keine Datenlücken gefunden - Datenqualität ist gut');
+            
+            result = {
+              success: true,
+              gapAnalysis,
+              message: 'Gap-Check abgeschlossen: Keine Datenlücken gefunden'
+            };
+          }
+        } catch (error) {
+          console.error('❌ Fehler bei der Datenlücken-Prüfung:', error);
+          result = {
+            success: false,
+            message: `Fehler bei der Datenlücken-Prüfung: ${error instanceof Error ? error.message : 'Unbekannter Fehler'}`
+          };
+        }
+        break;
+      case 'forecast_training':
+        // Automatisches Training von Prognosemodellen mit neuen Daten
+        console.log('Starte automatisches Training der Prognosemodelle...');
+        // Trainiere alle aktiven Modelle mit Daten der letzten 30 Tage
+        const endDate = new Date();
+        const startDate = new Date(endDate.getTime() - 30 * 24 * 60 * 60 * 1000);
+        
+        // Hole alle aktiven Modelle
+        const { db } = await import('./db');
+        const { forecastModels } = await import('@shared/schema');
+        const { eq } = await import('drizzle-orm');
+        
+        const activeModels = await db.select().from(forecastModels)
+          .where(eq(forecastModels.status, 'ready'));
+        
+        let trainedModels = 0;
+        for (const model of activeModels) {
+          try {
+            const trainingResult = await trainForecastModel(
+              model.id,
+              startDate.toISOString().split('T')[0],
+              endDate.toISOString().split('T')[0]
+            );
+            if (trainingResult.success) {
+              trainedModels++;
+              console.log(`Modell ${model.name} erfolgreich neu trainiert`);
+            }
+          } catch (error) {
+            console.error(`Fehler beim Training von Modell ${model.name}:`, error);
+          }
+        }
+        
+        result = { success: true, modelsRetrained: trainedModels };
+        console.log(`Automatisches Training abgeschlossen: ${trainedModels} Modelle neu trainiert`);
+        break;
+      case 'forecast_generation':
+        // Automatische Generierung neuer Prognosen für die nächsten 7 Tage
+        console.log('Starte automatische Prognoseerstellung...');
+        const forecastStartDate = new Date();
+        const forecastEndDate = new Date(forecastStartDate.getTime() + 7 * 24 * 60 * 60 * 1000);
+        
+        // Hole alle bereiten Modelle erneut
+        const readyModels = await db.select().from(forecastModels)
+          .where(eq(forecastModels.status, 'ready'));
+        
+        let generatedForecasts = 0;
+        for (const model of readyModels) {
+          try {
+            const forecastResult = await createForecast(
+              model.id,
+              forecastStartDate.toISOString().split('T')[0],
+              forecastEndDate.toISOString().split('T')[0]
+            );
+            if (forecastResult.success) {
+              generatedForecasts++;
+              console.log(`Prognose für Modell ${model.name} erfolgreich erstellt`);
+            }
+          } catch (error) {
+            console.error(`Fehler bei Prognoseerstellung für Modell ${model.name}:`, error);
+          }
+        }
+        
+        result = { success: true, forecastsGenerated: generatedForecasts };
+        console.log(`Automatische Prognoseerstellung abgeschlossen: ${generatedForecasts} Prognosen erstellt`);
+        break;
       case 'all':
         result = await vendonSync.syncAll();
         // Auch Wetter, Feiertage und Produkte synchronisieren
@@ -154,6 +284,8 @@ function scheduleNextSync(syncType: string): void {
     interval = syncConfig.medium.interval;
   } else if (syncConfig.slow.syncTypes.includes(syncType)) {
     interval = syncConfig.slow.interval;
+  } else if (syncConfig.forecast.syncTypes.includes(syncType)) {
+    interval = syncConfig.forecast.interval;
   } else if (syncConfig.historical.syncTypes.includes(syncType)) {
     interval = syncConfig.historical.interval;
   } else {
@@ -197,6 +329,14 @@ export function startAutomaticSync(): void {
     console.log(`Plane initiale mittelschnelle Synchronisierung für: ${syncType}`);
     // Starte mit größerer Verzögerung und mehr Abstand zwischen den Tasks
     const delay = 5 * 60000 + (index * 3 * 60000); // 5 Minuten + 3 Minuten pro Eintrag
+    timers[syncType] = setTimeout(() => performSync(syncType), delay);
+  });
+  
+  // Starte Prognose-Synchronisierungen
+  syncConfig.forecast.syncTypes.forEach((syncType, index) => {
+    console.log(`Plane initiale Prognose-Synchronisierung für: ${syncType}`);
+    // Starte mit größerer Verzögerung (20 Minuten + 10 Minuten pro Eintrag)
+    const delay = 20 * 60000 + (index * 10 * 60000);
     timers[syncType] = setTimeout(() => performSync(syncType), delay);
   });
   

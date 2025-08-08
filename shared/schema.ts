@@ -1379,6 +1379,8 @@ export const weatherData = pgTable("weather_data", {
   visibility: integer("visibility"),
   // Niederschlagsmenge letzte Stunde, mm
   precipitation: real("precipitation"),
+  // Tageslänge in Stunden (für Standorte mit Sunrise/Sunset)
+  day_length: real("day_length"),
   // Regenvolumen letzte Stunde, mm
   rain_1h: real("rain_1h"),
   // Schneevolumen letzte Stunde, mm
@@ -1480,6 +1482,8 @@ export const weatherForecasts = pgTable("weather_forecasts", {
   moonset: integer("moonset"),
   // Mondphase (0-1)
   moon_phase: real("moon_phase"),
+  // Tageslänge in Stunden (berechnet aus sunrise/sunset)
+  day_length: real("day_length"),
   // Datenquelle
   source: text("source").notNull(),
   // Breitengrad
@@ -1557,6 +1561,8 @@ export const weatherHistorical = pgTable("weather_historical", {
   sunrise: integer("sunrise"),
   // Sonnenuntergang (UNIX-Timestamp)
   sunset: integer("sunset"),
+  // Tageslänge in Stunden (berechnet aus sunrise/sunset)
+  day_length: real("day_length"),
   // Datenquelle
   source: text("source").notNull(),
   // Breitengrad

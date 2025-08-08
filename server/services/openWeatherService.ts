@@ -301,6 +301,7 @@ export async function saveWeatherForecast(
           timestamp: currentData.dt,
           sunrise: currentData.sunrise,
           sunset: currentData.sunset,
+          day_length: currentData.sunrise && currentData.sunset ? calculateDayLength(currentData.sunrise, currentData.sunset) : null,
           source: 'openweather',
           lat: forecastData.lat,
           lon: forecastData.lon,
@@ -426,6 +427,7 @@ export async function saveWeatherForecast(
             timestamp: dayData.dt,
             sunrise: dayData.sunrise,
             sunset: dayData.sunset,
+            day_length: dayData.sunrise && dayData.sunset ? calculateDayLength(dayData.sunrise, dayData.sunset) : null,
             moonrise: dayData.moonrise,
             moonset: dayData.moonset,
             moon_phase: dayData.moon_phase,
@@ -542,6 +544,7 @@ export async function saveHistoricalWeather(
           timestamp: hourData.dt,
           sunrise: historicalData.sunrise || null,
           sunset: historicalData.sunset || null,
+          day_length: historicalData.sunrise && historicalData.sunset ? calculateDayLength(historicalData.sunrise, historicalData.sunset) : null,
           source: 'openweather',
           lat: historicalData.lat,
           lon: historicalData.lon,
@@ -733,6 +736,24 @@ export async function getWeatherForecast(location: string = 'Dresden,DE', days: 
     console.error('Fehler beim Abrufen der Wettervorhersage:', error);
     throw error;
   }
+}
+
+/**
+ * Berechnet die Tageslänge in Stunden aus Sonnenaufgang und Sonnenuntergang
+ * @param sunrise UNIX-Timestamp des Sonnenaufgangs
+ * @param sunset UNIX-Timestamp des Sonnenuntergangs
+ * @returns Tageslänge in Stunden
+ */
+export function calculateDayLength(sunrise: number, sunset: number): number {
+  if (!sunrise || !sunset || sunset <= sunrise) {
+    return 12; // Fallback auf 12 Stunden bei ungültigen Daten
+  }
+  
+  // Berechne die Differenz in Sekunden und konvertiere zu Stunden
+  const dayLengthHours = (sunset - sunrise) / 3600;
+  
+  // Begrenze auf realistische Werte (0-24 Stunden)
+  return Math.max(0, Math.min(24, dayLengthHours));
 }
 
 /**

@@ -240,6 +240,10 @@ class ProphetForecaster:
             prophet_df['precipitation'] = df['precipitation']
             regressors.append('precipitation')
             
+        if 'day_length' in df.columns:
+            prophet_df['day_length'] = df['day_length']
+            regressors.append('day_length')
+            
         if 'is_holiday' in df.columns:
             prophet_df['is_holiday'] = df['is_holiday']
             regressors.append('is_holiday')
@@ -496,13 +500,14 @@ class ProphetForecaster:
             if regressor_names:
                 with conn.cursor(cursor_factory=RealDictCursor) as cursor:
                     # Wetterdaten hinzufügen, wenn vorhanden
-                    if 'temp' in regressor_names or 'precipitation' in regressor_names:
+                    if 'temp' in regressor_names or 'precipitation' in regressor_names or 'day_length' in regressor_names:
                         cursor.execute("""
                             SELECT 
                                 date as ds,
                                 temp,
                                 humidity,
-                                precipitation
+                                precipitation,
+                                day_length
                             FROM 
                                 weather_data
                             WHERE 
@@ -518,7 +523,7 @@ class ProphetForecaster:
                             future_df = pd.merge(future_df, weather_df, on='ds', how='left')
                             
                             # Fehlende Wetterdaten mit dem Durchschnitt ersetzen
-                            for col in ['temp', 'humidity', 'precipitation']:
+                            for col in ['temp', 'humidity', 'precipitation', 'day_length']:
                                 if col in future_df.columns and col in regressor_names:
                                     future_df[col].fillna(future_df[col].mean(), inplace=True)
                     

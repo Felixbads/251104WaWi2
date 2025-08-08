@@ -292,6 +292,7 @@ async function collectTrainingData(
             avgTemp: sql`AVG(${weatherData.temp})`,
             avgHumidity: sql`AVG(${weatherData.humidity})`,
             totalPrecipitation: sql`SUM(${weatherData.precipitation})`,
+            avgDayLength: sql`AVG(${weatherData.day_length})`,
           })
           .from(weatherData)
           .where(eq(weatherData.date, dateStr));
@@ -300,7 +301,8 @@ async function collectTrainingData(
             dataEntry.weather = {
               avgTemp: weatherStats[0].avgTemp,
               avgHumidity: weatherStats[0].avgHumidity,
-              totalPrecipitation: weatherStats[0].totalPrecipitation
+              totalPrecipitation: weatherStats[0].totalPrecipitation,
+              avgDayLength: weatherStats[0].avgDayLength
             };
           }
         } catch (error) {
@@ -309,7 +311,8 @@ async function collectTrainingData(
           dataEntry.weather = {
             avgTemp: 20, // Default-Temperatur in °C
             avgHumidity: 50, // Default-Luftfeuchtigkeit in %
-            totalPrecipitation: 0 // Default: kein Niederschlag
+            totalPrecipitation: 0, // Default: kein Niederschlag
+            avgDayLength: 12 // Default: 12 Stunden Tageslicht
           };
         }
       }
@@ -1308,5 +1311,479 @@ export async function getEnhancedOrderSuggestions(
   } catch (error) {
     console.error('Fehler beim Generieren der Bestellvorschläge:', error);
     throw error;
+  }
+}
+
+/**
+ * Berechnet Prognose-Fehlermetriken durch Vergleich von tatsächlichen mit vorhergesagten Werten
+ * 
+ * @param modelId ID des Prognosemodells
+ * @param startDate Startdatum für die Fehleranalyse
+ * @param endDate Enddatum für die Fehleranalyse
+ * @param locationIds Optionale Eingrenzung auf bestimmte Standorte
+ * @param machineIds Optionale Eingrenzung auf bestimmte Automaten
+ * @returns Objekt mit Fehlermetriken
+ */
+export async function calculateForecastErrors(
+  modelId: number,
+  startDate: string | Date,
+  endDate: string | Date,
+  locationIds?: number[],
+  machineIds?: number[]
+): Promise<{
+  success: boolean;
+  message?: string;
+  metrics?: {
+    mae: number;       // Mean Absolute Error
+    rmse: number;      // Root Mean Square Error
+    mape: number;      // Mean Absolute Percentage Error
+    bias: number;      // Durchschnittliche Über-/Unterschätzung
+    accuracy: number;  // Genauigkeit (1 - MAPE/100)
+    dataPoints: number;
+    qualityRating: 'excellent' | 'good' | 'fair' | 'poor';
+  };
+  dailyErrors?: Array<{
+    date: string;
+    actual: number;
+    predicted: number;
+    error: number;
+    absoluteError: number;
+    percentageError?: number;
+  }>;
+}> {
+  try {
+    console.log(`Berechne Prognose-Fehler für Modell ${modelId} von ${startDate} bis ${endDate}`);
+    
+    // Formatiere Datumswerte
+    const formattedStartDate = typeof startDate === 'string' ? startDate : format(startDate, 'yyyy-MM-dd');
+    const formattedEndDate = typeof endDate === 'string' ? endDate : format(endDate, 'yyyy-MM-dd');
+    
+    // Sammle Prognosedaten
+    let forecastQuery = db.select({
+      date: forecasts.forecast_date,
+      predicted: forecasts.predicted_quantity,
+      confidence: forecasts.confidence,
+      locationId: forecasts.location_id,
+      machineId: forecasts.machine_id
+    })
+    .from(forecasts)
+    .where(
+      and(
+        eq(forecasts.model_id, modelId),
+        between(forecasts.forecast_date, formattedStartDate, formattedEndDate)
+      )
+    );
+    
+    // Filter hinzufügen
+    if (locationIds && locationIds.length > 0) {
+      forecastQuery = forecastQuery.where(inArray(forecasts.location_id, locationIds));
+    }
+    
+    if (machineIds && machineIds.length > 0) {
+      forecastQuery = forecastQuery.where(inArray(forecasts.machine_id, machineIds));
+    }
+    
+    const forecastData = await forecastQuery.orderBy(asc(forecasts.forecast_date));
+    
+    if (!forecastData || forecastData.length === 0) {
+      return { success: false, message: 'Keine Prognosedaten für den angegebenen Zeitraum gefunden' };
+    }
+    
+    // Sammle tatsächliche Verkaufsdaten
+    const dailyErrors = [];
+    let totalAbsoluteError = 0;
+    let totalSquaredError = 0;
+    let totalPercentageError = 0;
+    let totalBias = 0;
+    let validDataPoints = 0;
+    
+    // Gruppiere Prognosen nach Datum
+    const forecastsByDate = forecastData.reduce((acc, forecast) => {
+      if (!acc[forecast.date]) {
+        acc[forecast.date] = { predicted: 0, count: 0 };
+      }
+      acc[forecast.date].predicted += forecast.predicted || 0;
+      acc[forecast.date].count += 1;
+      return acc;
+    }, {} as Record<string, { predicted: number; count: number }>);
+    
+    // Für jeden Tag mit Prognosen die tatsächlichen Werte abrufen
+    for (const [dateStr, forecastInfo] of Object.entries(forecastsByDate)) {
+      // Baue die Abfrage für tatsächliche Transaktionen
+      let actualQuery = db.select({
+        totalQuantity: sql`SUM(${transactions.quantity})`
+      })
+      .from(transactions)
+      .where(sql`DATE(${transactions.datetime}) = ${dateStr}`);
+      
+      // Filter hinzufügen
+      let whereConditions: any[] = [sql`DATE(${transactions.datetime}) = ${dateStr}`];
+      
+      if (locationIds && locationIds.length > 0) {
+        whereConditions.push(inArray(transactions.locationId, locationIds));
+      }
+      
+      if (machineIds && machineIds.length > 0) {
+        whereConditions.push(inArray(transactions.machineId, machineIds));
+      }
+      
+      actualQuery = db.select({
+        totalQuantity: sql`SUM(${transactions.quantity})`
+      })
+      .from(transactions)
+      .where(and(...whereConditions));
+      
+      const actualResult = await actualQuery;
+      const actual = actualResult[0]?.totalQuantity || 0;
+      const predicted = forecastInfo.predicted / forecastInfo.count; // Durchschnitt der Prognosen
+      
+      // Berechne Fehlermetriken
+      const error = predicted - actual;
+      const absoluteError = Math.abs(error);
+      const percentageError = actual > 0 ? (absoluteError / actual) * 100 : 0;
+      
+      dailyErrors.push({
+        date: dateStr,
+        actual: Number(actual),
+        predicted: Number(predicted),
+        error: Number(error),
+        absoluteError: Number(absoluteError),
+        percentageError: actual > 0 ? Number(percentageError) : undefined
+      });
+      
+      // Akkumuliere für Gesamtmetriken
+      totalAbsoluteError += absoluteError;
+      totalSquaredError += error * error;
+      totalBias += error;
+      
+      if (actual > 0) {
+        totalPercentageError += percentageError;
+        validDataPoints++;
+      }
+    }
+    
+    const dataPoints = dailyErrors.length;
+    
+    if (dataPoints === 0) {
+      return { success: false, message: 'Keine übereinstimmenden Daten für Fehlerberechnung gefunden' };
+    }
+    
+    // Berechne finale Metriken
+    const mae = totalAbsoluteError / dataPoints;
+    const rmse = Math.sqrt(totalSquaredError / dataPoints);
+    const mape = validDataPoints > 0 ? totalPercentageError / validDataPoints : 0;
+    const bias = totalBias / dataPoints;
+    const accuracy = Math.max(0, Math.min(1, 1 - (mape / 100)));
+    
+    // Bestimme Qualitätsbewertung basierend auf MAPE
+    let qualityRating: 'excellent' | 'good' | 'fair' | 'poor';
+    if (mape <= 10) {
+      qualityRating = 'excellent';
+    } else if (mape <= 20) {
+      qualityRating = 'good';
+    } else if (mape <= 35) {
+      qualityRating = 'fair';
+    } else {
+      qualityRating = 'poor';
+    }
+    
+    console.log(`Prognose-Fehleranalyse abgeschlossen: MAE=${mae.toFixed(2)}, RMSE=${rmse.toFixed(2)}, MAPE=${mape.toFixed(2)}%`);
+    
+    return {
+      success: true,
+      metrics: {
+        mae: Number(mae.toFixed(2)),
+        rmse: Number(rmse.toFixed(2)),
+        mape: Number(mape.toFixed(2)),
+        bias: Number(bias.toFixed(2)),
+        accuracy: Number(accuracy.toFixed(3)),
+        dataPoints,
+        qualityRating
+      },
+      dailyErrors
+    };
+    
+  } catch (error) {
+    console.error(`Fehler bei der Prognose-Fehlerberechnung für Modell ${modelId}:`, error);
+    return { success: false, message: `Fehler bei der Fehlerberechnung: ${error}` };
+  }
+}
+
+/**
+ * Aggregiert Prognose-Fehlermetriken über verschiedene Zeiträume
+ * 
+ * @param modelIds Liste von Modell-IDs für die Analyse
+ * @param days Anzahl der Tage rückwirkend für die Analyse
+ * @returns Objekt mit aggregierten Fehlermetriken
+ */
+export async function aggregateForecastErrorMetrics(
+  modelIds?: number[],
+  days: number = 30
+): Promise<{
+  success: boolean;
+  message?: string;
+  aggregatedMetrics?: {
+    overall: {
+      averageMape: number;
+      averageAccuracy: number;
+      totalDataPoints: number;
+      modelsAnalyzed: number;
+    };
+    byModel: Array<{
+      modelId: number;
+      modelName: string;
+      mape: number;
+      accuracy: number;
+      qualityRating: string;
+      dataPoints: number;
+      lastUpdated: string;
+    }>;
+    timeSeriesMetrics: Array<{
+      date: string;
+      averageMape: number;
+      averageAccuracy: number;
+      modelsActive: number;
+    }>;
+  };
+}> {
+  try {
+    console.log(`Aggregiere Prognose-Fehlermetriken für ${days} Tage`);
+    
+    const endDate = new Date();
+    const startDate = new Date(endDate.getTime() - days * 24 * 60 * 60 * 1000);
+    
+    // Hole verfügbare Modelle
+    let modelsQuery = db.select({
+      id: forecastModels.id,
+      name: forecastModels.name,
+      status: forecastModels.status,
+      accuracy: forecastModels.accuracy,
+      last_used_at: forecastModels.last_used_at
+    }).from(forecastModels);
+    
+    if (modelIds && modelIds.length > 0) {
+      modelsQuery = modelsQuery.where(inArray(forecastModels.id, modelIds));
+    } else {
+      modelsQuery = modelsQuery.where(eq(forecastModels.status, 'ready'));
+    }
+    
+    const models = await modelsQuery;
+    
+    if (!models || models.length === 0) {
+      return { success: false, message: 'Keine aktiven Prognosemodelle gefunden' };
+    }
+    
+    const byModel = [];
+    let totalMape = 0;
+    let totalAccuracy = 0;
+    let totalDataPoints = 0;
+    let validModels = 0;
+    
+    // Berechne Fehlermetriken für jedes Modell
+    for (const model of models) {
+      const errorResult = await calculateForecastErrors(
+        model.id,
+        format(startDate, 'yyyy-MM-dd'),
+        format(endDate, 'yyyy-MM-dd')
+      );
+      
+      if (errorResult.success && errorResult.metrics) {
+        const metrics = errorResult.metrics;
+        
+        byModel.push({
+          modelId: model.id,
+          modelName: model.name,
+          mape: metrics.mape,
+          accuracy: metrics.accuracy,
+          qualityRating: metrics.qualityRating,
+          dataPoints: metrics.dataPoints,
+          lastUpdated: model.last_used_at ? format(parseISO(model.last_used_at.toISOString()), 'yyyy-MM-dd HH:mm:ss') : 'Nie verwendet'
+        });
+        
+        totalMape += metrics.mape;
+        totalAccuracy += metrics.accuracy;
+        totalDataPoints += metrics.dataPoints;
+        validModels++;
+      }
+    }
+    
+    // Erstelle Zeitreihen-Metriken (vereinfacht - könnte erweitert werden)
+    const timeSeriesMetrics = [];
+    const dateRange = eachDayOfInterval({ start: startDate, end: endDate });
+    
+    for (const date of dateRange.slice(-7)) { // Nur letzte 7 Tage für Performance
+      const dateStr = format(date, 'yyyy-MM-dd');
+      
+      // Vereinfachte Berechnung - könnte detaillierter sein
+      timeSeriesMetrics.push({
+        date: dateStr,
+        averageMape: validModels > 0 ? Number((totalMape / validModels).toFixed(2)) : 0,
+        averageAccuracy: validModels > 0 ? Number((totalAccuracy / validModels).toFixed(3)) : 0,
+        modelsActive: validModels
+      });
+    }
+    
+    const aggregatedMetrics = {
+      overall: {
+        averageMape: validModels > 0 ? Number((totalMape / validModels).toFixed(2)) : 0,
+        averageAccuracy: validModels > 0 ? Number((totalAccuracy / validModels).toFixed(3)) : 0,
+        totalDataPoints,
+        modelsAnalyzed: validModels
+      },
+      byModel,
+      timeSeriesMetrics
+    };
+    
+    console.log(`Prognose-Fehleraggregation abgeschlossen: ${validModels} Modelle analysiert`);
+    
+    return {
+      success: true,
+      aggregatedMetrics
+    };
+    
+  } catch (error) {
+    console.error('Fehler bei der Prognose-Fehleraggregation:', error);
+    return { success: false, message: `Fehler bei der Aggregation: ${error}` };
+  }
+}
+
+/**
+ * Ruft Prognose-Qualitätsmetriken für das Dashboard ab
+ * 
+ * @param modelId Optionale Modell-ID zur Eingrenzung
+ * @param days Anzahl der Tage rückwirkend (Standard: 7)
+ * @returns Dashboard-Metriken für die Prognosequalität
+ */
+export async function getForecastQualityMetrics(
+  modelId?: number,
+  days: number = 7
+): Promise<{
+  success: boolean;
+  message?: string;
+  qualityMetrics?: {
+    summary: {
+      averageAccuracy: number;
+      averageMape: number;
+      totalForecasts: number;
+      activeModels: number;
+      qualityTrend: 'improving' | 'stable' | 'declining';
+    };
+    recentErrors: Array<{
+      date: string;
+      mape: number;
+      accuracy: number;
+      dataPoints: number;
+    }>;
+    modelPerformance: Array<{
+      modelId: number;
+      modelName: string;
+      accuracy: number;
+      mape: number;
+      status: string;
+      lastForecast: string;
+    }>;
+    alerts: Array<{
+      type: 'error' | 'warning' | 'info';
+      message: string;
+      modelId?: number;
+      timestamp: string;
+    }>;
+  };
+}> {
+  try {
+    console.log(`Hole Prognose-Qualitätsmetriken für ${days} Tage`);
+    
+    // Basis-Aggregation durchführen
+    const modelIds = modelId ? [modelId] : undefined;
+    const aggregationResult = await aggregateForecastErrorMetrics(modelIds, days);
+    
+    if (!aggregationResult.success || !aggregationResult.aggregatedMetrics) {
+      return { success: false, message: aggregationResult.message };
+    }
+    
+    const { overall, byModel, timeSeriesMetrics } = aggregationResult.aggregatedMetrics;
+    
+    // Bestimme Qualitätstrend
+    let qualityTrend: 'improving' | 'stable' | 'declining' = 'stable';
+    if (timeSeriesMetrics.length >= 2) {
+      const recentAccuracy = timeSeriesMetrics.slice(-3).reduce((sum, metric) => sum + metric.averageAccuracy, 0) / Math.min(3, timeSeriesMetrics.length);
+      const olderAccuracy = timeSeriesMetrics.slice(0, -3).reduce((sum, metric) => sum + metric.averageAccuracy, 0) / Math.max(1, timeSeriesMetrics.length - 3);
+      
+      const trend = recentAccuracy - olderAccuracy;
+      if (trend > 0.05) {
+        qualityTrend = 'improving';
+      } else if (trend < -0.05) {
+        qualityTrend = 'declining';
+      }
+    }
+    
+    // Erstelle Alerts basierend auf Qualitätsmetriken
+    const alerts = [];
+    const now = new Date().toISOString();
+    
+    if (overall.averageAccuracy < 0.7) {
+      alerts.push({
+        type: 'error' as const,
+        message: `Niedrige durchschnittliche Prognosegenauigkeit: ${(overall.averageAccuracy * 100).toFixed(1)}%`,
+        timestamp: now
+      });
+    }
+    
+    if (overall.averageMape > 30) {
+      alerts.push({
+        type: 'warning' as const,
+        message: `Hoher durchschnittlicher Prognosefehler: ${overall.averageMape.toFixed(1)}% MAPE`,
+        timestamp: now
+      });
+    }
+    
+    // Modell-spezifische Alerts
+    for (const model of byModel) {
+      if (model.accuracy < 0.6) {
+        alerts.push({
+          type: 'warning' as const,
+          message: `Modell "${model.modelName}" hat niedrige Genauigkeit: ${(model.accuracy * 100).toFixed(1)}%`,
+          modelId: model.modelId,
+          timestamp: now
+        });
+      }
+    }
+    
+    if (alerts.length === 0) {
+      alerts.push({
+        type: 'info' as const,
+        message: 'Alle Prognosemodelle arbeiten im akzeptablen Bereich',
+        timestamp: now
+      });
+    }
+    
+    const qualityMetrics = {
+      summary: {
+        averageAccuracy: overall.averageAccuracy,
+        averageMape: overall.averageMape,
+        totalForecasts: overall.totalDataPoints,
+        activeModels: overall.modelsAnalyzed,
+        qualityTrend
+      },
+      recentErrors: timeSeriesMetrics.map(metric => ({
+        date: metric.date,
+        mape: metric.averageMape,
+        accuracy: metric.averageAccuracy,
+        dataPoints: metric.modelsActive
+      })),
+      modelPerformance: byModel,
+      alerts
+    };
+    
+    console.log(`Prognose-Qualitätsmetriken erfolgreich abgerufen: ${overall.modelsAnalyzed} Modelle, Durchschnittsgenauigkeit: ${(overall.averageAccuracy * 100).toFixed(1)}%`);
+    
+    return {
+      success: true,
+      qualityMetrics
+    };
+    
+  } catch (error) {
+    console.error('Fehler beim Abrufen der Prognose-Qualitätsmetriken:', error);
+    return { success: false, message: `Fehler beim Abrufen der Qualitätsmetriken: ${error}` };
   }
 }

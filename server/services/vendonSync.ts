@@ -2757,6 +2757,634 @@ export class VendonSyncService {
       }
     };
   }
+
+  /**
+   * VENDON-DATENLÜCKEN-PRÜFUNG
+   * Analysiert Transaktionsdaten auf fehlende oder unvollständige Zeiträume
+   * und führt automatische Backfill-Operationen durch
+   */
+
+  /**
+   * Führt eine umfassende Datenlücken-Analyse durch
+   * @param startDate Startdatum für die Analyse
+   * @param endDate Enddatum für die Analyse
+   * @param thresholds Schwellenwerte für die Lücken-Erkennung
+   * @returns Detaillierter Gap-Analyse-Bericht
+   */
+  async analyzeDataGaps(
+    startDate?: Date,
+    endDate?: Date,
+    thresholds: {
+      minDailyTransactions?: number;
+      criticalGapDays?: number;
+      warningGapDays?: number;
+    } = {}
+  ): Promise<{
+    status: string;
+    summary: {
+      totalDaysAnalyzed: number;
+      missingDays: number;
+      incompleteDays: number;
+      criticalGaps: number;
+      warningGaps: number;
+    };
+    gaps: {
+      missing: Array<{ date: string; type: 'missing'; severity: 'critical' | 'warning' }>;
+      incomplete: Array<{ date: string; type: 'incomplete'; severity: 'critical' | 'warning'; actualCount: number; expectedCount: number }>;
+    };
+    recommendations: Array<{ action: string; priority: 'high' | 'medium' | 'low'; details: string }>;
+    backfillOperations?: Array<{ startDate: string; endDate: string; estimatedTransactions: number }>;
+  }> {
+    // Standardwerte setzen
+    const effectiveStartDate = startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000); // 30 Tage zurück
+    const effectiveEndDate = endDate || new Date();
+    
+    const defaultThresholds = {
+      minDailyTransactions: 50, // Minimum erwartete Transaktionen pro Tag
+      criticalGapDays: 3, // Kritische Lücke: 3+ aufeinanderfolgende Tage
+      warningGapDays: 1, // Warnung: 1+ Tag
+      ...thresholds
+    };
+
+    console.log(`🔍 Starte Datenlücken-Analyse von ${this.formatDate(effectiveStartDate)} bis ${this.formatDate(effectiveEndDate)}`);
+
+    try {
+      // Hole historische Durchschnitte für bessere Erwartungswerte
+      const historicalAverages = await this.getHistoricalAverages(30); // Letzten 30 Tage analysieren
+      const adaptiveThreshold = Math.max(
+        defaultThresholds.minDailyTransactions,
+        Math.floor(historicalAverages.avgDailyTransactions * 0.3) // 30% des historischen Durchschnitts
+      );
+
+      // SQL-Query für umfassende Datenlücken-Analyse
+      const gapAnalysisQuery = `
+        WITH RECURSIVE date_series AS (
+          SELECT DATE($1) as check_date
+          UNION ALL
+          SELECT DATE(check_date + INTERVAL '1 day')
+          FROM date_series
+          WHERE check_date < DATE($2)
+        ),
+        daily_counts AS (
+          SELECT 
+            DATE(datetime) as transaction_date,
+            COUNT(*) as daily_count,
+            COUNT(DISTINCT machine_id) as active_machines
+          FROM transactions 
+          WHERE datetime >= $1 AND datetime <= $2
+          GROUP BY DATE(datetime)
+        ),
+        machine_activity AS (
+          SELECT COUNT(DISTINCT vendon_id) as total_machines
+          FROM machines
+          WHERE last_sync >= $1 - INTERVAL '7 days'
+        )
+        SELECT 
+          ds.check_date,
+          COALESCE(dc.daily_count, 0) as actual_count,
+          COALESCE(dc.active_machines, 0) as active_machines,
+          ma.total_machines,
+          CASE 
+            WHEN dc.daily_count IS NULL THEN 'missing'
+            WHEN dc.daily_count < $3 THEN 'incomplete'
+            ELSE 'complete'
+          END as status,
+          EXTRACT(DOW FROM ds.check_date) as day_of_week
+        FROM date_series ds
+        CROSS JOIN machine_activity ma
+        LEFT JOIN daily_counts dc ON ds.check_date = dc.transaction_date
+        ORDER BY ds.check_date
+      `;
+
+      const gapResults = await rawDb.query(gapAnalysisQuery, [
+        effectiveStartDate.toISOString().split('T')[0],
+        effectiveEndDate.toISOString().split('T')[0],
+        adaptiveThreshold
+      ]);
+
+      // Analysiere die Ergebnisse
+      const analysis = this.processGapResults(gapResults.rows, defaultThresholds, historicalAverages);
+
+      // Erstelle Empfehlungen
+      const recommendations = this.generateGapRecommendations(analysis, historicalAverages);
+
+      // Bereite Backfill-Operationen vor (falls erforderlich)
+      const backfillOperations = this.planBackfillOperations(analysis.gaps.missing, historicalAverages);
+
+      const result = {
+        status: analysis.gaps.missing.length > 0 || analysis.gaps.incomplete.length > 0 ? 'gaps_detected' : 'complete',
+        summary: {
+          totalDaysAnalyzed: gapResults.rows.length,
+          missingDays: analysis.gaps.missing.length,
+          incompleteDays: analysis.gaps.incomplete.length,
+          criticalGaps: analysis.gaps.missing.filter(g => g.severity === 'critical').length + 
+                       analysis.gaps.incomplete.filter(g => g.severity === 'critical').length,
+          warningGaps: analysis.gaps.missing.filter(g => g.severity === 'warning').length + 
+                      analysis.gaps.incomplete.filter(g => g.severity === 'warning').length
+        },
+        gaps: analysis.gaps,
+        recommendations,
+        backfillOperations
+      };
+
+      console.log(`📊 Datenlücken-Analyse abgeschlossen: ${result.summary.missingDays} fehlende Tage, ${result.summary.incompleteDays} unvollständige Tage`);
+      return result;
+
+    } catch (error) {
+      console.error('❌ Fehler bei der Datenlücken-Analyse:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Verarbeitet die SQL-Ergebnisse der Gap-Analyse
+   */
+  private processGapResults(
+    rows: any[], 
+    thresholds: any, 
+    historicalAverages: any
+  ): {
+    gaps: {
+      missing: Array<{ date: string; type: 'missing'; severity: 'critical' | 'warning' }>;
+      incomplete: Array<{ date: string; type: 'incomplete'; severity: 'critical' | 'warning'; actualCount: number; expectedCount: number }>;
+    }
+  } {
+    const gaps = { missing: [], incomplete: [] };
+    let consecutiveMissingDays = 0;
+    let consecutiveIncompleteDays = 0;
+
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      const dayOfWeek = parseInt(row.day_of_week);
+      
+      // Erwartete Transaktionszahl basierend auf Wochentag und historischen Daten
+      const expectedCount = this.calculateExpectedTransactions(dayOfWeek, historicalAverages);
+
+      if (row.status === 'missing') {
+        consecutiveMissingDays++;
+        consecutiveIncompleteDays = 0;
+        
+        const severity = consecutiveMissingDays >= thresholds.criticalGapDays ? 'critical' : 'warning';
+        gaps.missing.push({
+          date: row.check_date,
+          type: 'missing',
+          severity
+        });
+      } else if (row.status === 'incomplete') {
+        consecutiveIncompleteDays++;
+        consecutiveMissingDays = 0;
+        
+        const severity = row.actual_count < expectedCount * 0.1 ? 'critical' : 'warning'; // Weniger als 10% = kritisch
+        gaps.incomplete.push({
+          date: row.check_date,
+          type: 'incomplete',
+          severity,
+          actualCount: parseInt(row.actual_count),
+          expectedCount
+        });
+      } else {
+        consecutiveMissingDays = 0;
+        consecutiveIncompleteDays = 0;
+      }
+    }
+
+    return { gaps };
+  }
+
+  /**
+   * Berechnet erwartete Transaktionszahl basierend auf Wochentag und historischen Daten
+   */
+  private calculateExpectedTransactions(dayOfWeek: number, historicalAverages: any): number {
+    // Wochenend-Faktoren (Samstag = 6, Sonntag = 0)
+    const weekendFactor = (dayOfWeek === 0 || dayOfWeek === 6) ? 0.7 : 1.0;
+    
+    // Basis auf historischem Durchschnitt
+    return Math.floor(historicalAverages.avgDailyTransactions * weekendFactor);
+  }
+
+  /**
+   * Holt historische Durchschnittswerte für bessere Gap-Erkennung
+   */
+  async getHistoricalAverages(dayRange: number = 30): Promise<{
+    avgDailyTransactions: number;
+    avgWeeklyTransactions: number;
+    avgActiveMachines: number;
+    weekdayPattern: Record<number, number>;
+  }> {
+    const query = `
+      WITH daily_stats AS (
+        SELECT 
+          DATE(datetime) as date,
+          COUNT(*) as daily_count,
+          COUNT(DISTINCT machine_id) as daily_machines,
+          EXTRACT(DOW FROM datetime) as day_of_week
+        FROM transactions 
+        WHERE datetime >= NOW() - INTERVAL '${dayRange} days'
+        GROUP BY DATE(datetime), EXTRACT(DOW FROM datetime)
+      )
+      SELECT 
+        AVG(daily_count) as avg_daily_transactions,
+        AVG(daily_count) * 7 as avg_weekly_transactions,
+        AVG(daily_machines) as avg_active_machines,
+        day_of_week,
+        AVG(daily_count) as avg_for_weekday
+      FROM daily_stats
+      GROUP BY day_of_week
+      ORDER BY day_of_week
+    `;
+
+    const result = await rawDb.query(query);
+    
+    // Erstelle Wochentag-Pattern
+    const weekdayPattern: Record<number, number> = {};
+    let overallAvg = 0;
+    
+    for (const row of result.rows) {
+      weekdayPattern[parseInt(row.day_of_week)] = parseFloat(row.avg_for_weekday);
+      overallAvg += parseFloat(row.avg_for_weekday);
+    }
+    
+    overallAvg = overallAvg / result.rows.length;
+
+    return {
+      avgDailyTransactions: overallAvg,
+      avgWeeklyTransactions: overallAvg * 7,
+      avgActiveMachines: result.rows.length > 0 ? parseFloat(result.rows[0].avg_active_machines) : 0,
+      weekdayPattern
+    };
+  }
+
+  /**
+   * Generiert Empfehlungen basierend auf der Gap-Analyse
+   */
+  private generateGapRecommendations(
+    analysis: any, 
+    historicalAverages: any
+  ): Array<{ action: string; priority: 'high' | 'medium' | 'low'; details: string }> {
+    const recommendations = [];
+
+    // Kritische fehlende Tage
+    const criticalMissing = analysis.gaps.missing.filter(g => g.severity === 'critical');
+    if (criticalMissing.length > 0) {
+      recommendations.push({
+        action: 'immediate_backfill',
+        priority: 'high' as const,
+        details: `${criticalMissing.length} kritische Datenlücken gefunden. Sofortiges Backfill erforderlich.`
+      });
+    }
+
+    // Unvollständige Tage
+    const criticalIncomplete = analysis.gaps.incomplete.filter(g => g.severity === 'critical');
+    if (criticalIncomplete.length > 0) {
+      recommendations.push({
+        action: 'verify_api_connectivity',
+        priority: 'high' as const,
+        details: `${criticalIncomplete.length} Tage mit extrem niedrigen Transaktionszahlen. API-Konnektivität prüfen.`
+      });
+    }
+
+    // Allgemeine Empfehlungen
+    if (analysis.gaps.missing.length > 0 || analysis.gaps.incomplete.length > 0) {
+      recommendations.push({
+        action: 'increase_sync_frequency',
+        priority: 'medium' as const,
+        details: 'Synchronisierungsfrequenz erhöhen, um zukünftige Lücken zu vermeiden.'
+      });
+
+      recommendations.push({
+        action: 'setup_monitoring',
+        priority: 'medium' as const,
+        details: 'Automatische Überwachung für Datenlücken einrichten.'
+      });
+    }
+
+    return recommendations;
+  }
+
+  /**
+   * Plant Backfill-Operationen für erkannte Lücken
+   */
+  private planBackfillOperations(
+    missingGaps: any[], 
+    historicalAverages: any
+  ): Array<{ startDate: string; endDate: string; estimatedTransactions: number }> {
+    const operations = [];
+    
+    // Gruppiere aufeinanderfolgende fehlende Tage
+    let currentGroup = null;
+    
+    for (const gap of missingGaps) {
+      if (!currentGroup) {
+        currentGroup = {
+          startDate: gap.date,
+          endDate: gap.date,
+          days: 1
+        };
+      } else {
+        const currentDate = new Date(gap.date);
+        const lastDate = new Date(currentGroup.endDate);
+        
+        // Prüfe, ob der Tag aufeinanderfolgend ist
+        if (currentDate.getTime() - lastDate.getTime() === 24 * 60 * 60 * 1000) {
+          currentGroup.endDate = gap.date;
+          currentGroup.days++;
+        } else {
+          // Schließe die aktuelle Gruppe ab
+          operations.push({
+            startDate: currentGroup.startDate,
+            endDate: currentGroup.endDate,
+            estimatedTransactions: Math.floor(historicalAverages.avgDailyTransactions * currentGroup.days)
+          });
+          
+          // Starte neue Gruppe
+          currentGroup = {
+            startDate: gap.date,
+            endDate: gap.date,
+            days: 1
+          };
+        }
+      }
+    }
+    
+    // Schließe die letzte Gruppe ab
+    if (currentGroup) {
+      operations.push({
+        startDate: currentGroup.startDate,
+        endDate: currentGroup.endDate,
+        estimatedTransactions: Math.floor(historicalAverages.avgDailyTransactions * currentGroup.days)
+      });
+    }
+    
+    return operations;
+  }
+
+  /**
+   * Führt automatisches Backfill für erkannte Datenlücken durch
+   */
+  async performAutomaticBackfill(
+    gapAnalysis: any,
+    options: {
+      maxDaysPerOperation?: number;
+      dryRun?: boolean;
+      priority?: 'critical' | 'all';
+    } = {}
+  ): Promise<{
+    status: string;
+    operations: Array<{
+      startDate: string;
+      endDate: string;
+      result: { syncLogId: number; status: string; message: string };
+    }>;
+    summary: {
+      totalOperations: number;
+      successful: number;
+      failed: number;
+      transactionsSynced: number;
+    };
+  }> {
+    const { maxDaysPerOperation = 7, dryRun = false, priority = 'all' } = options;
+    
+    console.log(`🔄 Starte automatisches Backfill${dryRun ? ' (Testlauf)' : ''} für Datenlücken...`);
+    
+    const operations = [];
+    let totalTransactionsSynced = 0;
+    let successful = 0;
+    let failed = 0;
+    
+    try {
+      // Filtere Operationen basierend auf Priorität
+      let targetOperations = gapAnalysis.backfillOperations || [];
+      if (priority === 'critical') {
+        // Nur kritische Lücken (mehr als 3 aufeinanderfolgende Tage)
+        targetOperations = targetOperations.filter(op => {
+          const dayDiff = Math.ceil(
+            (new Date(op.endDate).getTime() - new Date(op.startDate).getTime()) / (24 * 60 * 60 * 1000)
+          );
+          return dayDiff >= 3;
+        });
+      }
+      
+      for (const operation of targetOperations) {
+        console.log(`📅 Backfill-Operation: ${operation.startDate} bis ${operation.endDate}`);
+        
+        if (dryRun) {
+          operations.push({
+            startDate: operation.startDate,
+            endDate: operation.endDate,
+            result: {
+              syncLogId: -1,
+              status: 'dry_run',
+              message: `Testlauf: Würde ${operation.estimatedTransactions} Transaktionen synchronisieren`
+            }
+          });
+          successful++;
+        } else {
+          try {
+            // Führe die Synchronisierung durch
+            const result = await this.syncTransactions(
+              new Date(operation.startDate),
+              new Date(operation.endDate),
+              100, // Batch-Größe
+              0, // Kein Limit
+              false // Kein Force-Update
+            );
+            
+            operations.push({
+              startDate: operation.startDate,
+              endDate: operation.endDate,
+              result
+            });
+            
+            if (result.status === 'success') {
+              successful++;
+              // Extrahiere Anzahl synchronisierter Transaktionen aus der Nachricht
+              const match = result.message.match(/(\d+) Transaktionen synchronisiert/);
+              if (match) {
+                totalTransactionsSynced += parseInt(match[1]);
+              }
+            } else {
+              failed++;
+            }
+            
+            // Warte zwischen den Operationen, um die API nicht zu überlasten
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            
+          } catch (error) {
+            console.error(`❌ Backfill-Fehler für ${operation.startDate}-${operation.endDate}:`, error);
+            operations.push({
+              startDate: operation.startDate,
+              endDate: operation.endDate,
+              result: {
+                syncLogId: -1,
+                status: 'error',
+                message: `Fehler: ${error instanceof Error ? error.message : String(error)}`
+              }
+            });
+            failed++;
+          }
+        }
+      }
+      
+      const summary = {
+        totalOperations: operations.length,
+        successful,
+        failed,
+        transactionsSynced: totalTransactionsSynced
+      };
+      
+      console.log(`✅ Automatisches Backfill abgeschlossen: ${successful}/${operations.length} erfolgreich, ${totalTransactionsSynced} Transaktionen synchronisiert`);
+      
+      return {
+        status: failed === 0 ? 'success' : (successful > 0 ? 'partial' : 'error'),
+        operations,
+        summary
+      };
+      
+    } catch (error) {
+      console.error('❌ Fehler beim automatischen Backfill:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Erstellt einen detaillierten Gap-Analyse-Bericht
+   */
+  async createGapAnalysisReport(
+    startDate?: Date,
+    endDate?: Date,
+    includeRecommendations: boolean = true
+  ): Promise<{
+    reportId: string;
+    generatedAt: Date;
+    analysis: any;
+    backfillSuggestions: any;
+    healthScore: number;
+    trendAnalysis: any;
+  }> {
+    const reportId = `gap-analysis-${Date.now()}`;
+    console.log(`📋 Erstelle Gap-Analyse-Bericht ${reportId}...`);
+    
+    try {
+      // Führe die Hauptanalyse durch
+      const analysis = await this.analyzeDataGaps(startDate, endDate);
+      
+      // Berechne Health Score (0-100)
+      const healthScore = this.calculateDataHealthScore(analysis);
+      
+      // Trend-Analyse über verschiedene Zeiträume
+      const trendAnalysis = await this.analyzeTrends();
+      
+      // Backfill-Empfehlungen
+      const backfillSuggestions = {
+        immediate: analysis.backfillOperations?.filter(op => {
+          const days = Math.ceil(
+            (new Date(op.endDate).getTime() - new Date(op.startDate).getTime()) / (24 * 60 * 60 * 1000)
+          );
+          return days >= 3;
+        }) || [],
+        scheduled: analysis.backfillOperations?.filter(op => {
+          const days = Math.ceil(
+            (new Date(op.endDate).getTime() - new Date(op.startDate).getTime()) / (24 * 60 * 60 * 1000)
+          );
+          return days < 3;
+        }) || []
+      };
+      
+      const report = {
+        reportId,
+        generatedAt: new Date(),
+        analysis,
+        backfillSuggestions,
+        healthScore,
+        trendAnalysis
+      };
+      
+      console.log(`📊 Gap-Analyse-Bericht erstellt: Health Score ${healthScore}/100`);
+      return report;
+      
+    } catch (error) {
+      console.error('❌ Fehler beim Erstellen des Gap-Analyse-Berichts:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Berechnet einen Data Health Score basierend auf der Gap-Analyse
+   */
+  private calculateDataHealthScore(analysis: any): number {
+    const { summary } = analysis;
+    
+    // Basis-Score: 100
+    let score = 100;
+    
+    // Abzüge für fehlende Tage
+    score -= summary.missingDays * 5; // -5 Punkte pro fehlenden Tag
+    
+    // Abzüge für unvollständige Tage
+    score -= summary.incompleteDays * 2; // -2 Punkte pro unvollständigen Tag
+    
+    // Zusätzliche Abzüge für kritische Lücken
+    score -= summary.criticalGaps * 10; // -10 Punkte pro kritischer Lücke
+    
+    // Minimum: 0, Maximum: 100
+    return Math.max(0, Math.min(100, score));
+  }
+
+  /**
+   * Analysiert Trends in der Datenqualität über verschiedene Zeiträume
+   */
+  private async analyzeTrends(): Promise<{
+    last7Days: { missingDays: number; incompleteDays: number };
+    last30Days: { missingDays: number; incompleteDays: number };
+    improvement: 'better' | 'worse' | 'stable';
+  }> {
+    try {
+      // Analysiere letzte 7 Tage
+      const last7Days = await this.analyzeDataGaps(
+        new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+        new Date()
+      );
+      
+      // Analysiere letzte 30 Tage
+      const last30Days = await this.analyzeDataGaps(
+        new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+        new Date()
+      );
+      
+      // Bestimme Trend
+      const recent7DayScore = this.calculateDataHealthScore(last7Days);
+      const overall30DayScore = this.calculateDataHealthScore(last30Days);
+      
+      let improvement: 'better' | 'worse' | 'stable';
+      if (recent7DayScore > overall30DayScore + 5) {
+        improvement = 'better';
+      } else if (recent7DayScore < overall30DayScore - 5) {
+        improvement = 'worse';
+      } else {
+        improvement = 'stable';
+      }
+      
+      return {
+        last7Days: {
+          missingDays: last7Days.summary.missingDays,
+          incompleteDays: last7Days.summary.incompleteDays
+        },
+        last30Days: {
+          missingDays: last30Days.summary.missingDays,
+          incompleteDays: last30Days.summary.incompleteDays
+        },
+        improvement
+      };
+      
+    } catch (error) {
+      console.error('❌ Fehler bei der Trend-Analyse:', error);
+      return {
+        last7Days: { missingDays: 0, incompleteDays: 0 },
+        last30Days: { missingDays: 0, incompleteDays: 0 },
+        improvement: 'stable'
+      };
+    }
+  }
 }
 
 export const vendonSync = new VendonSyncService();
