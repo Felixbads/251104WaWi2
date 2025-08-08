@@ -146,13 +146,22 @@ export class DatabaseStorage implements IStorage {
   }
 
   // User operations
-  async getUser(id: number): Promise<User | undefined> {
+  async getUserById(id: number): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.id, id));
     return user;
   }
 
+  async getUser(id: number): Promise<User | undefined> {
+    return this.getUserById(id);
+  }
+
   async getUserByUsername(username: string): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.username, username));
+    return user;
+  }
+
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.email, email));
     return user;
   }
 
@@ -176,6 +185,10 @@ export class DatabaseStorage implements IStorage {
     }).from(users).orderBy(desc(users.createdAt));
   }
 
+  async listUsers(): Promise<User[]> {
+    return this.getUsers();
+  }
+
   async updateUser(id: number, updateData: Partial<InsertUser>): Promise<User | undefined> {
     const [user] = await db.update(users)
       .set({
@@ -187,13 +200,12 @@ export class DatabaseStorage implements IStorage {
     return user;
   }
 
-  async deleteUser(id: number): Promise<boolean> {
+  async deleteUser(id: number): Promise<void> {
     try {
       await db.delete(users).where(eq(users.id, id));
-      return true;
     } catch (error) {
       console.error(`Error deleting user with ID ${id}:`, error);
-      return false;
+      throw error;
     }
   }
 

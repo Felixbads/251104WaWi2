@@ -3,6 +3,8 @@ import { storage } from '../storage';
 import { User } from '../../shared/schema';
 import bcrypt from 'bcryptjs';
 import { notifyAdminsOfNewUser, notifyUserOfApprovalStatus } from '../services/emailService';
+import { validateToken } from '../auth';
+import { authenticateAndAuthorize } from '../auth/auth-middleware';
 
 const router = express.Router();
 
@@ -10,16 +12,25 @@ interface AuthRequest extends Request {
   user?: User;
 }
 
-// Vereinfachte Authentifizierung - holt direkt den Admin-Benutzer
+// Sichere Authentifizierung mit Token-Validierung
 const authenticate = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
-    const adminUser = await storage.getUserByUsername('Admin');
+    // Token aus Authorization-Header extrahieren
+    const authHeader = req.headers.authorization;
+    const token = authHeader && authHeader.split(' ')[1];
     
-    if (!adminUser) {
-      return res.status(401).json({ error: "No admin user found" });
+    if (!token) {
+      return res.status(401).json({ error: "Access token is required" });
     }
     
-    req.user = adminUser;
+    // Token validieren
+    const user = await validateToken(token);
+    
+    if (!user) {
+      return res.status(401).json({ error: "Invalid or expired token" });
+    }
+    
+    req.user = user;
     next();
   } catch (error) {
     console.error("Authentication error:", error);
@@ -33,6 +44,9 @@ const requireAdmin = async (req: AuthRequest, res: Response, next: NextFunction)
   }
   next();
 };
+
+// Alternative: Verwende die zentrale Middleware für Admin-Authentifizierung
+const authenticateAdmin = authenticateAndAuthorize(['admin']);
 
 // Alle Benutzer abrufen
 router.get('/users', authenticate, requireAdmin, async (req: AuthRequest, res: Response) => {

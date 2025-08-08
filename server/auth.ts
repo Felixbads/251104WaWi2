@@ -2,16 +2,30 @@
  * Authentifizierungsmodul für die Benutzeranmeldung und -registrierung
  */
 import bcrypt from 'bcryptjs';
-import crypto from 'crypto';
+import jwt from 'jsonwebtoken';
 import { db } from './db';
 import { users, insertUserSchema } from '../shared/schema';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { notifyAdminsOfNewUser, notifyUserOfApprovalStatus } from './services/emailService';
 
-// Token-Speicher (in Produktion sollte dies in der Datenbank oder in Redis gespeichert werden)
-// In dieser Version speichern wir das Token für längere Zeit (30 Tage)
-const tokenStore: Record<string, { userId: number; expires: Date }> = {};
+// JWT-Konfiguration
+const JWT_SECRET = process.env.JWT_SECRET || 'dev-fallback-secret-change-in-production';
+const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '30d';
+
+// JWT Token-Interface
+interface JWTPayload {
+  userId: number;
+  username: string;
+  role: string;
+  iat?: number;
+  exp?: number;
+}
+
+// Warnung bei unsicherem Fallback-Secret
+if (!process.env.JWT_SECRET) {
+  console.warn('⚠️ WARNUNG: JWT_SECRET ist nicht gesetzt. Verwende Fallback-Secret für Entwicklung.');
+}
 
 // Validierungsschemas
 export const loginSchema = z.object({
@@ -183,17 +197,21 @@ export async function changeUserRole(userId: number, newRole: string) {
  */
 export async function loginUser(credentials: z.infer<typeof loginSchema>) {
   try {
-    // Demo-Account für Admin/Admin123 (für Entwicklungszwecke)
-    if (credentials.username === "Admin" && credentials.password === "Admin123") {
-      const token = generateToken();
-      const expiresIn = 30 * 24 * 60 * 60 * 1000; // 30 Tage statt 24 Stunden
-      const expiresAt = new Date(Date.now() + expiresIn);
+    // Demo-Account für Admin/Admin123 (nur in Entwicklung und wenn explizit aktiviert)
+    if (process.env.ENABLE_DEMO_LOGIN === 'true' && 
+        credentials.username === "Admin" && 
+        credentials.password === "Admin123") {
       
-      // Token speichern
-      tokenStore[token] = {
-        userId: 1, // Admin-ID
-        expires: expiresAt,
-      };
+      console.warn("⚠️ WARNUNG: Demo-Login verwendet! Dies sollte nur in der Entwicklung aktiviert sein.");
+      
+      const token = generateJWTToken({
+        userId: 1,
+        username: "Admin",
+        role: "admin"
+      });
+      
+      const decoded = jwt.decode(token) as JWTPayload;
+      const expiresAt = new Date((decoded.exp || 0) * 1000);
       
       // Rückgabe für den Demo-Account
       return {
@@ -230,16 +248,15 @@ export async function loginUser(credentials: z.infer<typeof loginSchema>) {
       return { success: false, error: "Dein Account wurde noch nicht freigegeben. Bitte warte auf die Freigabe durch einen Administrator." };
     }
     
-    // Token erstellen
-    const token = generateToken();
-    const expiresIn = 30 * 24 * 60 * 60 * 1000; // 30 Tage statt 24 Stunden
-    const expiresAt = new Date(Date.now() + expiresIn);
-    
-    // Token speichern
-    tokenStore[token] = {
+    // JWT-Token erstellen
+    const token = generateJWTToken({
       userId: user.id,
-      expires: expiresAt,
-    };
+      username: user.username,
+      role: user.role || 'user'
+    });
+    
+    const decoded = jwt.decode(token) as JWTPayload;
+    const expiresAt = new Date((decoded.exp || 0) * 1000);
     
     // Sensitiven Daten entfernen vor Rückgabe
     const { password, ...userWithoutPassword } = user;
@@ -257,63 +274,79 @@ export async function loginUser(credentials: z.infer<typeof loginSchema>) {
 }
 
 /**
- * Validiert ein Token und gibt den zugehörigen Benutzer zurück
+ * Validiert ein JWT-Token und gibt den zugehörigen Benutzer zurück
  */
 export async function validateToken(token: string) {
-  // Überprüfen, ob Token existiert
-  if (!tokenStore[token]) {
-    return null;
-  }
-  
-  // Überprüfen, ob Token abgelaufen ist
-  if (tokenStore[token].expires < new Date()) {
-    delete tokenStore[token];
-    return null;
-  }
-  
-  // Demo-Account für Admin (Hartcodiert für Entwicklungszwecke)
-  if (tokenStore[token].userId === 1) {
-    return {
-      id: 1,
-      username: "Admin",
-      email: "admin@example.com",
-      role: "admin",
-      approved: true,
-      password: "-", // Nicht verwendet, nur für Typsicherheit
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-  }
-  
-  // Benutzer abrufen für normale Benutzer
   try {
+    // JWT-Token verifizieren
+    const decoded = jwt.verify(token, JWT_SECRET) as JWTPayload;
+    
+    // Demo-Account für Admin (nur wenn ENABLE_DEMO_LOGIN aktiviert ist)
+    if (process.env.ENABLE_DEMO_LOGIN === 'true' && decoded.userId === 1) {
+      return {
+        id: 1,
+        username: "Admin",
+        email: "admin@example.com",
+        role: "admin",
+        approved: true,
+        password: "-", // Nicht verwendet, nur für Typsicherheit
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+    }
+    
+    // Benutzer aus der Datenbank abrufen für normale Benutzer
     const user = await db.query.users.findFirst({
-      where: eq(users.id, tokenStore[token].userId),
+      where: eq(users.id, decoded.userId),
     });
     
     if (!user) {
-      delete tokenStore[token];
+      return null;
+    }
+    
+    // Überprüfen ob Benutzer noch aktiv/genehmigt ist
+    if (user.role !== 'admin' && !user.approved) {
       return null;
     }
     
     return user;
   } catch (error) {
-    console.error("Token-Validierungsfehler:", error);
+    // Token ist ungültig oder abgelaufen
+    console.error("JWT-Validierungsfehler:", error);
     return null;
   }
 }
 
 /**
- * Token aus dem Speicher löschen (Logout)
+ * Token invalidieren (Logout)
+ * Da JWT stateless ist, können wir nur eine erfolgreiche Antwort zurückgeben
+ * In einer erweiterten Implementierung könnte hier eine Blacklist geführt werden
  */
 export function invalidateToken(token: string) {
-  delete tokenStore[token];
+  // Bei JWT ist keine server-seitige Invalidierung nötig,
+  // da der Client das Token einfach vergisst
   return { success: true };
 }
 
 /**
- * Generiert ein zufälliges Token
+ * Generiert ein JWT-Token
  */
-function generateToken() {
-  return crypto.randomBytes(32).toString('hex');
+function generateJWTToken(payload: Omit<JWTPayload, 'iat' | 'exp'>) {
+  return jwt.sign(payload, JWT_SECRET, {
+    expiresIn: JWT_EXPIRES_IN,
+    issuer: 'vending-system',
+    subject: payload.userId.toString()
+  });
+}
+
+/**
+ * Extrahiert Benutzerinformationen aus einem JWT-Token ohne Verifikation
+ * (Nur für Debug-Zwecke verwenden)
+ */
+export function decodeToken(token: string): JWTPayload | null {
+  try {
+    return jwt.decode(token) as JWTPayload;
+  } catch (error) {
+    return null;
+  }
 }
