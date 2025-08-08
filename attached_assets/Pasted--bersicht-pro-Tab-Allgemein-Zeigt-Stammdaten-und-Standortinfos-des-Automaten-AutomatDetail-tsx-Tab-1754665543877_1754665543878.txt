@@ -1,0 +1,127 @@
+Übersicht pro Tab
+Allgemein Zeigt Stammdaten und Standortinfos des Automaten (AutomatDetail.tsx, Tab „allgemein“). Der Abschnitt „Umsatzentwicklung“ ist derzeit nur ein Platzhalter ohne Diagramm.
+Transaktionen Listet die letzten Verkäufe über getTransactionsByMachine. Bei /automaten/2 wird derselbe Datensatz mehrfach angezeigt, weil die Liste vor dem Rendern nicht bereinigt wird.
+Analysen Verwendet getMachineAnalytics für Kennzahlen, Verkaufstrend, Top-Produkte und Wetter‑Korrelation. Wenn machineAnalytics leer oder fehlerhaft ist, brechen einige Diagramme (z.B. Wetter & Verkäufe) ab und die Auswertung bleibt leer.
+Auswertung Greift ebenfalls auf machineAnalytics zu und nutzt Hilfsfunktionen wie groupDataByWeek. Fehlt timeSeries oder sind Felder unvollständig, entstehen leere Diagramme.
+Auffüllungen Ruft Nachfüllungen über getRefillsByMachine ab. Der Tab funktioniert prinzipiell, benötigt aber saubere Backenddaten.
+MHD Im Unterkomponenten‑Block MHDTab fehlt der queryFn‑Parameter im useQuery‑Aufruf, daher werden keine Mindesthaltbarkeitsdaten geladen.
+Entnommene Produkte RemovedProductsMachineTab arbeitet mit getRemovedProductsByMachine und bietet Filter sowie CSV‑Export. Funktional, solange Backenddaten vorhanden sind.
+Kosten / Wirtschaftlichkeit Tab „Kosten“ nutzt MachineCostsTab, „Wirtschaftlichkeit“ nutzt MachineProfitabilityTab. Beide setzen funktionierende API‑Routen voraus; unvollständige oder fehlende Backendberechnungen führen zu leeren Anzeigen.+
+Konkrete Probleme & Vorgehen
+1. Doppelte Einträge im Transaktionen-Tab Die Transaktionsliste wird direkt gerendert, ohne vorherige Deduplizierung. Mehrfache identische Einträge führen dazu, dass eine Transaktion mehrmals erscheint.
+* Datei `client/src/pages/AutomatDetail.tsx` * Vor dem Rendern `transactions` über `Array.from(new Map(transactions.map(t => [t.id, t])).values())` deduplizieren. * Backend-Routine `server/routes.ts` (`/api/machines/:id/transactions`) prüfen, ob die SQL-Abfrage doppelte Datensätze liefert und ggf. eindeutige Bedingungen (`DISTINCT`, Primärschlüssel) ergänzen.
+2. Analysen/Auswertung brechen ab bei fehlenden Daten machineAnalytics.timeSeries.map wird ohne optional chaining verwendet, wodurch bei undefined eine Exception entsteht und die Auswertungen leer bleiben.
+* Datei `client/src/pages/AutomatDetail.tsx`, Abschnitte „Analysen“ und „Auswertung“. * Vor jeder Nutzung `machineAnalytics` prüfen (`if (!machineAnalytics) return …`). * Für Diagramme optional chaining (`machineAnalytics?.timeSeries?.map`) und Fallback-UI einbauen, falls `timeSeries` oder andere Felder leer sind. * Backend-Route `server/routes/statistics.ts` (`/api/statistics/machines/:id/analytics`) verifizieren, dass sie `timeSeries`, `productPerformance`, `weatherData` usw. liefert.
+3. Allgemein-Tab enthält nur Platzhalter für Umsatzdiagramm Der Abschnitt „Umsatzentwicklung“ zeigt statischen Text anstelle eines Diagramms.
+* Datei `client/src/pages/AutomatDetail.tsx`, Tab „allgemein“. * Statt des Platzhalter-`<p>` einen Chart (`LineChart` oder `BarChart`) einbauen. * Datenquelle: `machineAnalytics.timeSeries` (Periode z.B. letzte 7 Tage). * `useQuery` für `getMachineAnalytics(id, 'week')` vorhalten oder vorhandene Analyse-Daten wiederverwenden.
+4. MHD-Tab lädt keine Daten Im MHDTab-Component fehlt der queryFn, sodass useQuery nichts abruft.
+* Datei `client/src/pages/AutomatDetail.tsx`, Funktion `MHDTab`. * `useQuery` ergänzen: ```ts const { data: mhdData, isLoading, refetch } = useQuery({ queryKey: [`/api/machines/${machineId}/mhd`], queryFn: () => getMachineMHDData(machineId), enabled: !!machineId }); ``` * `getMachineMHDData` aus `@/lib/api` importieren. * Sicherstellen, dass im Backend (`server/routes.ts`, Route `/api/machines/:id/mhd`) die entsprechenden Daten bereitstehen.
+
+llgemein-Tab
+* Ziel: Stammdaten und tagesaktuelle KPI‑Werte anzeigen.
+* Datenquelle: GET /api/machines/:id + GET /api/machines/:id/daily-stats
+* Frontend (client/src/pages/AutomatDetail.tsx):
+    * Stelle sicher, dass id aus useParams in eine Zahl konvertiert wird.
+    * Die useQuery‑Abfrage lädt Grunddaten und ergänzt sie mit KPIs aus daily-stats.
+    * Bei Fehlern sollte machineError abgefangen und eine Meldung ausgegeben werden.
+* Backend (server/routes.ts):
+    * Route /machines/:id muss alle Felder (vendonId, location, etc.) liefern.
+	•	Route /machines/:id/daily-stats muss todayTransactions, todayRevenue, lastSale, lastCashlessSale etc. korrekt berechnen.
+
+1. **client/src/pages/AutomatDetail.tsx** * Sicherstellen, dass `id` per `parseInt` in allen API‑Aufrufen als Zahl übergeben wird. * Fehlerzustand (`machineError`) abfangen und mit Nutzerfreundlicher Nachricht anzeigen. 2. **server/routes.ts** * In `/machines/:id` alle benötigten Felder aus `machines` zurückgeben. * In `/machines/:id/daily-stats` fehlende KPIs (heutige Verkäufe, Umsatz, letzter Verkauf usw.) berechnen und im JSON ausgeben.
+Transaktionen-Tab
+* Ziel: Die letzten Verkäufe ohne Duplikate anzeigen.
+* Datenquelle: GET /api/machines/:id/transactions?limit=&offset=
+* Frontend:
+    * getTransactionsByMachine bereits implementiert; map verwendet transaction.id als Key.
+    * Paginierung derzeit deaktiviert; nur Seite 1.
+* Backend:
+    * Route in server/routes.ts (ca. Zeile 3431) selektiert Transaktionen, aber ohne DISTINCT und ohne OFFSET.
+	•	Dadurch können Duplikate entstehen, wenn mehrere Datensätze mit gleicher ID vorkommen.
+
+1. **server/routes.ts** * SQL anpassen: ```sql SELECT DISTINCT ON (t.id) … FROM transactions t LEFT JOIN machines m ON t.machine_id = m.id WHERE t.machine_id = $1 ORDER BY t.id, t.datetime DESC LIMIT $2 OFFSET $3; ``` * `offset` aus Query‑Parametern übernehmen (`parseInt(req.query.offset as string) || 0`). 2. **client/src/lib/api.ts** * `getTransactionsByMachine` so erweitern, dass `offset` übergeben wird. 3. **client/src/pages/AutomatDetail.tsx** * Paginierungsbuttons aktivieren und `queryKey` um `offset` erweitern.
+
+
+Analysen-Tab
+* Ziel: KPI‑Übersicht, Verkaufstrend, Top‑Produkte und Zahlungsmethoden.
+* Datenquelle: GET /api/statistics/machines/:id/analytics
+* Frontend:
+    * Tab lädt Daten nur, wenn aktiv (enabled‑Flag).
+    * Diagramme erwarten Felder wie timeSeries, productPerformance, paymentMethodDistribution.
+* Backend (server/routes/statistics.ts):
+    * Route /machines/:id/analytics muss alle genannten Felder inklusive periodAnalysis liefern.
+	•	Fehlende oder leere Arrays führen dazu, dass Diagramme nichts anzeigen.
+
+1. **server/routes/statistics.ts** * In `/machines/:id/analytics` sicherstellen, dass: * `timeSeries`, `productPerformance`, `paymentMethodDistribution` immer ein Array liefern (notfalls leer). * `periodAnalysis.transactionStats` korrekte Werte (count, totalRevenue, avgPrice) enthält. * Fehlerlogging verbessern, um DB‑Probleme sichtbar zu machen. 2. **client/src/pages/AutomatDetail.tsx** * Bei leeren Arrays Placeholder anzeigen (z. B. “Keine Daten verfügbar”).
+
+
+Auswertung-Tab
+* Ziel: Wöchentlicher/monatlicher Umsatz, stündliche Verteilung und Ereignisübersicht.
+* Datenquelle: ebenfalls machineAnalytics.
+* Frontend:
+    * Funktionen groupDataByWeek, groupDataByMonth, getHourlyDistribution aggregieren machineAnalytics.timeSeries.
+    * Wenn timeSeries leer ist, entstehen leere Grafiken.
+* Backend:
+    * timeSeries muss date, count, revenue für jeden Tag liefern.
+	•	Falls keine Verkäufe im Zeitraum: timeSeries als leeres Array zurückgeben.
+
+1. **server/routes/statistics.ts** * In der Zeitreihenabfrage sicherstellen, dass alle Tage im Zeitraum ausgegeben werden; bei Nullwerten `COUNT(*)=0` und `SUM(price)=0`. 2. **client/src/pages/AutomatDetail.tsx** * In `groupDataByWeek`/`groupDataByMonth` sicherstellen, dass leere Eingaben sauber verarbeitet werden. * Grafiken mit einer “Keine Daten”‑Meldung versehen, wenn Arrays leer sind.
+
+Auffüllungen-Tab
+* Ziel: Historie der Nachfüllungen mit Status und Notizen.
+* Datenquelle: GET /api/machines/:id/refills?limit=&offset=
+* Frontend:
+    * Ähnlich wie Transaktionen; Paginierung noch deaktiviert.
+* Backend (server/routes.ts, ca. Zeile 3673):
+	•	storage.getRefillsByMachine muss status, notes, datetime liefern.
+
+1. **server/routes.ts** * `getRefillsByMachine` so erweitern, dass `limit` und `offset` unterstützt werden. * Rückgabeobjekt mit `status`, `notes`, `id`, `datetime`. 2. **client/src/pages/AutomatDetail.tsx** * `getRefillsByMachine(id, limit, offset)` aufrufen und Paginierung einbauen. * Lade‑ und Fehlerzustände anzeigen.
+
+MHD-Tab
+* Ziel: Chargen mit Mindesthaltbarkeitsdatum verwalten.
+* Datenquelle: GET /api/machines/:id/mhd, PUT /api/machines/:id/mhd/:batchId
+* Frontend (MHDTab in AutomatDetail.tsx):
+    * Eingabefelder zum Bearbeiten der expiryDate und batchId.
+    * updateMachineMHD Mutation invalidiert Query.
+* Backend (server/routes.ts um Zeile 1320):
+    * Query ermittelt pro Produkt die Charge mit frühestem Ablaufdatum (FIFO).
+	•	PUT‑Route aktualisiert expiryDate, quantity und notes.
+
+1. **server/routes.ts** * MHD‑Abfrage prüfen: liefert sie für jede Produkt‑ID genau eine Charge? * In `PUT /machines/:id/mhd/:batchId` Validierung einbauen (z. B. Existenz der Charge prüfen). 2. **client/src/pages/AutomatDetail.tsx\` (MHDTab)** * Nach erfolgreichem Update Toast/Benachrichtigung zeigen. * Fehlerfälle (z. B. keine Charge gefunden) dem Nutzer melden.
+
+Entnommene Produkte-Tab
+* Ziel: Entfernte Produkte (abgelaufen/beschädigt) je Automat.
+* Datenquelle: GET /api/machines/:id/removed-products
+* Frontend (client/src/components/machines/RemovedProductsMachineTab.tsx):
+    * Filter nach Zeitraum; Paginierung vorhanden.
+* Backend (server/routes.ts ab Zeile ~3710):
+	•	Query nutzt refill_details und refills, unterstützt startDate/endDate.
+
+1. **server/routes.ts** * Prüfen, ob `removed > 0` korrekt gesetzt ist und Datumsfilter greifen. * Gesamtanzahl (`total`) und `totalPages` zurückgeben; auf SQL‑Injection achten (parameterisierte Queries). 2. **client/src/components/machines/RemovedProductsMachineTab.tsx** * Bei leerem Ergebnis klare Meldung anzeigen. * Export‑Funktion prüfen (CSV‑Download).
+
+Kosten-Tab
+* Ziel: Laufende Standort‑ oder Maschinenkosten anzeigen.
+* Datenquelle: GET /api/machines/:id/costs
+* Frontend (client/src/components/MachineCostsTab.tsx):
+    * Erwartet Array mit cost_type, amount, frequency, valid_from, valid_until.
+* Backend (server/routes.ts ca. Zeile 3460ff):
+	•	Query greift auf location_costs zu; location wird über Maschinenstandort ermittelt.
+
+1. **server/routes.ts** * Sicherstellen, dass `location_costs` mit `is_active=true` gefiltert werden. * Zusätzliche Felder (`description`, `currency`) zurückgeben. 2. **client/src/components/MachineCostsTab.tsx** * Liste nach `valid_from` sortieren und Währung berücksichtigen. * Option zum Hinzufügen neuer Kosten implementieren (falls gewünscht).
+
+
+Wirtschaftlichkeit-Tab
+* Ziel: Profitabilität pro Produkt und Zusammenfassung.
+* Datenquelle: GET /api/machines/:id/profitability?start=&end=
+* Frontend (client/src/components/MachineProfitabilityTab.tsx):
+    * Erwartet data.products[] und data.summary (Umsatz, Kosten, Nettogewinn).
+* Backend (server/routes.ts ca. Zeile 3600ff):
+	•	Query berechnet Umsatz und Kosten aus transactions und location_costs.
+
+1. **server/routes.ts** * Sicherstellen, dass `start`/`end` korrekt in SQL eingesetzt werden. * `total_costs` in der SQL‑Berechnung überprüfen; Kosten ggf. nach Zeitraum anteilig berechnen. 2. **client/src/components/MachineProfitabilityTab.tsx** * Charts/Tabelle so anpassen, dass Produkte mit Nullumsatz ausgeblendet oder separat markiert werden. * Zusammenfassung (`summary`) gut sichtbar darstellen.
+
+Gesamthinweise
+1. Server-Logging aktivieren: bei jedem API‑Call hilfreiche Logs schreiben (console.log/console.error).
+2. Fehlerzustände behandeln: Auf Client‑Seite überall Placeholder und Fehlermeldungen vorsehen.
+3. Paginierung einheitlich: Für Transaktionen, Refills und Removed‑Products identische Parameter (limit, offset/page) verwenden.
+Diese Maßnahmen sichern, dass /automaten/:id für alle Tabs vollständige und konsistente Daten liefert.
