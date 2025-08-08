@@ -68,6 +68,7 @@ import {
   Transaction,
   Refill,
   RefillDetail,
+  RefillProduct,
   formatDateTime,
   getMachineMHDData,
   updateMachineMHD,
@@ -203,10 +204,10 @@ function getTopRemovedProducts(refills: Refill[] = []) {
   const productCounts = new Map();
   
   refills.forEach(refill => {
-    if (refill.details) {
-      refill.details.forEach((detail: RefillDetail) => {
-        if (detail.removedQuantity && detail.removedQuantity > 0) {
-          const productName = detail.productName;
+    if (refill.products) {
+      refill.products.forEach((product: RefillProduct) => {
+        if (product.removed && product.removed > 0) {
+          const productName = product.productName;
           
           if (!productCounts.has(productName)) {
             productCounts.set(productName, {
@@ -215,8 +216,8 @@ function getTopRemovedProducts(refills: Refill[] = []) {
             });
           }
           
-          const product = productCounts.get(productName);
-          product.removedCount += detail.removedQuantity;
+          const productData = productCounts.get(productName);
+          productData.removedCount += product.removed;
         }
       });
     }
@@ -267,7 +268,7 @@ export default function AutomatDetail() {
         firmwareVersion: "v1.0",
         serialNumber: machineData.vendonId || "Unbekannt",
         machineType: "Snackautomat",
-        installationDate: machineData.createdAt || new Date().toISOString()
+        installationDate: new Date().toISOString()
       };
       
       try {
@@ -1529,22 +1530,22 @@ export default function AutomatDetail() {
 
         {/* MHD Tab */}
         <TabsContent value="mhd" className="mt-4">
-          <MHDTab machineId={inputId ? parseInt(inputId, 10) : 0} />
+          <MHDTab machineId={resolvedMachineId || 0} />
         </TabsContent>
 
         {/* Entnommene Produkte Tab */}
         <TabsContent value="entnommene-produkte" className="mt-4">
-          <RemovedProductsMachineTab machineId={inputId ? parseInt(inputId, 10) : 0} />
+          <RemovedProductsMachineTab machineId={resolvedMachineId || 0} />
         </TabsContent>
 
         {/* Kosten Tab */}
         <TabsContent value="kosten" className="mt-4">
-          <MachineCostsTab machineId={inputId ? parseInt(inputId, 10) : 0} />
+          <MachineCostsTab machineId={resolvedMachineId || 0} />
         </TabsContent>
 
         {/* Wirtschaftlichkeit Tab */}
         <TabsContent value="wirtschaftlichkeit" className="mt-4">
-          <MachineProfitabilityTab machineId={inputId ? parseInt(inputId, 10) : 0} />
+          <MachineProfitabilityTab machineId={resolvedMachineId || 0} />
         </TabsContent>
       </Tabs>
     </div>
