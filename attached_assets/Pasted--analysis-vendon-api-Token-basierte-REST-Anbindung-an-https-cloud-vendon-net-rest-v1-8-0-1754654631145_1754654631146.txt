@@ -1,0 +1,33 @@
+{
+"analysis": {
+"vendon_api": "Token-basierte REST-Anbindung an https://cloud.vendon.net/rest/v1.8.0 mit Authorization-Header und /stats/vends Endpunkt für Transaktionen, inklusive Limit-Parameter",
+"scheduler": "Automatischer Scheduler ruft Transaktions-, Event- und Refill-Sync alle 5 Minuten auf und verarbeitet nur die letzten Stunden",
+"history_import": "VendonHistoryImporter synchronisiert historische Daten tageweise mit Pagination, wird jedoch manuell über startImport ausgelöst und nicht vom Scheduler eingebunden",
+"paging": "syncTransactions iteriert über Seiten via Offset/Limit und stoppt bei maxTransactions oder wenn keine Daten mehr vorliegen",
+"dedup": "Transaktionen werden über einen eindeutigen Index auf vendon_id dedupliziert"
+},
+"issues": [
+{
+"description": "Historischer Import läuft nicht automatisch und führt zu fehlenden Daten in früheren Zeiträumen",
+"task_stub": ":::task-stub{title="Automatischer Historien-Backfill"}\n1. In server/services/vendonScheduler.ts den VendonHistoryImporter integrieren und beim Serverstart für die letzten drei Monate startImport ausführen.\n2. Nach Abschluss eine tägliche Aufgabe planen, die rückständige Tage nachlädt.\n3. Fortschritt über sync_state verfolgen, um Wiederholungen zu vermeiden.\n:::"
+},
+{
+"description": "Der Scheduler synchronisiert alle 5 Minuten statt der gewünschten 10 Minuten und belastet damit unnötig das System",
+"task_stub": ":::task-stub{title="Scheduler-Intervall auf 10 Minuten setzen"}\n1. In server/services/vendonScheduler.ts den Delay im setInterval von 5 * 60 * 1000 auf 10 * 60 * 1000 ändern.\n2. Logmeldung und Statusausgabe auf 10 Minuten anpassen.\n3. Scheduler neu deployen und Laufzeiten überprüfen.\n:::"
+},
+{
+"description": "Es fehlt ein Monitoring, das letzte erfolgreiche Synchronisationen und importierte Transaktionen pro Automat protokolliert",
+"task_stub": ":::task-stub{title="Monitoring pro Automat"}\n1. In server/services/vendonSync.ts beim Speichern jeder Transaktion das lastSync-Feld der zugehörigen Maschine aktualisieren.\n2. Einen API-Endpunkt (z.B. in server/routes/sync.ts) hinzufügen, der letzten Sync-Zeitpunkt und Anzahl der importierten Transaktionen pro Automat ausgibt.\n3. API-Fehler und Timeouts in einem Log oder separaten Monitoring-Table erfassen.\n:::"
+},
+{
+"description": "Das Limit von maxTransactions (5000) in syncTransactions kann bei vielen Transaktionen innerhalb eines Zeitfensters zu Lücken führen",
+"task_stub": ":::task-stub{title="MaxTransactions-Limit flexibel gestalten"}\n1. In server/services/vendonSync.ts das feste maxTransactions-Limit entfernen oder dynamisch anpassen.\n2. Schleife so erweitern, dass sie weiterläuft, bis weniger als batchSize Elemente zurückkommen.\n3. Optional Zeitfenster verkleinern, um API-Limits einzuhalten.\n:::"
+}
+],
+"overview": {
+"causes": "Historische Daten wurden nicht automatisch nachgeladen; Scheduler deckt nur kurze Zeiträume ab; feste Limits können weitere Lücken erzeugen.",
+"corrections": "Historien-Backfill im Scheduler, Intervall auf 10 Minuten erhöhen, Monitoring ergänzen, maxTransactions-Limit entfernen oder dynamisieren.",
+"api_endpoints": "/stats/vends (Transaktionen), /events, /refills",
+"import_frequency": "Aktuell alle 5 Minuten; Ziel: alle 10 Minuten plus einmaliger automatischer Backfill bis zu 3 Monate rückwirkend"
+}
+}
