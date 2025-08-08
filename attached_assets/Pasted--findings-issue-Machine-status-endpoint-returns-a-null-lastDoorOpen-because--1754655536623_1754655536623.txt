@@ -1,0 +1,76 @@
+{
+  "findings": [
+    {
+      "issue": "Machine status endpoint returns a null lastDoorOpen because event data is not implemented.",
+      "severity": "medium",
+      "file": "server/routes.ts",
+      "line": 4765,
+      "citation": "F:server/routes.ts†L4760-L4767",
+      "task_stub": ":::task-stub{title=\"Implement machine door event retrieval\"}\n1. Open `server/routes.ts` around line 4765.\n2. Query the events source for the latest door-open event per machine.\n3. Populate `lastDoorOpen` with the event timestamp and details.\n4. Add unit tests covering machines with and without door events.\n:::"
+    },
+    {
+      "issue": "Weather correction status route is a placeholder and lacks real statistics about corrected transactions.",
+      "severity": "medium",
+      "file": "server/routes/weather-correction.ts",
+      "line": 75,
+      "citation": "F:server/routes/weather-correction.ts†L70-L77",
+      "task_stub": ":::task-stub{title=\"Complete weather-correction status endpoint\"}\n1. In `server/routes/weather-correction.ts` at line 75, replace the placeholder response.\n2. Fetch and return last correction time, number of corrected transactions, and next scheduled run.\n3. Handle errors and provide meaningful status fields.\n4. Add integration tests ensuring statistics appear.\n:::"
+    },
+    {
+      "issue": "Warehouse deletion does not check for dependent records such as stock or movements, risking orphaned data.",
+      "severity": "high",
+      "file": "server/routes/warehouse3.api.ts",
+      "line": 175,
+      "citation": "F:server/routes/warehouse3.api.ts†L170-L178",
+      "task_stub": ":::task-stub{title=\"Validate warehouse dependencies before deletion\"}\n1. In `server/routes/warehouse3.api.ts` near line 175, add queries to detect stock, product references, or movements tied to the warehouse.\n2. Block deletion and return an error when dependencies exist.\n3. Add tests covering deletion with and without related records.\n:::"
+    },
+    {
+      "issue": "Product search and category filters in warehouse API are disabled because joins with the products table are unimplemented.",
+      "severity": "medium",
+      "file": "server/routes/warehouse3.api.ts",
+      "line": 304,
+      "citation": "F:server/routes/warehouse3.api.ts†L300-L313",
+      "task_stub": ":::task-stub{title=\"Enable product-based filtering in warehouse API\"}\n1. In `server/routes/warehouse3.api.ts` around lines 304 and 312, join the products table to support name and category filters.\n2. Update SQL queries and parameters accordingly.\n3. Cover functionality with unit tests for search and category filtering.\n:::"
+    },
+    {
+      "issue": "ROI value in profitability metrics is hardcoded to 0, so investment returns are never calculated.",
+      "severity": "low",
+      "file": "server/routes/enhanced-profitability.ts",
+      "line": 189,
+      "citation": "F:server/routes/enhanced-profitability.ts†L180-L189",
+      "task_stub": ":::task-stub{title=\"Calculate ROI in profitability summary\"}\n1. In `server/routes/enhanced-profitability.ts` at line 189, replace the fixed ROI value.\n2. Compute ROI using `(gesamtNettoErgebnis - investment) / investment` or similar.\n3. Document the calculation and add tests verifying correct ROI output.\n:::"
+    },
+    {
+      "issue": "Stock ratios endpoint is stubbed out and directs users to another route.",
+      "severity": "medium",
+      "file": "server/routes/stock-ratios.ts",
+      "line": 19,
+      "citation": "F:server/routes/stock-ratios.ts†L15-L23",
+      "task_stub": ":::task-stub{title=\"Implement stock ratios aggregation\"}\n1. Implement `getAllMachineStockData` in `services/stockRatioService` and call it in the `/api/stock-ratios/all` route around line 19.\n2. Return aggregated stock ratios for each machine.\n3. Add tests covering normal data and error scenarios.\n:::"
+    },
+    {
+      "issue": "Retroactive inventory routes use hardcoded user IDs and names, bypassing real authentication context.",
+      "severity": "high",
+      "file": "server/routes/retroactive-inventory.ts",
+      "line": 310,
+      "citation": "F:server/routes/retroactive-inventory.ts†L310-L312, F:server/routes/retroactive-inventory.ts†L481-L482",
+      "task_stub": ":::task-stub{title=\"Inject authenticated user data in retroactive inventory\"}\n1. Replace the hardcoded `createdBy` and `processedBy` fields in `server/routes/retroactive-inventory.ts` (lines ~310 and ~481) with data from the authenticated user.\n2. Pull user information from the request context or middleware.\n3. Update database schemas or interfaces if needed and add tests verifying proper attribution.\n:::"
+    },
+    {
+      "issue": "Recurring order form sets creator information to constant values instead of using the logged-in user.",
+      "severity": "medium",
+      "file": "client/src/components/RecurringOrderForm.tsx",
+      "line": 130,
+      "citation": "F:client/src/components/RecurringOrderForm.tsx†L120-L131",
+      "task_stub": ":::task-stub{title=\"Use user context in recurring order form\"}\n1. In `client/src/components/RecurringOrderForm.tsx` around lines 130-131, access user context or auth hook to populate `createdBy` and `createdByName`.\n2. Ensure form submission sends the real user IDs.\n3. Add frontend tests verifying the fields reflect the current user.\n:::"
+    },
+    {
+      "issue": "Supplier edit dialog logs the selected file but lacks actual photo upload functionality.",
+      "severity": "low",
+      "file": "client/src/components/SupplierEditDialog.tsx",
+      "line": 577,
+      "citation": "F:client/src/components/SupplierEditDialog.tsx†L570-L579",
+      "task_stub": ":::task-stub{title=\"Implement supplier photo upload\"}\n1. In `client/src/components/SupplierEditDialog.tsx` at line 577, integrate a call to the backend to upload the selected file.\n2. Validate file size/type and handle server responses.\n3. Display upload progress or errors and add tests for the upload handler.\n:::"
+    }
+  ]
+}
