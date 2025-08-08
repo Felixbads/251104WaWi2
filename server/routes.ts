@@ -3595,17 +3595,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { machineId } = resolved;
       console.log(`[MACHINE-DETAIL] Resolved to internal machine ID: ${machineId}`);
 
-      // Direkte SQL-Abfrage für Maschinendaten
+      // Direkte SQL-Abfrage für Maschinendaten - Using correct field aliases for frontend
       const machineQuery = `
         SELECT 
           id,
-          vendon_id,
-          machine_name,
+          vendon_id as "vendonId",
+          machine_name as "machineName",
           location_name as location,
           status,
-          last_sync,
-          created_at,
-          updated_at
+          last_sync as "lastSync",
+          created_at as "createdAt",
+          updated_at as "updatedAt"
         FROM machines 
         WHERE id = $1
         LIMIT 1
@@ -3643,32 +3643,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { machineId } = resolved;
       console.log(`[MACHINE-TRANSACTIONS] Resolved to internal machine ID: ${machineId}`);
 
-      const limit = req.query.limit ? parseInt(req.query.limit as string) : 200;
+      // Get the machine's vendon_id for transaction lookup
+      const machineQuery = `SELECT vendon_id FROM machines WHERE id = $1`;
+      const machineResult = await rawDb.query(machineQuery, [machineId]);
       
-      // Direkte SQL-Abfrage für Maschinen-Transaktionen
+      if (machineResult.rows.length === 0) {
+        return res.status(404).json({ error: `Machine data not found for ID: ${machineId}` });
+      }
+      
+      const vendonId = machineResult.rows[0].vendon_id;
+      console.log(`[MACHINE-TRANSACTIONS] Using vendon_id ${vendonId} for transaction lookup`);
+
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : 200;
+      const offset = req.query.offset ? parseInt(req.query.offset as string) : 0;
+      
+      // Fixed SQL query - use vendon_id for transaction lookup with correct field aliases
       const transactionsQuery = `
         SELECT 
           t.id,
-          t.vendon_id,
-          t.machine_id,
-          t.product_id,
-          t.product_name,
+          t.vendon_id as "vendonId",
+          t.machine_id as "machineId",
+          t.product_id as "productId", 
+          t.product_name as "productName",
           t.quantity,
           t.amount,
-          t.payment_method,
+          t.price,
+          t.payment_method as "paymentMethod",
           t.datetime,
-          t.created_at,
-          m.machine_name
+          t.created_at as "createdAt",
+          m.machine_name as "machineName"
         FROM transactions t
-        LEFT JOIN machines m ON t.machine_id = m.id
+        LEFT JOIN machines m ON t.machine_id = m.vendon_id::bigint
         WHERE t.machine_id = $1
         ORDER BY t.datetime DESC
-        LIMIT $2
+        LIMIT $2 OFFSET $3
       `;
       
-      const transactionsResult = await rawDb.query(transactionsQuery, [machineId, limit]);
+      const transactionsResult = await rawDb.query(transactionsQuery, [vendonId, limit, offset]);
       const transactions = transactionsResult.rows;
-      console.log(`[MACHINE-TRANSACTIONS] Found ${transactions.length} transactions for machine ${machineId}`);
+      console.log(`[MACHINE-TRANSACTIONS] Found ${transactions.length} transactions for machine ${machineId} (vendon_id: ${vendonId})`);
       res.json(transactions);
     } catch (error) {
       console.error(`Error fetching transactions for machine ID ${req.params.id}:`, error);

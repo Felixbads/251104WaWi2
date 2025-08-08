@@ -1,4 +1,4 @@
-import { eq, desc, and, or, gte, lte, like, asc, count, sql, gt, ilike, isNull, isNotNull, inArray, between, ne } from "drizzle-orm";
+import { eq, desc, and, or, gte, lte, like, asc, count, sql, gt, ilike, isNull, isNotNull, inArray, between, ne, notLike } from "drizzle-orm";
 import { db, rawDb } from "../db";
 import { normalizeProductName } from "../utils/stringUtils";
 import { 
@@ -329,8 +329,9 @@ export class DatabaseStorage implements IStorage {
    */
   async getMachines(limit?: number): Promise<any[]> {
     try {
-      // If limit is specified, prioritize machines with recent daily stats
-      if (limit && limit > 0) {
+      // Always use optimized query with proper filtering (set default limit if not provided)
+      const actualLimit = limit && limit > 0 ? limit : 25;
+      if (true) {  // Always use Raw SQL query with proper filtering
         // Join with machine_daily_stats to get machines with recent activity
         const recentMachinesQuery = `
           SELECT m.*, 
@@ -341,7 +342,13 @@ export class DatabaseStorage implements IStorage {
           FROM machines m
           LEFT JOIN machine_daily_stats mds ON m.id = mds.machine_id 
             AND mds.date = CURRENT_DATE
-          WHERE m.id <= 18  -- Only show the real 18 machines
+          WHERE m.id > 1  -- Exclude demo machine ID 1
+            AND m.machine_name IS NOT NULL 
+            AND m.machine_name != '' 
+            AND m.machine_name NOT LIKE '%Demo%'
+            AND m.machine_name NOT LIKE '%Test%'
+            AND m.machine_name != 'Automat A1'
+            AND m.machine_name != '*869951036618662'
           ORDER BY 
             has_transactions,
             today_revenue DESC,
@@ -383,11 +390,27 @@ export class DatabaseStorage implements IStorage {
           extraData: row.extra_data
         }));
       } else {
-        // Return the 18 real machines (default behavior)
+        // Return only real machines (exclude demo machines)
         const query = db.select().from(machines)
-          .where(and(gte(machines.id, 2), lte(machines.id, 18)))  // Only show machines 2-18 (exclude demo machine 1)
+          .where(and(
+            gt(machines.id, 1),  // Exclude demo machine ID 1 and below
+            ne(machines.machineName, 'Automat A1'),
+            ne(machines.machineName, '*869951036618662'),
+            isNotNull(machines.machineName),
+            ne(machines.machineName, ''),
+            notLike(machines.machineName, '%Demo%'),
+            notLike(machines.machineName, '%Test%')
+          ))
           .orderBy(asc(machines.machineName))
-          .limit(18);  // Explicit limit to 18 machines
+          .limit(25);  // Limit to 25 real machines
+        
+        console.log('[getMachines] Using Drizzle query with filters');
+        const result = await query;
+        console.log(`[getMachines] Drizzle query returned ${result.length} machines`);
+        if (result.length > 0) {
+          console.log(`[getMachines] First machine: ID ${result[0].id}, name: ${result[0].machineName}`);
+        }
+        return result;
         return await query;
       }
     } catch (error) {
@@ -396,10 +419,21 @@ export class DatabaseStorage implements IStorage {
       try {
         console.log('[getMachines] Falling back to simple query due to error');
         const query = db.select().from(machines)
-          .where(and(gte(machines.id, 2), lte(machines.id, 18)))  // Only show machines 2-18 (exclude demo machine 1)
+          .where(and(
+            gt(machines.id, 1),  // Exclude demo machine ID 1 and below
+            ne(machines.machineName, 'Automat A1'),
+            ne(machines.machineName, '*869951036618662'),
+            isNotNull(machines.machineName),
+            ne(machines.machineName, ''),
+            notLike(machines.machineName, '%Demo%'),
+            notLike(machines.machineName, '%Test%')
+          ))
           .orderBy(asc(machines.machineName))
-          .limit(limit || 18);  // Default to 18 machines if no limit specified
-        return await query;
+          .limit(limit || 25);  // Default to 25 real machines
+        
+        const result = await query;
+        console.log(`[getMachines] Fallback query returned ${result.length} machines`);
+        return result;
       } catch (fallbackError) {
         console.error("Fallback query also failed:", fallbackError);
         return [];
