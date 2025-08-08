@@ -1,0 +1,198 @@
+{
+  "projekt": "Tägliche E-Mail-Benachrichtigungen",
+  "beschreibung": "System zum automatischen Versand täglicher Statusberichte per E-Mail, konfigurierbar über das Backend/Frontend.",
+  "stack": {
+    "sprache": "Node.js oder Python",
+    "framework_backend": "Express (Node.js) oder Django (Python)",
+    "framework_frontend": "React oder Vue",
+    "datenbanken": {
+      "core": "PostgreSQL (z. B. für Benutzer, E-Mail-Log, Templates)",
+      "cache": "Redis (optional, für Scheduler/Queue)",
+      "quellen": {
+        "wetter_api": "OpenWeatherMap o. ä.",
+        "ferien_api": "Ferien-API von Schulferien.org oder internes Dataset",
+        "umsatz_db": "Inventur/Verkaufsdatenbank (z. B. Tabelle 'umsatz_pro_automat')",
+        "lager_db": "Bestandsdatenbank (Tabellen 'lagerbestand', 'mhd_lager', 'mhd_automaten')",
+        "bestellungen_db": "Einkaufs-/Wareneingangsdaten (Tabelle 'bestellungen')",
+        "automaten_db": "Automatenstatus (Tabelle 'automaten_events')"
+      }
+    }
+  },
+  "module": {
+    "scheduler": {
+      "typ": "Cronjob oder In-App Task Scheduler",
+      "intervall": "täglich",
+      "uhrzeit_default": "06:00",
+      "ausführung": "Backend-Endpunkt /task/sendDailyEmail"
+    },
+    "backend": {
+      "apis": [
+        {
+          "name": "EmailSettings",
+          "pfad": "/api/email/settings",
+          "methoden": ["GET", "POST", "PUT"],
+          "beschreibung": "CRUD für E-Mail-Benachrichtigungseinstellungen",
+          "tabellen": ["email_settings", "email_recipients", "email_templates"]
+        },
+        {
+          "name": "EmailTemplates",
+          "pfad": "/api/email/templates",
+          "methoden": ["GET", "POST", "PUT", "DELETE"],
+          "beschreibung": "Verwaltung und Abruf von E-Mail-Templates",
+          "tabellen": ["email_templates"]
+        },
+        {
+          "name": "SendEmail",
+          "pfad": "/api/email/send",
+          "methoden": ["POST"],
+          "beschreibung": "Manueller Versand der Tagesmail (für Tests)"
+        }
+      ],
+      "services": [
+        "EmailComposer (füllt Template mit Live-Daten)",
+        "EmailSender (SMTP oder externes Mail-Gateway)",
+        "DataAggregator (holt Daten aus Wetter-/Ferien-APIs und DB)"
+      ]
+    },
+    "frontend": {
+      "menüpfad": "Systemeinstellungen > E-Mail-Benachrichtigungen",
+      "komponenten": [
+        "Toggle für Aktiv/Inaktiv",
+        "Checkbox-Liste für Wochentage",
+        "Zeit-Auswahl (06:00 als Default)",
+        "Empfänger-Multiselect (autocompletion via Userliste)",
+        "Template-Auswahl (Dropdown)",
+        "Button/Modal für neues Template anlegen"
+      ]
+    }
+  },
+  "datenbank_schema": {
+    "email_settings": {
+      "felder": {
+        "id": "PK",
+        "enabled": "bool",
+        "weekday_mask": "bitmask oder JSON array",
+        "send_time": "time",
+        "template_id": "FK email_templates.id"
+      }
+    },
+    "email_recipients": {
+      "felder": {
+        "id": "PK",
+        "email_settings_id": "FK email_settings.id",
+        "email": "varchar",
+        "name": "varchar (optional)"
+      }
+    },
+    "email_templates": {
+      "felder": {
+        "id": "PK",
+        "name": "varchar",
+        "description": "text",
+        "content_schema": "jsonb",
+        "html_template": "text",
+        "created_at": "timestamp"
+      }
+    },
+    "email_log": {
+      "felder": {
+        "id": "PK",
+        "sent_at": "timestamp",
+        "status": "varchar",
+        "recipient": "varchar",
+        "template_id": "FK email_templates.id",
+        "payload": "jsonb (gesendete Daten)"
+      }
+    }
+  },
+  "template_täglicher_statusbericht": {
+    "beispiel_json": {
+      "template": "Täglicher Proviantomat-Statusbericht",
+      "date": "2025-08-08",
+      "sections": {
+        "wetter_ferien_umsatz": {
+          "standort": "Bad Schandau",
+          "heute": {
+            "wetter": "Heiter, 24°C, 15% Regenwahrscheinlichkeit",
+            "prognostizierter_umsatz": [
+              { "automat": "Rathaus", "wert": 85 },
+              { "automat": "Klinik", "wert": 65 },
+              { "automat": "Marktplatz", "wert": 112 }
+            ]
+          },
+          "wettervorschau": [
+            { "tag": "Fr", "wetter": "sonnig", "temperatur": "26°C", "bemerkung": "hohe Nachfrage erwartet" },
+            { "tag": "Sa", "wetter": "leicht bewölkt", "temperatur": "23°C", "bemerkung": "normaler Wochenendbetrieb" },
+            { "tag": "So", "wetter": "Regen", "temperatur": "18°C", "bemerkung": "Umsatzrückgang möglich" },
+            { "tag": "Mo", "wetter": "bedeckt", "temperatur": "20°C", "bemerkung": "mittlere Prognose" },
+            { "tag": "Di", "wetter": "sonnig", "temperatur": "25°C", "bemerkung": "erhöhte Nachfrage erwartet" }
+          ],
+          "ferien": [
+            { "bundesland": "Sachsen", "status": "Sommerferien", "resttage": 21 },
+            { "bundesland": "Bayern", "status": "Sommerferien", "resttage": 37 }
+          ],
+          "auswirkung": "Touristische Automaten mit +10–20% Umsatzanstieg"
+        },
+        "offene_wareneingänge": [
+          { "lieferant": "XY", "bestelldatum": "2025-08-05", "produkte": ["Eier", "Butter"] },
+          { "lieferant": "AB", "bestelldatum": "2025-08-06", "produkte": ["Bio-Säfte"] }
+        ],
+        "mhd_lager": {
+          "<5": [{ "lager": "Süd", "produkt": "Joghurt Natur", "anzahl": 4, "mhd": "2025-08-10" }],
+          "<14": [{ "lager": "Ost", "produkt": "Wurstaufschnitt", "anzahl": 8, "mhd": "2025-08-18" }],
+          "<31": [{ "lager": "Nord", "produkt": "Fruchtquark", "anzahl": 12, "mhd": "2025-09-06" }]
+        },
+        "mhd_automaten": [
+          { "automat": "#3", "produkt": "Käsekuchen", "anzahl": 2, "mhd": "2025-08-10" },
+          { "automat": "#7", "produkt": "Wrap Chicken", "anzahl": 1, "mhd": "2025-08-09" }
+        ],
+        "niedriger_lagerbestand": [
+          { "produkt": "Eier", "bestand": 6, "bedarf": 20 },
+          { "produkt": "Käsewürfel", "bestand": 4, "bedarf": 15 },
+          { "produkt": "Apfelsaft 0,33l", "bestand": 8, "bedarf": 22 }
+        ],
+        "automaten_anomalien": [
+          { "automat": "#4", "meldung": "Seit 6 Tagen nicht geöffnet" },
+          { "automat": "#1", "meldung": "Seit 2 Tagen keine Kartenzahlung" },
+          { "automat": "#5", "meldung": "Seit 24h kein Alkoholverkauf" }
+        ],
+        "rückblick": {
+          "umsatz_gesamt": 526.4,
+          "netto_ergebnis": 431.6,
+          "entnahmen": [
+            { "automat": "#2", "produkte": ["4x Milchreis", "2x Salat"] },
+            { "automat": "#6", "produkte": ["5x Club-Mate", "3x Bier Hell"] }
+          ]
+        },
+        "hinweise": [
+          "Bitte Wareneingang von Bestellung #123 prüfen",
+          "Automat #4 ggf. kontrollieren (Öffnungszeitraum > 5 Tage)"
+        ]
+      }
+    }
+  },
+  "entwicklungsschritte": [
+    "Datenbanktabellen gemäß Schema erstellen/migrieren",
+    "Backend-Endpoints für Einstellungen und Templates implementieren",
+    "Scheduler mit Cronjob/Task Scheduler einrichten und mit Backend verknüpfen",
+    "DataAggregator-Service: Anbindung an Wetter-API, Ferien-API, interne DBs",
+    "EmailComposer: Template mit Daten füllen und HTML generieren",
+    "EmailSender: SMTP oder externes Gateway (z. B. SendGrid/Mailgun) konfigurieren",
+    "Frontend-Einstellungsmaske entwickeln und an Backend anbinden",
+    "Unit-Tests für Services und Endpoints, Integrations-Test für gesamten Ablauf",
+    "Deployment-Konfiguration (z. B. Docker-Container mit Cron, env-Variablen)"
+  ],
+  "tests": {
+    "unit_tests": "Backend-Services, Template-Rendereinheit",
+    "integration_tests": "End-to-End: Einstellungen speichern -> Cron auslösen -> E-Mail versenden",
+    "frontend_tests": "UI-Komponenten (Toggle, Checkboxes, Template-Editor)"
+  },
+  "deployment": {
+    "umgebung": ["Staging", "Production"],
+    "konfiguration": {
+      "environment_vars": ["SMTP_HOST", "SMTP_USER", "SMTP_PASS", "CRON_TIME"],
+      "logging": "Z. B. Winston (Node) oder Django-Logging (Python)",
+      "monitoring": "Healthcheck Endpoint / Monitoring (z. B. Prometheus/ELK)"
+    }
+  }
+}
