@@ -132,7 +132,61 @@ createdByName: req.user.username,
 
 ## Kürzliche Änderungen
 
-### 08.08.2025 - Sicherheits- und Authentifizierungsverbesserungen
+### 08.08.2025 - Stock-Ratios-Endpoints vollständig implementiert
+**Datum**: 08.08.2025
+**Status**: ✅ Abgeschlossen
+
+#### Implementierte Features
+- ✅ Vollständige StockRatioService-Klasse mit allen erforderlichen Methoden
+- ✅ Neue API-Endpoints für Stock-Ratios-Management
+- ✅ Integration mit Vendon API für Echtzeit-Bestandsdaten
+- ✅ TypeScript-Fehler in allen Routes behoben
+- ✅ Umfassende Fehlerbehandlung und Logging
+
+#### Neue API-Endpoints
+- `GET /api/stock-ratios/all` - Alle Füllstand-Verhältnisse für alle Maschinen
+- `GET /api/stock-ratios/machine/:machineId` - Füllstand für spezifische Maschine
+- `GET /api/stock-ratios/summary` - Kompakte Füllstand-Übersicht mit Statistiken
+- `GET /api/stock-ratios/external-api` - Formatierte Daten für externe APIs
+- `POST /api/stock-ratios/update-max-quantities` - Aktualisierung der Maximalkapazitäten
+
+#### Technische Implementierung
+**Dateien**:
+- `server/services/stockRatioService.ts` - Vollständige Service-Klasse
+- `server/routes/stock-ratios.ts` - Alle API-Endpoints implementiert
+
+**Kernfunktionen**:
+```typescript
+class StockRatioService {
+  calculateStockRatiosForMachine(machineId: number) // Einzelne Maschinen-Ratios
+  calculateAllStockRatios() // System-weite Stock-Ratios
+  getFormattedStockDataForExternalAPI() // Formatierte API-Daten
+  updateMaxQuantityFromRefills() // Kapazitäts-Updates
+}
+```
+
+#### Performance-Features
+- **Batch-Verarbeitung**: Effiziente Verarbeitung mehrerer Maschinen
+- **Rate-Limiting**: 100ms Pause zwischen Vendon API-Aufrufen
+- **Fehler-Resilience**: Robuste Fehlerbehandlung bei API-Ausfällen
+- **Echtzeit-Daten**: Direkte Integration mit Vendon API für aktuelle Bestände
+
+#### API-Response-Format
+```json
+{
+  "success": true,
+  "systemStatistics": {
+    "averageFillPercentage": 0,
+    "totalSlots": 0,
+    "totalFilledSlots": 0,
+    "machinesWithCriticalStock": 0
+  },
+  "machines": [],
+  "timestamp": "2025-08-08T13:08:13.995Z"
+}
+```
+
+### 08.08.2025 - Sicherheits- und Authentifizierungsverbesserungen  
 - ✅ Warehouse-Löschung: Abhängigkeitsprüfung implementiert (warehouse3.api.ts)
 - ✅ Retroaktive Inventur: Hartcodierte User-IDs durch echte Authentifizierung ersetzt
 - ✅ Authentifizierungs-Middleware zu retroactive-inventory.ts hinzugefügt

@@ -4,7 +4,7 @@
  */
 
 import express from 'express';
-import { getMachineStockData, calculateStockStatistics } from '../services/stockRatioService';
+import { getMachineStockData, calculateStockStatistics, stockRatioService } from '../services/stockRatioService';
 
 const router = express.Router();
 
@@ -16,10 +16,11 @@ router.get('/all', async (req, res) => {
   try {
     console.log('📊 Abrufen aller Stock-Verhältnisse...');
     
-    // TODO: Implementiere getAllMachineStockData() in stockRatioService
+    const formattedData = await stockRatioService.getFormattedStockDataForExternalAPI();
+    
     res.json({
-      success: false,
-      error: 'Noch nicht implementiert - verwende /api/machine-stock/overview/all stattdessen'
+      success: true,
+      ...formattedData
     });
     
   } catch (error) {
@@ -58,7 +59,7 @@ router.get('/machine/:machineId', async (req, res) => {
       });
     }
     
-    const averageFillRatio = stockRatios.reduce((sum, ratio) => sum + ratio.fillRatio, 0) / stockRatios.length;
+    const averageFillRatio = stockRatios.reduce((sum: number, ratio: any) => sum + ratio.fillRatio, 0) / stockRatios.length;
     
     res.json({
       success: true,
@@ -66,7 +67,7 @@ router.get('/machine/:machineId', async (req, res) => {
         machineId,
         machineName: stockRatios[0].machineName,
         totalSlots: stockRatios.length,
-        filledSlots: stockRatios.filter(ratio => ratio.currentQuantity > 0).length,
+        filledSlots: stockRatios.filter((ratio: any) => ratio.currentQuantity > 0).length,
         averageFillPercentage: Math.round(averageFillRatio * 100),
         stockRatios,
         timestamp: new Date().toISOString()
@@ -145,30 +146,30 @@ router.get('/summary', async (req, res) => {
     const stockSummaries = await stockRatioService.calculateAllStockRatios();
     
     // Berechne System-weite Statistiken
-    const totalSlots = stockSummaries.reduce((sum, summary) => sum + summary.totalSlots, 0);
-    const totalFilledSlots = stockSummaries.reduce((sum, summary) => sum + summary.filledSlots, 0);
+    const totalSlots = stockSummaries.reduce((sum: number, summary: any) => sum + summary.totalSlots, 0);
+    const totalFilledSlots = stockSummaries.reduce((sum: number, summary: any) => sum + summary.filledSlots, 0);
     const avgSystemFill = stockSummaries.length > 0 
-      ? stockSummaries.reduce((sum, summary) => sum + summary.averageFillPercentage, 0) / stockSummaries.length
+      ? stockSummaries.reduce((sum: number, summary: any) => sum + summary.averageFillPercentage, 0) / stockSummaries.length
       : 0;
     
     // Kategorisiere Maschinen nach Füllstand
     const categories = {
-      full: stockSummaries.filter(s => s.averageFillPercentage >= 80).length,
-      medium: stockSummaries.filter(s => s.averageFillPercentage >= 40 && s.averageFillPercentage < 80).length,
-      low: stockSummaries.filter(s => s.averageFillPercentage >= 20 && s.averageFillPercentage < 40).length,
-      critical: stockSummaries.filter(s => s.averageFillPercentage < 20).length
+      full: stockSummaries.filter((s: any) => s.averageFillPercentage >= 80).length,
+      medium: stockSummaries.filter((s: any) => s.averageFillPercentage >= 40 && s.averageFillPercentage < 80).length,
+      low: stockSummaries.filter((s: any) => s.averageFillPercentage >= 20 && s.averageFillPercentage < 40).length,
+      critical: stockSummaries.filter((s: any) => s.averageFillPercentage < 20).length
     };
     
     // Finde Maschinen mit kritischen Füllständen
     const criticalMachines = stockSummaries
-      .filter(s => s.averageFillPercentage < 30)
-      .map(s => ({
+      .filter((s: any) => s.averageFillPercentage < 30)
+      .map((s: any) => ({
         machineId: s.machineId,
         machineName: s.machineName,
         fillPercentage: s.averageFillPercentage,
         emptySlots: s.totalSlots - s.filledSlots
       }))
-      .sort((a, b) => a.fillPercentage - b.fillPercentage);
+      .sort((a: any, b: any) => a.fillPercentage - b.fillPercentage);
     
     res.json({
       success: true,

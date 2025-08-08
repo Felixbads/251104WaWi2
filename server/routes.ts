@@ -1,5 +1,5 @@
 import type { Express, Request as ExpressRequest, Response, NextFunction } from "express";
-import { User, insertPurchaseConditionSchema, insertInventoryCountItemSchema, machines, transactions, refills, syncLogs } from '../shared/schema';
+import { User, insertPurchaseConditionSchema, insertInventoryCountItemSchema, machines, transactions, refills, syncLogs, events } from '../shared/schema';
 import { z } from 'zod';
 
 // Centralized function to resolve machine ID from various input formats
@@ -5059,6 +5059,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .orderBy(desc(refills.datetime))
         .limit(1);
         
+        // Letztes Türöffnungs-Event
+        const lastDoorOpenEvent = await db.select({
+          datetime: events.datetime,
+          eventType: events.eventType,
+          eventName: events.eventName
+        })
+        .from(events)
+        .where(
+          and(
+            eq(events.machineId, machine.id),
+            eq(events.eventName, 'Automatentüre offen')
+          )
+        )
+        .orderBy(desc(events.datetime))
+        .limit(1);
+        
         // Tage seit letztem Verkauf berechnen
         const now = new Date();
         const lastSaleDate = lastSale[0]?.datetime;
@@ -5074,6 +5090,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const lastRefillDate = lastRefill[0]?.datetime;
         const daysSinceLastRefill = lastRefillDate
           ? Math.floor((now.getTime() - new Date(lastRefillDate).getTime()) / (1000 * 60 * 60 * 24))
+          : null;
+        
+        const lastDoorOpenDate = lastDoorOpenEvent[0]?.datetime;
+        const daysSinceLastDoorOpen = lastDoorOpenDate
+          ? Math.floor((now.getTime() - new Date(lastDoorOpenDate).getTime()) / (1000 * 60 * 60 * 24))
           : null;
         
         // MHD Status aus der vorbereiteten Map abrufen
@@ -5120,7 +5141,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
             paymentMethod: lastCashlessSale[0].paymentMethod,
             daysAgo: daysSinceLastCashless
           } : null,
-          lastDoorOpen: null, // TODO: Event-Daten implementieren
+          lastDoorOpen: lastDoorOpenEvent[0] ? {
+            datetime: lastDoorOpenEvent[0].datetime,
+            daysAgo: daysSinceLastDoorOpen,
+            eventType: lastDoorOpenEvent[0].eventType
+          } : null
           todayRevenue: parseFloat(todayRevenue[0]?.total || '0'),
           recentTransactions: recentTransactions.map(t => ({
             datetime: t.datetime,

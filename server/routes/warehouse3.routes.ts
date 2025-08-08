@@ -239,11 +239,43 @@ router.get("/warehouses/:warehouseId/inventory", async (req, res) => {
       return res.status(400).json({ success: false, message: "Ungültige Lager-ID" });
     }
     
-    // Filter für die Abfrage
+    // Erweiterte Filter für die Abfrage
     const filters: any = {};
+    
+    // Bestehende Filter
     if (req.query.productName) filters.productName = req.query.productName.toString();
     if (req.query.category) filters.category = req.query.category.toString();
     if (req.query.lowStock === "true") filters.lowStock = true;
+    
+    // Neue erweiterte Filter
+    if (req.query.sku) filters.sku = req.query.sku.toString();
+    if (req.query.status) filters.status = req.query.status.toString();
+    if (req.query.minQuantity) {
+      const minQty = parseInt(req.query.minQuantity.toString());
+      if (!isNaN(minQty)) filters.minQuantity = minQty;
+    }
+    if (req.query.maxQuantity) {
+      const maxQty = parseInt(req.query.maxQuantity.toString());
+      if (!isNaN(maxQty)) filters.maxQuantity = maxQty;
+    }
+    
+    // Sortierung
+    if (req.query.sortBy && ['productName', 'category', 'sku', 'quantity'].includes(req.query.sortBy.toString())) {
+      filters.sortBy = req.query.sortBy.toString();
+    }
+    if (req.query.sortOrder && ['asc', 'desc'].includes(req.query.sortOrder.toString())) {
+      filters.sortOrder = req.query.sortOrder.toString();
+    }
+    
+    // Paginierung
+    if (req.query.limit) {
+      const limit = parseInt(req.query.limit.toString());
+      if (!isNaN(limit) && limit > 0 && limit <= 1000) filters.limit = limit;
+    }
+    if (req.query.offset) {
+      const offset = parseInt(req.query.offset.toString());
+      if (!isNaN(offset) && offset >= 0) filters.offset = offset;
+    }
     
     const inventory = await warehouseStorage.getProductInventory(warehouseId, filters);
 
@@ -1217,6 +1249,146 @@ router.post("/warehouses/:warehouseId/reconcile", async (req, res) => {
       success: true,
       message: `Synchronisierung abgeschlossen: ${result.totalProductsAdded} Produkte von ${result.machineCount} Automaten hinzugefügt`,
       result
+    });
+  } catch (error) {
+    return handleServerError(error, res);
+  }
+});
+
+// ---- ERWEITERTE PRODUKTSUCHE ROUTES ----
+
+// Produktsuche über alle oder spezifische Lager
+router.get("/search/products", async (req, res) => {
+  try {
+    const filters: any = {};
+    
+    // Suchterm (Name oder SKU)
+    if (req.query.searchTerm) {
+      filters.searchTerm = req.query.searchTerm.toString();
+    }
+    
+    // Lager-Filter
+    if (req.query.warehouseId) {
+      const warehouseId = parseInt(req.query.warehouseId.toString());
+      if (!isNaN(warehouseId)) filters.warehouseId = warehouseId;
+    }
+    
+    // Kategorie-Filter
+    if (req.query.category) {
+      filters.category = req.query.category.toString();
+    }
+    
+    // Bestandsfilter
+    if (req.query.minQuantity !== undefined) {
+      const minQty = parseInt(req.query.minQuantity.toString());
+      if (!isNaN(minQty)) filters.minQuantity = minQty;
+    }
+    if (req.query.maxQuantity !== undefined) {
+      const maxQty = parseInt(req.query.maxQuantity.toString());
+      if (!isNaN(maxQty)) filters.maxQuantity = maxQty;
+    }
+    if (req.query.inStock !== undefined) {
+      filters.inStock = req.query.inStock === 'true';
+    }
+    
+    // Sortierung
+    if (req.query.sortBy && ['productName', 'category', 'sku', 'quantity'].includes(req.query.sortBy.toString())) {
+      filters.sortBy = req.query.sortBy.toString();
+    }
+    if (req.query.sortOrder && ['asc', 'desc'].includes(req.query.sortOrder.toString())) {
+      filters.sortOrder = req.query.sortOrder.toString();
+    }
+    
+    // Paginierung
+    if (req.query.limit) {
+      const limit = parseInt(req.query.limit.toString());
+      if (!isNaN(limit) && limit > 0 && limit <= 1000) filters.limit = limit;
+    } else {
+      filters.limit = 50; // Standard-Limit
+    }
+    
+    if (req.query.offset) {
+      const offset = parseInt(req.query.offset.toString());
+      if (!isNaN(offset) && offset >= 0) filters.offset = offset;
+    }
+    
+    const result = await warehouseStorage.searchProducts(filters);
+    
+    return res.json({
+      success: true,
+      data: result.items,
+      pagination: {
+        total: result.total,
+        limit: filters.limit || 50,
+        offset: filters.offset || 0,
+        hasMore: (filters.offset || 0) + (filters.limit || 50) < result.total
+      },
+      filters: {
+        searchTerm: filters.searchTerm,
+        category: filters.category,
+        warehouseId: filters.warehouseId,
+        inStock: filters.inStock,
+        sortBy: filters.sortBy || 'productName',
+        sortOrder: filters.sortOrder || 'asc'
+      }
+    });
+  } catch (error) {
+    return handleServerError(error, res);
+  }
+});
+
+// Alle verfügbaren Produktkategorien abrufen
+router.get("/categories", async (req, res) => {
+  try {
+    let warehouseId: number | undefined;
+    
+    if (req.query.warehouseId) {
+      warehouseId = parseInt(req.query.warehouseId.toString());
+      if (isNaN(warehouseId)) {
+        return res.status(400).json({ 
+          success: false, 
+          message: "Ungültige Lager-ID" 
+        });
+      }
+    }
+    
+    const categories = await warehouseStorage.getProductCategories(warehouseId);
+    
+    return res.json({
+      success: true,
+      data: categories,
+      count: categories.length,
+      warehouseId: warehouseId || null
+    });
+  } catch (error) {
+    return handleServerError(error, res);
+  }
+});
+
+// Kategorien für ein spezifisches Lager abrufen
+router.get("/warehouses/:warehouseId/categories", async (req, res) => {
+  try {
+    const warehouseId = parseInt(req.params.warehouseId);
+    if (isNaN(warehouseId)) {
+      return res.status(400).json({ success: false, message: "Ungültige Lager-ID" });
+    }
+    
+    // Überprüfen, ob das Lager existiert
+    const warehouse = await warehouseStorage.getWarehouse(warehouseId);
+    if (!warehouse) {
+      return res.status(404).json({ success: false, message: "Lager nicht gefunden" });
+    }
+    
+    const categories = await warehouseStorage.getProductCategories(warehouseId);
+    
+    return res.json({
+      success: true,
+      data: categories,
+      count: categories.length,
+      warehouse: {
+        id: warehouse.id,
+        name: warehouse.name
+      }
     });
   } catch (error) {
     return handleServerError(error, res);

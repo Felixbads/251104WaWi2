@@ -137,3 +137,180 @@ export function calculateStockStatistics(machines: MachineStockData[]) {
     worstPerforming
   };
 }
+
+// Hilfsfunktion um alle aktiven Maschinen zu erhalten
+async function getAllActiveMachines() {
+  const { storage } = await import('../storage');
+  try {
+    const machines = await storage.getMachines();
+    return machines.filter((m: any) => m.status === 'active' && m.vendonId);
+  } catch (error) {
+    console.error('[STOCK RATIO] Fehler beim Abrufen der Maschinen:', error);
+    return [];
+  }
+}
+
+// Stock Ratio Service Klasse
+export class StockRatioService {
+
+  /**
+   * Berechnet Stock-Ratios für eine einzelne Maschine
+   */
+  async calculateStockRatiosForMachine(machineId: number): Promise<any[]> {
+    try {
+      const { storage } = await import('../storage');
+      
+      // Hole Maschineninformationen
+      const machine = await storage.getMachineById(machineId);
+      if (!machine || !machine.vendonId) {
+        console.error(`[STOCK RATIO] Maschine ${machineId} nicht gefunden oder keine VendonId`);
+        return [];
+      }
+
+      const stockData = await getMachineStockData(machine.vendonId, machine.machineName);
+      if (!stockData) {
+        return [];
+      }
+
+      // Formatiere für die API-Response
+      return stockData.products.map(product => ({
+        productId: product.id,
+        productName: product.name,
+        currentQuantity: product.amount,
+        maxQuantity: product.amountMax,
+        fillRatio: product.fillRatio,
+        fillPercentage: Math.round(product.fillRatio * 100),
+        isCritical: product.isCritical,
+        criticalLevel: product.amountCritical,
+        machineName: stockData.machineName,
+        machineId: stockData.machineId,
+        selections: product.selections,
+        units: product.units
+      }));
+
+    } catch (error) {
+      console.error(`[STOCK RATIO] Fehler bei calculateStockRatiosForMachine für ${machineId}:`, error);
+      return [];
+    }
+  }
+
+  /**
+   * Berechnet Stock-Ratios für alle Maschinen
+   */
+  async calculateAllStockRatios() {
+    try {
+      const machines = await getAllActiveMachines();
+      console.log(`[STOCK RATIO] Berechne Stock-Ratios für ${machines.length} Maschinen`);
+
+      const stockSummaries = [];
+
+      for (const machine of machines) {
+        if (!machine.vendonId) continue;
+
+        const stockData = await getMachineStockData(machine.vendonId, machine.machineName);
+        if (!stockData) continue;
+
+        const filledSlots = stockData.products.filter(p => p.amount > 0).length;
+        
+        stockSummaries.push({
+          machineId: machine.id,
+          machineName: machine.machineName,
+          vendonId: machine.vendonId,
+          totalSlots: stockData.products.length,
+          filledSlots,
+          averageFillPercentage: Math.round(stockData.totalFillLevel * 100),
+          criticalProducts: stockData.criticalProducts,
+          lastUpdate: stockData.lastUpdate
+        });
+
+        // Kurze Pause zwischen API-Aufrufen
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+
+      console.log(`[STOCK RATIO] ✅ Stock-Ratios für ${stockSummaries.length} Maschinen berechnet`);
+      return stockSummaries;
+
+    } catch (error) {
+      console.error('[STOCK RATIO] Fehler bei calculateAllStockRatios:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Formatiert Stock-Daten für externe APIs
+   */
+  async getFormattedStockDataForExternalAPI() {
+    try {
+      const stockSummaries = await this.calculateAllStockRatios();
+      
+      const formattedData = {
+        timestamp: new Date().toISOString(),
+        totalMachines: stockSummaries.length,
+        systemStatistics: {
+          averageFillPercentage: stockSummaries.length > 0 
+            ? Math.round(stockSummaries.reduce((sum, s) => sum + s.averageFillPercentage, 0) / stockSummaries.length)
+            : 0,
+          totalSlots: stockSummaries.reduce((sum, s) => sum + s.totalSlots, 0),
+          totalFilledSlots: stockSummaries.reduce((sum, s) => sum + s.filledSlots, 0),
+          machinesWithCriticalStock: stockSummaries.filter(s => s.criticalProducts > 0).length
+        },
+        machines: stockSummaries.map(summary => ({
+          id: summary.machineId,
+          name: summary.machineName,
+          vendonId: summary.vendonId,
+          fillPercentage: summary.averageFillPercentage,
+          status: summary.averageFillPercentage < 20 ? 'critical' 
+                : summary.averageFillPercentage < 50 ? 'low' 
+                : summary.averageFillPercentage >= 80 ? 'full' : 'normal',
+          totalSlots: summary.totalSlots,
+          filledSlots: summary.filledSlots,
+          criticalProducts: summary.criticalProducts,
+          lastUpdate: summary.lastUpdate
+        }))
+      };
+
+      return formattedData;
+
+    } catch (error) {
+      console.error('[STOCK RATIO] Fehler bei getFormattedStockDataForExternalAPI:', error);
+      return {
+        timestamp: new Date().toISOString(),
+        totalMachines: 0,
+        systemStatistics: {
+          averageFillPercentage: 0,
+          totalSlots: 0,
+          totalFilledSlots: 0,
+          machinesWithCriticalStock: 0
+        },
+        machines: [],
+        error: 'Fehler beim Abrufen der Stock-Daten'
+      };
+    }
+  }
+
+  /**
+   * Aktualisiert maximale Kapazitäten basierend auf Refill-Daten
+   */
+  async updateMaxQuantityFromRefills() {
+    console.log('[STOCK RATIO] Starte Aktualisierung der maximalen Kapazitäten aus Refill-Daten...');
+    
+    try {
+      // Implementierung würde hier erfolgen, basierend auf verfügbaren Refill-Daten
+      // Für jetzt als Platzhalter markiert
+      console.log('[STOCK RATIO] ⚠️ updateMaxQuantityFromRefills noch nicht vollständig implementiert');
+      
+      return {
+        updatedMachines: 0,
+        updatedProducts: 0,
+        message: 'Funktion noch in Entwicklung - verwendet Vendon API für Echtzeit-Maximalwerte'
+      };
+
+    } catch (error) {
+      console.error('[STOCK RATIO] Fehler bei updateMaxQuantityFromRefills:', error);
+      throw error;
+    }
+  }
+}
+
+// Singleton-Instanz für den Export
+export const stockRatioService = new StockRatioService();

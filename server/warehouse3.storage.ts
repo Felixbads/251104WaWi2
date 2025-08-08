@@ -205,8 +205,12 @@ export interface WarehouseStorage {
   getWarehouseAssignments(warehouseId: number): Promise<any[]>;
   getMachineAssignments(machineId: number): Promise<any[]>;
   
+  // Enhanced Search Methods
+  
   // Inventory Management
   getProductInventory(warehouseId: number, filters?: any): Promise<any[]>;
+  searchProducts(filters?: any): Promise<{items: any[], total: number}>;
+  getProductCategories(warehouseId?: number): Promise<string[]>;
   getProductInventoryItem(warehouseId: number, productId: number): Promise<any | null>;
   createProductInventory(data: InsertProductInventory): Promise<any>;
   updateProductInventory(id: number, data: Partial<InsertProductInventory>): Promise<any>;
@@ -504,9 +508,37 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
       if (filters.lowStock) {
         baseConditions.push(sql`${inventoryItems.quantity} <= ${inventoryItems.minQuantity}`);
       }
+      
+      // Produktname-Filter (unterstützt Teilstring-Suche)
+      if (filters.productName) {
+        baseConditions.push(like(products.productName, `%${filters.productName}%`));
+      }
+      
+      // SKU-Filter (unterstützt Teilstring-Suche)
+      if (filters.sku) {
+        baseConditions.push(like(products.sku, `%${filters.sku}%`));
+      }
+      
+      // Kategorie-Filter (exakte Übereinstimmung)
+      if (filters.category) {
+        baseConditions.push(eq(products.category, filters.category));
+      }
+      
+      // Bestandsfilter (mindestens/höchstens)
+      if (filters.minQuantity !== undefined) {
+        baseConditions.push(gte(inventoryItems.quantity, filters.minQuantity));
+      }
+      if (filters.maxQuantity !== undefined) {
+        baseConditions.push(lte(inventoryItems.quantity, filters.maxQuantity));
+      }
+      
+      // Status-Filter
+      if (filters.status) {
+        baseConditions.push(eq(inventoryItems.status, filters.status));
+      }
     }
     
-    // Basisabfrage mit allen Bedingungen
+    // Basisabfrage mit allen Bedingungen erstellen
     let query = db
       .select({
         inventory: inventoryItems,
@@ -516,24 +548,48 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
       .leftJoin(products, eq(inventoryItems.productId, products.id))
       .where(and(...baseConditions));
     
-    // Weitere Filter, die separate Abfragen erfordern
-    let results = await query;
-    
-    // Nach dem Abrufen der Daten weitere Filter anwenden
-    if (filters) {
-      if (filters.productName) {
-        results = results.filter(
-          item => item.product && item.product.productName && 
-          item.product.productName.toLowerCase().includes(filters.productName.toLowerCase())
-        );
+    // Sortierung hinzufügen
+    if (filters && filters.sortBy) {
+      switch (filters.sortBy) {
+        case 'productName':
+          query = filters.sortOrder === 'desc' 
+            ? query.orderBy(desc(products.productName))
+            : query.orderBy(products.productName);
+          break;
+        case 'category':
+          query = filters.sortOrder === 'desc' 
+            ? query.orderBy(desc(products.category))
+            : query.orderBy(products.category);
+          break;
+        case 'quantity':
+          query = filters.sortOrder === 'desc' 
+            ? query.orderBy(desc(inventoryItems.quantity))
+            : query.orderBy(inventoryItems.quantity);
+          break;
+        case 'sku':
+          query = filters.sortOrder === 'desc' 
+            ? query.orderBy(desc(products.sku))
+            : query.orderBy(products.sku);
+          break;
+        default:
+          query = query.orderBy(products.productName); // Standard-Sortierung
       }
-      
-      if (filters.category) {
-        results = results.filter(
-          item => item.product && item.product.category === filters.category
-        );
+    } else {
+      query = query.orderBy(products.productName); // Standard-Sortierung
+    }
+    
+    // Paginierung hinzufügen
+    if (filters) {
+      if (filters.limit) {
+        query = query.limit(filters.limit);
+      }
+      if (filters.offset) {
+        query = query.offset(filters.offset);
       }
     }
+    
+    // Abfrage ausführen
+    const results = await query;
     
     // Batch-Informationen für jedes Inventarelement hinzufügen
     const inventoryWithBatches = await Promise.all(results.map(async ({ inventory, product }) => {
@@ -558,6 +614,149 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
     }));
     
     return inventoryWithBatches;
+  }
+  
+  /**
+   * Erweiterte Produktsuche über alle oder spezifische Lager
+   */
+  async searchProducts(filters?: {
+    searchTerm?: string;
+    category?: string;
+    warehouseId?: number;
+    minQuantity?: number;
+    maxQuantity?: number;
+    inStock?: boolean;
+    sortBy?: 'productName' | 'category' | 'sku' | 'quantity';
+    sortOrder?: 'asc' | 'desc';
+    limit?: number;
+    offset?: number;
+  }): Promise<{items: any[], total: number}> {
+    const conditions: any[] = [];
+    
+    // Grundlegende Bedingungen
+    if (filters?.warehouseId) {
+      conditions.push(eq(inventoryItems.warehouseId, filters.warehouseId));
+    }
+    
+    // Suchterm (Produktname oder SKU)
+    if (filters?.searchTerm) {
+      conditions.push(
+        or(
+          like(products.productName, `%${filters.searchTerm}%`),
+          like(products.sku, `%${filters.searchTerm}%`)
+        )
+      );
+    }
+    
+    // Kategorie-Filter
+    if (filters?.category) {
+      conditions.push(eq(products.category, filters.category));
+    }
+    
+    // Bestandsfilter
+    if (filters?.minQuantity !== undefined) {
+      conditions.push(gte(inventoryItems.quantity, filters.minQuantity));
+    }
+    if (filters?.maxQuantity !== undefined) {
+      conditions.push(lte(inventoryItems.quantity, filters.maxQuantity));
+    }
+    if (filters?.inStock === true) {
+      conditions.push(sql`${inventoryItems.quantity} > 0`);
+    } else if (filters?.inStock === false) {
+      conditions.push(eq(inventoryItems.quantity, 0));
+    }
+    
+    // Zählung für Paginierung
+    const countQuery = db
+      .select({ count: sql<number>`count(*)` })
+      .from(inventoryItems)
+      .leftJoin(products, eq(inventoryItems.productId, products.id))
+      .where(conditions.length > 0 ? and(...conditions) : undefined);
+    
+    const [{ count: total }] = await countQuery;
+    
+    // Hauptabfrage
+    let query = db
+      .select({
+        inventory: inventoryItems,
+        product: products,
+        warehouse: {
+          id: sql`w.id`,
+          name: sql`w.name`
+        }
+      })
+      .from(inventoryItems)
+      .leftJoin(products, eq(inventoryItems.productId, products.id))
+      .leftJoin(sql`warehouses w`, sql`${inventoryItems.warehouseId} = w.id`)
+      .where(conditions.length > 0 ? and(...conditions) : undefined);
+    
+    // Sortierung
+    if (filters?.sortBy) {
+      switch (filters.sortBy) {
+        case 'productName':
+          query = filters.sortOrder === 'desc' 
+            ? query.orderBy(desc(products.productName))
+            : query.orderBy(products.productName);
+          break;
+        case 'category':
+          query = filters.sortOrder === 'desc' 
+            ? query.orderBy(desc(products.category))
+            : query.orderBy(products.category);
+          break;
+        case 'quantity':
+          query = filters.sortOrder === 'desc' 
+            ? query.orderBy(desc(inventoryItems.quantity))
+            : query.orderBy(inventoryItems.quantity);
+          break;
+        case 'sku':
+          query = filters.sortOrder === 'desc' 
+            ? query.orderBy(desc(products.sku))
+            : query.orderBy(products.sku);
+          break;
+        default:
+          query = query.orderBy(products.productName);
+      }
+    } else {
+      query = query.orderBy(products.productName);
+    }
+    
+    // Paginierung
+    if (filters?.limit) {
+      query = query.limit(filters.limit);
+    }
+    if (filters?.offset) {
+      query = query.offset(filters.offset);
+    }
+    
+    const items = await query;
+    
+    return { items, total };
+  }
+  
+  /**
+   * Alle verfügbaren Produktkategorien abrufen
+   */
+  async getProductCategories(warehouseId?: number): Promise<string[]> {
+    let query = db
+      .select({ category: products.category })
+      .from(products)
+      .where(sql`${products.category} IS NOT NULL AND ${products.category} != ''`);
+    
+    // Nur Kategorien von Produkten in einem bestimmten Lager
+    if (warehouseId) {
+      query = query
+        .innerJoin(inventoryItems, eq(products.id, inventoryItems.productId))
+        .where(and(
+          eq(inventoryItems.warehouseId, warehouseId),
+          sql`${products.category} IS NOT NULL AND ${products.category} != ''`
+        ));
+    }
+    
+    const result = await query
+      .groupBy(products.category)
+      .orderBy(products.category);
+    
+    return result.map(r => r.category).filter(Boolean);
   }
   
   async getProductInventoryItem(warehouseId: number, productId: number): Promise<any | null> {
@@ -1839,6 +2038,151 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
         errors: [error]
       };
     }
+  }
+  
+  // ---- ERWEITERTE SUCHFUNKTIONEN ----
+  
+  /**
+   * Erweiterte Produktsuche über alle oder spezifische Lager
+   */
+  async searchProducts(filters?: {
+    searchTerm?: string;
+    category?: string;
+    warehouseId?: number;
+    minQuantity?: number;
+    maxQuantity?: number;
+    inStock?: boolean;
+    sortBy?: 'productName' | 'category' | 'sku' | 'quantity';
+    sortOrder?: 'asc' | 'desc';
+    limit?: number;
+    offset?: number;
+  }): Promise<{items: any[], total: number}> {
+    const conditions: any[] = [];
+    
+    // Grundlegende Bedingungen
+    if (filters?.warehouseId) {
+      conditions.push(eq(inventoryItems.warehouseId, filters.warehouseId));
+    }
+    
+    // Suchterm (Produktname oder SKU)
+    if (filters?.searchTerm) {
+      conditions.push(
+        or(
+          like(products.productName, `%${filters.searchTerm}%`),
+          like(products.sku, `%${filters.searchTerm}%`)
+        )
+      );
+    }
+    
+    // Kategorie-Filter
+    if (filters?.category) {
+      conditions.push(eq(products.category, filters.category));
+    }
+    
+    // Bestandsfilter
+    if (filters?.minQuantity !== undefined) {
+      conditions.push(gte(inventoryItems.quantity, filters.minQuantity));
+    }
+    if (filters?.maxQuantity !== undefined) {
+      conditions.push(lte(inventoryItems.quantity, filters.maxQuantity));
+    }
+    if (filters?.inStock === true) {
+      conditions.push(sql`${inventoryItems.quantity} > 0`);
+    } else if (filters?.inStock === false) {
+      conditions.push(eq(inventoryItems.quantity, 0));
+    }
+    
+    // Zählung für Paginierung
+    const countQuery = db
+      .select({ count: sql<number>`count(*)` })
+      .from(inventoryItems)
+      .leftJoin(products, eq(inventoryItems.productId, products.id))
+      .where(conditions.length > 0 ? and(...conditions) : undefined);
+    
+    const [{ count: total }] = await countQuery;
+    
+    // Hauptabfrage
+    let query = db
+      .select({
+        inventory: inventoryItems,
+        product: products,
+        warehouse: {
+          id: sql`w.id`,
+          name: sql`w.name`
+        }
+      })
+      .from(inventoryItems)
+      .leftJoin(products, eq(inventoryItems.productId, products.id))
+      .leftJoin(sql`warehouses w`, sql`${inventoryItems.warehouseId} = w.id`)
+      .where(conditions.length > 0 ? and(...conditions) : undefined);
+    
+    // Sortierung
+    if (filters?.sortBy) {
+      switch (filters.sortBy) {
+        case 'productName':
+          query = filters.sortOrder === 'desc' 
+            ? query.orderBy(desc(products.productName))
+            : query.orderBy(products.productName);
+          break;
+        case 'category':
+          query = filters.sortOrder === 'desc' 
+            ? query.orderBy(desc(products.category))
+            : query.orderBy(products.category);
+          break;
+        case 'quantity':
+          query = filters.sortOrder === 'desc' 
+            ? query.orderBy(desc(inventoryItems.quantity))
+            : query.orderBy(inventoryItems.quantity);
+          break;
+        case 'sku':
+          query = filters.sortOrder === 'desc' 
+            ? query.orderBy(desc(products.sku))
+            : query.orderBy(products.sku);
+          break;
+        default:
+          query = query.orderBy(products.productName);
+      }
+    } else {
+      query = query.orderBy(products.productName);
+    }
+    
+    // Paginierung
+    if (filters?.limit) {
+      query = query.limit(filters.limit);
+    }
+    if (filters?.offset) {
+      query = query.offset(filters.offset);
+    }
+    
+    const items = await query;
+    
+    return { items, total };
+  }
+  
+  /**
+   * Alle verfügbaren Produktkategorien abrufen
+   */
+  async getProductCategories(warehouseId?: number): Promise<string[]> {
+    let query = db
+      .select({ category: products.category })
+      .from(products)
+      .where(sql`${products.category} IS NOT NULL AND ${products.category} != ''`);
+    
+    // Nur Kategorien von Produkten in einem bestimmten Lager
+    if (warehouseId) {
+      query = query
+        .innerJoin(inventoryItems, eq(products.id, inventoryItems.productId))
+        .where(and(
+          eq(inventoryItems.warehouseId, warehouseId),
+          sql`${products.category} IS NOT NULL AND ${products.category} != ''`
+        ));
+    }
+    
+    const result = await query
+      .groupBy(products.category)
+      .orderBy(products.category);
+    
+    return result.map(r => r.category).filter(Boolean);
   }
 }
 
