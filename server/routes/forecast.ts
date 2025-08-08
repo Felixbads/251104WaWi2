@@ -6,7 +6,7 @@ import { Express, Request, Response } from "express";
 import * as forecastService from "../services/forecastService";
 import * as prophetService from "../services/prophetService";
 import * as meteostatService from "../services/meteostatService";
-import * as holidayService from "../services/holidayService";
+import { holidayService } from "../services/holidayService";
 import * as openWeatherService from "../services/openWeatherService";
 import { z } from "zod";
 import { format } from "date-fns";

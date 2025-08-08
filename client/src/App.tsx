@@ -100,9 +100,9 @@ import LagerNew from "@/pages/LagerNew";
 import WarehouseDetail from "@/pages/WarehouseDetail";
 import WarehouseDetailPage from "@/pages/WarehouseDetailPage";
 import WarehouseMovements from "@/pages/WarehouseMovements";
-// import WarenentnahmePage from "@/pages/WarenentnahmePage";
-// import WarenentnahmeDetail from "@/pages/WarenentnahmeDetail";
-// import WarenentnahmeNew from "@/pages/WarenentnahmeNew";
+import WarenentnahmePage from "@/pages/WarenentnahmePage";
+import WarenentnahmeDetail from "@/pages/WarenentnahmeDetail";
+import WarenentnahmeNew from "@/pages/WarenentnahmeNew";
 import InventoryMovementNew from "@/pages/InventoryMovementNew";
 import UserManagement from "@/pages/UserManagement";
 import InventurPage from "@/pages/InventurPage";
@@ -461,7 +461,7 @@ function AuthenticatedRouter() {
           </ApprovedUserRoute>
         )} />
         {/* Alte Routen auskommentiert (können später entfernt werden) */}
-        {/* <Route path="/warenentnahme" component={props => (
+        <Route path="/warenentnahme" component={props => (
           <ApprovedUserRoute>
             <WarenentnahmePage {...props} />
           </ApprovedUserRoute>
@@ -475,7 +475,7 @@ function AuthenticatedRouter() {
           <ApprovedUserRoute>
             <WarenentnahmeDetail {...props} />
           </ApprovedUserRoute>
-        )} /> */}
+        )} />
 
         {/* Inventur-Seiten */}
         <Route path="/inventur" component={props => (
