@@ -1,0 +1,138 @@
+docs/db_index_prompt.json
+Neu
++133
+-0
+
+{
+  "page": "db_index",
+  "task": "Berechne und zeige einen Deckungsbeitragsindex (DBI) je Produkt als Kachel + sortierte Tabelle.",
+  "timeframe": {
+    "mode": "rolling",
+    "current_window_days": 30,
+    "previous_window_days": 30,
+    "compare_to": "previous_30_days"
+  },
+  "data_sources": {
+    "sales_table": "transactions",
+    "listing_table": "machine_stocks",
+    "withdrawals_tables": {
+      "header": "product_disposals",
+      "items": "product_disposal_items"
+    },
+    "products_table": "products"
+  },
+  "filters": {
+    "exclude_pfand": true,
+    "currency": "EUR",
+    "gross_or_net": "netto"
+  },
+  "definitions": {
+    "columns_meaning": {
+      "deckungsbeitragsindex": "((gesamtmarge) - (wert_entnahmen)) / anzahl_automaten_gelistet",
+      "monatsumsatz_netto": "Summe der Netto-Verkaufserlöse ohne Pfand (aktuelles 30-Tage-Fenster)",
+      "wert_entnahmen": "Summe (entnommene Menge × cost_price)",
+      "gesamtmarge": "Summe (verkaufsmenge × ((price_wo_vat - deposit_price) - cost_price))",
+      "delta_ergebnis_minus_entnahmen": "gesamtmarge - wert_entnahmen",
+      "anzahl_automaten_gelistet": "Anzahl unterschiedlicher Automaten mit diesem Produkt in machine_stocks",
+      "dbi_vorperiode": "DBI im vorherigen 30-Tage-Fenster",
+      "dbi_delta_abs": "deckungsbeitragsindex - dbi_vorperiode",
+      "dbi_delta_rel": "(deckungsbeitragsindex - dbi_vorperiode) / NULLIF(dbi_vorperiode, 0)"
+    },
+    "notes": [
+      "price_wo_vat stammt aus transactions.price_wo_vat",
+      "cost_price und deposit_price stammen aus products",
+      "Bei anzahl_automaten_gelistet = 0 → DBI = NULL",
+      "Negative DBI-Werte sind möglich"
+    ]
+  },
+  "calculations": {
+    "current_window": {
+      "monatsumsatz_netto": "SUM(t.quantity * (t.price_wo_vat - COALESCE(p.deposit_price,0)))",
+      "gesamtmarge": "SUM(t.quantity * ((t.price_wo_vat - COALESCE(p.deposit_price,0)) - COALESCE(p.cost_price,0)))",
+      "wert_entnahmen": "COALESCE(SUM(di.quantity * COALESCE(p.cost_price,0)),0)",
+      "delta_ergebnis_minus_entnahmen": "(gesamtmarge - wert_entnahmen)",
+      "anzahl_automaten_gelistet": "COUNT(DISTINCT ms.machine_id)",
+      "deckungsbeitragsindex": "(delta_ergebnis_minus_entnahmen / NULLIF(anzahl_automaten_gelistet,0))"
+    },
+    "previous_window": {
+      "dbi_vorperiode": "gleiche Formel wie deckungsbeitragsindex, jedoch im vorigen 30-Tage-Fenster berechnet"
+    },
+    "joins": [
+      "transactions t JOIN products p ON p.vendon_id = t.product_id",
+      "LEFT JOIN product_disposal_items di ON di.product_id = p.vendon_id",
+      "LEFT JOIN product_disposals d ON d.id = di.disposal_id",
+      "LEFT JOIN machine_stocks ms ON ms.product_vendon_id = p.vendon_id"
+    ],
+    "current_window_filters": [
+      "t.datetime BETWEEN :start_30 AND :end_30",
+      "d.created_at BETWEEN :start_30 AND :end_30"
+    ],
+    "previous_window_filters": [
+      "t.datetime BETWEEN :start_prev30 AND :end_prev30",
+      "d.created_at BETWEEN :start_prev30 AND :end_prev30"
+    ]
+  },
+  "output": {
+    "tile": {
+      "type": "kpi",
+      "title": "Deckungsbeitragsindex – Top-Produkt (30 Tage)",
+      "value": "MAX(deckungsbeitragsindex)",
+      "subtitle": "Δ vs. Vorperiode",
+      "delta_abs": "dbi_delta_abs des Top-Produkts",
+      "delta_rel_percent": "dbi_delta_rel des Top-Produkts",
+      "format": {
+        "value_decimals": 2,
+        "delta_decimals": 2,
+        "show_percent_for_delta_rel": true
+      }
+    },
+    "table": {
+      "title": "Produktliste nach Deckungsbeitragsindex (30 Tage, sortiert)",
+      "sort_by": [
+        {"column": "deckungsbeitragsindex", "direction": "desc"},
+        {"column": "monatsumsatz_netto", "direction": "desc"}
+      ],
+      "columns": [
+        {"field": "deckungsbeitragsindex", "label": "Deckungsbeitragsindex", "type": "number", "decimals": 2},
+        {"field": "produkt_name", "label": "Produkt", "type": "string"},
+        {"field": "monatsumsatz_netto", "label": "Monatsumsatz (netto, o. Pfand)", "type": "currency", "decimals": 2},
+        {"field": "wert_entnahmen", "label": "Wert entnommener Produkte (EK netto)", "type": "currency", "decimals": 2},
+        {"field": "gesamtmarge", "label": "Marge gesamt (netto, o. Pfand)", "type": "currency", "decimals": 2},
+        {"field": "delta_ergebnis_minus_entnahmen", "label": "Ergebnis netto − Entnahmen (EK)", "type": "currency", "decimals": 2},
+        {"field": "anzahl_automaten_gelistet", "label": "Automaten (gelistet)", "type": "integer"},
+        {"field": "dbi_vorperiode", "label": "DBI Vormonat (vorige 30 Tage)", "type": "number", "decimals": 2},
+        {"field": "dbi_delta_abs", "label": "Δ DBI abs.", "type": "number", "decimals": 2},
+        {"field": "dbi_delta_rel", "label": "Δ DBI rel.", "type": "percent", "decimals": 1}
+      ],
+      "empty_state": "Keine Daten im 30-Tage-Zeitraum.",
+      "row_limit": 1000
+    }
+  },
+  "pseudocode_sql": {
+    "current_window": "WITH sales AS (\n  SELECT t.product_id AS product_vendon_id,\n         SUM(t.quantity * (t.price_wo_vat - COALESCE(p.deposit_price,0))) AS umsatz_netto,\n         SUM(t.quantity * ((t.price_wo_vat - COALESCE(p.deposit_price,0)) - COALESCE(p.cost_price,0))) AS marge_netto\n  FROM transactions t\n  JOIN products p ON p.vendon_id = t.product_id\n  WHERE t.datetime >= :start_30 AND t.datetime < :end_30\n  GROUP BY t.product_id\n),\nwithdrawals AS (\n  SELECT di.product_id AS product_vendon_id,\n         SUM(di.quantity * COALESCE(p.cost_price,0)) AS wert_entnahmen\n  FROM product_disposal_items di\n  JOIN product_disposals d ON d.id = di.disposal_id\n  JOIN products p ON p.vendon_id = di.product_id\n  WHERE d.created_at >= :start_30 AND d.created_at < :end_30\n  GROUP BY di.product_id\n),\nlisting AS (\n  SELECT ms.product_vendon_id AS product_vendon_id,\n         COUNT(DISTINCT ms.machine_id) AS automaten\n  FROM machine_stocks ms\n  GROUP BY ms.product_vendon_id\n)\nSELECT p.id, p.product_name,\n       COALESCE(s.umsatz_netto,0) AS monatsumsatz_netto,\n       COALESCE(w.wert_entnahmen,0) AS wert_entnahmen,\n       COALESCE(s.marge_netto,0) AS gesamtmarge,\n       (COALESCE(s.marge_netto,0) - COALESCE(w.wert_entnahmen,0)) AS delta_ergebnis_minus_entnahmen,\n       COALESCE(l.automaten,0) AS anzahl_automaten_gelistet,\n       CASE WHEN COALESCE(l.automaten,0) = 0 THEN NULL\n            ELSE (COALESCE(s.marge_netto,0) - COALESCE(w.wert_entnahmen,0))::numeric / l.automaten\n       END AS deckungsbeitragsindex\nFROM products p\nLEFT JOIN sales s ON s.product_vendon_id = p.vendon_id\nLEFT JOIN withdrawals w ON w.product_vendon_id = p.vendon_id\nLEFT JOIN listing l ON l.product_vendon_id = p.vendon_id;",
+    "previous_window": "... gleiche CTEs mit :start_prev30, :end_prev30; Ergebnis als dbi_vorperiode je product_vendon_id.",
+    "final_select": "SELECT cur.*, prev.dbi AS dbi_vorperiode,\n       (cur.deckungsbeitragsindex - prev.dbi) AS dbi_delta_abs,\n       CASE WHEN prev.dbi = 0 OR prev.dbi IS NULL THEN NULL\n            ELSE (cur.deckungsbeitragsindex - prev.dbi) / prev.dbi\n       END AS dbi_delta_rel\nFROM (/* current_window query */) cur\nLEFT JOIN (/* previous_window query */) prev USING (product_vendon_id)\nORDER BY cur.deckungsbeitragsindex DESC NULLS LAST, cur.monatsumsatz_netto DESC;"
+  },
+  "formatting": {
+    "numbers": {
+      "thousands_separator": ".",
+      "decimal_separator": ","
+    },
+    "currency": {
+      "code": "EUR",
+      "symbol": "€",
+      "position": "postfix",
+      "space_between": true
+    }
+  },
+  "edge_cases": [
+    "Wenn ein Produkt im aktuellen Fenster in 0 Automaten gelistet ist, setze DBI = NULL und zeige es am Tabellenende.",
+    "Pfand wird ausgeschlossen über products.deposit_price.",
+    "Optional: Produkte mit <10 Verkäufen als 'niedriges Volumen' markieren."
+  ],
+  "quality_checks": [
+    "Summe monatsumsatz_netto über alle Produkte = Kontrollwert aus Tagesabschluss (ohne Pfand).",
+    "Stichprobe: DBI manuell für 3 Produkte nachrechnen.",
+    "Vergleich aktuelles vs. voriges Fenster: keine Überlappung der Perioden."
+  ]
+}
