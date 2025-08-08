@@ -5,6 +5,7 @@
 
 import { ultraRobustVendonSync } from './ultraRobustVendonSync';
 import { vendonSync } from './vendonSync';
+import { vendonHistoryImporter } from './vendonHistoryImporter';
 
 class VendonScheduler {
   private intervalId: NodeJS.Timeout | null = null;
@@ -12,6 +13,7 @@ class VendonScheduler {
   private lastSyncTime: Date | null = null;
   private failureCount = 0;
   private readonly maxFailures = 3;
+  private historicalBackfillCompleted = false;
 
   constructor() {
     console.log('Vendon Scheduler initialized');
@@ -32,12 +34,19 @@ class VendonScheduler {
     // Run initial sync immediately
     this.performSync();
 
-    // Schedule regular syncs every 5 minutes
+    // Schedule regular syncs every 10 minutes
     this.intervalId = setInterval(() => {
       this.performSync();
-    }, 5 * 60 * 1000); // 5 minutes
+    }, 10 * 60 * 1000); // 10 minutes
 
-    console.log('Vendon Scheduler started - syncing every 5 minutes');
+    console.log('Vendon Scheduler started - syncing every 10 minutes');
+
+    // Start historical backfill in the background (only once)
+    if (!this.historicalBackfillCompleted) {
+      this.performHistoricalBackfill().catch(error => {
+        console.error('Historical backfill failed:', error);
+      });
+    }
   }
 
   /**
@@ -137,7 +146,8 @@ class VendonScheduler {
       isRunning: this.isRunning,
       lastSyncTime: this.lastSyncTime,
       failureCount: this.failureCount,
-      nextSyncIn: this.intervalId ? '5 minutes' : 'Not scheduled'
+      nextSyncIn: this.intervalId ? '10 minutes' : 'Not scheduled',
+      historicalBackfillCompleted: this.historicalBackfillCompleted
     };
   }
 
@@ -147,6 +157,101 @@ class VendonScheduler {
   async triggerImmediateSync() {
     console.log('Triggering immediate Vendon sync...');
     await this.performSync();
+  }
+
+  /**
+   * Performs historical backfill for the last 3 months
+   */
+  private async performHistoricalBackfill() {
+    try {
+      console.log('🕒 Starting historical backfill for the last 3 months...');
+      
+      // Calculate 3 months ago
+      const threeMonthsAgo = new Date();
+      threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+      
+      const today = new Date();
+      
+      const options = {
+        startDate: threeMonthsAgo.toISOString(),
+        endDate: today.toISOString(),
+        batchSize: 100,
+        maxTransactions: 50000, // Reasonable limit for background task
+        syncStep: 7, // Process 7 days at a time
+        forceUpdate: false
+      };
+      
+      console.log(`Historical backfill: Processing from ${threeMonthsAgo.toISOString()} to ${today.toISOString()}`);
+      
+      const result = await vendonHistoryImporter.startImport(options);
+      
+      console.log('✅ Historical backfill completed:', result);
+      this.historicalBackfillCompleted = true;
+      
+      // Schedule daily task for ongoing historical gaps
+      this.scheduleDailyHistoricalCheck();
+      
+    } catch (error) {
+      console.error('❌ Historical backfill failed:', error);
+      // Retry after 1 hour
+      setTimeout(() => {
+        this.performHistoricalBackfill().catch(retryError => {
+          console.error('Historical backfill retry also failed:', retryError);
+        });
+      }, 60 * 60 * 1000); // 1 hour
+    }
+  }
+
+  /**
+   * Schedules a daily task to check for and fill historical gaps
+   */
+  private scheduleDailyHistoricalCheck() {
+    // Run daily at 02:00 AM to check for gaps
+    const now = new Date();
+    const tomorrow = new Date(now);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(2, 0, 0, 0); // 2 AM
+    
+    const msUntilTomorrow = tomorrow.getTime() - now.getTime();
+    
+    setTimeout(() => {
+      // Check for gaps in the last 7 days and fill them
+      this.fillRecentGaps();
+      
+      // Schedule to run every 24 hours
+      setInterval(() => {
+        this.fillRecentGaps();
+      }, 24 * 60 * 60 * 1000); // 24 hours
+    }, msUntilTomorrow);
+    
+    console.log(`📅 Daily historical gap check scheduled for ${tomorrow.toISOString()}`);
+  }
+
+  /**
+   * Fills gaps in the last 7 days
+   */
+  private async fillRecentGaps() {
+    try {
+      console.log('🔍 Checking for gaps in the last 7 days...');
+      
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      
+      const options = {
+        startDate: sevenDaysAgo.toISOString(),
+        endDate: new Date().toISOString(),
+        batchSize: 100,
+        maxTransactions: 10000,
+        syncStep: 1, // Process day by day
+        forceUpdate: true // Force update to fill gaps
+      };
+      
+      await vendonHistoryImporter.startImport(options);
+      console.log('✅ Recent gaps check completed');
+      
+    } catch (error) {
+      console.error('❌ Recent gaps check failed:', error);
+    }
   }
 }
 

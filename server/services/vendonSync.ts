@@ -13,6 +13,7 @@ import {
   InsertMachineStock,
   Product
 } from "@shared/schema";
+import { rawDb } from "../db";
 import { SYNC_TYPE, acquireSyncLock, releaseSyncLock } from "./syncLock";
 import { stockRatioService } from './stockRatioService';
 import axios, { AxiosInstance, AxiosRequestConfig } from "axios";
@@ -580,6 +581,41 @@ export class VendonSyncService {
   private api: VendonAPI;
   
   /**
+   * Updates the lastSync timestamp for a machine
+   */
+  private async updateMachineLastSync(machineId: string | number): Promise<void> {
+    try {
+      await rawDb.query(
+        'UPDATE machines SET last_sync = NOW(), updated_at = NOW() WHERE vendon_id = $1',
+        [machineId.toString()]
+      );
+    } catch (error) {
+      console.error(`Failed to update lastSync for machine ${machineId}:`, error);
+    }
+  }
+  
+  /**
+   * Updates lastSync for multiple machines at once
+   */
+  private async updateMachinesLastSync(machineIds: (string | number)[]): Promise<void> {
+    if (machineIds.length === 0) return;
+    
+    try {
+      const uniqueMachineIds = [...new Set(machineIds.map(id => id.toString()))];
+      const placeholders = uniqueMachineIds.map((_, index) => `$${index + 1}`).join(', ');
+      
+      await rawDb.query(
+        `UPDATE machines SET last_sync = NOW(), updated_at = NOW() WHERE vendon_id IN (${placeholders})`,
+        uniqueMachineIds
+      );
+      
+      console.log(`✅ Updated lastSync for ${uniqueMachineIds.length} machines`);
+    } catch (error) {
+      console.error(`Failed to update lastSync for machines:`, error);
+    }
+  }
+  
+  /**
    * Ruft alle Produkte aus der Datenbank ab
    * Diese Methode ist für die Web-API gedacht
    */
@@ -1064,7 +1100,7 @@ export class VendonSyncService {
     startDate?: Date,
     endDate?: Date,
     batchSize: number = 100,
-    maxTransactions: number = 5000, // Erhöht von 1000 auf 5000 für bessere Abdeckung
+    maxTransactions: number = 0, // 0 = no limit, sync until no more data available
     forceUpdate: boolean = false
   ): Promise<{ syncLogId: number; status: string; message: string }> {
     // Debug-Ausgabe für forceUpdate-Parameter
@@ -1104,13 +1140,15 @@ export class VendonSyncService {
       console.log(`Verwende Zeitraum: ${effectiveStartDate.toISOString()} bis ${effectiveEndDate.toISOString()}`);
       console.log(`Timestamps: ${Math.floor(effectiveStartDate.getTime() / 1000)} bis ${Math.floor(effectiveEndDate.getTime() / 1000)}`);
       
-      // Solange es weitere Transaktionen gibt und wir das Maximum nicht erreicht haben
-      while (hasMoreTransactions && totalItems < maxTransactions) {
+      // Solange es weitere Transaktionen gibt (dynamisches Limit basierend auf API-Antworten)
+      // Wenn maxTransactions = 0, dann unbegrenzt bis keine Daten mehr zurückkommen
+      while (hasMoreTransactions && (maxTransactions === 0 || totalItems < maxTransactions)) {
         
         console.log(`Hole Transaktionen, Seite ${page} mit Batchgröße ${batchSize}`);
         
         // Berechne den verbleibenden Limit für diese Anfrage
-        const remainingLimit = Math.min(batchSize, maxTransactions - totalItems);
+        // Wenn maxTransactions = 0 (unbegrenzt), verwende immer batchSize
+        const remainingLimit = maxTransactions === 0 ? batchSize : Math.min(batchSize, maxTransactions - totalItems);
         
         // Hole Transaktionen von der API
         const fromTimestamp = Math.floor(effectiveStartDate.getTime() / 1000);
@@ -1291,6 +1329,10 @@ export class VendonSyncService {
           try {
             const savedTransactions = await storage.createTransactionsBatch(newTransactions);
             itemsSaved += savedTransactions.length;
+            
+            // Update lastSync for all machines in this batch
+            const machineIds = newTransactions.map(t => t.machineId).filter(id => id);
+            await this.updateMachinesLastSync(machineIds);
           } catch (error) {
             console.error("Fehler bei Batch-Insertion:", error);
             errors += newTransactions.length;
@@ -1298,12 +1340,14 @@ export class VendonSyncService {
         }
         
         // Prüfe, ob wir alle Transaktionen erhalten haben
-        // Wenn die aktuelle Batch-Größe erreicht wurde und wir das maximale Limit nicht erreicht haben,
-        // dann gibt es wahrscheinlich noch mehr Transaktionen
-        hasMoreTransactions = transactions.length >= remainingLimit && totalItems < maxTransactions;
+        // Dynamische Logik: Wenn weniger als batchSize Transaktionen zurückkommen,
+        // dann sind keine weiteren Daten verfügbar (unabhängig vom maxTransactions-Limit)
+        const hasApiMoreData = transactions.length >= batchSize;
+        const withinMaxLimit = maxTransactions === 0 || totalItems < maxTransactions;
+        hasMoreTransactions = hasApiMoreData && withinMaxLimit;
         
         console.log(`Prüfe, ob weitere Transaktionen existieren: ${hasMoreTransactions}`);
-        console.log(`Aktuelle Anzahl: ${transactions.length}, Limit: ${remainingLimit}, Gesamt: ${totalItems}/${maxTransactions}`);
+        console.log(`Aktuelle Anzahl: ${transactions.length}, Batch-Größe: ${batchSize}, Gesamt: ${totalItems}${maxTransactions > 0 ? '/' + maxTransactions : ' (unbegrenzt)'}`);
         page++;
         
         // Aktualisiere den Sync-Log mit dem bisherigen Fortschritt
@@ -2544,6 +2588,11 @@ export class VendonSyncService {
               // Speichere die Transaktion in der Datenbank
               await storage.createTransaction(newTransaction);
               savedCount++;
+              
+              // Update lastSync for this machine
+              if (newTransaction.machineId) {
+                await this.updateMachineLastSync(newTransaction.machineId);
+              }
               
             } catch (error) {
               console.error(`Fehler beim Speichern der Transaktion:`, error);

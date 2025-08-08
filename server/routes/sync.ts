@@ -212,7 +212,7 @@ router.post('/vendon/transactions', async (req: Request, res: Response) => {
       effectiveStartDate,
       effectiveEndDate,
       batchSize,
-      5000, // maxTransactions
+      0, // maxTransactions = 0 means unlimited (dynamic based on API responses)
       forceUpdate
     );
     
@@ -424,7 +424,7 @@ router.post('/vendon/gap-recovery', async (req: Request, res: Response) => {
           gapDate,
           nextDay,
           500, // batchSize
-          5000, // maxTransactions
+          0, // maxTransactions = 0 means unlimited (dynamic based on API responses)
           true // forceUpdate
         );
         
@@ -603,5 +603,170 @@ router.get('/gap-crawler/progress', async (req: Request, res: Response) => {
     });
   }
 });
+
+// Machine monitoring endpoint - shows last sync time and transaction count per machine
+router.get('/machine-monitoring', async (req: Request, res: Response) => {
+  try {
+    console.log('📊 Fetching machine monitoring data...');
+    
+    // Get machine information with last sync times
+    const machinesQuery = `
+      SELECT 
+        m.id,
+        m.vendon_id,
+        m.machine_name,
+        m.location_name,
+        m.status,
+        m.last_sync,
+        m.last_ping,
+        m.created_at,
+        m.updated_at
+      FROM machines m
+      ORDER BY m.machine_name
+    `;
+    
+    const machinesResult = await rawDb.query(machinesQuery);
+    const machines = machinesResult.rows;
+    
+    // Get transaction counts per machine for different time periods
+    const transactionStatsQuery = `
+      SELECT 
+        machine_id,
+        COUNT(*) as total_transactions,
+        COUNT(CASE WHEN datetime >= NOW() - INTERVAL '24 hours' THEN 1 END) as transactions_24h,
+        COUNT(CASE WHEN datetime >= NOW() - INTERVAL '7 days' THEN 1 END) as transactions_7d,
+        COUNT(CASE WHEN datetime >= NOW() - INTERVAL '30 days' THEN 1 END) as transactions_30d,
+        MAX(datetime) as last_transaction_time,
+        MIN(datetime) as first_transaction_time
+      FROM transactions 
+      GROUP BY machine_id
+    `;
+    
+    const transactionStatsResult = await rawDb.query(transactionStatsQuery);
+    const transactionStats = transactionStatsResult.rows;
+    
+    // Create a map of transaction stats by machine_id
+    const statsMap = new Map();
+    transactionStats.forEach(stat => {
+      statsMap.set(stat.machine_id, {
+        totalTransactions: parseInt(stat.total_transactions) || 0,
+        transactions24h: parseInt(stat.transactions_24h) || 0,
+        transactions7d: parseInt(stat.transactions_7d) || 0,
+        transactions30d: parseInt(stat.transactions_30d) || 0,
+        lastTransactionTime: stat.last_transaction_time,
+        firstTransactionTime: stat.first_transaction_time
+      });
+    });
+    
+    // Combine machine data with transaction statistics
+    const monitoringData = machines.map(machine => {
+      const stats = statsMap.get(machine.vendon_id) || {
+        totalTransactions: 0,
+        transactions24h: 0,
+        transactions7d: 0,
+        transactions30d: 0,
+        lastTransactionTime: null,
+        firstTransactionTime: null
+      };
+      
+      const now = new Date();
+      const lastSync = machine.last_sync ? new Date(machine.last_sync) : null;
+      const lastTransaction = stats.lastTransactionTime ? new Date(stats.lastTransactionTime) : null;
+      
+      // Calculate sync status
+      let syncStatus = 'unknown';
+      if (lastSync) {
+        const hoursSinceLastSync = (now.getTime() - lastSync.getTime()) / (1000 * 60 * 60);
+        if (hoursSinceLastSync < 1) {
+          syncStatus = 'active';
+        } else if (hoursSinceLastSync < 24) {
+          syncStatus = 'recent';
+        } else if (hoursSinceLastSync < 168) { // 7 days
+          syncStatus = 'stale';
+        } else {
+          syncStatus = 'offline';
+        }
+      }
+      
+      return {
+        machineId: machine.vendon_id,
+        machineName: machine.machine_name,
+        locationName: machine.location_name,
+        status: machine.status,
+        lastSync: lastSync,
+        lastPing: machine.last_ping ? new Date(machine.last_ping) : null,
+        syncStatus,
+        transactions: {
+          total: stats.totalTransactions,
+          last24h: stats.transactions24h,
+          last7d: stats.transactions7d,
+          last30d: stats.transactions30d,
+          lastTransactionTime: lastTransaction,
+          firstTransactionTime: stats.firstTransactionTime ? new Date(stats.firstTransactionTime) : null
+        },
+        healthScore: calculateMachineHealthScore(syncStatus, stats.transactions24h, stats.transactions7d)
+      };
+    });
+    
+    // Calculate overall statistics
+    const overallStats = {
+      totalMachines: machines.length,
+      activeMachines: monitoringData.filter(m => m.syncStatus === 'active').length,
+      recentMachines: monitoringData.filter(m => m.syncStatus === 'recent').length,
+      staleMachines: monitoringData.filter(m => m.syncStatus === 'stale').length,
+      offlineMachines: monitoringData.filter(m => m.syncStatus === 'offline').length,
+      totalTransactions24h: monitoringData.reduce((sum, m) => sum + m.transactions.last24h, 0),
+      totalTransactions7d: monitoringData.reduce((sum, m) => sum + m.transactions.last7d, 0),
+      totalTransactions30d: monitoringData.reduce((sum, m) => sum + m.transactions.last30d, 0),
+      averageHealthScore: monitoringData.reduce((sum, m) => sum + m.healthScore, 0) / monitoringData.length || 0,
+      lastUpdated: new Date().toISOString()
+    };
+    
+    res.json({
+      status: 'success',
+      data: {
+        machines: monitoringData,
+        overall: overallStats
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching machine monitoring data:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to fetch machine monitoring data',
+      details: error instanceof Error ? error.message : String(error)
+    });
+  }
+});
+
+// Helper function to calculate machine health score (0-100)
+function calculateMachineHealthScore(syncStatus: string, transactions24h: number, transactions7d: number): number {
+  let score = 0;
+  
+  // Base score from sync status
+  switch (syncStatus) {
+    case 'active': score += 50; break;
+    case 'recent': score += 35; break;
+    case 'stale': score += 20; break;
+    case 'offline': score += 0; break;
+    default: score += 10; break;
+  }
+  
+  // Score from recent transaction activity
+  if (transactions24h > 50) score += 30; // Very active
+  else if (transactions24h > 20) score += 25; // Active
+  else if (transactions24h > 5) score += 15; // Moderate
+  else if (transactions24h > 0) score += 10; // Low activity
+  else score += 0; // No activity
+  
+  // Score from weekly transaction consistency
+  if (transactions7d > 200) score += 20; // Consistent high volume
+  else if (transactions7d > 50) score += 15; // Good volume
+  else if (transactions7d > 10) score += 10; // Some activity
+  else if (transactions7d > 0) score += 5; // Minimal activity
+  else score += 0; // No activity
+  
+  return Math.min(100, score);
+}
 
 export default router;
