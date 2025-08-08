@@ -23,6 +23,7 @@ import SyncDashboard from "@/pages/SyncDashboard";
 import SyncHistory from "@/pages/SyncHistory";
 import Settings from "@/pages/Settings";
 import MailSettings from "@/pages/MailSettings"; // Neue Email-Einstellungen-Seite
+import DailyEmailSettings from "@/pages/DailyEmailSettings"; // Tägliche E-Mail-Benachrichtigungen
 import Forecast from "@/pages/Forecast";
 import ForecastEvaluation from "@/pages/ForecastEvaluation";
 import ForecastDetail from "@/pages/ForecastDetail";
@@ -663,6 +664,12 @@ function AuthenticatedRouter() {
         <Route path="/email-einstellungen" component={props => (
           <ApprovedUserRoute>
             <MailSettings {...props} />
+          </ApprovedUserRoute>
+        )} />
+
+        <Route path="/taegliche-email-einstellungen" component={props => (
+          <ApprovedUserRoute>
+            <DailyEmailSettings {...props} />
           </ApprovedUserRoute>
         )} />
 

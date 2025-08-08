@@ -64,6 +64,7 @@ import { recurringOrdersRouter } from './routes/recurring-orders';
 import RecurringOrderScheduler from './services/recurringOrderScheduler';
 import weeklyReportRouter from './routes/weekly-report';
 import { weeklyReportCron } from './services/weeklyReportCron';
+import { startDailyEmailScheduler } from './services/dailyEmailScheduler';
 import syncRouter from './routes/sync';
 import inventoryItemsUnassignedRouter from './routes/inventory-items-unassigned';
 import stockRatiosRouter from './routes/stock-ratios';
@@ -1835,6 +1836,10 @@ app.get('/orders-data', (req, res) => {
   // Start weekly report cron service for automated weekly email reports
   weeklyReportCron.start();
   console.log('[SERVER] Weekly report cron service started (Monday 6:00 AM)');
+  
+  // Start daily email notification scheduler for automated daily status reports
+  startDailyEmailScheduler();
+  console.log('[SERVER] ✅ Daily Email Scheduler started - sends daily status reports (daily 6:00 AM)');
   
   // IMMEDIATE TEST EMAIL ROUTE - Direct SMTP test to resolve authentication failure
   app.post('/api/test-email-immediate', async (req, res) => {

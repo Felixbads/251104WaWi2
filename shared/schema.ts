@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp, real, doublePrecision, unique, primaryKey, date, varchar } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, real, doublePrecision, unique, primaryKey, date, varchar, time, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { sql } from "drizzle-orm";
@@ -3332,6 +3332,111 @@ export const insertRetroactiveInventoryAdjustmentSchema = createInsertSchema(ret
 export type InsertRetroactiveInventoryAdjustment = z.infer<typeof insertRetroactiveInventoryAdjustmentSchema>;
 export type RetroactiveInventoryAdjustment = typeof retroactiveInventoryAdjustments.$inferSelect;
 
+// Email Notification Tables
+// Email Settings table for daily notification configuration
+export const emailSettings = pgTable("email_settings", {
+  id: serial("id").primaryKey(),
+  enabled: boolean("enabled").default(false),
+  weekdayMask: jsonb("weekday_mask").default("[true,true,true,true,true,true,true]"), // Monday to Sunday
+  sendTime: time("send_time").default("06:00"),
+  templateId: integer("template_id").references(() => emailTemplates.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertEmailSettingsSchema = createInsertSchema(emailSettings)
+  .omit({
+    id: true,
+    createdAt: true,
+    updatedAt: true,
+  })
+  .extend({
+    enabled: z.boolean().optional(),
+    weekdayMask: z.array(z.boolean()).length(7).optional(),
+    sendTime: z.string().regex(/^\d{2}:\d{2}$/, "Zeit muss im Format HH:MM sein").optional(),
+  });
+
+export type InsertEmailSettings = z.infer<typeof insertEmailSettingsSchema>;
+export type EmailSettings = typeof emailSettings.$inferSelect;
+
+// Email Recipients table for managing email recipients
+export const emailRecipients = pgTable("email_recipients", {
+  id: serial("id").primaryKey(),
+  emailSettingsId: integer("email_settings_id").references(() => emailSettings.id, { onDelete: "cascade" }),
+  email: varchar("email", { length: 255 }).notNull(),
+  name: varchar("name", { length: 255 }),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertEmailRecipientsSchema = createInsertSchema(emailRecipients)
+  .omit({
+    id: true,
+    createdAt: true,
+  })
+  .extend({
+    email: z.string().email("Ungültige E-Mail-Adresse"),
+    name: z.string().optional().nullable().or(z.literal("")),
+  });
+
+export type InsertEmailRecipients = z.infer<typeof insertEmailRecipientsSchema>;
+export type EmailRecipients = typeof emailRecipients.$inferSelect;
+
+// Email Templates table for managing email templates
+export const emailTemplates = pgTable("email_templates", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  contentSchema: jsonb("content_schema"), // JSON schema for template variables
+  htmlTemplate: text("html_template").notNull(),
+  isDefault: boolean("is_default").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertEmailTemplatesSchema = createInsertSchema(emailTemplates)
+  .omit({
+    id: true,
+    createdAt: true,
+    updatedAt: true,
+  })
+  .extend({
+    name: z.string().min(1, "Template-Name ist erforderlich"),
+    description: z.string().optional().nullable().or(z.literal("")),
+    htmlTemplate: z.string().min(1, "HTML-Template ist erforderlich"),
+    isDefault: z.boolean().optional(),
+  });
+
+export type InsertEmailTemplates = z.infer<typeof insertEmailTemplatesSchema>;
+export type EmailTemplates = typeof emailTemplates.$inferSelect;
+
+// Email Log table for tracking sent emails
+export const emailLog = pgTable("email_log", {
+  id: serial("id").primaryKey(),
+  sentAt: timestamp("sent_at").defaultNow(),
+  status: varchar("status", { length: 50 }).notNull(), // 'sent', 'failed', 'pending'
+  recipient: varchar("recipient", { length: 255 }).notNull(),
+  templateId: integer("template_id").references(() => emailTemplates.id),
+  payload: jsonb("payload"), // The data used to populate the template
+  errorMessage: text("error_message"),
+  emailSubject: varchar("email_subject", { length: 500 }),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertEmailLogSchema = createInsertSchema(emailLog)
+  .omit({
+    id: true,
+    createdAt: true,
+  })
+  .extend({
+    status: z.enum(["sent", "failed", "pending"]),
+    recipient: z.string().email("Ungültige E-Mail-Adresse"),
+    errorMessage: z.string().optional().nullable().or(z.literal("")),
+    emailSubject: z.string().optional().nullable().or(z.literal("")),
+  });
+
+export type InsertEmailLog = z.infer<typeof insertEmailLogSchema>;
+export type EmailLog = typeof emailLog.$inferSelect;
+
 // Relationen für das retroaktive Inventarsystem
 export const retroactiveInventoryCountRelations = relations(retroactiveInventoryCounts, ({ many, one }) => ({
   items: many(retroactiveInventoryCountItems),
@@ -3410,3 +3515,31 @@ export const allRelations = {
   retroactiveInventoryCountItemRelations,
   retroactiveInventoryAdjustmentRelations,
 };
+
+// Email notification relations
+export const emailSettingsRelations = relations(emailSettings, ({ one, many }) => ({
+  template: one(emailTemplates, {
+    fields: [emailSettings.templateId],
+    references: [emailTemplates.id],
+  }),
+  recipients: many(emailRecipients),
+}));
+
+export const emailRecipientsRelations = relations(emailRecipients, ({ one }) => ({
+  emailSettings: one(emailSettings, {
+    fields: [emailRecipients.emailSettingsId],
+    references: [emailSettings.id],
+  }),
+}));
+
+export const emailTemplatesRelations = relations(emailTemplates, ({ many }) => ({
+  emailSettings: many(emailSettings),
+  emailLogs: many(emailLog),
+}));
+
+export const emailLogRelations = relations(emailLog, ({ one }) => ({
+  template: one(emailTemplates, {
+    fields: [emailLog.templateId],
+    references: [emailTemplates.id],
+  }),
+}));

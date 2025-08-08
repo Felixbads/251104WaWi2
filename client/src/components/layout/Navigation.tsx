@@ -14,7 +14,8 @@ import {
   Calendar,
   RefreshCw,
   Server,
-  Shield
+  Shield,
+  Mail
 } from 'lucide-react';
 import { useAuth } from '@/lib';
 
@@ -53,6 +54,7 @@ const navigationSections = [
       { href: '/seitenfreigabe', label: 'Seitenfreigabe', icon: Shield, roles: ['admin'] },
       { href: '/inter-app-verbindungen', label: 'App-Verbindungen', icon: Server, roles: ['admin'] },
       { href: '/settings', label: 'Einstellungen', icon: Settings, roles: ['user', 'admin'] },
+      { href: '/taegliche-email-einstellungen', label: 'E-Mail-Benachrichtigungen', icon: Mail, roles: ['admin'] },
     ]
   },
   {
