@@ -65,6 +65,7 @@ export default function RemovedProductsMachineTab({ machineId }: RemovedProducts
       page: currentPage,
       limit
     }),
+    enabled: !!machineId && machineId > 0
   });
 
   const handleExportData = () => {

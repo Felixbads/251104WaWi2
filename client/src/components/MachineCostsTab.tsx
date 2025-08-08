@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { getMachineCosts } from '@/lib/api';
 import { apiRequest } from '@/lib/queryClient';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -26,7 +27,7 @@ interface MachineCost {
 }
 
 interface MachineCostsTabProps {
-  machineId: number;
+  machineId: number | null;
 }
 
 const MachineCostsTab: React.FC<MachineCostsTabProps> = ({ machineId }) => {
@@ -43,20 +44,14 @@ const MachineCostsTab: React.FC<MachineCostsTabProps> = ({ machineId }) => {
   // Fetch machine costs
   const { data: costs, isLoading, error } = useQuery({
     queryKey: ['/api/machines', machineId, 'costs'],
-    queryFn: () => apiRequest(`/api/machines/${machineId}/costs`),
+    queryFn: () => getMachineCosts(machineId!),
     enabled: !!machineId
   });
 
   // Add new cost mutation
   const addCostMutation = useMutation({
     mutationFn: (data: typeof newCost) => 
-      apiRequest(`/api/machines/${machineId}/costs`, {
-        method: 'POST',
-        body: JSON.stringify(data),
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      }),
+      apiRequest('post', `/machines/${machineId}/costs`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/machines', machineId, 'costs'] });
       setShowForm(false);

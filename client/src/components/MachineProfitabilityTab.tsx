@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { apiRequest } from '@/lib/queryClient';
+import { getMachineProfitability } from '@/lib/api';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -44,7 +44,7 @@ interface ProfitabilityData {
 }
 
 interface MachineProfitabilityTabProps {
-  machineId: number;
+  machineId: number | null;
 }
 
 const MachineProfitabilityTab: React.FC<MachineProfitabilityTabProps> = ({ machineId }) => {
@@ -57,7 +57,7 @@ const MachineProfitabilityTab: React.FC<MachineProfitabilityTabProps> = ({ machi
   // Fetch machine profitability data
   const { data: profitabilityData, isLoading, error } = useQuery({
     queryKey: ['/api/machines', machineId, 'profitability', dateRange.start, dateRange.end],
-    queryFn: () => apiRequest(`/api/machines/${machineId}/profitability?startDate=${dateRange.start.toISOString().split('T')[0]}&endDate=${dateRange.end.toISOString().split('T')[0]}`),
+    queryFn: () => getMachineProfitability(machineId!, dateRange.start.toISOString().split('T')[0], dateRange.end.toISOString().split('T')[0]),
     enabled: !!machineId
   });
 

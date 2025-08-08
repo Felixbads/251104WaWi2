@@ -725,6 +725,29 @@ export interface MachineAnalytics {
   }[];
 }
 
+// Machine costs API functions
+export async function getMachineCosts(machineId: number | string): Promise<any[]> {
+  const numericId = typeof machineId === 'string' ? parseInt(machineId, 10) : machineId;
+  console.log(`[getMachineCosts] Fetching costs for machine ID: ${numericId}`);
+  return apiRequest<any[]>('get', `/machines/${numericId}/costs`);
+}
+
+export async function getMachineProfitability(
+  machineId: number | string,
+  startDate?: string,
+  endDate?: string
+): Promise<any> {
+  const numericId = typeof machineId === 'string' ? parseInt(machineId, 10) : machineId;
+  let url = `/machines/${numericId}/profitability`;
+  
+  if (startDate && endDate) {
+    url += `?startDate=${startDate}&endDate=${endDate}`;
+  }
+  
+  console.log(`[getMachineProfitability] Fetching profitability for machine ID: ${numericId}, URL: ${url}`);
+  return apiRequest<any>('get', url);
+}
+
 // Automatenanalyse abrufen
 export async function getMachineAnalytics(
   machineId: number | string,
@@ -961,7 +984,7 @@ export interface MachineInventoryWithMHD {
 }
 
 export async function getMachineMHDData(machineId: number): Promise<MachineInventoryWithMHD[]> {
-  return apiRequest<MachineInventoryWithMHD[]>('get', `/machines/${machineId}/mhd`);
+  return apiRequest<MachineInventoryWithMHD[]>(`/machines/${machineId}/mhd`, undefined, 'GET');
 }
 
 export async function updateMachineMHD(
@@ -970,9 +993,9 @@ export async function updateMachineMHD(
   data: { expiryDate?: string; quantity?: number; notes?: string }
 ): Promise<{ success: boolean; message: string; batch: any }> {
   return apiRequest<{ success: boolean; message: string; batch: any }>(
-    'put', 
     `/machines/${machineId}/mhd/${batchId}`, 
-    data
+    data,
+    'PUT'
   );
 }
 

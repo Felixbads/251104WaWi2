@@ -110,7 +110,7 @@ interface EnhancedMachine extends Machine {
 
 // Hilfsfunktion: Gruppiert Daten nach Wochen für die Auswertung
 function groupDataByWeek(data: { date: string; count: number; revenue: number }[] = []) {
-  if (!data || data.length === 0) return [];
+  if (!data || !Array.isArray(data) || data.length === 0) return [];
   
   const weekMap = new Map();
   
@@ -146,7 +146,7 @@ function getWeekNumber(date: Date) {
 
 // Hilfsfunktion: Gruppiert Daten nach Monaten für die Auswertung
 function groupDataByMonth(data: { date: string; count: number; revenue: number }[] = []) {
-  if (!data || data.length === 0) return [];
+  if (!data || !Array.isArray(data) || data.length === 0) return [];
   
   const monthMap = new Map();
   const monthNames = [
@@ -179,7 +179,7 @@ function groupDataByMonth(data: { date: string; count: number; revenue: number }
 
 // Hilfsfunktion: Erstellt eine stündliche Verteilung der Verkäufe
 function getHourlyDistribution(machineAnalytics?: MachineAnalytics) {
-  if (!machineAnalytics?.timeSeries || machineAnalytics.timeSeries.length === 0) {
+  if (!machineAnalytics?.timeSeries || !Array.isArray(machineAnalytics.timeSeries) || machineAnalytics.timeSeries.length === 0) {
     return Array.from({ length: 24 }, (_, i) => ({ hour: i, count: 0 }));
   }
   
@@ -188,10 +188,13 @@ function getHourlyDistribution(machineAnalytics?: MachineAnalytics) {
   
   // Transaktionen aus den Zeitreihen-Daten verarbeiten
   machineAnalytics.timeSeries.forEach(item => {
-    // Wenn wir einzelne Transaktionen haben, könnten wir hier mehr Details extrahieren
-    const date = new Date(item.date);
-    const hour = date.getHours();
-    hourCounts[hour].count += item.count;
+    if (item && item.date && typeof item.count === 'number') {
+      const date = new Date(item.date);
+      const hour = date.getHours();
+      if (hour >= 0 && hour < 24) {
+        hourCounts[hour].count += item.count;
+      }
+    }
   });
   
   return hourCounts;
@@ -329,22 +332,26 @@ export default function AutomatDetail() {
   });
 
   // Transaktionen für diese Maschine abrufen - Use resolved machine ID
+  const [transactionPage, setTransactionPage] = useState(1);
+  const transactionLimit = 50;
   const { 
     data: transactions, 
     isLoading: transactionsLoading
   } = useQuery({
-    queryKey: ['/api/machines', resolvedMachineId, 'transactions'],
-    queryFn: () => getTransactionsByMachine(resolvedMachineId!.toString(), 20),
+    queryKey: ['/api/machines', resolvedMachineId, 'transactions', transactionPage],
+    queryFn: () => getTransactionsByMachine(resolvedMachineId!.toString(), transactionLimit, (transactionPage - 1) * transactionLimit),
     enabled: !!resolvedMachineId && activeTab === "transaktionen"
   });
 
   // Auffüllungen für diese Maschine abrufen - Use resolved machine ID
+  const [refillPage, setRefillPage] = useState(1);
+  const refillLimit = 50;
   const {
     data: refills,
     isLoading: refillsLoading
   } = useQuery({
-    queryKey: ['/api/machines', resolvedMachineId, 'refills'],
-    queryFn: () => getRefillsByMachine(resolvedMachineId!.toString(), 20),
+    queryKey: ['/api/machines', resolvedMachineId, 'refills', refillPage],
+    queryFn: () => getRefillsByMachine(resolvedMachineId!.toString(), refillLimit),
     enabled: !!resolvedMachineId && activeTab === "auffullungen"
   });
   
@@ -847,19 +854,35 @@ export default function AutomatDetail() {
                 </Table>
               ) : (
                 <div className="text-center py-8">
-                  <p className="text-gray-500">Keine Transaktionen gefunden</p>
+                  <ShoppingCart className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium mb-2">Keine Transaktionen gefunden</h3>
+                  <p className="text-gray-500">
+                    {resolvedMachineId 
+                      ? 'Für diesen Automaten wurden noch keine Verkäufe aufgezeichnet.' 
+                      : 'Automat wird geladen...'}
+                  </p>
                 </div>
               )}
             </CardContent>
-            {transactions && transactions.length > 0 && (
-              <CardFooter className="flex justify-between">
-                <Button variant="ghost" size="sm" disabled>
+            {(transactions && transactions.length > 0) || transactionsLoading && (
+              <CardFooter className="flex justify-between items-center">
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => setTransactionPage(p => Math.max(1, p - 1))}
+                  disabled={transactionPage <= 1 || transactionsLoading}
+                >
                   Vorherige
                 </Button>
                 <div className="text-sm text-gray-500">
-                  Seite 1 von 1
+                  Seite {transactionPage} {transactions && transactions.length === transactionLimit ? '(weitere verfügbar)' : ''}
                 </div>
-                <Button variant="ghost" size="sm" disabled>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => setTransactionPage(p => p + 1)}
+                  disabled={!transactions || transactions.length < transactionLimit || transactionsLoading}
+                >
                   Nächste
                 </Button>
               </CardFooter>

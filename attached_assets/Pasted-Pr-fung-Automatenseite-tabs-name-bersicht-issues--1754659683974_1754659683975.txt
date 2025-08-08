@@ -1,0 +1,109 @@
+Prüfung Automatenseite: 
+{
+  "tabs": [
+    {
+      "name": "Übersicht",
+      "issues": [
+        {
+          "type": "data",
+          "description": "Stammdaten wie Seriennummer und Gerätetyp werden nur als Platzhalter angezeigt."
+        },
+        {
+          "type": "functionality",
+          "description": "Umsatzdiagramm zeigt keinen Inhalt."
+        }
+      ]
+    },
+    {
+      "name": "Transaktionen",
+      "issues": [
+        {
+          "type": "functionality",
+          "description": "Keine Paginierung – es werden nur 20 Einträge geladen."
+        }
+      ]
+    },
+    {
+      "name": "Analysen",
+      "issues": [
+        {
+          "type": "data",
+          "description": "Zeitreihen werden ohne Null-Prüfung ausgewertet; fehlende Daten führen zu Laufzeitfehlern."
+        }
+      ]
+    },
+    {
+      "name": "Auffüllungen",
+      "issues": [
+        {
+          "type": "functionality",
+          "description": "Backend-Methode zum Laden von Auffüllungen fehlt."
+        }
+      ]
+    },
+    {
+      "name": "Auswertung",
+      "issues": [
+        {
+          "type": "functionality",
+          "description": "Zeitraum-Auswahl beeinflusst die Analyse nicht."
+        }
+      ]
+    },
+    {
+      "name": "Inventur",
+      "issues": [
+        {
+          "type": "functionality",
+          "description": "Tab enthält nur Platzhalter ohne echte Bestandsdaten."
+        }
+      ]
+    },
+    {
+      "name": "MHD",
+      "issues": [
+        {
+          "type": "functionality",
+          "description": "MHD-Updates verwenden den falschen HTTP-Verb."
+        }
+      ]
+    },
+    {
+      "name": "Entnommene Produkte",
+      "issues": [
+        {
+          "type": "functionality",
+          "description": "Seitenwechsel nicht implementiert – nur erste Seite sichtbar."
+        }
+      ]
+    },
+    {
+      "name": "Kosten",
+      "issues": [
+        {
+          "type": "functionality",
+          "description": "Kostendaten werden fälschlich mit POST abgefragt."
+        }
+      ]
+    },
+    {
+      "name": "Wirtschaftlichkeit",
+      "issues": [
+        {
+          "type": "functionality",
+          "description": "Profitabilitätsabfrage verwendet POST statt GET."
+        }
+      ]
+    }
+  ],
+  "generalFindings": [
+    {
+      "type": "performance",
+      "description": "Fehlende Indizes auf Transaktionen können Abfragen verlangsamen."
+    },
+    {
+      "type": "code-quality",
+      "description": "Uneinheitliche API-Request-Helper verursachen methodische Verwechslungen."
+    }
+  ]
+}
