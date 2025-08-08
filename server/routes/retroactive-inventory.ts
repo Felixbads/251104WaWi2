@@ -1,6 +1,7 @@
-import express from "express";
+import express, { Request, Response, NextFunction } from "express";
 import { z } from "zod";
 import { storage } from "../storage";
+import { replitAuthMiddleware, ReplitUser } from '../auth/replit-auth';
 import { 
   retroactiveInventoryCounts, 
   retroactiveInventoryCountItems, 
@@ -16,6 +17,14 @@ import { eq, desc, and, gte, lte, sql } from "drizzle-orm";
 import { db } from "../db";
 
 const router = express.Router();
+
+// Erweitere Request-Interface um user-Property
+interface AuthenticatedRequest extends Request {
+  user?: ReplitUser;
+}
+
+// Authentifizierungs-Middleware für alle Routes anwenden
+router.use(replitAuthMiddleware);
 
 // Validation schemas
 const createRetroactiveCountSchema = z.object({
@@ -272,7 +281,7 @@ router.get('/counts', async (req, res) => {
 });
 
 // POST /api/retroactive-inventory/counts - Neue retroaktive Inventur erstellen
-router.post('/counts', async (req, res) => {
+router.post('/counts', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const validatedData = createRetroactiveCountSchema.parse(req.body);
     
@@ -296,6 +305,11 @@ router.post('/counts', async (req, res) => {
       return res.status(400).json({ error: 'Count-Date muss in der Vergangenheit liegen' });
     }
 
+    // Prüfe, ob Benutzer authentifiziert ist
+    if (!req.user) {
+      return res.status(401).json({ error: 'Benutzer nicht authentifiziert' });
+    }
+
     // Erstelle neue Inventur
     const newCount = await db
       .insert(retroactiveInventoryCounts)
@@ -307,8 +321,8 @@ router.post('/counts', async (req, res) => {
         description: validatedData.description,
         reasonForRetroactiveCount: validatedData.reasonForRetroactiveCount,
         notes: validatedData.notes,
-        createdBy: 1, // TODO: Echte User-ID verwenden
-        createdByName: 'System User', // TODO: Echten Benutzernamen verwenden
+        createdBy: req.user.id,
+        createdByName: req.user.username,
         status: 'draft',
       })
       .returning();
@@ -379,7 +393,7 @@ router.get('/counts/:id', async (req, res) => {
 });
 
 // POST /api/retroactive-inventory/counts/:id/items - Item zur Inventur hinzufügen
-router.post('/counts/:id/items', async (req, res) => {
+router.post('/counts/:id/items', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const countId = parseInt(req.params.id);
     const validatedData = addCountItemSchema.parse(req.body);
@@ -441,7 +455,7 @@ router.post('/counts/:id/items', async (req, res) => {
 });
 
 // POST /api/retroactive-inventory/counts/:id/process - Anpassungen berechnen und verarbeiten
-router.post('/counts/:id/process', async (req, res) => {
+router.post('/counts/:id/process', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const countId = parseInt(req.params.id);
 
@@ -471,6 +485,11 @@ router.post('/counts/:id/process', async (req, res) => {
       await db.insert(retroactiveInventoryAdjustments).values(adjustments);
     }
 
+    // Prüfe, ob Benutzer authentifiziert ist
+    if (!req.user) {
+      return res.status(401).json({ error: 'Benutzer nicht authentifiziert' });
+    }
+
     // Update Count-Status
     await db
       .update(retroactiveInventoryCounts)
@@ -478,8 +497,8 @@ router.post('/counts/:id/process', async (req, res) => {
         status: 'processed',
         isProcessed: true,
         processingDate: new Date(),
-        processedBy: 1, // TODO: Echte User-ID
-        processedByName: 'System User', // TODO: Echter Benutzername
+        processedBy: req.user.id,
+        processedByName: req.user.username,
         totalItemsCount: adjustments.length,
         totalDiscrepancies: adjustments.filter(a => a.adjustmentAmount !== 0).length,
         hasNegativeStock: adjustments.some(a => a.wouldCauseNegativeStock),

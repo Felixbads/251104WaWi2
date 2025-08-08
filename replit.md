@@ -67,6 +67,38 @@ const savedTransactions = await storage.createTransactionsBatch(newTransactions)
 - **Sync-Zeit**: Dramatische Verringerung der Verarbeitungszeit
 - **Scheduler-Intervall**: Von 10 auf 30 Minuten erhöht
 
+### Problem: Authentifizierung in Retroaktive Inventur
+**Datum**: 08.08.2025
+**Status**: ✅ Behoben
+
+#### Ursprüngliches Problem
+- Retroaktive Inventur-Routes verwendeten hartcodierte Benutzer-IDs und Namen
+- `createdBy: 1` und `createdByName: 'System User'` anstatt echter Authentifizierung
+- Bypass des Authentifizierungskontext führte zu mangelnder Nachverfolgbarkeit
+- Sicherheitsrisiko durch fehlende Benutzer-Attribution
+
+#### Lösung: Echte Authentifizierung implementiert
+**Implementiert in**:
+- `server/routes/retroactive-inventory.ts`: Authentifizierungs-Middleware hinzugefügt
+- Request-Interface erweitert um `AuthenticatedRequest` mit User-Property
+- Alle POST-Routes nutzen jetzt echte Benutzer-IDs aus `req.user`
+
+#### Technische Details
+```typescript
+// VORHER: Hartcodierte Werte
+createdBy: 1, // TODO: Echte User-ID verwenden
+createdByName: 'System User',
+
+// NACHHER: Echte Authentifizierung  
+createdBy: req.user.id,
+createdByName: req.user.username,
+```
+
+#### Sicherheitsverbesserungen
+- **Authentifizierung**: Alle modifizierenden Routes erfordern jetzt valide Benutzer
+- **Nachverfolgbarkeit**: Echte Benutzer-IDs werden für Audit-Trail gespeichert
+- **Konsistenz**: Einheitliche Authentifizierung im gesamten retroaktiven Inventar-System
+
 ### Deployment-Optimierung
 **Problem**: Autoscale-Deployment ungeeignet für kontinuierliche Background-Prozesse
 **Lösung**: Migration zu Reserved VM Deployment für stabile Background-Services
@@ -99,6 +131,14 @@ const savedTransactions = await storage.createTransactionsBatch(newTransactions)
 - **Strategie**: Schrittweise Synchronisation seit Januar 2023
 
 ## Kürzliche Änderungen
+
+### 08.08.2025 - Sicherheits- und Authentifizierungsverbesserungen
+- ✅ Warehouse-Löschung: Abhängigkeitsprüfung implementiert (warehouse3.api.ts)
+- ✅ Retroaktive Inventur: Hartcodierte User-IDs durch echte Authentifizierung ersetzt
+- ✅ Authentifizierungs-Middleware zu retroactive-inventory.ts hinzugefügt
+- ✅ AuthenticatedRequest-Interface für typisierte User-Daten implementiert
+- ✅ Alle POST-Routes nutzen jetzt req.user.id und req.user.username
+- ✅ Sicherheitsverbesserung: Echte Benutzer-Attribution für Audit-Trail
 
 ### 07.08.2025 - Kritische Performance-Optimierung
 - ✅ Batch-Duplikatsprüfung in database-storage.ts implementiert
