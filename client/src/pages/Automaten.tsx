@@ -67,7 +67,7 @@ export default function Automaten() {
       const validMachines = machinesData.filter(machine => machine.id !== 1);
 
       // Optimized bulk fetch for all machine stats in one request
-      let statsMap = new Map();
+      const statsMap: Map<number, any> = new Map();
       
       if (validMachines.length > 0) {
         try {
