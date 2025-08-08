@@ -341,7 +341,7 @@ export class DatabaseStorage implements IStorage {
           FROM machines m
           LEFT JOIN machine_daily_stats mds ON m.id = mds.machine_id 
             AND mds.date = CURRENT_DATE
-          WHERE m.id != 1  -- Exclude demo machine
+          WHERE m.id <= 18  -- Only show the real 18 machines
           ORDER BY 
             has_transactions,
             today_revenue DESC,
@@ -383,10 +383,11 @@ export class DatabaseStorage implements IStorage {
           extraData: row.extra_data
         }));
       } else {
-        // Return all machines (careful with large datasets)
+        // Return the 18 real machines (default behavior)
         const query = db.select().from(machines)
-          .where(ne(machines.id, 1))  // Exclude demo machine
-          .orderBy(asc(machines.machineName));
+          .where(and(gte(machines.id, 2), lte(machines.id, 18)))  // Only show machines 2-18 (exclude demo machine 1)
+          .orderBy(asc(machines.machineName))
+          .limit(18);  // Explicit limit to 18 machines
         return await query;
       }
     } catch (error) {
@@ -395,10 +396,9 @@ export class DatabaseStorage implements IStorage {
       try {
         console.log('[getMachines] Falling back to simple query due to error');
         const query = db.select().from(machines)
-          .orderBy(asc(machines.machineName));
-        if (limit && limit > 0) {
-          return await query.limit(limit);
-        }
+          .where(and(gte(machines.id, 2), lte(machines.id, 18)))  // Only show machines 2-18 (exclude demo machine 1)
+          .orderBy(asc(machines.machineName))
+          .limit(limit || 18);  // Default to 18 machines if no limit specified
         return await query;
       } catch (fallbackError) {
         console.error("Fallback query also failed:", fallbackError);

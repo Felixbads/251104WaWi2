@@ -44,12 +44,14 @@ export default function Automaten2() {
     queryFn: async () => {
       console.log('Fetching machines and stats...');
       
-      // First get all machines
+      // Get only the first 18 real machines
       const machinesData = await getMachines();
       console.log(`Loaded ${machinesData.length} machines`);
 
-      // Filter out demo machine (ID 1) early
-      const validMachines = machinesData.filter(machine => machine.id !== 1);
+      // Filter to only show machines with IDs 1-18 (excluding demo machine ID 1)
+      const validMachines = machinesData.filter(machine => 
+        machine.id && machine.id >= 2 && machine.id <= 18
+      ).slice(0, 18);
 
       // Create parallel requests for all machine stats
       const statsPromises = validMachines.map(async (machine) => {
