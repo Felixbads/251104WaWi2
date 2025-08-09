@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -128,14 +129,23 @@ function formatTimeAgo(dateString?: string) {
 }
 
 function MachineCard({ machine }: { machine: MachineData }) {
+  const [, setLocation] = useLocation();
+  
   const borderColor = {
     ok: 'border-l-green-500',
     warning: 'border-l-yellow-500',
     error: 'border-l-red-500'
   }[machine.status];
 
+  const handleCardClick = () => {
+    setLocation(`/automaten/${machine.id}`);
+  };
+
   return (
-    <Card className={`hover:shadow-lg transition-shadow cursor-pointer border-l-4 ${borderColor}`}>
+    <Card 
+      className={`hover:shadow-lg transition-shadow cursor-pointer border-l-4 ${borderColor}`}
+      onClick={handleCardClick}
+    >
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between">
           <div>
