@@ -1,7 +1,7 @@
 import express, { Request, Response } from 'express';
 import { db } from '../db';
 import { warehouses } from '@shared/schema';
-import { eq, like, and, or, desc, asc, inArray, ne } from 'drizzle-orm';
+import { eq, like, and, or, desc, asc, inArray, ne, sql } from 'drizzle-orm';
 import { storage } from '../storage';
 
 const router = express.Router();
@@ -17,17 +17,17 @@ router.get('/', async (req: Request, res: Response) => {
 
     console.log(`Warehouse query with params: Page=${page}, Limit=${limit}, Search="${search}", Status="${status}"`);
 
-    // Basis-Query
-    let query = db.select().from(warehouses);
+    // Basis-Query mit kombinierten Where-Bedingungen
+    const whereConditions = [];
     
     // Filter nach Status
     if (status && status !== 'alle') {
-      query = query.where(eq(warehouses.status, status));
+      whereConditions.push(eq(warehouses.status, status));
     }
     
     // Suchfilter hinzufügen
     if (search) {
-      query = query.where(
+      whereConditions.push(
         or(
           like(warehouses.name, `%${search}%`),
           like(warehouses.description || '', `%${search}%`),
@@ -37,27 +37,16 @@ router.get('/', async (req: Request, res: Response) => {
       );
     }
     
-    // Zuerst die Gesamtanzahl der gefilterten Datensätze ermitteln
-    const countQuery = db.select({ count: sql`count(*)` }).from(warehouses);
-    if (status && status !== 'alle') {
-      countQuery.where(eq(warehouses.status, status));
-    }
-    if (search) {
-      countQuery.where(
-        or(
-          like(warehouses.name, `%${search}%`),
-          like(warehouses.description || '', `%${search}%`),
-          like(warehouses.address || '', `%${search}%`),
-          like(warehouses.city || '', `%${search}%`)
-        )
-      );
-    }
+    // Query mit kombinierten Bedingungen
+    const query = db.select().from(warehouses)
+      .where(whereConditions.length > 0 ? and(...whereConditions) : undefined)
+      .orderBy(asc(warehouses.name))
+      .limit(limit)
+      .offset(offset);
     
-    // Sortierung hinzufügen
-    query = query.orderBy(asc(warehouses.name));
-    
-    // Paginierung hinzufügen
-    query = query.limit(limit).offset(offset);
+    // Count-Query mit denselben Bedingungen
+    const countQuery = db.select({ count: sql`count(*)` }).from(warehouses)
+      .where(whereConditions.length > 0 ? and(...whereConditions) : undefined);
     
     // Daten abrufen
     const warehouseList = await query;
@@ -374,8 +363,5 @@ router.delete('/:id', async (req: Request, res: Response) => {
     });
   }
 });
-
-// Füge hier im SQL Statement eine fehlende Import
-import { sql } from 'drizzle-orm';
 
 export default router;

@@ -90,7 +90,7 @@ import warehouseMovementsRouter from './routes/warehouse-movements';
 import warehouseLocationsRouter from './routes/warehouse-locations';
 import inventoryCountBatchesRouter from './routes/inventory-count-batches';
 import productInventoryRouter from './routes/productInventory';
-// import warehousesRouter from './routes/warehouses'; // Entfernt: Konflikt mit direkter warehouses API
+import warehousesRouter from './routes/warehouses';
 import emailRouter from './routes/email';
 import { criticalInventoryRouter } from './routes/critical-inventory';
 import productSyncRouter from './routes/product-sync';
@@ -339,38 +339,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.setHeader('Content-Type', 'application/json');
     next();
   });
-  // GET /warehouses - Liste aller Lager
-  app.get(`${API_PREFIX}/warehouses`, async (_req: Request, res: Response) => {
-    try {
-      console.log("Versuche, Warehouses abzurufen...");
-      // Direkte SQL-Abfrage da storage.getWarehouses nicht verfügbar
-      const result = await rawDb.query(`
-        SELECT 
-          id,
-          name,
-          address,
-          description,
-          is_active,
-          CASE 
-            WHEN is_active = true THEN 'active'
-            ELSE 'inactive'
-          END as status
-        FROM warehouses 
-        WHERE is_active = true
-        ORDER BY name
-      `);
-      
-      const warehouses = result.rows;
-      console.log("Warehouses erfolgreich abgerufen:", warehouses.length);
-      res.json(warehouses);
-    } catch (error) {
-      console.error("Error fetching warehouses:", error);
-      res.status(500).json({ 
-        error: "Failed to fetch warehouses", 
-        details: error instanceof Error ? error.message : String(error) 
-      });
-    }
-  });
+  // NOTE: Warehouse routes moved to /routes/warehouses.ts router for full CRUD operations
   
   // GET /inventory-movements - Warenbewegungen abrufen
   app.get(`${API_PREFIX}/inventory-movements`, async (req: Request, res: Response) => {
@@ -5582,7 +5551,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // app.use(`${API_PREFIX}/inventory-counts`, inventoryCountBatchesRouter); // DISABLED: Conflicts with inventory.ts router
   app.use(`${API_PREFIX}/warehouse-movements`, warehouseMovementsRouter);
   app.use(`${API_PREFIX}/inventory-movements`, inventoryMovementsRouter);
-  // app.use(`${API_PREFIX}/warehouses`, warehousesRouter); // Entfernt: Konflikt mit direkter warehouses API
+  app.use(`${API_PREFIX}/warehouses`, warehousesRouter);
   
   // Registriere Inventar-API Router für Warehouse-Statistiken
   const inventoryApiRouter = await import('./routes/inventory-api');
