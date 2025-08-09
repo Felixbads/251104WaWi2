@@ -912,7 +912,7 @@ export default function AutomatDetail() {
                 </div>
               )}
             </CardContent>
-            {(transactions && transactions.length > 0) || transactionsLoading && (
+            {((transactions && Array.isArray(transactions) && transactions.length > 0) || transactionsLoading) && (
               <CardFooter className="flex justify-between items-center">
                 <Button 
                   variant="ghost" 

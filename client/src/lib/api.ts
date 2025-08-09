@@ -729,7 +729,17 @@ export interface MachineAnalytics {
 export async function getMachineCosts(machineId: number | string): Promise<any[]> {
   const numericId = typeof machineId === 'string' ? parseInt(machineId, 10) : machineId;
   console.log(`[getMachineCosts] Fetching costs for machine ID: ${numericId}`);
-  return apiRequest<any[]>('get', `/machines/${numericId}/costs`);
+  
+  try {
+    const response = await fetch(`/api/machines/${numericId}/costs`);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    return await response.json();
+  } catch (error) {
+    console.error(`Error fetching machine costs:`, error);
+    return [];
+  }
 }
 
 export async function getMachineProfitability(
@@ -745,7 +755,17 @@ export async function getMachineProfitability(
   }
   
   console.log(`[getMachineProfitability] Fetching profitability for machine ID: ${numericId}, URL: ${url}`);
-  return apiRequest<any>('get', url);
+  
+  try {
+    const response = await fetch(`/api${url}`);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    return await response.json();
+  } catch (error) {
+    console.error(`Error fetching machine profitability:`, error);
+    return null;
+  }
 }
 
 // Automatenanalyse abrufen

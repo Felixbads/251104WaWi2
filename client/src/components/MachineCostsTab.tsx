@@ -51,7 +51,7 @@ const MachineCostsTab: React.FC<MachineCostsTabProps> = ({ machineId }) => {
   // Add new cost mutation
   const addCostMutation = useMutation({
     mutationFn: (data: typeof newCost) => 
-      apiRequest('post', `/machines/${machineId}/costs`, data),
+      apiRequest(`/api/machines/${machineId}/costs`, data, 'POST'),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/machines', machineId, 'costs'] });
       setShowForm(false);

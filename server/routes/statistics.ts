@@ -1073,6 +1073,83 @@ function calculateCorrelation(x, y) {
  * - startDate: (optional, für 'custom') Start-Datum im ISO-Format
  * - endDate: (optional, für 'custom') End-Datum im ISO-Format
  */
+// Machine costs endpoints (uses location_costs table)
+router.get('/machines/:id/costs', async (req, res) => {
+  try {
+    const machineId = parseInt(req.params.id);
+    
+    if (isNaN(machineId)) {
+      return res.status(400).json({ error: 'Invalid machine ID' });
+    }
+
+    const costs = await rawDb.query(`
+      SELECT 
+        lc.*,
+        m.machine_name
+      FROM location_costs lc
+      LEFT JOIN machines m ON lc.machine_id = m.id
+      WHERE lc.machine_id = $1 AND lc.is_active = true
+      ORDER BY lc.created_at DESC
+    `, [machineId]);
+
+    res.json(costs.rows);
+  } catch (error) {
+    console.error('Error fetching machine costs:', error);
+    res.status(500).json({ error: 'Fehler beim Laden der Automatenkosten' });
+  }
+});
+
+router.post('/machines/:id/costs', async (req, res) => {
+  try {
+    const machineId = parseInt(req.params.id);
+    const { costType, amount, frequency, description } = req.body;
+    
+    if (isNaN(machineId)) {
+      return res.status(400).json({ error: 'Invalid machine ID' });
+    }
+
+    // Get machine info for location
+    const machineResult = await rawDb.query(`
+      SELECT id, machine_name, location_id FROM machines WHERE id = $1
+    `, [machineId]);
+
+    if (machineResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Machine not found' });
+    }
+
+    const machine = machineResult.rows[0];
+    const amountNum = parseFloat(amount);
+    const amountGross = amountNum * 1.19; // Add 19% VAT
+
+    const result = await rawDb.query(`
+      INSERT INTO location_costs (
+        machine_id, location_id, cost_type, cost_name, amount_net, amount_gross,
+        billing_cycle, currency, valid_from, description, is_active,
+        created_at, updated_at
+      ) VALUES (
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW(), NOW()
+      ) RETURNING *
+    `, [
+      machineId,
+      machine.location_id,
+      costType,
+      costType,
+      amountNum,
+      amountGross,
+      frequency,
+      'EUR',
+      new Date().toISOString().split('T')[0],
+      description || '',
+      true
+    ]);
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error creating machine cost:', error);
+    res.status(500).json({ error: 'Fehler beim Erstellen der Automatenkosten' });
+  }
+});
+
 router.get('/machines/:id/analytics', async (req, res) => {
   try {
     const inputId = req.params.id;
