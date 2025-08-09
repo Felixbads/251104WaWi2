@@ -70,19 +70,30 @@ export default function LagerbestandPage() {
   // Filtere die Lager basierend auf der Suche
   const filteredWarehouses = (warehousesData?.data && Array.isArray(warehousesData.data)) 
     ? warehousesData.data.filter((warehouse: any) => {
+        // Debug logging
+        console.log('Filtering warehouse:', warehouse.name, 'Status:', warehouse.status, 'StatusFilter:', statusFilter);
+        
         // Status filter
         if (statusFilter !== "alle" && warehouse.status !== statusFilter) {
+          console.log('Warehouse filtered out by status:', warehouse.name);
           return false;
         }
         
         // Suchtext filter
         if (searchTerm && !warehouse.name.toLowerCase().includes(searchTerm.toLowerCase())) {
+          console.log('Warehouse filtered out by search:', warehouse.name);
           return false;
         }
         
+        console.log('Warehouse passed all filters:', warehouse.name);
         return true;
       })
     : [];
+
+  // Debug logging
+  console.log('Warehouses data:', warehousesData);
+  console.log('Filtered warehouses:', filteredWarehouses);
+  console.log('Filtered warehouses length:', filteredWarehouses.length);
 
   // Automatische Aktualisierung alle 5 Minuten
   useEffect(() => {
