@@ -62,13 +62,13 @@ export default function LagerbestandPage() {
   const [limit] = useState(50);
 
   // Lager abrufen
-  const { data: warehousesData = { data: [], meta: { pages: 1 } }, isLoading, error } = useQuery({
+  const { data: warehousesData, isLoading, error } = useQuery({
     queryKey: ['/api/warehouses', { page: currentPage, limit, search: searchTerm, status: statusFilter }],
     staleTime: 1000 * 60 * 5, // 5 Minuten Cache
-  });
+  }) as { data: { data: any[], meta: { pages: number, total: number } } | undefined, isLoading: boolean, error: any };
 
   // Filtere die Lager basierend auf der Suche
-  const filteredWarehouses = Array.isArray(warehousesData.data) 
+  const filteredWarehouses = (warehousesData?.data && Array.isArray(warehousesData.data)) 
     ? warehousesData.data.filter((warehouse: any) => {
         // Status filter
         if (statusFilter !== "alle" && warehouse.status !== statusFilter) {
@@ -358,7 +358,7 @@ export default function LagerbestandPage() {
               </div>
 
               {/* Pagination */}
-              {warehousesData.meta.pages > 1 && (
+              {(warehousesData?.meta?.pages ?? 1) > 1 && (
                 <div className="flex justify-center gap-1 mt-4">
                   <Button
                     variant="outline"
@@ -381,7 +381,7 @@ export default function LagerbestandPage() {
                     {(() => {
                       const buttons = [];
                       const startPage = Math.max(1, currentPage - 2);
-                      const endPage = Math.min(warehousesData.meta.pages || 1, startPage + 4);
+                      const endPage = Math.min(warehousesData?.meta?.pages || 1, startPage + 4);
                       
                       for (let i = startPage; i <= endPage; i++) {
                         buttons.push(
@@ -404,15 +404,15 @@ export default function LagerbestandPage() {
                     variant="outline"
                     size="sm"
                     onClick={() => setCurrentPage(currentPage + 1)}
-                    disabled={currentPage >= (warehousesData.meta.pages || 1)}
+                    disabled={currentPage >= (warehousesData?.meta?.pages || 1)}
                   >
                     <ChevronRight className="h-4 w-4" />
                   </Button>
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setCurrentPage(warehousesData.meta.pages || 1)}
-                    disabled={currentPage >= (warehousesData.meta.pages || 1)}
+                    onClick={() => setCurrentPage(warehousesData?.meta?.pages || 1)}
+                    disabled={currentPage >= (warehousesData?.meta?.pages || 1)}
                   >
                     <ChevronsRight className="h-4 w-4" />
                   </Button>
