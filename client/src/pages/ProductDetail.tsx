@@ -476,7 +476,7 @@ export default function ProductDetail() {
                   </div>
                   <div>
                     <span className="text-xs sm:text-sm text-gray-500">Produktname</span>
-                    <p className="font-medium text-sm sm:text-base">{product.product_name}</p>
+                    <p className="font-medium text-sm sm:text-base">{product.productName}</p>
                   </div>
                   <div>
                     <Label className="text-xs sm:text-sm text-gray-500">Kategorie</Label>
@@ -490,9 +490,9 @@ export default function ProductDetail() {
                             <SelectValue placeholder="Kategorie wählen" />
                           </SelectTrigger>
                           <SelectContent>
-                            {categories.map((cat: any) => (
-                              <SelectItem key={cat.id} value={cat.name}>{cat.name}</SelectItem>
-                            ))}
+                            {Array.isArray(categories) ? categories.map((cat: string) => (
+                              <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                            )) : []}
                           </SelectContent>
                         </Select>
                         <Button size="sm" onClick={() => saveField('category')}>
@@ -610,7 +610,7 @@ export default function ProductDetail() {
                     {editingField === 'packageTypeId' ? (
                       <div className="flex gap-2 mt-1">
                         <Select
-                          value={editingValues.packageTypeId?.toString() || product.package_type_id?.toString() || ''}
+                          value={editingValues.packageTypeId?.toString() || product.packageTypeId?.toString() || ''}
                           onValueChange={(value) => setEditingValues({...editingValues, packageTypeId: parseInt(value)})}
                         >
                           <SelectTrigger className="flex-1">
@@ -640,7 +640,7 @@ export default function ProductDetail() {
                         <p className="font-medium text-sm sm:text-base">
                           {product.package_type_name || 'Nicht angegeben'}
                         </p>
-                        <Button size="sm" variant="ghost" onClick={() => startEdit('packageTypeId', product.package_type_id)}>
+                        <Button size="sm" variant="ghost" onClick={() => startEdit('packageTypeId', product.packageTypeId)}>
                           <Edit className="h-3 w-3" />
                         </Button>
                       </div>
@@ -655,7 +655,7 @@ export default function ProductDetail() {
                         <Input
                           type="number"
                           step="0.01"
-                          value={editingValues.packageSize || product.package_size || ''}
+                          value={editingValues.packageSize || product.packageSize || ''}
                           onChange={(e) => setEditingValues({...editingValues, packageSize: e.target.value})}
                           placeholder="Gebindegröße eingeben..."
                           className="flex-1"
@@ -812,7 +812,7 @@ export default function ProductDetail() {
                 {editingField === 'nutritionalInfo' ? (
                   <div className="flex gap-2 mt-1">
                     <Textarea
-                      value={editingValues.nutritionalInfo || product.nutritional_info || ''}
+                      value={editingValues.nutritionalInfo || product.nutritionalInfo || ''}
                       onChange={(e) => setEditingValues({...editingValues, nutritionalInfo: e.target.value})}
                       placeholder="Nährwerttabelle eingeben..."
                       className="flex-1 min-h-[100px]"
@@ -829,15 +829,15 @@ export default function ProductDetail() {
                 ) : (
                   <div className="flex items-start gap-2">
                     <div className="flex-1">
-                      {product.nutritional_info ? (
+                      {product.nutritionalInfo ? (
                         <div className="mt-2 p-3 bg-gray-50 rounded border text-xs sm:text-sm">
-                          <pre className="whitespace-pre-wrap font-mono">{product.nutritional_info}</pre>
+                          <pre className="whitespace-pre-wrap font-mono">{product.nutritionalInfo}</pre>
                         </div>
                       ) : (
                         <p className="font-medium text-sm sm:text-base text-gray-500">Keine Nährwerttabelle vorhanden</p>
                       )}
                     </div>
-                    <Button size="sm" variant="ghost" onClick={() => startEdit('nutritionalInfo', product.nutritional_info)}>
+                    <Button size="sm" variant="ghost" onClick={() => startEdit('nutritionalInfo', product.nutritionalInfo)}>
                       <Edit className="h-3 w-3" />
                     </Button>
                   </div>
@@ -965,7 +965,7 @@ export default function ProductDetail() {
           <UnifiedPurchaseConditionsManager 
             mode="product"
             entityId={parseInt(id!)}
-            entityName={product.product_name || `Produkt #${product.id}`}
+            entityName={product.productName || `Produkt #${product.id}`}
           />
         </TabsContent>
 

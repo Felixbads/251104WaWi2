@@ -53,6 +53,8 @@ import {
   TableRow 
 } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { MachineEditDialog } from "@/components/machine/MachineEditDialog";
+import { RefillDialog } from "@/components/machine/RefillDialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormLabel } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
@@ -237,6 +239,10 @@ export default function AutomatDetail() {
   const inputId = params?.id;
   const [activeTab, setActiveTab] = useState("allgemein");
   const [resolvedMachineId, setResolvedMachineId] = useState<number | null>(null);
+  
+  // Dialog state
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isRefillDialogOpen, setIsRefillDialogOpen] = useState(false);
 
   // ID Resolution und Maschine abrufen
   const { 
@@ -552,11 +558,21 @@ export default function AutomatDetail() {
             <RefreshCw className="h-4 w-4" />
             <span className="hidden sm:inline">Aktualisieren</span>
           </Button>
-          <Button variant="outline" size="sm" className="gap-2">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="gap-2"
+            onClick={() => setIsEditDialogOpen(true)}
+          >
             <Settings className="h-4 w-4" />
             <span className="hidden sm:inline">Bearbeiten</span>
           </Button>
-          <Button variant="default" size="sm" className="gap-2">
+          <Button 
+            variant="default" 
+            size="sm" 
+            className="gap-2"
+            onClick={() => setIsRefillDialogOpen(true)}
+          >
             <PackagePlus className="h-4 w-4" />
             <span className="hidden sm:inline">Auffüllen</span>
           </Button>
@@ -1603,6 +1619,22 @@ export default function AutomatDetail() {
           <MachineProfitabilityTab machineId={resolvedMachineId || 0} />
         </TabsContent>
       </Tabs>
+
+      {/* Dialoge */}
+      {machine && (
+        <>
+          <MachineEditDialog
+            machine={machine}
+            open={isEditDialogOpen}
+            onOpenChange={setIsEditDialogOpen}
+          />
+          <RefillDialog
+            machine={machine}
+            open={isRefillDialogOpen}
+            onOpenChange={setIsRefillDialogOpen}
+          />
+        </>
+      )}
     </div>
   );
 }
