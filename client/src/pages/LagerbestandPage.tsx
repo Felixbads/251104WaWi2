@@ -64,8 +64,22 @@ export default function LagerbestandPage() {
   // Lager abrufen
   const { data: warehousesData, isLoading, error } = useQuery({
     queryKey: ['/api/warehouses', { page: currentPage, limit, search: searchTerm, status: statusFilter }],
-    staleTime: 1000 * 60 * 5, // 5 Minuten Cache
+    staleTime: 0, // Disable cache to debug
+    refetchOnMount: true,
+    refetchOnWindowFocus: true,
   }) as { data: { data: any[], meta: { pages: number, total: number } } | undefined, isLoading: boolean, error: any };
+
+  // Enhanced debug logging
+  console.log('=== WAREHOUSE DEBUG ===');
+  console.log('Query state - isLoading:', isLoading, 'error:', error);
+  console.log('Raw warehousesData:', warehousesData);
+  console.log('warehousesData?.data exists:', !!warehousesData?.data);
+  console.log('warehousesData?.data is array:', Array.isArray(warehousesData?.data));
+  if (warehousesData?.data) {
+    console.log('warehousesData.data length:', warehousesData.data.length);
+    console.log('First warehouse:', warehousesData.data[0]);
+  }
+  console.log('========================');
 
   // Filtere die Lager basierend auf der Suche
   const filteredWarehouses = (warehousesData?.data && Array.isArray(warehousesData.data)) 
