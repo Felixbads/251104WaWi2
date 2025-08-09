@@ -1,0 +1,63 @@
+tasks": [
+{
+"issue": "Automaten-Detail: Buttons "Bearbeiten" und "Auffüllen" ohne Funktion",
+"task": ":::task-stub{title="Bearbeiten- und Auffüllen-Buttons aktivieren"}\n1. In client/src/pages/AutomatDetail.tsx die Buttons in Zeile 520‑541 mit passenden onClick-Handlern ausstatten, die Bearbeitungs- bzw. Auffüll-Dialoge öffnen.\n2. Vorhandene oder neue Dialog-Komponenten (z. B. MachineEditDialog, RefillDialog) einbinden.\n3. Nach erfolgreicher Aktion Daten via queryClient.invalidateQueries aktualisieren.\n:::"
+},
+{
+"issue": "Automaten-Detail: Analysen/Transaktionen liefern keine Daten trotz vorhandener Umsätze",
+"task": ":::task-stub{title="Analytics-Endpunkte prüfen und korrigieren"}\n1. In client/src/lib/api.ts sicherstellen, dass der Pfad /statistics/machines/{id}/analytics dem Backend entspricht; ggf. korrigieren.\n2. Backend-Routen (z. B. server/routes/statistics.ts) auf korrekte Abfrage und Rückgabe prüfen und Fehlermeldungen loggen.\n3. UI in AutomatDetail.tsx erweitern, um Fehlermeldungen sichtbar auszugeben, statt nur "Keine Daten".\n:::"
+},
+{
+"issue": "Produkte: "Vendon Sync"-Button zeigt keine sichtbare Reaktion",
+"task": ":::task-stub{title="Vendon-Sync-Feedback implementieren"}\n1. In Products.tsx die Funktion handleSyncProducts (Zeilen 380‑420) überprüfen, ob syncProductsWithVendon einen Fehler zurückgibt und Toast-Meldungen korrekt ausgelöst werden.\n2. Sicherstellen, dass der Button (Zeilen 996‑1012) während des Syncs einen Ladeindikator zeigt und nach Erfolg oder Fehler eine Meldung ausgibt.\n3. Backend-Endpunkt /api/product-sync/sync-all (server/routes/product-sync.ts) auf Funktion und Antwortformat prüfen.\n:::"
+},
+{
+"issue": "Produkt-Detail: Kategorie-Dropdown bleibt leer",
+"task": ":::task-stub{title="Kategorie-Dropdown korrigieren"}\n1. In ProductDetail.tsx Mapping der Kategorien anpassen: Server liefert String-Liste, UI erwartet Objekt mit id/name. Entweder Mapping auf Strings umstellen oder Backend so anpassen, dass {id,name} geliefert wird.\n2. Nach Speichern von Änderungen Kategorien-Query (/api/categories/names) invalidieren.\n:::"
+},
+{
+"issue": "Produkt-Detail: Verkäufe zeigen NaN und Buttons ohne Funktion",
+"task": ":::task-stub{title="Verkaufsanalyse korrigieren"}\n1. Backend-Endpunkt /api/products/{id}/sales implementieren oder prüfen, damit avgPrice, totalRevenue und totalSales numerische Werte zurückgeben.\n2. In ProductSalesView.tsx Schutz gegen Division durch 0 und NaN-Werte einbauen.\n3. Buttons für detaillierte Verkaufslisten mit onClick versehen und entsprechende Dialoge/Seiten öffnen.\n:::"
+},
+{
+"issue": "Produkt-Detail: Analyse-Charts bleiben leer",
+"task": ":::task-stub{title="Analyse-Charts mit Daten versorgen"}\n1. Sicherstellen, dass /api/products/{id}/sales die benötigten Felder (summary, salesTrend, machines) liefert.\n2. In ProductAnalyticsView.tsx Fehlerzustände anzeigen und für leere Datensätze eine klare Meldung "Keine Daten vorhanden" ausgeben.\n3. Bei erfolgreicher Datenabfrage Charts mit Recharts-Komponenten füllen und Nullwerte vermeiden.\n:::"
+},
+{
+"issue": "Einkaufsbedingungen: Button "Neue Bedingung" reagiert nicht ohne vorherige Auswahl",
+"task": ":::task-stub{title="Erstellung neuer Einkaufsbedingungen vereinfachen"}\n1. In UnifiedPurchaseConditionsManager.tsx (handleCreate) Benutzerführung verbessern: statt sofortigem Abbruch Dialog öffnen und fehlende Auswahl im Formular abfragen.\n2. Bei Bedarf Pflichtfelder im Dialog markieren und Validation einbauen, bevor gespeichert wird.\n:::"
+},
+{
+"issue": "Einkaufsbedingung-Dialog: Scrollbar schwer erkennbar, Buttons verschwinden",
+"task": ":::task-stub{title="Dialog-Layout optimieren"}\n1. DialogContent so anpassen, dass nur der Body scrollt und Footer mit Buttons fixiert ist (z. B. flex-Layout mit overflow-y-auto im Inhalt, sticky Footer).\n2. Sichtbare Scrollbar oder Hinweis ergänzen.\n:::"
+},
+{
+"issue": "Rabattbedingungen: Speicherung ohne Pflichtfelder möglich",
+"task": ":::task-stub{title="Validierung für Rabattbedingungen hinzufügen"}\n1. In SupplierRabattManager.tsx RabattForm mit react-hook-form und Schema (z. B. zod) erweitern, um discountType, priority, mindestens einen Schwellenwert und einen Rabattwert als Pflichtfelder zu erzwingen.\n2. Vor dem Absenden Fehlermeldungen anzeigen und leere Einträge verhindern.\n:::"
+},
+{
+"issue": "Rabattbedingungen: Papierkorb-Icon löscht Einträge nicht",
+"task": ":::task-stub{title="Löschen von Rabattbedingungen sicherstellen"}\n1. Prüfen, ob deleteMutation korrekt konfiguriert ist und rabatt.id übergeben wird.\n2. Bei Erfolg Eintrag aus Liste entfernen (queryClient.invalidateQueries).\n3. Fehlermeldungen oder Bestätigungsdialog hinzufügen.\n:::"
+},
+{
+"issue": "Bestellung – Versandmodal: "E-Mail senden"-Button schwer erreichbar",
+"task": ":::task-stub{title="Versandmodal benutzbar machen"}\n1. In OrderEmailDialog.tsx Layout anpassen, sodass Inhalt scrollt und Footer mit Senden-/Abbrechen-Buttons fixiert bleibt.\n2. Sicherstellen, dass handleSendEmail ausgelöst wird und visuelles Feedback bei Erfolg/Fehler erscheint.\n:::"
+},
+{
+"issue": "Lieferanten bearbeiten: Pflichtfelder ohne Validierung",
+"task": ":::task-stub{title="Lieferantenformular validieren"}\n1. In SupplierInformationTab.tsx react-hook-form oder ähnliche Validierung nutzen, um Felder wie Firmenname zu prüfen.\n2. Beim Speichern fehlende Pflichtfelder mit Fehlermeldung kennzeichnen.\n:::"
+},
+{
+"issue": "Rückläufer-Analyse: Produktfilter wirkt nicht, Export ohne Feedback",
+"task": ":::task-stub{title="Filter- und Exportfunktion reparieren"}\n1. filterProduct in den Query-Key der Datentabelle aufnehmen oder manuell refetch aufrufen.\n2. In handleExport nach erfolgreichem Download eine Toast-Meldung anzeigen und Fehler abfangen.\n:::"
+},
+{
+"issue": "Warenumlagerung: Auswahl von Produkten erhöht Warenkorb nicht",
+"task": ":::task-stub{title="Warenumlagerung mit Warenkorb implementieren"}\n1. In InternalMovement.tsx statt einzelner selectedProduct einen Warenkorb-State (items[]) einführen.\n2. Beim Auswählen eines Produkts Eintrag mit Menge zum Warenkorb hinzufügen und Zähler anzeigen.\n3. Button "Umlagerung durchführen" aktivieren, sobald Warenkorb nicht leer ist.\n:::"
+},
+{
+"issue": "Allgemein: Diagramme zeigen NaN oder leere Daten",
+"task": ":::task-stub{title="NaN-Werte und leere Diagramme beseitigen"}\n1. Backend-Berechnungen (z. B. durchschnittlicher Preis, Umsatz) auf numerische Rückgabe prüfen; Division durch 0 vermeiden.\n2. Frontend-Komponenten (ProductSalesView, ProductAnalyticsView, AutomatDetail u.a.) so anpassen, dass bei fehlenden Werten eine eindeutige Meldung "Keine Daten" angezeigt wird.\n3. Tests für typische Szenarien (keine Verkäufe, teilweise Daten) hinzufügen.\n:::"
+}
+]
+}
