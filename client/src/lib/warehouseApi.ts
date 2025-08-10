@@ -14,8 +14,10 @@ export interface Warehouse {
  * Ruft alle Lager ab
  * @returns Eine Liste aller Lager
  */
-export async function getWarehouses(): Promise<Warehouse[]> {
+export async function getWarehousesOld(): Promise<Warehouse[]> {
+  console.log('[WAREHOUSE-API-DEBUG] Old warehouseApi.ts getWarehousesOld called');
   const response = await apiRequest('/api/warehouses');
+  console.log('[WAREHOUSE-API-DEBUG] Response:', response);
   return response.json();
 }
 

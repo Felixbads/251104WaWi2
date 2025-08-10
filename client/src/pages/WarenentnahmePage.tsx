@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useLocation } from 'wouter';
 import { useQuery } from '@tanstack/react-query';
 import { getProductDisposals, formatDateTime } from '@/lib/api';
-import { getWarehouses } from '@/lib/warehouseApi';
+import { getWarehousesOld as getWarehouses } from '@/lib/warehouseApi';
 import { getRemovedProducts, getRemovedProductsSummary, exportRemovedProducts } from '@/lib/removedProductsApi';
 import { utils, writeFile } from 'xlsx';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar } from 'recharts';

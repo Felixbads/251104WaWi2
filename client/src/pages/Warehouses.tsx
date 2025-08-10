@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
-import { getWarehouses } from "@/lib/api";
+import { getWarehouses, type Warehouse } from "@/lib/api";
 
 // UI-Komponenten
 import {
@@ -74,16 +74,25 @@ export default function Warehouses() {
   const [currentPage, setCurrentPage] = useState(1);
   const [limit] = useState(50);
 
-  // Abfrage aller Lager
-  const { data: warehouses, isLoading, error } = useQuery({
+  // Abfrage aller Lager - mit Cache-Clear
+  const { data: warehouses, isLoading, error, refetch } = useQuery({
     queryKey: ['/api/warehouses'],
     queryFn: () => getWarehouses(),
+    staleTime: 0, // Immer als veraltet betrachten
+    cacheTime: 0, // Nicht cachen
   });
 
   // DEBUG: Log warehouse data
   console.log('[WAREHOUSES-DEBUG] Raw query result:', { warehouses, isLoading, error });
   console.log('[WAREHOUSES-DEBUG] Warehouses type:', typeof warehouses);
   console.log('[WAREHOUSES-DEBUG] Warehouses length:', warehouses?.length);
+  console.log('[WAREHOUSES-DEBUG] Warehouses content:', warehouses);
+
+  // Force refetch on mount to clear any cache issues
+  useEffect(() => {
+    console.log('[WAREHOUSES-DEBUG] Component mounted, forcing refetch...');
+    refetch();
+  }, [refetch]);
 
   // Handling für Lager bearbeiten
   const handleEditWarehouse = (e: React.MouseEvent, warehouse: any) => {
