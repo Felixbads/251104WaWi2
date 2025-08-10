@@ -1800,7 +1800,11 @@ export async function getWeatherForecast(days = 5): Promise<WeatherForecast[]> {
 
 // Warehouses List API Functions
 export async function getWarehouses(): Promise<Warehouse[]> {
+  console.log('[API-DEBUG] Calling getWarehouses...');
   const response = await apiRequest<{data: Warehouse[], meta: any}>('get', '/warehouses');
+  console.log('[API-DEBUG] getWarehouses response:', response);
+  console.log('[API-DEBUG] response.data:', response.data);
+  console.log('[API-DEBUG] response.data length:', response.data?.length);
   return response.data;
 }
 

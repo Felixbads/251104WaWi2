@@ -80,6 +80,11 @@ export default function Warehouses() {
     queryFn: () => getWarehouses(),
   });
 
+  // DEBUG: Log warehouse data
+  console.log('[WAREHOUSES-DEBUG] Raw query result:', { warehouses, isLoading, error });
+  console.log('[WAREHOUSES-DEBUG] Warehouses type:', typeof warehouses);
+  console.log('[WAREHOUSES-DEBUG] Warehouses length:', warehouses?.length);
+
   // Handling für Lager bearbeiten
   const handleEditWarehouse = (e: React.MouseEvent, warehouse: any) => {
     e.stopPropagation();
@@ -102,6 +107,12 @@ export default function Warehouses() {
         (warehouse.city && warehouse.city.toLowerCase().includes(searchTerm.toLowerCase()))
       )
     : [];
+
+  // DEBUG: Log filtering process
+  console.log('[WAREHOUSES-DEBUG] Filtered warehouses:', filteredWarehouses);
+  console.log('[WAREHOUSES-DEBUG] Search term:', searchTerm);
+  console.log('[WAREHOUSES-DEBUG] Original warehouses length:', warehouses?.length);
+  console.log('[WAREHOUSES-DEBUG] Filtered warehouses length:', filteredWarehouses.length);
 
   // Wenn Lager geladen werden
   if (isLoading) {

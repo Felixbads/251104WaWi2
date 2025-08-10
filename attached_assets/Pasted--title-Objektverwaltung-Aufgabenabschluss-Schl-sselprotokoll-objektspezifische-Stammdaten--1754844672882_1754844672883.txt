@@ -1,0 +1,397 @@
+{
+  "title": "Objektverwaltung: Aufgabenabschluss, Schlüsselprotokoll, objektspezifische Stammdaten, PDF-Protokolle mit Signatur, i18n DE",
+  "context": {
+    "repo_or_app_url": "<DEINE_APP_URL_ODER_REPO>",
+    "tech_stack_hint": "Drizzle ORM (Neon Postgres) Backend, React + Vite + Tailwind Frontend; vorhandene Patterns nutzen.",
+    "language_default": "de"
+  },
+  "goals": [
+    "Aufgabenabschluss ohne Pflichtfeld 'verarbeitete Stunden'; stattdessen Ergebnis-Textfeld + Foto-Upload; Anzeige 'abgeschlossen am' + 'abgeschlossen von'.",
+    "Vollständige German i18n (z. B. 'Letzte Aktivitäten' → 'Letzte Aktivitäten' auf DE, alle übrigen UI‑Texte ebenfalls).",
+    "Schlüssel- und Schloss-Management mit professionellem Schlüsselprotokoll (Ausgabe/Einzug/Verlust) inkl. Pflichtfeldern und PDF-Ausgabe mit digitaler Unterschrift.",
+    "Objektspezifische Stammdaten-Felder je Kategorie (z. B. Fahrzeug vs. Technisches Gerät vs. Gebäude/Einheit vs. Lager/Garage), sowohl im Frontend als auch persistent im Backend.",
+    "PDF-Generierung für Protokolle (Schlüssel, Übergaben, Rückgaben) inkl. Signaturfeld (Unterschrift per Sign-Pad/Touch, Name, Zeitstempel; Hash im Dokument).",
+    "Für jede Kategorie Beispiel­einträge anlegen, speichern, anzeigen; Validieren, dass Daten in DB persistieren und im Frontend korrekt erscheinen.",
+    "Automatisierte End-to-End-Prüfung (Buttons/Links, Create/Read/Update/Save, Uploads, i18n, PDF-Erzeugung, digitale Signatur, Rechte/Rollen)."
+  ],
+  "acceptance_criteria": [
+    "Eine Aufgabe kann ohne Stundenangabe abgeschlossen werden. Pflichtfelder beim Abschluss: resultText (min. 5 Zeichen) und optional 0..n Fotos.",
+    "Nach Abschluss zeigt die Aufgaben-Detailseite: status=completed, completedAt (ISO-Zeit, lokale Anzeige DE), completedBy (Benutzername).",
+    "i18n: Keine verbleibenden englischen UI-Texte in den relevanten Bereichen (Aufgaben, Objekte, Schlüssel, Protokolle, Aktivitäten).",
+    "Schlüsselprotokoll-PDF: enthält alle Pflichtangaben (siehe Felder unten), Unterschrift (gezeichnet oder getippt), Namen in Klartext, Zeitpunkt, unveränderlichen Dokument-Hash; PDF-Download möglich.",
+    "Objektspezifische Felder sind im UI kontextsensitiv sichtbar/editierbar und werden in der DB gespeichert; API/ORM-Modelle wurden migriert (customFields).",
+    "Für jede Kategorie existiert mindestens 1 Beispieldatensatz inkl. Anhängen/Schlüsseln/Protokoll, speicher- und abrufbar.",
+    "Alle neuen/angepassten Buttons und Links funktionieren (kein 404/Dead Link), alle Formulare validieren korrekt, File-Uploads funktionieren (mit Größen- und Dateitypprüfung)."
+  ],
+  "work_plan": [
+    "Analyse & Bestandsaufnahme (Text/Keys prüfen, nicht-deutsche Strings identifizieren).",
+    "DB/ORM-Migrationen für neue/erweiterte Entitäten & Felder.",
+    "API/Service-Layer anpassen (CRUD, Validierungen, Policies).",
+    "Frontend-Formulare & -Views aktualisieren (Aufgabenabschluss, Objekte, Schlüsselprotokoll, Upload, i18n).",
+    "PDF-Templates & Signatur-Workflow implementieren.",
+    "Seed/Fixture-Daten einspielen; Medien-Uploads testen.",
+    "E2E- und Integrationstests schreiben & ausführen; Fehler beheben.",
+    "Abschlussbericht generieren (mit Screenshots, Testprotokoll, Links zu Beispiel-PDFs)."
+  ],
+  "entities_and_fields": {
+    "Task": {
+      "add_or_change": [
+        "id (UUID)",
+        "title (string, required)",
+        "description (string)",
+        "status (enum: open, in_progress, completed, cancelled)",
+        "completedAt (datetime, nullable)",
+        "completedByUserId (UUID, nullable, FK -> users)",
+        "resultText (text, nullable)",
+        "resultPhotos ([]Document, 0..n)",
+        "assigneeId (UUID, FK -> users)",
+        "objectId (UUID, optional, FK -> objects)",
+        "unitId (UUID, optional, FK -> units)"
+      ],
+      "validations": [
+        "Beim Statuswechsel zu 'completed' muss resultText vorhanden sein (min. 5 Zeichen).",
+        "Fotos: erlaubte Typen (jpg/png/heic/pdf), max. 10MB je Datei, max. 10 Dateien."
+      ]
+    },
+    "Document": {
+      "fields": [
+        "id (UUID)",
+        "filePath (string)",
+        "fileName (string)",
+        "originalName (string)",
+        "mimeType (string)",
+        "fileSize (int)",
+        "uploadedBy (UUID, FK -> users)",
+        "objectId (UUID, optional, FK -> objects)",
+        "unitId (UUID, optional, FK -> units)",
+        "createdAt (datetime)",
+        "updatedAt (datetime)"
+      ]
+    },
+    "Lock": {
+      "fields": [
+        "id (UUID)",
+        "name (string, required)",
+        "objectId (UUID, FK -> objects)",
+        "lockCode (string, optional)",
+        "manufacturer (string, optional)",
+        "model (string, optional)",
+        "originKeyCount (int, default 0)",
+        "notes (text, optional)"
+      ]
+    },
+    "Key": {
+      "fields": [
+        "id (UUID)",
+        "keyTag (string, required, unique)",
+        "objectId (UUID, FK -> objects, optional)",
+        "unitId (UUID, FK -> units, optional)",
+        "lockName (string, optional)",
+        "keyType (enum: original, copy, master, grandmaster)",
+        "status (enum: available, issued, lost, maintenance)",
+        "currentHolderId (UUID, optional)",
+        "location (string, optional)",
+        "notes (text, optional)",
+        "qrCode (text, optional)",
+        "createdAt (datetime)",
+        "updatedAt (datetime)"
+      ]
+    },
+    "KeyHandover": {
+      "purpose": "Jede Ausgabe/Rücknahme/Verlustmeldung wird als eigener Vorgang erfasst",
+      "fields": [
+        "id (UUID)",
+        "transactionType (enum: issue, return, loss, reorder, block)",
+        "keyId (UUID, FK -> keys)",
+        "person (string)",
+        "personContact (string, optional)",
+        "idCard (string, optional)",
+        "organization (string, optional)",
+        "usagePurpose (string, optional)",
+        "returnDueDate (date, optional)",
+        "handoverDate (datetime)",
+        "handoverLocation (string, optional)",
+        "performedByUserId (UUID, FK -> users)",
+        "acceptanceDate (datetime, optional)",
+        "acceptanceUserId (UUID, optional)",
+        "lossDate (datetime, optional)",
+        "lossCircumstances (text, optional)",
+        "liabilityAccepted (bool, default false)",
+        "signatureName (string)",
+        "signatureImage (binary_or_dataurl, optional)",
+        "signatureTimestamp (datetime)",
+        "documentHash (string)",
+        "protocolDocument (Document, optional)",
+        "notes (text, optional)"
+      ],
+      "required_for_pdf": [
+        "transactionType",
+        "keyId",
+        "person",
+        "handoverDate",
+        "performedByUserId",
+        "signatureName",
+        "signatureTimestamp"
+      ]
+    },
+    "Object": {
+      "common_fields": [
+        "id (UUID)",
+        "type (enum: residential, commercial, mixed, industrial, other)",
+        "name (string, required)",
+        "address (string)",
+        "postalCode (string)",
+        "city (string)",
+        "country (string)",
+        "description (text)",
+        "ownerId (UUID, optional)",
+        "managerId (UUID, optional)",
+        "totalUnits (int)",
+        "totalArea (number)",
+        "yearBuilt (int)",
+        "customFields (jsonb)",
+        "qrCode (text)",
+        "isActive (bool, default true)",
+        "createdAt (datetime)",
+        "updatedAt (datetime)"
+      ],
+      "type_specific_fields_note": "Typ-spezifische Felder werden in customFields gespeichert",
+      "type_specific_fields": {
+        "residential": [
+          "floor (string)",
+          "area (number)",
+          "usage (string)"
+        ],
+        "vehicle": [
+          "manufacturer (string)",
+          "model (string)",
+          "vin (string, unique)",
+          "licensePlate (string, unique)",
+          "year (int)",
+          "nextInspection (date)",
+          "insurance (string)",
+          "mileage (int)",
+          "fuelType (enum: benzin, diesel, elektro, hybrid, lpg, cng)",
+          "keyCount (int)"
+        ],
+        "equipment": [
+          "deviceType (string)",
+          "manufacturer (string)",
+          "model (string)",
+          "serialNumber (string, unique)",
+          "purchaseDate (date)",
+          "warrantyUntil (date, optional)",
+          "maintenanceIntervalDays (int, optional)",
+          "nextMaintenance (date, optional)"
+        ],
+        "storage": [
+          "locationName (string)",
+          "accessDescription (text)"
+        ],
+        "garage": [
+          "slotNumber (string)",
+          "doorType (string)",
+          "doorOpenerId (string, optional)",
+          "powerConnection (bool)"
+        ],
+        "other": [
+          "freeFields (key:value[])"
+        ]
+      }
+    },
+    "SchluesselRef": {
+      "fields": [
+        "keyId (UUID)",
+        "count (int)"
+      ]
+    }
+  },
+  "migrations": {
+    "instructions": [
+      "Drizzle-Schemata für Task, Document, Lock, Key, KeyHandover und Object erweitern oder anlegen.",
+      "Typ-spezifische Object-Felder über customFields abbilden.",
+      "Füge Indizes/Constraints hinzu (unique VIN/Kennzeichen/Seriennummer; Foreign Keys).",
+      "Datenmigration: bestehende Tasks übernehmen; status/completedAt initial auf null lassen."
+    ]
+  },
+  "api_and_services": {
+    "endpoints": [
+      "PUT /api/tasks/:id { status: 'completed', resultText, photos[] }",
+      "GET/POST/PUT /api/keys",
+      "GET/POST/PUT /api/keyHandovers",
+      "GET/POST/PUT /api/objects",
+      "POST /api/keyHandovers/:id/pdf — erzeugt PDF, speichert Hash + Document",
+      "File-Upload-Endpunkte mit Validierung und Virenscan (falls vorhanden)"
+    ],
+    "policies": [
+      "Nur berechtigte Rollen dürfen Schlüssel ausgeben/entgegennehmen.",
+      "Audit-Log bei Ausgabe/Rücknahme/Verlust."
+    ]
+  },
+  "frontend_changes": {
+    "tasks": [
+      "Detailseite: Button 'Abschließen' öffnet Dialog mit (resultText required, Foto-Upload optional).",
+      "Nach Abschluss: Anzeige 'CompletedAt', 'CompletedBy', resultText, Fotogalerie."
+    ],
+    "i18n": {
+      "action": "Alle relevanten Strings in i18n-Resource-Dateien auslagern und auf Deutsch pflegen.",
+      "examples": {
+        "recent_activity": "Letzte Aktivitäten",
+        "complete_task": "Aufgabe abschließen",
+        "result_notes": "Ergebnis/Notizen",
+        "photos": "Fotos",
+        "completed_at": "Abgeschlossen am",
+        "completed_by": "Abgeschlossen von",
+        "save": "Speichern",
+        "cancel": "Abbrechen"
+      }
+    },
+    "objects": [
+      "Beim Anlegen: Auswahl 'type' steuert Formularfelder (dynamisches Schema via customFields).",
+      "Validierungen & Hilfetexte je Typ.",
+      "Schlüssel-Reiter pro Objekt: Schlüssel zuordnen, Bestand anzeigen."
+    ],
+    "key_center": [
+      "Listen für Schlüssel, Detailseiten.",
+      "Workflow-Assistent: Ausgabe → Rücknahme → Verlustmeldung mit Protokoll-Vorschau, Unterschriftfeld (Canvas) und PDF-Erzeugung."
+    ]
+  },
+  "pdf_and_signature": {
+    "requirements": [
+      "Branding/Kopfzeile (Logo, Firma, Adresse).",
+      "Meta: Vorgangsart, Datum/Uhrzeit, Ort, Bearbeiter, Empfänger.",
+      "Schlüssel-/Schlossdetails (IDs, Nummern, Typ).",
+      "Erklär-/Haftungstext (DE), Unterschriftenfeld (Clientseitiges Canvas; gespeicherte PNG + Name + Zeit).",
+      "Dokument-Hash (SHA-256) im PDF-Footer + Speicherung in DB (KeyHandover.documentHash)."
+    ],
+    "output": [
+      "PDF als Document speichern + Download-Button.",
+      "Optional: E-Mail-Versand an Empfänger (nach Freigabe)."
+    ]
+  },
+  "seed_data": {
+    "tasks": [
+      {
+        "title": "Rauchmelder in Whg 1 prüfen",
+        "description": "Funktionsprüfung + Batterie wechseln",
+        "status": "open",
+        "assigneeId": "<USER_ID>"
+      }
+    ],
+    "keys": [
+      { "keyTag": "HT-001", "keyType": "original", "lockName": "Haustür Basteiplatz 6", "objectId": "<OBJECT_ID>" },
+      { "keyTag": "HT-002", "keyType": "copy", "lockName": "Haustür Basteiplatz 6", "objectId": "<OBJECT_ID>" }
+    ],
+    "objects": [
+      {
+        "type": "residential",
+        "name": "Whg 1 – EG links",
+        "address": "",
+        "customFields": {
+          "floor": "EG",
+          "area": 62,
+          "usage": "Ferienwohnung",
+          "keyStock": [{ "keyId": "<HT-001_ID>", "count": 1 }]
+        }
+      },
+      {
+        "type": "other",
+        "name": "Transporter Krippen",
+        "customFields": {
+          "category": "vehicle",
+          "manufacturer": "VW",
+          "model": "Transporter T6",
+          "licensePlate": "PIR-FZ 1657",
+          "vin": "WV1ZZZ7HZJ1234567",
+          "year": 2019",
+          "nextInspection": "2026-03-31",
+          "fuelType": "diesel",
+          "keyCount": 2
+        }
+      },
+      {
+        "type": "other",
+        "name": "Kärcher NT 30/1",
+        "customFields": {
+          "category": "equipment",
+          "deviceType": "Nass-/Trockensauger",
+          "manufacturer": "Kärcher",
+          "model": "NT 30/1 Tact",
+          "serialNumber": "KAE-NT301-2021-00987",
+          "purchaseDate": "2021-11-10",
+          "maintenanceIntervalDays": 365
+        }
+      },
+      {
+        "type": "other",
+        "name": "Lager – Keller",
+        "customFields": {
+          "category": "storage",
+          "locationName": "Kellerraum 3",
+          "accessDescription": "Treppe rechts, 2. Tür"
+        }
+      },
+      {
+        "type": "other",
+        "name": "Garage Hof",
+        "customFields": {
+          "category": "garage",
+          "slotNumber": "G-2",
+          "powerConnection": true
+        }
+      }
+    ],
+    "keyHandovers": [
+      {
+        "transactionType": "issue",
+        "keyId": "<HT-002_ID>",
+        "person": "Max Mustermann",
+        "personContact": "max@example.com",
+        "handoverDate": "2025-08-10T10:00:00Z",
+        "performedByUserId": "<USER_ID>",
+        "signatureName": "Max Mustermann",
+        "signatureTimestamp": "2025-08-10T10:02:00Z"
+      }
+    ]
+  },
+  "validation_and_tests": {
+    "manual_checks": [
+      "Alle betroffenen Seiten öffnen; keine englischen Texte sichtbar.",
+      "Aufgabe abschließen mit Text + 2 Fotos; danach Detailansicht prüft Felder.",
+      "Schlüssel-Ausgabe durchführen, Unterschrift zeichnen, PDF erzeugen und herunterladen. Hash im PDF-Footer und DB identisch.",
+      "Objekt anlegen je Typ; typ-spezifische Felder erscheinen und speichern (customFields).",
+      "Suche/Filter für Schlüssel/Objekte funktioniert.",
+      "Rollenrechte: Nur berechtigte Nutzer können Schlüssel ausgeben."
+    ],
+    "automated_tests": [
+      "Unit: Models/Validations für neue Felder.",
+      "Integration: API-Routen (CRUD, Abschluss-Endpoint, PDF-Endpoint).",
+      "E2E: Upload-Flow, Abschluss-Dialog, Protokoll-Erstellung, Signatur, PDF-Download, i18n-Strings."
+    ]
+  },
+  "security_and_compliance": {
+    "gdpr": [
+      "Personenbezogene Daten minimieren (Empfängername/Kontakt).",
+      "Zugriffsrechte/Logging für Schlüsselvorgänge.",
+      "Datei-Uploads mit Virenprüfung (falls verfügbar) und Größenlimits."
+    ],
+    "integrity": [
+      "Dokument-Hash speichern; Änderungen erzeugen neue Versionen.",
+      "Audit-Log bei Ausgabe/Rücknahme/Verlust."
+    ]
+  },
+  "deliverables": [
+    "Aktualisierte Drizzle-Schemata/Migrationen",
+    "Angepasste API/Services",
+    "Frontend-Formulare/Views inkl. i18n (DE)",
+    "PDF-Template(s) + Signatur-Workflow",
+    "Seed/Fixtures + Skript",
+    "Automatisierte Tests (Unit/Integration/E2E)",
+    "Abschlussbericht mit Screenshots, Beispiel-PDFs und Testprotokoll"
+  ],
+  "constraints": [
+    "Keine Downtime bei Migration (wenn möglich).",
+    "Bestehende Daten erhalten.",
+    "Klare, dokumentierte Mappings der i18n-Keys."
+  ]
+}
