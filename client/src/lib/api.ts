@@ -49,6 +49,30 @@ export interface Location {
   updatedAt?: string;
 }
 
+// Interface für Lager (Warehouses)
+export interface Warehouse {
+  id: number;
+  name: string;
+  description?: string;
+  address?: string;
+  city?: string;
+  postalCode?: string;
+  country?: string;
+  contactPerson?: string;
+  phone?: string;
+  email?: string;
+  isActive: boolean;
+  status: string;
+  type: string;
+  notes?: string;
+  locationId?: number;
+  createdAt: string;
+  updatedAt: string;
+  // Erweiterte Felder die vom Backend hinzugefügt werden
+  productCount?: number;
+  criticalItemCount?: number;
+}
+
 // Interface für Produkt-Bestand (Stock)
 export interface Stock {
   id: number;
@@ -1776,7 +1800,8 @@ export async function getWeatherForecast(days = 5): Promise<WeatherForecast[]> {
 
 // Warehouses List API Functions
 export async function getWarehouses(): Promise<Warehouse[]> {
-  return apiRequest<Warehouse[]>('get', '/warehouses');
+  const response = await apiRequest<{data: Warehouse[], meta: any}>('get', '/warehouses');
+  return response.data;
 }
 
 // Product Disposal API Functions
