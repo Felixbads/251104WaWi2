@@ -39,6 +39,23 @@ export default function WarehouseOverviewPage() {
     staleTime: 1000 * 60 * 5, // 5 Minuten Cache
   });
 
+  // === CRITICAL DEBUG LOGGING ===
+  console.log('=== WAREHOUSE OVERVIEW PAGE DEBUG ===');
+  console.log('Raw warehouses data from React Query:', warehouses);
+  console.log('warehouses type:', typeof warehouses);
+  console.log('warehouses is array:', Array.isArray(warehouses));
+  console.log('warehouses length:', warehouses?.length);
+  console.log('isLoadingWarehouses:', isLoadingWarehouses);
+  if (warehouses && typeof warehouses === 'object') {
+    console.log('warehouses keys:', Object.keys(warehouses));
+    if ('data' in warehouses) {
+      console.log('warehouses.data exists:', !!warehouses.data);
+      console.log('warehouses.data is array:', Array.isArray(warehouses.data));
+      console.log('warehouses.data length:', warehouses.data?.length);
+    }
+  }
+  console.log('=== END WAREHOUSE OVERVIEW PAGE DEBUG ===');
+
   // Inventar-Statistiken laden - Korrektes Endpoint für warehouse stats verwenden
   const { data: inventoryStats = [], isLoading: isLoadingStats } = useQuery({
     queryKey: ['/api/inventory-api/warehouses/stats'],
@@ -52,6 +69,14 @@ export default function WarehouseOverviewPage() {
         (warehouse.description && warehouse.description.toLowerCase().includes(searchTerm.toLowerCase()))
       )
     : [];
+
+  // === FILTERED WAREHOUSES DEBUG ===
+  console.log('=== FILTERED WAREHOUSES DEBUG ===');
+  console.log('searchTerm:', searchTerm);
+  console.log('Array.isArray(warehouses):', Array.isArray(warehouses));
+  console.log('filteredWarehouses:', filteredWarehouses);
+  console.log('filteredWarehouses.length:', filteredWarehouses.length);
+  console.log('=== END FILTERED WAREHOUSES DEBUG ===');
 
   // Generiere eine Übersicht-Karte für das gesamte System
   const generateSystemOverview = () => {
