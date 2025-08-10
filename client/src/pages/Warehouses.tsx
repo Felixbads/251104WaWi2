@@ -82,11 +82,27 @@ export default function Warehouses() {
     cacheTime: 0, // Nicht cachen
   });
 
-  // DEBUG: Log warehouse data
+  // DEBUG: Detaillierte Analyse der Lager-Daten
+  console.log('=== WAREHOUSES DEBUGGING START ===');
   console.log('[WAREHOUSES-DEBUG] Raw query result:', { warehouses, isLoading, error });
   console.log('[WAREHOUSES-DEBUG] Warehouses type:', typeof warehouses);
   console.log('[WAREHOUSES-DEBUG] Warehouses length:', warehouses?.length);
-  console.log('[WAREHOUSES-DEBUG] Warehouses content:', warehouses);
+  console.log('[WAREHOUSES-DEBUG] Warehouses content (full):', JSON.stringify(warehouses, null, 2));
+  console.log('[WAREHOUSES-DEBUG] First warehouse structure:', warehouses?.[0]);
+  console.log('[WAREHOUSES-DEBUG] Error details:', error);
+  console.log('[WAREHOUSES-DEBUG] Loading state:', isLoading);
+  
+  // Prüfe ob warehouses ein Array ist
+  console.log('[WAREHOUSES-DEBUG] Is warehouses an array?', Array.isArray(warehouses));
+  
+  // Prüfe Struktur der ersten Warehouse falls vorhanden
+  if (warehouses && warehouses.length > 0) {
+    const firstWarehouse = warehouses[0];
+    console.log('[WAREHOUSES-DEBUG] First warehouse keys:', Object.keys(firstWarehouse));
+    console.log('[WAREHOUSES-DEBUG] First warehouse id type:', typeof firstWarehouse.id);
+    console.log('[WAREHOUSES-DEBUG] First warehouse has name?', 'name' in firstWarehouse);
+  }
+  console.log('=== WAREHOUSES DEBUGGING END ===');
 
   // Force refetch on mount to clear any cache issues
   useEffect(() => {

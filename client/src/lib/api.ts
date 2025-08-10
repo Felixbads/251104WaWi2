@@ -1800,11 +1800,27 @@ export async function getWeatherForecast(days = 5): Promise<WeatherForecast[]> {
 
 // Warehouses List API Functions
 export async function getWarehouses(): Promise<Warehouse[]> {
-  console.log('[API-DEBUG] Calling getWarehouses...');
+  console.log('=== API.TS GETWAREHOUSES START ===');
+  console.log('[API-DEBUG] Calling getWarehouses from api.ts...');
+  
   const response = await apiRequest<{data: Warehouse[], meta: any}>('get', '/warehouses');
-  console.log('[API-DEBUG] getWarehouses response:', response);
+  
+  console.log('[API-DEBUG] Raw response object:', response);
+  console.log('[API-DEBUG] Response type:', typeof response);
+  console.log('[API-DEBUG] Response keys:', Object.keys(response || {}));
   console.log('[API-DEBUG] response.data:', response.data);
+  console.log('[API-DEBUG] response.data type:', typeof response.data);
+  console.log('[API-DEBUG] response.data is array?', Array.isArray(response.data));
   console.log('[API-DEBUG] response.data length:', response.data?.length);
+  console.log('[API-DEBUG] response.meta:', response.meta);
+  
+  if (response.data && response.data.length > 0) {
+    console.log('[API-DEBUG] First warehouse from response:', response.data[0]);
+    console.log('[API-DEBUG] First warehouse keys:', Object.keys(response.data[0]));
+  }
+  
+  console.log('[API-DEBUG] Returning:', response.data);
+  console.log('=== API.TS GETWAREHOUSES END ===');
   return response.data;
 }
 
