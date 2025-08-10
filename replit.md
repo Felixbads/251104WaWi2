@@ -132,6 +132,37 @@ createdByName: req.user.username,
 
 ## Kürzliche Änderungen
 
+### 10.08.2025 - Kritischer Warehouse Display Bug behoben
+**Datum**: 10.08.2025
+**Status**: ✅ Behoben
+
+#### Problem
+- Frontend zeigte "Keine Lager gefunden" obwohl API 6 aktive Lager zurückgab
+- Route `/lagerbestand` verwendete WarehouseOverviewPage-Komponente
+- API gab Daten im Format `{data: [...], meta: {...}}` zurück
+- Frontend-Code erwartete direktes Array
+
+#### Lösung
+- **Debugging**: Umfassende Console-Logs zur Identifizierung der Datenstruktur
+- **Fix**: `warehouses.data` statt `warehouses` in Filtering-Logik verwenden
+- **Resultat**: Alle 6 Lager (Bad Gottleuba, Bahnhof, Hohenstein, Pirna, Stolpen, Übigau) werden korrekt angezeigt
+
+#### Technische Details
+```typescript
+// VORHER (fehlerhaft)
+const filteredWarehouses = Array.isArray(warehouses) ? warehouses.filter(...) : [];
+
+// NACHHER (korrekt)  
+const warehousesArray = warehouses?.data || [];
+const filteredWarehouses = Array.isArray(warehousesArray) ? warehousesArray.filter(...) : [];
+```
+
+#### Bestätigte Funktionalität
+- ✅ Warehouse-Liste wird korrekt angezeigt
+- ✅ Navigation zu einzelnen Lagern funktioniert
+- ✅ System-Übersicht zeigt aggregierte Daten
+- ✅ Karten- und Tabellen-Ansicht beide funktional
+
 ### 08.08.2025 - Stock-Ratios-Endpoints vollständig implementiert
 **Datum**: 08.08.2025
 **Status**: ✅ Abgeschlossen
