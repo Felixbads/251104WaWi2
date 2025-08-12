@@ -1,0 +1,79 @@
+SOLL-ZUSTAND ANALYSE
+Erwartete Tab-Struktur und Inhalte:
+1. ALLGEMEIN TAB
+
+Stammdaten: Name, Vendon ID, Seriennummer, Typ, Installationsdatum
+Standortinformationen: Adresse, GPS-Koordinaten, Kontaktdaten
+Live-KPIs: Heutige Transaktionen, Umsatz, letzter Verkauf
+Umsatzentwicklung: 7-Tage-Chart mit echten Daten
+Status-Indikatoren: Online/Offline, Cashless-Status, Wartungsstatus
+2. TRANSAKTIONEN TAB
+
+Live-Transaktionsliste: Echte Verkaufsdaten mit Paginierung
+Filteroptionen: Datum, Produkt, Zahlungsart
+Export-Funktionalität: CSV/Excel-Export
+Transaktionsdetails: Vollständige Informationen pro Verkauf
+3. ANALYSEN TAB
+
+KPI-Übersicht: Verkäufe, Umsatz, Durchschnittspreise (echte Daten)
+Verkaufstrend: Zeitreihen-Charts mit echten Analytics-Daten
+Top-Produkte: Ranking basierend auf echten Verkaufszahlen
+Zahlungsmethoden: Verteilung Cash/Cashless aus echten Daten
+Ereignis-Analyse: Maschinenfehlermeldungen und Events
+4. AUSWERTUNG TAB
+
+Zeitraum-Filter: Woche/Monat/Jahr mit echten Daten
+Wöchentlicher/Monatlicher Ertrag: Charts mit echten Umsatzdaten
+Verkaufszeiten-Analyse: Stündliche Verteilung aus echten Transaktionen
+Top-Produkte vs. Entfernte Produkte: Vergleichsanalyse
+5. AUFFÜLLUNGEN TAB
+
+Auffüllhistorie: Echte Refill-Daten aus der Datenbank
+Produktdetails: Was wurde aufgefüllt, entfernt
+Status-Tracking: Vollständig/In Bearbeitung
+Detailansicht: Navigation zu RefillDetail-Seite
+6. MHD TAB
+
+Produktbestand: Echte Inventardaten mit MHD
+Batch-Verwaltung: Chargen-IDs und Ablaufdaten
+Warnungen: Bald ablaufende Produkte
+Bearbeitungsfunktion: MHD-Daten aktualisieren
+7. ENTNOMMENE PRODUKTE TAB
+
+Entnahme-Historie: Aus Refill-Daten extrahiert
+Grund-Kategorien: Ablauf, Beschädigung, Sonstiges
+Trend-Analyse: Häufig entnommene Produkte
+8. KOSTEN & WIRTSCHAFTLICHKEIT TABS
+
+Betriebskosten: Miete, Strom, Wartung
+Profitabilitätsanalyse: Echte Gewinn-/Verlustrechnung
+ROI-Kennzahlen: Return on Investment
+IST-ZUSTAND ANALYSE
+Aktuelle Implementierung:
+✅ FUNKTIONIERT:
+
+ID-Resolution (vendon_id → machine_id) arbeitet korrekt
+Basis-Navigation und Tab-Struktur vorhanden
+KPI-Abruf funktioniert (daily-stats API)
+MHD-Tab hat funktionierende API-Anbindung
+Grundlegende UI-Komponenten sind implementiert
+⚠️ TEILWEISE FUNKTIONIERT:
+
+Analytics-API wird aufgerufen, aber Datenverarbeitung unvollständig
+Transaktionen werden geladen, aber Darstellung ist basic
+Refills-Tab zeigt Daten, aber ohne Produktdetails
+Charts sind implementiert, aber teilweise mit Dummy-Daten
+❌ NICHT FUNKTIONIERT:
+
+Auswertungs-Charts zeigen oft "Keine Daten verfügbar"
+Wetter-Korrelation fehlt komplett
+Entfernte Produkte Tab lädt nicht korrekt
+Export-Funktionen sind nicht implementiert
+Kosten/Wirtschaftlichkeits-Tabs zeigen Fehler
+Konkrete Probleme:
+Datenverarbeitung: machineAnalytics wird nicht richtig verarbeitet
+API-Aufrufe: Einige APIs returnen leere Arrays
+Komponenten-State: Teilweise wird auf undefined-Werte zugegriffen
+Error-Handling: Fehlerbehandlung unvollständig
+LÖSUNGSPLAN - WAS MUSS GEMACHT WERDEN:
+PHASE 1: API-Datenfluss reparieren
