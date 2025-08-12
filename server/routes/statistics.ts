@@ -1235,126 +1235,115 @@ router.get('/machines/:id/analytics', async (req, res) => {
     
     console.log('Analysezeitraum:', { startDateStr, endDateStr });
 
-    // Parallel-Abfragen für bessere Performance
+    // Get machine info first to determine vendon_id
+    const machineInfoQuery = await db.select({
+      id: machines.id,
+      vendonId: machines.vendonId,
+      machineName: machines.machineName,
+      locationId: machines.locationId,
+      locationName: machines.locationName,
+      status: machines.status,
+      lastSync: machines.lastSync
+    })
+    .from(machines)
+    .where(eq(machines.id, machineId))
+    .limit(1);
+
+    const machineInfo = machineInfoQuery[0];
+    if (!machineInfo) {
+      return res.status(404).json({ error: `Machine not found with ID: ${machineId}` });
+    }
+
+    const vendonId = machineInfo.vendonId;
+    console.log(`[MACHINE-ANALYTICS] Using machine_id=${machineId} and vendon_id=${vendonId} for comprehensive data lookup`);
+
+    // Parallel-Abfragen für bessere Performance - Query both internal ID and vendon_id
     const [
-      machineInfo,
       transactionStats,
       eventCounts,
       refillStats,
       productPerformance,
       paymentMethodDistribution
     ] = await Promise.all([
-      // 1. Basisinformationen über den Automaten
-      db.select({
-        id: machines.id,
-        vendonId: machines.vendonId,
-        machineName: machines.machineName,
-        locationId: machines.locationId,
-        locationName: machines.locationName,
-        status: machines.status,
-        lastSync: machines.lastSync
-      })
-      .from(machines)
-      .where(eq(machines.id, machineId))
-      .limit(1),
+      // 2. Transaktionsstatistiken - Query both internal machine_id AND vendon_id
+      rawDb.query(`
+        SELECT 
+          COUNT(*)::integer as count,
+          COALESCE(SUM(price), 0)::numeric as "totalRevenue",
+          COALESCE(AVG(price), 0)::numeric as "avgPrice"
+        FROM transactions 
+        WHERE (machine_id = $1 OR machine_id = $2)
+          AND datetime >= $3 
+          AND datetime <= $4
+      `, [machineId, parseInt(vendonId) || 0, startDateStr, endDateStr]),
 
-      // 2. Transaktionsstatistiken (Anzahl, Umsatz, Durchschnittspreis)
-      db.select({
-        count: count(),
-        totalRevenue: sql<number>`COALESCE(SUM(${transactions.price}), 0)`,
-        avgPrice: sql<number>`COALESCE(AVG(${transactions.price}), 0)`
-      })
-      .from(transactions)
-      .where(
-        and(
-          eq(transactions.machineId, machineId),
-          gte(sql`${transactions.datetime}::text`, sql`${startDateStr}::text`),
-          lte(sql`${transactions.datetime}::text`, sql`${endDateStr}::text`)
-        )
-      ),
+      // 3. Anzahl verschiedener Ereignistypen - Query both IDs
+      rawDb.query(`
+        SELECT event_type as "eventType", COUNT(*)::integer as count
+        FROM events 
+        WHERE (machine_id = $1 OR machine_id = $2)
+          AND datetime >= $3 
+          AND datetime <= $4
+        GROUP BY event_type
+      `, [machineId, parseInt(vendonId) || 0, startDateStr, endDateStr]),
 
-      // 3. Anzahl verschiedener Ereignistypen
-      db.select({
-        eventType: events.eventType,
-        count: count()
-      })
-      .from(events)
-      .where(
-        and(
-          eq(events.machineId, machineId),
-          gte(sql`${events.datetime}::text`, sql`${startDateStr}::text`),
-          lte(sql`${events.datetime}::text`, sql`${endDateStr}::text`)
-        )
-      )
-      .groupBy(events.eventType),
+      // 4. Auffüllungsstatistiken - Query both IDs
+      rawDb.query(`
+        SELECT 
+          COUNT(*)::integer as count,
+          MAX(datetime) as "lastRefill"
+        FROM refills 
+        WHERE (machine_id = $1 OR machine_id = $2)
+          AND datetime >= $3 
+          AND datetime <= $4
+      `, [machineId, parseInt(vendonId) || 0, startDateStr, endDateStr]),
 
-      // 4. Auffüllungsstatistiken
-      db.select({
-        count: count(),
-        lastRefill: sql<string>`MAX(${refills.datetime})`
-      })
-      .from(refills)
-      .where(
-        and(
-          eq(refills.machineId, machineId),
-          gte(sql`${refills.datetime}::text`, sql`${startDateStr}::text`),
-          lte(sql`${refills.datetime}::text`, sql`${endDateStr}::text`)
-        )
-      ),
+      // 5. Produkt-Performance (meistverkaufte Produkte) - Query both IDs
+      rawDb.query(`
+        SELECT 
+          product_name as "productName",
+          COUNT(*)::integer as count,
+          COALESCE(SUM(price), 0)::numeric as revenue
+        FROM transactions 
+        WHERE (machine_id = $1 OR machine_id = $2)
+          AND datetime >= $3 
+          AND datetime <= $4
+        GROUP BY product_name
+        ORDER BY count DESC
+        LIMIT 5
+      `, [machineId, parseInt(vendonId) || 0, startDateStr, endDateStr]),
 
-      // 5. Produkt-Performance (meistverkaufte Produkte)
-      db.select({
-        productName: transactions.productName,
-        count: count(),
-        revenue: sql<number>`COALESCE(SUM(${transactions.price}), 0)`
-      })
-      .from(transactions)
-      .where(
-        and(
-          eq(transactions.machineId, machineId),
-          gte(sql`${transactions.datetime}::text`, sql`${startDateStr}::text`),
-          lte(sql`${transactions.datetime}::text`, sql`${endDateStr}::text`)
-        )
-      )
-      .groupBy(transactions.productName)
-      .orderBy(desc(sql`count`))
-      .limit(5),
-
-      // 6. Verteilung der Zahlungsmethoden
-      db.select({
-        paymentMethod: transactions.paymentMethod,
-        count: count(),
-        totalAmount: sql<number>`COALESCE(SUM(${transactions.price}), 0)`
-      })
-      .from(transactions)
-      .where(
-        and(
-          eq(transactions.machineId, machineId),
-          gte(sql`${transactions.datetime}::text`, sql`${startDateStr}::text`),
-          lte(sql`${transactions.datetime}::text`, sql`${endDateStr}::text`)
-        )
-      )
-      .groupBy(transactions.paymentMethod)
+      // 6. Verteilung der Zahlungsmethoden - Query both IDs
+      rawDb.query(`
+        SELECT 
+          payment_method as "paymentMethod",
+          COUNT(*)::integer as count,
+          COALESCE(SUM(price), 0)::numeric as "totalAmount"
+        FROM transactions 
+        WHERE (machine_id = $1 OR machine_id = $2)
+          AND datetime >= $3 
+          AND datetime <= $4
+        GROUP BY payment_method
+      `, [machineId, parseInt(vendonId) || 0, startDateStr, endDateStr])
     ]);
 
-    // Zeitreihenabfrage für Transaktionen pro Tag
+    // Zeitreihenabfrage für Transaktionen pro Tag - Query both IDs
     let timeSeriesData = [];
     try {
-      timeSeriesData = await db.select({
-        date: sql<string>`DATE(${transactions.datetime})`,
-        count: count(),
-        revenue: sql<number>`COALESCE(SUM(${transactions.price}), 0)`
-      })
-      .from(transactions)
-      .where(
-        and(
-          eq(transactions.machineId, machineId),
-          gte(sql`${transactions.datetime}::text`, sql`${startDateStr}::text`),
-          lte(sql`${transactions.datetime}::text`, sql`${endDateStr}::text`)
-        )
-      )
-      .groupBy(sql`DATE(${transactions.datetime})`)
-      .orderBy(asc(sql`DATE(${transactions.datetime})`));
+      const timeSeriesResult = await rawDb.query(`
+        SELECT 
+          DATE(datetime) as date,
+          COUNT(*)::integer as count,
+          COALESCE(SUM(price), 0)::numeric as revenue
+        FROM transactions 
+        WHERE (machine_id = $1 OR machine_id = $2)
+          AND datetime >= $3 
+          AND datetime <= $4
+        GROUP BY DATE(datetime)
+        ORDER BY DATE(datetime) ASC
+      `, [machineId, parseInt(vendonId) || 0, startDateStr, endDateStr]);
+      
+      timeSeriesData = timeSeriesResult.rows || [];
     } catch (error) {
       console.error('Fehler bei der Zeitreihenabfrage:', error);
       timeSeriesData = [];
@@ -1384,22 +1373,26 @@ router.get('/machines/:id/analytics', async (req, res) => {
       weatherDataResults = [];
     }
 
-    // Ergebnisse zusammenstellen
+    // Ergebnisse zusammenstellen - Handle raw SQL results
     const machineAnalytics = {
-      machineInfo: machineInfo[0] || null,
+      machineInfo: machineInfo || null,
       periodAnalysis: {
         period: period,
-        startDate: startDateStr, // Verwende den bereits formatierten String
-        endDate: endDateStr, // Verwende den bereits formatierten String
-        transactionStats: transactionStats[0] || { count: 0, totalRevenue: 0, avgPrice: 0 },
-        eventCounts: eventCounts || [],
-        refillStats: refillStats[0] || { count: 0, lastRefill: null }
+        startDate: startDateStr,
+        endDate: endDateStr,
+        transactionStats: transactionStats.rows?.[0] || { count: 0, totalRevenue: 0, avgPrice: 0 },
+        eventCounts: eventCounts.rows || [],
+        refillStats: refillStats.rows?.[0] || { count: 0, lastRefill: null }
       },
-      productPerformance: productPerformance || [],
-      paymentMethodDistribution: paymentMethodDistribution || [],
+      productPerformance: productPerformance.rows || [],
+      paymentMethodDistribution: paymentMethodDistribution.rows || [],
       timeSeries: timeSeriesData || [],
       weatherData: weatherDataResults || []
     };
+
+    console.log(`[MACHINE-ANALYTICS] Completed analytics for machine ${machineId} (vendon_id: ${vendonId})`);
+    console.log(`[MACHINE-ANALYTICS] Found ${transactionStats.rows?.[0]?.count || 0} transactions with ${transactionStats.rows?.[0]?.totalRevenue || 0} EUR revenue`);
+    console.log(`[MACHINE-ANALYTICS] Time series data points: ${timeSeriesData.length}`);
 
     return res.json(machineAnalytics);
   } catch (error) {

@@ -988,7 +988,7 @@ export default function AutomatDetail() {
                     </div>
                     <div className="bg-muted rounded-lg p-4">
                       <div className="text-sm text-muted-foreground mb-1">Umsatz</div>
-                      <div className="text-2xl font-medium">{(machineAnalytics?.periodAnalysis?.transactionStats?.totalRevenue || 0).toFixed(2)} €</div>
+                      <div className="text-2xl font-medium">{(Number(machineAnalytics?.periodAnalysis?.transactionStats?.totalRevenue) || 0).toFixed(2)} €</div>
                     </div>
                     <div className="bg-muted rounded-lg p-4">
                       <div className="text-sm text-muted-foreground mb-1">Auffüllungen</div>
@@ -996,7 +996,7 @@ export default function AutomatDetail() {
                     </div>
                     <div className="bg-muted rounded-lg p-4">
                       <div className="text-sm text-muted-foreground mb-1">Durchschnittlicher Verkauf</div>
-                      <div className="text-2xl font-medium">{(machineAnalytics?.periodAnalysis?.transactionStats?.avgPrice || 0).toFixed(2)} €</div>
+                      <div className="text-2xl font-medium">{(Number(machineAnalytics?.periodAnalysis?.transactionStats?.avgPrice) || 0).toFixed(2)} €</div>
                     </div>
                   </div>
                 </CardContent>
@@ -1616,7 +1616,7 @@ export default function AutomatDetail() {
                               </div>
                               <div className="flex items-center">
                                 <span className="text-muted-foreground text-sm mr-2">{product.count}x</span>
-                                <span className="font-bold">{product.revenue.toFixed(2)} €</span>
+                                <span className="font-bold">{Number(product.revenue).toFixed(2)} €</span>
                               </div>
                             </div>
                             <div className="w-full bg-secondary rounded-full h-2.5">

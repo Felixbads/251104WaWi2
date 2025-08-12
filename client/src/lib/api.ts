@@ -795,7 +795,7 @@ export async function getMachineProfitability(
 // Automatenanalyse abrufen
 export async function getMachineAnalytics(
   machineId: number | string,
-  period: 'day' | 'week' | 'month' | 'year' | 'custom' = 'month',
+  period: 'day' | 'week' | 'month' | 'year' | 'custom' = 'year',
   startDate?: string,
   endDate?: string
 ): Promise<MachineAnalytics> {
