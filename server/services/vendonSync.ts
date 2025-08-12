@@ -1202,43 +1202,43 @@ export class VendonSyncService {
               continue;
             }
             
-            // 🎯 DUPLIKAT-SCHUTZ: Intelligente Maschinen-ID Verarbeitung
+            // 🛡️ DUPLIKAT-SCHUTZ: Robuste Maschinen-ID Verarbeitung (FIXED)
             let machineId: number = 1; // Standardwert
             if (transaction.machine_id) {
               const machineVendonId = transaction.machine_id.toString();
               const machineName = transaction.machine_name || `Maschine ${machineVendonId}`;
               
-              // Schritt 1: Versuche zuerst Vendon-ID
-              let machineData = await storage.getMachineByVendonId(machineVendonId);
+              // COMPREHENSIVE CHECK: Prüfe sowohl vendon_id als auch machine_name in EINEM Query
+              const existingMachine = await rawDb.query(
+                'SELECT * FROM machines WHERE vendon_id = $1 OR machine_name = $2 ORDER BY created_at ASC LIMIT 1',
+                [machineVendonId, machineName]
+              );
               
-              // Schritt 2: Falls nicht gefunden, versuche mit machine_name
-              if (!machineData && machineName) {
-                const existingByName = await rawDb.query(
-                  'SELECT * FROM machines WHERE machine_name = $1 LIMIT 1',
-                  [machineName]
-                );
-                if (existingByName.rows.length > 0) {
-                  // Update vendon_id der bestehenden Maschine
+              if (existingMachine.rows.length > 0) {
+                // Maschine existiert bereits - nutze erste gefundene (älteste)
+                const machineData = existingMachine.rows[0];
+                
+                // Ensure vendon_id is set if missing
+                if (!machineData.vendon_id || machineData.vendon_id !== machineVendonId) {
                   await rawDb.query(
                     'UPDATE machines SET vendon_id = $1, last_sync = $2 WHERE id = $3',
-                    [machineVendonId, new Date(), existingByName.rows[0].id]
+                    [machineVendonId, new Date(), machineData.id]
                   );
-                  machineData = existingByName.rows[0];
-                  console.log(`✅ Maschine ${machineName} mit vendon_id ${machineVendonId} verknüpft`);
+                  console.log(`✅ Maschine ${machineName} vendon_id aktualisiert: ${machineVendonId}`);
                 }
-              }
-              
-              // Schritt 3: Nur wenn wirklich nicht vorhanden, neue Maschine erstellen
-              if (!machineData) {
+                
+                machineId = machineData.id;
+              } else {
+                // ONLY create new machine if NONE exists with this vendon_id OR name
                 const newMachine: InsertMachine = {
                   vendonId: machineVendonId,
                   machineName: machineName,
                   lastSync: new Date()
                 };
-                machineData = await storage.createMachine(newMachine);
+                const machineData = await storage.createMachine(newMachine);
+                machineId = machineData.id;
                 console.log(`🆕 Neue Maschine erstellt: ${machineName} (${machineVendonId})`);
               }
-              machineId = machineData.id;
             }
             
             // Datetime konvertieren

@@ -738,9 +738,10 @@ router.get('/:id/costs', async (req, res) => {
 
   } catch (error) {
     console.error(`[MACHINES API] Error fetching costs for machine ${req.params.id}:`, error);
+    const errorMessage = error instanceof Error ? error.message : 'Unbekannter Fehler';
     res.status(500).json({
       error: 'Fehler beim Laden der Kosten',
-      message: error.message
+      message: errorMessage
     });
   }
 });
