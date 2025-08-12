@@ -59,9 +59,12 @@ export default function TopRemovedProductsTile() {
           </div>
         ) : !topRemovedProducts?.length ? (
           <div className="text-center py-4">
-            <Package className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-            <p className="text-sm text-muted-foreground">
-              Keine Entnahmen in den letzten 7 Tagen
+            <Package className="h-8 w-8 text-green-600 mx-auto mb-2" />
+            <p className="text-sm text-green-600 font-medium">
+              ✓ Keine Entnahmen
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Alle Produkte in den Automaten sind frisch
             </p>
           </div>
         ) : (

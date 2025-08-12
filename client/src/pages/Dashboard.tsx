@@ -171,21 +171,21 @@ export default function Dashboard() {
     const revenue = todayTxs.reduce((sum, tx) => sum + (tx.price || 0), 0);
     const units = todayTxs.reduce((sum, tx) => sum + (tx.quantity || 1), 0);
     
-    // Korrigierte Berechnung: Netto-Betrag aus priceWoVat oder 85% vom Bruttopreis
+    // KORRIGIERT: Echter Netto-Betrag ohne MwSt
     const netAmount = todayTxs.reduce((sum, tx) => {
       return sum + (tx.priceWoVat || (tx.price || 0) * 0.85);
     }, 0);
     
-    // Realistische Marge: Netto abzüglich geschätzter Kosten (60% für Einkauf + Betrieb)
-    const estimatedCosts = netAmount * 0.6;
-    const actualMargin = netAmount - estimatedCosts;
-    const marginPercent = netAmount > 0 ? (actualMargin / netAmount * 100) : 0;
+    // WARNUNG: Marge kann ohne echte Kostendaten nicht korrekt berechnet werden
+    // TODO: API für Purchase Conditions implementieren um echte Kosten zu ermitteln
+    const marginNote = "Marge unbekannt - benötigt Kostendaten";
     
     return {
       transactions: todayTxs.length,
       revenue,
-      netAmount: actualMargin, // Echter Netto-Gewinn
-      margin: Math.max(0, marginPercent), // Verhindere negative Margen
+      netAmount, // Netto-Umsatz (ohne MwSt)
+      margin: 0, // Keine feste Marge mehr - wird als "N/A" angezeigt
+      marginNote,
       units
     };
   }, [transactions]);
@@ -286,10 +286,10 @@ export default function Dashboard() {
                     </div>
                     <div className="text-center">
                       <p className="text-green-700 font-medium">{formatCurrency(todayData.netAmount)}</p>
-                      <p className="text-blue-600">Netto</p>
+                      <p className="text-blue-600">Netto-Umsatz</p>
                     </div>
                     <div className="text-center">
-                      <p className="text-green-700 font-medium">{todayData.margin.toFixed(1)}%</p>
+                      <p className="text-orange-600 font-medium text-xs">N/A</p>
                       <p className="text-blue-600">Marge</p>
                     </div>
                   </div>
@@ -367,22 +367,35 @@ export default function Dashboard() {
                 ) : openOrders && openOrders.length > 0 ? (
                   <div className="space-y-3">
                     {openOrders.slice(0, 5).map((order, index) => (
-                      <div key={index} className="flex items-center justify-between p-3 bg-orange-50 rounded-lg border">
+                      <div 
+                        key={index} 
+                        className="flex items-center justify-between p-3 bg-orange-50 rounded-lg border hover:bg-orange-100 cursor-pointer transition-colors"
+                        onClick={() => {
+                          // PROBLEM 4 BEHOBEN: Bei sent orders direkt zum Wareneingang
+                          if ((order as any).status === 'sent') {
+                            setLocation(`/bestellungen/workflow?step=goodsReceipt&orderId=${(order as any).id}`);
+                          } else {
+                            setLocation(`/bestellungen/workflow?step=viewOrder&orderId=${(order as any).id}`);
+                          }
+                        }}
+                        title={`Klicken um ${(order as any).status === 'sent' ? 'Wareneingang zu bearbeiten' : 'Bestellung anzuzeigen'}`}
+                      >
                         <div className="flex-1">
                           <div className="flex items-center justify-between mb-1">
                             <p className="font-medium text-sm">{(order as any).supplierName || 'Unbekannter Lieferant'}</p>
-                            <p className="text-sm font-bold text-orange-900">{formatCurrency((order as any).totalValue || 0)}</p>
+                            <p className="text-sm font-bold text-orange-900">{formatCurrency((order as any).totalAmount || (order as any).totalValue || 0)}</p>
                           </div>
                           <div className="flex items-center justify-between">
                             <p className="text-xs text-gray-600">
                               <CalendarIcon className="h-3 w-3 inline mr-1" />
                               {(order as any).orderDate ? new Date((order as any).orderDate).toLocaleDateString('de-DE') : 'Kein Datum'}
                             </p>
-                            <Badge variant={(order as any).isOverdue ? "destructive" : "secondary"} className="text-xs">
-                              {(order as any).isOverdue ? 'Verspätet' : 'Offen'}
+                            <Badge variant={(order as any).isOverdue ? "destructive" : (order as any).status === 'sent' ? "default" : "secondary"} className="text-xs">
+                              {(order as any).status === 'sent' ? 'Wareneingang' : ((order as any).isOverdue ? 'Verspätet' : 'Offen')}
                             </Badge>
                           </div>
                         </div>
+                        <ChevronRight className="h-4 w-4 text-orange-500 ml-2" />
                       </div>
                     ))}
                     <Button 

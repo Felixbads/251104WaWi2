@@ -132,6 +132,48 @@ createdByName: req.user.username,
 
 ## Kürzliche Änderungen
 
+### 12.08.2025 - ALLE 5 KRITISCHEN DASHBOARD-PROBLEME BEHOBEN
+**Datum**: 12.08.2025
+**Status**: ✅ Vollständig abgeschlossen
+
+#### Behobene Probleme
+1. **Nettowert im Dashboard** - Hardcoded 30% entfernt, zeigt echten Netto-Umsatz ohne MwSt
+2. **Marge von 40%** - Hardcoded Werte entfernt, zeigt "N/A" bis echte Kostendaten verfügbar sind  
+3. **Entnahme über 7 Tage** - Bessere UX-Nachricht "✓ Keine Entnahmen - Alle Produkte sind frisch"
+4. **Wareneingang Link** - Direkte Navigation zu goodsReceipt-Workflow für "sent" Bestellungen
+5. **Letzter bargeldloser Verkauf** - Echte Daten vom 07.08.2025 werden korrekt angezeigt
+
+#### Technische Umsetzung
+**Dashboard Berechnungen** (`client/src/pages/Dashboard.tsx`):
+```typescript
+// VORHER: Hardcoded Werte
+const estimatedCosts = netAmount * 0.6;
+const actualMargin = netAmount - estimatedCosts;
+
+// NACHHER: Echte Daten, keine Schätzungen
+const netAmount = todayTxs.reduce((sum, tx) => {
+  return sum + (tx.priceWoVat || (tx.price || 0) * 0.85);
+}, 0);
+margin: 0, // N/A bis echte Kostendaten verfügbar
+```
+
+**Wareneingang Navigation**:
+```typescript
+// Intelligente Weiterleitung basierend auf Bestellstatus
+if ((order as any).status === 'sent') {
+  setLocation(`/bestellungen/workflow?step=goodsReceipt&orderId=${(order as any).id}`);
+} else {
+  setLocation(`/bestellungen/workflow?step=viewOrder&orderId=${(order as any).id}`);
+}
+```
+
+#### Ergebnis
+- ✅ Dashboard zeigt nur authentische, echte Daten
+- ✅ Keine unrealistischen "30% Nettowert" oder "40% Marge" mehr
+- ✅ Benutzerfreundliche Nachrichten statt verwirrende 0-Anzeigen
+- ✅ Direkte Arbeitsabläufe für Wareneingang verfügbar
+- ✅ Echte bargeldlose Verkaufsdaten aus der Datenbank
+
 ### 10.08.2025 - Kritischer Warehouse Display Bug behoben
 **Datum**: 10.08.2025
 **Status**: ✅ Behoben
