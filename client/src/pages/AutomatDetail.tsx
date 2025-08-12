@@ -391,14 +391,17 @@ export default function AutomatDetail() {
   // Maschine aktualisieren
   const handleRefresh = () => {
     refetchMachine();
-    if (activeTab === "transaktionen" && resolvedMachineId) {
-      queryClient.invalidateQueries({ queryKey: ['/api/machines', resolvedMachineId, 'transactions'] });
-    }
-    if (activeTab === "auffullungen" && resolvedMachineId) {
-      queryClient.invalidateQueries({ queryKey: ['/api/machines', resolvedMachineId, 'refills'] });
-    }
-    if ((activeTab === "analysen" || activeTab === "auswertung") && resolvedMachineId) {
+    if (resolvedMachineId) {
+      // Force refresh of all data for this machine
+      queryClient.invalidateQueries({ queryKey: ['/api/machines', resolvedMachineId] });
       queryClient.invalidateQueries({ queryKey: ['/statistics/machines', resolvedMachineId, 'analytics'] });
+      
+      if (activeTab === "transaktionen") {
+        queryClient.invalidateQueries({ queryKey: ['/api/machines', resolvedMachineId, 'transactions'] });
+      }
+      if (activeTab === "auffullungen") {
+        queryClient.invalidateQueries({ queryKey: ['/api/machines', resolvedMachineId, 'refills'] });
+      }
     }
   };
 
@@ -847,7 +850,7 @@ export default function AutomatDetail() {
                         <YAxis yAxisId="right" orientation="right" />
                         <RechartTooltip 
                           formatter={(value: any, name: any) => {
-                            if (name === 'revenue') return [`${value.toFixed(2)} €`, 'Umsatz'];
+                            if (name === 'revenue') return [`${Number(value).toFixed(2)} €`, 'Umsatz'];
                             if (name === 'count') return [value, 'Verkäufe'];
                             return [value, name];
                           }}
@@ -1029,7 +1032,7 @@ export default function AutomatDetail() {
                         <YAxis />
                         <RechartTooltip 
                           formatter={(value: any, name: any) => {
-                            if (name === 'revenue') return [`${value.toFixed(2)} €`, 'Umsatz'];
+                            if (name === 'revenue') return [`${Number(value).toFixed(2)} €`, 'Umsatz'];
                             if (name === 'count') return [value, 'Anzahl'];
                             return [value, name];
                           }}
@@ -1075,7 +1078,7 @@ export default function AutomatDetail() {
                         <YAxis />
                         <RechartTooltip 
                           formatter={(value: any, name: any) => {
-                            if (name === 'revenue') return [`${value.toFixed(2)} €`, 'Umsatz'];
+                            if (name === 'revenue') return [`${Number(value).toFixed(2)} €`, 'Umsatz'];
                             if (name === 'count') return [value, 'Anzahl'];
                             return [value, name];
                           }}
@@ -1167,9 +1170,9 @@ export default function AutomatDetail() {
                           <YAxis yAxisId="right" orientation="right" domain={[0, 40]} />
                           <RechartTooltip 
                             formatter={(value: any, name: any) => {
-                              if (name === 'revenue') return [`${value.toFixed(2)} €`, 'Umsatz'];
+                              if (name === 'revenue') return [`${Number(value).toFixed(2)} €`, 'Umsatz'];
                               if (name === 'sales') return [value, 'Verkäufe'];
-                              if (name === 'temperature') return [`${value.toFixed(1)} °C`, 'Temperatur'];
+                              if (name === 'temperature') return [`${Number(value).toFixed(1)} °C`, 'Temperatur'];
                               return [value, name];
                             }}
                             labelFormatter={(label) => new Date(label).toLocaleDateString('de-DE')}
