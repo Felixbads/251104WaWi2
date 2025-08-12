@@ -235,11 +235,7 @@ function AuthenticatedRouter() {
           </ApprovedUserRoute>
         )} />
 
-        <Route path="/standorte/:id" component={props => (
-          <ApprovedUserRoute>
-            <LocationDetail {...props} />
-          </ApprovedUserRoute>
-        )} />
+
 
         <Route path="/automaten/:id/refills/:refillId" component={props => (
           <ApprovedUserRoute>

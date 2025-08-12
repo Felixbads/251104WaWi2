@@ -31,6 +31,7 @@ interface MachineStatusData {
   machineName: string;
   location: string | null;
   locationId?: number | null;
+  realMachineId?: number | null;
   lastRefill?: {
     datetime: string;
     operator: string;
@@ -217,12 +218,13 @@ function MachineStatusCard({ machine }: { machine: MachineStatusData }) {
   };
 
   const handleCardClick = () => {
-    if (machine.locationId) {
-      setLocation(`/standorte/${machine.locationId}`);
+    // Navigate to the machine detail page using the real machine ID
+    if (machine.realMachineId) {
+      setLocation(`/automaten/${machine.realMachineId}`);
     } else {
-      // Fallback: use machine name as location identifier
-      const locationIdentifier = machine.machineName.replace(/[^a-zA-Z0-9]/g, '');
-      setLocation(`/standorte/${locationIdentifier}`);
+      // Fallback: try to find machine by name
+      console.warn(`No realMachineId found for machine: ${machine.machineName}`);
+      setLocation(`/automaten/${machine.id}`);
     }
   };
 
