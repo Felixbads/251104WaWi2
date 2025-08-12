@@ -1,0 +1,56 @@
+
+{
+  "prompt": {
+    "title": "Automaten-Detail Seiten Struktur- und Inhaltsanalyse",
+    "description": "Umfassende Analyse der Automaten-Detail Seiten zur Identifikation von Soll-/Ist-Zustand und erforderlichen Maßnahmen für Live-Daten Integration",
+    "analysis_steps": [
+      {
+        "step": 1,
+        "name": "SOLL-ZUSTAND Analyse",
+        "tasks": [
+          {
+            "task": "Tab-Struktur definieren",
+            "details": [
+              "Welche Tabs sollten auf der Automaten-Detail Seite vorhanden sein?",
+              "Welche primären Funktionen sollte jeder Tab erfüllen?",
+              "Welche Datentypen sollten in jedem Tab dargestellt werden?",
+              "Welche Interaktionsmöglichkeiten sollten verfügbar sein?"
+            ]
+          },
+          {
+            "task": "Dateninhalt pro Tab definieren",
+            "tabs": {
+              "Übersicht": [
+                "Live KPIs (heutige Umsätze, Transaktionen, letzte Verkäufe)",
+                "Automat-Grunddaten (Standort, Modell, Status)",
+                "Aktuelle Wetterdaten am Standort",
+                "Schnellzugriff auf häufige Aktionen"
+              ],
+              "Bestandsanzeige": [
+                "Aktuelle Füllstände aller Produkte",
+                "Kritische Bestände (niedrige Mengen)",
+                "Letzte Befüllung und nächste geplante Befüllung",
+                "Produktverfügbarkeit und -status"
+              ],
+              "Umsatz & Analytics": [
+                "Umsatzentwicklung (täglich, wöchentlich, monatlich)",
+                "Produktperformance-Analyse",
+                "Vergleichsdaten zu anderen Automaten",
+                "Profitabilitäts-Kennzahlen"
+              ],
+              "Transaktionen": [
+                "Live-Transaktionsliste",
+                "Filterung nach Zeitraum, Produkt, Zahlungsart",
+                "Transaktionsdetails und -historie",
+                "Fehlgeschlagene Transaktionen"
+              ],
+              "Wartung & Service": [
+                "Servicestatus und -historie",
+                "Wartungsintervalle und -termine",
+                "Fehlermeldungen und Alerts",
+                "Technische Diagnostik"
+              ],
+              "Befüllung": [
+                "Befüllungshistorie",
+                "Geplante Befüllungen",
+                "Produktbestellungen für diesen Automaten",
