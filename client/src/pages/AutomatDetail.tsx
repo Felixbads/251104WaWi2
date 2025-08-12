@@ -243,11 +243,25 @@ export default function AutomatDetail() {
   const formatCurrency = (amount: number) => 
     new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(amount);
 
-  const formatDate = (dateString: string) => 
-    format(parseISO(dateString), 'dd.MM.yyyy HH:mm', { locale: de });
+  const formatDate = (dateString?: string | null) => {
+    if (!dateString) return 'Unbekannt';
+    try {
+      return format(parseISO(dateString), 'dd.MM.yyyy HH:mm', { locale: de });
+    } catch (error) {
+      console.warn('Invalid date string:', dateString);
+      return 'Ungültiges Datum';
+    }
+  };
 
-  const formatDateOnly = (dateString: string) => 
-    format(parseISO(dateString), 'dd.MM.yyyy', { locale: de });
+  const formatDateOnly = (dateString?: string | null) => {
+    if (!dateString) return 'Unbekannt';
+    try {
+      return format(parseISO(dateString), 'dd.MM.yyyy', { locale: de });
+    } catch (error) {
+      console.warn('Invalid date string:', dateString);
+      return 'Ungültiges Datum';
+    }
+  };
 
   // Status badge component
   const StatusBadge = ({ status }: { status: string }) => {
