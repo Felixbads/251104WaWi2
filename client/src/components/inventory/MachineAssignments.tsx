@@ -79,11 +79,16 @@ export default function MachineAssignments() {
     staleTime: 1000 * 60, // 1 Minute
   });
 
-  // Abfrage der Automaten
-  const { data: machines, isLoading: machinesLoading } = useQuery({
+  // Abfrage der Automaten mit Deduplizierung
+  const { data: machinesRaw, isLoading: machinesLoading } = useQuery({
     queryKey: ['/api/machines'],
     staleTime: 1000 * 60, // 1 Minute
   });
+
+  // Dedupliziere Automaten nach ID (nur eindeutige Maschinen)
+  const machines = machinesRaw ? Array.from(
+    new Map(machinesRaw.map((machine: any) => [machine.id, machine])).values()
+  ) : [];
 
   // Abfrage der Zuordnungen
   const { data: assignments, isLoading: assignmentsLoading, error } = useQuery({

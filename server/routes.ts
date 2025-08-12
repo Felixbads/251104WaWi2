@@ -3492,12 +3492,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get machines
+  // Get machines (deduplicated by machine_name to prevent dropdown duplicates)
   app.get(`${API_PREFIX}/machines`, async (req: Request, res: Response) => {
     try {
       const limit = req.query.limit ? parseInt(req.query.limit as string) : 200;
-      const machines = await storage.getMachines(limit);
-      res.json(machines);
+      
+      // Use deduplicated query similar to /machines/unassigned but include all machines
+      const deduplicatedMachines = await db.execute(sql`
+        WITH ranked_machines AS (
+          SELECT m.id, m.machine_name, m.vendon_id, m.location_name, m.location_id, 
+                 m.status, m.created_at, m.updated_at,
+                 ROW_NUMBER() OVER (PARTITION BY COALESCE(m.location_name, m.machine_name) ORDER BY m.created_at DESC, m.id DESC) as rn
+          FROM machines m
+          WHERE m.machine_name IS NOT NULL
+          AND m.machine_name != ''
+          AND m.machine_name NOT LIKE 'Automat A%'
+          AND m.vendon_id != '1001'
+        )
+        SELECT id, machine_name, vendon_id, location_name, location_id, status, created_at, updated_at
+        FROM ranked_machines 
+        WHERE rn = 1
+        ORDER BY machine_name
+        LIMIT ${limit}
+      `);
+      
+      console.log(`[MACHINES API] Returning ${deduplicatedMachines.rows.length} deduplicated machines (filtered duplicates by location/name)`);
+      res.json(deduplicatedMachines.rows);
     } catch (error) {
       console.error("Error fetching machines:", error);
       res.status(500).json({ 
