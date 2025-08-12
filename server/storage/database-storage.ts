@@ -1413,4 +1413,50 @@ export class DatabaseStorage implements IStorage {
       throw error;
     }
   }
+
+  // 🚀 FEHLENDE METHODEN FÜR LAGERABGLEICH
+
+  // Legacy alias for backwards compatibility
+  async getWarehouse(id: number): Promise<Warehouse | undefined> {
+    return this.getWarehouseById(id);
+  }
+
+  // Machine-Warehouse Assignment operations
+  async getMachineWarehouseAssignments(): Promise<MachineWarehouseAssignment[]> {
+    const result = await db.select().from(machineWarehouseAssignments).orderBy(desc(machineWarehouseAssignments.createdAt));
+    return result;
+  }
+
+  async getMachineWarehouseAssignmentsByWarehouse(warehouseId: number): Promise<MachineWarehouseAssignment[]> {
+    const result = await db.select()
+      .from(machineWarehouseAssignments)
+      .where(eq(machineWarehouseAssignments.warehouseId, warehouseId))
+      .orderBy(desc(machineWarehouseAssignments.createdAt));
+    return result;
+  }
+
+  async getMachineWarehouseAssignmentByMachine(machineId: number): Promise<MachineWarehouseAssignment | undefined> {
+    const result = await db.select()
+      .from(machineWarehouseAssignments)
+      .where(eq(machineWarehouseAssignments.machineId, machineId))
+      .limit(1);
+    return result[0];
+  }
+
+  async createMachineWarehouseAssignment(assignment: InsertMachineWarehouseAssignment): Promise<MachineWarehouseAssignment> {
+    const result = await db.insert(machineWarehouseAssignments).values(assignment).returning();
+    return result[0];
+  }
+
+  async updateMachineWarehouseAssignment(id: number, updates: Partial<MachineWarehouseAssignment>): Promise<MachineWarehouseAssignment> {
+    const result = await db.update(machineWarehouseAssignments)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(machineWarehouseAssignments.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deleteMachineWarehouseAssignment(id: number): Promise<void> {
+    await db.delete(machineWarehouseAssignments).where(eq(machineWarehouseAssignments.id, id));
+  }
 }

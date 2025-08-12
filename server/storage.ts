@@ -435,10 +435,19 @@ export interface IStorage {
   
   // Warehouse operations
   getWarehouses(): Promise<Warehouse[]>;
+  getWarehouse(id: number): Promise<Warehouse | undefined>; // Legacy alias
   getWarehouseById(id: number): Promise<Warehouse | undefined>;
   createWarehouse(warehouse: Omit<Warehouse, 'id' | 'createdAt' | 'updatedAt'>): Promise<Warehouse>;
   updateWarehouse(id: number, updates: Partial<Warehouse>): Promise<Warehouse>;
   deleteWarehouse(id: number): Promise<void>;
+  
+  // Machine-Warehouse Assignment operations
+  getMachineWarehouseAssignments(): Promise<MachineWarehouseAssignment[]>;
+  getMachineWarehouseAssignmentsByWarehouse(warehouseId: number): Promise<MachineWarehouseAssignment[]>;
+  getMachineWarehouseAssignmentByMachine(machineId: number): Promise<MachineWarehouseAssignment | undefined>;
+  createMachineWarehouseAssignment(assignment: Omit<MachineWarehouseAssignment, 'id' | 'createdAt' | 'updatedAt'>): Promise<MachineWarehouseAssignment>;
+  updateMachineWarehouseAssignment(id: number, updates: Partial<MachineWarehouseAssignment>): Promise<MachineWarehouseAssignment>;
+  deleteMachineWarehouseAssignment(id: number): Promise<void>;
   
   // Order operations
   getOrders(): Promise<Order[]>;

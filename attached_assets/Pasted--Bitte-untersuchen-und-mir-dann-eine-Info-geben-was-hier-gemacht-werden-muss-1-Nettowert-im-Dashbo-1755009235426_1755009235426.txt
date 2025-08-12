@@ -1,0 +1,60 @@
+
+Bitte untersuchen und mir dann eine Info geben was hier gemacht werden muss. 1.	Nettowert im Dashboard
+	•	Unklar, was dieser Wert darstellt.
+	•	Klären, ob es sich um eine relevante Kennzahl handelt und ob die Berechnungsgrundlage korrekt ist.
+	2.	Marge im Dashboard
+	•	Aktuell auf 40 % fest eingestellt.
+	•	Prüfen, ob dies ein fixer Wert ist oder dynamisch berechnet werden sollte.
+	3.	Entnahme über 7 Tage
+	•	Klick führt zu „Fehler beim Laden der Warnentnahme“.
+	•	Wert wird mit 0 angezeigt – kann nicht korrekt sein.
+	•	Ursache prüfen und korrekten Wert anzeigen.
+	4.	Warneingang
+	•	Angezeigter Wert (z. B. 22,50 €) wirkt fehlerhaft.
+	•	Klick führt auf „404 – Seite nicht gefunden“ → Pfad existiert nicht.
+	•	Prüfen, ob falscher Bestellwert und falscher Link hinterlegt sind.
+	5.	Maschinenanomalie – letzter bargeldloser Verkauf
+	•	Angezeigtes Datum ist sehr alt und offensichtlich nicht aktuell.
+	•	Prüfen, ob die Datenquelle oder Aktualisierung fehlerhaft ist.
+
+1. Unklarer „Nettowert“ im Dashboard
+Im Dashboard wird das „Ergebnis“ für Produkte und Automaten pauschal als 30 % des Umsatzes berechnet, wodurch der angezeigte Nettowert nicht nachvollziehbar ist. Der KPI „Nettowert“ stammt aus einer statischen Rückfallebene (profit) in client/src/pages/Reporting.tsx.backup; er wird ohne Erklärung angezeigt und basiert nicht auf einer echten Berechnung. Dadurch ist weder seine Relevanz noch seine Grundlage nachvollziehbar.
+
+1. In `client/src/pages/Dashboard.tsx` die feste Multiplikation (`* 0.3`) entfernen und stattdessen den tatsächlichen Nettogewinn auf Basis von Einkaufspreisen oder einer serverseitig gelieferten Marge berechnen. 2. Falls keine zuverlässigen Kostendaten verfügbar sind, die Spalte umbenennen oder ausblenden, um Missverständnisse zu vermeiden. 
+
+1. Öffne `client/src/pages/Reporting.tsx` (suche nach dem Kommentar „KPI-Daten“ oder `getKpiData`). 2. Entferne die hartkodierten Beispielwerte `total`, `profit` usw. 3. Implementiere eine echte Berechnung des Net­to­werts, z.B. über einen neuen API‑Call (`/api/enhanced-profitability/overview`), der Umsatz minus Kosten liefert. 4. Dokumentiere im UI (Tooltip/Label), was „Nettowert“ bedeutet, damit Nutzer den KPI richtig interpretieren können.
+
+
+2. Feste Marge von 40 % in den Statistik-APIs
+Die Statistikroute setzt den Gewinn aktuell fix auf 40 % des Umsatzes, unabhängig von realen Kostenstrukturen
+
+1. In `server/routes/statistics.ts` den festen Faktor `0.4` durch eine Berechnung mit echten Einkaufskosten oder einer konfigurierbaren Marge ersetzen. 2. Die berechneten Margen an das Frontend übermitteln und dort verwenden, anstatt einen Hardcode zu nutzen.
+1. Entferne den festen Wert `profitMargin: "40%"` in `client/src/pages/Reporting.tsx.backup` (und ggf. in `client/src/pages/Reporting.tsx`). 2. Erweitere den Server‑Endpunkt `server/routes/profitability-simple.ts` oder nutze `server/routes/enhanced-profitability.ts`, um `profitMarginPercent` je Zeitraum zu berechnen (z.B. `netProfit / revenueNet` \* 100). 3. Übergib den berechneten Wert im API‑Response und zeige ihn im Dashboard an.
+
+
+3. „Entnahme über 7 Tage“ liefert Fehler/Wert 0
+Das Widget „Häufigste Entnahmen“ greift auf /api/removed-products/top zu; die Anzeige bleibt jedoch leer oder wirft beim Klick einen Ladefehler
+
+1. Prüfen, ob die SQL-Abfrage in `server/routes.ts` (Endpoint `/removed-products/top`) korrekte Daten liefert und ggf. die Datumsfilter oder Limits anpassen. 2. In `TopRemovedProductsTile.tsx` die Fehlerbehandlung verbessern und bei Erfolg zu einer Detailseite navigieren; entsprechende Route und Seite implementieren.
+
+1. In `server/routes/removed-products.ts` einen `router.get('/top', …)` hinzufügen oder den bestehenden POST auf GET umstellen, sodass `/api/removed-products/top` erreichbar ist. 2. Sicherstellen, dass die SQL-Abfrage im GET‑Handler die gewünschte Anzahl Tage und Limit korrekt verarbeitet. 3. In `client/src/components/TopRemovedProductsTile.tsx` ggf. Header/Fehler­behandlung anpassen und erneut testen.
+
+
+4. „Wareneingang“-Kachel verlinkt auf 404
+Der Tile-Eintrag für offene Bestellungen leitet bei Status „sent“ auf /bestellungen/workflow?step=goodsReceipt&orderId=… weiter, was offenbar keine gültige Seite ergibt
+
+1. Den Link in `client/src/pages/Dashboard.tsx` so anpassen, dass er auf eine existierende Wareneingangs-Route verweist (z. B. `/bestellungen/{id}/wareneingang`). 2. Sicherstellen, dass `order.totalAmount` korrekt berechnet und angezeigt wird; bei fehlenden Werten einen plausiblen Fallback darstellen.
+
+1. Prüfe die Route in `client/src/App.tsx` und erstelle (oder korrigiere) einen `<Route>` für `/bestellungen/workflow` mit dem Schritt `goodsReceipt`. 2. Passe `server/storage/orders.ts#getOpenOrders` an, sodass `totalAmount` aus den `order_items` summiert wird (JOIN oder Aggregation). 3. Aktualisiere die Anzeige in `client/src/pages/Dashboard.tsx`, damit der korrekte Betrag und ein funktionierender Link verwendet werden.
+
+
+. Veraltetes Datum „letzter bargeldloser Verkauf“
+Die Ermittlung des letzten bargeldlosen Verkaufs basiert auf einer einzelnen Transaktionsabfrage; veraltete Daten führen zu falschen Anomalie-Hinweisen
+
+1. In `server/routes.ts` die Abfrage auf `transactions` erweitern (z. B. weitere Zahlungsmethoden wie `CARD`) und Zeitkonvertierungen prüfen. 2. In `client/src/pages/Automaten.tsx` den Status-Check nach Datenaktualisierung neu berechnen; ggf. eine automatische Aktualisierung oder Cache-Invalidierung einführen.
+
+1. In `server/routes/location-status-ultra-fast.ts` den Unter‑Query für `last_cashless_sale` ändern: `WHERE payment_method IS NOT NULL AND payment_method <> 'CASH'` (oder die aktuellen Bezeichnungen nutzen). 2. Sicherstellen, dass Transaktionsdaten regelmäßig aktualisiert werden (z.B. durch Sync‑Job). 3. In `client/src/pages/StandortStatus.tsx` die Anzeige anpassen: statt `paymentMethod` den formatierten Timestamp `lastCashlessSale.datetime` ausgeben.
+
+
+
+
