@@ -163,6 +163,46 @@ const filteredWarehouses = Array.isArray(warehousesArray) ? warehousesArray.filt
 - ✅ System-Übersicht zeigt aggregierte Daten
 - ✅ Karten- und Tabellen-Ansicht beide funktional
 
+### 12.08.2025 - KRITISCHE Duplikat-Bereinigung und Performance-Fix
+**Datum**: 12.08.2025  
+**Status**: ✅ Vollständig behoben
+
+#### Problem: Massive Automaten-Duplikate
+- **Ausgangslage**: 341.679 Automaten-Einträge für nur 22 echte Automaten
+- **Dropdown-Problem**: Nutzer sah hunderte Duplikate bei der Automaten-Zuordnung
+- **Ursache**: vendonSync.ts erstellte bei jedem Lauf neue Maschinen statt bestehende zu verwenden
+
+#### Lösung: Vollständige Bereinigung + Duplikat-Schutz
+**Datenbankbereinigung**:
+```sql
+-- Entfernte 341.657 Duplikate, behielt nur neueste pro machine_name
+WITH ranked_machines AS (
+  SELECT *, ROW_NUMBER() OVER (PARTITION BY machine_name ORDER BY created_at DESC) as rn
+  FROM machines WHERE machine_name IS NOT NULL
+)
+DELETE FROM machines WHERE id IN (SELECT id FROM ranked_machines WHERE rn > 1);
+```
+
+**API-Optimierung** (`server/routes.ts`):
+```typescript
+// /api/machines/unassigned mit DISTINCT ON (machine_name) für eindeutige Automaten
+SELECT DISTINCT ON (m.machine_name) m.id, m.machine_name, m.vendon_id
+FROM machines m WHERE mwa.machine_id IS NULL
+ORDER BY m.machine_name, m.created_at DESC
+```
+
+**Duplikat-Schutz** (`server/services/vendonSync.ts`):
+- Intelligente Maschinen-Verknüpfung: Erst vendon_id, dann machine_name suchen
+- Update bestehender Maschinen statt neue Erstellung
+- Nur bei wirklich neuen Automaten neue Einträge
+
+#### Ergebnis
+- ✅ **Datenbank**: Von 341.679 auf 22 eindeutige Automaten reduziert  
+- ✅ **Frontend**: Dropdown zeigt nur noch 20 eindeutige Automaten
+- ✅ **Performance**: Drastische Reduzierung der Datenbankgröße
+- ✅ **Zukunftssicher**: Keine neuen Duplikate durch verbesserte Sync-Logik
+- ✅ **Payment-Method**: REALTIME Transaktionen zeigen korrekt "CASH"/"CASHLESS"
+
 ### 08.08.2025 - Stock-Ratios-Endpoints vollständig implementiert
 **Datum**: 08.08.2025
 **Status**: ✅ Abgeschlossen

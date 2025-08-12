@@ -3510,19 +3510,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get unassigned machines only (for efficient warehouse assignment, excluding test data)
   app.get(`${API_PREFIX}/machines/unassigned`, async (req: Request, res: Response) => {
     try {
-      // 🚀 OPTIMIERT: Filtere eindeutige Automaten und schließe Test-Daten aus
+      // 🎯 EINDEUTIGE AUTOMATEN: Verwende nur den neuesten Eintrag pro machine_name
       const unassignedMachines = await db.execute(sql`
-        SELECT DISTINCT ON (m.machine_name, m.vendon_id) 
-               m.id, m.machine_name, m.vendon_id, m.location_name, m.created_at
-        FROM machines m
-        LEFT JOIN machine_warehouse_assignments mwa ON m.id = mwa.machine_id
-        WHERE mwa.machine_id IS NULL
-        AND m.vendon_id IS NOT NULL
-        AND m.vendon_id != '1001'
-        AND m.machine_name NOT LIKE 'Automat A%'
-        AND m.machine_name IS NOT NULL
-        AND m.machine_name != ''
-        ORDER BY m.machine_name, m.vendon_id, m.created_at DESC
+        WITH ranked_machines AS (
+          SELECT m.id, m.machine_name, m.vendon_id, m.location_name, m.created_at,
+                 ROW_NUMBER() OVER (PARTITION BY m.machine_name ORDER BY m.created_at DESC, m.id DESC) as rn
+          FROM machines m
+          LEFT JOIN machine_warehouse_assignments mwa ON m.id = mwa.machine_id
+          WHERE mwa.machine_id IS NULL
+          AND m.vendon_id IS NOT NULL
+          AND m.vendon_id != '1001'
+          AND m.machine_name NOT LIKE 'Automat A%'
+          AND m.machine_name IS NOT NULL
+          AND m.machine_name != ''
+        )
+        SELECT id, machine_name, vendon_id, location_name, created_at
+        FROM ranked_machines 
+        WHERE rn = 1
+        ORDER BY machine_name
       `);
       
       console.log(`${unassignedMachines.rows.length} unzugeordnete echte Vendon-Automaten gefunden`);

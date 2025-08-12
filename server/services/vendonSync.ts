@@ -1202,19 +1202,41 @@ export class VendonSyncService {
               continue;
             }
             
-            // Maschinen-ID verarbeiten
+            // 🎯 DUPLIKAT-SCHUTZ: Intelligente Maschinen-ID Verarbeitung
             let machineId: number = 1; // Standardwert
             if (transaction.machine_id) {
               const machineVendonId = transaction.machine_id.toString();
+              const machineName = transaction.machine_name || `Maschine ${machineVendonId}`;
+              
+              // Schritt 1: Versuche zuerst Vendon-ID
               let machineData = await storage.getMachineByVendonId(machineVendonId);
               
+              // Schritt 2: Falls nicht gefunden, versuche mit machine_name
+              if (!machineData && machineName) {
+                const existingByName = await rawDb.query(
+                  'SELECT * FROM machines WHERE machine_name = $1 LIMIT 1',
+                  [machineName]
+                );
+                if (existingByName.rows.length > 0) {
+                  // Update vendon_id der bestehenden Maschine
+                  await rawDb.query(
+                    'UPDATE machines SET vendon_id = $1, last_sync = $2 WHERE id = $3',
+                    [machineVendonId, new Date(), existingByName.rows[0].id]
+                  );
+                  machineData = existingByName.rows[0];
+                  console.log(`✅ Maschine ${machineName} mit vendon_id ${machineVendonId} verknüpft`);
+                }
+              }
+              
+              // Schritt 3: Nur wenn wirklich nicht vorhanden, neue Maschine erstellen
               if (!machineData) {
                 const newMachine: InsertMachine = {
                   vendonId: machineVendonId,
-                  machineName: transaction.machine_name || `Maschine ${machineVendonId}`,
+                  machineName: machineName,
                   lastSync: new Date()
                 };
                 machineData = await storage.createMachine(newMachine);
+                console.log(`🆕 Neue Maschine erstellt: ${machineName} (${machineVendonId})`);
               }
               machineId = machineData.id;
             }
