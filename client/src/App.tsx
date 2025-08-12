@@ -187,268 +187,261 @@ function AuthenticatedRouter() {
           )}
         </Route>
 
-        <Route path="/machines" component={props => (
+        <Route path="/machines">
           <ApprovedUserRoute>
-            <Machines {...props} />
+            <Machines />
           </ApprovedUserRoute>
-        )} />
+        </Route>
 
-        <Route path="/automaten" component={props => (
+        <Route path="/automaten">
           <ApprovedUserRoute>
-            <Automaten {...props} />
+            <Automaten />
           </ApprovedUserRoute>
-        )} />
+        </Route>
 
-        <Route path="/automaten2" component={props => (
+        <Route path="/automaten2">
           <ApprovedUserRoute>
-            <Automaten2 {...props} />
+            <Automaten2 />
           </ApprovedUserRoute>
-        )} />
+        </Route>
 
-        <Route path="/automaten-new" component={props => (
+        <Route path="/automaten-new">
           <ApprovedUserRoute>
-            <AutomatenNew {...props} />
+            <AutomatenNew />
           </ApprovedUserRoute>
-        )} />
+        </Route>
 
-        <Route path="/standort-status" component={props => (
+        <Route path="/standort-status">
           <ApprovedUserRoute>
-            <StandortStatus {...props} />
+            <StandortStatus />
           </ApprovedUserRoute>
-        )} />
+        </Route>
 
-        <Route path="/standort-analyse" component={props => (
+        <Route path="/standort-analyse">
           <ApprovedUserRoute>
-            <StandortAnalyse {...props} />
+            <StandortAnalyse />
           </ApprovedUserRoute>
-        )} />
+        </Route>
 
-        <Route path="/db-index" component={props => (
+        <Route path="/db-index">
           <ApprovedUserRoute>
-            <DBIndex {...props} />
+            <DBIndex />
           </ApprovedUserRoute>
-        )} />
+        </Route>
 
-        <Route path="/automaten/:id" component={props => (
+        <Route path="/automaten/:id">
           <ApprovedUserRoute>
-            <AutomatDetail {...props} />
+            <AutomatDetail />
           </ApprovedUserRoute>
-        )} />
+        </Route>
 
 
 
-        <Route path="/automaten/:id/refills/:refillId" component={props => (
+        <Route path="/automaten/:id/refills/:refillId">
           <ApprovedUserRoute>
-            <RefillDetail {...props} />
+            <RefillDetail />
           </ApprovedUserRoute>
-        )} />
+        </Route>
 
-        <Route path="/produkte" component={props => (
+        <Route path="/produkte">
           <ApprovedUserRoute>
-            <ProductsNew {...props} />
+            <ProductsNew />
           </ApprovedUserRoute>
-        )} />
+        </Route>
 
-        <Route path="/produkte/neu" component={props => (
+        <Route path="/produkte/neu">
           <ApprovedUserRoute>
-            <ProductDetail {...props} isNew={true} />
+            <ProductDetail isNew={true} />
           </ApprovedUserRoute>
-        )} />
+        </Route>
 
-        <Route path="/produkte/bearbeiten" component={props => (
+        <Route path="/produkte/bearbeiten">
           <ApprovedUserRoute>
-            <ProductDataEntry {...props} />
+            <ProductDataEntry />
           </ApprovedUserRoute>
-        )} />
+        </Route>
 
-        <Route path="/product-data-entry" component={props => (
+        <Route path="/product-data-entry">
           <ApprovedUserRoute>
-            <ProductDataEntry {...props} />
+            <ProductDataEntry />
           </ApprovedUserRoute>
-        )} />
+        </Route>
 
-        <Route path="/produkte/:id" component={props => (
+        <Route path="/produkte/:id">
           <ApprovedUserRoute>
-            <ProductDetail {...props} />
+            <ProductDetail />
           </ApprovedUserRoute>
-        )} />
+        </Route>
 
-        <Route path="/lieferanten" component={props => (
+        <Route path="/lieferanten">
           <ApprovedUserRoute>
-            <SuppliersFast {...props} />
+            <SuppliersFast />
           </ApprovedUserRoute>
-        )} />
+        </Route>
 
-        <Route path="/retroaktive-inventur" component={props => (
+        <Route path="/retroaktive-inventur">
           <ApprovedUserRoute>
-            <RetroactiveInventory {...props} />
+            <RetroactiveInventory />
           </ApprovedUserRoute>
-        )} />
+        </Route>
 
-        <Route path="/lieferanten/:id" component={props => (
+        <Route path="/lieferanten/:id">
           <ApprovedUserRoute>
-            <SupplierDetail {...props} />
+            <SupplierDetail />
           </ApprovedUserRoute>
-        )} />
+        </Route>
 
-        <Route path="/lieferanten-planung" component={props => (
+        <Route path="/lieferanten-planung">
           <ApprovedUserRoute>
-            <OrderDeliveryOverview {...props} />
+            <OrderDeliveryOverview />
           </ApprovedUserRoute>
-        )} />
+        </Route>
 
         {/* Spezifische Routen MÜSSEN vor dynamischen Routen stehen */}
         {/* BestellungenV4 temporarily disabled */}
 
-        <Route path="/bestellungen/neu-v2" component={props => (
+        <Route path="/bestellungen/neu-v2">
           <ApprovedUserRoute>
-            <BestellungV2 {...props} />
+            <BestellungV2 />
           </ApprovedUserRoute>
-        )} />
+        </Route>
 
         {/* Bestellungen Overview - Main orders list page */}
-        <Route path="/bestellungen" component={props => (
+        <Route path="/bestellungen">
           <ApprovedUserRoute>
-            <OrdersOverviewPage {...props} />
+            <OrdersOverviewPage />
           </ApprovedUserRoute>
-        )} />
+        </Route>
 
         {/* Bestellungen Workflow - Dynamic order workflow */}
-        <Route path="/bestellungen/workflow" component={props => (
+        <Route path="/bestellungen/workflow">
           <ApprovedUserRoute>
-            <BestellungV2 {...props} />
+            <BestellungV2 />
           </ApprovedUserRoute>
-        )} />
+        </Route>
 
         {/* Neue Bestellungen - Order creation process */}
-        <Route path="/bestellungen/neu" component={props => (
+        <Route path="/bestellungen/neu">
           <ApprovedUserRoute>
-            <BestellungV2 {...props} />
+            <BestellungV2 />
           </ApprovedUserRoute>
-        )} />
-
-        {/* Legacy route for compatibility */}
-        <Route path="/bestellungen/neu-v2" component={props => (
-          <ApprovedUserRoute>
-            <BestellungV2 {...props} />
-          </ApprovedUserRoute>
-        )} />
+        </Route>
 
         {/* Enhanced ordering process with smart cart and forecasting */}
-        <Route path="/bestellungen/enhanced" component={props => (
+        <Route path="/bestellungen/enhanced">
           <ApprovedUserRoute>
-            <EnhancedOrdering {...props} />
+            <EnhancedOrdering />
           </ApprovedUserRoute>
-        )} />
+        </Route>
 
         {/* Wiederkehrende Bestellungen mit Automatisierung und Prognose */}
-        <Route path="/wiederkehrende-bestellungen" component={props => (
+        <Route path="/wiederkehrende-bestellungen">
           <ApprovedUserRoute>
-            <RecurringOrdersPage {...props} />
+            <RecurringOrdersPage />
           </ApprovedUserRoute>
-        )} />
+        </Route>
 
-        <Route path="/bestellungen/:id" component={props => (
+        <Route path="/bestellungen/:id">
           <ApprovedUserRoute>
-            <OrderDetail {...props} />
+            <OrderDetail />
           </ApprovedUserRoute>
-        )} />
+        </Route>
 
-        <Route path="/bestellungen/:id/wareneingang" component={props => (
+        <Route path="/bestellungen/:id/wareneingang">
           <ApprovedUserRoute>
-            <OrderReceipt {...props} />
+            <OrderReceipt />
           </ApprovedUserRoute>
-        )} />
+        </Route>
 
-        <Route path="/lieferantenportal" component={props => (
+        <Route path="/lieferantenportal">
           <ApprovedUserRoute>
-            <SupplierPortal {...props} />
+            <SupplierPortal />
           </ApprovedUserRoute>
-        )} />
+        </Route>
 
-        <Route path="/lager" component={props => (
+        <Route path="/lager">
           <ApprovedUserRoute>
-            <LagerPage {...props} />
+            <LagerPage />
           </ApprovedUserRoute>
-        )} />
+        </Route>
 
-        <Route path="/lager-neu" component={props => (
+        <Route path="/lager-neu">
           <ApprovedUserRoute>
-            <LagerNew {...props} />
+            <LagerNew />
           </ApprovedUserRoute>
-        )} />
+        </Route>
 
-        <Route path="/lagerhaltung" component={props => (
+        <Route path="/lagerhaltung">
           <ApprovedUserRoute>
-            <Lagerhaltung {...props} />
+            <Lagerhaltung />
           </ApprovedUserRoute>
-        )} />
+        </Route>
 
-        <Route path="/inventory" component={props => (
+        <Route path="/inventory">
           <ApprovedUserRoute>
-            <Inventory {...props} />
+            <Inventory />
           </ApprovedUserRoute>
-        )} />
+        </Route>
 
-        <Route path="/inventory/movements/new" component={props => (
+        <Route path="/inventory/movements/new">
           <ApprovedUserRoute>
-            <InventoryMovementNew {...props} />
+            <InventoryMovementNew />
           </ApprovedUserRoute>
-        )} />
+        </Route>
 
-        <Route path="/warehouses/:id" component={props => (
+        <Route path="/warehouses/:id">
           <ApprovedUserRoute>
-            <WarehouseDetail {...props} />
+            <WarehouseDetail />
           </ApprovedUserRoute>
-        )} />
+        </Route>
 
-        <Route path="/warehouse/:id" component={props => (
+        <Route path="/warehouse/:id">
           <ApprovedUserRoute>
-            <WarehouseDetailPage {...props} />
+            <WarehouseDetailPage />
           </ApprovedUserRoute>
-        )} />
+        </Route>
 
-        <Route path="/lagerbestand-neu" component={props => (
+        <Route path="/lagerbestand-neu">
           <ApprovedUserRoute>
-            <LagerbestandPage {...props} />
+            <LagerbestandPage />
           </ApprovedUserRoute>
-        )} />
+        </Route>
 
-        <Route path="/kritische-bestaende" component={props => (
+        <Route path="/kritische-bestaende">
           <ApprovedUserRoute>
-            <CriticalInventory {...props} />
+            <CriticalInventory />
           </ApprovedUserRoute>
-        )} />
+        </Route>
 
-        <Route path="/chargenverwaltung" component={props => (
+        <Route path="/chargenverwaltung">
           <ApprovedUserRoute>
-            <BatchManagement {...props} />
+            <BatchManagement />
           </ApprovedUserRoute>
-        )} />
+        </Route>
 
-        <Route path="/ruecklaufer/details/:productName" component={props => (
+        <Route path="/ruecklaufer/details/:productName">
           <ApprovedUserRoute>
-            <RuecklauferDetails {...props} />
+            <RuecklauferDetails />
           </ApprovedUserRoute>
-        )} />
+        </Route>
         
-        <Route path="/ruecklaufer" component={props => (
+        <Route path="/ruecklaufer">
           <ApprovedUserRoute>
-            <Ruecklaufer {...props} />
+            <Ruecklaufer />
           </ApprovedUserRoute>
-        )} />
+        </Route>
 
-        <Route path="/lagerbestand" component={props => (
+        <Route path="/lagerbestand">
           <ApprovedUserRoute>
-            <WarehouseOverviewPage {...props} />
+            <WarehouseOverviewPage />
           </ApprovedUserRoute>
-        )} />
+        </Route>
 
-        <Route path="/lagerbestand/:id" component={props => (
+        <Route path="/lagerbestand/:id">
           <ApprovedUserRoute>
-            <WarehouseInventoryPage {...props} />
+            <WarehouseInventoryPage />
           </ApprovedUserRoute>
-        )} />
+        </Route>
 
         <Route path="/warehouses/:id/warenbewegung" component={props => (
           <ApprovedUserRoute>
