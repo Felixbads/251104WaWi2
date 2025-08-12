@@ -768,31 +768,28 @@ const BestellungV2: React.FC = () => {
       });
       
       if (!response.ok) {
-        throw new Error('Fehler beim Kopieren der Bestellung');
+        const errorText = await response.text();
+        throw new Error(`API-Fehler: ${response.status} - ${errorText}`);
       }
       
       const result = await response.json();
-      
-      // Die API gibt { success: true, order: {...} } zurück
       console.log('API Response:', result);
       
-      if (result && (result.success || result.order)) {
-        const orderData = result.order || result;
+      if (result && result.success && result.order) {
+        const orderData = result.order;
         console.log('Bestellung erfolgreich kopiert:', orderData);
         
         // Setze die neue Bestellungs-ID und vollständige Bestellungsdaten
         setOrderId(orderData.id);
-        setOrderNumber(orderData.orderNumber || orderData.order_number);
+        setOrderNumber(orderData.order_number || orderData.orderNumber);
         setSupplierId(orderData.supplier_id);
         setSupplierName(orderData.supplier_name || '');
         setWarehouseId(orderData.warehouse_id);
         setWarehouseName(orderData.warehouse_name || orderData.location_name || '');
         setExistingOrderData(orderData);
         
-        // Lade auch die kopierten Bestellpositionen
-        if (orderData.items && orderData.items.length > 0) {
-          setOrderItems(orderData.items);
-        }
+        // Lade die Bestellpositionen der kopierten Bestellung
+        await loadOrderItems(orderData.id);
         
         // Gehe zur Bestellübersicht mit allen kopierten Daten
         setStep('viewOrder');
@@ -803,18 +800,29 @@ const BestellungV2: React.FC = () => {
         
         toast({
           title: "Bestellung kopiert",
-          description: `Bestellung ${orderData.orderNumber || orderData.order_number} wurde erfolgreich kopiert`
+          description: `Bestellung ${orderData.order_number || orderData.orderNumber} wurde erfolgreich kopiert und ist bereit zur Bearbeitung.`
         });
+        
+        return true;
       } else {
-        throw new Error(result?.message || 'Unbekannter Fehler beim Kopieren');
+        throw new Error(result?.message || 'Unbekannte Antwort von der API');
       }
     } catch (error) {
       console.error('Fehler beim Kopieren der Bestellung:', error);
+      
+      // Bessere Fehlermeldung für den Benutzer
+      let errorMessage = 'Unbekannter Fehler beim Kopieren der Bestellung';
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      
       toast({
-        title: "Fehler",
-        description: "Fehler beim Kopieren der Bestellung: " + error.message,
+        title: "Kopieren fehlgeschlagen",
+        description: errorMessage,
         variant: "destructive"
       });
+      
+      return false;
     }
   };
   

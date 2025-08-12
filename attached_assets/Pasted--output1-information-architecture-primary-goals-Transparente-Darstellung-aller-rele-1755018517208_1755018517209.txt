@@ -1,0 +1,734 @@
+{
+"output1": {
+"information_architecture": {
+"primary_goals": [
+"Transparente Darstellung aller relevanten Informationen zu einem einzelnen Automaten (ID 325762).",
+"Schneller Zugriff auf aktuelle Verkaufs‑, Auffüll‑ und Ereignisdaten zur operativen Steuerung.",
+"Analyse der Performance (Umsatz, Kosten, Rentabilität) zur kaufmännischen Bewertung."
+],
+"user_roles": {
+"admin": "Voller Zugriff auf alle Tabs, Bearbeitung von MHD, Kosten und Inventur.",
+"manager": "Lesender Zugriff auf alle Tabs, Bearbeiten von Kosten erlaubt.",
+"operator": "Lesender Zugriff auf Allgemein, Transaktionen, Auffüllungen, MHD; keine Kosten/Rentabilität.",
+"unauthorized": "Redirect zu /unauthorized."
+},
+"navigation_paths": [
+"/dashboard → Automat in Liste → Klick auf Name",
+"/automaten → Klick auf Zeile → /automaten/{id}",
+"Deep-Link von extern: /automaten/325762"
+]
+},
+"layout_breakdown": {
+"header": {
+"elements": [
+{ "type": "button", "label": "Zurück", "icon": "ChevronLeft", "action": "navigate:/automaten" },
+{ "type": "badge", "status": "active|inactive|error" },
+{ "type": "button", "label": "Aktualisieren", "icon": "RefreshCw", "action": "refetch all queries" }
+]
+},
+"main": {
+"tabs": [
+"allgemein",
+"transaktionen",
+"analysen",
+"auswertung",
+"auffullungen",
+"mhd",
+"entnommene-produkte",
+"kosten",
+"wirtschaftlichkeit"
+],
+"components_per_tab": {
+"allgemein": [
+"C_StammdatenCard",
+"C_StandortInfoCard",
+"C_UmsatzentwicklungChart"
+],
+"transaktionen": ["C_TransaktionsTable"],
+"analysen": ["C_KPIOverview", "C_VerkaufstrendChart", "C_EreignisAnalyse"],
+"auswertung": [
+"C_WochenErtragChart",
+"C_MonatsErtragChart",
+"C_VerkaufszeitenChart",
+"C_TopVerkaufteProdukteList",
+"C_TopEntfernteProdukteList"
+],
+"auffullungen": ["C_AuffuellungenTable"],
+"mhd": ["C_MHDTab"],
+"entnommene-produkte": ["C_RemovedProductsTab"],
+"kosten": ["C_MachineCostsTab"],
+"wirtschaftlichkeit": ["C_MachineProfitabilityTab"]
+}
+},
+"sidebar": { "present": false },
+"footer": {
+"pagination": {
+"components": [
+"C_TransaktionsTable",
+"C_AuffuellungenTable",
+"C_RemovedProductsTab"
+],
+"pattern": "Seite {current} von {total}"
+},
+"legend": {
+"status_colors": {
+"green": "OK/aktiv",
+"amber": "Warnung",
+"red": "Fehler/Problem"
+}
+}
+}
+},
+"component_inventory": [
+{
+"id": "C_StammdatenCard",
+"purpose": "Anzeige der Stammdaten des Automaten.",
+"states": ["loading", "ready", "error"],
+"inputs": [],
+"outputs": [
+{ "field": "machineName", "type": "string" },
+{ "field": "vendonId", "type": "string" },
+{ "field": "serialNumber", "type": "string|null" },
+{ "field": "machineType", "type": "string|null" },
+{ "field": "installationDate", "type": "date|null", "format": "DD.MM.YYYY" }
+],
+"interactions": [],
+"validations": [],
+"performance": "static render",
+"accessibility": { "ariaRole": "region", "keyboard": "tab focus" }
+},
+{
+"id": "C_StandortInfoCard",
+"purpose": "Standortdaten und Karten-CTA.",
+"states": ["loading", "ready", "error"],
+"inputs": [],
+"outputs": [
+{ "field": "location", "type": "string" },
+{ "field": "address", "type": "string|null" }
+],
+"interactions": [{ "type": "button", "label": "Auf Karte anzeigen", "action": "opens-map-modal" }],
+"validations": [],
+"performance": "static render",
+"accessibility": { "ariaRole": "region", "keyboard": "enter on button" }
+},
+{
+"id": "C_UmsatzentwicklungChart",
+"purpose": "Placeholder für Umsatzdiagramm der letzten 7 Tage.",
+"states": ["empty"],
+"inputs": [],
+"outputs": [],
+"interactions": [],
+"validations": [],
+"performance": "future chart, currently placeholder",
+"accessibility": { "ariaLabel": "Umsatzentwicklung folgt" }
+},
+{
+"id": "C_TransaktionsTable",
+"purpose": "Letzte Verkäufe des Automaten.",
+"states": ["loading", "ready", "empty", "error"],
+"inputs": [{ "name": "limit", "default": 20 }],
+"outputs": [
+{ "column": "Datum & Zeit", "type": "datetime", "format": "DD.MM.YYYY HH:mm" },
+{ "column": "Produkt", "type": "string" },
+{ "column": "Menge", "type": "integer", "unit": "x" },
+{ "column": "Preis", "type": "currency", "format": "0.00 €" },
+{ "column": "Zahlungsart", "type": "enum[CASH,CASHLESS]", "label": "Bar|Cashless" }
+],
+"interactions": [
+{ "type": "button", "label": "Exportieren", "action": "download CSV" },
+{ "type": "pagination", "pattern": "Vorherige/Nächste", "disabled": true }
+],
+"validations": [],
+"performance": "server limit 20, no client pagination",
+"accessibility": { "ariaRole": "table", "keyboard": "arrow navigation" }
+},
+{
+"id": "C_AuffuellungenTable",
+"purpose": "Historie der Auffüllungen.",
+"states": ["loading", "ready", "empty", "error"],
+"inputs": [{ "name": "limit", "default": 20 }],
+"outputs": [
+{ "column": "Datum & Zeit", "type": "datetime" },
+{ "column": "Status", "type": "enum[completed,in_progress]" },
+{ "column": "Notizen", "type": "string" },
+{ "column": "Aktionen", "type": "button[Details]" }
+],
+"interactions": [{ "type": "button", "label": "Exportieren", "action": "download CSV" }],
+"validations": [],
+"performance": "server limit 20",
+"accessibility": { "ariaRole": "table" }
+},
+{
+"id": "C_KPIOverview",
+"purpose": "Kennzahlenblock (Verkäufe, Umsatz, Auffüllungen, Durchschnittspreis).",
+"states": ["loading", "ready", "error"],
+"inputs": [{ "name": "period", "default": "month" }],
+"outputs": [
+{ "field": "transactionStats.count", "type": "integer" },
+{ "field": "transactionStats.totalRevenue", "type": "currency", "format": "0.00 €" },
+{ "field": "refillStats.count", "type": "integer" },
+{ "field": "transactionStats.avgPrice", "type": "currency", "format": "0.00 €" }
+],
+"interactions": [],
+"validations": [],
+"performance": "fetch on tab activation",
+"accessibility": { "ariaRole": "region" }
+},
+{
+"id": "C_VerkaufstrendChart",
+"purpose": "Line chart der täglichen Verkäufe/Umsätze.",
+"states": ["loading", "ready", "empty"],
+"inputs": [{ "name": "period", "default": "month" }],
+"outputs": [{ "series": "timeSeries", "fields": ["date", "count", "revenue"] }],
+"interactions": ["hover tooltips"],
+"validations": [],
+"performance": "dataset ≤ ~100 points",
+"accessibility": { "ariaLabel": "Verkaufstrend" }
+},
+{
+"id": "C_EreignisAnalyse",
+"purpose": "Pie chart und Liste der Eventtypen.",
+"states": ["loading", "ready", "empty"],
+"inputs": [],
+"outputs": [
+{ "field": "eventCounts.eventType", "type": "string" },
+{ "field": "eventCounts.count", "type": "integer" }
+],
+"interactions": ["hover tooltips"],
+"validations": [],
+"performance": "max 5 slices",
+"accessibility": { "ariaRole": "img", "label": "Ereignis-Analyse" }
+},
+{
+"id": "C_WochenErtragChart",
+"purpose": "Balkendiagramm Umsatz pro KW.",
+"states": ["ready", "empty"],
+"inputs": [{ "name": "period", "default": "month" }],
+"outputs": [{ "series": "weekKey, revenue", "format": "KW {number}: 0.00 €" }],
+"interactions": ["tooltip"],
+"validations": [],
+"performance": "grouped client-side",
+"accessibility": { "ariaLabel": "Wöchentlicher Ertrag" }
+},
+{
+"id": "C_MonatsErtragChart",
+"purpose": "Liniendiagramm Umsatz pro Monat.",
+"states": ["ready", "empty"],
+"inputs": [{ "name": "period", "default": "year" }],
+"outputs": [{ "series": "monthKey, revenue" }],
+"interactions": ["tooltip"],
+"validations": [],
+"performance": "grouped client-side",
+"accessibility": { "ariaLabel": "Monatlicher Ertrag" }
+},
+{
+"id": "C_VerkaufszeitenChart",
+"purpose": "Balken pro Stunde 0–23.",
+"states": ["ready", "empty"],
+"inputs": [],
+"outputs": [{ "field": "hour", "type": "integer" }, { "field": "count", "type": "integer" }],
+"interactions": ["tooltip"],
+"performance": "fixed 24 buckets",
+"accessibility": { "ariaLabel": "Verkaufszeiten" }
+},
+{
+"id": "C_TopVerkaufteProdukteList",
+"purpose": "Top-5 verkaufte Produkte.",
+"states": ["ready", "empty"],
+"inputs": [],
+"outputs": [
+{ "field": "productName", "type": "string" },
+{ "field": "count", "type": "integer" },
+{ "field": "revenue", "type": "currency" }
+],
+"interactions": ["hover show full name"],
+"performance": "slice(0,5)",
+"accessibility": { "ariaRole": "list" }
+},
+{
+"id": "C_TopEntfernteProdukteList",
+"purpose": "Top-5 bei Auffüllungen entfernte Produkte.",
+"states": ["ready", "empty"],
+"inputs": [],
+"outputs": [
+{ "field": "productName", "type": "string" },
+{ "field": "removedCount", "type": "integer" }
+],
+"interactions": [],
+"performance": "derived client-side",
+"accessibility": { "ariaRole": "list" }
+},
+{
+"id": "C_MHDTab",
+"purpose": "Verwalten von Mindesthaltbarkeitsdaten je Produkt.",
+"states": ["loading", "ready", "empty"],
+"inputs": [
+{ "name": "expiryDate", "type": "date" },
+{ "name": "quantity", "type": "integer" }
+],
+"outputs": [
+{ "field": "productName", "type": "string" },
+{ "field": "expiryDate", "type": "date" },
+{ "field": "status", "type": "enum[good,attention,warning,expired]" }
+],
+"interactions": [
+{ "type": "button", "label": "Bearbeiten", "action": "edit row" },
+{ "type": "save/cancel" }
+],
+"validations": ["expiryDate >= today"],
+"performance": "max ~100 rows",
+"accessibility": { "ariaRole": "table", "keyboard": "edit via Enter/Escape" }
+},
+{
+"id": "C_RemovedProductsTab",
+"purpose": "Tabelle entnommener Produkte mit Zeitraumfilter.",
+"states": ["loading", "ready", "empty", "error"],
+"inputs": [
+{ "name": "dateFilter", "values": ["7","30","90","365"] },
+{ "name": "page", "default": 1 }
+],
+"outputs": [
+{ "column": "Datum", "type": "datetime" },
+{ "column": "Produkt", "type": "string" },
+{ "column": "Entfernte Anzahl", "type": "integer" },
+{ "column": "Operator", "type": "string|null" },
+{ "column": "Position", "type": "string|null" }
+],
+"interactions": [
+{ "type": "select", "label": "Zeitraum" },
+{ "type": "button", "label": "Exportieren", "action": "download CSV" },
+{ "type": "pagination" }
+],
+"validations": [],
+"performance": "server pagination limit 50",
+"accessibility": { "ariaRole": "table" }
+},
+{
+"id": "C_MachineCostsTab",
+"purpose": "Verwaltung laufender Kosten des Automaten.",
+"states": ["loading", "ready", "error", "form"],
+"inputs": [
+{ "name": "costType", "type": "string" },
+{ "name": "amount", "type": "number" },
+{ "name": "frequency", "type": "enum[monthly,yearly,quarterly,weekly,once]" },
+{ "name": "description", "type": "string" }
+],
+"outputs": [
+{ "column": "Kostenart", "type": "string" },
+{ "column": "Betrag", "type": "currency" },
+{ "column": "Häufigkeit", "type": "enum" },
+{ "column": "Beschreibung", "type": "string" },
+{ "column": "Gültig ab", "type": "date" }
+],
+"interactions": [
+{ "type": "button", "label": "Neue Kosten hinzufügen" },
+{ "type": "form submit" },
+{ "type": "button", "label": "Löschen", "icon": "Trash2" }
+],
+"validations": ["costType != ''", "amount > 0"],
+"performance": "mutations invalidate query",
+"accessibility": { "ariaRole": "form" }
+},
+{
+"id": "C_MachineProfitabilityTab",
+"purpose": "Rentabilitätsanalyse im Zeitraum.",
+"states": ["loading", "ready", "error"],
+"inputs": [{ "name": "dateRange", "type": "date-from-to" }],
+"outputs": [
+{ "field": "product_name", "type": "string" },
+{ "field": "quantity_sold", "type": "integer" },
+{ "field": "revenue_net", "type": "currency" },
+{ "field": "total_costs", "type": "currency" },
+{ "field": "net_profit", "type": "currency" },
+{ "field": "profit_margin_percent", "type": "percent" }
+],
+"interactions": [
+{ "type": "date picker", "icon": "CalendarIcon" }
+],
+"validations": [],
+"performance": "dependent query, large tables aggregated server-side",
+"accessibility": { "ariaRole": "region" }
+}
+],
+"text_format_rules": {
+"labels": {
+"machineName": "Name des Automaten",
+"vendonId": "Vendon ID",
+"serialNumber": "Seriennummer",
+"machineType": "Typ",
+"installationDate": "Installationsdatum",
+"location": "Standortname",
+"address": "Adresse",
+"Transaktionshistorie": "Transaktionshistorie",
+"Auffüllungen": "Auffüllungen",
+"Leistungskennzahlen": "Leistungskennzahlen",
+"Verkaufstrend": "Verkaufstrend",
+"Ereignis-Analyse": "Ereignis-Analyse",
+"Wöchentlicher Ertrag": "Wöchentlicher Ertrag",
+"Monatlicher Ertrag": "Monatlicher Ertrag",
+"Verkaufszeiten": "Verkaufszeiten",
+"Top Verkaufte Produkte": "Top Verkaufte Produkte",
+"Top Entfernte Produkte": "Top Entfernte Produkte",
+"Entnommene Produkte": "Entnommene Produkte",
+"Kosten": "Kosten",
+"Rentabilität": "Rentabilität"
+},
+a
+"number_format": {
+"currency": "de-DE, 2 decimals, suffix '€'",
+"percent": "one decimal, suffix '%'",
+"integer": "no separator",
+"decimal": "0.00"
+},
+"date_time_format": {
+"date": "DD.MM.YYYY",
+"datetime": "DD.MM.YYYY HH:mm",
+"timezone": "Europe/Berlin"
+},
+"colors": {
+"status": {
+"ok": "#16a34a",
+"warning": "#f59e0b",
+"error": "#dc2626"
+},
+"charts": ["#8884d8","#82ca9d","#0088FE","#00C49F","#FFBB28","#FF8042","#A4DE6C"]
+}
+},
+"navigation_links": {
+"map_cta": { "route": "/map?machineId=325762", "state": {} },
+"refill_detail": { "route": "/auffuellungen/{refillId}", "state": { "fromMachine": true } },
+"error": {
+"404": { "route": "/notfound", "message": "Automat nicht gefunden" },
+"403": { "route": "/unauthorized", "message": "Zugriff verweigert" }
+}
+}
+},
+"output2": {
+"data_entities": [
+{
+"name": "machines",
+"fields": {
+"id": "integer PK",
+"vendon_id": "string unique",
+"machine_name": "string",
+"location_name": "string",
+"address": "string",
+"status": "string",
+"last_sync": "timestamp",
+"created_at": "timestamp",
+"updated_at": "timestamp"
+},
+"relations": { "transactions.machine_id": "1:n", "refills.machine_id": "1:n" }
+},
+{
+"name": "transactions",
+"fields": {
+"id": "integer PK",
+"vendon_id": "string",
+"machine_id": "integer FK → machines.id",
+"product_id": "string",
+"product_name": "string",
+"quantity": "integer",
+"amount": "numeric(10,2)",
+"price": "numeric(10,2)",
+"price_vat": "numeric(10,2)",
+"payment_method": "enum[CASH,CASHLESS]",
+"datetime": "timestamp"
+},
+"relations": { "products.vendon_id": "n:1" }
+},
+{
+"name": "refills",
+"fields": {
+"id": "integer PK",
+"machine_id": "integer FK",
+"status": "string",
+"operator": "string",
+"datetime": "timestamp",
+"notes": "text"
+},
+"relations": { "refill_details.refill_id": "1:n" }
+},
+{
+"name": "refill_details",
+"fields": {
+"id": "integer PK",
+"refill_id": "integer FK",
+"product_name": "string",
+"removed": "integer",
+"added": "integer",
+"position": "string"
+}
+},
+{
+"name": "events",
+"fields": {
+"id": "integer PK",
+"machine_id": "integer FK",
+"event_type": "string",
+"description": "string",
+"datetime": "timestamp"
+}
+},
+{
+"name": "product_batches",
+"fields": {
+"id": "integer PK",
+"product_id": "integer FK",
+"batch_number": "string",
+"supplier_batch_number": "string",
+"expiry_date": "date",
+"current_quantity": "integer",
+"received_date": "date",
+"status": "string",
+"notes": "text"
+}
+},
+{
+"name": "location_costs",
+"fields": {
+"id": "integer PK",
+"location": "string",
+"cost_type": "string",
+"amount": "numeric",
+"currency": "string",
+"frequency": "string",
+"description": "text",
+"is_active": "boolean",
+"valid_from": "date",
+"valid_until": "date",
+"created_at": "timestamp",
+"updated_at": "timestamp"
+}
+},
+{
+"name": "removed_products",
+"fields": {
+"id": "integer PK",
+"machine_id": "integer FK",
+"product_name": "string",
+"removed": "integer",
+"operator": "string",
+"position": "string",
+"datetime": "timestamp"
+}
+}
+],
+"kpi_glossary": [
+{
+"name": "todayTransactions",
+"definition": "Anzahl Verkäufe seit 00:00 des aktuellen Tages.",
+"formula": "COUNT(transactions) WHERE machine_id=:id AND datetime>=today",
+"aggregation": "daily by machine",
+"filter": "status=SETTLED",
+"timezone": "Europe/Berlin",
+"example": { "value": 37 }
+},
+{
+"name": "todayRevenue",
+"definition": "Bruttoumsatz des aktuellen Tages.",
+"formula": "SUM(amount) WHERE machine_id=:id AND datetime>=today",
+"aggregation": "daily by machine",
+"example": { "value": 123.45 }
+},
+{
+"name": "avgPrice",
+"definition": "Durchschnittlicher Verkaufspreis im Zeitraum.",
+"formula": "AVG(price)",
+"aggregation": "period by machine",
+"example": { "value": 2.10 }
+},
+{
+"name": "refillStats.count",
+"definition": "Anzahl Auffüllungen im Zeitraum.",
+"formula": "COUNT(refills)",
+"aggregation": "period by machine",
+"example": { "value": 4 }
+},
+{
+"name": "profitMarginPercent",
+"definition": "Nettogewinn / Umsatz_netto * 100.",
+"formula": "(SUM(revenue_net) - total_costs) / SUM(revenue_net) * 100",
+"aggregation": "period by machine",
+"example": { "value": 15.3 }
+}
+]
+},
+"output3": {
+"data_per_component": {
+"C_StammdatenCard": {
+"source": "GET /api/machines/{id}",
+"period": "n/a",
+"query": "SELECT id,vendon_id,machine_name,location_name,status,last_sync FROM machines WHERE id=$1;"
+},
+"C_TransaktionsTable": {
+"source": "GET /api/machines/{id}/transactions?limit=20",
+"period": "last N transactions (no date filter)",
+"sql": "SELECT t.id,t.product_name,t.quantity,t.amount,t.payment_method,t.datetime FROM transactions t WHERE t.machine_id=$1 ORDER BY t.datetime DESC LIMIT $2;"
+},
+"C_AuffuellungenTable": {
+"source": "GET /api/machines/{id}/refills?limit=20",
+"period": "last N refills",
+"sql": "SELECT id,status,operator,datetime,notes FROM refills WHERE machine_id=$1 ORDER BY datetime DESC LIMIT $2;"
+},
+"C_KPIOverview": {
+"source": "GET /statistics/machines/{id}/analytics?period=month",
+"period": "startOfMonth..now",
+"sql": "SELECT COUNT() as count,SUM(price) as totalRevenue,AVG(price) as avgPrice FROM transactions WHERE machine_id=$1 AND datetime BETWEEN $2 AND $3;"
+},
+"C_EreignisAnalyse": {
+"source": "analytics endpoint",
+"sql": "SELECT event_type,COUNT() FROM events WHERE machine_id=$1 AND datetime BETWEEN $2 AND $3 GROUP BY event_type;"
+},
+"C_WochenErtragChart": {
+"source": "analytics timeSeries grouped client-side",
+"period": "same as analytics",
+"sql": "SELECT DATE(datetime) as date,SUM(price) as revenue,COUNT(*) as count FROM transactions WHERE machine_id=$1 AND datetime BETWEEN $2 AND $3 GROUP BY DATE(datetime);"
+},
+"C_MHDTab": {
+"source": "GET /api/machines/{id}/mhd",
+"period": "last 30 days transactions",
+"sql": "complex CTE matching machine_products ↔ product_batches; see routes.ts lines 1341‑1436",
+"update": "PUT /api/machines/{id}/mhd/{batchId}"
+},
+"C_RemovedProductsTab": {
+"source": "GET /api/machines/{id}/removed-products?startDate=..&endDate=..&page=1&limit=50",
+"period": "UI filter (7|30|90|365 days)",
+"sql": "SELECT product_name,removed,operator,position,datetime FROM removed_products WHERE machine_id=$1 AND datetime BETWEEN $2 AND $3 ORDER BY datetime DESC LIMIT $4 OFFSET $5;"
+},
+"C_MachineCostsTab": {
+"source": "GET /api/machines/{id}/costs",
+"period": "active records",
+"sql": "SELECT * FROM location_costs WHERE location=$1 AND is_active=true ORDER BY created_at DESC;"
+},
+"C_MachineProfitabilityTab": {
+"source": "GET /api/machines/{id}/profitability?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD",
+"period": "UI range (default current month)",
+"sql": "WITH machine_sales AS (...), machine_costs AS (...) SELECT ... FROM machine_sales ms CROSS JOIN machine_costs mc;"
+}
+},
+"time_logic": {
+"rollup": "Tagesabschluss T+1 02:00 CET",
+"late_arrivals": "Transactions up to 24h late, analytics recomputed on each request",
+"timezone": "Europe/Berlin (CET/CEST)",
+"holidays": "no special handling"
+},
+"data_quality": {
+"checks": [
+"transactions.price >= 0",
+"refills.status IN ('completed','in_progress')",
+"MHD: expiry_date NOT NULL when status!='good'",
+"removed_products.removed > 0"
+],
+"reconcile": [
+"SUM(transactionStats.revenue) equals timeSeries.totalRevenue",
+"Number of removed products in refills equals RemovedProductsTab totals"
+]
+}
+},
+"output4": {
+"security": {
+"auth": {
+"scheme": "Bearer JWT",
+"roles": {
+"admin": "full",
+"manager": "read-write costs",
+"operator": "read-only most tabs"
+}
+},
+"pii": "No direct PII stored; operator name treated as business data.",
+"retention": "transactions 10 years; removed_products 3 years",
+"export_policies": {
+"csv_export": "allowed to authenticated users, download via browser",
+"pdf": "not implemented"
+}
+}
+},
+"output5": {
+"acceptance_criteria": {
+"C_StammdatenCard": [
+"Gegeben ein existierender Automat 325762\nWenn die Seite geladen wird\nDann sehe ich "Vendon ID" mit Wert und "Name des Automaten".",
+"Gegeben keine Seriennummer\nWenn die Seite geladen wird\nDann wird "Nicht hinterlegt" angezeigt.",
+"Gegeben eine nicht gefundene Maschinen-ID\nWenn die Seite geladen wird\nDann sehe ich eine rote Fehlermeldung."
+],
+"C_TransaktionsTable": [
+"Gegeben es existieren Verkäufe\nWenn der Tab "Transaktionen" geöffnet ist\nDann sehe ich eine Tabelle mit mindestens einer Zeile.",
+"Gegeben keine Verkäufe\nWenn der Tab geöffnet ist\nDann steht "Keine Transaktionen gefunden".",
+"Gegeben ein Netzwerkfehler\nWenn die Abfrage fehlschlägt\nDann wird eine Fehlermeldung angezeigt."
+],
+"C_KPIOverview": [
+"Gegeben Daten für den aktuellen Monat\nWenn der Tab "Analysen" geöffnet wird\nDann zeigt "Gesamt-Verkäufe" einen numerischen Wert.",
+"Gegeben keine Daten im Zeitraum\nWenn der Tab geöffnet wird\nDann werden alle KPIs als 0 angezeigt.",
+"Gegeben ein Serverfehler\nWenn die Abfrage scheitert\nDann erscheint eine rote Fehlermeldung im Tab."
+],
+"C_WochenErtragChart": [
+"Gegeben Zeitreihendaten über mehrere Wochen\nWenn der Tab "Auswertung" geladen ist\nDann zeigt das Balkendiagramm mindestens zwei Balken.",
+"Gegeben keine Zeitreihendaten\nWenn der Tab geladen ist\nDann bleibt das Diagramm leer ohne Fehler.",
+"Gegeben der Nutzer exportiert\nWenn der Export-Button geklickt wird\nDann startet ein CSV-Download."
+],
+"C_AuffuellungenTable": [
+"Gegeben Auffüllungen\nWenn der Tab "Auffüllungen" geöffnet ist\nDann sehe ich Status-Badges je Zeile.",
+"Gegeben keine Auffüllungen\nWenn der Tab geöffnet ist\nDann steht "Keine Auffüllungsdaten gefunden".",
+"Gegeben ein Netzwerkfehler\nWenn die Abfrage fehlschlägt\nDann wird eine Fehlermeldung angezeigt."
+],
+"C_MHDTab": [
+"Gegeben MHD-Daten\nWenn der Tab "MHD" geöffnet ist\nDann sehe ich eine Tabelle mit Produktnamen und Verfallsdaten.",
+"Gegeben der Nutzer bearbeitet ein MHD\nWenn das neue Datum in der Vergangenheit liegt\nDann wird die Eingabe abgelehnt.",
+"Gegeben keine MHD-Daten\nWenn der Tab geöffnet ist\nDann steht "Keine MHD-Daten gefunden"."
+],
+"C_RemovedProductsTab": [
+"Gegeben entfernte Produkte im letzten Monat\nWenn Zeitraum = "30" gewählt wird\nDann zeigt die Tabelle entsprechende Einträge.",
+"Gegeben keine entfernten Produkte\nWenn Zeitraum = "7" gewählt wird\nDann erscheint Platzhaltertext.",
+"Gegeben ein Serverfehler\nWenn die Abfrage fehlschlägt\nDann wird eine rote Fehlermeldung angezeigt."
+],
+"C_MachineCostsTab": [
+"Gegeben vorhandene Kosten\nWenn Tab "Kosten" geladen wird\nDann sehe ich eine Liste mit Beträgen und Frequenzen.",
+"Gegeben der Nutzer fügt einen Datensatz mit leerem "Kostenart" hinzu\nWenn er speichert\nDann erscheint eine Validierungsfehlermeldung.",
+"Gegeben ein Netzwerkfehler beim Speichern\nWenn der Nutzer submit klickt\nDann wird eine Fehlermeldung angezeigt."
+],
+"C_MachineProfitabilityTab": [
+"Gegeben Umsätze und Kosten im Zeitraum\nWenn Tab "Wirtschaftlichkeit" geladen ist\nDann zeigt die Zusammenfassung Nettogewinn und Marge.",
+"Gegeben keine Verkäufe im Zeitraum\nWenn der Tab geladen ist\nDann sind Umsatz und Gewinn 0.",
+"Gegeben der Nutzer wählt ein ungültiges Datum (Ende < Start)\nWenn Abfrage gesendet wird\nDann erhält er eine Fehlermeldung."
+]
+},
+"regression_parity": {
+"comparison": "Neue Implementierung muss Werte identisch zu bestehender Seite ausgeben.",
+"tolerance": {
+"currency": "±0,5 €",
+"percent": "±0,5 %",
+"count": "±1"
+}
+}
+},
+"output6": {
+"assumptions": [
+"Alle APIs reagieren innerhalb von ≤500 ms.",
+"Maschinen-IDs sind numerisch; Vendon-ID wird serverseitig aufgelöst.",
+"Weather-Daten optional; fehlen ohne Fehler."
+],
+"implementation_plan": {
+"order": [
+"1. Datenbanktabellen & Views bereitstellen.",
+"2. Backend-Endpunkte gemäß Spezifikation.",
+"3. Frontend-Komponenten pro Tab umsetzen.",
+"4. E2E-Tests für Szenarien aus Output5."
+],
+"feature_flags": {
+"umsatzentwicklung_chart": "deaktiviert, bis Diagramm implementiert",
+"kosten_tab": "nur für admin/manager"
+},
+"performance_targets": {
+"LCP": "<2.5s",
+"INP": "<200ms",
+"TTI": "<3s"
+}
+},
+"version": {
+"number": "1.0",
+"date": "2025-08-12",
+"timezone": "UTC",
+"author": "ChatGPT"
+}
+}
+}

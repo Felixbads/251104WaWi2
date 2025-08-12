@@ -73,6 +73,34 @@ The system employs a robust architecture to manage complex vending machine opera
 
 5. **Backend Weather Query repariert**
    - SQL GROUP BY Fehler in Weather-Data-Abfrage behoben
+
+### CENTRAL ORDERING FUNCTION REDESIGN ✅ (12.08.2025)
+
+**Problem gelöst**: Fragmentierte Bestellprozesse durch mehrere separate Ordering-Tiles in Dashboard ersetzt durch zentralisierte "Neue Bestellung" Funktion.
+
+1. **Bestellmodus-Konsolidierung**
+   - Alle separaten Ordering-Tiles (Standard, Kopieren, Prognose, Bulk) entfernt
+   - Zentrale "Neue Bestellung" Tile führt zu OrderModeSelector
+   - Einheitliche Benutzerführung für alle Bestelltypen
+   - Emoji-basierte Icons für Modi (📝, 📊, 📦, 📋)
+
+2. **Enhanced Order Copy Functionality** 
+   - Umfassende Suchfunktion: Bestellnummer, Lieferant, Datum
+   - Status-Filter für ALLE Status-Typen (auch delivered, cancelled)
+   - Sortieroptionen: Datum, Lieferant, Bestellwert, Status
+   - Detailansicht mit vollständiger Bestellübersicht
+   - Robuste Fehlerbehandlung und Benutzer-Feedback
+
+3. **System-weite Mode-Standardisierung**
+   - 'new' mode Referenzen zu 'standard' aktualisiert
+   - Konsistente Terminologie in gesamtem Frontend
+   - handleOrderCopy Funktion optimiert für besseres UX
+
+4. **User Experience Verbesserungen**
+   - Direkte Navigation zu kopierten Bestellungen
+   - Toast-Nachrichten für Erfolgsmeldungen
+   - Intelligente URL-Updates für bessere Browser-Navigation
+   - Automatisches Laden von Bestellpositionen nach Kopieren
    - `FIRST_VALUE()` Window Function für weather_main Aggregation
 
 **Technische Verbesserungen**: API-Backend Compatibility, Frontend Data Processing, Comprehensive Error Handling, Chart Fallback States
