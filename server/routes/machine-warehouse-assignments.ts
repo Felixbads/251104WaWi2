@@ -126,16 +126,42 @@ router.post('/', async (req: Request, res: Response) => {
         .where(eq(machineWarehouseAssignments.machineId, machineId));
     }
     
-    // Create the new assignment
-    const newAssignment = await db
-      .insert(machineWarehouseAssignments)
-      .values({
-        machineId,
-        warehouseId,
-        isPrimary: isPrimary || false,
-        notes: notes || null
-      })
-      .returning();
+    // Prüfe ob Zuordnung bereits existiert und verwende UPSERT-ähnliche Logik
+    const existingAssignment = await db.select()
+      .from(machineWarehouseAssignments)
+      .where(and(
+        eq(machineWarehouseAssignments.machineId, machineId),
+        eq(machineWarehouseAssignments.warehouseId, warehouseId)
+      ))
+      .limit(1);
+
+    let newAssignment;
+    
+    if (existingAssignment.length > 0) {
+      // Update existing assignment
+      newAssignment = await db
+        .update(machineWarehouseAssignments)
+        .set({
+          isPrimary: isPrimary || false,
+          notes: notes || null,
+          updatedAt: new Date()
+        })
+        .where(eq(machineWarehouseAssignments.id, existingAssignment[0].id))
+        .returning();
+      console.log(`Updated existing assignment for machine ${machineId} -> warehouse ${warehouseId}`);
+    } else {
+      // Create new assignment
+      newAssignment = await db
+        .insert(machineWarehouseAssignments)
+        .values({
+          machineId,
+          warehouseId,
+          isPrimary: isPrimary || false,
+          notes: notes || null
+        })
+        .returning();
+      console.log(`Created new assignment for machine ${machineId} -> warehouse ${warehouseId}`);
+    }
     
     // Starte Lagerabgleich für das neu zugeordnete Lager
     // Dies fügt automatisch alle Produkte aus dem Automaten zum Lager hinzu
