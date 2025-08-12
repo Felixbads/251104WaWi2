@@ -74,10 +74,13 @@ export default function MachineAssignments() {
   };
   
   // Abfrage der Lager
-  const { data: warehouses, isLoading: warehousesLoading } = useQuery({
+  const { data: warehousesResponse, isLoading: warehousesLoading } = useQuery({
     queryKey: ['/api/warehouses'],
     staleTime: 1000 * 60, // 1 Minute
   });
+
+  // Extrahiere warehouses aus der API-Antwort (die API gibt {data: [...]} zurück)
+  const warehouses = warehousesResponse?.data || [];
 
   // Abfrage der Automaten mit Deduplizierung
   const { data: machinesRaw, isLoading: machinesLoading } = useQuery({
