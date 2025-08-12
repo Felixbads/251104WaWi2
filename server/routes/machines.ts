@@ -84,9 +84,10 @@ router.get('/:id', async (req, res) => {
 
   } catch (error) {
     console.error(`[MACHINES API] Error fetching machine ${req.params.id}:`, error);
+    const errorMessage = error instanceof Error ? error.message : 'Unbekannter Fehler';
     res.status(500).json({
       error: 'Fehler beim Laden der Maschine',
-      message: error.message
+      message: errorMessage
     });
   }
 });
@@ -104,7 +105,7 @@ router.get('/:id/transactions', async (req, res) => {
     console.log(`[MACHINES API] Fetching transactions for machine ID: ${inputId}`);
 
     // Resolve machine ID
-    let machineInternalId: number;
+    let machineInternalId: number | undefined;
     const parsedId = parseInt(inputId);
     
     if (!isNaN(parsedId)) {
@@ -178,9 +179,10 @@ router.get('/:id/transactions', async (req, res) => {
 
   } catch (error) {
     console.error(`[MACHINES API] Error fetching transactions for machine ${req.params.id}:`, error);
+    const errorMessage = error instanceof Error ? error.message : 'Unbekannter Fehler';
     res.status(500).json({
       error: 'Fehler beim Laden der Transaktionen',
-      message: error.message
+      message: errorMessage
     });
   }
 });
@@ -197,7 +199,7 @@ router.get('/:id/refills', async (req, res) => {
     console.log(`[MACHINES API] Fetching refills for machine ID: ${inputId}`);
 
     // Resolve machine ID (same logic as above)
-    let machineInternalId: number;
+    let machineInternalId: number | undefined;
     const parsedId = parseInt(inputId);
     
     if (!isNaN(parsedId)) {
@@ -249,7 +251,7 @@ router.get('/:id/refills', async (req, res) => {
       WHERE machine_id = $1 
       ORDER BY datetime DESC 
       LIMIT $2`,
-      [machineInternalId, limit]
+      [machineInternalId!, limit]
     );
 
     const formattedRefills = refillsResult.rows.map(r => ({
@@ -265,9 +267,10 @@ router.get('/:id/refills', async (req, res) => {
 
   } catch (error) {
     console.error(`[MACHINES API] Error fetching refills for machine ${req.params.id}:`, error);
+    const errorMessage = error instanceof Error ? error.message : 'Unbekannter Fehler';
     res.status(500).json({
       error: 'Fehler beim Laden der Auffüllungen',
-      message: error.message
+      message: errorMessage
     });
   }
 });
@@ -284,7 +287,7 @@ router.get('/:id/analytics', async (req, res) => {
     console.log(`[MACHINES API] Fetching analytics for machine ID: ${inputId}`);
 
     // Resolve machine ID
-    let machineInternalId: number;
+    let machineInternalId: number | undefined;
     const parsedId = parseInt(inputId);
     
     if (!isNaN(parsedId)) {
