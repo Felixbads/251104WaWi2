@@ -171,15 +171,48 @@ export class UltraRobustVendonSync {
       
       console.log(`📦 ${transactions.length} Transaktionen erhalten (Offset: ${offset})`);
       
-      // Speichere jede Transaktion einzeln für maximale Robustheit
+      // 🚀 BATCH-OPTIMIERUNG: Verwende Batch-Verarbeitung wie im optimierten vendonSync
+      const processedTransactions: Array<{
+        vendonId: string;
+        transaction: InsertTransaction;
+        originalData: any;
+      }> = [];
+      
+      // Schritt 1: Bereite alle Transaktions-Objekte vor
       for (const transaction of transactions) {
         try {
-          const saved = await this.saveTransactionRobust(transaction);
-          if (saved.action === 'inserted') {
-            synced++;
+          const transactionObj = await this.prepareTransactionObject(transaction);
+          if (transactionObj) {
+            processedTransactions.push(transactionObj);
           }
         } catch (error) {
-          console.error(`❌ Fehler beim Speichern der Transaktion ${transaction.id || 'unbekannt'}:`, error);
+          console.error(`❌ Fehler beim Vorbereiten der Transaktion ${transaction.id || 'unbekannt'}:`, error);
+        }
+      }
+      
+      if (processedTransactions.length > 0) {
+        // Schritt 2: Batch-Duplikatsprüfung (1 SQL-Abfrage statt hunderte)
+        const vendonIds = processedTransactions.map(pt => pt.vendonId);
+        const existingIds = await storage.getExistingTransactionIds(vendonIds);
+        
+        // Schritt 3: Filtere neue Transaktionen
+        const newTransactions: any[] = [];
+        
+        for (const processed of processedTransactions) {
+          if (!existingIds.has(processed.vendonId)) {
+            newTransactions.push(processed.transaction);
+          }
+        }
+        
+        // Schritt 4: Batch-Insertion (1 SQL-Operation statt hunderte)
+        if (newTransactions.length > 0) {
+          try {
+            const savedTransactions = await storage.createTransactionsBatch(newTransactions);
+            synced += savedTransactions.length;
+            console.log(`⚡ Batch gespeichert: ${savedTransactions.length} neue Transaktionen`);
+          } catch (error) {
+            console.error("❌ Fehler bei Batch-Insertion:", error);
+          }
         }
       }
       
@@ -195,6 +228,107 @@ export class UltraRobustVendonSync {
     }
     
     return { synced };
+  }
+
+  /**
+   * Bereitet ein Transaktions-Objekt für die Batch-Verarbeitung vor
+   */
+  private async prepareTransactionObject(transaction: any): Promise<{ vendonId: string; transaction: InsertTransaction; originalData: any } | null> {
+    try {
+      // Prüfe, ob die Transaktion eine ID hat
+      const transactionId = transaction.id || transaction.transaction_id;
+      if (!transactionId) {
+        console.error("Transaktion ohne ID übersprungen:", transaction);
+        return null;
+      }
+      
+      // Maschinen-ID verarbeiten
+      let machineId: number = 1; // Standardwert
+      if (transaction.machine_id) {
+        const machineVendonId = transaction.machine_id.toString();
+        let machineData = await storage.getMachineByVendonId(machineVendonId);
+        
+        if (!machineData) {
+          const newMachine: InsertMachine = {
+            vendonId: machineVendonId,
+            machineName: transaction.machine_name || `Maschine ${machineVendonId}`,
+            lastSync: new Date()
+          };
+          machineData = await storage.createMachine(newMachine);
+        }
+        machineId = machineData.id;
+      }
+      
+      // Datetime konvertieren
+      let transactionDate: Date;
+      if (transaction.datetime) {
+        if (typeof transaction.datetime === 'number') {
+          transactionDate = new Date(
+            transaction.datetime > 1577836800000 
+              ? transaction.datetime 
+              : transaction.datetime * 1000
+          );
+        } else {
+          transactionDate = new Date(transaction.datetime);
+        }
+      } else {
+        transactionDate = new Date();
+      }
+      
+      // Produktname aus verschiedenen Quellen
+      let productName = transaction.name || 
+                       transaction.product_name || 
+                       transaction.product?.name || 
+                       'Unbekanntes Produkt';
+      
+      const vendonId = transactionId.toString();
+      
+      // Vollständiges Transaktions-Objekt erstellen
+      const newTransaction: InsertTransaction = {
+        vendonId: vendonId,
+        machineId: machineId,
+        machineName: transaction.machine_name || 'Unbekannte Maschine',
+        datetime: transactionDate,
+        transactionDt: transaction.transaction_dt ? new Date(transaction.transaction_dt * 1000) : null,
+        registeredDt: transaction.registered_dt ? new Date(transaction.registered_dt * 1000) : null,
+        updatedAt: transaction.updated_at ? new Date(transaction.updated_at * 1000) : null,
+        amount: transaction.amount || 0,
+        price: transaction.price || 0,
+        priceVat: transaction.price_vat || null,
+        priceWoVat: transaction.price_wo_vat || null,
+        vat: transaction.vat || null,
+        quantity: transaction.quantity || 1,
+        productId: transaction.product_id?.toString() || null,
+        productName: productName,
+        stockId: transaction.stock_id || null,
+        selection: transaction.selection || null,
+        paymentMethod: transaction.payment_method || null, // 🎯 CRITICAL: Payment method aus Vendon API!
+        status: transaction.status || null,
+        currency: transaction.currency || null,
+        coinCredit: transaction.coin_credit || 0,
+        cardCredit: transaction.card_credit || 0,
+        cashlessCredit: transaction.cashless_credit || 0,
+        discountCode: transaction.discount_code || null,
+        discountAmount: transaction.discount_amount || null,
+        locationId: null,
+        locationName: transaction.location_name || null,
+        note: transaction.note || null,
+        transactionData: transaction.transaction_data ? JSON.stringify(transaction.transaction_data) : null,
+        metadata: transaction.metadata ? JSON.stringify(transaction.metadata) : null,
+        source: transaction.source || "REALTIME",
+        isTest: transaction.is_test === true,
+        extraData: JSON.stringify(transaction)
+      };
+      
+      return {
+        vendonId,
+        transaction: newTransaction,
+        originalData: transaction
+      };
+    } catch (error) {
+      console.error("Fehler beim Vorbereiten der Transaktion:", error);
+      return null;
+    }
   }
 
   /**

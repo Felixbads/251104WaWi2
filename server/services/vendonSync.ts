@@ -1275,7 +1275,7 @@ export class VendonSyncService {
               note: transaction.note || null,
               transactionData: transaction.transaction_data ? JSON.stringify(transaction.transaction_data) : null,
               metadata: transaction.metadata ? JSON.stringify(transaction.metadata) : null,
-              source: transaction.source || "vendon",
+              source: transaction.source || "REALTIME",
               isTest: transaction.is_test === true,
               extraData: JSON.stringify(transaction)
             };
