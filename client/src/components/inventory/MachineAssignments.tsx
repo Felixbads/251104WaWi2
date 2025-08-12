@@ -79,8 +79,30 @@ export default function MachineAssignments() {
     staleTime: 1000 * 60, // 1 Minute
   });
 
-  // Extrahiere warehouses aus der API-Antwort (die API gibt {data: [...]} zurück)
-  const warehouses = warehousesResponse?.data || [];
+  // Extrahiere warehouses aus der API-Antwort - handle verschiedene Strukturen
+  const warehouses = (() => {
+    if (!warehousesResponse) {
+      console.log('[MACHINE-ASSIGNMENTS] No warehouses response');
+      return [];
+    }
+    
+    // Prüfe verschiedene mögliche Strukturen
+    if (Array.isArray(warehousesResponse)) {
+      console.log('[MACHINE-ASSIGNMENTS] Warehouses response is direct array');
+      return warehousesResponse;
+    }
+    
+    if (warehousesResponse.data && Array.isArray(warehousesResponse.data)) {
+      console.log('[MACHINE-ASSIGNMENTS] Warehouses response has data property');
+      return warehousesResponse.data;
+    }
+    
+    console.log('[MACHINE-ASSIGNMENTS] Unknown warehouses response structure:', warehousesResponse);
+    return [];
+  })();
+  
+  console.log('[MACHINE-ASSIGNMENTS] Final warehouses array:', warehouses);
+  console.log('[MACHINE-ASSIGNMENTS] Warehouses count:', warehouses?.length);
 
   // Abfrage der Automaten mit Deduplizierung
   const { data: machinesRaw, isLoading: machinesLoading } = useQuery({
@@ -317,11 +339,15 @@ export default function MachineAssignments() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Alle Lager</SelectItem>
-                {Array.isArray(warehouses) ? warehouses.map((warehouse: any) => (
-                  <SelectItem key={warehouse.id} value={warehouse.id.toString()}>
-                    {warehouse.name}
-                  </SelectItem>
-                )) : null}
+                {Array.isArray(warehouses) ? warehouses.map((warehouse: any) => {
+                  console.log('[DROPDOWN] Rendering warehouse:', warehouse);
+                  const warehouseName = warehouse.name || warehouse.warehouseName || `Lager #${warehouse.id}` || 'Unbekanntes Lager';
+                  return (
+                    <SelectItem key={warehouse.id} value={warehouse.id.toString()}>
+                      {warehouseName}
+                    </SelectItem>
+                  );
+                }) : null}
               </SelectContent>
             </Select>
           </div>
@@ -405,12 +431,16 @@ export default function MachineAssignments() {
                   </SelectTrigger>
                   <SelectContent>
                     {Array.isArray(warehouses) ? warehouses
-                      .filter((warehouse: any) => warehouse.isActive)
-                      .map((warehouse: any) => (
-                        <SelectItem key={warehouse.id} value={warehouse.id.toString() || 'unknown'}>
-                          {warehouse.name || 'Unbekanntes Lager'}
-                        </SelectItem>
-                      ))
+                      .filter((warehouse: any) => warehouse.isActive !== false)
+                      .map((warehouse: any) => {
+                        console.log('[ASSIGN-DROPDOWN] Rendering warehouse:', warehouse);
+                        const warehouseName = warehouse.name || warehouse.warehouseName || `Lager #${warehouse.id}` || 'Unbekanntes Lager';
+                        return (
+                          <SelectItem key={warehouse.id} value={warehouse.id.toString() || 'unknown'}>
+                            {warehouseName}
+                          </SelectItem>
+                        );
+                      })
                      : null}
                   </SelectContent>
                 </Select>

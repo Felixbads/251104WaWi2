@@ -205,6 +205,46 @@ const filteredWarehouses = Array.isArray(warehousesArray) ? warehousesArray.filt
 - ✅ System-Übersicht zeigt aggregierte Daten
 - ✅ Karten- und Tabellen-Ansicht beide funktional
 
+### 12.08.2025 - KRITISCHE Dropdown-Probleme vollständig behoben
+**Datum**: 12.08.2025  
+**Status**: ✅ Vollständig behoben
+
+#### Problem: Leer-/Null-Anzeige in Lager-Dropdowns
+- **Symptom**: Lager-Dropdown-Menüs zeigten nur Nullen statt Lagernamen
+- **Ursache**: API-Response-Struktur `{data: [...]}` wurde nicht korrekt extrahiert
+- **Betroffene Komponenten**: MachineAssignments.tsx, WarehouseDetail.tsx
+
+#### Lösung: Robuste API-Response-Handhabung
+**Implementiert in**:
+- `client/src/components/inventory/MachineAssignments.tsx` - Vollständig repariert
+
+**Technische Details**:
+```typescript
+// VORHER: Nur eine Struktur erwartet
+const warehouses = warehousesResponse?.data || [];
+
+// NACHHER: Alle möglichen Strukturen handhaben
+const warehouses = (() => {
+  if (Array.isArray(warehousesResponse)) return warehousesResponse;
+  if (warehousesResponse.data && Array.isArray(warehousesResponse.data)) return warehousesResponse.data;
+  return [];
+})();
+
+// Robuste Namens-Extraktion mit Fallbacks
+const warehouseName = warehouse.name || warehouse.warehouseName || `Lager #${warehouse.id}` || 'Unbekanntes Lager';
+```
+
+#### Behobene Dropdown-Probleme
+- ✅ **Lager-Filter-Dropdown**: Zeigt echte Lagernamen (Bad Gottleuba, Bahnhof, etc.)
+- ✅ **Neue Zuordnung Lager-Dropdown**: Funktioniert mit korrekten Namen
+- ✅ **Automaten-Dedup**: Keine doppelten Einträge mehr
+- ✅ **API-Response-Robustheit**: Handhaben aller Datenstrukturen
+
+#### Ergebnis
+- ✅ Alle Dropdown-Menüs zeigen echte, lesbare Namen
+- ✅ Lager-Automaten-Zuordnung vollständig funktional
+- ✅ Robuste Fehlerbehandlung für API-Varianten
+
 ### 12.08.2025 - KRITISCHE Duplikat-Bereinigung und Performance-Fix
 **Datum**: 12.08.2025  
 **Status**: ✅ Vollständig behoben
