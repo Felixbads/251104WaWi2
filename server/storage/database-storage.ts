@@ -879,10 +879,11 @@ export class DatabaseStorage implements IStorage {
     const result = await rawDb.query(`
       INSERT INTO transactions (
         vendon_id, machine_id, machine_name, datetime, 
-        product_name, price, quantity, source, extra_data
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        product_name, price, quantity, source, extra_data,
+        payment_method, status, currency, vat, price_vat, price_wo_vat
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
       RETURNING id, vendon_id, machine_id, machine_name, datetime, 
-                product_name, price, quantity, source
+                product_name, price, quantity, source, payment_method, status
     `, [
       transaction.vendonId,
       transaction.machineId, 
@@ -892,7 +893,13 @@ export class DatabaseStorage implements IStorage {
       transaction.price,
       transaction.quantity,
       transaction.source,
-      transaction.extraData || null
+      transaction.extraData || null,
+      transaction.paymentMethod || null,
+      transaction.status || 'completed',
+      transaction.currency || 'EUR',
+      transaction.vat || null,
+      transaction.priceVat || null,
+      transaction.priceWoVat || null
     ]);
     return result.rows[0];
   }

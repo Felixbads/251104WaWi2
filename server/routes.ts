@@ -220,7 +220,6 @@ function groupTransactionsByPeriod(transactions, period) {
 }
 
 import { startAutomaticSync, stopAutomaticSync, getSchedulerStatus } from "./scheduler";
-import { z } from "zod";
 import { registerForecastRoutes } from "./routes/forecast";
 import { statisticsRoutes } from "./routes/statistics";
 import { 
@@ -253,7 +252,6 @@ import unifiedProfitabilityRouter from "./routes/unified-profitability";
 import locationProfitabilityRouter from "./routes/location-profitability";
 import simpleProfitabilityRouter from "./routes/product-profitability-simple";
 import fixedProfitabilityRouter from "./routes/fixed-profitability";
-import locationStatusRouter from "./routes/location-status";
 import { WebSocketServer } from 'ws';
 
 // API route prefix

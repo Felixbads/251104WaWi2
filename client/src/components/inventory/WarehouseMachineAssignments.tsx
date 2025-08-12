@@ -81,16 +81,20 @@ export default function WarehouseMachineAssignments() {
   });
   
   // Verfügbare Lager laden
-  const { data: warehousesData = [], isLoading: isLoadingWarehouses } = useQuery({
+  const { data: warehousesResponse, isLoading: isLoadingWarehouses } = useQuery({
     queryKey: ['/api/warehouses'],
     staleTime: 1000 * 60 * 5, // 5 Minuten Cache
   });
 
   // Verfügbare Automaten laden
-  const { data: machinesData = [], isLoading: isLoadingMachines } = useQuery({
+  const { data: machinesResponse, isLoading: isLoadingMachines } = useQuery({
     queryKey: ['/api/machines'],
     staleTime: 1000 * 60 * 5, // 5 Minuten Cache
   });
+
+  // Handle different response formats - could be direct array or {data: [], meta: {}}
+  const warehousesData = Array.isArray(warehousesResponse) ? warehousesResponse : (warehousesResponse?.data || []);
+  const machinesData = Array.isArray(machinesResponse) ? machinesResponse : (machinesResponse?.data || []);
 
   // Mutation zum Hinzufügen einer Zuordnung
   const addAssignmentMutation = useMutation({
