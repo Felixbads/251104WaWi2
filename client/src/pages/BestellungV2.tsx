@@ -119,7 +119,7 @@ const BestellungV2: React.FC = () => {
   }, []);
   const [warehouseId, setWarehouseId] = useState<number | null>(null);
   const [warehouseName, setWarehouseName] = useState<string>('');
-  const [orderMode, setOrderMode] = useState<OrderMode>('new');
+  const [orderMode, setOrderMode] = useState<OrderMode>('standard');
   const [sourceOrderId, setSourceOrderId] = useState<number | null>(null);
   const [supplierId, setSupplierId] = useState<number | null>(null);
   const [supplierName, setSupplierName] = useState<string>('');
@@ -1316,7 +1316,7 @@ const BestellungV2: React.FC = () => {
           return (
             <BulkOrderMode
               onBack={() => {
-                setOrderMode('new');
+                setOrderMode('standard');
                 setStep('overview');
               }}
               onOrderCreated={(orderId) => {
@@ -1335,7 +1335,7 @@ const BestellungV2: React.FC = () => {
               // Setze alle Werte zurück
               setWarehouseId(null);
               setWarehouseName('');
-              setOrderMode('new');
+              setOrderMode('standard');
               setSourceOrderId(null);
               setSupplierId(null);
               setSupplierName('');
@@ -1382,7 +1382,7 @@ const BestellungV2: React.FC = () => {
                   handleOrderCopy(orderId);
                 }}
                 onBack={() => {
-                  setOrderMode('new');
+                  setOrderMode('standard');
                   setSourceOrderId(null);
                 }}
               />

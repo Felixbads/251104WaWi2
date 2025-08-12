@@ -14,6 +14,13 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { 
   ArrowRight, 
   ArrowLeft,
@@ -25,7 +32,10 @@ import {
   Copy,
   Eye,
   CheckCircle,
-  Edit
+  Edit,
+  Filter,
+  SortAsc,
+  SortDesc
 } from 'lucide-react';
 
 interface OrderCopySelectorProps {
@@ -54,6 +64,11 @@ const OrderCopySelector: React.FC<OrderCopySelectorProps> = ({
   const [showDetails, setShowDetails] = useState(false);
   const [showEnhancedCopyDialog, setShowEnhancedCopyDialog] = useState(false);
   const [orderToCopy, setOrderToCopy] = useState<number | null>(null);
+  
+  // Enhanced filtering and sorting state
+  const [statusFilter, setStatusFilter] = useState<string>('alle');
+  const [sortBy, setSortBy] = useState<string>('datum');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
   // Fetch orders for copying
   const { data: orders = [], isLoading, error } = useQuery({
@@ -75,12 +90,49 @@ const OrderCopySelector: React.FC<OrderCopySelectorProps> = ({
     }
   });
 
-  // Filter orders based on search term
-  const filteredOrders = orders.filter((order: Order) => 
-    order.orderNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    order.supplierName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    order.warehouseName.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Enhanced filtering and sorting logic
+  const filteredAndSortedOrders = React.useMemo(() => {
+    let filtered = orders.filter((order: Order) => {
+      // Status filter - "Alle Status erlaubt (egal welcher Status)"
+      const statusMatch = statusFilter === 'alle' || order.status === statusFilter;
+      
+      // Enhanced search - "Suche nach Bestellnummer, Lieferant, Datum"
+      const searchMatch = searchTerm === '' || (
+        order.orderNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        order.supplierName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        order.warehouseName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        formatDate(order.orderDate).includes(searchTerm)
+      );
+      
+      return statusMatch && searchMatch;
+    });
+
+    // Sorting options: ["Datum", "Lieferant", "Bestellwert", "Status"]
+    filtered.sort((a, b) => {
+      let comparison = 0;
+      
+      switch (sortBy) {
+        case 'datum':
+          comparison = new Date(a.orderDate).getTime() - new Date(b.orderDate).getTime();
+          break;
+        case 'lieferant':
+          comparison = a.supplierName.localeCompare(b.supplierName, 'de');
+          break;
+        case 'bestellwert':
+          comparison = (a.totalAmount || 0) - (b.totalAmount || 0);
+          break;
+        case 'status':
+          comparison = a.status.localeCompare(b.status, 'de');
+          break;
+        default:
+          return 0;
+      }
+      
+      return sortOrder === 'asc' ? comparison : -comparison;
+    });
+
+    return filtered;
+  }, [orders, searchTerm, statusFilter, sortBy, sortOrder]);
 
   const getStatusBadge = (status: string) => {
     const statusConfig = {
@@ -145,16 +197,68 @@ const OrderCopySelector: React.FC<OrderCopySelectorProps> = ({
         </div>
       </CardHeader>
       <CardContent>
-        {/* Search */}
-        <div className="mb-6">
+        {/* Enhanced Search and Filtering */}
+        <div className="mb-6 space-y-4">
+          {/* Search Input */}
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Bestellung, Lieferant oder Lager suchen..."
+              placeholder="Bestellung, Lieferant, Datum oder Lager suchen..."
               className="pl-9"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
+          </div>
+          
+          {/* Filter and Sort Controls */}
+          <div className="flex flex-col sm:flex-row gap-4">
+            {/* Status Filter */}
+            <div className="flex items-center gap-2">
+              <Filter className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-medium">Status:</span>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-[140px]">
+                  <SelectValue placeholder="Alle Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="alle">Alle Status</SelectItem>
+                  <SelectItem value="draft">Entwurf</SelectItem>
+                  <SelectItem value="sent">Versendet</SelectItem>
+                  <SelectItem value="delivered">Geliefert</SelectItem>
+                  <SelectItem value="cancelled">Storniert</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            {/* Sort Controls */}
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium">Sortierung:</span>
+              <Select value={sortBy} onValueChange={setSortBy}>
+                <SelectTrigger className="w-[120px]">
+                  <SelectValue placeholder="Sortieren" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="datum">Datum</SelectItem>
+                  <SelectItem value="lieferant">Lieferant</SelectItem>
+                  <SelectItem value="bestellwert">Bestellwert</SelectItem>
+                  <SelectItem value="status">Status</SelectItem>
+                </SelectContent>
+              </Select>
+              
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+                className="px-2"
+              >
+                {sortOrder === 'asc' ? <SortAsc className="h-4 w-4" /> : <SortDesc className="h-4 w-4" />}
+              </Button>
+            </div>
+          </div>
+          
+          {/* Results Count */}
+          <div className="text-sm text-muted-foreground">
+            {filteredAndSortedOrders.length} von {orders.length} Bestellungen gefunden
           </div>
         </div>
 
@@ -182,7 +286,7 @@ const OrderCopySelector: React.FC<OrderCopySelectorProps> = ({
         )}
 
         {/* Orders List */}
-        {!isLoading && filteredOrders.length === 0 && (
+        {!isLoading && filteredAndSortedOrders.length === 0 && (
           <div className="text-center py-8">
             <Package className="h-8 w-8 text-muted-foreground mx-auto mb-4" />
             <h3 className="text-lg font-medium mb-2">Keine Bestellungen gefunden</h3>
@@ -195,9 +299,9 @@ const OrderCopySelector: React.FC<OrderCopySelectorProps> = ({
           </div>
         )}
 
-        {!isLoading && filteredOrders.length > 0 && (
+        {!isLoading && filteredAndSortedOrders.length > 0 && (
           <div className="space-y-4">
-            {filteredOrders.map((order) => (
+            {filteredAndSortedOrders.map((order) => (
               <Card 
                 key={order.id}
                 className="cursor-pointer hover:shadow-md transition-all duration-200 border-2 hover:border-primary/50"

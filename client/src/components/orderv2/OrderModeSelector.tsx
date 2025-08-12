@@ -8,7 +8,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Clipboard, CopyPlus, Boxes, LineChart, CheckCircle2, Clock, Package2 } from 'lucide-react';
+import { Edit, BarChart3, Package, Copy, CheckCircle2, Clock, Package2 } from 'lucide-react';
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -19,8 +19,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-// Export type for OrderMode
-export type OrderMode = 'new' | 'copy' | 'forecast' | 'bulk';
+// Export type for OrderMode - Updated to match specification
+export type OrderMode = 'standard' | 'copy' | 'forecast' | 'bulk';
 
 interface OrderModeSelectorProps {
   mode: OrderMode;
@@ -38,27 +38,27 @@ const OrderModeSelector: React.FC<OrderModeSelectorProps> = ({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Bestellmodus wählen</CardTitle>
-        <CardDescription>
-          Wählen Sie, wie Sie die Bestellung erstellen möchten.
+        <CardTitle className="text-2xl">Bestellmodus wählen</CardTitle>
+        <CardDescription className="text-base">
+          Wählen Sie aus, wie Sie Ihre Bestellung erstellen möchten.
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {/* Neue Bestellung */}
-          <Card className={`cursor-pointer border-2 ${mode === 'new' ? 'border-primary' : 'border-border'}`}>
-            <CardContent className="pt-6" onClick={() => onSelectMode('new')}>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {/* Standard-Bestellung */}
+          <Card className={`cursor-pointer border-2 transition-all hover:shadow-lg ${mode === 'standard' ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'}`}>
+            <CardContent className="pt-6" onClick={() => onSelectMode('standard')}>
               <div className="flex items-center justify-center mb-4">
-                <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-                  <Clipboard className="h-6 w-6 text-primary" />
+                <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
+                  <div className="text-2xl">📝</div>
                 </div>
               </div>
-              <h3 className="text-center font-medium text-lg mb-2">Neue Bestellung</h3>
-              <p className="text-center text-sm text-muted-foreground">
-                Erstellen Sie eine neue Bestellung von Grund auf.
+              <h3 className="text-center font-semibold text-lg mb-2">Standard-Bestellung</h3>
+              <p className="text-center text-sm text-muted-foreground leading-relaxed">
+                Manuelle Produktauswahl
               </p>
               
-              {mode === 'new' && (
+              {mode === 'standard' && (
                 <div className="mt-4 flex justify-center">
                   <CheckCircle2 className="h-5 w-5 text-primary" />
                 </div>
@@ -66,38 +66,17 @@ const OrderModeSelector: React.FC<OrderModeSelectorProps> = ({
             </CardContent>
           </Card>
           
-          {/* Bestellung kopieren */}
-          <Card className={`cursor-pointer border-2 ${mode === 'copy' ? 'border-primary' : 'border-border'}`}>
-            <CardContent className="pt-6" onClick={() => onSelectMode('copy')}>
-              <div className="flex items-center justify-center mb-4">
-                <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-                  <CopyPlus className="h-6 w-6 text-primary" />
-                </div>
-              </div>
-              <h3 className="text-center font-medium text-lg mb-2">Bestellung kopieren</h3>
-              <p className="text-center text-sm text-muted-foreground">
-                Kopieren Sie eine bestehende Bestellung als Vorlage.
-              </p>
-              
-              {mode === 'copy' && (
-                <div className="mt-4 flex justify-center">
-                  <CheckCircle2 className="h-5 w-5 text-primary" />
-                </div>
-              )}
-            </CardContent>
-          </Card>
-          
-          {/* Bestellung auf Basis von Prognose */}
-          <Card className={`cursor-pointer border-2 ${mode === 'forecast' ? 'border-primary' : 'border-border'}`}>
+          {/* Prognose-Bestellung */}
+          <Card className={`cursor-pointer border-2 transition-all hover:shadow-lg ${mode === 'forecast' ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'}`}>
             <CardContent className="pt-6" onClick={() => onSelectMode('forecast')}>
               <div className="flex items-center justify-center mb-4">
-                <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-                  <LineChart className="h-6 w-6 text-primary" />
+                <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
+                  <div className="text-2xl">📊</div>
                 </div>
               </div>
-              <h3 className="text-center font-medium text-lg mb-2">Auf Basis von Prognose</h3>
-              <p className="text-center text-sm text-muted-foreground">
-                Erstellen Sie eine Bestellung auf Basis von Verbrauchsprognosen.
+              <h3 className="text-center font-semibold text-lg mb-2">Prognose-Bestellung</h3>
+              <p className="text-center text-sm text-muted-foreground leading-relaxed">
+                Auf Basis von Verkaufsprognosen
               </p>
               
               {mode === 'forecast' && (
@@ -108,20 +87,41 @@ const OrderModeSelector: React.FC<OrderModeSelectorProps> = ({
             </CardContent>
           </Card>
 
-          {/* Großbestellung für alle Lager */}
-          <Card className={`cursor-pointer border-2 ${mode === 'bulk' ? 'border-primary' : 'border-border'}`}>
+          {/* Großbestellung */}
+          <Card className={`cursor-pointer border-2 transition-all hover:shadow-lg ${mode === 'bulk' ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'}`}>
             <CardContent className="pt-6" onClick={() => onSelectMode('bulk')}>
               <div className="flex items-center justify-center mb-4">
-                <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-                  <Boxes className="h-6 w-6 text-primary" />
+                <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
+                  <div className="text-2xl">📦</div>
                 </div>
               </div>
-              <h3 className="text-center font-medium text-lg mb-2">Großbestellung</h3>
-              <p className="text-center text-sm text-muted-foreground">
-                Bestellung für alle Lager mit Bestandsübersicht und Prognosen.
+              <h3 className="text-center font-semibold text-lg mb-2">Großbestellung</h3>
+              <p className="text-center text-sm text-muted-foreground leading-relaxed">
+                Bestellung größerer Mengen
               </p>
               
               {mode === 'bulk' && (
+                <div className="mt-4 flex justify-center">
+                  <CheckCircle2 className="h-5 w-5 text-primary" />
+                </div>
+              )}
+            </CardContent>
+          </Card>
+          
+          {/* Bestellung kopieren */}
+          <Card className={`cursor-pointer border-2 transition-all hover:shadow-lg ${mode === 'copy' ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'}`}>
+            <CardContent className="pt-6" onClick={() => onSelectMode('copy')}>
+              <div className="flex items-center justify-center mb-4">
+                <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
+                  <div className="text-2xl">📋</div>
+                </div>
+              </div>
+              <h3 className="text-center font-semibold text-lg mb-2">Bestellung kopieren</h3>
+              <p className="text-center text-sm text-muted-foreground leading-relaxed">
+                Aus vorhandener Bestellung erstellen
+              </p>
+              
+              {mode === 'copy' && (
                 <div className="mt-4 flex justify-center">
                   <CheckCircle2 className="h-5 w-5 text-primary" />
                 </div>
@@ -259,7 +259,7 @@ const ForecastModelSelector: React.FC = () => {
     return (
       <div className="space-y-4">
         <div className="bg-muted p-4 rounded-md text-center">
-          <LineChart className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+          <div className="text-3xl mb-2">📊</div>
           <p className="text-muted-foreground">Keine Prognosemodelle verfügbar</p>
           <p className="text-sm text-muted-foreground mt-1">
             Prognosemodelle werden automatisch basierend auf Ihren Verkaufsdaten erstellt.
@@ -288,7 +288,7 @@ const ForecastModelSelector: React.FC = () => {
             <CardContent className="p-4">
               <div className="flex items-center space-x-3">
                 <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center">
-                  <LineChart className="h-5 w-5 text-green-600" />
+                  <div className="text-lg">📈</div>
                 </div>
                 <div className="flex-1">
                   <h4 className="font-medium">14-Tage Prognose</h4>
@@ -311,7 +311,7 @@ const ForecastModelSelector: React.FC = () => {
           <CardContent className="p-4">
             <div className="flex items-center space-x-3">
               <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                <LineChart className="h-5 w-5 text-primary" />
+                <div className="text-lg">📊</div>
               </div>
               <div className="flex-1">
                 <h4 className="font-medium">{model.name}</h4>
