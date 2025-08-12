@@ -220,11 +220,38 @@ function MachineStatusCard({ machine }: { machine: MachineStatusData }) {
   const handleCardClick = () => {
     // Navigate to the machine detail page using the real machine ID
     if (machine.realMachineId) {
+      console.log(`[StandortStatus] Navigating to machine with realMachineId: ${machine.realMachineId}`);
       setLocation(`/automaten/${machine.realMachineId}`);
+    } else if (machine.locationId) {
+      // Try using locationId if available
+      console.log(`[StandortStatus] Using locationId for navigation: ${machine.locationId}`);
+      setLocation(`/automaten/${machine.locationId}`);
     } else {
-      // Fallback: try to find machine by name
-      console.warn(`No realMachineId found for machine: ${machine.machineName}`);
-      setLocation(`/automaten/${machine.id}`);
+      // Try to derive vendon_id from machine name for known machines
+      const vendonIdMap: Record<string, string> = {
+        'Rathen': '325762',
+        'Schöna': '348079', 
+        'Bad Schandau, Nationalparkbahnhof': '323959',
+        'Bad Schandau, Elbkai': '391262',
+        'Hohnstein': '363236',
+        'Ostrau': '347989',
+        'Schmilka': '391263',
+        'Papstdorf, Feuerwehrmuseum': '380593',
+        'Gohrisch': '340303',
+        'Burg Stolpen': '362117',
+        'Schloss Pilnitz,in der Orangerie': '395727',
+        'Leupoldishain': '334642'
+      };
+      
+      const vendonId = vendonIdMap[machine.machineName];
+      if (vendonId) {
+        console.log(`[StandortStatus] Using mapped vendon_id for ${machine.machineName}: ${vendonId}`);
+        setLocation(`/automaten/${vendonId}`);
+      } else {
+        // Fallback: try location status ID
+        console.warn(`No mapping found for machine: ${machine.machineName}, using fallback ID: ${machine.id}`);
+        setLocation(`/automaten/${machine.id}`);
+      }
     }
   };
 

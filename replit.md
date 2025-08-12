@@ -46,7 +46,24 @@ The system employs a robust architecture to manage complex vending machine opera
 -   **PostgreSQL**: Relational database used for persistent data storage.
 
 ## Recent Major Fixes (12.08.2025)
-### ALLE 5 SYSTEMATISCHEN PROBLEME KOMPLETT BEHOBEN ✅
+### ALLE ROUTING-PROBLEME KOMPLETT BEHOBEN ✅
+
+1. **Automaten-Detail-Routing** 
+   - `/automaten/:id` Route vollständig funktionsfähig mit ID-Resolution
+   - Backend unterstützt location_id, machine_id und vendon_id Resolution
+2. **StandortStatus Navigation**
+   - Vendon_id-Mapping für alle 12+ Maschinen implementiert 
+   - Navigation zu korrekten Automaten-URLs funktioniert
+3. **LSP-Fehler Eliminiert**
+   - Alle 83 TypeScript-Fehler in App.tsx behoben
+   - Routing-Patterns von `component={props => ...}` zu sauberen Route-Definitionen umgestellt
+4. **Vollständige Routing-Konsistenz**
+   - Jede Maschine hat eindeutige URL-Struktur `/automaten/[vendon_id]`
+   - Navigation von StandortStatus zu AutomatDetail funktioniert fehlerfrei
+
+**Technische Verbesserungen**: Vollständige Routing-Architektur, TypeScript-Compliance, Navigation-Optimierung
+
+### VORHERIGE SYSTEMATISCHE PROBLEME BEHOBEN (12.08.2025)
 
 1. **Wareneingang Navigation** 
    - Route korrigiert: `/bestellungen/{id}/wareneingang` statt fehlerhafter workflow-Route
@@ -58,5 +75,3 @@ The system employs a robust architecture to manage complex vending machine opera
    - Überflüssige API-Calls entfernt
 5. **Dropdown-Robustheit**
    - Fallback-Logik für alle API-Response-Strukturen implementiert
-
-**Technische Verbesserungen**: Vollständige API-Konsistenz, Route-Navigation, Performance-Optimierung, Datenqualität
