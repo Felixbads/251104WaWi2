@@ -1,0 +1,61 @@
+
+{
+  "prompt": {
+    "title": "Zentrale Bestellfunktion - /bestellungen/neu Redesign",
+    "description": "Umgestaltung der Bestellkacheln und Implementierung einer robusten Bestellung-kopieren Funktion",
+    "requirements": {
+      "ui_changes": {
+        "tile_consolidation": {
+          "description": "Zusammenführung der Bestellkacheln zu einer zentralen Funktion",
+          "current_tiles": [
+            "Neue Bestellung",
+            "Auf Basis Prognose", 
+            "Großbestellung"
+          ],
+          "new_design": {
+            "primary_tile": {
+              "name": "Neue Bestellung",
+              "description": "Zentrale Kachel für alle Bestellarten",
+              "functionality": "Führt zu einem Modus-Auswahlbildschirm mit verschiedenen Bestelloptionen"
+            }
+          }
+        },
+        "order_mode_selector": {
+          "description": "Nach Klick auf 'Neue Bestellung' erscheint eine Auswahlmaske",
+          "modes": [
+            {
+              "id": "standard",
+              "name": "Standard-Bestellung",
+              "description": "Manuelle Produktauswahl",
+              "icon": "📝"
+            },
+            {
+              "id": "forecast",
+              "name": "Prognose-Bestellung", 
+              "description": "Auf Basis von Verkaufsprognosen",
+              "icon": "📊"
+            },
+            {
+              "id": "bulk",
+              "name": "Großbestellung",
+              "description": "Bestellung größerer Mengen",
+              "icon": "📦"
+            },
+            {
+              "id": "copy",
+              "name": "Bestellung kopieren",
+              "description": "Aus vorhandener Bestellung erstellen",
+              "icon": "📋"
+            }
+          ]
+        }
+      },
+      "copy_order_functionality": {
+        "description": "Robuste Implementierung der Bestellung-kopieren Funktion",
+        "features": {
+          "order_selection": {
+            "description": "Auswahl einer bestehenden Bestellung als Vorlage",
+            "criteria": {
+              "status_filter": "Alle Status erlaubt (egal welcher Status)",
+              "search_functionality": "Suche nach Bestellnummer, Lieferant, Datum",
+              "sorting_options": ["Datum", "Lieferant", "Bestellwert", "Status"],
