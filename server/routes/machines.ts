@@ -345,86 +345,86 @@ router.get('/:id/analytics', async (req, res) => {
         dateFilter = 'AND datetime >= CURRENT_DATE - INTERVAL \'30 days\'';
     }
 
-    // Get KPI data
+    // Get KPI data - Use vendon_id to aggregate ALL machines with same vendon_id
     const kpiResult = await rawDb.query(
       `SELECT 
         COUNT(*) as transaction_count,
         COALESCE(SUM(price), 0) as total_revenue,
         COALESCE(AVG(price), 0) as avg_price
       FROM transactions 
-      WHERE machine_id = $1 ${dateFilter}`,
-      [machineInternalId]
+      WHERE machine_id IN (SELECT id FROM machines WHERE vendon_id = $1) ${dateFilter}`,
+      [inputId]
     );
 
     const refillCountResult = await rawDb.query(
       `SELECT COUNT(*) as refill_count 
       FROM refills 
-      WHERE machine_id = $1 ${dateFilter}`,
-      [machineInternalId]
+      WHERE machine_id IN (SELECT id FROM machines WHERE vendon_id = $1) ${dateFilter}`,
+      [inputId]
     );
 
-    // Get sales time series (daily)
+    // Get sales time series (daily) - Use vendon_id for ALL machines
     const salesTimeSeriesResult = await rawDb.query(
       `SELECT 
         DATE(datetime) as date,
         COUNT(*) as count,
         COALESCE(SUM(price), 0) as revenue
       FROM transactions 
-      WHERE machine_id = $1 ${dateFilter}
+      WHERE machine_id IN (SELECT id FROM machines WHERE vendon_id = $1) ${dateFilter}
       GROUP BY DATE(datetime)
       ORDER BY date`,
-      [machineInternalId]
+      [inputId]
     );
 
-    // Get product performance
+    // Get product performance - Use vendon_id for ALL machines
     const productPerformanceResult = await rawDb.query(
       `SELECT 
         product_name as "productName",
         COUNT(*) as count,
         COALESCE(SUM(price), 0) as revenue
       FROM transactions 
-      WHERE machine_id = $1 ${dateFilter}
+      WHERE machine_id IN (SELECT id FROM machines WHERE vendon_id = $1) ${dateFilter}
       GROUP BY product_name
       ORDER BY count DESC
       LIMIT 10`,
-      [machineInternalId]
+      [inputId]
     );
 
-    // Get hourly distribution
+    // Get hourly distribution - Use vendon_id for ALL machines
     const hourlyResult = await rawDb.query(
       `SELECT 
         EXTRACT(HOUR FROM datetime) as hour,
         COUNT(*) as count
       FROM transactions 
-      WHERE machine_id = $1 ${dateFilter}
+      WHERE machine_id IN (SELECT id FROM machines WHERE vendon_id = $1) ${dateFilter}
       GROUP BY EXTRACT(HOUR FROM datetime)
       ORDER BY hour`,
-      [machineInternalId]
+      [inputId]
     );
 
-    // Get weekly revenue
+    // Get weekly revenue - Use vendon_id for ALL machines
     const weeklyResult = await rawDb.query(
       `SELECT 
         'KW' || EXTRACT(WEEK FROM datetime) as week,
         COALESCE(SUM(price), 0) as revenue
       FROM transactions 
-      WHERE machine_id = $1 ${dateFilter}
+      WHERE machine_id IN (SELECT id FROM machines WHERE vendon_id = $1) ${dateFilter}
       GROUP BY EXTRACT(WEEK FROM datetime)
       ORDER BY EXTRACT(WEEK FROM datetime)`,
-      [machineInternalId]
+      [inputId]
     );
 
-    // Get monthly revenue
+    // Get monthly revenue - Use vendon_id for ALL machines
     const monthlyResult = await rawDb.query(
       `SELECT 
         TO_CHAR(datetime, 'YYYY-MM') as month,
         COALESCE(SUM(price), 0) as revenue
       FROM transactions 
-      WHERE machine_id = $1 
+      WHERE machine_id IN (SELECT id FROM machines WHERE vendon_id = $1)
       AND datetime >= CURRENT_DATE - INTERVAL '12 months'
       GROUP BY TO_CHAR(datetime, 'YYYY-MM')
       ORDER BY month`,
-      [machineInternalId]
+      [inputId]
     );
 
     // Get event counts (if events table exists)
@@ -435,11 +435,11 @@ router.get('/:id/analytics', async (req, res) => {
           event_type as "eventType",
           COUNT(*) as count
         FROM events 
-        WHERE machine_id = $1 ${dateFilter}
+        WHERE machine_id IN (SELECT id FROM machines WHERE vendon_id = $1) ${dateFilter}
         GROUP BY event_type
         ORDER BY count DESC
         LIMIT 5`,
-        [machineInternalId]
+        [inputId]
       );
       eventCounts = eventResult.rows;
     } catch (error) {
@@ -478,14 +478,15 @@ router.get('/:id/analytics', async (req, res) => {
       }))
     };
 
-    console.log(`[MACHINES API] Analytics calculated for machine ${machineInternalId}`);
+    console.log(`[MACHINES API] Analytics calculated for machine ${inputId}`);
     res.json(analytics);
 
   } catch (error) {
     console.error(`[MACHINES API] Error fetching analytics for machine ${req.params.id}:`, error);
+    const errorMessage = error instanceof Error ? error.message : 'Unbekannter Fehler';
     res.status(500).json({
       error: 'Fehler beim Laden der Analyse-Daten',
-      message: error.message
+      message: errorMessage
     });
   }
 });
@@ -501,8 +502,8 @@ router.get('/:id/stock', async (req, res) => {
     console.log(`[MACHINES API] Fetching stock for machine ID: ${inputId}`);
 
     // Resolve machine ID
-    let machineInternalId: number;
-    let vendonId: string;
+    let machineInternalId: number | undefined;
+    let vendonId: string | undefined;
     
     const parsedId = parseInt(inputId);
     
@@ -565,7 +566,7 @@ router.get('/:id/stock', async (req, res) => {
         LEFT JOIN products p ON p.vendon_id = ms.product_vendon_id
         WHERE ms.machine_id = $1
         ORDER BY ms.selection_number`,
-        [machineInternalId]
+        [machineInternalId!]
       );
     } catch (error) {
       console.log('[MACHINES API] machine_stocks table not available, using fallback');
@@ -587,9 +588,10 @@ router.get('/:id/stock', async (req, res) => {
 
   } catch (error) {
     console.error(`[MACHINES API] Error fetching stock for machine ${req.params.id}:`, error);
+    const errorMessage = error instanceof Error ? error.message : 'Unbekannter Fehler';
     res.status(500).json({
       error: 'Fehler beim Laden des Warenbestands',
-      message: error.message
+      message: errorMessage
     });
   }
 });
@@ -607,7 +609,7 @@ router.get('/:id/removed-products', async (req, res) => {
     console.log(`[MACHINES API] Fetching removed products for machine ID: ${inputId}, last ${days} days`);
 
     // Resolve machine ID
-    let machineInternalId: number;
+    let machineInternalId: number | undefined;
     const parsedId = parseInt(inputId);
     
     if (!isNaN(parsedId)) {
@@ -665,7 +667,7 @@ router.get('/:id/removed-products', async (req, res) => {
         AND rd.removed > 0
         ORDER BY r.datetime DESC
         LIMIT $2`,
-        [machineInternalId, limit]
+        [machineInternalId!, limit]
       );
     } catch (error) {
       console.log('[MACHINES API] refill_details table not available, using empty result');
@@ -686,9 +688,10 @@ router.get('/:id/removed-products', async (req, res) => {
 
   } catch (error) {
     console.error(`[MACHINES API] Error fetching removed products for machine ${req.params.id}:`, error);
+    const errorMessage = error instanceof Error ? error.message : 'Unbekannter Fehler';
     res.status(500).json({
       error: 'Fehler beim Laden der entnommenen Produkte',
-      message: error.message
+      message: errorMessage
     });
   }
 });
@@ -710,9 +713,10 @@ router.get('/:id/mhd', async (req, res) => {
 
   } catch (error) {
     console.error(`[MACHINES API] Error fetching MHD entries for machine ${req.params.id}:`, error);
+    const errorMessage = error instanceof Error ? error.message : 'Unbekannter Fehler';
     res.status(500).json({
       error: 'Fehler beim Laden der MHD-Daten',
-      message: error.message
+      message: errorMessage
     });
   }
 });
@@ -756,9 +760,10 @@ router.post('/:id/costs', async (req, res) => {
 
   } catch (error) {
     console.error(`[MACHINES API] Error adding cost for machine ${req.params.id}:`, error);
+    const errorMessage = error instanceof Error ? error.message : 'Unbekannter Fehler';
     res.status(500).json({
       error: 'Fehler beim Hinzufügen der Kosten',
-      message: error.message
+      message: errorMessage
     });
   }
 });
@@ -779,9 +784,10 @@ router.delete('/:id/costs/:costId', async (req, res) => {
 
   } catch (error) {
     console.error(`[MACHINES API] Error deleting cost for machine ${req.params.id}:`, error);
+    const errorMessage = error instanceof Error ? error.message : 'Unbekannter Fehler';
     res.status(500).json({
       error: 'Fehler beim Löschen der Kosten',
-      message: error.message
+      message: errorMessage
     });
   }
 });
