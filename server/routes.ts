@@ -3498,6 +3498,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const limit = req.query.limit ? parseInt(req.query.limit as string) : 200;
       
       // Use deduplicated query similar to /machines/unassigned but include all machines
+      // Return fields with correct camelCase names to match frontend expectations
       const deduplicatedMachines = await db.execute(sql`
         WITH ranked_machines AS (
           SELECT m.id, m.machine_name, m.vendon_id, m.location_name, m.location_id, 
@@ -3509,7 +3510,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           AND m.machine_name NOT LIKE 'Automat A%'
           AND m.vendon_id != '1001'
         )
-        SELECT id, machine_name, vendon_id, location_name, location_id, status, created_at, updated_at
+        SELECT id, 
+               machine_name as "machineName", 
+               vendon_id as "vendonId", 
+               location_name as "locationName", 
+               location_id as "locationId", 
+               status, 
+               created_at as "createdAt", 
+               updated_at as "updatedAt"
         FROM ranked_machines 
         WHERE rn = 1
         ORDER BY machine_name
