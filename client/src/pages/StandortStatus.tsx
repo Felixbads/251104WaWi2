@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
 import { 
   Clock, 
   DoorOpen, 
@@ -273,7 +273,7 @@ function MachineStatusCard({ machine }: { machine: MachineStatusData }) {
 
   return (
     <Card 
-      className={`border-l-4 cursor-pointer hover:shadow-lg transition-shadow duration-200 ${
+      className={`border-l-4 cursor-pointer hover:shadow-lg transition-shadow duration-200 bg-card hover:bg-accent/50 ${
         machine.status === 'ok' ? 'border-l-green-500' :
         machine.status === 'warning' ? 'border-l-yellow-500' :
         'border-l-red-500'

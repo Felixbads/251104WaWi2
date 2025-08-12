@@ -123,6 +123,7 @@ import inventoryItemsUnassignedRouter from './routes/inventory-items-unassigned'
 import machineStockRouter from './routes/machine-stock';
 import transactionCostsRouter from './routes/transaction-costs';
 import duplicateCleanupRouter from './routes/duplicate-cleanup';
+import machinesRouter from './routes/machines';
 import dailyEmailRouter from './routes/daily-email';
 
 // Hilfsfunktion zum Gruppieren der Transaktionen nach Zeitraum
@@ -5453,6 +5454,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use(`${API_PREFIX}/products`, productInventoryRouter);
   app.use(`${API_PREFIX}/transaction-costs`, transactionCostsRouter);
   app.use(`${API_PREFIX}/duplicate-cleanup`, duplicateCleanupRouter);
+  app.use(`${API_PREFIX}/machines`, machinesRouter);
   
   // Erste Version der Warehouse-Stats-API entfernt, um Duplikate zu vermeiden.
   // Die unten definierte Version (Zeile 2483) wird stattdessen verwendet.

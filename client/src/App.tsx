@@ -223,6 +223,14 @@ function AuthenticatedRouter() {
           </ApprovedUserRoute>
         </Route>
 
+        <Route path="/automaten/:id">
+          {(params) => (
+            <ApprovedUserRoute>
+              <AutomatDetail />
+            </ApprovedUserRoute>
+          )}
+        </Route>
+
         <Route path="/db-index">
           <ApprovedUserRoute>
             <DBIndex />

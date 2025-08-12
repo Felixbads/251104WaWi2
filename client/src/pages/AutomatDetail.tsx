@@ -1,2031 +1,1137 @@
-import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useLocation, useParams } from "wouter";
+import { queryClient } from "@/lib/queryClient";
+import { useState, useMemo } from "react";
+import { useRoute } from "wouter";
 import { 
-  Package, 
-  ChevronLeft, 
-  Calendar, 
-  Clock, 
+  ArrowLeft, 
+  RefreshCw, 
+  CheckCircle, 
   AlertTriangle, 
-  CheckCircle,
-  RefreshCw,
-  Euro,
-  ShoppingCart,
-  CreditCard,
-  Settings,
-  FileText,
-  History,
-  Download,
-  Info,
+  XCircle,
   MapPin,
-  PackagePlus,
-  Filter,
-  Droplet,
-  Wind,
-  BarChart as BarChartIcon,
-  PieChart as PieChartIcon,
-  ClipboardCheck,
-  Plus,
-  Edit3,
-  Save,
-  X,
+  Calendar,
+  User,
+  Package,
   TrendingUp,
-  TrendingDown,
-  DollarSign,
-  Zap,
-  Home,
-  Radio,
-  Shield,
-  Heart
+  BarChart3,
+  Clock,
+  Euro,
+  AlertCircle,
+  Trash2,
+  Edit,
+  Plus,
+  Download,
+  Filter
 } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { 
-  Table, 
-  TableBody, 
-  TableCaption, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
-} from "@/components/ui/table";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { MachineEditDialog } from "@/components/machine/MachineEditDialog";
-import { RefillDialog } from "@/components/machine/RefillDialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Form, FormControl, FormField, FormItem, FormLabel } from "@/components/ui/form";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { useToast } from "@/hooks/use-toast";
+import { format, parseISO } from "date-fns";
+import { de } from "date-fns/locale";
 import { 
-  getMachine, 
-  getTransactionsByMachine,
-  getRefillsByMachine,
-  getMachineAnalytics,
-  resolveMachineId,
-  MachineIdResolution,
-  MachineAnalytics,
-  Machine, 
-  Transaction,
-  Refill,
-  RefillDetail,
-  RefillProduct,
-  formatDateTime,
-  getMachineMHDData,
-  updateMachineMHD,
-  MachineInventoryWithMHD,
-  BatchInfo
-} from "@/lib/api";
-import { queryClient, apiRequest } from "@/lib/queryClient";
-import MachineCostsTab from "@/components/MachineCostsTab";
-import MachineProfitabilityTab from "@/components/MachineProfitabilityTab";
-import { 
-  BarChart,
-  Bar,
+  LineChart, 
+  Line, 
+  BarChart, 
+  Bar, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  Legend, 
   ResponsiveContainer,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip as RechartTooltip,
-  Legend,
-  LineChart,
-  Line,
   PieChart,
   Pie,
   Cell
-} from "recharts";
-import RemovedProductsMachineTab from "@/components/machines/RemovedProductsMachineTab";
+} from 'recharts';
 
-// Erweiterte Maschinenschnittstelle mit den zusätzlichen KPIs
-interface EnhancedMachine extends Machine {
-  todayTransactions?: number;
-  todayRevenue?: number;
-  cashlessStatus?: 'ok' | 'warning' | 'error';
-  ageVerificationStatus?: 'ok' | 'warning' | 'error';
-  lastMaintenanceDate?: string;
-  firmwareVersion?: string;
+// Types based on the specification
+interface MachineData {
+  id: number;
+  machineName: string;
+  vendonId: string;
   serialNumber?: string;
   machineType?: string;
   installationDate?: string;
+  location?: string;
+  address?: string;
+  status: 'active' | 'inactive' | 'error';
 }
 
-// Hilfsfunktion: Gruppiert Daten nach Wochen für die Auswertung
-function groupDataByWeek(data: { date: string; count: number; revenue: number }[] = []) {
-  if (!data || !Array.isArray(data) || data.length === 0) return [];
-  
-  const weekMap = new Map();
-  
-  data.forEach(item => {
-    const date = new Date(item.date);
-    const year = date.getFullYear();
-    const weekNumber = getWeekNumber(date);
-    const weekKey = `${year}-W${weekNumber}`;
-    
-    if (!weekMap.has(weekKey)) {
-      weekMap.set(weekKey, {
-        weekKey,
-        weekLabel: `KW ${weekNumber}`,
-        count: 0,
-        revenue: 0
-      });
-    }
-    
-    const week = weekMap.get(weekKey);
-    week.count += item.count;
-    week.revenue += item.revenue;
-  });
-  
-  return Array.from(weekMap.values()).sort((a, b) => a.weekKey.localeCompare(b.weekKey));
+interface TransactionData {
+  id: number;
+  datetime: string;
+  productName: string;
+  quantity: number;
+  price: number;
+  paymentMethod: 'CASH' | 'CASHLESS';
 }
 
-// Hilfsfunktion: Ermittelt die Kalenderwoche
-function getWeekNumber(date: Date) {
-  const firstDayOfYear = new Date(date.getFullYear(), 0, 1);
-  const pastDaysOfYear = (date.getTime() - firstDayOfYear.getTime()) / 86400000;
-  return Math.ceil((pastDaysOfYear + firstDayOfYear.getDay() + 1) / 7);
+interface RefillData {
+  id: number;
+  datetime: string;
+  status: 'completed' | 'in_progress';
+  operator: string;
+  notes: string;
 }
 
-// Hilfsfunktion: Gruppiert Daten nach Monaten für die Auswertung
-function groupDataByMonth(data: { date: string; count: number; revenue: number }[] = []) {
-  if (!data || !Array.isArray(data) || data.length === 0) return [];
-  
-  const monthMap = new Map();
-  const monthNames = [
-    'Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun',
-    'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'
-  ];
-  
-  data.forEach(item => {
-    const date = new Date(item.date);
-    const year = date.getFullYear();
-    const month = date.getMonth();
-    const monthKey = `${year}-${month+1}`;
-    
-    if (!monthMap.has(monthKey)) {
-      monthMap.set(monthKey, {
-        monthKey,
-        monthLabel: `${monthNames[month]} ${year}`,
-        count: 0,
-        revenue: 0
-      });
-    }
-    
-    const monthData = monthMap.get(monthKey);
-    monthData.count += item.count;
-    monthData.revenue += item.revenue;
-  });
-  
-  return Array.from(monthMap.values()).sort((a, b) => a.monthKey.localeCompare(b.monthKey));
+interface KPIData {
+  transactionCount: number;
+  totalRevenue: number;
+  refillCount: number;
+  avgPrice: number;
 }
 
-// Hilfsfunktion: Erstellt eine stündliche Verteilung der Verkäufe
-function getHourlyDistribution(machineAnalytics?: MachineAnalytics) {
-  if (!machineAnalytics?.timeSeries || !Array.isArray(machineAnalytics.timeSeries) || machineAnalytics.timeSeries.length === 0) {
-    return Array.from({ length: 24 }, (_, i) => ({ hour: i, count: 0 }));
-  }
-  
-  // Stundenzähler initialisieren
-  const hourCounts = Array.from({ length: 24 }, (_, i) => ({ hour: i, count: 0 }));
-  
-  // Da die Backend-API nur tägliche Daten liefert, verteilen wir diese gleichmäßig über den Tag
-  // TODO: Backend sollte stündliche Daten für bessere Genauigkeit liefern
-  machineAnalytics.timeSeries.forEach(item => {
-    if (item && item.date && typeof item.count === 'number') {
-      // Für jetzt verteilen wir die Tagesverkäufe auf typische Geschäftszeiten (8-20 Uhr)
-      const dailyCount = item.count;
-      const businessHours = 12; // 8-20 Uhr = 12 Stunden
-      const avgPerHour = dailyCount / businessHours;
-      
-      for (let hour = 8; hour < 20; hour++) {
-        hourCounts[hour].count += avgPerHour;
-      }
-    }
-  });
-  
-  // Runde auf ganze Zahlen
-  hourCounts.forEach(hourData => {
-    hourData.count = Math.round(hourData.count);
-  });
-  
-  return hourCounts;
+interface SalesTimeSeries {
+  date: string;
+  count: number;
+  revenue: number;
 }
 
-// Hilfsfunktion: Bestimmt die am häufigsten entfernten Produkte bei Auffüllungen
-function getTopRemovedProducts(refills: Refill[] = []) {
-  if (!refills || refills.length === 0) return [];
-  
-  const productCounts = new Map();
-  
-  refills.forEach(refill => {
-    if (refill.products) {
-      refill.products.forEach((product: RefillProduct) => {
-        if (product.removed && product.removed > 0) {
-          const productName = product.productName;
-          
-          if (!productCounts.has(productName)) {
-            productCounts.set(productName, {
-              productName,
-              removedCount: 0
-            });
-          }
-          
-          const productData = productCounts.get(productName);
-          productData.removedCount += product.removed;
-        }
-      });
-    }
-  });
-  
-  return Array.from(productCounts.values())
-    .sort((a, b) => b.removedCount - a.removedCount)
-    .slice(0, 5);
+interface ProductPerformance {
+  productName: string;
+  count: number;
+  revenue: number;
+}
+
+interface RemovedProduct {
+  id: number;
+  datetime: string;
+  productName: string;
+  removedQuantity: number;
+  operator?: string;
+  position?: string;
+}
+
+interface MachineCost {
+  id: number;
+  costType: string;
+  amount: number;
+  frequency: 'monthly' | 'yearly' | 'quarterly' | 'weekly' | 'once';
+  description: string;
+  validFrom: string;
+}
+
+interface MachineStock {
+  id: number;
+  productName: string;
+  currentQuantity: number;
+  maxQuantity: number;
+  lastRefill?: string;
+  status: 'good' | 'warning' | 'critical';
+}
+
+interface MHDEntry {
+  id: number;
+  productName: string;
+  expiryDate: string;
+  quantity: number;
+  status: 'good' | 'attention' | 'warning' | 'expired';
 }
 
 export default function AutomatDetail() {
-  const params = useParams<{ id: string }>();
-  const [, setLocation] = useLocation();
-  const inputId = params?.id;
+  const [match, params] = useRoute("/automaten/:id");
   const [activeTab, setActiveTab] = useState("allgemein");
-  const [resolvedMachineId, setResolvedMachineId] = useState<number | null>(null);
-  
-  // Dialog state
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [isRefillDialogOpen, setIsRefillDialogOpen] = useState(false);
+  const [editingMHD, setEditingMHD] = useState<number | null>(null);
+  const [removedProductsFilter, setRemovedProductsFilter] = useState("30"); // days
+  const { toast } = useToast();
 
-  // ID Resolution und Maschine abrufen
-  const { 
-    data: machine, 
-    isLoading: machineLoading, 
-    error: machineError,
-    refetch: refetchMachine
-  } = useQuery({
-    queryKey: ['/api/machines', inputId],
-    queryFn: async () => {
-      if (!inputId) throw new Error('Keine Maschinen-ID angegeben');
-      
-      console.log(`[AutomatDetail] Fetching machine data for input ID: ${inputId}`);
-      
-      // Backend handles ID resolution - getMachine can accept location_id or machine_id
-      const machineData = await getMachine(inputId);
-      
-      // Store the resolved machine ID for other API calls
-      if (machineData && machineData.id) {
-        setResolvedMachineId(machineData.id);
-        console.log(`[AutomatDetail] Resolved machine ID: ${machineData.id}`);
-      }
-      
-      // Leer KPIs für die zu erweiternde Maschine
-      const enhancedMachine: EnhancedMachine = {
-        ...machineData,
-        todayTransactions: 0,
-        todayRevenue: 0,
-        cashlessStatus: 'error',
-        ageVerificationStatus: 'ok',
-        lastMaintenanceDate: machineData.lastSync || new Date().toISOString(),
-        firmwareVersion: "v1.0",
-        serialNumber: machineData.vendonId || "Unbekannt",
-        machineType: "Snackautomat",
-        installationDate: new Date().toISOString()
-      };
-      
-      try {
-        // Tägliche Stats über die API abrufen - Use resolved machine ID
-        console.log(`Hole KPIs für Automat mit ID ${machineData.id} (ursprünglich: ${inputId})`);
-        const response = await fetch(`/api/machines/${machineData.id}/daily-stats`);
-        
-        if (response.ok) {
-          const stats = await response.json();
-          console.log(`Erhaltene KPIs:`, stats);
-          
-          // Daten aus der API verwenden
-          if (stats.todayTransactions) enhancedMachine.todayTransactions = stats.todayTransactions;
-          if (stats.todayRevenue) enhancedMachine.todayRevenue = stats.todayRevenue;
-          
-          // Letzter Verkauf verarbeiten
-          if (stats.lastSale && stats.lastSale.datetime) {
-            enhancedMachine.lastSale = new Date(stats.lastSale.datetime).toISOString();
-          }
-          
-          // Cashless-Status auswerten
-          if (stats.lastCashlessSale) {
-            const now = new Date();
-            const lastCashlessDate = new Date(stats.lastCashlessSale.datetime);
-            const hoursSinceLastCashless = (now.getTime() - lastCashlessDate.getTime()) / (1000 * 60 * 60);
-            
-            if (hoursSinceLastCashless < 1) {
-              enhancedMachine.cashlessStatus = 'ok';
-            } else if (hoursSinceLastCashless < 4) {
-              enhancedMachine.cashlessStatus = 'warning';
-            } else {
-              enhancedMachine.cashlessStatus = 'error';
-            }
-          }
-          
-          // Alkoholverkaufs-Status
-          if (stats.alcoholSales) {
-            const { today, weekAvg, monthAvg } = stats.alcoholSales;
-            
-            if (today <= monthAvg * 1.2 && today >= monthAvg * 0.8) {
-              enhancedMachine.ageVerificationStatus = 'ok';
-            } else if (today > monthAvg * 1.5 || today < monthAvg * 0.5) {
-              enhancedMachine.ageVerificationStatus = 'error';
-            } else {
-              enhancedMachine.ageVerificationStatus = 'warning';
-            }
-          }
-        } else {
-          console.error(`Fehler beim Abrufen der KPIs: ${response.status}`);
-        }
-      } catch (error) {
-        console.error("Fehler beim Abrufen der Maschinen-KPIs:", error);
-      }
-      
-      return enhancedMachine;
+  const machineId = params?.id;
+
+  // Fetch machine basic data
+  const { data: machine, isLoading: machineLoading, error: machineError, refetch: refetchMachine } = useQuery<MachineData>({
+    queryKey: ['/api/machines', machineId],
+    enabled: !!machineId,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+
+  // Fetch transactions
+  const { data: transactions, isLoading: transactionsLoading } = useQuery<TransactionData[]>({
+    queryKey: ['/api/machines', machineId, 'transactions'],
+    enabled: !!machineId && (activeTab === 'transaktionen' || activeTab === 'allgemein' || activeTab === 'analysen' || activeTab === 'auswertung'),
+    staleTime: 2 * 60 * 1000, // 2 minutes
+  });
+
+  // Fetch refills
+  const { data: refills, isLoading: refillsLoading } = useQuery<RefillData[]>({
+    queryKey: ['/api/machines', machineId, 'refills'],
+    enabled: !!machineId && activeTab === 'auffullungen',
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Fetch analytics data
+  const { data: analytics, isLoading: analyticsLoading } = useQuery<{
+    kpis: KPIData;
+    salesTimeSeries: SalesTimeSeries[];
+    eventCounts: { eventType: string; count: number }[];
+    productPerformance: ProductPerformance[];
+    hourlyDistribution: { hour: number; count: number }[];
+    weeklyRevenue: { week: string; revenue: number }[];
+    monthlyRevenue: { month: string; revenue: number }[];
+  }>({
+    queryKey: ['/api/machines', machineId, 'analytics'],
+    enabled: !!machineId && (activeTab === 'analysen' || activeTab === 'auswertung'),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Fetch removed products
+  const { data: removedProducts, isLoading: removedProductsLoading } = useQuery<RemovedProduct[]>({
+    queryKey: ['/api/machines', machineId, 'removed-products', removedProductsFilter],
+    enabled: !!machineId && activeTab === 'entnommene-produkte',
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Fetch machine costs
+  const { data: machineCosts, isLoading: costsLoading, refetch: refetchCosts } = useQuery<MachineCost[]>({
+    queryKey: ['/api/machines', machineId, 'costs'],
+    enabled: !!machineId && activeTab === 'kosten',
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Fetch current stock (Warenbestand)
+  const { data: machineStock, isLoading: stockLoading } = useQuery<MachineStock[]>({
+    queryKey: ['/api/machines', machineId, 'stock'],
+    enabled: !!machineId && activeTab === 'warenbestand',
+    staleTime: 2 * 60 * 1000,
+  });
+
+  // Fetch MHD entries
+  const { data: mhdEntries, isLoading: mhdLoading, refetch: refetchMHD } = useQuery<MHDEntry[]>({
+    queryKey: ['/api/machines', machineId, 'mhd'],
+    enabled: !!machineId && activeTab === 'mhd',
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Mutations for costs
+  const addCostMutation = useMutation({
+    mutationFn: async (newCost: Omit<MachineCost, 'id' | 'validFrom'>) => {
+      const response = await fetch(`/api/machines/${machineId}/costs`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newCost),
+      });
+      if (!response.ok) throw new Error('Fehler beim Hinzufügen der Kosten');
+      return response.json();
     },
-    enabled: !!inputId
+    onSuccess: () => {
+      refetchCosts();
+      toast({ title: "Kosten hinzugefügt", description: "Die Kosten wurden erfolgreich hinzugefügt." });
+    },
   });
 
-  // Transaktionen für diese Maschine abrufen - Use resolved machine ID
-  const [transactionPage, setTransactionPage] = useState(1);
-  const transactionLimit = 50;
-  const { 
-    data: transactions, 
-    isLoading: transactionsLoading
-  } = useQuery({
-    queryKey: ['/api/machines', resolvedMachineId, 'transactions', transactionPage],
-    queryFn: () => getTransactionsByMachine(resolvedMachineId!.toString(), transactionLimit, (transactionPage - 1) * transactionLimit),
-    enabled: !!resolvedMachineId && activeTab === "transaktionen"
+  const deleteCostMutation = useMutation({
+    mutationFn: async (costId: number) => {
+      const response = await fetch(`/api/machines/${machineId}/costs/${costId}`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) throw new Error('Fehler beim Löschen der Kosten');
+    },
+    onSuccess: () => {
+      refetchCosts();
+      toast({ title: "Kosten gelöscht", description: "Die Kosten wurden erfolgreich gelöscht." });
+    },
   });
 
-  // Auffüllungen für diese Maschine abrufen - Use resolved machine ID
-  const [refillPage, setRefillPage] = useState(1);
-  const refillLimit = 50;
-  const {
-    data: refills,
-    isLoading: refillsLoading
-  } = useQuery({
-    queryKey: ['/api/machines', resolvedMachineId, 'refills', refillPage],
-    queryFn: () => getRefillsByMachine(resolvedMachineId!.toString(), refillLimit),
-    enabled: !!resolvedMachineId && activeTab === "auffullungen"
-  });
-  
-  // Machine Analytics abrufen - Use resolved machine ID
-  // Fetch analytics for multiple tabs that need this data
-  const needsAnalytics = ["analysen", "auswertung", "allgemein"].includes(activeTab);
-  const {
-    data: machineAnalytics,
-    isLoading: analyticsLoading,
-    error: analyticsError
-  } = useQuery({
-    queryKey: ['/statistics/machines', resolvedMachineId, 'analytics'],
-    queryFn: () => getMachineAnalytics(resolvedMachineId!.toString()),
-    enabled: !!resolvedMachineId && needsAnalytics,
-    retry: 2,
-    staleTime: 5 * 60 * 1000, // 5 minutes cache
-    onError: (error) => {
-      console.error('[AutomatDetail] Analytics fetch error:', error);
-    }
-  });
+  // Format functions
+  const formatCurrency = (amount: number) => 
+    new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(amount);
 
-  // Maschine aktualisieren
-  const handleRefresh = () => {
-    refetchMachine();
-    if (resolvedMachineId) {
-      // Force refresh of all data for this machine
-      queryClient.invalidateQueries({ queryKey: ['/api/machines', resolvedMachineId] });
-      queryClient.invalidateQueries({ queryKey: ['/statistics/machines', resolvedMachineId, 'analytics'] });
-      
-      if (activeTab === "transaktionen") {
-        queryClient.invalidateQueries({ queryKey: ['/api/machines', resolvedMachineId, 'transactions'] });
-      }
-      if (activeTab === "auffullungen") {
-        queryClient.invalidateQueries({ queryKey: ['/api/machines', resolvedMachineId, 'refills'] });
-      }
-    }
-  };
+  const formatDate = (dateString: string) => 
+    format(parseISO(dateString), 'dd.MM.yyyy HH:mm', { locale: de });
 
-  // Status-Badge-Komponente
+  const formatDateOnly = (dateString: string) => 
+    format(parseISO(dateString), 'dd.MM.yyyy', { locale: de });
+
+  // Status badge component
   const StatusBadge = ({ status }: { status: string }) => {
-    let variant: 
-      | "default"
-      | "outline"
-      | "secondary"
-      | "destructive" = "default";
-    let icon = null;
-    let className = "";
-
-    switch (status) {
-      case "active":
-        variant = "default";
-        className = "bg-green-500 hover:bg-green-700";
-        icon = <CheckCircle className="h-3 w-3 mr-1" />;
-        break;
-      case "inactive":
-        variant = "secondary";
-        break;
-      case "error":
-        variant = "destructive";
-        icon = <AlertTriangle className="h-3 w-3 mr-1" />;
-        break;
-      default:
-        variant = "outline";
-    }
-
+    const config = {
+      active: { color: 'bg-green-500', text: 'Aktiv', icon: CheckCircle },
+      inactive: { color: 'bg-yellow-500', text: 'Inaktiv', icon: AlertTriangle },
+      error: { color: 'bg-red-500', text: 'Fehler', icon: XCircle },
+    };
+    
+    const { color, text, icon: Icon } = config[status as keyof typeof config] || config.inactive;
+    
     return (
-      <Badge variant={variant} className={`flex items-center ${className}`}>
-        {icon}
-        {status === "active" ? "Aktiv" : 
-         status === "inactive" ? "Inaktiv" : 
-         status === "error" ? "Fehler" : status}
+      <Badge className={`${color} text-white`}>
+        <Icon className="h-3 w-3 mr-1" />
+        {text}
       </Badge>
     );
   };
 
-  // Cashless Status Indikator
-  const CashlessStatusIndicator = ({ status }: { status: 'ok' | 'warning' | 'error' }) => {
-    let statusColor = '';
-    let statusText = '';
-    let tooltip = '';
-    
-    switch(status) {
-      case 'ok':
-        statusColor = 'text-green-500';
-        statusText = 'OK';
-        tooltip = 'Letzte Cashless-Transaktion vor weniger als 1 Stunde';
-        break;
-      case 'warning':
-        statusColor = 'text-amber-500';
-        statusText = 'Prüfen';
-        tooltip = 'Letzte Cashless-Transaktion vor mehr als 4 Stunden';
-        break;
-      case 'error':
-        statusColor = 'text-red-500';
-        statusText = 'Problem';
-        tooltip = 'Keine Cashless-Transaktionen in den letzten 24 Stunden';
-        break;
-    }
-    
-    return (
-      <TooltipProvider>
-        <Tooltip>
-          <TooltipTrigger>
-            <div className={`flex items-center ${statusColor} font-medium`}>
-              {status === 'ok' ? <CheckCircle className="h-4 w-4 mr-1" /> : 
-               status === 'warning' ? <AlertTriangle className="h-4 w-4 mr-1" /> : 
-               <AlertTriangle className="h-4 w-4 mr-1" />}
-              <span>{statusText}</span>
-            </div>
-          </TooltipTrigger>
-          <TooltipContent>
-            <p>{tooltip}</p>
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
-    );
-  };
-
-  // Altersverifikations-Indikator
-  const AgeVerificationIndicator = ({ status }: { status: 'ok' | 'warning' | 'error' }) => {
-    let statusColor = '';
-    let statusText = '';
-    let tooltip = '';
-    
-    switch(status) {
-      case 'ok':
-        statusColor = 'text-green-500';
-        statusText = 'OK';
-        tooltip = 'Alle Altersverifizierungen erfolgreich';
-        break;
-      case 'warning':
-        statusColor = 'text-amber-500';
-        statusText = 'Prüfen';
-        tooltip = 'Einige Altersverifizierungen fehlgeschlagen';
-        break;
-      case 'error':
-        statusColor = 'text-red-500';
-        statusText = 'Problem';
-        tooltip = 'Mehrere Altersverifizierungen fehlgeschlagen';
-        break;
-    }
-    
-    return (
-      <TooltipProvider>
-        <Tooltip>
-          <TooltipTrigger>
-            <div className={`flex items-center ${statusColor} font-medium`}>
-              {status === 'ok' ? <CheckCircle className="h-4 w-4 mr-1" /> : 
-               status === 'warning' ? <AlertTriangle className="h-4 w-4 mr-1" /> : 
-               <AlertTriangle className="h-4 w-4 mr-1" />}
-              <span>{statusText}</span>
-            </div>
-          </TooltipTrigger>
-          <TooltipContent>
-            <p>{tooltip}</p>
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
-    );
-  };
-
+  // Loading state
   if (machineLoading) {
     return (
-      <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+      <div className="space-y-6 p-6">
+        <div className="flex justify-between items-center">
+          <Skeleton className="h-8 w-32" />
+          <Skeleton className="h-10 w-32" />
+        </div>
+        <Skeleton className="h-64 w-full" />
       </div>
     );
   }
 
+  // Error state
   if (machineError || !machine) {
     return (
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <Button 
-            variant="ghost" 
-            className="-ml-2" 
-            onClick={() => setLocation("/automaten")}
-          >
-            <ChevronLeft className="h-4 w-4 mr-1" /> Zurück
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <AlertTriangle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+          <h2 className="text-xl font-semibold mb-2">Automat nicht gefunden</h2>
+          <p className="text-muted-foreground mb-4">
+            Der Automat mit der ID {machineId} konnte nicht geladen werden.
+          </p>
+          <Button onClick={() => window.history.back()} variant="outline">
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Zurück
           </Button>
         </div>
-        <Card className="bg-red-50 border-red-200">
-          <CardContent className="pt-6">
-            <div className="flex items-center text-red-600">
-              <AlertTriangle className="h-5 w-5 mr-2" />
-              <p>Fehler beim Laden des Automaten: {String(machineError || "Automat nicht gefunden")}</p>
-            </div>
-          </CardContent>
-        </Card>
       </div>
     );
   }
 
-  return (
-    <div className="space-y-6">
-      {/* Funktionsleiste */}
-      <div className="flex items-center justify-between">
-        <Button 
-          variant="ghost" 
-          onClick={() => setLocation("/automaten")}
-          className="-ml-2"
-        >
-          <ChevronLeft className="h-4 w-4 mr-1" /> Zurück zur Übersicht
-        </Button>
-        
-        <div className="flex items-center gap-2">
-          <Button onClick={handleRefresh} variant="outline" size="sm" className="gap-2">
-            <RefreshCw className="h-4 w-4" />
-            <span className="hidden sm:inline">Aktualisieren</span>
-          </Button>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className="gap-2"
-            onClick={() => setIsEditDialogOpen(true)}
-          >
-            <Settings className="h-4 w-4" />
-            <span className="hidden sm:inline">Bearbeiten</span>
-          </Button>
-          <Button 
-            variant="default" 
-            size="sm" 
-            className="gap-2"
-            onClick={() => setIsRefillDialogOpen(true)}
-          >
-            <PackagePlus className="h-4 w-4" />
-            <span className="hidden sm:inline">Auffüllen</span>
-          </Button>
-        </div>
-      </div>
+  const handleRefreshAll = () => {
+    refetchMachine();
+    queryClient.invalidateQueries({ queryKey: ['/api/machines', machineId] });
+    toast({ title: "Daten aktualisiert", description: "Alle Daten wurden neu geladen." });
+  };
 
-      {/* Automaten-Header mit Infos */}
-      <div>
-        <div className="flex items-center gap-2 mb-1">
-          <h1 className="text-2xl font-bold">{machine.machineName}</h1>
+  return (
+    <div className="space-y-6 p-6">
+      {/* Header */}
+      <div className="flex justify-between items-center">
+        <div className="flex items-center space-x-4">
+          <Button 
+            onClick={() => window.history.back()}
+            variant="outline"
+            size="sm"
+          >
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Zurück
+          </Button>
+          <h1 className="text-3xl font-bold">{machine.machineName}</h1>
           <StatusBadge status={machine.status} />
         </div>
-        <p className="text-gray-600 flex items-center gap-2">
-          <span>Vendon ID: {machine.vendonId}</span>
-          {machine.serialNumber && (
-            <>
-              <span className="text-gray-400">|</span>
-              <span>Seriennummer: {machine.serialNumber}</span>
-            </>
-          )}
-          {machine.machineType && (
-            <>
-              <span className="text-gray-400">|</span>
-              <span>Typ: {machine.machineType}</span>
-            </>
-          )}
-        </p>
-        <p className="text-gray-600">Standort: {machine.location || "Nicht angegeben"}</p>
-        <p className="text-gray-500 text-sm mt-1">
-          Letzter Sync: {machine.lastSync ? formatDateTime(machine.lastSync, 'datetime') : 'Nie'} 
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger>
-                <Info className="h-3 w-3 ml-1 inline text-gray-400" />
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Zeitpunkt der letzten Synchronisation mit dem Vendon-System</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        </p>
+        <Button onClick={handleRefreshAll} variant="outline" size="sm">
+          <RefreshCw className="h-4 w-4 mr-2" />
+          Aktualisieren
+        </Button>
       </div>
 
-      <Separator />
+      {/* Main Content */}
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="grid w-full grid-cols-5 lg:grid-cols-10 gap-1">
+          <TabsTrigger value="allgemein">Allgemein</TabsTrigger>
+          <TabsTrigger value="transaktionen">Transaktionen</TabsTrigger>
+          <TabsTrigger value="analysen">Analysen</TabsTrigger>
+          <TabsTrigger value="auswertung">Auswertung</TabsTrigger>
+          <TabsTrigger value="auffullungen">Auffüllungen</TabsTrigger>
+          <TabsTrigger value="mhd">MHD</TabsTrigger>
+          <TabsTrigger value="entnommene-produkte">Entfernte Produkte</TabsTrigger>
+          <TabsTrigger value="kosten">Kosten</TabsTrigger>
+          <TabsTrigger value="wirtschaftlichkeit">Wirtschaftlichkeit</TabsTrigger>
+          <TabsTrigger value="warenbestand">Warenbestand</TabsTrigger>
+        </TabsList>
 
-      {/* KPI Bereich */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Letzter Verkauf */}
-        <Card>
-          <CardHeader className="py-3">
-            <CardTitle className="text-sm font-medium flex items-center">
-              <Clock className="h-4 w-4 mr-2" />
-              Letzter Verkauf
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {machine.lastSale 
-                ? formatDateTime(machine.lastSale, 'time')
-                : '–'}
-            </div>
-            <p className="text-sm text-gray-500">
-              {machine.lastSale 
-                ? formatDateTime(machine.lastSale, 'date')
-                : 'Kein Verkauf aufgezeichnet'}
-            </p>
-          </CardContent>
-        </Card>
-
-        {/* Transaktionen heute */}
-        <Card>
-          <CardHeader className="py-3">
-            <CardTitle className="text-sm font-medium flex items-center">
-              <ShoppingCart className="h-4 w-4 mr-2" />
-              Transaktionen heute
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {machine.todayTransactions || 0}
-            </div>
-            <p className="text-sm text-gray-500">
-              {machine.todayTransactions && machine.todayTransactions > 0 
-                ? 'Heute aktiv' 
-                : 'Keine Transaktionen heute'}
-            </p>
-          </CardContent>
-        </Card>
-
-        {/* Umsatz heute */}
-        <Card>
-          <CardHeader className="py-3">
-            <CardTitle className="text-sm font-medium flex items-center">
-              <Euro className="h-4 w-4 mr-2" />
-              Umsatz heute
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {machine.todayRevenue?.toFixed(2) || '0.00'} €
-            </div>
-            <p className="text-sm text-gray-500">
-              {machine.todayRevenue && machine.todayRevenue > 0 
-                ? `Bei ${machine.todayTransactions || 0} Transaktionen` 
-                : 'Kein Umsatz heute'}
-            </p>
-          </CardContent>
-        </Card>
-
-        {/* Cashless Status */}
-        <Card>
-          <CardHeader className="py-3">
-            <CardTitle className="text-sm font-medium flex items-center">
-              <CreditCard className="h-4 w-4 mr-2" />
-              Cashless Status
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl">
-              <CashlessStatusIndicator status={machine.cashlessStatus || 'error'} />
-            </div>
-            <p className="text-sm text-gray-500 mt-1.5">
-              Altersverifizierung: <AgeVerificationIndicator status={machine.ageVerificationStatus || 'error'} />
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Detail Tabs */}
-      <Tabs 
-        defaultValue="allgemein" 
-        className="w-full"
-        value={activeTab}
-        onValueChange={setActiveTab}
-      >
-        <div className="overflow-x-auto pb-2">
-          <TabsList className="inline-flex w-auto min-w-full">
-            <TabsTrigger value="allgemein" className="whitespace-nowrap flex items-center">
-              <Info className="h-4 w-4 mr-2" />
-              <span>Allgemein</span>
-            </TabsTrigger>
-            <TabsTrigger value="transaktionen" className="whitespace-nowrap flex items-center">
-              <ShoppingCart className="h-4 w-4 mr-2" />
-              <span>Transaktionen</span>
-            </TabsTrigger>
-            <TabsTrigger value="analysen" className="whitespace-nowrap flex items-center">
-              <FileText className="h-4 w-4 mr-2" />
-              <span>Analysen</span>
-            </TabsTrigger>
-            <TabsTrigger value="auswertung" className="whitespace-nowrap flex items-center">
-              <BarChartIcon className="h-4 w-4 mr-2" />
-              <span>Auswertung</span>
-            </TabsTrigger>
-            <TabsTrigger value="auffullungen" className="whitespace-nowrap flex items-center">
-              <PackagePlus className="h-4 w-4 mr-2" />
-              <span>Auffüllungen</span>
-            </TabsTrigger>
-            <TabsTrigger value="mhd" className="whitespace-nowrap flex items-center">
-              <Calendar className="h-4 w-4 mr-2" />
-              <span>MHD</span>
-            </TabsTrigger>
-            <TabsTrigger value="entnommene-produkte" className="whitespace-nowrap flex items-center">
-              <Package className="h-4 w-4 mr-2 text-red-500" />
-              <span>Entnommene Produkte</span>
-            </TabsTrigger>
-            <TabsTrigger value="kosten" className="whitespace-nowrap flex items-center">
-              <DollarSign className="h-4 w-4 mr-2" />
-              <span>Kosten</span>
-            </TabsTrigger>
-            <TabsTrigger value="wirtschaftlichkeit" className="whitespace-nowrap flex items-center">
-              <TrendingUp className="h-4 w-4 mr-2" />
-              <span>Wirtschaftlichkeit</span>
-            </TabsTrigger>
-          </TabsList>
-        </div>
-        
-        {/* Allgemeine Informationen Tab */}
-        <TabsContent value="allgemein" className="mt-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Allgemein Tab */}
+        <TabsContent value="allgemein" className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {/* Stammdaten Card */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Stammdaten</CardTitle>
-                <CardDescription>Grundlegende Informationen zum Automaten</CardDescription>
+                <CardTitle className="flex items-center gap-2">
+                  <Package className="h-5 w-5" />
+                  Stammdaten
+                </CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div>
-                    <p className="text-sm font-medium text-gray-500">Name des Automaten</p>
-                    <p>{machine.machineName}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-gray-500">Vendon ID</p>
-                    <p>{machine.vendonId}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-gray-500">Seriennummer</p>
-                    <p>{machine.serialNumber || 'Nicht hinterlegt'}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-gray-500">Typ</p>
-                    <p>{machine.machineType || 'Nicht kategorisiert'}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-gray-500">Installationsdatum</p>
-                    <p>{machine.installationDate ? formatDateTime(machine.installationDate, 'date') : 'Nicht bekannt'}</p>
-                  </div>
+              <CardContent className="space-y-3">
+                <div>
+                  <Label className="text-sm font-medium text-muted-foreground">Name des Automaten</Label>
+                  <p className="font-medium">{machine.machineName}</p>
                 </div>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Standortinformationen</CardTitle>
-                <CardDescription>Details zum Aufstellort des Automaten</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div>
-                    <p className="text-sm font-medium text-gray-500">Standortname</p>
-                    <p>{machine.location || 'Nicht hinterlegt'}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-gray-500">Adresse</p>
-                    <p>{machine.address || 'Nicht hinterlegt'}</p>
-                  </div>
-                  {/* Weitere Standortinformationen könnten hier hinzugefügt werden */}
-                  <div className="pt-4">
-                    <Button variant="outline" className="w-full">
-                      <MapPin className="h-4 w-4 mr-2" />
-                      Auf Karte anzeigen
-                    </Button>
-                  </div>
+                <div>
+                  <Label className="text-sm font-medium text-muted-foreground">Vendon ID</Label>
+                  <p className="font-medium">{machine.vendonId}</p>
                 </div>
-              </CardContent>
-            </Card>
-            
-            <Card className="md:col-span-2">
-              <CardHeader>
-                <CardTitle className="text-lg">Umsatzentwicklung</CardTitle>
-                <CardDescription>Verkäufe und Umsatz der letzten 7 Tage</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {machineAnalytics?.timeSeries && Array.isArray(machineAnalytics.timeSeries) && machineAnalytics.timeSeries.length > 0 ? (
-                  <div className="h-64">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <LineChart
-                        data={machineAnalytics.timeSeries.slice(-7)}
-                        margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-                      >
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis 
-                          dataKey="date" 
-                          tickFormatter={(date) => new Date(date).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })}
-                        />
-                        <YAxis yAxisId="left" />
-                        <YAxis yAxisId="right" orientation="right" />
-                        <RechartTooltip 
-                          formatter={(value: any, name: any) => {
-                            if (name === 'revenue') return [`${Number(value).toFixed(2)} €`, 'Umsatz'];
-                            if (name === 'count') return [value, 'Verkäufe'];
-                            return [value, name];
-                          }}
-                          labelFormatter={(label) => new Date(label).toLocaleDateString('de-DE')}
-                        />
-                        <Legend />
-                        <Line yAxisId="left" type="monotone" dataKey="count" stroke="#8884d8" name="Verkäufe" />
-                        <Line yAxisId="right" type="monotone" dataKey="revenue" stroke="#82ca9d" name="Umsatz (€)" />
-                      </LineChart>
-                    </ResponsiveContainer>
+                {machine.serialNumber && (
+                  <div>
+                    <Label className="text-sm font-medium text-muted-foreground">Seriennummer</Label>
+                    <p className="font-medium">{machine.serialNumber}</p>
                   </div>
-                ) : (
-                  <div className="h-64 flex items-center justify-center">
-                    <p className="text-gray-500">Keine Umsatzdaten für die letzten 7 Tage verfügbar</p>
+                )}
+                {machine.machineType && (
+                  <div>
+                    <Label className="text-sm font-medium text-muted-foreground">Typ</Label>
+                    <p className="font-medium">{machine.machineType}</p>
+                  </div>
+                )}
+                {machine.installationDate && (
+                  <div>
+                    <Label className="text-sm font-medium text-muted-foreground">Installationsdatum</Label>
+                    <p className="font-medium">{formatDateOnly(machine.installationDate)}</p>
                   </div>
                 )}
               </CardContent>
             </Card>
+
+            {/* Standort Info Card */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <MapPin className="h-5 w-5" />
+                  Standortinformationen
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {machine.location && (
+                  <div>
+                    <Label className="text-sm font-medium text-muted-foreground">Standortname</Label>
+                    <p className="font-medium">{machine.location}</p>
+                  </div>
+                )}
+                {machine.address && (
+                  <div>
+                    <Label className="text-sm font-medium text-muted-foreground">Adresse</Label>
+                    <p className="font-medium">{machine.address}</p>
+                  </div>
+                )}
+                <Button variant="outline" size="sm" className="w-full">
+                  <MapPin className="h-4 w-4 mr-2" />
+                  Auf Karte anzeigen
+                </Button>
+              </CardContent>
+            </Card>
+
+            {/* KPI Overview (if analytics loaded) */}
+            {analytics && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <TrendingUp className="h-5 w-5" />
+                    Leistungskennzahlen
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div>
+                    <Label className="text-sm font-medium text-muted-foreground">Verkäufe heute</Label>
+                    <p className="text-2xl font-bold">{analytics.kpis.transactionCount}</p>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium text-muted-foreground">Umsatz heute</Label>
+                    <p className="text-2xl font-bold">{formatCurrency(analytics.kpis.totalRevenue)}</p>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium text-muted-foreground">Durchschnittspreis</Label>
+                    <p className="text-2xl font-bold">{formatCurrency(analytics.kpis.avgPrice)}</p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </div>
-        </TabsContent>
-        
-        {/* Transaktionshistorie Tab */}
-        <TabsContent value="transaktionen" className="mt-4">
+
+          {/* Umsatzentwicklung Chart Placeholder */}
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <div>
-                <CardTitle className="text-lg">Transaktionshistorie</CardTitle>
-                <CardDescription>Die letzten Verkäufe an diesem Automaten</CardDescription>
-              </div>
-              <Button variant="outline" className="gap-2">
-                <Download className="h-4 w-4" />
-                Exportieren
-              </Button>
+            <CardHeader>
+              <CardTitle>Umsatzentwicklung (letzte 7 Tage)</CardTitle>
             </CardHeader>
             <CardContent>
-              {transactionsLoading ? (
-                <div className="flex justify-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
-                </div>
-              ) : transactions && transactions.length > 0 ? (
+              <div className="h-32 bg-muted rounded flex items-center justify-center text-muted-foreground">
+                Umsatzdiagramm folgt
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Transaktionen Tab */}
+        <TabsContent value="transaktionen" className="space-y-4">
+          <div className="flex justify-between items-center">
+            <h2 className="text-xl font-semibold">Transaktionshistorie</h2>
+            <Button variant="outline" size="sm">
+              <Download className="h-4 w-4 mr-2" />
+              Exportieren
+            </Button>
+          </div>
+
+          {transactionsLoading ? (
+            <div className="space-y-2">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <Skeleton key={i} className="h-12 w-full" />
+              ))}
+            </div>
+          ) : (
+            <Card>
+              <CardContent className="p-0">
                 <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead>Datum & Zeit</TableHead>
                       <TableHead>Produkt</TableHead>
                       <TableHead>Menge</TableHead>
-                      <TableHead className="text-right">Preis</TableHead>
+                      <TableHead>Preis</TableHead>
                       <TableHead>Zahlungsart</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {Array.from(new Map(transactions.map(t => [t.id, t])).values()).map((transaction: Transaction) => (
+                    {transactions?.map((transaction) => (
                       <TableRow key={transaction.id}>
-                        <TableCell>{formatDateTime(transaction.datetime, 'datetime')}</TableCell>
+                        <TableCell>{formatDate(transaction.datetime)}</TableCell>
                         <TableCell>{transaction.productName}</TableCell>
                         <TableCell>{transaction.quantity}x</TableCell>
-                        <TableCell className="text-right">{(transaction.price || transaction.amount || 0).toFixed(2)} €</TableCell>
+                        <TableCell>{formatCurrency(transaction.price)}</TableCell>
                         <TableCell>
-                          <Badge variant="outline">
-                            {transaction.paymentMethod === 'CASH' ? 'Bar' : 
-                             transaction.paymentMethod === 'CASHLESS' ? 'Cashless' : 
-                             transaction.paymentMethod}
+                          <Badge variant={transaction.paymentMethod === 'CASH' ? 'secondary' : 'default'}>
+                            {transaction.paymentMethod === 'CASH' ? 'Bar' : 'Cashless'}
                           </Badge>
                         </TableCell>
                       </TableRow>
-                    ))}
+                    )) || (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center text-muted-foreground">
+                          Keine Transaktionen gefunden
+                        </TableCell>
+                      </TableRow>
+                    )}
                   </TableBody>
                 </Table>
-              ) : (
-                <div className="text-center py-8">
-                  <ShoppingCart className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium mb-2">Keine Transaktionen gefunden</h3>
-                  <p className="text-gray-500">
-                    {resolvedMachineId 
-                      ? 'Für diesen Automaten wurden noch keine Verkäufe aufgezeichnet.' 
-                      : 'Automat wird geladen...'}
-                  </p>
-                </div>
-              )}
-            </CardContent>
-            {((transactions && Array.isArray(transactions) && transactions.length > 0) || transactionsLoading) && (
-              <CardFooter className="flex justify-between items-center">
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  onClick={() => setTransactionPage(p => Math.max(1, p - 1))}
-                  disabled={transactionPage <= 1 || transactionsLoading}
-                >
-                  Vorherige
-                </Button>
-                <div className="text-sm text-gray-500">
-                  Seite {transactionPage} {transactions && Array.isArray(transactions) && transactions.length === transactionLimit ? '(weitere verfügbar)' : ''}
-                </div>
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  onClick={() => setTransactionPage(p => p + 1)}
-                  disabled={!transactions || !Array.isArray(transactions) || transactions.length < transactionLimit || transactionsLoading}
-                >
-                  Nächste
-                </Button>
-              </CardFooter>
-            )}
-          </Card>
-        </TabsContent>
-        
-        {/* Analysen Tab */}
-        <TabsContent value="analysen" className="mt-4">
-          {analyticsLoading ? (
-            <div className="flex justify-center items-center h-64">
-              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
-            </div>
-          ) : analyticsError ? (
-            <Card className="bg-red-50 border-red-200">
-              <CardContent className="pt-6">
-                <div className="flex items-center text-red-600">
-                  <AlertTriangle className="h-5 w-5 mr-2" />
-                  <p>Fehler beim Laden der Analysen: {String(analyticsError)}</p>
-                </div>
               </CardContent>
             </Card>
-          ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* KPI-Übersicht */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center text-lg">
-                    <BarChartIcon className="h-5 w-5 mr-2" />
-                    Leistungskennzahlen
-                  </CardTitle>
-                  <CardDescription>Wichtige Kennzahlen auf einen Blick</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-muted rounded-lg p-4">
-                      <div className="text-sm text-muted-foreground mb-1">Gesamt-Verkäufe</div>
-                      <div className="text-2xl font-medium">{machineAnalytics?.periodAnalysis?.transactionStats?.count || 0}</div>
-                    </div>
-                    <div className="bg-muted rounded-lg p-4">
-                      <div className="text-sm text-muted-foreground mb-1">Umsatz</div>
-                      <div className="text-2xl font-medium">{(Number(machineAnalytics?.periodAnalysis?.transactionStats?.totalRevenue) || 0).toFixed(2)} €</div>
-                    </div>
-                    <div className="bg-muted rounded-lg p-4">
-                      <div className="text-sm text-muted-foreground mb-1">Auffüllungen</div>
-                      <div className="text-2xl font-medium">{machineAnalytics?.periodAnalysis?.refillStats?.count || 0}</div>
-                    </div>
-                    <div className="bg-muted rounded-lg p-4">
-                      <div className="text-sm text-muted-foreground mb-1">Durchschnittlicher Verkauf</div>
-                      <div className="text-2xl font-medium">{(Number(machineAnalytics?.periodAnalysis?.transactionStats?.avgPrice) || 0).toFixed(2)} €</div>
-                    </div>
-                  </div>
-                </CardContent>
-                <CardFooter className="text-xs text-muted-foreground">
-                  Zeitraum: {machineAnalytics?.periodAnalysis?.startDate ? formatDateTime(machineAnalytics.periodAnalysis.startDate, 'date') : 'Nicht verfügbar'} - {machineAnalytics?.periodAnalysis?.endDate ? formatDateTime(machineAnalytics.periodAnalysis.endDate, 'date') : 'Nicht verfügbar'}
-                </CardFooter>
-              </Card>
+          )}
+        </TabsContent>
 
-              {/* Verkaufstrend */}
+        {/* Analysen Tab */}
+        <TabsContent value="analysen" className="space-y-6">
+          {analyticsLoading ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <Skeleton key={i} className="h-64" />
+              ))}
+            </div>
+          ) : analytics ? (
+            <div className="space-y-6">
+              {/* KPI Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium">Verkäufe</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{analytics.kpis.transactionCount}</div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium">Umsatz</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{formatCurrency(analytics.kpis.totalRevenue)}</div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium">Auffüllungen</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{analytics.kpis.refillCount}</div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium">Durchschnittspreis</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{formatCurrency(analytics.kpis.avgPrice)}</div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Sales Trend Chart */}
               <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center text-lg">
-                    <LineChart className="h-5 w-5 mr-2" />
-                    Verkaufstrend
-                  </CardTitle>
-                  <CardDescription>Entwicklung der Verkäufe im Zeitverlauf</CardDescription>
+                  <CardTitle>Verkaufstrend</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="h-64">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <LineChart
-                        data={machineAnalytics?.timeSeries || []}
-                        margin={{ top: 5, right: 20, left: 0, bottom: 5 }}
-                      >
+                  {analytics.salesTimeSeries?.length > 0 ? (
+                    <ResponsiveContainer width="100%" height={300}>
+                      <LineChart data={analytics.salesTimeSeries}>
                         <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis 
-                          dataKey="date" 
-                          tickFormatter={(date) => new Date(date).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })}
-                        />
+                        <XAxis dataKey="date" />
                         <YAxis />
-                        <RechartTooltip 
-                          formatter={(value: any, name: any) => {
-                            if (name === 'revenue') return [`${Number(value).toFixed(2)} €`, 'Umsatz'];
-                            if (name === 'count') return [value, 'Anzahl'];
-                            return [value, name];
-                          }}
-                          labelFormatter={(label) => new Date(label).toLocaleDateString('de-DE')}
-                        />
-                        <Legend payload={[
-                          { value: 'Anzahl', type: 'line', color: '#8884d8' },
-                          { value: 'Umsatz (€)', type: 'line', color: '#82ca9d' }
-                        ]} />
-                        <Line type="monotone" dataKey="count" stroke="#8884d8" activeDot={{ r: 8 }} name="count" />
-                        <Line type="monotone" dataKey="revenue" stroke="#82ca9d" name="revenue" />
+                        <Tooltip />
+                        <Legend />
+                        <Line type="monotone" dataKey="count" stroke="#8884d8" name="Verkäufe" />
+                        <Line type="monotone" dataKey="revenue" stroke="#82ca9d" name="Umsatz" />
                       </LineChart>
                     </ResponsiveContainer>
-                  </div>
+                  ) : (
+                    <div className="h-64 bg-muted rounded flex items-center justify-center text-muted-foreground">
+                      Keine Verkaufstrend-Daten verfügbar
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
-              {/* Top Produkte */}
+              {/* Event Analysis */}
               <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center text-lg">
-                    <ShoppingCart className="h-5 w-5 mr-2" />
-                    Top Produkte
-                  </CardTitle>
-                  <CardDescription>Die beliebtesten Produkte nach Verkaufsvolumen</CardDescription>
+                  <CardTitle>Ereignis-Analyse</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="h-64">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart
-                        data={machineAnalytics?.productPerformance || []}
-                        margin={{ top: 5, right: 30, left: 20, bottom: 60 }}
-                      >
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis
-                          dataKey="productName"
-                          angle={-45}
-                          textAnchor="end"
-                          height={70}
-                          interval={0}
-                          tick={{ fontSize: 10 }}
-                        />
-                        <YAxis />
-                        <RechartTooltip 
-                          formatter={(value: any, name: any) => {
-                            if (name === 'revenue') return [`${Number(value).toFixed(2)} €`, 'Umsatz'];
-                            if (name === 'count') return [value, 'Anzahl'];
-                            return [value, name];
-                          }}
-                        />
-                        <Legend payload={[
-                          { value: 'Anzahl', type: 'rect', color: '#8884d8' },
-                          { value: 'Umsatz (€)', type: 'rect', color: '#82ca9d' }
-                        ]} />
-                        <Bar dataKey="count" fill="#8884d8" name="count" />
-                        <Bar dataKey="revenue" fill="#82ca9d" name="revenue" />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Zahlungsmethoden */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center text-lg">
-                    <CreditCard className="h-5 w-5 mr-2" />
-                    Zahlungsmethoden
-                  </CardTitle>
-                  <CardDescription>Verteilung der verwendeten Zahlungsmethoden</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="h-64">
-                    <ResponsiveContainer width="100%" height="100%">
+                  {analytics.eventCounts?.length > 0 ? (
+                    <ResponsiveContainer width="100%" height={300}>
                       <PieChart>
                         <Pie
-                          data={machineAnalytics?.paymentMethodDistribution?.map(pm => ({
-                            name: pm.paymentMethod,
-                            value: pm.count
-                          })) || []}
+                          data={analytics.eventCounts}
                           cx="50%"
                           cy="50%"
                           labelLine={false}
+                          label={({ eventType, count }) => `${eventType}: ${count}`}
                           outerRadius={80}
                           fill="#8884d8"
-                          dataKey="value"
-                          nameKey="name"
-                          label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                          dataKey="count"
                         >
-                          {machineAnalytics?.paymentMethodDistribution?.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#A4DE6C'][index % 5]} />
+                          {analytics.eventCounts.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={["#8884d8","#82ca9d","#ffc658","#ff7300","#00ff00"][index % 5]} />
                           ))}
                         </Pie>
-                        <RechartTooltip formatter={(value) => [value, 'Transaktionen']} />
+                        <Tooltip />
                       </PieChart>
                     </ResponsiveContainer>
-                  </div>
+                  ) : (
+                    <div className="h-64 bg-muted rounded flex items-center justify-center text-muted-foreground">
+                      Keine Ereignis-Daten verfügbar
+                    </div>
+                  )}
                 </CardContent>
               </Card>
-
-              {/* Wetter-Korrelation, falls Daten vorhanden */}
-              {machineAnalytics?.weatherData && machineAnalytics?.weatherData.length > 0 && machineAnalytics?.timeSeries && (
-                <Card className="col-span-1 lg:col-span-2">
-                  <CardHeader>
-                    <CardTitle className="flex items-center text-lg">
-                      <Droplet className="h-5 w-5 mr-2" />
-                      Wetter & Verkäufe
-                    </CardTitle>
-                    <CardDescription>Korrelation zwischen Wetter und Verkäufen</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="h-64">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <LineChart
-                          data={machineAnalytics?.timeSeries?.map(ts => {
-                            const weatherForDay = machineAnalytics.weatherData?.find(
-                              w => new Date(w.date).toISOString().split('T')[0] === new Date(ts.date).toISOString().split('T')[0]
-                            );
-                            return {
-                              date: ts.date,
-                              sales: ts.count,
-                              revenue: ts.revenue,
-                              temperature: weatherForDay?.avgTemperature || null,
-                              conditions: weatherForDay?.conditions || null
-                            };
-                          }).filter(d => d.temperature !== null) || []}
-                          margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-                        >
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis 
-                            dataKey="date" 
-                            tickFormatter={(date) => new Date(date).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })}
-                          />
-                          <YAxis yAxisId="left" orientation="left" />
-                          <YAxis yAxisId="right" orientation="right" domain={[0, 40]} />
-                          <RechartTooltip 
-                            formatter={(value: any, name: any) => {
-                              if (name === 'revenue') return [`${Number(value).toFixed(2)} €`, 'Umsatz'];
-                              if (name === 'sales') return [value, 'Verkäufe'];
-                              if (name === 'temperature') return [`${Number(value).toFixed(1)} °C`, 'Temperatur'];
-                              return [value, name];
-                            }}
-                            labelFormatter={(label) => new Date(label).toLocaleDateString('de-DE')}
-                          />
-                          <Legend />
-                          <Line yAxisId="left" type="monotone" dataKey="sales" stroke="#8884d8" name="Verkäufe" />
-                          <Line yAxisId="right" type="monotone" dataKey="temperature" stroke="#ff7300" name="Temperatur (°C)" />
-                        </LineChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Ereignis-Analyse */}
-              <Card className="col-span-1 lg:col-span-2">
-                <CardHeader>
-                  <CardTitle className="flex items-center text-lg">
-                    <AlertTriangle className="h-5 w-5 mr-2" />
-                    Ereignis-Analyse
-                  </CardTitle>
-                  <CardDescription>Verteilung der Ereignistypen und Häufigkeit</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="h-64">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                          <Pie
-                            data={machineAnalytics?.periodAnalysis?.eventCounts?.map(event => ({
-                              name: event.eventType,
-                              value: event.count
-                            })) || []}
-                            cx="50%"
-                            cy="50%"
-                            labelLine={false}
-                            outerRadius={80}
-                            fill="#8884d8"
-                            dataKey="value"
-                            nameKey="name"
-                            label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                          >
-                            {machineAnalytics?.periodAnalysis?.eventCounts?.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#A4DE6C'][index % 5]} />
-                            ))}
-                          </Pie>
-                          <RechartTooltip formatter={(value) => [value, 'Ereignisse']} />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-medium mb-2">Ereignisübersicht</h4>
-                      <div className="space-y-2">
-                        {!machineAnalytics?.periodAnalysis?.eventCounts || machineAnalytics.periodAnalysis.eventCounts.length === 0 ? (
-                          <p className="text-muted-foreground text-sm">Keine Ereignisse im gewählten Zeitraum.</p>
-                        ) : (
-                          machineAnalytics?.periodAnalysis?.eventCounts?.map((event, index) => (
-                            <div key={index} className="flex justify-between items-center p-2 bg-muted rounded">
-                              <span>{event.eventType}</span>
-                              <Badge variant={
-                                event.eventType.toLowerCase().includes('error') ? 'destructive' : 
-                                event.eventType.toLowerCase().includes('warning') ? 'warning' : 
-                                'secondary'
-                              }>
-                                {event.count}
-                              </Badge>
-                            </div>
-                          ))
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+            </div>
+          ) : (
+            <div className="text-center text-muted-foreground">
+              Keine Analyse-Daten verfügbar
             </div>
           )}
         </TabsContent>
-        
-        {/* Auffüllungen Tab */}
-        <TabsContent value="auffullungen" className="mt-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <div>
-                <CardTitle className="text-lg">Auffüllungen</CardTitle>
-                <CardDescription>Protokoll der Auffüllungen und Warennachschübe</CardDescription>
-              </div>
-              <Button variant="outline" className="gap-2">
-                <Download className="h-4 w-4" />
-                Exportieren
-              </Button>
-            </CardHeader>
-            <CardContent>
-              {refillsLoading ? (
-                <div className="flex justify-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
-                </div>
-              ) : refills && refills.length > 0 ? (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Datum & Zeit</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Notizen</TableHead>
-                      <TableHead>Aktionen</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {refills.map((refill: Refill) => (
-                      <TableRow key={refill.id}>
-                        <TableCell>{formatDateTime(refill.datetime, 'datetime')}</TableCell>
-                        <TableCell>
-                          <Badge 
-                            variant={refill.status === 'completed' ? 'default' : 'secondary'}
-                            className={refill.status === 'completed' ? 'bg-green-500 hover:bg-green-700' : ''}
-                          >
-                            {refill.status === 'completed' ? 'Abgeschlossen' : 
-                             refill.status === 'in_progress' ? 'In Bearbeitung' : 
-                             refill.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          {refill.notes || '–'}
-                        </TableCell>
-                        <TableCell>
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            onClick={() => {
-                              // Hier zur Detailseite navigieren
-                              setLocation(`/automaten/${inputId}/refills/${refill.id}`);
-                            }}
-                          >
-                            Details
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              ) : (
-                <div className="text-center py-8">
-                  <p className="text-gray-500">Keine Auffüllungen gefunden</p>
-                </div>
-              )}
-            </CardContent>
-            {refills && refills.length > 0 && (
-              <CardFooter className="flex justify-between">
-                <Button variant="ghost" size="sm" disabled>
-                  Vorherige
-                </Button>
-                <div className="text-sm text-gray-500">
-                  Seite 1 von 1
-                </div>
-                <Button variant="ghost" size="sm" disabled>
-                  Nächste
-                </Button>
-              </CardFooter>
-            )}
-          </Card>
-        </TabsContent>
-        
+
         {/* Auswertung Tab */}
-        <TabsContent value="auswertung" className="mt-4">
+        <TabsContent value="auswertung" className="space-y-6">
           {analyticsLoading ? (
-            <div className="flex justify-center items-center h-64">
-              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <Skeleton key={i} className="h-64" />
+              ))}
             </div>
-          ) : analyticsError ? (
-            <Card className="bg-red-50 border-red-200">
-              <CardContent className="pt-6">
-                <div className="flex items-center text-red-600">
-                  <AlertTriangle className="h-5 w-5 mr-2" />
-                  <p>Fehler beim Laden der Auswertung: {String(analyticsError)}</p>
-                </div>
-              </CardContent>
-            </Card>
-          ) : (
+          ) : analytics ? (
             <div className="space-y-6">
-              {/* Filter und Zeitraum Auswahl */}
-              <div className="flex flex-col sm:flex-row gap-2 justify-between bg-muted rounded-lg p-4">
-                <div>
-                  <h3 className="text-lg font-medium mb-2">Verkaufsauswertung</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Detaillierte Verkaufsanalyse für {machine.machineName}
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <Select defaultValue="month">
-                    <SelectTrigger className="w-[140px]">
-                      <SelectValue placeholder="Zeitraum" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="day">Heute</SelectItem>
-                      <SelectItem value="week">Diese Woche</SelectItem>
-                      <SelectItem value="month">Dieser Monat</SelectItem>
-                      <SelectItem value="year">Dieses Jahr</SelectItem>
-                      <SelectItem value="custom">Benutzerdefiniert</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Button variant="outline" className="gap-2">
-                    <Download className="h-4 w-4" />
-                    Exportieren
-                  </Button>
-                </div>
-              </div>
-
-              {/* Wöchentlicher und monatlicher Ertrag (Grafisch) */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Weekly Revenue */}
                 <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="flex items-center text-lg">
-                      <BarChartIcon className="h-5 w-5 mr-2" />
-                      Wöchentlicher Ertrag
-                    </CardTitle>
-                    <CardDescription>Umsatz pro Woche im ausgewählten Zeitraum</CardDescription>
+                  <CardHeader>
+                    <CardTitle>Wöchentlicher Ertrag</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="h-72">
-                      {analyticsLoading ? (
-                        <div className="flex items-center justify-center h-full">
-                          <div className="flex items-center space-x-2">
-                            <RefreshCw className="h-4 w-4 animate-spin" />
-                            <span className="text-sm text-muted-foreground">Lade Daten...</span>
-                          </div>
-                        </div>
-                      ) : analyticsError ? (
-                        <div className="flex items-center justify-center h-full">
-                          <div className="text-center">
-                            <AlertTriangle className="h-8 w-8 text-amber-500 mx-auto mb-2" />
-                            <p className="text-sm text-muted-foreground">Fehler beim Laden der Analysedaten</p>
-                          </div>
-                        </div>
-                      ) : (
-                        (() => {
-                          const weeklyData = machineAnalytics?.timeSeries && Array.isArray(machineAnalytics.timeSeries) 
-                            ? groupDataByWeek(machineAnalytics.timeSeries) 
-                            : [];
-                          
-                          return weeklyData.length > 0 ? (
-                            <ResponsiveContainer width="100%" height="100%">
-                              <BarChart
-                                data={weeklyData}
-                                margin={{ top: 10, right: 10, left: 10, bottom: 20 }}
-                              >
-                                <CartesianGrid strokeDasharray="3 3" />
-                                <XAxis 
-                                  dataKey="weekLabel" 
-                                  tick={{ fontSize: 12 }}
-                                />
-                                <YAxis
-                                  tickFormatter={(value) => `${value} €`}
-                                />
-                                <RechartTooltip
-                                  formatter={(value: any) => [`${value.toFixed(2)} €`, 'Umsatz']}
-                                />
-                                <Bar 
-                                  dataKey="revenue" 
-                                  fill="#8884d8" 
-                                  name="Umsatz" 
-                                  radius={[4, 4, 0, 0]}
-                                />
-                              </BarChart>
-                            </ResponsiveContainer>
-                          ) : (
-                            <div className="flex items-center justify-center h-full">
-                              <div className="text-center">
-                                <BarChartIcon className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-                                <p className="text-sm text-muted-foreground">Keine Umsatzdaten für den gewählten Zeitraum</p>
-                              </div>
-                            </div>
-                          );
-                        })()
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="flex items-center text-lg">
-                      <LineChart className="h-5 w-5 mr-2" />
-                      Monatlicher Ertrag
-                    </CardTitle>
-                    <CardDescription>Umsatzentwicklung pro Monat</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="h-72">
-                      {analyticsLoading ? (
-                        <div className="flex items-center justify-center h-full">
-                          <div className="flex items-center space-x-2">
-                            <RefreshCw className="h-4 w-4 animate-spin" />
-                            <span className="text-sm text-muted-foreground">Lade Daten...</span>
-                          </div>
-                        </div>
-                      ) : analyticsError ? (
-                        <div className="flex items-center justify-center h-full">
-                          <div className="text-center">
-                            <AlertTriangle className="h-8 w-8 text-amber-500 mx-auto mb-2" />
-                            <p className="text-sm text-muted-foreground">Fehler beim Laden der Analysedaten</p>
-                          </div>
-                        </div>
-                      ) : (
-                        (() => {
-                          const monthlyData = machineAnalytics?.timeSeries && Array.isArray(machineAnalytics.timeSeries) 
-                            ? groupDataByMonth(machineAnalytics.timeSeries) 
-                            : [];
-                          
-                          return monthlyData.length > 0 ? (
-                            <ResponsiveContainer width="100%" height="100%">
-                              <LineChart
-                                data={monthlyData}
-                                margin={{ top: 10, right: 10, left: 10, bottom: 20 }}
-                              >
-                                <CartesianGrid strokeDasharray="3 3" />
-                                <XAxis dataKey="monthLabel" />
-                                <YAxis
-                                  tickFormatter={(value) => `${value} €`}
-                                />
-                                <RechartTooltip
-                                  formatter={(value: any) => [`${value.toFixed(2)} €`, 'Umsatz']}
-                                />
-                                <Line 
-                                  type="monotone" 
-                                  dataKey="revenue" 
-                                  stroke="#82ca9d" 
-                                  activeDot={{ r: 8 }} 
-                                  name="Umsatz"
-                                />
-                              </LineChart>
-                            </ResponsiveContainer>
-                          ) : (
-                            <div className="flex items-center justify-center h-full">
-                              <div className="text-center">
-                                <TrendingUp className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-                                <p className="text-sm text-muted-foreground">Keine monatlichen Umsatzdaten verfügbar</p>
-                              </div>
-                            </div>
-                          );
-                        })()
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* Verkaufte Produkte - Zeitliche Analyse */}
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="flex items-center text-lg">
-                    <Clock className="h-5 w-5 mr-2" />
-                    Verkaufszeiten
-                  </CardTitle>
-                  <CardDescription>Wann werden Produkte am häufigsten verkauft?</CardDescription>
-                </CardHeader>
-                <CardContent className="pt-0">
-                  <div className="h-72">
-                    {analyticsLoading ? (
-                      <div className="flex items-center justify-center h-full">
-                        <div className="flex items-center space-x-2">
-                          <RefreshCw className="h-4 w-4 animate-spin" />
-                          <span className="text-sm text-muted-foreground">Lade Verkaufsdaten...</span>
-                        </div>
-                      </div>
-                    ) : analyticsError ? (
-                      <div className="flex items-center justify-center h-full">
-                        <div className="text-center">
-                          <AlertTriangle className="h-8 w-8 text-amber-500 mx-auto mb-2" />
-                          <p className="text-sm text-muted-foreground">Fehler beim Laden der Verkaufsdaten</p>
-                        </div>
-                      </div>
+                    {analytics.weeklyRevenue?.length > 0 ? (
+                      <ResponsiveContainer width="100%" height={250}>
+                        <BarChart data={analytics.weeklyRevenue}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="week" />
+                          <YAxis />
+                          <Tooltip formatter={(value) => formatCurrency(Number(value))} />
+                          <Bar dataKey="revenue" fill="#8884d8" />
+                        </BarChart>
+                      </ResponsiveContainer>
                     ) : (
-                      (() => {
-                        const hourlyData = getHourlyDistribution(machineAnalytics);
-                        const hasData = hourlyData.some(item => item.count > 0);
-                        
-                        return hasData ? (
-                          <ResponsiveContainer width="100%" height="100%">
-                            <BarChart
-                              data={hourlyData}
-                              margin={{ top: 20, right: 10, left: 10, bottom: 20 }}
-                            >
-                              <CartesianGrid strokeDasharray="3 3" />
-                              <XAxis dataKey="hour" />
-                              <YAxis />
-                              <RechartTooltip
-                                formatter={(value: any) => [value, 'Verkäufe']}
-                                labelFormatter={(hour) => `${hour}:00 - ${hour}:59 Uhr`}
-                              />
-                              <Bar 
-                                dataKey="count" 
-                                fill="#4f46e5" 
-                                name="Anzahl"
-                                radius={[4, 4, 0, 0]}
-                              />
-                            </BarChart>
-                          </ResponsiveContainer>
-                        ) : (
-                          <div className="flex items-center justify-center h-full">
-                            <div className="text-center">
-                              <Clock className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-                              <p className="text-sm text-muted-foreground">Keine Verkäufe in diesem Zeitraum</p>
-                              <p className="text-xs text-muted-foreground mt-1">Verkäufe werden normalerweise zwischen 8-20 Uhr angezeigt</p>
-                            </div>
-                          </div>
-                        );
-                      })()
+                      <div className="h-64 bg-muted rounded flex items-center justify-center text-muted-foreground">
+                        Keine wöchentlichen Ertragsdaten verfügbar
+                      </div>
                     )}
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Top verkaufte und entfernte Produkte */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="flex items-center text-lg">
-                      <ShoppingCart className="h-5 w-5 mr-2" />
-                      Top Verkaufte Produkte
-                    </CardTitle>
-                    <CardDescription>Am häufigsten verkaufte Artikel</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      {analyticsLoading ? (
-                        <div className="flex items-center justify-center py-8">
-                          <div className="flex items-center space-x-2">
-                            <RefreshCw className="h-4 w-4 animate-spin" />
-                            <span className="text-sm text-muted-foreground">Lade Produktdaten...</span>
-                          </div>
-                        </div>
-                      ) : analyticsError ? (
-                        <div className="text-center py-8">
-                          <AlertTriangle className="h-8 w-8 text-amber-500 mx-auto mb-2" />
-                          <p className="text-sm text-muted-foreground">Fehler beim Laden der Produktdaten</p>
-                        </div>
-                      ) : machineAnalytics?.productPerformance && machineAnalytics.productPerformance.length > 0 ? (
-                        machineAnalytics.productPerformance.slice(0, 5).map((product, i) => (
-                          <div key={i} className="space-y-2">
-                            <div className="flex justify-between items-center">
-                              <div className="font-medium truncate mr-2" title={product.productName}>
-                                {product.productName.length > 30 
-                                  ? product.productName.substring(0, 30) + '...' 
-                                  : product.productName}
-                              </div>
-                              <div className="flex items-center">
-                                <span className="text-muted-foreground text-sm mr-2">{product.count}x</span>
-                                <span className="font-bold">{Number(product.revenue).toFixed(2)} €</span>
-                              </div>
-                            </div>
-                            <div className="w-full bg-secondary rounded-full h-2.5">
-                              <div 
-                                className="bg-primary h-2.5 rounded-full" 
-                                style={{ 
-                                  width: `${(product.count / (machineAnalytics.productPerformance[0]?.count || 1)) * 100}%` 
-                                }}
-                              ></div>
-                            </div>
-                          </div>
-                        ))
-                      ) : (
-                        <div className="text-center py-8">
-                          <div className="text-center">
-                            <ShoppingCart className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-                            <p className="text-sm text-muted-foreground">Keine Produktverkäufe im gewählten Zeitraum</p>
-                          </div>
-                        </div>
-                      )}
-                    </div>
                   </CardContent>
                 </Card>
 
+                {/* Monthly Revenue */}
                 <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="flex items-center text-lg">
-                      <PackagePlus className="h-5 w-5 mr-2" />
-                      Top Entfernte Produkte
-                    </CardTitle>
-                    <CardDescription>Bei Auffüllungen am häufigsten entfernte Produkte</CardDescription>
+                  <CardHeader>
+                    <CardTitle>Monatlicher Ertrag</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    {refills && refills.length > 0 ? (
-                      <div className="space-y-4">
-                        {getTopRemovedProducts(refills).map((product, i) => (
-                          <div key={i} className="space-y-2">
-                            <div className="flex justify-between items-center">
-                              <div className="font-medium truncate mr-2" title={product.productName}>
-                                {product.productName.length > 30 
-                                  ? product.productName.substring(0, 30) + '...' 
-                                  : product.productName}
-                              </div>
-                              <span className="font-bold">{product.removedCount}x</span>
+                    {analytics.monthlyRevenue?.length > 0 ? (
+                      <ResponsiveContainer width="100%" height={250}>
+                        <LineChart data={analytics.monthlyRevenue}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="month" />
+                          <YAxis />
+                          <Tooltip formatter={(value) => formatCurrency(Number(value))} />
+                          <Line type="monotone" dataKey="revenue" stroke="#82ca9d" />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className="h-64 bg-muted rounded flex items-center justify-center text-muted-foreground">
+                        Keine monatlichen Ertragsdaten verfügbar
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Hourly Sales Distribution */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Verkaufszeiten</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {analytics.hourlyDistribution?.length > 0 ? (
+                      <ResponsiveContainer width="100%" height={250}>
+                        <BarChart data={analytics.hourlyDistribution}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="hour" />
+                          <YAxis />
+                          <Tooltip />
+                          <Bar dataKey="count" fill="#ffc658" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className="h-64 bg-muted rounded flex items-center justify-center text-muted-foreground">
+                        Keine Verkaufszeitdaten verfügbar
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Top Products */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Top Verkaufte Produkte</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {analytics.productPerformance?.length > 0 ? (
+                      <div className="space-y-3">
+                        {analytics.productPerformance.slice(0, 5).map((product, index) => (
+                          <div key={product.productName} className="flex items-center justify-between p-2 bg-muted rounded">
+                            <div className="flex items-center space-x-3">
+                              <span className="text-sm font-medium text-muted-foreground">#{index + 1}</span>
+                              <span className="font-medium">{product.productName}</span>
                             </div>
-                            <div className="w-full bg-secondary rounded-full h-2.5">
-                              <div 
-                                className="bg-amber-500 h-2.5 rounded-full" 
-                                style={{ 
-                                  width: `${(product.removedCount / (getTopRemovedProducts(refills)[0]?.removedCount || 1)) * 100}%` 
-                                }}
-                              ></div>
+                            <div className="text-right">
+                              <div className="font-medium">{product.count}x</div>
+                              <div className="text-sm text-muted-foreground">{formatCurrency(product.revenue)}</div>
                             </div>
                           </div>
                         ))}
                       </div>
                     ) : (
-                      <div className="text-center py-8">
-                        <p className="text-muted-foreground">Keine Auffüllungsdaten gefunden</p>
+                      <div className="h-64 bg-muted rounded flex items-center justify-center text-muted-foreground">
+                        Keine Produktperformance-Daten verfügbar
                       </div>
                     )}
                   </CardContent>
                 </Card>
               </div>
             </div>
+          ) : (
+            <div className="text-center text-muted-foreground">
+              Keine Auswertungsdaten verfügbar
+            </div>
           )}
         </TabsContent>
 
-        
-        {/* Inventur Tab */}
-        <TabsContent value="inventur" className="mt-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <div>
-                <CardTitle className="text-lg">Inventurbestand</CardTitle>
-                <CardDescription>Aktuelle Bestände im Automaten</CardDescription>
-              </div>
-              <Button variant="default" className="gap-2">
-                <ClipboardCheck className="h-4 w-4" />
-                Inventur starten
+        {/* Auffüllungen Tab */}
+        <TabsContent value="auffullungen" className="space-y-4">
+          <div className="flex justify-between items-center">
+            <h2 className="text-xl font-semibold">Auffüllungshistorie</h2>
+            <Button variant="outline" size="sm">
+              <Download className="h-4 w-4 mr-2" />
+              Exportieren
+            </Button>
+          </div>
+
+          {refillsLoading ? (
+            <div className="space-y-2">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <Skeleton key={i} className="h-12 w-full" />
+              ))}
+            </div>
+          ) : (
+            <Card>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Datum & Zeit</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Operator</TableHead>
+                      <TableHead>Notizen</TableHead>
+                      <TableHead>Aktionen</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {refills?.map((refill) => (
+                      <TableRow key={refill.id}>
+                        <TableCell>{formatDate(refill.datetime)}</TableCell>
+                        <TableCell>
+                          <Badge variant={refill.status === 'completed' ? 'default' : 'secondary'}>
+                            {refill.status === 'completed' ? 'Abgeschlossen' : 'In Bearbeitung'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{refill.operator}</TableCell>
+                        <TableCell>{refill.notes}</TableCell>
+                        <TableCell>
+                          <Button variant="outline" size="sm">
+                            Details
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    )) || (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center text-muted-foreground">
+                          Keine Auffüllungen gefunden
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
+        {/* MHD Tab */}
+        <TabsContent value="mhd" className="space-y-4">
+          <div className="flex justify-between items-center">
+            <h2 className="text-xl font-semibold">Mindesthaltbarkeitsdaten</h2>
+          </div>
+
+          {mhdLoading ? (
+            <div className="space-y-2">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <Skeleton key={i} className="h-12 w-full" />
+              ))}
+            </div>
+          ) : (
+            <Card>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Produkt</TableHead>
+                      <TableHead>MHD</TableHead>
+                      <TableHead>Menge</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Aktionen</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {mhdEntries?.map((entry) => (
+                      <TableRow key={entry.id}>
+                        <TableCell>{entry.productName}</TableCell>
+                        <TableCell>{formatDateOnly(entry.expiryDate)}</TableCell>
+                        <TableCell>{entry.quantity}</TableCell>
+                        <TableCell>
+                          <Badge 
+                            variant={
+                              entry.status === 'expired' ? 'destructive' :
+                              entry.status === 'warning' ? 'secondary' :
+                              entry.status === 'attention' ? 'outline' : 'default'
+                            }
+                          >
+                            {entry.status === 'expired' ? 'Abgelaufen' :
+                             entry.status === 'warning' ? 'Warnung' :
+                             entry.status === 'attention' ? 'Aufmerksamkeit' : 'Gut'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => setEditingMHD(entry.id)}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    )) || (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center text-muted-foreground">
+                          Keine MHD-Einträge gefunden
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
+        {/* Entfernte Produkte Tab */}
+        <TabsContent value="entnommene-produkte" className="space-y-4">
+          <div className="flex justify-between items-center">
+            <h2 className="text-xl font-semibold">Entnommene Produkte</h2>
+            <div className="flex items-center space-x-2">
+              <Select value={removedProductsFilter} onValueChange={setRemovedProductsFilter}>
+                <SelectTrigger className="w-32">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="7">7 Tage</SelectItem>
+                  <SelectItem value="30">30 Tage</SelectItem>
+                  <SelectItem value="90">90 Tage</SelectItem>
+                  <SelectItem value="365">1 Jahr</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button variant="outline" size="sm">
+                <Download className="h-4 w-4 mr-2" />
+                Exportieren
               </Button>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-1 text-center py-6">
-                <div className="flex justify-center">
-                  <ClipboardCheck className="h-16 w-16 text-gray-300 mb-2" />
+            </div>
+          </div>
+
+          {removedProductsLoading ? (
+            <div className="space-y-2">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <Skeleton key={i} className="h-12 w-full" />
+              ))}
+            </div>
+          ) : (
+            <Card>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Datum</TableHead>
+                      <TableHead>Produkt</TableHead>
+                      <TableHead>Entfernte Anzahl</TableHead>
+                      <TableHead>Operator</TableHead>
+                      <TableHead>Position</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {removedProducts?.map((product) => (
+                      <TableRow key={product.id}>
+                        <TableCell>{formatDate(product.datetime)}</TableCell>
+                        <TableCell>{product.productName}</TableCell>
+                        <TableCell>{product.removedQuantity}</TableCell>
+                        <TableCell>{product.operator || '-'}</TableCell>
+                        <TableCell>{product.position || '-'}</TableCell>
+                      </TableRow>
+                    )) || (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center text-muted-foreground">
+                          Keine entnommenen Produkte gefunden
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
+        {/* Kosten Tab */}
+        <TabsContent value="kosten" className="space-y-4">
+          <div className="flex justify-between items-center">
+            <h2 className="text-xl font-semibold">Laufende Kosten</h2>
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Neue Kosten hinzufügen
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Neue Kosten hinzufügen</DialogTitle>
+                  <DialogDescription>
+                    Fügen Sie neue laufende Kosten für diesen Automaten hinzu.
+                  </DialogDescription>
+                </DialogHeader>
+                {/* Cost form would go here */}
+                <div className="grid gap-4 py-4">
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="costType" className="text-right">Kostenart</Label>
+                    <Input id="costType" className="col-span-3" />
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="amount" className="text-right">Betrag</Label>
+                    <Input id="amount" type="number" className="col-span-3" />
+                  </div>
                 </div>
-                <h3 className="text-lg font-medium">Inventurbestand</h3>
-                <p className="text-gray-500 text-sm">
-                  Hier können Sie eine Inventur für diesen Automaten durchführen und den aktuellen Bestand prüfen.
-                </p>
-                <div className="pt-4">
-                  <Button variant="outline" className="mr-2">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Produkt hinzufügen
-                  </Button>
-                  <Button variant="default">
-                    <ClipboardCheck className="h-4 w-4 mr-2" />
-                    Inventur starten
-                  </Button>
-                </div>
+                <DialogFooter>
+                  <Button type="submit">Hinzufügen</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
+
+          {costsLoading ? (
+            <div className="space-y-2">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <Skeleton key={i} className="h-12 w-full" />
+              ))}
+            </div>
+          ) : (
+            <Card>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Kostenart</TableHead>
+                      <TableHead>Betrag</TableHead>
+                      <TableHead>Häufigkeit</TableHead>
+                      <TableHead>Beschreibung</TableHead>
+                      <TableHead>Gültig ab</TableHead>
+                      <TableHead>Aktionen</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {machineCosts?.map((cost) => (
+                      <TableRow key={cost.id}>
+                        <TableCell>{cost.costType}</TableCell>
+                        <TableCell>{formatCurrency(cost.amount)}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline">
+                            {cost.frequency === 'monthly' ? 'Monatlich' :
+                             cost.frequency === 'yearly' ? 'Jährlich' :
+                             cost.frequency === 'quarterly' ? 'Quartalsweise' :
+                             cost.frequency === 'weekly' ? 'Wöchentlich' : 'Einmalig'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{cost.description}</TableCell>
+                        <TableCell>{formatDateOnly(cost.validFrom)}</TableCell>
+                        <TableCell>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => deleteCostMutation.mutate(cost.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    )) || (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center text-muted-foreground">
+                          Keine Kosten definiert
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
+        {/* Wirtschaftlichkeit Tab */}
+        <TabsContent value="wirtschaftlichkeit" className="space-y-4">
+          <div className="flex justify-between items-center">
+            <h2 className="text-xl font-semibold">Rentabilitätsanalyse</h2>
+            <div className="flex items-center space-x-2">
+              <Input type="date" className="w-40" placeholder="Von" />
+              <Input type="date" className="w-40" placeholder="Bis" />
+              <Button variant="outline">
+                <Filter className="h-4 w-4 mr-2" />
+                Filtern
+              </Button>
+            </div>
+          </div>
+
+          <Card>
+            <CardContent className="pt-6">
+              <div className="text-center text-muted-foreground">
+                Rentabilitätsanalyse wird geladen...
               </div>
             </CardContent>
           </Card>
         </TabsContent>
 
-        {/* MHD Tab */}
-        <TabsContent value="mhd" className="mt-4">
-          <MHDTab machineId={resolvedMachineId || 0} />
-        </TabsContent>
+        {/* Warenbestand Tab */}
+        <TabsContent value="warenbestand" className="space-y-4">
+          <div className="flex justify-between items-center">
+            <h2 className="text-xl font-semibold">Aktueller Warenbestand</h2>
+            <Button variant="outline" size="sm">
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Bestand synchronisieren
+            </Button>
+          </div>
 
-        {/* Entnommene Produkte Tab */}
-        <TabsContent value="entnommene-produkte" className="mt-4">
-          <RemovedProductsMachineTab machineId={resolvedMachineId || 0} />
-        </TabsContent>
-
-        {/* Kosten Tab */}
-        <TabsContent value="kosten" className="mt-4">
-          <MachineCostsTab machineId={resolvedMachineId || 0} />
-        </TabsContent>
-
-        {/* Wirtschaftlichkeit Tab */}
-        <TabsContent value="wirtschaftlichkeit" className="mt-4">
-          <MachineProfitabilityTab machineId={resolvedMachineId || 0} />
+          {stockLoading ? (
+            <div className="space-y-2">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <Skeleton key={i} className="h-12 w-full" />
+              ))}
+            </div>
+          ) : (
+            <Card>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Produkt</TableHead>
+                      <TableHead>Bestand</TableHead>
+                      <TableHead>Max. Kapazität</TableHead>
+                      <TableHead>Füllstand</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Letzte Auffüllung</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {machineStock?.map((stock) => (
+                      <TableRow key={stock.id}>
+                        <TableCell>{stock.productName}</TableCell>
+                        <TableCell>{stock.currentQuantity}</TableCell>
+                        <TableCell>{stock.maxQuantity}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center space-x-2">
+                            <div className="w-16 bg-gray-200 rounded-full h-2">
+                              <div 
+                                className={`h-2 rounded-full ${
+                                  stock.status === 'good' ? 'bg-green-500' :
+                                  stock.status === 'warning' ? 'bg-yellow-500' : 'bg-red-500'
+                                }`}
+                                style={{ width: `${(stock.currentQuantity / stock.maxQuantity) * 100}%` }}
+                              />
+                            </div>
+                            <span className="text-sm">
+                              {Math.round((stock.currentQuantity / stock.maxQuantity) * 100)}%
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge 
+                            variant={
+                              stock.status === 'critical' ? 'destructive' :
+                              stock.status === 'warning' ? 'secondary' : 'default'
+                            }
+                          >
+                            {stock.status === 'critical' ? 'Kritisch' :
+                             stock.status === 'warning' ? 'Niedrig' : 'Gut'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {stock.lastRefill ? formatDate(stock.lastRefill) : '-'}
+                        </TableCell>
+                      </TableRow>
+                    )) || (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center text-muted-foreground">
+                          Keine Bestandsdaten verfügbar
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
       </Tabs>
-
-      {/* Dialoge */}
-      {machine && (
-        <>
-          <MachineEditDialog
-            machine={machine}
-            open={isEditDialogOpen}
-            onOpenChange={setIsEditDialogOpen}
-          />
-          <RefillDialog
-            machine={machine}
-            open={isRefillDialogOpen}
-            onOpenChange={setIsRefillDialogOpen}
-          />
-        </>
-      )}
     </div>
-  );
-}
-
-// MHD Tab Component
-function MHDTab({ machineId }: { machineId: number }) {
-  const [editingItem, setEditingItem] = useState<string | null>(null);
-  const [editData, setEditData] = useState<{ [key: string]: { expiryDate: string; batchId: string } }>({});
-
-  // Fetch MHD data for the machine
-  const { data: mhdData, isLoading, refetch } = useQuery({
-    queryKey: [`/api/machines/${machineId}/mhd`],
-    queryFn: () => getMachineMHDData(machineId),
-    enabled: !!machineId,
-    select: (data) => {
-      console.log('MHD API Response:', data);
-      return data;
-    }
-  });
-
-  // Update MHD mutation
-  const updateMhdMutation = useMutation({
-    mutationFn: async ({ batchId, expiryDate }: { batchId: string; expiryDate: string }) => {
-      return apiRequest(`/api/machines/${machineId}/mhd/${batchId}`, {
-        method: 'PATCH',
-        body: { expiryDate }
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/machines/${machineId}/mhd`] });
-      setEditingItem(null);
-      setEditData({});
-    }
-  });
-
-  // Helper function to get expiry status color
-  const getExpiryStatusColor = (expiryDate: string) => {
-    const now = new Date();
-    const expiry = new Date(expiryDate);
-    const daysUntilExpiry = Math.ceil((expiry.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-    
-    if (daysUntilExpiry < 0) return 'bg-red-100 text-red-800 border-red-200'; // Expired
-    if (daysUntilExpiry <= 7) return 'bg-yellow-100 text-yellow-800 border-yellow-200'; // Soon to expire
-    return 'bg-green-100 text-green-800 border-green-200'; // Good
-  };
-
-  // Helper function to format expiry status
-  const getExpiryStatus = (expiryDate: string) => {
-    const now = new Date();
-    const expiry = new Date(expiryDate);
-    const daysUntilExpiry = Math.ceil((expiry.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-    
-    if (daysUntilExpiry < 0) return `Abgelaufen vor ${Math.abs(daysUntilExpiry)} Tagen`;
-    if (daysUntilExpiry === 0) return 'Läuft heute ab';
-    if (daysUntilExpiry <= 7) return `Läuft in ${daysUntilExpiry} Tagen ab`;
-    return `Noch ${daysUntilExpiry} Tage`;
-  };
-
-  const handleEdit = (productId: string, batchId: string, currentExpiryDate: string) => {
-    const key = `${productId}-${batchId}`;
-    setEditingItem(key);
-    setEditData({
-      [key]: {
-        expiryDate: currentExpiryDate ? new Date(currentExpiryDate).toISOString().split('T')[0] : '',
-        batchId: batchId || ''
-      }
-    });
-  };
-
-  const handleSave = async (productId: string, batchId: string) => {
-    const key = `${productId}-${batchId}`;
-    const data = editData[key];
-    if (data) {
-      await updateMhdMutation.mutateAsync({
-        batchId: data.batchId,
-        expiryDate: data.expiryDate
-      });
-    }
-  };
-
-  const handleCancel = () => {
-    setEditingItem(null);
-    setEditData({});
-  };
-
-  if (isLoading) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center text-lg">
-            <Calendar className="h-5 w-5 mr-2" />
-            MHD Verwaltung
-          </CardTitle>
-          <CardDescription>Mindesthaltbarkeitsdaten der Produkte in diesem Automaten</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-center py-8">
-            <RefreshCw className="h-6 w-6 animate-spin mr-2" />
-            <span>Lade MHD-Daten...</span>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle className="flex items-center text-lg">
-              <Calendar className="h-5 w-5 mr-2" />
-              MHD Verwaltung
-            </CardTitle>
-            <CardDescription>Mindesthaltbarkeitsdaten der Produkte in diesem Automaten</CardDescription>
-          </div>
-          <Button variant="outline" onClick={() => refetch()}>
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Aktualisieren
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent>
-        {mhdData && Array.isArray(mhdData) && mhdData.length > 0 ? (
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
-              {mhdData.map((item: any, itemIndex: number) => {
-                console.log('Rendering MHD item:', item);
-                const productKey = `product-${item.productId}-${itemIndex}`;
-                
-                return (
-                  <Card key={productKey} className="relative">
-                    <CardContent className="p-4">
-                      <div className="space-y-3">
-                        {/* Product Name */}
-                        <div>
-                          <h3 className="font-medium text-sm leading-tight">{item.productName || 'Unbekanntes Produkt'}</h3>
-                          <p className="text-xs text-muted-foreground mt-1">Bestand: {item.currentStock || item.totalQuantity || 0} Stück</p>
-                        </div>
-
-                        {/* Batches */}
-                        {item.batches && item.batches.length > 0 ? (
-                          <div className="space-y-2">
-                            {item.batches.map((batch: any, batchIndex: number) => {
-                              const batchKey = `${item.productId}-${batch.batchId || batchIndex}`;
-                              const isEditing = editingItem === batchKey;
-                              
-                              return (
-                                <div key={`batch-${batch.batchId || batchIndex}-${item.productId}`} className="space-y-2">
-                                  {isEditing ? (
-                                  // Edit Mode
-                                  <div className="space-y-2 p-3 bg-muted/50 rounded-lg">
-                                    <div className="space-y-1">
-                                      <label className="text-xs font-medium">Ablaufdatum:</label>
-                                      <input
-                                        type="date"
-                                        value={editData[batchKey]?.expiryDate || ''}
-                                        onChange={(e) => setEditData({
-                                          ...editData,
-                                          [batchKey]: { ...editData[batchKey], expiryDate: e.target.value }
-                                        })}
-                                        className="w-full px-2 py-1 text-xs border rounded"
-                                      />
-                                    </div>
-                                    <div className="space-y-1">
-                                      <label className="text-xs font-medium">Batch-ID:</label>
-                                      <input
-                                        type="text"
-                                        value={editData[batchKey]?.batchId || ''}
-                                        onChange={(e) => setEditData({
-                                          ...editData,
-                                          [batchKey]: { ...editData[batchKey], batchId: e.target.value }
-                                        })}
-                                        className="w-full px-2 py-1 text-xs border rounded"
-                                        placeholder="Optional"
-                                      />
-                                    </div>
-                                    <div className="flex gap-1">
-                                      <Button
-                                        size="sm"
-                                        onClick={() => handleSave(item.productId, batch.batchId)}
-                                        disabled={updateMhdMutation.isPending}
-                                      >
-                                        <Save className="h-3 w-3 mr-1" />
-                                        Speichern
-                                      </Button>
-                                      <Button
-                                        size="sm"
-                                        variant="outline"
-                                        onClick={handleCancel}
-                                      >
-                                        <X className="h-3 w-3 mr-1" />
-                                        Abbrechen
-                                      </Button>
-                                    </div>
-                                  </div>
-                                ) : (
-                                  // Display Mode
-                                  <div className="space-y-1">
-                                    <div className="flex items-center justify-between">
-                                      <div className="space-y-1 flex-1">
-                                        {batch.expiryDate && (
-                                          <div className={`inline-block px-2 py-1 rounded-md text-xs border ${getExpiryStatusColor(batch.expiryDate)}`}>
-                                            MHD: {new Date(batch.expiryDate).toLocaleDateString('de-DE')}
-                                          </div>
-                                        )}
-                                        {batch.batchId && (
-                                          <div className="text-xs text-muted-foreground">
-                                            Batch: {batch.batchId}
-                                          </div>
-                                        )}
-                                        <div className="text-xs text-muted-foreground">
-                                          {batch.quantity || 0} Stück
-                                        </div>
-                                        {batch.expiryDate && (
-                                          <div className="text-xs font-medium">
-                                            {getExpiryStatus(batch.expiryDate)}
-                                          </div>
-                                        )}
-                                      </div>
-                                      <Button
-                                        size="sm"
-                                        variant="ghost"
-                                        onClick={() => handleEdit(item.productId, batch.batchId, batch.expiryDate)}
-                                      >
-                                        <Edit3 className="h-3 w-3" />
-                                      </Button>
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            );
-                            })}
-                          </div>
-                        ) : (
-                          <div className="space-y-2">
-                            <div className="text-xs text-muted-foreground">Keine Batch-Informationen verfügbar</div>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleEdit(item.productId, '', '')}
-                            >
-                              <Edit3 className="h-3 w-3 mr-1" />
-                              MHD hinzufügen
-                            </Button>
-                          </div>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
-          </div>
-        ) : (
-          <div className="text-center py-8">
-            <Calendar className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-lg font-medium mb-2">Keine MHD-Daten verfügbar</h3>
-            <p className="text-muted-foreground text-sm">
-              Für diesen Automaten sind noch keine Mindesthaltbarkeitsdaten erfasst.
-            </p>
-          </div>
-        )}
-      </CardContent>
-    </Card>
   );
 }
