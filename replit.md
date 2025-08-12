@@ -46,6 +46,37 @@ The system employs a robust architecture to manage complex vending machine opera
 -   **PostgreSQL**: Relational database used for persistent data storage.
 
 ## Recent Major Fixes (12.08.2025)
+
+### PHASE 1 API DATA FLOW REPARIERT - AUTOMATEN-DETAIL-SEITEN ✅ (12.08.2025)
+
+**Problem gelöst**: "Keine Daten verfügbar" Meldungen in Analytics-Charts durch Datenstruktur-Mismatch zwischen Backend und Frontend.
+
+1. **Datenverarbeitung repariert**
+   - `getHourlyDistribution()` funktioniert jetzt mit täglichen statt stündlichen Backend-Daten
+   - Frontend verteilt Tagesverkäufe intelligent auf Geschäftszeiten (8-20 Uhr)
+   - Robuste Datenverarbeitung für wöchentliche und monatliche Gruppierung
+
+2. **Analytics-Fetch optimiert**
+   - Weniger conditional fetching: Analytics-Daten verfügbar für ALLGEMEIN, ANALYSEN, AUSWERTUNG Tabs
+   - Retry-Logic und Caching (5min) für bessere Performance
+   - Umfassendes Error-Handling mit benutzerfreundlichen Fehlermeldungen
+
+3. **Chart-Error-Handling implementiert**
+   - Alle Revenue-Charts (wöchentlich, monatlich, stündlich) mit Loading-, Error- und Empty-States
+   - Spezifische Fallback-Messages: "Keine Umsatzdaten für gewählten Zeitraum"
+   - Intelligent data presence detection: Charts nur anzeigen wenn tatsächlich Daten vorhanden
+
+4. **Produkt-Performance verbessert**
+   - Loading- und Error-States für Top-Verkaufte-Produkte Sektion
+   - Bessere Behandlung von leeren productPerformance Arrays
+   - Benutzerfreundliche "Keine Produktverkäufe" Meldungen
+
+5. **Backend Weather Query repariert**
+   - SQL GROUP BY Fehler in Weather-Data-Abfrage behoben
+   - `FIRST_VALUE()` Window Function für weather_main Aggregation
+
+**Technische Verbesserungen**: API-Backend Compatibility, Frontend Data Processing, Comprehensive Error Handling, Chart Fallback States
+
 ### ALLE ROUTING-PROBLEME KOMPLETT BEHOBEN ✅
 
 1. **Automaten-Detail-Routing** 

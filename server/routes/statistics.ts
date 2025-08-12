@@ -1367,7 +1367,7 @@ router.get('/machines/:id/analytics', async (req, res) => {
         date: weatherData.date,
         avgTemperature: avg(weatherData.temp), // Korrektur: temp statt temperature
         precipitation: sum(weatherData.precipitation),
-        conditions: weatherData.weather_main
+        conditions: sql<string>`FIRST_VALUE(${weatherData.weather_main}) OVER (PARTITION BY ${weatherData.date} ORDER BY ${weatherData.timestamp})`
       })
       .from(weatherData)
       .where(
