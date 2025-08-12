@@ -227,8 +227,9 @@ function MachineStatusCard({ machine }: { machine: MachineStatusData }) {
       console.log(`[StandortStatus] Using locationId for navigation: ${machine.locationId}`);
       setLocation(`/automaten/${machine.locationId}`);
     } else {
-      // Try to derive vendon_id from machine name for known machines
+      // Complete vendon_id mapping for all machines
       const vendonIdMap: Record<string, string> = {
+        // Exact matches
         'Rathen': '325762',
         'Schöna': '348079', 
         'Bad Schandau, Nationalparkbahnhof': '323959',
@@ -240,7 +241,22 @@ function MachineStatusCard({ machine }: { machine: MachineStatusData }) {
         'Gohrisch': '340303',
         'Burg Stolpen': '362117',
         'Schloss Pilnitz,in der Orangerie': '395727',
-        'Leupoldishain': '334642'
+        'Leupoldishain': '334642',
+        'Bad Gottleuba-Berggishübel': '380053',
+        'Berggishübel': '380053',
+        'COMÖDIE Dresden, Schloß Übigau': '504610',
+        'Pfaffendorf': '323780',
+        'Pirna, Hotel zur Post': '380592',
+        'Pötzscha': '384501',
+        'Struppen, Landschlachthof': '378540',
+        // Location-based fallbacks (when API returns location-grouped names)
+        'Bad Schandau': '391262', // Default to Elbkai location
+        'Schloss Pilnitz': '395727',
+        'Papstdorf': '380593',
+        'Struppen': '378540',
+        'Bad Gottleuba': '380053',
+        'Pirna': '380592',
+        'COMÖDIE Dresden': '504610'
       };
       
       const vendonId = vendonIdMap[machine.machineName];
