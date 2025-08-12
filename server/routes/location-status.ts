@@ -177,8 +177,15 @@ router.get('/', async (req: Request, res: Response) => {
         lt.machine_name,
         lt.machine_name as location,
         
-        -- Machine info
+        -- Machine info with location_id
         lt.machine_count,
+        (
+          SELECT DISTINCT m.location_id 
+          FROM machines m 
+          WHERE m.machine_name = lt.machine_name 
+          AND m.location_id IS NOT NULL 
+          LIMIT 1
+        ) as location_id,
         
         -- Transaction data
         COALESCE(lt.today_transactions, 0) as today_transactions,
@@ -245,6 +252,7 @@ router.get('/', async (req: Request, res: Response) => {
         id: row.machine_name.replace(/[^a-zA-Z0-9]/g, ''),
         machineName: row.machine_name,
         location: row.location,
+        locationId: row.location_id,
         machineCount: row.machine_count || 1,
         
         // Status and warnings

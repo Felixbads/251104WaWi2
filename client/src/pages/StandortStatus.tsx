@@ -30,6 +30,7 @@ interface MachineStatusData {
   id: number;
   machineName: string;
   location: string | null;
+  locationId?: number | null;
   lastRefill?: {
     datetime: string;
     operator: string;
@@ -216,7 +217,13 @@ function MachineStatusCard({ machine }: { machine: MachineStatusData }) {
   };
 
   const handleCardClick = () => {
-    setLocation(`/automaten/${machine.id}`);
+    if (machine.locationId) {
+      setLocation(`/standorte/${machine.locationId}`);
+    } else {
+      // Fallback: use machine name as location identifier
+      const locationIdentifier = machine.machineName.replace(/[^a-zA-Z0-9]/g, '');
+      setLocation(`/standorte/${locationIdentifier}`);
+    }
   };
 
   return (
@@ -399,6 +406,30 @@ function MachineStatusCard({ machine }: { machine: MachineStatusData }) {
             </div>
           </div>
         </div>
+
+        {/* Letzter Verkauf */}
+        {machine.lastSale && (
+          <div className="flex items-center space-x-2 text-sm">
+            <ShoppingCart className="h-4 w-4 text-green-500" />
+            <div className="flex-1">
+              <p className="font-medium">Letzter Verkauf</p>
+              <div>
+                <p className="text-muted-foreground">
+                  {formatDaysAgo(machine.lastSale.daysAgo)}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {new Date(machine.lastSale.datetime).toLocaleString('de-DE', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  })}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Bargeldloser Verkauf */}
         <div className="flex items-center space-x-2 text-sm">
