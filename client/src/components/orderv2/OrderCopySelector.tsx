@@ -70,6 +70,18 @@ const OrderCopySelector: React.FC<OrderCopySelectorProps> = ({
   const [sortBy, setSortBy] = useState<string>('datum');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
+  // Handle showing details
+  const handleShowDetails = (orderId: number) => {
+    setSelectedOrderId(orderId);
+    setShowDetails(true);
+  };
+
+  // Handle closing details
+  const handleCloseDetails = () => {
+    setSelectedOrderId(null);
+    setShowDetails(false);
+  };
+
   // Fetch orders for copying
   const { data: orders = [], isLoading, error } = useQuery({
     queryKey: ['/api/orders-direct'],
@@ -159,6 +171,20 @@ const OrderCopySelector: React.FC<OrderCopySelectorProps> = ({
       return 'Ungültiges Datum';
     }
   };
+
+  // Show details view if a specific order is selected
+  if (showDetails && selectedOrderId) {
+    return (
+      <OrderDetailsView
+        orderId={selectedOrderId}
+        onBack={handleCloseDetails}
+        onCopyOrder={() => {
+          handleCloseDetails();
+          onSelectOrder(selectedOrderId);
+        }}
+      />
+    );
+  }
 
   if (error) {
     return (
@@ -364,8 +390,7 @@ const OrderCopySelector: React.FC<OrderCopySelectorProps> = ({
                       size="sm"
                       onClick={(e) => {
                         e.stopPropagation();
-                        setSelectedOrderId(order.id);
-                        setShowDetails(true);
+                        handleShowDetails(order.id);
                       }}
                       className="flex items-center gap-2"
                     >
@@ -482,11 +507,7 @@ const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({
                 Zurück
               </Button>
               <Button
-                onClick={() => {
-                  setOrderToCopy(orderId);
-                  setShowEnhancedCopyDialog(true);
-                  onBack();
-                }}
+                onClick={onCopyOrder}
                 className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700"
               >
                 <Edit className="h-4 w-4" />
@@ -584,32 +605,7 @@ const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({
                   Alle Positionen werden übernommen und können anschließend angepasst werden.
                 </p>
                 <Button
-                  onClick={async () => {
-                    try {
-                      const response = await fetch(`/api/orders/${orderId}/copy`, {
-                        method: 'POST',
-                        headers: {
-                          'Content-Type': 'application/json'
-                        }
-                      });
-                      
-                      if (!response.ok) {
-                        throw new Error('Fehler beim Kopieren der Bestellung');
-                      }
-                      
-                      const result = await response.json();
-                      
-                      if (result.success && result.order) {
-                        // Direkt zur neuen Bestellung navigieren
-                        window.location.href = `/bestellungen/${result.order.id}`;
-                      } else {
-                        throw new Error(result.message || 'Unbekannter Fehler');
-                      }
-                    } catch (error) {
-                      console.error('Fehler beim Kopieren:', error);
-                      alert('Fehler beim Kopieren der Bestellung');
-                    }
-                  }}
+                  onClick={onCopyOrder}
                   className="mt-3 bg-blue-600 hover:bg-blue-700"
                 >
                   <Copy className="h-4 w-4 mr-2" />
