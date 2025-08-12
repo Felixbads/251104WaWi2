@@ -1,0 +1,99 @@
+mfassende Analyse: Standort-Detailseiten und Routing-System
+Phase 1: Bestandsaufnahme der aktuellen Standort-Detailseiten
+Aufgabe: Identifiziere alle vorhandenen Komponenten und Seiten, die für Standort-Details zuständig sind.
+
+Zu untersuchende Dateien:
+
+client/src/pages/LocationDetail.tsx - Hauptkomponente für Standort-Details
+client/src/pages/LocationDetailOld.tsx - Ältere Version der Standort-Details
+client/src/pages/AutomatDetail.tsx - Einzelne Automaten-Detailseite
+client/src/pages/StandortStatus.tsx - Übersichtsseite aller Standorte
+client/src/App.tsx - Routing-Konfiguration
+Analysiere:
+
+Welche Seite ist aktuell als primäre Standort-Detailseite konfiguriert?
+Gibt es Unterschiede zwischen LocationDetail.tsx und LocationDetailOld.tsx?
+Wie ist das Verhältnis zwischen Standort-Details (Location) und Automaten-Details (Machine)?
+Welche URL-Parameter werden für Standort-IDs verwendet?
+Phase 2: Routing-Analyse
+Aufgabe: Verstehe das aktuelle Routing-System und identifiziere Probleme.
+
+Zu prüfende Aspekte:
+
+URL-Struktur:
+Aktuelle URLs für Standorte: /standorte/:id vs /locations/:id
+Aktuelle URLs für Automaten: /automaten/:id vs /machines/:id
+Router-Konfiguration in App.tsx:
+Welche Routen sind definiert?
+Welche Komponenten werden geladen?
+Gibt es Konflikte zwischen ähnlichen Routen?
+Navigation von StandortStatus:
+Wie werden die Kacheln in /standort-status generiert?
+Welche IDs werden verwendet (locationId, machineId, machineName)?
+Wohin verlinken die Kacheln aktuell?
+Phase 3: Datenstruktur-Analyse
+Aufgabe: Verstehe die Datenstruktur hinter Standorten und Automaten.
+
+Backend-APIs analysieren:
+
+/api/location-status - Liefert Standort-Übersichtsdaten
+/api/locations/:id - Einzelne Standort-Details
+/api/machines/by-location/:locationId - Automaten eines Standorts
+/api/machines/:id - Einzelne Automaten-Details
+Datenbankschema prüfen:
+
+machines Tabelle: location_name, location_id, machine_name
+locations Tabelle: id, name, address
+Beziehung zwischen Standorten und Automaten
+Phase 4: Problem-Identifikation
+Zu identifizierende Probleme:
+
+ID-Verwechslung:
+Werden location_id vs machine_id vs machine_name korrekt unterschieden?
+Sind die URLs konsistent mit den verwendeten IDs?
+Routing-Konflikte:
+Überschneiden sich ähnliche Routen?
+Werden Parameter korrekt weitergegeben?
+Navigation-Logik:
+Verlinken Standort-Kacheln auf die richtige Seite?
+Ist die Navigation zwischen Standort-Übersicht und Einzelansicht korrekt?
+Phase 5: Konzept für einheitliche Standort-Detailseiten
+Ziel: Jeder der 22 Automaten/Standorte soll eine eindeutige Detailseite haben.
+
+Zu entwickelndes Konzept:
+
+URL-Schema festlegen:
+Standorte: /standorte/:standortName (z.B. /standorte/Rathen)
+Automaten: /automaten/:machineId (z.B. /automaten/6)
+Seiteninhalt definieren:
+Transaktionen des Standorts/Automaten
+Refill-Historie
+Kosten-Übersicht
+Auswertungen und KPIs
+Stock-Status
+Navigation verbessern:
+Von /standort-status direkt zur richtigen Detailseite
+Breadcrumb-Navigation
+Wechsel zwischen Standort- und Automaten-Sicht
+Phase 6: Implementierungsplan
+Schritte zur Lösung:
+
+Router bereinigen: Eindeutige, konfliktfreie Routen definieren
+Navigation reparieren: Kacheln in StandortStatus auf korrekte URLs verlinken
+Detailseiten vereinheitlichen: Eine konsistente LocationDetail-Komponente
+API-Integration: Sicherstellen, dass alle benötigten Daten geladen werden
+Testing: Alle 22 Standorte/Automaten einzeln testen
+Phase 7: Konkrete Umsetzung
+Zu implementierende Änderungen:
+
+App.tsx: Router-Konfiguration korrigieren
+StandortStatus.tsx: Navigation-Links reparieren
+LocationDetail.tsx: Vollständige Standort-Detailseite implementieren
+Backend-APIs: Sicherstellen, dass alle Endpunkte korrekt funktionieren
+Dieser Prompt soll systematisch aufdecken:
+
+Was ist der aktuelle Zustand des Routing-Systems?
+Warum funktioniert die Navigation von Standort-Status nicht?
+Wie kann eine einheitliche Lösung für alle 22 Standorte/Automaten implementiert werden?
+Welche technischen Hürden müssen überwunden werden?
+Erwartetes Ergebnis: Eine vollständige Analyse mit konkreten Lösungsvorschlägen für ein funktionierendes Standort-Detailsystem.
