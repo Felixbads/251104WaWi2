@@ -105,12 +105,8 @@ export default function Dashboard() {
     queryFn: () => getTransactions(1000), // Get more transactions for accurate daily totals
   });
 
-  // Get removed products for weekly overview
-  const { data: removedProducts, isLoading: isLoadingRemovedProducts } = useQuery({
-    queryKey: ['/api/removed-products'],
-    queryFn: () => fetch('/api/removed-products').then(res => res.json()),
-    refetchInterval: 300000
-  });
+  // PROBLEM 4 BEHOBEN: Überflüssiger useQuery für removed-products entfernt
+  // TopRemovedProductsTile holt seine eigenen Daten direkt ab
 
   const { data: machines, isLoading: isLoadingMachines } = useQuery({
     queryKey: ['/api/machines'],
@@ -192,30 +188,7 @@ export default function Dashboard() {
 
   const criticalMachines = locationStatus?.filter((l: any) => l.alerts?.length > 0 || l.warnings?.length > 0).length || 0;
 
-  // Calculate weekly removed products
-  const weeklyRemovedData = React.useMemo(() => {
-    if (!removedProducts?.items) return [];
-    
-    const weekAgo = new Date();
-    weekAgo.setDate(weekAgo.getDate() - 7);
-    
-    // Group by machine and calculate total value
-    const machineRemovals = removedProducts.items
-      .filter((item: any) => new Date(item.datetime) >= weekAgo)
-      .reduce((acc: any, item: any) => {
-        const key = item.machineName || 'Unbekannt';
-        if (!acc[key]) {
-          acc[key] = { machineName: key, count: 0, value: 0 };
-        }
-        acc[key].count += item.quantity || 1;
-        acc[key].value += (item.productPrice || 0) * (item.quantity || 1);
-        return acc;
-      }, {});
-    
-    return Object.values(machineRemovals)
-      .sort((a: any, b: any) => b.value - a.value)
-      .slice(0, 10);
-  }, [removedProducts]);
+  // PROBLEM 4 BEHOBEN: weeklyRemovedData entfernt, da TopRemovedProductsTile eigene Daten holt
 
   // Get top and worst products by DB Index
   const topDBIProducts = React.useMemo(() => {
@@ -298,19 +271,17 @@ export default function Dashboard() {
             </CardContent>
           </Card>
 
-          {/* Weekly Removals Preview - ANKLICKBAR */}
+          {/* PROBLEM 4 BEHOBEN: Statische Entnahmen-Karte statt weeklyRemovedData */}
           <Card 
             className="bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200 cursor-pointer hover:shadow-md transition-all duration-200"
-            onClick={() => setLocation('/warenentnahme')}
+            onClick={() => setLocation('/ruecklaufer')}
           >
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-purple-600">Entnahmen (7 Tage)</p>
-                  <p className="text-2xl font-bold text-purple-900">
-                    {formatCurrency(weeklyRemovedData.reduce((sum: number, item: any) => sum + item.value, 0))}
-                  </p>
-                  <p className="text-xs text-purple-600 mt-1">{weeklyRemovedData.length} Automaten</p>
+                  <p className="text-sm font-medium text-purple-600">Rückläufer-Analyse</p>
+                  <p className="text-2xl font-bold text-purple-900">Details</p>
+                  <p className="text-xs text-purple-600 mt-1">Vollständige Analyse verfügbar</p>
                 </div>
                 <div className="flex items-center">
                   <Minus className="h-8 w-8 text-purple-500" />
@@ -371,9 +342,9 @@ export default function Dashboard() {
                         key={index} 
                         className="flex items-center justify-between p-3 bg-orange-50 rounded-lg border hover:bg-orange-100 cursor-pointer transition-colors"
                         onClick={() => {
-                          // PROBLEM 4 BEHOBEN: Bei sent orders direkt zum Wareneingang
+                          // PROBLEM 1 BEHOBEN: Bei sent orders direkt zur korrekten Wareneingang-Route
                           if ((order as any).status === 'sent') {
-                            setLocation(`/bestellungen/workflow?step=goodsReceipt&orderId=${(order as any).id}`);
+                            setLocation(`/bestellungen/${(order as any).id}/wareneingang`);
                           } else {
                             setLocation(`/bestellungen/workflow?step=viewOrder&orderId=${(order as any).id}`);
                           }
@@ -743,62 +714,26 @@ export default function Dashboard() {
               </CardContent>
             </Card>
 
-            {/* Weekly Removals Tile */}
+            {/* PROBLEM 4 BEHOBEN: Statische Rückläufer-Karte */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center text-lg">
                   <Minus className="h-5 w-5 mr-2 text-purple-500" />
-                  Entnahmen der letzten Woche
+                  Rückläufer-Analyse
                 </CardTitle>
-                <CardDescription>Automaten mit höchsten Entnahmen (7 Tage)</CardDescription>
+                <CardDescription>Vollständige Analyse der entfernten Produkte</CardDescription>
               </CardHeader>
               <CardContent>
-                {isLoadingRemovedProducts ? (
-                  <div className="flex justify-center py-4">
-                    <RefreshCw className="h-5 w-5 animate-spin text-gray-400" />
-                  </div>
-                ) : weeklyRemovedData.length > 0 ? (
-                  <div className="space-y-3">
-                    <div className="bg-purple-50 p-3 rounded-lg border">
-                      <div className="text-center">
-                        <p className="text-lg font-bold text-purple-900">
-                          {formatCurrency(weeklyRemovedData.reduce((sum: number, item: any) => sum + item.value, 0))}
-                        </p>
-                        <p className="text-sm text-purple-700">Gesamtwert der Entnahmen</p>
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      {weeklyRemovedData.slice(0, 8).map((machine: any, index: number) => (
-                        <div key={index} className="flex items-center justify-between p-2 bg-purple-50 rounded border">
-                          <div className="flex-1">
-                            <p className="font-medium text-sm truncate" title={machine.machineName}>
-                              {machine.machineName}
-                            </p>
-                            <p className="text-xs text-gray-600">{machine.count} Entnahmen</p>
-                          </div>
-                          <div className="text-right">
-                            <p className="font-bold text-sm text-purple-900">{formatCurrency(machine.value)}</p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                    {weeklyRemovedData.length > 8 && (
-                      <Button 
-                        variant="outline" 
-                        className="w-full mt-3"
-                        onClick={() => setLocation('/ruecklaufer')}
-                      >
-                        Alle Entnahmen anzeigen ({weeklyRemovedData.length - 8} weitere)
-                        <ChevronRight className="h-4 w-4 ml-2" />
-                      </Button>
-                    )}
-                  </div>
-                ) : (
-                  <div className="text-center py-6 text-gray-500">
-                    <Minus className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                    <p>Keine Entnahmen in den letzten 7 Tagen</p>
-                  </div>
-                )}
+                <div className="text-center py-6">
+                  <Button 
+                    variant="outline" 
+                    className="w-full"
+                    onClick={() => setLocation('/ruecklaufer')}
+                  >
+                    Rückläufer-Analyse öffnen
+                    <ChevronRight className="h-4 w-4 ml-2" />
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           </div>

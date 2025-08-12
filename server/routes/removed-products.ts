@@ -81,8 +81,8 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Top entfernte Produkte API mit Kostenanalyse
-router.post('/top', async (req, res) => {
+// Top entfernte Produkte API mit Kostenanalyse (PROBLEM 4 BEHOBEN: POST zu GET)
+router.get('/top', async (req, res) => {
   try {
     const days = parseInt(req.query.days as string) || 30;
     const limit = parseInt(req.query.limit as string) || 20;

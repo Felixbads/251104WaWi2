@@ -2282,6 +2282,7 @@ export interface TopRemovedProduct {
   lastRemoved: string;
 }
 
+// PROBLEM 4 BEHOBEN: GET statt POST für /removed-products/top
 export async function getTopRemovedProducts(days: number = 7): Promise<TopRemovedProduct[]> {
   return apiRequest<TopRemovedProduct[]>('get', `/removed-products/top?days=${days}`);
 }

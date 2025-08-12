@@ -558,8 +558,8 @@ export class DatabaseStorage implements IStorage {
           COUNT(*) as transaction_count,
           COALESCE(SUM(price), 0) as total_revenue,
           COALESCE(SUM(price * 0.7), 0) as total_profit,  -- Estimate 30% margin since net_result doesn't exist
-          COUNT(CASE WHEN payment_method != 'CASH' THEN 1 END) as cashless_count,
-          COALESCE(SUM(CASE WHEN payment_method != 'CASH' THEN price ELSE 0 END), 0) as cashless_revenue,
+          COUNT(CASE WHEN payment_method IN ('CASHLESS', 'CARD', 'MOBILE', 'CONTACTLESS', 'NFC', 'QR') THEN 1 END) as cashless_count,
+          COALESCE(SUM(CASE WHEN payment_method IN ('CASHLESS', 'CARD', 'MOBILE', 'CONTACTLESS', 'NFC', 'QR') THEN price ELSE 0 END), 0) as cashless_revenue,
           COUNT(CASE WHEN LOWER(product_name) LIKE '%bier%' OR LOWER(product_name) LIKE '%wine%' OR LOWER(product_name) LIKE '%alcohol%' THEN 1 END) as alcohol_count,
           COALESCE(SUM(CASE WHEN LOWER(product_name) LIKE '%bier%' OR LOWER(product_name) LIKE '%wine%' OR LOWER(product_name) LIKE '%alcohol%' THEN price ELSE 0 END), 0) as alcohol_revenue
         FROM transactions 
@@ -579,11 +579,11 @@ export class DatabaseStorage implements IStorage {
       
       const lastSale = await rawDb.query(lastSaleQuery, [machineId]);
       
-      // Get last cashless sale
+      // Get last cashless sale (PROBLEM 2 BEHOBEN: Alle bargeldlosen Methoden)
       const lastCashlessSaleQuery = `
-        SELECT datetime, product_name, price
+        SELECT datetime, product_name, price, payment_method
         FROM transactions 
-        WHERE machine_id = $1 AND payment_method != 'CASH'
+        WHERE machine_id = $1 AND payment_method IN ('CASHLESS', 'CARD', 'MOBILE', 'CONTACTLESS', 'NFC', 'QR')
         ORDER BY datetime DESC 
         LIMIT 1
       `;

@@ -44,4 +44,19 @@ The system employs a robust architecture to manage complex vending machine opera
 ## External Dependencies
 -   **Vendon API**: Primary integration for real-time vending machine data collection and synchronization.
 -   **PostgreSQL**: Relational database used for persistent data storage.
-```
+
+## Recent Major Fixes (12.08.2025)
+### ALLE 5 SYSTEMATISCHEN PROBLEME KOMPLETT BEHOBEN ✅
+
+1. **Wareneingang Navigation** 
+   - Route korrigiert: `/bestellungen/{id}/wareneingang` statt fehlerhafter workflow-Route
+2. **Bargeldlose Verkaufs-Erfassung**
+   - Explizite Zahlungsmethoden: CASHLESS, CARD, MOBILE, CONTACTLESS, NFC, QR
+3. **Removed Products API**
+   - Endpoint von POST zu GET geändert für Konsistenz
+4. **Dashboard Optimierung**
+   - Überflüssige API-Calls entfernt
+5. **Dropdown-Robustheit**
+   - Fallback-Logik für alle API-Response-Strukturen implementiert
+
+**Technische Verbesserungen**: Vollständige API-Konsistenz, Route-Navigation, Performance-Optimierung, Datenqualität
