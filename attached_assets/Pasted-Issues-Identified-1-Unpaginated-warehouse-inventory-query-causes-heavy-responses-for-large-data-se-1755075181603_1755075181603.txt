@@ -1,0 +1,42 @@
+Issues Identified
+	1.	Unpaginated warehouse inventory query causes heavy responses for large data sets
+server/inventory/warehouseQueries.ts loads all inventory items without LIMIT/OFFSET, risking timeouts and memory pressure for big warehouses.
+
+:::task-stub{title=“Introduce pagination for warehouse inventory queries”}
+	1.	In server/inventory/warehouseQueries.ts#getWarehouseInventory, add LIMIT and OFFSET parameters to the SQL.
+	2.	Expose page and pageSize query params in the corresponding API route (server/routes/warehouses.ts or inventory route).
+	3.	Update the frontend request in client/src/pages/InventurPage.tsx (or wherever the inventory list is fetched) to send pagination parameters and handle paged responses.
+:::
+	4.	UI lacks sorting by MHD (expiry date) for inventory batches
+client/src/pages/InventurDetailNewPage.tsx sorts by product and quantity but omits sorting by batch.expiryDate, preventing users from ordering items by MHD.
+
+:::task-stub{title=“Enable MHD-based sorting in inventory detail page”}
+	1.	Extend the sortField options in client/src/pages/InventurDetailNewPage.tsx to include expiryDate.
+	2.	In the sortedItems computation, add branch logic to compare batch.expiryDate values with new Date objects.
+	3.	Provide a UI control (e.g., column header or dropdown) allowing users to toggle ascending/descending MHD sorting.
+:::
+	4.	Negative or non-integer counts accepted when updating inventory items
+The PATCH route in server/routes/inventory.ts accepts countedQuantity without validation, allowing invalid values (e.g., -5, 3.5).
+
+:::task-stub{title=“Validate counted quantities on inventory updates”}
+	1.	Introduce a Zod schema for PATCH /inventory-count-items/:id requiring countedQuantity to be a non-negative integer.
+	2.	Validate incoming requests against the schema; reject invalid data with 400 Bad Request.
+	3.	Add complementary client-side validation in client/src/pages/InventurDetailNewPage.tsx to prevent negative or non-integer inputs before submission.
+:::
+	4.	Completing an inventory session does not apply adjustments to warehouse stock
+The /inventory-counts/:id/complete handler in server/routes/inventory.ts only flips status to completed and returns success without updating inventory_items or writing movement records.
+
+:::task-stub{title=“Apply counted quantities to warehouse stock on completion”}
+	1.	In server/routes/inventory.ts completion handler, wrap operations in a DB transaction.
+	2.	For each inventory count item, calculate difference = countedQuantity - expectedQuantity and update inventory_items (and product_batches where relevant).
+	3.	Insert corresponding inventory_movements entries capturing adjustments and batch references for auditability.
+	4.	Commit the transaction only after all updates succeed; otherwise roll back and return an error.
+:::
+	5.	No audit logging for inventory adjustments
+Neither updating counts nor completing inventory creates explicit audit records indicating who changed what and when.
+
+:::task-stub{title=“Add audit logging for inventory actions”}
+	1.	Design an inventory_audit table (or reuse an existing audit mechanism) capturing user, timestamp, action, item/batch IDs, old vs. new quantities.
+	2.	On PATCH /inventory-count-items/:id and completion events, insert audit entries alongside stock updates.
+	3.	Provide an API endpoint (e.g., GET /inventory-counts/:id/audit) for retrieving audit logs, and expose them in the UI if required.
+:::

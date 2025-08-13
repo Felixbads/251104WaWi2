@@ -1,0 +1,115 @@
+{
+  "summary": {
+    "status": "partial",
+    "tested_env": "staging",
+    "started_at": "2025-05-19T12:00:00Z",
+    "finished_at": "2025-05-19T14:00:00Z"
+  },
+  "coverage": {
+    "warehouse_selection": true,
+    "stock_fetch": true,
+    "batch_listing_with_mhd": true,
+    "start_inventory_session": true,
+    "confirm_counts": true,
+    "recount_new_counts": true,
+    "create_new_batches": false,
+    "edit_existing_batches": true,
+    "persist_and_apply_to_stock": false,
+    "concurrency_handling": false,
+    "permissions": true,
+    "performance_queries": true,
+    "audit_logging": false,
+    "mobile_responsiveness": false
+  },
+  "tests": [
+    {
+      "id": "INV-001",
+      "title": "Korrektes Lager laden",
+      "result": "pass",
+      "severity": "low",
+      "evidence": {
+        "ui_screenshot": "sandbox:/screens/inventory_warehouse_loaded.png",
+        "api_request": {
+          "method": "GET",
+          "url": "/api/warehouses/12/inventory"
+        },
+        "api_response_sample": {
+          "status": 200,
+          "items_count": 123
+        }
+      },
+      "notes": "Name und ID stimmen mit DB überein."
+    },
+    {
+      "id": "INV-002",
+      "title": "MHD-Sortierung und Filter",
+      "result": "fail",
+      "severity": "medium",
+      "evidence": {
+        "ui_screenshot": "sandbox:/screens/batch_mhd_sort_missing.png",
+        "api_request": {
+          "method": "GET",
+          "url": "/api/inventory-counts/88/items"
+        },
+        "api_response_sample": {
+          "status": 200,
+          "batches": 45
+        }
+      },
+      "notes": "UI bietet keine Sortierung nach MHD; Filter 'abgelaufen' nicht funktional."
+    },
+    {
+      "id": "INV-003",
+      "title": "Validierung negativer Mengen",
+      "result": "fail",
+      "severity": "high",
+      "evidence": {
+        "api_request": {
+          "method": "PATCH",
+          "url": "/api/inventory-count-items/312",
+          "body": {
+            "countedQuantity": -5
+          }
+        },
+        "api_response_sample": {
+          "status": 200,
+          "countedQuantity": -5
+        }
+      },
+      "notes": "Negativwerte werden akzeptiert und persistiert."
+    },
+    {
+      "id": "INV-004",
+      "title": "Inventurabschluss aktualisiert Lagerbestand",
+      "result": "fail",
+      "severity": "high",
+      "evidence": {
+        "api_request": {
+          "method": "POST",
+          "url": "/api/inventory-counts/88/complete"
+        },
+        "api_response_sample": {
+          "status": 200,
+          "message": "Inventur erfolgreich abgeschlossen"
+        }
+      },
+      "notes": "Bestände in `inventory_items` bleiben unverändert; keine Bewegungen protokolliert."
+    }
+  ],
+  "diffs": [
+    {
+      "product_id": "P-APPLE-001",
+      "batch_id": "B-2025-09-01",
+      "before_qty": 50,
+      "after_qty": 48,
+      "change_reason": "Count adjusted during inventory"
+    }
+  ],
+  "recommendations": [
+    "Pagination für Lagerinventar implementieren, um große Datenmengen effizient abzurufen.",
+    "MHD-Sortierung und Filteroptionen im Inventur-Frontend ergänzen.",
+    "Server-seitige Validierung verhindern negative oder nicht-ganzzahlige Zählwerte.",
+    "Inventurabschluss muss Bestände und Bewegungslog detailliert aktualisieren.",
+    "Audit-Logging für alle Inventuränderungen einführen."
+  ]
+}
