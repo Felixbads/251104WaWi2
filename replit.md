@@ -47,6 +47,20 @@ The system employs a robust architecture to manage complex vending machine opera
 
 ## Recent Major Fixes (13.08.2025)
 
+### GEBINDE-EINGABEFELD LOGIK KORRIGIERT ✅ (13.08.2025 11:30)
+
+**Problem gelöst**: Produkte mit Gebindeinformationen im Namen zeigten überflüssige zusätzliche Gebinde-Eingabefelder.
+
+1. **Intelligente Gebinde-Erkennung implementiert**
+   - `hasPackageInfo` Funktion prüft jetzt, ob Gebindeinformation bereits im Produktnamen vorhanden
+   - Erkennt Muster wie "10 Stück/Gebinde", "6 Paar/Gebinde", "12 Flaschen/Gebinde"
+   - Verhindert redundante Eingabefelder wenn Information bereits sichtbar
+
+2. **Betroffene Produkte korrigiert**
+   - Wehlner Hirtenkäse, Hausmacher Salami, Leberwurst, etc.
+   - Keine doppelte Gebinde-Eingabe mehr für Produkte mit expliziter Gebindeinformation im Namen
+   - Verbesserte User Experience durch klarere Eingabemasken
+
 ### CRITICAL DATABASE DUPLICATION BUG BEHOBEN ✅ (13.08.2025 10:10)
 
 **Problem gelöst**: 4.427 Machine-Records für nur 19 echte Maschinen durch fehlerhaften Vendon-Sync.
@@ -74,7 +88,7 @@ The system employs a robust architecture to manage complex vending machine opera
    - API-Response-Zeiten erheblich reduziert
    - Vendon ID ist jetzt der zentrale Schlüssel für alle Relationen
 
-**Technische Verbesserungen**: Database Optimization, Sync-Logic-Repair, UNIQUE Constraint Implementation, Foreign Key Integrity
+**Technische Verbesserungen**: Database Optimization, Sync-Logic-Repair, UNIQUE Constraint Implementation, Foreign Key Integrity, Smart Package Recognition
 
 ## Recent Major Fixes (12.08.2025)
 

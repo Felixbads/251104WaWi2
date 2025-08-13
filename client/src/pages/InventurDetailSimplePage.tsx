@@ -187,6 +187,18 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
   const hasPackageInfo = (product: SimpleInventoryItem['product']): boolean => {
     if (!product) return false;
     
+    // WICHTIG: Wenn der Produktname bereits Gebindeinformationen enthält,
+    // brauchen wir KEIN zusätzliches Eingabefeld
+    if (product.productName) {
+      // Prüfe ob der Produktname bereits Gebindeinformationen enthält
+      // z.B. "10 Stück/Gebinde", "6 Paar/Gebinde", "12 Stück/Gebinde"
+      const nameHasPackageInfo = /\d+\s*(Stück|Paar|Flaschen|Gläser|Dosen|Packungen)\/Gebinde/i.test(product.productName);
+      if (nameHasPackageInfo) {
+        // Gebindeinformation ist bereits im Namen sichtbar - kein zusätzliches Feld nötig
+        return false;
+      }
+    }
+    
     // Nur wenn EXPLIZIT Gebinde-Informationen vorhanden sind
     // UND diese sinnvoll sind (größer als 1)
     if (product.packageQuantity && typeof product.packageQuantity === 'number' && product.packageQuantity > 1) {
