@@ -129,18 +129,14 @@ router.post('/product-batches', async (req: Request, res: Response) => {
     console.log("Received Date vorhanden:", hasReceivedDateColumn);
     console.log("Location vorhanden:", hasLocationColumn);
     
-    // Überprüfe, ob initialQuantity und currentQuantity gültige Werte haben
-    if (initialQuantity === 0 || initialQuantity === null || initialQuantity === undefined || isNaN(initialQuantity)) {
-      console.error("Ungültiger initialQuantity-Wert:", initialQuantity);
-      return res.status(400).json({ 
-        error: "Initial quantity is required and must be a valid positive number", 
-        receivedData: { initialQuantity }
-      });
-    }
-
-    // Verwende einen garantiert positiven Wert für initial und current quantity
-    const finalInitialQuantity = initialQuantity > 0 ? initialQuantity : 1;
-    const finalCurrentQuantity = currentQuantity > 0 ? currentQuantity : finalInitialQuantity;
+    // Verwende Standardwerte wenn keine Mengen angegeben wurden
+    // Erlaubt auch 0 als gültige Menge für leere Batches
+    const finalInitialQuantity = (initialQuantity !== undefined && initialQuantity !== null && !isNaN(initialQuantity)) 
+      ? initialQuantity 
+      : 0;
+    const finalCurrentQuantity = (currentQuantity !== undefined && currentQuantity !== null && !isNaN(currentQuantity)) 
+      ? currentQuantity 
+      : finalInitialQuantity;
     console.log("Finaler Initial Quantity-Wert:", finalInitialQuantity, "Finaler Current Quantity-Wert:", finalCurrentQuantity);
     
     // Baue die SQL-Abfrage dynamisch auf basierend auf vorhandenen Spalten

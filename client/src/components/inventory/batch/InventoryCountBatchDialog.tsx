@@ -78,7 +78,10 @@ export default function InventoryCountBatchDialog({
   
   // State-Verwaltung
   const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<string>((availableBatches?.length || 0) === 0 ? 'new' : 'existing');
+  
+  // Filter Batches mit 0 Bestand vorab für initiale Tab-Auswahl
+  const hasValidBatches = availableBatches.filter(b => b.currentQuantity > 0).length > 0;
+  const [activeTab, setActiveTab] = useState<string>(hasValidBatches ? 'existing' : 'new');
   
   // Für automatische Batch-Nummerngenerierung
   const [newBatchNumber, setNewBatchNumber] = useState(() => generateBatchNumber());
@@ -290,7 +293,9 @@ export default function InventoryCountBatchDialog({
         const completeBatchData = {
           ...batchData,
           warehouseId: warehouseId, // Verwende die übergebene Lager-ID
-          receivedDate: format(new Date(), 'yyyy-MM-dd')
+          receivedDate: format(new Date(), 'yyyy-MM-dd'),
+          initialQuantity: batchData.initialQuantity || 0, // Erlaubt auch 0 als gültige Menge
+          currentQuantity: batchData.currentQuantity || batchData.initialQuantity || 0
         };
         
         console.log("Sende Chargen-Daten:", JSON.stringify(completeBatchData, null, 2));
@@ -406,7 +411,7 @@ export default function InventoryCountBatchDialog({
     }
     
     try {
-      // Verwende unseren optimierten Handler
+      // Verwende unseren optimierten Handler mit expliziten Quantity-Werten
       const createdBatch = await createAndLinkBatch({
         item: selectedItem,
         warehouseId,
@@ -414,6 +419,8 @@ export default function InventoryCountBatchDialog({
         batchNumber: newBatchNumber,
         expiryDate: expiryDate ? format(expiryDate, 'yyyy-MM-dd') : null,
         quantity: batchQuantity,
+        initialQuantity: batchQuantity,
+        currentQuantity: batchQuantity,
         notes: `Erstellt bei Inventur #${inventoryId}`,
         queryClient,
         onSuccess: (newBatch) => {
@@ -601,36 +608,49 @@ export default function InventoryCountBatchDialog({
     }
   };
 
+  // Filter Batches mit 0 Bestand und abgelaufene aus
+  const filteredBatches = availableBatches.filter(batch => {
+    // Verstecke Batches mit 0 Bestand
+    if (batch.currentQuantity <= 0) return false;
+    
+    // Optional: Verstecke abgelaufene Batches (kann durch Prop gesteuert werden)
+    // if (batch.expiryDate && new Date(batch.expiryDate) < new Date()) return false;
+    
+    return true;
+  });
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange} modal={true}>
       <DialogContent 
-        className="max-w-lg overflow-y-auto max-h-[90vh] bg-white dark:bg-gray-900 border shadow-xl"
-        style={{ zIndex: 50 }}
+        className="max-w-lg max-h-[85vh] bg-white dark:bg-gray-900 border shadow-xl overflow-hidden flex flex-col"
+        style={{ 
+          zIndex: 50
+        }}
       >
-        <>
-            <DialogHeader>
-              <DialogTitle>
-                <div className="flex items-center">
-                  <Package className="h-5 w-5 mr-2" />
-                  Charge auswählen oder erstellen
-                </div>
-              </DialogTitle>
-              <DialogDescription className="space-y-2">
-                <div>
-                  Wählen Sie eine bestehende Charge aus oder erstellen Sie eine neue für den Artikel: <br />
-                  <span className="font-medium">{selectedItem?.productName}</span>
-                </div>
-                <div className="flex items-center gap-2 text-sm bg-blue-50 p-2 rounded-md">
-                  <span>Verfügbarer Bestand:</span>
-                  <span className="font-semibold text-blue-600">{selectedItem?.expectedQuantity || 0} Stück</span>
-                </div>
-              </DialogDescription>
-            </DialogHeader>
+        <DialogHeader>
+          <DialogTitle>
+            <div className="flex items-center">
+              <Package className="h-5 w-5 mr-2" />
+              Charge auswählen oder erstellen
+            </div>
+          </DialogTitle>
+          <DialogDescription className="space-y-2">
+            <div>
+              Wählen Sie eine bestehende Charge aus oder erstellen Sie eine neue für den Artikel: <br />
+              <span className="font-medium">{selectedItem?.productName}</span>
+            </div>
+            <div className="flex items-center gap-2 text-sm bg-blue-50 p-2 rounded-md">
+              <span>Verfügbarer Bestand:</span>
+              <span className="font-semibold text-blue-600">{selectedItem?.expectedQuantity || 0} Stück</span>
+            </div>
+          </DialogDescription>
+        </DialogHeader>
 
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <div className="flex-1 overflow-y-auto px-1">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
               <TabsList className="w-full mb-4">
                 <TabsTrigger value="existing" className="flex-1">
-                  Bestehende Chargen {availableBatches.length > 0 && `(${availableBatches.length})`}
+                  Bestehende Chargen {filteredBatches.length > 0 && `(${filteredBatches.length})`}
                 </TabsTrigger>
                 <TabsTrigger value="new" className="flex-1">
                   Neue Charge erstellen
@@ -638,10 +658,7 @@ export default function InventoryCountBatchDialog({
               </TabsList>
               
               <TabsContent value="existing">
-                <div className="mb-4 p-2 bg-blue-50 rounded text-sm">
-                  <strong>Debug Info:</strong> {availableBatches.length} Chargen gefunden für Produkt {selectedItem?.productId} in Lager {warehouseId}
-                </div>
-                {availableBatches.length === 0 ? (
+                {filteredBatches.length === 0 ? (
                   <div className="flex flex-col items-center p-4 border rounded-md mb-4">
                     <CircleAlert className="h-12 w-12 text-amber-500 mb-2" />
                     <h3 className="text-lg font-medium mb-1">Keine Chargen verfügbar</h3>
@@ -672,12 +689,12 @@ export default function InventoryCountBatchDialog({
                           <SelectGroup>
                             <SelectLabel>Verfügbare Chargen</SelectLabel>
                             <SelectItem value="none">Keine Charge</SelectItem>
-                            {availableBatches.map((batch) => (
+                            {filteredBatches.map((batch) => (
                               <SelectItem 
                                 key={batch.id} 
                                 value={batch.id.toString()}
                               >
-                                {batch.batchNumber} - MHD: {formatBatchDate(batch.expiryDate)}
+                                {batch.batchNumber} - MHD: {formatBatchDate(batch.expiryDate)} ({batch.currentQuantity} Stk.)
                               </SelectItem>
                             ))}
                           </SelectGroup>
@@ -697,11 +714,11 @@ export default function InventoryCountBatchDialog({
                           {selectedBatchId && selectedBatchId !== 'none' && (
                             <Badge 
                               className={getBatchStatusColor(
-                                availableBatches.find(b => b.id.toString() === selectedBatchId)?.expiryDate || null
+                                filteredBatches.find(b => b.id.toString() === selectedBatchId)?.expiryDate || null
                               )}
                             >
                               {getBatchStatusText(
-                                availableBatches.find(b => b.id.toString() === selectedBatchId)?.expiryDate || null
+                                filteredBatches.find(b => b.id.toString() === selectedBatchId)?.expiryDate || null
                               )}
                             </Badge>
                           )}
@@ -711,21 +728,21 @@ export default function InventoryCountBatchDialog({
                           <div className="flex justify-between">
                             <span className="text-muted-foreground">Chargennummer:</span>
                             <span className="font-medium">
-                              {availableBatches.find(b => b.id.toString() === selectedBatchId)?.batchNumber}
+                              {filteredBatches.find(b => b.id.toString() === selectedBatchId)?.batchNumber}
                             </span>
                           </div>
                           <div className="flex justify-between">
                             <span className="text-muted-foreground">MHD:</span>
                             <span>
                               {formatBatchDate(
-                                availableBatches.find(b => b.id.toString() === selectedBatchId)?.expiryDate || null
+                                filteredBatches.find(b => b.id.toString() === selectedBatchId)?.expiryDate || null
                               )}
                             </span>
                           </div>
                           <div className="flex justify-between">
                             <span className="text-muted-foreground">Aktuelle Menge:</span>
                             <span>
-                              {availableBatches.find(b => b.id.toString() === selectedBatchId)?.currentQuantity || 0}
+                              {filteredBatches.find(b => b.id.toString() === selectedBatchId)?.currentQuantity || 0}
                             </span>
                           </div>
                         </div>
@@ -828,8 +845,9 @@ export default function InventoryCountBatchDialog({
                 </div>
               </TabsContent>
             </Tabs>
+        </div>
 
-            <DialogFooter>
+        <DialogFooter>
               <Button 
                 variant="outline" 
                 onClick={() => onOpenChange(false)}
@@ -852,8 +870,7 @@ export default function InventoryCountBatchDialog({
                   {isSubmitting ? 'Wird gespeichert...' : 'Charge erstellen & verknüpfen'}
                 </Button>
               )}
-            </DialogFooter>
-          </>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

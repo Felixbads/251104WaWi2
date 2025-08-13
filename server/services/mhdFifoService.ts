@@ -51,6 +51,7 @@ export class MhdFifoService {
       console.log(`[MHD_FIFO] Transferring ${quantityAdded} units of product ${productId} to machine ${machineId}`);
 
       // 1. Hole verfügbare Inventory Batches für dieses Produkt (FIFO-sortiert)
+      // WICHTIG: Filtere abgelaufene Chargen aus (expiry_date >= CURRENT_DATE)
       const batchesResult = await this.db.query(`
         SELECT ib.id, ib.expiry_date, ib.quantity, ib.batch_number, ib.incoming_date
         FROM inventory_batches ib
@@ -59,6 +60,7 @@ export class MhdFifoService {
           AND p.vendon_id = $2
           AND ib.quantity > 0
           AND ib.status = 'active'
+          AND (ib.expiry_date IS NULL OR ib.expiry_date >= CURRENT_DATE)  -- Keine abgelaufenen Chargen
         ORDER BY ib.incoming_date ASC, ib.expiry_date ASC
       `, [warehouseId, productId]);
 
