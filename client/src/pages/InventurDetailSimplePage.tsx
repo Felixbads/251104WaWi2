@@ -183,17 +183,43 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
     }, 500);
   };
 
+  // Prüft, ob ein Produkt Gebinde-Informationen hat
+  const hasPackageInfo = (product: SimpleInventoryItem['product']): boolean => {
+    if (!product) return false;
+    
+    // Nur wenn EXPLIZIT Gebinde-Informationen vorhanden sind
+    // UND diese sinnvoll sind (größer als 1)
+    if (product.packageQuantity && typeof product.packageQuantity === 'number' && product.packageQuantity > 1) {
+      return true;
+    }
+    
+    if (product.packagingQuantity && typeof product.packagingQuantity === 'number' && product.packagingQuantity > 1) {
+      return true;
+    }
+    
+    // Nur bei explizitem packageSize String mit Format "NxY"
+    if (product.packageSize && typeof product.packageSize === 'string' && product.packageSize.trim() !== '') {
+      const match = product.packageSize.match(/^(\d+)x/i);
+      if (match) {
+        const size = parseInt(match[1]);
+        if (size > 1) return true;
+      }
+    }
+    
+    return false;
+  };
+
   // Hilfsfunktionen für Gebinde und MHD
   const parsePackageSize = (product: SimpleInventoryItem['product']): number => {
-    if (!product) return 1;
+    if (!product || !hasPackageInfo(product)) return 1;
     
     // Priorität 1: Gebindegröße aus Einkaufsbedingungen (packageQuantity)
-    if (product.packageQuantity && typeof product.packageQuantity === 'number' && product.packageQuantity > 0) {
+    if (product.packageQuantity && typeof product.packageQuantity === 'number' && product.packageQuantity > 1) {
       return product.packageQuantity;
     }
     
     // Priorität 2: Gebindegröße aus Einkaufsbedingungen (packagingQuantity - Legacy)
-    if (product.packagingQuantity && typeof product.packagingQuantity === 'number' && product.packagingQuantity > 0) {
+    if (product.packagingQuantity && typeof product.packagingQuantity === 'number' && product.packagingQuantity > 1) {
       return product.packagingQuantity;
     }
     
@@ -202,7 +228,7 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
       const match = product.packageSize.match(/^(\d+)x/i);
       if (match) {
         const size = parseInt(match[1]);
-        if (size > 0) return size;
+        if (size > 1) return size;
       }
     }
     
@@ -334,7 +360,7 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
       // Calculate packaging info from first item (assuming all items in group have same packaging)
       const firstItem = items[0];
       const packageSize = parsePackageSize(firstItem.product);
-      const hasPackaging = packageSize > 1;
+      const hasPackaging = hasPackageInfo(firstItem.product);
       
       return {
         productName,
@@ -797,6 +823,7 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
                     const expectedQty = item.expectedQuantity || 0;
                     const countedQty = typeof currentCount === 'number' ? currentCount : 0;
                     const difference = countedQty - expectedQty;
+                    const hasPackaging = hasPackageInfo(item.product);
                     const packageSize = parsePackageSize(item.product);
                     const isExpanded = expandedItems.has(item.id);
                     
@@ -835,7 +862,7 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
                                       MHD: {formatDate(item.batch.expiryDate)}
                                     </Badge>
                                   )}
-                                  {packageSize > 1 && (
+                                  {hasPackaging && (
                                     <span className="inline-flex items-center">
                                       <Package className="h-3 w-3 mr-1" />
                                       {packageSize} {item.product?.packagingUnit || 'Stück'}/Gebinde
@@ -848,7 +875,7 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
                           <TableCell className="text-right">
                             <div>
                               <div className="font-medium">{expectedQty}</div>
-                              {packageSize > 1 && (
+                              {hasPackaging && (
                                 <div className="text-xs text-muted-foreground">
                                   ≈ {Math.ceil(expectedQty / packageSize)} Gebinde
                                 </div>
@@ -858,7 +885,7 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
                           <TableCell className="text-right">
                             <div className="flex flex-col items-end space-y-2">
                               {inventurData?.status === 'pending' || inventurData?.status === 'in_progress' || inventurData?.status === 'open' ? (
-                                packageSize > 1 ? (
+                                hasPackaging ? (
                                   <div className="space-y-3 w-full max-w-[250px]">
                                     {/* Kompakte Grid-Layout für nebeneinander liegende Eingaben */}
                                     <div className="grid grid-cols-2 gap-2">
@@ -1085,6 +1112,7 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
             id: selectedItem.productId, 
             productName: selectedItem.product?.productName || 'Unbekanntes Produkt' 
           }]}
+          initialQuantity={selectedItem.countedQuantity || editedCounts[selectedItem.id] || 1}
           onSuccess={() => {
             // Query invalidieren für Live-Update der availableBatches
             queryClient.invalidateQueries({ 

@@ -1,0 +1,109 @@
+Umfassende Analyse: Standort-Detailseiten und Automaten-Routing-Probleme
+Hauptproblem: Es scheint, dass im Hintergrund weiterhin automatische Prozesse laufen, die neue Automaten-Standorte erstellen oder bestehende duplizieren. Dies führt zu Routing-Problemen beim Navigation von der Standortübersicht zu den Detailansichten (z.B. /automaten/325762).
+
+1. Datenbankanalyse - Automaten-Duplikation untersuchen
+Bitte analysiere folgende Aspekte:
+
+a) Automatische Sync-Prozesse identifizieren:
+
+Prüfe alle Vendon-Sync-Services in server/services/ auf automatische Automaten-Erstellung
+Untersuche server/services/vendonSync.ts, resilientVendonSync.ts, ultraRobustVendonSync.ts
+Analysiere ob diese Services automatisch neue machines-Einträge erstellen
+Prüfe Scheduler in server/scheduler.ts auf aktive Sync-Jobs
+b) Datenbank-Konsistenz prüfen:
+
+Analysiere machines-Tabelle auf Duplikate basierend auf vendon_id, machine_name, location_id
+Untersuche location-status.ts API-Endpoints auf korrekte Datenabfragen
+Prüfe ob mehrere Automaten mit gleichen Namen aber unterschiedlichen IDs existieren
+2. Routing-System detailliert analysieren
+a) URL-Routing untersuchen:
+
+Analysiere /automaten/:id Route in der React-Anwendung
+Prüfe AutomatDetail.tsx Component auf korrekte ID-Auflösung
+Untersuche Server-Side Routing in server/routes/machines.ts
+Teste ob IDs korrekt zwischen Frontend und Backend übertragen werden
+b) ID-Mapping-Probleme:
+
+Prüfe ob vendon_id, machine_id, location_id korrekt gemappt werden
+Analysiere API-Endpoints in server/routes/machines.ts auf korrekte ID-Auflösung
+Untersuche ob Frontend die richtige ID für API-Calls verwendet
+3. Standort-Detailseite Mobile-First Überprüfung
+a) LocationDetail.tsx Component analysieren:
+
+Prüfe client/src/pages/LocationDetail.tsx auf Mobile-First Design
+Analysiere CSS-Klassen auf responsive Breakpoints (md:, lg:, etc.)
+Untersuche Navigation-Komponenten auf Touch-Optimierung
+Prüfe ob alle Daten-Tabellen horizontal scrollbar sind
+b) Mobile Navigation:
+
+Analysiere MobileHeader.tsx und MobileFooter.tsx Integration
+Prüfe ob Breadcrumb-Navigation mobile-optimiert ist
+Untersuche Touch-Targets (mindestens 44px Höhe)
+Prüfe Menü-Overlay auf mobilen Geräten
+4. Datenbank-Queries detailliert prüfen
+a) Location-Status API:
+
+Analysiere server/routes/location-status.ts auf korrekte SQL-Queries
+Prüfe ob Daten aus den richtigen Tabellen gezogen werden
+Untersuche JOIN-Statements auf Performance und Korrektheit
+Prüfe ob Caching-Mechanismen korrekt funktionieren
+b) Machine-Detail API:
+
+Analysiere server/routes/machines.ts auf korrekte Datenabfragen
+Prüfe ob alle relevanten Maschinendaten abgerufen werden
+Untersuche ob Transaktions-, Refill- und Bestandsdaten korrekt verknüpft sind
+5. Frontend-Backend Datenfluss
+a) API-Integration prüfen:
+
+Analysiere client/src/lib/api.ts auf korrekte Endpoint-Aufrufe
+Prüfe React Query Cache-Strategien in Components
+Untersuche Error-Handling bei fehlgeschlagenen API-Calls
+Prüfe ob Loading-States korrekt implementiert sind
+b) State Management:
+
+Analysiere ob Redux/Zustand korrekt verwendet wird
+Prüfe Component-State auf Memory-Leaks
+Untersuche ob Daten zwischen Components korrekt geteilt werden
+6. Spezifische Prüfungen für /automaten/325762
+a) Diese spezifische Route testen:
+
+Prüfe ob die ID 325762 in der Datenbank existiert
+Analysiere welche API-Endpoints für diese Route aufgerufen werden
+Untersuche Network-Tab im Browser auf fehlgeschlagene Requests
+Prüfe ob Automat korrekt in machines-Tabelle verknüpft ist
+b) Routing-Logik:
+
+Analysiere wouter Router-Konfiguration
+Prüfe ob Parameter-Parsing korrekt funktioniert
+Untersuche ob Fallback-Routes definiert sind
+7. Automatische Prozesse deaktivieren
+a) Sync-Services temporär deaktivieren:
+
+Identifiziere alle aktiven Cron-Jobs und Scheduler
+Prüfe ob Services automatisch neue Automaten erstellen
+Analysiere ob Vendon-API automatisch neue Standorte hinzufügt
+Untersuche Background-Services auf unerwünschte Neuerstellungen
+8. UI/UX Mobile-First Compliance
+a) Responsive Design prüfen:
+
+Analysiere alle Breakpoints (sm, md, lg, xl)
+Prüfe Touch-Gesten und Swipe-Navigation
+Untersuche Viewport-Meta-Tag Konfiguration
+Prüfe Schriftgrößen auf Mobile-Lesbarkeit
+b) Performance auf mobilen Geräten:
+
+Analysiere Bundle-Größe und Lazy-Loading
+Prüfe Image-Optimierung für mobile Verbindungen
+Untersuche API-Call Effizienz
+9. Debugging-Empfehlungen
+a) Logging erweitern:
+
+Füge detailliertes Logging zu Sync-Services hinzu
+Implementiere Request-Tracing für Problem-Routes
+Prüfe Console-Errors im Browser Developer Tools
+b) Datenbank-Monitoring:
+
+Überwache neue Einträge in machines-Tabelle
+Prüfe auf zeitliche Muster bei Duplikat-Erstellung
+Analysiere Foreign-Key Constraints
+Bitte führe diese Analyse systematisch durch und dokumentiere alle gefundenen Probleme mit konkreten Code-Beispielen und Lösungsvorschlägen. Besonders wichtig ist die Identifikation der automatischen Prozesse, die neue Automaten-Einträge erstellen.

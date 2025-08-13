@@ -30,19 +30,17 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { CalendarIcon, CircleAlert, CheckCircle2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
-// Schema für die Validierung der Chargen-Daten
+// Schema für die Validierung der Chargen-Daten (ohne optionale Felder)
 const batchSchema = z.object({
   warehouseId: z.string().min(1, { message: 'Bitte wählen Sie ein Lager aus' }),
   productId: z.string().min(1, { message: 'Bitte wählen Sie ein Produkt aus' }),
   quantity: z.string().min(1, { message: 'Bitte geben Sie eine Menge an' })
     .refine((val) => !isNaN(parseInt(val)), { message: 'Menge muss eine Zahl sein' })
-    .refine((val) => parseInt(val) > 0, { message: 'Menge muss größer als 0 sein' }),
+    .refine((val) => parseInt(val) >= 0, { message: 'Menge darf nicht negativ sein' }), // Erlaubt 0 für Produkte wie Eier
   batchNumber: z.string().min(1, { message: 'Bitte geben Sie eine Chargennummer an' }),
   expiryDate: z.date({ required_error: 'Bitte wählen Sie ein Mindesthaltbarkeitsdatum aus' }),
   incomingDate: z.date({ required_error: 'Bitte wählen Sie ein Eingangsdatum aus' }),
-  supplierBatchNumber: z.string().optional(),
-  locationInWarehouse: z.string().optional(),
-  notes: z.string().optional(),
+  notes: z.string().optional(), // Nur Notizen bleiben optional
 });
 
 type BatchFormData = z.infer<typeof batchSchema>;
@@ -52,31 +50,40 @@ type NewBatchDialogProps = {
   onOpenChange: (open: boolean) => void;
   warehouses: any[];
   products: any[];
+  initialQuantity?: number; // Neue Property für vorausgefüllte Menge
   onSuccess?: () => void;
 };
+
+// Funktion zum Generieren einer einzigartigen Chargennummer
+function generateBatchNumber(): string {
+  const now = new Date();
+  const dateStr = format(now, 'yyyyMMdd');
+  const timeStr = format(now, 'HHmmss');
+  const randomStr = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+  return `CHG-${dateStr}-${timeStr}-${randomStr}`;
+}
 
 export default function NewBatchDialog({ 
   open, 
   onOpenChange, 
   warehouses, 
   products,
+  initialQuantity,
   onSuccess 
 }: NewBatchDialogProps) {
   const { toast } = useToast();
   const [showSuccessState, setShowSuccessState] = useState(false);
 
-  // Form-Handler initialisieren
+  // Form-Handler initialisieren mit vorausgefüllten Werten
   const form = useForm<BatchFormData>({
     resolver: zodResolver(batchSchema),
     defaultValues: {
-      warehouseId: warehouses.length === 1 ? warehouses[0]?.id?.toString() : '',
-      productId: '',
-      quantity: '',
-      batchNumber: '',
+      warehouseId: warehouses.length >= 1 ? warehouses[0]?.id?.toString() : '',
+      productId: products.length >= 1 ? products[0]?.id?.toString() : '',
+      quantity: initialQuantity ? initialQuantity.toString() : '1',
+      batchNumber: generateBatchNumber(), // Auto-generierte Chargennummer
       expiryDate: new Date(new Date().setMonth(new Date().getMonth() + 3)), // 3 Monate in der Zukunft als Standard-MHD
       incomingDate: new Date(), // Standardmäßig das heutige Datum
-      supplierBatchNumber: '',
-      locationInWarehouse: '',
       notes: '',
     },
   });
@@ -106,7 +113,6 @@ export default function NewBatchDialog({
         currentQuantity: quantity,
         // WICHTIG: Explizit das quantity-Feld setzen, da es in der Datenbank als NOT NULL definiert ist
         quantity: quantity,
-        locationInWarehouse: data.locationInWarehouse || null,
         notes: data.notes || null
       };
 
@@ -292,36 +298,6 @@ export default function NewBatchDialog({
                           }}
                           max={format(new Date(), "yyyy-MM-dd")} // Maximum heute
                         />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                {/* Charge des Lieferanten (optional) */}
-                <FormField
-                  control={form.control}
-                  name="supplierBatchNumber"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Lieferanten-Chargennummer (optional)</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Charge des Lieferanten" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                {/* Lagerort im Lager (optional) */}
-                <FormField
-                  control={form.control}
-                  name="locationInWarehouse"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Lagerort (optional)</FormLabel>
-                      <FormControl>
-                        <Input placeholder="z.B. Regal A, Fach 3" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
