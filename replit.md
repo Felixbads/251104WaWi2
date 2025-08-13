@@ -45,33 +45,36 @@ The system employs a robust architecture to manage complex vending machine opera
 -   **Vendon API**: Primary integration for real-time vending machine data collection and synchronization.
 -   **PostgreSQL**: Relational database used for persistent data storage.
 
-## Recent Major Fixes (12.08.2025)
+## Recent Major Fixes (13.08.2025)
 
-### CRITICAL DATABASE DUPLICATION BUG BEHOBEN ✅ (12.08.2025 19:15)
+### CRITICAL DATABASE DUPLICATION BUG BEHOBEN ✅ (13.08.2025 10:10)
 
-**Problem gelöst**: 13.867 Machine-Records für nur 19 echte Maschinen durch fehlerhaften Vendon-Sync.
+**Problem gelöst**: 4.427 Machine-Records für nur 19 echte Maschinen durch fehlerhaften Vendon-Sync.
 
 1. **Duplikat-Ursache identifiziert**
    - VendonSync.ts erstellt bei jedem Sync neue Machine-Records statt Updates
-   - Fehlerhafte Duplicate-Detection in Zeile 1212-1240 
-   - Rapid-Fire Creation: 1957 Duplikate für "Rathen" in 5 Minuten entstanden
+   - Fehlerhafte OR-Query in Zeile 1212-1214: `WHERE vendon_id = $1 OR machine_name = $2`
+   - Rapid-Fire Creation: 969 Duplikate für "Bad Schandau", 613 für "Ostrau", 485 für "Rathen"
 
 2. **Comprehensive Cleanup durchgeführt**
-   - 13.845 Duplikate sicher entfernt mit Foreign Key Handling
-   - Alle Transaktions-Referenzen auf ältesten Record migriert
-   - Database von 13.867 auf 22 Maschinen optimiert
+   - 4.408 Duplikate sicher entfernt mit Foreign Key Handling
+   - 29.532 Transaktions-Referenzen auf älteste Records migriert
+   - 655 Refill-Referenzen korrekt aktualisiert
+   - Database von 4.427 auf 19 Maschinen optimiert
 
 3. **Vendon-Sync-Algorithmus repariert**
-   - Robuste Duplicate-Detection: `vendon_id OR machine_name` in einem Query
-   - Nutzt ältesten existierenden Record statt neue Creation
+   - FIXED: Prüft NUR nach vendon_id - der eindeutige Schlüssel
+   - Query korrigiert zu: `WHERE vendon_id = $1 LIMIT 1`
+   - UNIQUE Constraint auf vendon_id hinzugefügt
    - Verhindert zukünftige Duplikatserstellung
 
 4. **Analytics-Performance drastisch verbessert**
-   - Keine ID-Konflikte mehr zwischen 1957 Duplikaten
+   - Keine ID-Konflikte mehr zwischen tausenden Duplikaten
    - Echte Daten-Aggregation funktioniert jetzt korrekt
    - API-Response-Zeiten erheblich reduziert
+   - Vendon ID ist jetzt der zentrale Schlüssel für alle Relationen
 
-**Technische Verbesserungen**: Database Optimization, Sync-Logic-Repair, Foreign Key Integrity, Performance Enhancement
+**Technische Verbesserungen**: Database Optimization, Sync-Logic-Repair, UNIQUE Constraint Implementation, Foreign Key Integrity
 
 ## Recent Major Fixes (12.08.2025)
 

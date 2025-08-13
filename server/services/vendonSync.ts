@@ -1208,10 +1208,10 @@ export class VendonSyncService {
               const machineVendonId = transaction.machine_id.toString();
               const machineName = transaction.machine_name || `Maschine ${machineVendonId}`;
               
-              // COMPREHENSIVE CHECK: Prüfe sowohl vendon_id als auch machine_name in EINEM Query
+              // FIXED: Prüfe NUR nach vendon_id - das ist der eindeutige Schlüssel!
               const existingMachine = await rawDb.query(
-                'SELECT * FROM machines WHERE vendon_id = $1 OR machine_name = $2 ORDER BY created_at ASC LIMIT 1',
-                [machineVendonId, machineName]
+                'SELECT * FROM machines WHERE vendon_id = $1 LIMIT 1',
+                [machineVendonId]
               );
               
               if (existingMachine.rows.length > 0) {

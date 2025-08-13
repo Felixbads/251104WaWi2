@@ -1,0 +1,42 @@
+1. Tagesumsatz / Marge zeigt “N/A”
+Die Margin-Berechnung bricht ab, sobald keine gültigen Einkaufs­preise oder ein Umsatz von 0 übergeben werden, wodurch summaryData.profitMarginPercent auf NaN fällt und als “N/A” erscheint.
+
+1. In `client/src/pages/ProfitabilityAnalysis.tsx`, guard the profit‑margin computation against zero revenue and missing purchase costs. ```ts const totalRevenue = profitabilityData.reduce((sum,i)=>sum+i.revenueNet,0); const totalProfit = profitabilityData.reduce((sum,i)=>sum+i.netProfit,0); const profitMarginPercent = totalRevenue>0 ? (totalProfit/totalRevenue)*100 : 0; ``` 2. Surface the calculated `profitMarginPercent` in the summary card instead of `N/A`. 3. In `server/routes/profitability-simple.ts` (or the active profitability route), join `purchase_conditions`/`products.cost_price` and use those values instead of a fixed 65 % heuristic so that margin is based on real cost data. 4. Verify that the API returns a numeric `profitMarginPercent`; update the UI formatting to display “0 %” when the value is `0`.
+
+
+2. Rückläuferanalyse zeigt keinen Gesamtwert der letzten Woche
+Das Dashboard-Widget nutzt nur die Stückzahl (totalRemoved) und ignoriert den geschätzten Verlust.
+
+1. Extend `client/src/lib/api.ts`’s `TopRemovedProduct` interface and the call in `getTopRemovedProducts` to include `avgPurchasePrice` and `estimatedLoss` returned by `server/routes/removed-products.ts`. 2. In `client/src/components/TopRemovedProductsTile.tsx`, compute the weekly total loss\ `topRemovedProducts.reduce((s,p)=>s+p.estimatedLoss,0)` and display it prominently. 3. On `client/src/pages/Ruecklaufer.tsx`, add a headline summary showing the total estimated loss for the selected period and a short list of the top removed items. 4. Ensure `/api/removed-products/top` in `server/routes/removed-products.ts` continues to return the new fields.
+3. Kritische Standorte ohne Namen
+Die Kachel “Kritische Automaten” listet nur die Automaten‑Namen.
+
+1. In `client/src/pages/Dashboard.tsx`, inside the critical‑machine tile, append `machine.location` beneath or next to `machine.machineName`. ```tsx <div className="text-xs text-muted-foreground">{machine.location}</div> ``` 2. If `location` may be null, show “Standort unbekannt”.
+
+
+4. Wareneingang – anstehende & verspätete Lieferung
+Falscher Warenwert und falscher Link in der Kachel “Offene Lieferungen”.
+
+1. In `client/src/pages/Dashboard.tsx`, replace `order.totalAmount` with the correct field (e.g. `order.totalAmountNet` or recomputed sum of items) to show the right goods value. 2. Update the click handler: * Sent orders → `/bestellungen/${order.id}?view=goods-receipt` * Others → `/bestellungen/${order.id}` 3. Verify that these routes exist in `client/src/App.tsx`; add a route if necessary to avoid “404”.
+
+. Maschinen – Anomalien, Warnungen & Fehler verlinkt falsch
+Der Verweis öffnet nicht die Standort‑Status‑Übersicht.
+
+1. Locate the link labeled “Anomalien, Warnungen & Fehler” (likely in `client/src/components/layout/Navigation.tsx` or the dashboard card). 2. Change its target to `"/standort-status"` using `setLocation('/standort-status')` or the equivalent `<Link>` component. 3. Remove or update any obsolete route pointing to the previous destination.
+
+
+6. Kritische Bestände nur als Gesamtsumme
+Die Seite Kritische Bestände zeigt keine Aufschlüsselung pro Lager.
+
+1. In `client/src/pages/CriticalInventory.tsx`, iterate over `data.summary.byWarehouse` and render a tile for each warehouse: ```tsx data.summary.byWarehouse.map(w => <Card key={w.warehouseId}>…{w.warehouseName} – {w.count} Artikel…</Card> ) ``` 2. Inside each tile, list (or link to) the products below minimum stock in that warehouse. 3. Keep the existing table but filter by selected warehouse when a tile is clicked.
+
+
+7. Ferien ohne Bundesland-Angabe
+HolidayDashboardWidget zeigt bei heutigen Ferien keine Bundesländer.
+
+1. In `client/src/components/dashboard/HolidayDashboardWidget.tsx`, inside the “today” section, display `holiday.state` alongside `holiday.name`. ```tsx <span>{holiday.name} – {holiday.state || 'Bundesweit'}</span> ``` 2. Ensure the `DashboardHolidayData` type in `client/src/lib/api.ts` includes `state`.
+
+9. Aktuelle Transaktionen ohne Zahlungsart
+Das Transaktions­table blendet paymentMethod aus.
+
+1. Update `client/src/components/tables/TransactionsTable.tsx`: * Add a column header “Zahlungsart”. * Render `transaction.paymentMethod` for each row, mapping values to “Cash”/“Cashless”. 2. Ensure `Transaction` in `client/src/lib/api.ts` already includes `paymentMethod` (it does); verify that `/api/transactions` returns it.
