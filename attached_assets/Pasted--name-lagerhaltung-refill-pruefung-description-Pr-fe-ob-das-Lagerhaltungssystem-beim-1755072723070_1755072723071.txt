@@ -1,0 +1,73 @@
+{
+  "name": "lagerhaltung_refill_pruefung",
+  "description": "Prüfe, ob das Lagerhaltungssystem beim Refill eines Automaten korrekt arbeitet und relevante Informationen protokolliert.",
+  "preconditions": {
+    "lager_id": "<ID_des_zugeordneten_Lagers>",
+    "automat_id": "<ID_des_zugeordneten_Automaten>",
+    "artikel": [
+      {
+        "artikel_id": "<Artikel-ID>",
+        "bezeichnung": "Beispielartikel",
+        "bestand_vorher": 10,
+        "entnahme_menge": 5,
+        "batch": "B12345",
+        "mhd": "2024-08-01"
+      }
+    ],
+    "nutzer": {
+      "id": "<Nutzer-ID>",
+      "name": "XYZ"
+    },
+    "aktuelles_datum": "2024-05-01"
+  },
+  "steps": [
+    {
+      "step": "Refill",
+      "action": "Entnehme die Artikel aus dem zugeordneten Lager und fülle den zugeordneten Automaten.",
+      "expected_result": "Die entnommenen Artikel werden im Lagerbestand reduziert und erscheinen im Automatenbestand."
+    },
+    {
+      "step": "Lager-Detailansicht prüfen",
+      "action": "Öffne die Detailansicht des entnommenen Artikels im Lager.",
+      "expected_result": "Ein Eintrag 'Entnommen am <aktuelles_datum> durch Nutzer XYZ, 5 Artikel. vorher 10 Stück, danach 5 Stück' ist sichtbar."
+    },
+    {
+      "step": "Batch und MHD im Lager prüfen",
+      "action": "Überprüfe die Batch- und MHD-Anzeige für den entnommenen Artikel in der Lagerdetailansicht.",
+      "expected_result": "Batch 'B12345' und MHD '2024-08-01' werden angezeigt."
+    },
+    {
+      "step": "MHD-Warnung prüfen",
+      "action": "Überprüfe das System auf Warnhinweise für abgelaufene oder bald ablaufende MHD-Produkte.",
+      "expected_result": "Es existiert ein Protokolleintrag oder Warnhinweis, falls ein MHD abgelaufen ist oder kurz vor dem Verfall steht."
+    },
+    {
+      "step": "Automatenanzeige prüfen",
+      "action": "Öffne die Ansicht des Automaten und überprüfe den Eintrag des aufgefüllten Artikels.",
+      "expected_result": "Batch 'B12345' und MHD '2024-08-01' werden im Automaten für den aufgefüllten Artikel angezeigt."
+    }
+  ],
+  "validation_questions": [
+    {
+      "id": 1,
+      "question": "Werden beim Refill die Waren vom zugeordneten Lager abgebucht und in der Lagerdetailansicht mit Datum, Nutzer, Menge sowie Bestand vor/nachher dokumentiert?",
+      "expected_answer": "ja"
+    },
+    {
+      "id": 2,
+      "question": "Werden in der Lageransicht für den entnommenen Artikel die Batch-Nummer und das MHD angezeigt?",
+      "expected_answer": "ja"
+    },
+    {
+      "id": 3,
+      "question": "Wird eine Warnung protokolliert, wenn ein MHD-Produkt über sein Verfallsdatum hinaus genutzt oder aufgefüllt wird?",
+      "expected_answer": "ja"
+    },
+    {
+      "id": 4,
+      "question": "Wird beim Refill das Batch samt MHD an den Automaten übertragen und dort sichtbar?",
+      "expected_answer": "ja"
+    }
+  ],
+  "notes": "Beantworte jede Validierungsfrage mit 'ja', 'nein' oder einer kurzen Begründung. Dokumentiere alle Abweichungen."
+}
