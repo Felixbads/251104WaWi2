@@ -75,9 +75,15 @@ export async function getWarehouseStats(warehouseId: number) {
 /**
  * Holt alle Lagerinventardaten mit Produktdetails
  * @param warehouseId ID des Lagers
+ * @param page Seitennummer (1-basiert)
+ * @param pageSize Anzahl der Einträge pro Seite
  */
-export async function getWarehouseInventory(warehouseId: number) {
+export async function getWarehouseInventory(warehouseId: number, page: number = 1, pageSize: number = 50) {
   try {
+    // Berechne Offset für Pagination
+    const offset = (page - 1) * pageSize;
+    
+    // Query mit LIMIT und OFFSET für Pagination
     const query = `
       SELECT 
         i.id,
@@ -101,10 +107,38 @@ export async function getWarehouseInventory(warehouseId: number) {
         i.warehouse_id = $1
       ORDER BY 
         p.name ASC
+      LIMIT $2
+      OFFSET $3
     `;
     
-    const result = await db.query(query, [warehouseId]);
-    return result.rows;
+    // Query für Gesamtanzahl der Einträge
+    const countQuery = `
+      SELECT COUNT(*) as total
+      FROM inventory_items i
+      JOIN products p ON i.product_id = p.id
+      WHERE i.warehouse_id = $1
+    `;
+    
+    // Führe beide Queries parallel aus
+    const [itemsResult, countResult] = await Promise.all([
+      db.query(query, [warehouseId, pageSize, offset]),
+      db.query(countQuery, [warehouseId])
+    ]);
+    
+    const total = parseInt(countResult.rows[0]?.total || '0', 10);
+    const totalPages = Math.ceil(total / pageSize);
+    
+    return {
+      items: itemsResult.rows,
+      pagination: {
+        page,
+        pageSize,
+        total,
+        totalPages,
+        hasNext: page < totalPages,
+        hasPrevious: page > 1
+      }
+    };
   } catch (error) {
     console.error('Fehler beim Abrufen des Lagerinventars:', error);
     throw new Error('Das Lagerinventar konnte nicht abgerufen werden');

@@ -34,13 +34,18 @@ router.get('/', async (req: Request, res: Response) => {
     const includeZeroStock = req.query.includeZeroStock === 'true';
     const critical = req.query.critical === 'true';
     
+    // Pagination parameters
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize as string) || 50));
+    
     // Logging für Debugging
-    console.log(`Processing inventory request with warehouseId=${warehouseId}, includeZeroStock=${includeZeroStock}, critical=${critical}`);
+    console.log(`Processing inventory request with warehouseId=${warehouseId}, includeZeroStock=${includeZeroStock}, critical=${critical}, page=${page}, pageSize=${pageSize}`);
     
     // Wenn direkter Zugriff auf die Datenbank besser funktioniert, nutzen wir das für Fehlerbehandlung
     if (warehouseId) {
       try {
         // Versuche einen Direct-Query statt ORM für bessere Kontrolle der SQL-Abfrage
+        const offset = (page - 1) * pageSize;
         const directQuery = `
           WITH inventory_data AS (
             -- Inventardaten aus der inventory_items Tabelle
@@ -115,13 +120,44 @@ router.get('/', async (req: Request, res: Response) => {
           SELECT * FROM inventory_data
           UNION ALL
           SELECT * FROM batch_only_products
-          ORDER BY "productName";
+          ORDER BY "productName"
+          LIMIT $2
+          OFFSET $3;
         `;
         
-        const result = await rawDb.query(directQuery, [warehouseId]);
-        console.log(`Direct query returned ${result.rows.length} rows for warehouse ${warehouseId}`);
+        // Count query for total items
+        const countQuery = `
+          WITH inventory_data AS (
+            SELECT i.id
+            FROM inventory_items i
+            WHERE i.warehouse_id = $1
+              ${!includeZeroStock ? 'AND i.quantity > 0' : ''}
+              ${critical ? 'AND i.quantity <= COALESCE(i.min_quantity, 0) AND i.quantity > 0' : ''}
+          ),
+          batch_data AS (
+            SELECT DISTINCT pb.product_id
+            FROM product_batches pb
+            WHERE pb.status = 'active' AND pb.warehouse_id = $1
+              ${!includeZeroStock ? 'AND pb.current_quantity > 0' : ''}
+          )
+          SELECT COUNT(*) as total FROM (
+            SELECT id FROM inventory_data
+            UNION
+            SELECT product_id as id FROM batch_data
+          ) combined;
+        `;
         
-        if (result.rows.length > 0) {
+        const [result, countResult] = await Promise.all([
+          rawDb.query(directQuery, [warehouseId, pageSize, offset]),
+          rawDb.query(countQuery, [warehouseId])
+        ]);
+        
+        console.log(`Direct query returned ${result.rows.length} rows for warehouse ${warehouseId}, page ${page}`);
+        
+        const totalItems = parseInt(countResult.rows[0]?.total || '0', 10);
+        const totalPages = Math.ceil(totalItems / pageSize);
+        
+        if (result.rows.length > 0 || page === 1) {
           // Transformiere die Zahlenfelder in die richtigen Typen
           const formattedResult = result.rows.map(row => ({
             ...row,
@@ -132,7 +168,17 @@ router.get('/', async (req: Request, res: Response) => {
             minQuantity: parseInt(row.minQuantity) || 0
           }));
           
-          return res.json(formattedResult);
+          return res.json({
+            items: formattedResult,
+            pagination: {
+              page,
+              pageSize,
+              total: totalItems,
+              totalPages,
+              hasNext: page < totalPages,
+              hasPrevious: page > 1
+            }
+          });
         }
       } catch (directError) {
         console.error("Error with direct inventory query:", directError);

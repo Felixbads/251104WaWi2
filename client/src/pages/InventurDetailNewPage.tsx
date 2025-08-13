@@ -2096,6 +2096,12 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
           
           valueA = diffA;
           valueB = diffB;
+        } else if (sortField === 'expiryDate') {
+          // Sortiere nach MHD (Ablaufdatum) der Batch
+          const dateA = a.batch?.expiryDate ? new Date(a.batch.expiryDate).getTime() : Number.MAX_SAFE_INTEGER;
+          const dateB = b.batch?.expiryDate ? new Date(b.batch.expiryDate).getTime() : Number.MAX_SAFE_INTEGER;
+          valueA = dateA;
+          valueB = dateB;
         } else {
           // Fallback für andere Felder
           valueA = (a as any)[sortField] || '';
@@ -2654,8 +2660,46 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
                       )}
                     </div>
                   </TableHead>
-                  <TableHead className="text-center">Differenz</TableHead>
-                  <TableHead className="text-center">MHD</TableHead>
+                  <TableHead 
+                    className="cursor-pointer hover:text-primary text-center"
+                    onClick={() => {
+                      if (sortField === 'difference') {
+                        setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+                      } else {
+                        setSortField('difference');
+                        setSortDirection('asc');
+                      }
+                    }}
+                  >
+                    <div className="flex items-center justify-center gap-1">
+                      Differenz
+                      {sortField === 'difference' && (
+                        sortDirection === 'asc' ? 
+                          <ArrowUp className="h-4 w-4" /> : 
+                          <ArrowDown className="h-4 w-4" />
+                      )}
+                    </div>
+                  </TableHead>
+                  <TableHead 
+                    className="cursor-pointer hover:text-primary text-center"
+                    onClick={() => {
+                      if (sortField === 'expiryDate') {
+                        setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+                      } else {
+                        setSortField('expiryDate');
+                        setSortDirection('asc');
+                      }
+                    }}
+                  >
+                    <div className="flex items-center justify-center gap-1">
+                      MHD
+                      {sortField === 'expiryDate' && (
+                        sortDirection === 'asc' ? 
+                          <ArrowUp className="h-4 w-4" /> : 
+                          <ArrowDown className="h-4 w-4" />
+                      )}
+                    </div>
+                  </TableHead>
                   <TableHead>Notizen</TableHead>
                   <TableHead className="text-right">Aktionen</TableHead>
                 </TableRow>

@@ -234,11 +234,36 @@ router.get('/:id/items', async (req, res) => {
   }
 });
 
+// Schema für die Validierung von Inventurpositions-Updates
+const updateInventoryCountItemSchema = z.object({
+  countedQuantity: z.number()
+    .int('Die gezählte Menge muss eine ganze Zahl sein')
+    .min(0, 'Die gezählte Menge darf nicht negativ sein')
+    .nullable()
+    .optional(),
+  notes: z.string().optional(),
+  expectedQuantity: z.number()
+    .int('Die erwartete Menge muss eine ganze Zahl sein')
+    .min(0, 'Die erwartete Menge darf nicht negativ sein')
+    .optional()
+});
+
 // Update einer Inventurposition
 router.patch('/inventory-count-items/:id', async (req, res) => {
   try {
     const itemId = parseInt(req.params.id);
-    const { countedQuantity, notes, expectedQuantity } = req.body;
+    
+    // Validiere Request-Body
+    const validationResult = updateInventoryCountItemSchema.safeParse(req.body);
+    
+    if (!validationResult.success) {
+      return res.status(400).json({ 
+        error: 'Ungültige Eingabedaten',
+        details: validationResult.error.flatten().fieldErrors
+      });
+    }
+    
+    const { countedQuantity, notes, expectedQuantity } = validationResult.data;
     
     // Prüfe, ob die Inventurposition existiert
     const existingItem = await db.query.inventoryCountItems.findFirst({
@@ -446,32 +471,125 @@ router.post('/:id/complete', async (req, res) => {
       where: eq(schema.inventoryCountItems.inventoryCountId, inventoryCountId),
       with: {
         product: true,
-        batches: true
+        batch: true
       }
     });
 
-    // Hier könnte eine Transaktion beginnen für die sichere Aktualisierung aller Daten
-    // Das vollständige FIFO-Handling würde an dieser Stelle implementiert werden
-
-    // Setze die Inventur auf "completed"
-    await db.update(inventoryCounts)
-      .set({ 
-        status: 'completed', 
-        endDate: new Date(), // Verwende endDate statt completedAt
-        completedBy: 1
-      })
-      .where(eq(schema.inventoryCounts.id, inventoryCountId));
+    // Beginne Transaktion für sichere Aktualisierung aller Daten
+    await db.transaction(async (tx) => {
+      console.log(`Beginne Inventurabschluss für Inventur ${inventoryCountId}`);
+      
+      // Verarbeite jedes Inventurelement
+      for (const item of items) {
+        // Überspringe Elemente ohne gezählte Menge
+        if (item.countedQuantity === null || item.countedQuantity === undefined) {
+          console.log(`Überspringe Item ${item.id} - keine gezählte Menge`);
+          continue;
+        }
+        
+        const difference = item.countedQuantity - (item.expectedQuantity || 0);
+        console.log(`Verarbeite Produkt ${item.productId}: Erwartet=${item.expectedQuantity}, Gezählt=${item.countedQuantity}, Differenz=${difference}`);
+        
+        // Aktualisiere inventory_items Tabelle
+        const existingInventoryItem = await tx.query.inventoryItems.findFirst({
+          where: and(
+            eq(schema.inventoryItems.warehouseId, inventoryCount.warehouseId),
+            eq(schema.inventoryItems.productId, item.productId)
+          )
+        });
+        
+        if (existingInventoryItem) {
+          // Aktualisiere existierenden Bestand
+          await tx.update(schema.inventoryItems)
+            .set({ 
+              quantity: item.countedQuantity,
+              updatedAt: new Date()
+            })
+            .where(eq(schema.inventoryItems.id, existingInventoryItem.id));
+            
+          console.log(`Inventar-Item ${existingInventoryItem.id} aktualisiert: neue Menge = ${item.countedQuantity}`);
+        } else if (item.countedQuantity > 0) {
+          // Erstelle neuen Bestandseintrag wenn noch nicht vorhanden
+          await tx.insert(schema.inventoryItems)
+            .values({
+              warehouseId: inventoryCount.warehouseId,
+              productId: item.productId,
+              quantity: item.countedQuantity,
+              minQuantity: 0,
+              maxQuantity: null,
+              reorderPoint: 0,
+              status: 'active',
+              createdAt: new Date(),
+              updatedAt: new Date()
+            });
+            
+          console.log(`Neues Inventar-Item für Produkt ${item.productId} erstellt: Menge = ${item.countedQuantity}`);
+        }
+        
+        // Erstelle Bewegungsprotokoll für die Anpassung
+        if (difference !== 0) {
+          await tx.insert(schema.inventoryMovements)
+            .values({
+              productId: item.productId,
+              sourceWarehouseId: difference < 0 ? inventoryCount.warehouseId : null,
+              destinationWarehouseId: difference > 0 ? inventoryCount.warehouseId : null,
+              quantity: Math.abs(difference),
+              movementType: 'inventory_adjustment',
+              reason: `Inventuranpassung #${inventoryCountId}`,
+              notes: `Inventur abgeschlossen: Differenz von ${difference} Einheiten`,
+              performedBy: req.body.userId || 1,
+              performedAt: new Date(),
+              referenceType: 'inventory_count',
+              referenceId: inventoryCountId.toString(),
+              batchId: item.batchId || null,
+              createdAt: new Date(),
+              updatedAt: new Date()
+            });
+            
+          console.log(`Bewegungsprotokoll erstellt für Produkt ${item.productId}: ${Math.abs(difference)} Einheiten ${difference > 0 ? 'hinzugefügt' : 'entfernt'}`);
+        }
+        
+        // Aktualisiere Batch-Mengen falls vorhanden
+        if (item.batchId && item.batch) {
+          const batchDifference = item.countedQuantity - (item.batch.currentQuantity || 0);
+          
+          if (batchDifference !== 0) {
+            await tx.update(schema.productBatches)
+              .set({
+                currentQuantity: item.countedQuantity,
+                updatedAt: new Date()
+              })
+              .where(eq(schema.productBatches.id, item.batchId));
+              
+            console.log(`Batch ${item.batchId} aktualisiert: neue Menge = ${item.countedQuantity}`);
+          }
+        }
+      }
+      
+      // Setze die Inventur auf "completed"
+      await tx.update(inventoryCounts)
+        .set({ 
+          status: 'completed', 
+          endDate: new Date(),
+          completedBy: req.body.userId || 1,
+          updatedAt: new Date()
+        })
+        .where(eq(schema.inventoryCounts.id, inventoryCountId));
+        
+      console.log(`Inventur ${inventoryCountId} erfolgreich abgeschlossen`);
+    });
 
     // Erfolgreiche Antwort
     const warehouse = Array.isArray(inventoryCount.warehouse) ? inventoryCount.warehouse[0] : inventoryCount.warehouse;
     return res.status(200).json({ 
-      message: 'Inventur erfolgreich abgeschlossen',
+      message: 'Inventur erfolgreich abgeschlossen und Lagerbestände aktualisiert',
       inventoryCountId,
-      warehouseName: warehouse?.name
+      warehouseName: warehouse?.name,
+      itemsProcessed: items.filter(i => i.countedQuantity !== null).length
     });
   } catch (error) {
     console.error('Fehler beim Abschließen der Inventur:', error);
-    return res.status(500).json({ error: 'Serverfehler' });
+    return res.status(500).json({ error: 'Serverfehler beim Abschließen der Inventur' });
   }
 });
 
