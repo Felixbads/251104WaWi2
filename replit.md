@@ -45,6 +45,30 @@ The system employs a robust architecture to manage complex vending machine opera
 -   **Vendon API**: Primary integration for real-time vending machine data collection and synchronization.
 -   **PostgreSQL**: Relational database used for persistent data storage.
 
+## Recent Major Fixes (14.08.2025)
+
+### WAREHOUSE DROPDOWN PROBLEM BEHOBEN ✅ (14.08.2025 04:10)
+
+**Problem gelöst**: Bestellungen zeigten keine Lager im Dropdown an, obwohl Warehouse-Daten korrekt geladen wurden.
+
+1. **API-Datenstruktur-Inkonsistenz identifiziert**
+   - Frontend filterte nach `wh.is_active` 
+   - API lieferte aber `isActive` (camelCase)
+   - Führte zu leerem activeWarehouses Array
+
+2. **Robuste Kompatibilität implementiert**
+   - Filter erweitert: `wh.is_active || wh.isActive`
+   - Unterstützt jetzt beide Namenskonventionen
+   - Sofortige Lösung ohne API-Breaking-Changes
+
+3. **System-Status nach Stabilisierung**
+   - Alle Sync-Scheduler erfolgreich deaktiviert
+   - Endlose Database-Constraint-Errors gestoppt
+   - Frontend vollständig funktionsfähig
+   - User Authentication korrekt
+
+**Technische Verbesserungen**: API-Frontend Compatibility, Robuste Datenverarbeitung
+
 ## Recent Major Fixes (13.08.2025)
 
 ### GEBINDE-EINGABEFELD LOGIK KORRIGIERT ✅ (13.08.2025 11:30)
