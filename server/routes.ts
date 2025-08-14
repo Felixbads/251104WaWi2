@@ -3664,7 +3664,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const limit = req.query.limit ? parseInt(req.query.limit as string) : 200;
       const offset = req.query.offset ? parseInt(req.query.offset as string) : 0;
       
-      // Fixed SQL query - use vendon_id for transaction lookup with correct field aliases
+      // Fixed SQL query - use machine_id for transaction lookup with correct JOIN
       const transactionsQuery = `
         SELECT 
           t.id,
@@ -3680,13 +3680,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           t.created_at as "createdAt",
           m.machine_name as "machineName"
         FROM transactions t
-        LEFT JOIN machines m ON t.machine_id = m.vendon_id::bigint
+        LEFT JOIN machines m ON t.machine_id = m.id
         WHERE t.machine_id = $1
         ORDER BY t.datetime DESC
         LIMIT $2 OFFSET $3
       `;
       
-      const transactionsResult = await rawDb.query(transactionsQuery, [vendonId, limit, offset]);
+      const transactionsResult = await rawDb.query(transactionsQuery, [machineId, limit, offset]);
       const transactions = transactionsResult.rows;
       console.log(`[MACHINE-TRANSACTIONS] Found ${transactions.length} transactions for machine ${machineId} (vendon_id: ${vendonId})`);
       res.json(transactions);

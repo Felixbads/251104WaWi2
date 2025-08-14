@@ -238,12 +238,6 @@ function AuthenticatedRouter() {
           </ApprovedUserRoute>
         </Route>
 
-        <Route path="/automaten/:id">
-          <ApprovedUserRoute>
-            <AutomatDetail />
-          </ApprovedUserRoute>
-        </Route>
-
 
 
         <Route path="/automaten/:id/refills/:refillId">
