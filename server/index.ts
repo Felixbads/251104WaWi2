@@ -74,6 +74,7 @@ import { SupplierAnalyticsCache } from './services/supplierAnalyticsCache';
 import supplierFavoritesRouter from './routes/supplier-favorites';
 import orderItemsRouter from './routes/order-items';
 import pagePermissionsRouter from './routes/page-permissions';
+import machinesRouter from './routes/machines';
 
 const app = express();
 
