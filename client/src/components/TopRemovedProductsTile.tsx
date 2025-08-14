@@ -70,12 +70,25 @@ export default function TopRemovedProductsTile() {
         ) : (
           <div className="space-y-3">
             {/* Zusammenfassung */}
-            <div className="bg-muted/50 rounded-lg p-3 text-center">
-              <div className="text-lg font-bold text-red-600">
-                {topRemovedProducts.reduce((sum, product) => sum + Number(product.totalRemoved), 0)}
-              </div>
-              <div className="text-xs text-muted-foreground">
-                Gesamt entfernte Produkte
+            <div className="bg-muted/50 rounded-lg p-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="text-center">
+                  <div className="text-lg font-bold text-red-600">
+                    {topRemovedProducts.reduce((sum, product) => sum + Number(product.totalRemoved), 0)}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    Entfernte Produkte
+                  </div>
+                </div>
+                <div className="text-center">
+                  <div className="text-lg font-bold text-orange-600">
+                    €{topRemovedProducts.reduce((sum, product) => 
+                      sum + (product.estimatedLoss || product.totalRemoved * 2), 0).toFixed(2)}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    Geschätzter Verlust
+                  </div>
+                </div>
               </div>
             </div>
 

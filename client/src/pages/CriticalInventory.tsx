@@ -291,6 +291,36 @@ export default function CriticalInventory() {
         </CardContent>
       </Card>
 
+      {/* Warehouse Summary */}
+      {data?.summary?.byWarehouse && data.summary.byWarehouse.length > 0 && (
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle>Aufschlüsselung nach Lager</CardTitle>
+            <CardDescription>
+              Kritische Bestände pro Lagerstandort
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {data.summary.byWarehouse.map((warehouse) => (
+                <div key={warehouse.warehouseId} className="bg-muted/50 rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="font-medium">{warehouse.warehouseName}</h4>
+                    <Badge variant="destructive">{warehouse.count}</Badge>
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    <p>Kritische Produkte: {warehouse.count}</p>
+                    <p className="font-medium text-orange-600">
+                      Warenwert: €{(warehouse.totalValue || 0).toFixed(2)}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Critical Items Table */}
       <Card>
         <CardHeader>

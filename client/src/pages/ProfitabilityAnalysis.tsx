@@ -184,22 +184,24 @@ export default function ProfitabilityAnalysis() {
   });
 
   // Berechne Zusammenfassung
-  const summaryData: SummaryData | null = profitabilityData ? {
-    totalRevenueNet: profitabilityData.reduce((sum, item) => sum + item.revenueNet, 0),
-    totalRevenueGross: profitabilityData.reduce((sum, item) => sum + item.revenueGross, 0),
-    totalDepositRevenue: profitabilityData.reduce((sum, item) => sum + item.depositRevenue, 0),
-    totalPurchaseCost: profitabilityData.reduce((sum, item) => sum + item.purchaseCostNet, 0),
-    totalOperatingCosts: profitabilityData.reduce((sum, item) => sum + item.operatingCostsNet, 0),
-    totalNetProfit: profitabilityData.reduce((sum, item) => sum + item.netProfit, 0),
-    profitMarginPercent: profitabilityData.length > 0 ? 
-      (profitabilityData.reduce((sum, item) => sum + item.netProfit, 0) / 
-       profitabilityData.reduce((sum, item) => sum + item.revenueNet, 0)) * 100 : 0,
-    roiPercent: profitabilityData.length > 0 ? 
-      (profitabilityData.reduce((sum, item) => sum + item.netProfit, 0) / 
-       profitabilityData.reduce((sum, item) => sum + item.purchaseCostNet + item.operatingCostsNet, 0)) * 100 : 0,
-    totalTransactions: profitabilityData.reduce((sum, item) => sum + item.transactionCount, 0),
-    totalQuantity: profitabilityData.reduce((sum, item) => sum + item.quantitySold, 0),
-  } : null;
+  const summaryData: SummaryData | null = profitabilityData ? (() => {
+    const totalRevenue = profitabilityData.reduce((sum, item) => sum + item.revenueNet, 0);
+    const totalProfit = profitabilityData.reduce((sum, item) => sum + item.netProfit, 0);
+    const totalCosts = profitabilityData.reduce((sum, item) => sum + item.purchaseCostNet + item.operatingCostsNet, 0);
+    
+    return {
+      totalRevenueNet: totalRevenue,
+      totalRevenueGross: profitabilityData.reduce((sum, item) => sum + item.revenueGross, 0),
+      totalDepositRevenue: profitabilityData.reduce((sum, item) => sum + item.depositRevenue, 0),
+      totalPurchaseCost: profitabilityData.reduce((sum, item) => sum + item.purchaseCostNet, 0),
+      totalOperatingCosts: profitabilityData.reduce((sum, item) => sum + item.operatingCostsNet, 0),
+      totalNetProfit: totalProfit,
+      profitMarginPercent: totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0,
+      roiPercent: totalCosts > 0 ? (totalProfit / totalCosts) * 100 : 0,
+      totalTransactions: profitabilityData.reduce((sum, item) => sum + item.transactionCount, 0),
+      totalQuantity: profitabilityData.reduce((sum, item) => sum + item.quantitySold, 0),
+    };
+  })() : null;
 
   // Hilfsfunktionen
   const formatCurrency = (amount: number) => {

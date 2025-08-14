@@ -354,7 +354,7 @@ export default function Dashboard() {
                         <div className="flex-1">
                           <div className="flex items-center justify-between mb-1">
                             <p className="font-medium text-sm">{(order as any).supplierName || 'Unbekannter Lieferant'}</p>
-                            <p className="text-sm font-bold text-orange-900">{formatCurrency((order as any).totalAmount || (order as any).totalValue || 0)}</p>
+                            <p className="text-sm font-bold text-orange-900">{formatCurrency((order as any).totalAmountNet || (order as any).totalAmount || (order as any).totalValue || 0)}</p>
                           </div>
                           <div className="flex items-center justify-between">
                             <p className="text-xs text-gray-600">
@@ -415,6 +415,9 @@ export default function Dashboard() {
                           <div>
                             <p className="font-medium text-sm">{location.machineName}</p>
                             <p className="text-xs text-gray-600">
+                              {location.location || location.locationName || 'Standort unbekannt'}
+                            </p>
+                            <p className="text-xs text-gray-500">
                               {location.alerts?.length || 0} Fehler, {location.warnings?.length || 0} Warnungen
                             </p>
                           </div>
