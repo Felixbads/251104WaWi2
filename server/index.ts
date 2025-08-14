@@ -1810,6 +1810,10 @@ app.get('/orders-data', (req, res) => {
   app.use('/api/inventory-simple', inventorySimpleRouter);
   console.log('[SERVER] Inventory routers mounted at /api/inventory-counts and /api/inventory-simple BEFORE registerRoutes');
   
+  // Mount machines router BEFORE registerRoutes for machine detail views
+  app.use('/api/machines', machinesRouter);
+  console.log('[SERVER] Machines router mounted at /api/machines BEFORE registerRoutes');
+
   // CRITICAL: Register API routes FIRST before any static/wildcard routes
   console.log('[SERVER] Registering API routes BEFORE Vite middleware...');
   const server = await registerRoutes(app);

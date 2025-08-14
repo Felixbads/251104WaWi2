@@ -181,12 +181,21 @@ export default function AutomatDetail() {
     staleTime: 5 * 60 * 1000,
   });
 
-  // Fetch removed products
-  const { data: removedProducts, isLoading: removedProductsLoading } = useQuery<RemovedProduct[]>({
+  // Fetch removed products - API returns object with items array
+  const { data: removedProductsResponse, isLoading: removedProductsLoading } = useQuery<{
+    items: RemovedProduct[];
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  }>({
     queryKey: [`/api/machines/${machineId}/removed-products?filter=${removedProductsFilter}`],
     enabled: !!machineId && activeTab === 'entnommene-produkte',
     staleTime: 5 * 60 * 1000,
   });
+
+  // Extract items array for frontend compatibility
+  const removedProducts = removedProductsResponse?.items || [];
 
   // Fetch machine costs
   const { data: machineCosts, isLoading: costsLoading, refetch: refetchCosts } = useQuery<MachineCost[]>({
@@ -460,7 +469,7 @@ export default function AutomatDetail() {
             <CardContent>
               {analyticsLoading ? (
                 <Skeleton className="h-64 w-full" />
-              ) : analytics && analytics.salesTimeSeries && analytics.salesTimeSeries.length > 0 ? (
+              ) : analytics?.salesTimeSeries?.length ? (
                 <ResponsiveContainer width="100%" height={300}>
                   <LineChart data={analytics?.salesTimeSeries || []}>
                     <CartesianGrid strokeDasharray="3 3" />
@@ -599,7 +608,7 @@ export default function AutomatDetail() {
                   <CardTitle>Verkaufstrend</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  {analytics.salesTimeSeries?.length > 0 ? (
+                  {analytics?.salesTimeSeries?.length ? (
                     <ResponsiveContainer width="100%" height={300}>
                       <LineChart data={analytics.salesTimeSeries}>
                         <CartesianGrid strokeDasharray="3 3" />
