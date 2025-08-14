@@ -405,24 +405,24 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
     enabled: true, // Always load analytics for sorting
   });
 
-  const { data: warehouses, isLoading: warehousesLoading } = useQuery({
+  const { data: warehouseResponse, isLoading: warehousesLoading } = useQuery({
     queryKey: ['/api/warehouses'],
     staleTime: 1000 * 60 * 5,
   });
 
+  // Korrekte Datenextraktion aus der API-Response
+  const warehouses = warehouseResponse?.data || warehouseResponse || [];
+
   // Debug logging for warehouse data
   useEffect(() => {
-    if (warehouses) {
-      console.log(`🏢 WAREHOUSE DEBUG - Warehouse data received:`, {
-        rawData: warehouses,
-        hasData: !!(warehouses as any)?.data,
-        dataLength: Array.isArray((warehouses as any)?.data) ? (warehouses as any).data.length : 'not-array',
-        isArray: Array.isArray(warehouses),
-        warehousesLength: Array.isArray(warehouses) ? warehouses.length : 'not-array',
-        firstWarehouse: Array.isArray((warehouses as any)?.data) ? (warehouses as any).data[0] : (Array.isArray(warehouses) ? warehouses[0] : null)
-      });
-    }
-  }, [warehouses]);
+    console.log(`🏢 WAREHOUSE DEBUG - Corrected data extraction in BulkOrderMode:`, {
+      rawResponse: warehouseResponse,
+      extractedWarehouses: warehouses,
+      isArray: Array.isArray(warehouses),
+      length: warehouses?.length || 'N/A',
+      loading: warehousesLoading
+    });
+  }, [warehouseResponse, warehouses, warehousesLoading]);
 
   // Combine suppliers with analytics and sort by sales volume (simplified interface)
   const suppliersList = useMemo(() => {

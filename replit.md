@@ -67,7 +67,12 @@ The system employs a robust architecture to manage complex vending machine opera
    - Frontend vollständig funktionsfähig
    - User Authentication korrekt
 
-**Technische Verbesserungen**: API-Frontend Compatibility, Robuste Datenverarbeitung
+4. **BulkOrderMode Warehouse-Dropdown korrigiert**
+   - Gleiches Problem in Großbestellungs-Komponente behoben
+   - Korrekte API-Response-Extraktion implementiert
+   - Debug-Ausgaben für beide Komponenten harmonisiert
+
+**Technische Verbesserungen**: API-Frontend Compatibility, Robuste Datenverarbeitung, BulkOrderMode Fix
 
 ## Recent Major Fixes (13.08.2025)
 
