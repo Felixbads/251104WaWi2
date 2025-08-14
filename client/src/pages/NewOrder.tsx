@@ -180,10 +180,23 @@ function WarehouseSelectionForm({
 }) {
   const { toast } = useToast();
   
-  // Abfrage der Lager
-  const { data: warehouses, isLoading, error } = useQuery<any[]>({
+  // Abfrage der Lager mit korrekter Datenextraktion
+  const { data: warehouseResponse, isLoading, error } = useQuery<any>({
     queryKey: ['/api/warehouses'],
     staleTime: 1000 * 60, // 1 Minute
+  });
+
+  // Korrekte Datenextraktion aus der API-Response
+  const warehouses = warehouseResponse?.data || warehouseResponse || [];
+
+  // Debug warehouse data
+  console.log('🏢 WAREHOUSE DEBUG - Corrected data extraction:', {
+    rawResponse: warehouseResponse,
+    extractedWarehouses: warehouses,
+    isArray: Array.isArray(warehouses),
+    length: warehouses?.length || 'N/A',
+    loading: isLoading,
+    error: error
   });
   
   // Form-Hook
