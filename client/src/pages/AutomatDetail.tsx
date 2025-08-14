@@ -147,21 +147,21 @@ export default function AutomatDetail() {
 
   // Fetch machine basic data
   const { data: machine, isLoading: machineLoading, error: machineError, refetch: refetchMachine } = useQuery<MachineData>({
-    queryKey: ['/api/machines', machineId],
+    queryKey: [`/api/machines/${machineId}`],
     enabled: !!machineId,
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 
   // Fetch transactions
   const { data: transactions, isLoading: transactionsLoading } = useQuery<TransactionData[]>({
-    queryKey: ['/api/machines', machineId, 'transactions'],
+    queryKey: [`/api/machines/${machineId}/transactions`],
     enabled: !!machineId && (activeTab === 'transaktionen' || activeTab === 'allgemein' || activeTab === 'analysen' || activeTab === 'auswertung'),
     staleTime: 2 * 60 * 1000, // 2 minutes
   });
 
   // Fetch refills
   const { data: refills, isLoading: refillsLoading } = useQuery<RefillData[]>({
-    queryKey: ['/api/machines', machineId, 'refills'],
+    queryKey: [`/api/machines/${machineId}/refills`],
     enabled: !!machineId && activeTab === 'auffullungen',
     staleTime: 5 * 60 * 1000,
   });
@@ -176,35 +176,35 @@ export default function AutomatDetail() {
     weeklyRevenue: { week: string; revenue: number }[];
     monthlyRevenue: { month: string; revenue: number }[];
   }>({
-    queryKey: ['/api/machines', machineId, 'analytics'],
+    queryKey: [`/api/machines/${machineId}/analytics`],
     enabled: !!machineId && (activeTab === 'analysen' || activeTab === 'auswertung'),
     staleTime: 5 * 60 * 1000,
   });
 
   // Fetch removed products
   const { data: removedProducts, isLoading: removedProductsLoading } = useQuery<RemovedProduct[]>({
-    queryKey: ['/api/machines', machineId, 'removed-products', removedProductsFilter],
+    queryKey: [`/api/machines/${machineId}/removed-products?filter=${removedProductsFilter}`],
     enabled: !!machineId && activeTab === 'entnommene-produkte',
     staleTime: 5 * 60 * 1000,
   });
 
   // Fetch machine costs
   const { data: machineCosts, isLoading: costsLoading, refetch: refetchCosts } = useQuery<MachineCost[]>({
-    queryKey: ['/api/machines', machineId, 'costs'],
+    queryKey: [`/api/machines/${machineId}/costs`],
     enabled: !!machineId && activeTab === 'kosten',
     staleTime: 5 * 60 * 1000,
   });
 
   // Fetch current stock (Warenbestand)
   const { data: machineStock, isLoading: stockLoading } = useQuery<MachineStock[]>({
-    queryKey: ['/api/machines', machineId, 'stock'],
+    queryKey: [`/api/machines/${machineId}/stock`],
     enabled: !!machineId && activeTab === 'warenbestand',
     staleTime: 2 * 60 * 1000,
   });
 
   // Fetch MHD entries
   const { data: mhdEntries, isLoading: mhdLoading, refetch: refetchMHD } = useQuery<MHDEntry[]>({
-    queryKey: ['/api/machines', machineId, 'mhd'],
+    queryKey: [`/api/machines/${machineId}/mhd`],
     enabled: !!machineId && activeTab === 'mhd',
     staleTime: 5 * 60 * 1000,
   });
@@ -315,7 +315,7 @@ export default function AutomatDetail() {
 
   const handleRefreshAll = () => {
     refetchMachine();
-    queryClient.invalidateQueries({ queryKey: ['/api/machines', machineId] });
+    queryClient.invalidateQueries({ queryKey: [`/api/machines/${machineId}`] });
     toast({ title: "Daten aktualisiert", description: "Alle Daten wurden neu geladen." });
   };
 

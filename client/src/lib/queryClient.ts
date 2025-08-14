@@ -164,28 +164,26 @@ export const getQueryFn: <T>(options: {
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
-    // Stelle sicher, dass URL mit /api beginnt
-    const url = queryKey[0] as string;
-    let apiUrl = url.startsWith('/api') ? url : `/api${url}`;
+    // Baue URL aus queryKey-Array korrekt zusammen
+    let apiUrl: string;
     
-    // Check if there are query parameters in queryKey[1]
-    if (queryKey.length > 1 && queryKey[1] && typeof queryKey[1] === 'object') {
-      const queryParams = new URLSearchParams();
-      
-      // Add all parameters from queryKey[1] to the URLSearchParams
-      Object.entries(queryKey[1] as Record<string, any>).forEach(([key, value]) => {
-        if (value !== undefined && value !== null) {
-          queryParams.append(key, value.toString());
-        }
-      });
-      
-      // Append the query string to the URL if there are parameters
-      const queryString = queryParams.toString();
-      if (queryString) {
-        apiUrl += `?${queryString}`;
-        console.log(`API Request with params: ${apiUrl}`);
-      }
+    if (Array.isArray(queryKey) && queryKey.length > 1) {
+      // Verbinde Array-Elemente mit Slashes für korrekte URL-Struktur
+      const pathParts = queryKey.filter(part => 
+        typeof part === 'string' || typeof part === 'number'
+      );
+      apiUrl = pathParts.join('/');
+    } else {
+      // Fallback für einzelnen URL-String
+      apiUrl = queryKey[0] as string;
     }
+    
+    // Stelle sicher, dass URL mit /api beginnt
+    if (!apiUrl.startsWith('/api')) {
+      apiUrl = `/api${apiUrl}`;
+    }
+    
+    console.log(`[QUERY] Constructed URL: ${apiUrl} from queryKey:`, queryKey);
     
     // Authentifizierungsheader hinzufügen, wenn ein Token gespeichert ist
     const headers: Record<string, string> = {};
