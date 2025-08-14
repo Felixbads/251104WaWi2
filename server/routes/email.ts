@@ -140,10 +140,19 @@ router.post('/send-order-email', async (req: Request, res: Response) => {
     // Default from email
     const fromEmail = 'einkauf@proviantomat.de';
     
-    // Default CC emails
-    let ccEmails = 'andreas@proviantomat.de,einkauf@proviantomat.de';
-    if (emailData.cc) {
-      ccEmails = emailData.cc;
+    // Determine CC emails - use provided CC or supplier's default CC configuration
+    let ccEmails = emailData.cc;
+    
+    // If no CC provided in request, use supplier's default CC configuration
+    if (!ccEmails && supplier && supplier.orderEmailCc) {
+      ccEmails = supplier.orderEmailCc;
+      console.log('[Email] Using supplier default CC emails:', ccEmails);
+    }
+    
+    // Fallback to default CC if no CC configured for supplier
+    if (!ccEmails) {
+      ccEmails = 'andreas@proviantomat.de,einkauf@proviantomat.de';
+      console.log('[Email] Using fallback CC emails:', ccEmails);
     }
 
     // Send email

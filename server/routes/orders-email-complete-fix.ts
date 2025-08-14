@@ -66,6 +66,22 @@ router.post('/:orderId/send-email', async (req: Request, res: Response) => {
     const order = orderResult[0];
     console.log('[CompleteEmailFix] Order found:', order.orderNumber);
     
+    // Fetch supplier data to get CC email configuration
+    let supplierData = null;
+    if (order.supplierId) {
+      const supplierResult = await db
+        .select()
+        .from(suppliers)
+        .where(eq(suppliers.id, order.supplierId))
+        .limit(1);
+      
+      if (supplierResult && supplierResult.length > 0) {
+        supplierData = supplierResult[0];
+        console.log('[CompleteEmailFix] Supplier found:', supplierData.name);
+        console.log('[CompleteEmailFix] Supplier CC emails:', supplierData.orderEmailCc);
+      }
+    }
+    
     // Fetch order items
     const itemsResult = await db
       .select()
@@ -310,10 +326,25 @@ router.post('/:orderId/send-email', async (req: Request, res: Response) => {
       html: htmlContent
     };
     
-    // Add CC if provided
-    if (cc && cc.includes('@')) {
-      mailOptions.cc = cc;
-      console.log('[CompleteEmailFix] Adding CC recipient:', cc);
+    // Determine CC recipients - use provided CC or supplier's default CC configuration
+    let ccRecipients = cc;
+    
+    // If no CC provided in request, use supplier's default CC configuration
+    if (!ccRecipients && supplierData && supplierData.orderEmailCc) {
+      ccRecipients = supplierData.orderEmailCc;
+      console.log('[CompleteEmailFix] Using supplier default CC emails:', ccRecipients);
+    }
+    
+    // Fallback to default CC if no CC configured for supplier
+    if (!ccRecipients) {
+      ccRecipients = 'andreas@proviantomat.de,einkauf@proviantomat.de';
+      console.log('[CompleteEmailFix] Using fallback CC emails:', ccRecipients);
+    }
+    
+    // Add CC recipients to email
+    if (ccRecipients && ccRecipients.includes('@')) {
+      mailOptions.cc = ccRecipients;
+      console.log('[CompleteEmailFix] Adding CC recipients:', ccRecipients);
     }
     
     console.log('[CompleteEmailFix] Sending email with HTML content...');
@@ -343,7 +374,7 @@ router.post('/:orderId/send-email', async (req: Request, res: Response) => {
       const newStatusEntry = {
         status: "sent",
         timestamp: new Date().toISOString(),
-        note: `E-Mail erfolgreich an ${to} gesendet${cc ? ` (CC: ${cc})` : ''}`
+        note: `E-Mail erfolgreich an ${to} gesendet${ccRecipients ? ` (CC: ${ccRecipients})` : ''}`
       };
       
       await db
@@ -364,7 +395,7 @@ router.post('/:orderId/send-email', async (req: Request, res: Response) => {
       messageId: result.messageId,
       orderNumber: order.orderNumber,
       recipient: to,
-      cc: cc || null,
+      cc: ccRecipients || null,
       statusUpdated: order.status === 'draft'
     });
     
