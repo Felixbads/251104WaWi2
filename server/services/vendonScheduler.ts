@@ -258,5 +258,6 @@ class VendonScheduler {
 // Export singleton instance
 export const vendonScheduler = new VendonScheduler();
 
+// CRITICAL FIX: TEMPORARILY DISABLED DUE TO DATABASE CONSTRAINT ERRORS
 // Auto-start the scheduler
-vendonScheduler.start();
+// vendonScheduler.start();

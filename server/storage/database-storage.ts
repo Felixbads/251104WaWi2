@@ -908,10 +908,38 @@ export class DatabaseStorage implements IStorage {
   async getTransactionsByMachine(machineId: number): Promise<any[]> { return []; }
   async getTransactionsByDateRange(startDate: Date, endDate: Date): Promise<any[]> { return []; }
   
-  async getMachineByVendonId(vendonId: string): Promise<any | undefined> { return undefined; }
+  async getMachineByVendonId(vendonId: string): Promise<any | undefined> { 
+    try {
+      const result = await db.select().from(machines).where(eq(machines.vendonId, vendonId)).limit(1);
+      return result[0];
+    } catch (error) {
+      console.error(`Error fetching machine by vendon_id ${vendonId}:`, error);
+      return undefined;
+    }
+  }
   async createMachine(machine: any): Promise<any> { 
-    const result = await db.insert(machines).values(machine).returning();
-    return result[0];
+    try {
+      // Check if machine with vendonId already exists
+      const existing = await this.getMachineByVendonId(machine.vendonId);
+      if (existing) {
+        console.log(`Machine with vendon_id ${machine.vendonId} already exists, returning existing machine`);
+        return existing;
+      }
+      
+      const result = await db.insert(machines).values(machine).returning();
+      return result[0];
+    } catch (error) {
+      // If it's a unique constraint violation, try to get the existing machine
+      if (error.code === '23505' && error.constraint === 'unique_vendon_id') {
+        const existing = await this.getMachineByVendonId(machine.vendonId);
+        if (existing) {
+          console.log(`Machine with vendon_id ${machine.vendonId} found after unique constraint error`);
+          return existing;
+        }
+      }
+      console.error(`Error creating machine with vendon_id ${machine.vendonId}:`, error);
+      throw error;
+    }
   }
   async updateMachine(id: number, updates: any): Promise<any> { throw new Error("Not implemented"); }
   async deleteMachine(id: number): Promise<void> { throw new Error("Not implemented"); }

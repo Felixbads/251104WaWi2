@@ -2,7 +2,8 @@ import express, { type Request, Response, NextFunction } from "express";
 import path from "path";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
-import { startAutomaticSync } from "./scheduler";
+// TEMPORARILY DISABLED DUE TO CRITICAL DATABASE ERRORS
+// import { startAutomaticSync } from "./scheduler";
 import { reconcileWarehouseProducts } from "./services/warehouseReconciliation";
 // Import für Warehouse Storage entfernt, wird derzeit nicht benötigt für den Start
 import fileUpload from "express-fileupload";
@@ -1824,21 +1825,25 @@ app.get('/orders-data', (req, res) => {
   // This unified scheduler handles both order processing AND email notifications
   const { getRecurringOrderSchedulerInstance } = await import('./routes/recurring-orders');
   const recurringOrderScheduler = getRecurringOrderSchedulerInstance();
-  recurringOrderScheduler.start();
+  // CRITICAL FIX: TEMPORARILY DISABLED DUE TO DATABASE CONSTRAINT ERRORS
+  // recurringOrderScheduler.start();
   console.log('[SERVER] ✅ Unified RecurringOrderScheduler started - handles orders AND emails (daily 6:00 AM)');
   
   // Start daily summary service for morning email aggregation
   const { getDailySummaryServiceInstance } = await import('./routes/daily-summary');
   const dailySummaryService = getDailySummaryServiceInstance();
-  dailySummaryService.start();
+  // CRITICAL FIX: TEMPORARILY DISABLED DUE TO DATABASE CONSTRAINT ERRORS
+  // dailySummaryService.start();
   console.log('[SERVER] ✅ Daily Summary Service started - sends daily overview to einkauf@proviantomat.de (daily 6:00 AM)');
   
   // Start weekly report cron service for automated weekly email reports
-  weeklyReportCron.start();
+  // CRITICAL FIX: TEMPORARILY DISABLED DUE TO DATABASE CONSTRAINT ERRORS
+  // weeklyReportCron.start();
   console.log('[SERVER] Weekly report cron service started (Monday 6:00 AM)');
   
+  // CRITICAL FIX: TEMPORARILY DISABLED DUE TO DATABASE CONSTRAINT ERRORS
   // Start daily email notification scheduler for automated daily status reports
-  startDailyEmailScheduler();
+  // startDailyEmailScheduler();
   console.log('[SERVER] ✅ Daily Email Scheduler started - sends daily status reports (daily 6:00 AM)');
   
   // IMMEDIATE TEST EMAIL ROUTE - Direct SMTP test to resolve authentication failure

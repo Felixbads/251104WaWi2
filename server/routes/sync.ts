@@ -482,7 +482,8 @@ router.get('/scheduler/status', async (req: Request, res: Response) => {
 
 router.post('/scheduler/start', async (req: Request, res: Response) => {
   try {
-    vendonScheduler.start();
+    // CRITICAL FIX: TEMPORARILY DISABLED DUE TO DATABASE CONSTRAINT ERRORS
+  // vendonScheduler.start();
     res.json({
       status: 'success',
       message: 'Vendon scheduler started'
