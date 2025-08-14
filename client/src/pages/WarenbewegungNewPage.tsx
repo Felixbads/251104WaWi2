@@ -50,19 +50,18 @@ import { Calendar } from "lucide-react";
 interface Warehouse {
   id: number;
   name: string;
-  location?: string;
+  address?: string;
+  city?: string;
+  isActive?: boolean;
   status?: string;
+  description?: string;
 }
 
 interface PackageType {
   id: number;
   name: string;
   description?: string;
-  unitsPerPackage: number;
-  isActive: boolean;
-  sortOrder: number;
-  createdAt: string;
-  updatedAt: string;
+  is_active?: boolean;
 }
 
 interface InventoryProduct {
@@ -129,16 +128,30 @@ export default function WarenbewegungNewPage() {
   }, [disposalForm.watch]);
 
   // Get all warehouses
-  const { data: warehouses, isLoading: warehousesLoading } = useQuery({
+  const { data: warehouses, isLoading: warehousesLoading, error: warehousesError } = useQuery({
     queryKey: ['/api/warehouses'],
-    select: (data: Warehouse[]) => data.filter(w => w.status === 'active')
+    select: (data: any) => {
+      // Handle both paginated and non-paginated responses
+      const warehouseList = data?.data || data || [];
+      // Filter by isActive (boolean) or status === 'active' (text), both are valid
+      return warehouseList.filter((w: Warehouse) => 
+        w.isActive === true || w.isActive === undefined && w.status === 'active'
+      );
+    }
   });
 
   // Get all package types
-  const { data: packageTypes, isLoading: packageTypesLoading } = useQuery({
+  const { data: packageTypes, isLoading: packageTypesLoading, error: packageTypesError } = useQuery({
     queryKey: ['/api/package-types'],
-    select: (data: { packageTypes: PackageType[] }) => 
-      data.packageTypes.filter(pt => pt.isActive).sort((a, b) => a.sortOrder - b.sortOrder)
+    select: (data: PackageType[]) => {
+      // The API returns an array directly, not an object with packageTypes
+      if (!Array.isArray(data)) {
+        console.error('Package types response is not an array:', data);
+        return [];
+      }
+      // Filter active package types (using is_active field from API)
+      return data.filter(pt => pt.is_active !== false);
+    }
   });
 
   // Get products for selected source warehouse (transfer)
@@ -425,6 +438,28 @@ export default function WarenbewegungNewPage() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
+                  {/* Error display for warehouses */}
+                  {warehousesError && (
+                    <Alert variant="destructive" className="mb-4">
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertTitle>Fehler beim Laden der Lager</AlertTitle>
+                      <AlertDescription>
+                        Die Lager konnten nicht geladen werden. Bitte versuchen Sie es später erneut.
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                  
+                  {/* Warning if no warehouses available */}
+                  {!warehousesLoading && !warehousesError && (!warehouses || warehouses.length === 0) && (
+                    <Alert className="mb-4">
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertTitle>Keine Lager verfügbar</AlertTitle>
+                      <AlertDescription>
+                        Es wurden keine aktiven Lager gefunden. Bitte prüfen Sie die Lagerverwaltung.
+                      </AlertDescription>
+                    </Alert>
+                  )}
+
                   <div className="flex flex-col md:flex-row gap-4 mb-6">
                     {/* Source Warehouse Selection */}
                     <div className="w-full md:w-1/2">
@@ -432,9 +467,10 @@ export default function WarenbewegungNewPage() {
                       <Select 
                         value={sourceWarehouseId}
                         onValueChange={value => setSourceWarehouseId(value)}
+                        disabled={warehousesLoading || !warehouses || warehouses.length === 0}
                       >
                         <SelectTrigger id="sourceWarehouse" className="w-full">
-                          <SelectValue placeholder="Wählen Sie ein Quelllager aus" />
+                          <SelectValue placeholder={warehousesLoading ? "Lade Lager..." : "Wählen Sie ein Quelllager aus"} />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectGroup>
@@ -446,7 +482,7 @@ export default function WarenbewegungNewPage() {
                                 disabled={targetWarehouseId === warehouse.id.toString()}
                               >
                                 {warehouse.name}
-                                {warehouse.location ? ` (${warehouse.location})` : ''}
+                                {warehouse.city ? ` (${warehouse.city})` : ''}
                               </SelectItem>
                             ))}
                           </SelectGroup>
@@ -460,9 +496,10 @@ export default function WarenbewegungNewPage() {
                       <Select 
                         value={targetWarehouseId}
                         onValueChange={value => setTargetWarehouseId(value)}
+                        disabled={warehousesLoading || !warehouses || warehouses.length === 0}
                       >
                         <SelectTrigger id="targetWarehouse" className="w-full">
-                          <SelectValue placeholder="Wählen Sie ein Ziellager aus" />
+                          <SelectValue placeholder={warehousesLoading ? "Lade Lager..." : "Wählen Sie ein Ziellager aus"} />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectGroup>
@@ -474,7 +511,7 @@ export default function WarenbewegungNewPage() {
                                 disabled={sourceWarehouseId === warehouse.id.toString()}
                               >
                                 {warehouse.name}
-                                {warehouse.location ? ` (${warehouse.location})` : ''}
+                                {warehouse.city ? ` (${warehouse.city})` : ''}
                               </SelectItem>
                             ))}
                           </SelectGroup>
@@ -617,7 +654,7 @@ export default function WarenbewegungNewPage() {
                                     value={warehouse.id.toString()}
                                   >
                                     {warehouse.name}
-                                    {warehouse.location ? ` (${warehouse.location})` : ''}
+                                    {warehouse.city ? ` (${warehouse.city})` : ''}
                                   </SelectItem>
                                 ))}
                               </SelectContent>
