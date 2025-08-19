@@ -104,7 +104,14 @@ class EnhancedEmailService {
   /**
    * Sendet eine E-Mail mit Fallback-Optionen
    */
-  async sendEmail(to: string, subject: string, html: string, from?: string): Promise<{ success: boolean; method?: string; error?: string; messageId?: string }> {
+  async sendEmail(
+    to: string, 
+    subject: string, 
+    html: string, 
+    from?: string, 
+    cc?: string | string[], 
+    bcc?: string | string[]
+  ): Promise<{ success: boolean; method?: string; error?: string; messageId?: string }> {
     const fromAddress = from || this.config.fromAddress;
     
     console.log(`[EnhancedEmailService] Sende E-Mail an: ${to}`);
@@ -124,12 +131,20 @@ class EnhancedEmailService {
       try {
         console.log('[EnhancedEmailService] Verwende SendGrid');
         
-        const msg = {
+        const msg: any = {
           to,
           from: fromAddress,
           subject,
           html
         };
+        
+        // CC und BCC hinzufügen falls vorhanden
+        if (cc) {
+          msg.cc = Array.isArray(cc) ? cc : cc.split(',').map(email => email.trim()).filter(email => email.length > 0);
+        }
+        if (bcc) {
+          msg.bcc = Array.isArray(bcc) ? bcc : bcc.split(',').map(email => email.trim()).filter(email => email.length > 0);
+        }
 
         const response = await sgMail.send(msg);
         console.log('[EnhancedEmailService] SendGrid-E-Mail erfolgreich gesendet');
@@ -159,12 +174,20 @@ class EnhancedEmailService {
       try {
         console.log('[EnhancedEmailService] Verwende Nodemailer');
         
-        const mailOptions = {
+        const mailOptions: any = {
           from: fromAddress,
           to,
           subject,
           html
         };
+        
+        // CC und BCC hinzufügen falls vorhanden
+        if (cc) {
+          mailOptions.cc = Array.isArray(cc) ? cc.join(',') : cc;
+        }
+        if (bcc) {
+          mailOptions.bcc = Array.isArray(bcc) ? bcc.join(',') : bcc;
+        }
 
         const result = await this.transporter.sendMail(mailOptions);
         console.log(`[EnhancedEmailService] Nodemailer-E-Mail erfolgreich gesendet, Message ID: ${result.messageId}`);
@@ -350,7 +373,9 @@ class EnhancedEmailService {
     emailAddress: string, 
     customSubject?: string, 
     customContent?: string, 
-    templateType: string = 'standard'
+    templateType: string = 'standard',
+    cc?: string | string[],
+    bcc?: string | string[]
   ): Promise<{ success: boolean; error?: string; method?: string; messageId?: string }> {
     try {
       console.log(`[EnhancedEmailService] Bereite Bestell-E-Mail vor für Bestellung ${orderId}`);
@@ -416,7 +441,7 @@ class EnhancedEmailService {
       }
       
       // 7. E-Mail senden
-      return await this.sendEmail(emailAddress, subject, fullHtml);
+      return await this.sendEmail(emailAddress, subject, fullHtml, undefined, cc, bcc);
       
     } catch (error: any) {
       console.error('[EnhancedEmailService] Fehler beim Versenden der Bestell-E-Mail:', error);

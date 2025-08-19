@@ -34,7 +34,7 @@ router.post('/orders/:id/send-email', async (req, res) => {
   try {
     const { id } = req.params;
     const orderId = parseInt(id);
-    const { to, subject, content, supplierEmail } = req.body;
+    const { to, subject, content, supplierEmail, cc, bcc } = req.body;
 
     console.log('[EnhancedEmailRoute] Attempting to send email with enhanced service...');
     
@@ -43,7 +43,9 @@ router.post('/orders/:id/send-email', async (req, res) => {
       to || supplierEmail,
       subject || `Bestellung - Order ${orderId}`,
       content || 'Bestelldetails werden verarbeitet...',
-      process.env.SMTP_FROM || 'einkauf@proviantomat.de'
+      process.env.SMTP_FROM || 'einkauf@proviantomat.de',
+      cc,
+      bcc
     );
 
     console.log('[EnhancedEmailRoute] Email send result:', result);
@@ -53,7 +55,7 @@ router.post('/orders/:id/send-email', async (req, res) => {
         success: true,
         message: 'E-Mail erfolgreich gesendet',
         messageId: result.messageId,
-        provider: result.provider
+        method: result.method
       });
     } else {
       console.error('[EnhancedEmailRoute] Email send failed:', result.error);
@@ -78,7 +80,7 @@ router.post('/orders/:id/send-email-enhanced', async (req, res) => {
   try {
     const { id } = req.params;
     const orderId = parseInt(id);
-    const { to, subject, content, templateType = 'standard' } = req.body;
+    const { to, subject, content, templateType = 'standard', cc, bcc } = req.body;
     
     // Eingabevalidierung
     if (isNaN(orderId)) {
@@ -133,7 +135,9 @@ router.post('/orders/:id/send-email-enhanced', async (req, res) => {
       to,
       subject,
       content,
-      templateType
+      templateType,
+      cc,
+      bcc
     );
     
     console.log(`[EnhancedEmailRoute] E-Mail-Resultat:`, result);
@@ -178,7 +182,6 @@ router.post('/orders/:id/send-email-enhanced', async (req, res) => {
               .update(orders)
               .set({
                 status: 'sent',
-                sentAt: new Date(),
                 updatedAt: new Date(),
                 statusHistory: JSON.stringify([...currentHistory, newStatusEntry])
               })
