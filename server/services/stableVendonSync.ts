@@ -294,14 +294,27 @@ export class StableVendonSync {
       const machinesMap = new Map(
         existingMachines.map(m => [m.vendonId, m.id])
       );
+      
+      console.log(`🔍 Database Machine IDs:`, Array.from(machinesMap.keys()).slice(0, 10));
+      
+      // Sammle API Machine IDs für Debug
+      const apiMachineIds = [...new Set(transactionsArray.map(t => t.machine_id))];
+      console.log(`🔍 API Machine IDs:`, apiMachineIds.slice(0, 10));
+      
+      // Finde matching und missing Machine IDs
+      const matchingIds = apiMachineIds.filter(id => machinesMap.has(id));
+      const missingIds = apiMachineIds.filter(id => !machinesMap.has(id));
+      
+      console.log(`✅ Matching Machine IDs (${matchingIds.length}):`, matchingIds.slice(0, 5));
+      console.log(`❌ Missing Machine IDs (${missingIds.length}):`, missingIds.slice(0, 10));
 
       let itemsSaved = 0;
       let itemsSkipped = 0;
 
       for (const vendonTransaction of transactionsArray) {
         try {
-          // Prüfe ob Maschine existiert
-          const machineId = machinesMap.get(vendonTransaction.machine_id);
+          // Prüfe ob Maschine existiert - konvertiere machine_id zu String für Mapping
+          const machineId = machinesMap.get(String(vendonTransaction.machine_id));
           if (!machineId) {
             console.warn(`⚠️ Transaktion für unbekannte Maschine ${vendonTransaction.machine_id} übersprungen`);
             itemsSkipped++;
@@ -314,18 +327,35 @@ export class StableVendonSync {
             continue; // Überspringen, bereits vorhanden
           }
 
-          // Erstelle neue Transaktion
+          // Debug: Log Vendon Transaction structure
+          console.log(`🔍 Vendon Transaction Keys:`, Object.keys(vendonTransaction).slice(0, 8));
+          console.log(`💰 Vendon Transaction amount/price:`, {
+            amount: vendonTransaction.amount,
+            price: vendonTransaction.price,
+            total: vendonTransaction.total,
+            sum: vendonTransaction.sum
+          });
+          
+          // Erstelle neue Transaktion - robusteres Feldmapping für Vendon API
+          const amount = vendonTransaction.amount || vendonTransaction.total || vendonTransaction.price || vendonTransaction.sum || 0;
+          const price = vendonTransaction.price || vendonTransaction.amount || vendonTransaction.total || vendonTransaction.sum || 0;
+          
           const newTransaction: InsertTransaction = {
-            vendonId: vendonTransaction.id,
+            vendonId: String(vendonTransaction.id || vendonTransaction.transaction_id),
             machineId: machineId,
-            amount: vendonTransaction.amount || 0,
-            price: vendonTransaction.amount || 0, // price ist required
-            datetime: new Date(vendonTransaction.datetime),
-            productId: vendonTransaction.product_id || null,
-            productName: vendonTransaction.product_name || null,
-            paymentMethod: this.normalizePaymentMethod(vendonTransaction.payment_method),
+            amount: amount,
+            price: price,
+            datetime: new Date(vendonTransaction.datetime || vendonTransaction.timestamp),
+            productId: vendonTransaction.product_id || vendonTransaction.productId || null,
+            productName: vendonTransaction.product_name || vendonTransaction.productName || 'Unbekanntes Produkt',
+            paymentMethod: this.normalizePaymentMethod(vendonTransaction.payment_method || vendonTransaction.paymentMethod),
+            quantity: vendonTransaction.quantity || 1,
+            priceVat: vendonTransaction.price_vat || vendonTransaction.vat || null,
+            priceWoVat: vendonTransaction.price_wo_vat || vendonTransaction.net || null,
             extraData: JSON.stringify(vendonTransaction)
           };
+          
+          console.log(`💰 Neue Transaktion: ${newTransaction.vendonId} - ${newTransaction.productName} - ${newTransaction.amount}€`);
 
           await storage.createTransaction(newTransaction);
           itemsSaved++;
@@ -356,7 +386,7 @@ export class StableVendonSync {
   ): Promise<{ itemsSaved: number; message: string }> {
     console.log('🔄 Synchronisiere Events...');
 
-    const effectiveStartDate = startDate || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const effectiveStartDate = startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
     const effectiveEndDate = endDate || new Date();
 
     try {
@@ -368,7 +398,7 @@ export class StableVendonSync {
         const fromTimestamp = Math.floor(effectiveStartDate.getTime() / 1000);
         const toTimestamp = Math.floor(effectiveEndDate.getTime() / 1000);
         
-        vendonEvents = await this.makeApiRequest<VendonEvent[]>('/events', {
+        vendonEvents = await this.makeApiRequest<VendonEvent[]>('/stats/events', {
           from_timestamp: fromTimestamp,
           to_timestamp: toTimestamp,
           limit: 1000,
@@ -404,7 +434,7 @@ export class StableVendonSync {
 
       for (const vendonEvent of eventsArray) {
         try {
-          const machineId = machinesMap.get(vendonEvent.machine_id);
+          const machineId = machinesMap.get(String(vendonEvent.machine_id));
           if (!machineId) {
             continue; // Überspringen, wenn Maschine nicht existiert
           }
@@ -452,7 +482,7 @@ export class StableVendonSync {
   ): Promise<{ itemsSaved: number; message: string }> {
     console.log('🔄 Synchronisiere Refills...');
 
-    const effectiveStartDate = startDate || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const effectiveStartDate = startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
     const effectiveEndDate = endDate || new Date();
 
     try {
@@ -500,7 +530,7 @@ export class StableVendonSync {
 
       for (const vendonRefill of refillsArray) {
         try {
-          const machineId = machinesMap.get(vendonRefill.machine_id);
+          const machineId = machinesMap.get(String(vendonRefill.machine_id));
           if (!machineId) {
             continue;
           }
@@ -561,7 +591,11 @@ export class StableVendonSync {
             console.log(`🔍 Response-Typ für ${endpoint}:`, typeof response.data);
             console.log(`🔍 Response-Keys:`, response.data ? Object.keys(response.data).slice(0, 5) : 'keine');
             
-            // Vendon API gibt oft ein Objekt mit 'data' oder 'items' Property zurück
+            // Vendon API gibt oft ein Objekt mit 'data', 'items' oder 'result' Property zurück
+            if (response.data.result && Array.isArray(response.data.result)) {
+              console.log(`📦 Found nested result array with ${response.data.result.length} items`);
+              return response.data.result as T;
+            }
             if (response.data.data && Array.isArray(response.data.data)) {
               console.log(`📦 Found nested data array with ${response.data.data.length} items`);
               return response.data.data as T;
