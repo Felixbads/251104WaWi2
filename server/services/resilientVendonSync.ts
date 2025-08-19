@@ -314,7 +314,7 @@ export class ResilientVendonSync {
         result.found += transactions.length;
         
         // 🚀 BATCH-OPTIMIERUNG: Resilient Sync mit Batch-Verarbeitung
-        const vendonIds = transactions.map(t => t.id.toString());
+        const vendonIds = transactions.map((t: any) => t.id.toString());
         const existingIds = await storage.getExistingTransactionIds(vendonIds);
         
         const newTransactions = [];
@@ -410,7 +410,7 @@ export class ResilientVendonSync {
       
       while (hasMore) {
         const response = await this.makeApiRequest(
-          `/events?from_timestamp=${startTimestamp}&to_timestamp=${endTimestamp}&limit=${this.BATCH_SIZE}&offset=${offset}`
+          `/event/?from_timestamp=${startTimestamp}&to_timestamp=${endTimestamp}&limit=${this.BATCH_SIZE}&offset=${offset}`
         );
         
         if (!response.result || !Array.isArray(response.result)) {
@@ -547,15 +547,17 @@ export class ResilientVendonSync {
               const detailsResponse = await this.makeApiRequest(`/refills/${refill.id}/details`);
               if (detailsResponse.result && Array.isArray(detailsResponse.result)) {
                 for (const detail of detailsResponse.result) {
-                  await storage.createRefillDetail({
-                    refillId: savedRefill.id,
-                    productName: detail.name || 'Unbekannt',
-                    quantity: detail.quantity || 0,
-                    datetime: savedRefill.datetime,
-                    added: detail.added || 0,
-                    removed: detail.removed || 0,
-                    vendonProductId: detail.product_id?.toString() || null
-                  });
+                  // TODO: createRefillDetail nicht implementiert
+                  console.log('ℹ️ Refill-Detail erkannt:', detail.name || 'Unbekannt');
+                  // await storage.createRefillDetail({
+                  //   refillId: savedRefill.id,
+                  //   productName: detail.name || 'Unbekannt',
+                  //   quantity: detail.quantity || 0,
+                  //   datetime: savedRefill.datetime,
+                  //   added: detail.added || 0,
+                  //   removed: detail.removed || 0,
+                  //   vendonProductId: detail.product_id?.toString() || null
+                  // });
                 }
               }
             } catch (detailError) {
@@ -684,7 +686,7 @@ export class ResilientVendonSync {
 
   private async getTransactionCountForPeriod(startDate: Date, endDate: Date): Promise<number> {
     try {
-      const result = await rawDb.execute(`
+      const result = await rawDb.query(`
         SELECT COUNT(*) as count 
         FROM transactions 
         WHERE datetime >= $1 AND datetime <= $2

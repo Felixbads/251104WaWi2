@@ -298,7 +298,7 @@ export class StableVendonSync {
       console.log(`🔍 Database Machine IDs:`, Array.from(machinesMap.keys()).slice(0, 10));
       
       // Sammle API Machine IDs für Debug
-      const apiMachineIds = [...new Set(transactionsArray.map(t => t.machine_id))];
+      const apiMachineIds = Array.from(new Set(transactionsArray.map(t => t.machine_id)));
       console.log(`🔍 API Machine IDs:`, apiMachineIds.slice(0, 10));
       
       // Finde matching und missing Machine IDs
@@ -355,8 +355,15 @@ export class StableVendonSync {
             extraData: JSON.stringify(vendonTransaction)
           };
           
-          console.log(`💰 Neue Transaktion: ${newTransaction.vendonId} - ${newTransaction.productName} - ${newTransaction.amount}€`);
+          // Prüfe auf Duplikate vor dem Speichern
+          const exists = await this.checkTransactionExists(newTransaction.vendonId);
+          if (exists) {
+            console.log(`⚠️ Transaktion ${newTransaction.vendonId} bereits vorhanden - übersprungen`);
+            itemsSkipped++;
+            continue;
+          }
 
+          console.log(`💰 Neue Transaktion: ${newTransaction.vendonId} - ${newTransaction.productName} - ${newTransaction.amount}€`);
           await storage.createTransaction(newTransaction);
           itemsSaved++;
 
@@ -401,37 +408,37 @@ export class StableVendonSync {
         
         // Versuch 1: /events mit Datum-Parameter
         try {
-          console.log('📡 Teste /events Endpunkt...');
+          console.log('📡 Teste /event/ Endpunkt...');
           const fromStr = effectiveStartDate.toISOString().split('T')[0];
           const toStr = effectiveEndDate.toISOString().split('T')[0];
           
-          vendonEvents = await this.makeApiRequest<VendonEvent[]>('/events', {
-            from_date: fromStr,
-            to_date: toStr,
+          vendonEvents = await this.makeApiRequest<VendonEvent[]>('/event/', {
+            from_timestamp: Math.floor(effectiveStartDate.getTime() / 1000),
+            to_timestamp: Math.floor(effectiveEndDate.getTime() / 1000),
             limit: 2000,
             offset: 0
           });
-          console.log('✅ /events Endpunkt erfolgreich');
+          console.log('✅ /event/ Endpunkt erfolgreich');
           apiSuccess = true;
         } catch (err1) {
-          console.log('⚠️ /events fehlgeschlagen:', err1 instanceof Error ? err1.message : String(err1));
+          console.log('⚠️ /event/ fehlgeschlagen:', err1 instanceof Error ? err1.message : String(err1));
           
           // Versuch 2: /events mit Zeitstempel
           try {
-            console.log('📡 Teste /events mit Zeitstempel...');
+            console.log('📡 Teste /event/ mit Zeitstempel...');
             const fromTimestamp = Math.floor(effectiveStartDate.getTime() / 1000);
             const toTimestamp = Math.floor(effectiveEndDate.getTime() / 1000);
             
-            vendonEvents = await this.makeApiRequest<VendonEvent[]>('/events', {
+            vendonEvents = await this.makeApiRequest<VendonEvent[]>('/event/', {
               from_timestamp: fromTimestamp,
               to_timestamp: toTimestamp,
               limit: 2000,
               offset: 0
             });
-            console.log('✅ /events mit Zeitstempel erfolgreich');
+            console.log('✅ /event/ mit Zeitstempel erfolgreich');
             apiSuccess = true;
           } catch (err2) {
-            console.log('⚠️ /events mit Zeitstempel fehlgeschlagen:', err2 instanceof Error ? err2.message : String(err2));
+            console.log('⚠️ /event/ mit Zeitstempel fehlgeschlagen:', err2 instanceof Error ? err2.message : String(err2));
             
             // Versuch 3: /machine-events
             try {
@@ -452,15 +459,15 @@ export class StableVendonSync {
               
               // Versuch 4: Ohne Parameter (neueste Events)
               try {
-                console.log('📡 Teste /events ohne Parameter...');
-                vendonEvents = await this.makeApiRequest<VendonEvent[]>('/events', {
+                console.log('📡 Teste /event/ ohne Parameter...');
+                vendonEvents = await this.makeApiRequest<VendonEvent[]>('/event/', {
                   limit: 2000,
                   offset: 0
                 });
-                console.log('✅ /events ohne Parameter erfolgreich');
+                console.log('✅ /event/ ohne Parameter erfolgreich');
                 apiSuccess = true;
               } catch (err4) {
-                console.log('⚠️ /events ohne Parameter fehlgeschlagen:', err4 instanceof Error ? err4.message : String(err4));
+                console.log('⚠️ /event/ ohne Parameter fehlgeschlagen:', err4 instanceof Error ? err4.message : String(err4));
                 throw new Error('Alle Events-Endpunkte fehlgeschlagen');
               }
             }
@@ -697,29 +704,42 @@ export class StableVendonSync {
         if (response.status === 200 && response.data) {
           console.log(`✅ API-Request erfolgreich: ${endpoint}`);
           
-          // Debug: Log response structure
-          if (endpoint.includes('/stats/vends') || endpoint.includes('/machines')) {
-            console.log(`🔍 Response-Typ für ${endpoint}:`, typeof response.data);
-            console.log(`🔍 Response-Keys:`, response.data ? Object.keys(response.data).slice(0, 5) : 'keine');
-            
-            // Vendon API gibt oft ein Objekt mit 'data', 'items' oder 'result' Property zurück
+          // Robuste Response-Behandlung für alle Endpunkte (basierend auf Analyse)
+          console.log(`🔍 Response-Typ für ${endpoint}:`, typeof response.data);
+          console.log(`🔍 Response-Keys:`, response.data ? Object.keys(response.data).slice(0, 5) : 'keine');
+          
+          // Vendon API kann verschiedene Strukturen zurückgeben - robuste Behandlung
+          if (response.data && typeof response.data === 'object') {
+            // Format 1: { result: [...] } - häufig bei Events/Refills
             if (response.data.result && Array.isArray(response.data.result)) {
               console.log(`📦 Found nested result array with ${response.data.result.length} items`);
               return response.data.result as T;
             }
+            // Format 2: { data: [...] } - alternative Struktur
             if (response.data.data && Array.isArray(response.data.data)) {
               console.log(`📦 Found nested data array with ${response.data.data.length} items`);
               return response.data.data as T;
             }
+            // Format 3: { items: [...] } - weitere Variante
             if (response.data.items && Array.isArray(response.data.items)) {
               console.log(`📦 Found nested items array with ${response.data.items.length} items`);
               return response.data.items as T;
             }
-            // Wenn response.data selbst ein Array ist
-            if (Array.isArray(response.data)) {
-              console.log(`📦 Response is array with ${response.data.length} items`);
+            // Format 4: { paging: {...}, result: [...] } - mit Paginierung (Events)
+            if (response.data.paging && response.data.result) {
+              console.log(`📦 Found paginated result with ${Array.isArray(response.data.result) ? response.data.result.length : 0} items`);
+              return Array.isArray(response.data.result) ? response.data.result as T : [] as T;
             }
           }
+          
+          // Format 5: Direktes Array
+          if (Array.isArray(response.data)) {
+            console.log(`📦 Response is direct array with ${response.data.length} items`);
+            return response.data as T;
+          }
+          
+          // Fallback: Unerwartete Struktur
+          console.warn(`⚠️ Unerwartete Response-Struktur für ${endpoint}:`, response.data);
           
           return response.data;
         }

@@ -12,7 +12,7 @@
 
 import { db } from "../db";
 import { events, syncLogs, syncState } from "@shared/schema";
-import { eq, and, gte, lte, desc } from "drizzle-orm";
+import { eq, and, gte, lte, desc, sql } from "drizzle-orm";
 import axios from "axios";
 
 // Konfiguration für Vendon API
@@ -299,7 +299,7 @@ export class VendonEventsSync {
     const response = await axios.get(url, {
       params: apiParams,
       headers: {
-        'Authorization': `Bearer ${this.apiKey}`,
+        'Authorization': `Token ${this.apiKey}`,
         'Accept': 'application/json',
         'Content-Type': 'application/json'
       },
