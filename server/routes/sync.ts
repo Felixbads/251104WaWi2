@@ -4,6 +4,8 @@ import { ultraRobustVendonSync } from '../services/ultraRobustVendonSync';
 import { vendonSync } from '../services/vendonSync';
 import { vendonScheduler } from '../services/vendonScheduler';
 import { vendonGapCrawler } from '../services/vendonGapCrawler';
+import { stableVendonSync } from '../services/stableVendonSync';
+import { stableVendonScheduler } from '../services/stableVendonScheduler';
 
 const router = Router();
 
@@ -166,7 +168,31 @@ router.get('/status', async (req: Request, res: Response) => {
   }
 });
 
-// Ultra-robust Vendon transaction sync endpoint
+// STABLE Vendon sync endpoint - NEUE STABILE IMPLEMENTIERUNG
+router.post('/vendon/stable', async (req: Request, res: Response) => {
+  try {
+    console.log('🚀 Starting STABLE Vendon synchronization...');
+    
+    const result = await stableVendonSync.performFullSync();
+    
+    console.log('✅ Stable sync completed:', result);
+    
+    res.json({
+      status: 'success',
+      message: result.message,
+      data: result.details
+    });
+  } catch (error) {
+    console.error('❌ Stable Vendon sync failed:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Stable Vendon sync failed',
+      details: error instanceof Error ? error.message : String(error)
+    });
+  }
+});
+
+// Ultra-robust Vendon transaction sync endpoint (LEGACY)
 router.post('/vendon/ultra-robust', async (req: Request, res: Response) => {
   try {
     console.log('🚀 Starting ultra-robust Vendon synchronization...');
@@ -480,13 +506,83 @@ router.get('/scheduler/status', async (req: Request, res: Response) => {
   }
 });
 
+// STABLE Scheduler control endpoints
+router.post('/stable-scheduler/start', async (req: Request, res: Response) => {
+  try {
+    stableVendonScheduler.start();
+    res.json({
+      status: 'success',
+      message: 'Stable Vendon scheduler started'
+    });
+  } catch (error) {
+    console.error('Error starting stable scheduler:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to start stable scheduler',
+      details: error instanceof Error ? error.message : String(error)
+    });
+  }
+});
+
+router.post('/stable-scheduler/stop', async (req: Request, res: Response) => {
+  try {
+    stableVendonScheduler.stop();
+    res.json({
+      status: 'success',
+      message: 'Stable Vendon scheduler stopped'
+    });
+  } catch (error) {
+    console.error('Error stopping stable scheduler:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to stop stable scheduler',
+      details: error instanceof Error ? error.message : String(error)
+    });
+  }
+});
+
+router.get('/stable-scheduler/status', async (req: Request, res: Response) => {
+  try {
+    const status = stableVendonScheduler.getStatus();
+    res.json({
+      status: 'success',
+      data: status
+    });
+  } catch (error) {
+    console.error('Error fetching stable scheduler status:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to fetch stable scheduler status',
+      details: error instanceof Error ? error.message : String(error)
+    });
+  }
+});
+
+router.post('/stable-scheduler/trigger', async (req: Request, res: Response) => {
+  try {
+    await stableVendonScheduler.triggerImmediateSync();
+    res.json({
+      status: 'success',
+      message: 'Immediate stable sync triggered'
+    });
+  } catch (error) {
+    console.error('Error triggering immediate stable sync:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to trigger immediate stable sync',
+      details: error instanceof Error ? error.message : String(error)
+    });
+  }
+});
+
+// LEGACY Scheduler (TEMPORARILY DISABLED)
 router.post('/scheduler/start', async (req: Request, res: Response) => {
   try {
     // CRITICAL FIX: TEMPORARILY DISABLED DUE TO DATABASE CONSTRAINT ERRORS
   // vendonScheduler.start();
     res.json({
       status: 'success',
-      message: 'Vendon scheduler started'
+      message: 'Legacy Vendon scheduler (DISABLED - use /stable-scheduler/start)'
     });
   } catch (error) {
     console.error('Error starting scheduler:', error);

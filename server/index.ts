@@ -4,6 +4,7 @@ import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 // TEMPORARILY DISABLED DUE TO CRITICAL DATABASE ERRORS
 // import { startAutomaticSync } from "./scheduler";
+import { stableVendonScheduler } from "./services/stableVendonScheduler";
 import { reconcileWarehouseProducts } from "./services/warehouseReconciliation";
 // Import für Warehouse Storage entfernt, wird derzeit nicht benötigt für den Start
 import fileUpload from "express-fileupload";
@@ -1850,6 +1851,15 @@ app.get('/orders-data', (req, res) => {
   // Start daily email notification scheduler for automated daily status reports
   // startDailyEmailScheduler();
   console.log('[SERVER] ✅ Daily Email Scheduler started - sends daily status reports (daily 6:00 AM)');
+
+  // ✅ NEUE STABILE VENDON SYNCHRONISATION AKTIVIERT
+  console.log('[SERVER] 🚀 Starte neue stabile Vendon-Synchronisation...');
+  try {
+    stableVendonScheduler.start();
+    console.log('[SERVER] ✅ Stable Vendon Scheduler gestartet - automatische Sync alle 15min, schnelle Transaktions-Sync alle 5min');
+  } catch (error) {
+    console.error('[SERVER] ❌ Fehler beim Starten des Stable Vendon Schedulers:', error);
+  }
   
   // IMMEDIATE TEST EMAIL ROUTE - Direct SMTP test to resolve authentication failure
   app.post('/api/test-email-immediate', async (req, res) => {
