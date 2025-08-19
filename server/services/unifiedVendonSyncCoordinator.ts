@@ -194,23 +194,22 @@ class VendonApiClient {
   }
 
   /**
-   * Get transactions for date range
+   * Get transactions for date range - FIXED API FORMAT
    */
   async getTransactions(startDate: Date, endDate: Date, limit: number = 100): Promise<VendonTransaction[]> {
-    // Vendon API erwartet YYYY-MM-DD Format für Transaktionen
-    const formatDate = (date: Date) => {
-      const year = date.getFullYear();
-      const month = String(date.getMonth() + 1).padStart(2, '0');
-      const day = String(date.getDate()).padStart(2, '0');
-      return `${year}-${month}-${day}`;
+    // Vendon API /stats/vends erwartet ISO-Format ohne Zeit
+    const formatDateISO = (date: Date) => {
+      return date.toISOString().split('T')[0]; // Gibt YYYY-MM-DD zurück
     };
     
     const params = {
-      'date_from': formatDate(startDate),
-      'date_to': formatDate(endDate),
+      'date_from': formatDateISO(startDate),
+      'date_to': formatDateISO(endDate),
       'limit': limit,
       'offset': 0
     };
+    
+    console.log(`🔍 Live-Transaktionen API-Call - Zeitraum: ${formatDateISO(startDate)} bis ${formatDateISO(endDate)}`);
     
     return await this.makeRequest<VendonTransaction[]>('/stats/vends', params);
   }
