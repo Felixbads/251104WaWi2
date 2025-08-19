@@ -292,7 +292,7 @@ export type Location = typeof locations.$inferSelect;
 // Machines table based on vendon_machines
 export const machines = pgTable("machines", {
   id: serial("id").primaryKey(),
-  vendonId: text("vendon_id").notNull(),
+  vendonId: text("vendon_id").notNull().unique(),
   machineName: text("machine_name").notNull(),
   machineType: text("machine_type"),
   status: text("status"),

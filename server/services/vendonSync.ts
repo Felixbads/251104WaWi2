@@ -151,27 +151,65 @@ class VendonAPI {
     } catch (error) {
       console.log('Machines-Endpunkt nicht verfügbar, extrahiere aus Transaktionen...');
       
-      // Fallback: Extrahiere eindeutige Maschinen-IDs aus den letzten Transaktionen
+      // 🔄 IMPROVED FALLBACK: Paginierte Maschinen-Extraktion aus Transaktionen
       const oneMonthAgo = new Date();
       oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
       
-      const transactions = await this.getTransactions(oneMonthAgo, new Date(), undefined, 0, 1000);
-      
       const machineMap = new Map();
-      if (transactions.data && Array.isArray(transactions.data)) {
-        for (const tx of transactions.data) {
-          if (tx.machine_id && !machineMap.has(tx.machine_id)) {
-            machineMap.set(tx.machine_id, {
-              id: tx.machine_id,
-              name: tx.machine_name || `Automat ${tx.machine_id}`,
-              location: tx.location || 'Unbekannt'
-            });
+      let offset = 0;
+      const pageSize = 1000;
+      let hasMoreTransactions = true;
+      let totalTransactionsChecked = 0;
+      const maxTransactions = 50000; // Sicherheitsgrenze
+      
+      console.log('📊 Starte paginierte Maschinen-Extraktion aus Transaktionen...');
+      
+      while (hasMoreTransactions && totalTransactionsChecked < maxTransactions) {
+        try {
+          const transactions = await this.getTransactions(oneMonthAgo, new Date(), undefined, offset, pageSize);
+          
+          if (!transactions.data || !Array.isArray(transactions.data) || transactions.data.length === 0) {
+            hasMoreTransactions = false;
+            break;
           }
+          
+          // Verarbeite Transaktionen in aktueller Seite
+          let newMachinesInPage = 0;
+          for (const tx of transactions.data) {
+            if (tx.machine_id && !machineMap.has(tx.machine_id)) {
+              machineMap.set(tx.machine_id, {
+                id: tx.machine_id,
+                name: tx.machine_name || `Automat ${tx.machine_id}`,
+                location: tx.location || 'Unbekannt'
+              });
+              newMachinesInPage++;
+            }
+          }
+          
+          totalTransactionsChecked += transactions.data.length;
+          offset += pageSize;
+          
+          console.log(`📄 Seite ${Math.floor(offset/pageSize)}: ${transactions.data.length} Transaktionen, ${newMachinesInPage} neue Maschinen gefunden`);
+          
+          // Stoppe wenn weniger als die Seitengröße zurückgegeben wird
+          if (transactions.data.length < pageSize) {
+            hasMoreTransactions = false;
+          }
+          
+          // Stoppe wenn keine neuen Maschinen in den letzten 3 Seiten gefunden wurden
+          if (newMachinesInPage === 0 && offset > pageSize * 3) {
+            console.log('⏹️ Keine neuen Maschinen in den letzten Seiten - stoppe Pagination');
+            hasMoreTransactions = false;
+          }
+          
+        } catch (pageError) {
+          console.error(`Fehler beim Abrufen von Transaktionsseite ${Math.floor(offset/pageSize)}:`, pageError);
+          hasMoreTransactions = false;
         }
       }
       
       const machines = Array.from(machineMap.values());
-      console.log(`${machines.length} Automaten aus Transaktionen extrahiert`);
+      console.log(`✅ ${machines.length} eindeutige Automaten aus ${totalTransactionsChecked} Transaktionen extrahiert`);
       return machines;
     }
   }
@@ -966,6 +1004,36 @@ export class VendonSyncService {
       let duplicates = 0;
       let errors = 0;
       
+      // 🚀 PERFORMANCE FIX: Batch-verarbeitung für Machine Details
+      console.log(`Hole Details für ${machines.length} Maschinen in Batches...`);
+      
+      // Erstelle Batches von 5 Maschinen für parallele Verarbeitung
+      const batchSize = 5;
+      const machineDetailsMap = new Map();
+      
+      for (let i = 0; i < machines.length; i += batchSize) {
+        const batch = machines.slice(i, i + batchSize);
+        const detailPromises = batch.map(async (machine) => {
+          if (!machine.id) return { vendonId: null, detail: null };
+          
+          const vendonId = machine.id.toString();
+          try {
+            const detail = await this.api.getMachineDetail(vendonId);
+            return { vendonId, detail };
+          } catch (error) {
+            console.error(`Fehler beim Abrufen von Details für ${vendonId}:`, error);
+            return { vendonId, detail: null };
+          }
+        });
+        
+        const batchResults = await Promise.all(detailPromises);
+        batchResults.forEach(({ vendonId, detail }) => {
+          if (vendonId) machineDetailsMap.set(vendonId, detail);
+        });
+        
+        console.log(`Batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(machines.length/batchSize)} abgeschlossen`);
+      }
+      
       // Jede Maschine verarbeiten
       for (const machine of machines) {
         // Grundlegende Validierung
@@ -977,17 +1045,7 @@ export class VendonSyncService {
         
         // Konvertiere die machine.id zu einem String
         const vendonId = machine.id.toString();
-        
-        // Hole detaillierte Maschineninfos für jede Maschine
-        console.log(`Hole Details für Maschine ${vendonId}...`);
-        let machineDetail;
-        try {
-          machineDetail = await this.api.getMachineDetail(vendonId);
-          console.log(`Details für Maschine ${vendonId} erhalten.`);
-        } catch (error) {
-          console.error(`Fehler beim Abrufen von Maschinendetails für ${vendonId}:`, error);
-          machineDetail = null;
-        }
+        const machineDetail = machineDetailsMap.get(vendonId);
         
         // Kombiniere die Basisdaten mit den Detaildaten
         const combinedData = machineDetail ? { ...machine, ...machineDetail } : machine;
@@ -1038,13 +1096,17 @@ export class VendonSyncService {
           const existingMachine = await storage.getMachineByVendonId(vendonId);
           
           if (existingMachine) {
+            // 🔧 FIX: Duplikat-Zähler korrekt incrementieren
+            duplicates++;
             // Aktualisiere bestehende Maschine
             await storage.updateMachine(existingMachine.id, newMachine);
             itemsUpdated++;
+            console.log(`✅ Maschine ${vendonId} aktualisiert (Duplikat erkannt)`);
           } else {
             // Erstelle neue Maschine
             await storage.createMachine(newMachine);
             itemsSaved++;
+            console.log(`🆕 Neue Maschine ${vendonId} erstellt`);
           }
         } catch (err) {
           console.error(`Fehler beim Speichern der Maschine ${vendonId}:`, err);

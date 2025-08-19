@@ -662,9 +662,14 @@ export class DatabaseStorage implements IStorage {
   /**
    * Create machine
    */
-  async createMachine(machine: any): Promise<any> {
+  async createMachine(machine: Omit<Machine, 'id' | 'createdAt' | 'updatedAt'>): Promise<Machine> {
     try {
-      const result = await db.insert(machines).values(machine).returning();
+      const now = new Date();
+      const result = await db.insert(machines).values({
+        ...machine,
+        createdAt: now,
+        updatedAt: now
+      }).returning();
       return result[0];
     } catch (error) {
       console.error("Error creating machine:", error);
@@ -675,12 +680,36 @@ export class DatabaseStorage implements IStorage {
   /**
    * Update machine
    */
-  async updateMachine(id: number, updates: any): Promise<any> {
+  async updateMachine(id: number, updates: Partial<Machine>): Promise<Machine> {
     try {
-      const result = await db.update(machines).set(updates).where(eq(machines.id, id)).returning();
+      const result = await db.update(machines).set({
+        ...updates,
+        updatedAt: new Date()
+      }).where(eq(machines.id, id)).returning();
+      
+      if (!result[0]) {
+        throw new Error(`Machine with ID ${id} not found`);
+      }
+      
       return result[0];
     } catch (error) {
       console.error("Error updating machine:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Delete machine
+   */
+  async deleteMachine(id: number): Promise<void> {
+    try {
+      const result = await db.delete(machines).where(eq(machines.id, id)).returning();
+      
+      if (!result[0]) {
+        throw new Error(`Machine with ID ${id} not found`);
+      }
+    } catch (error) {
+      console.error("Error deleting machine:", error);
       throw error;
     }
   }
@@ -941,8 +970,7 @@ export class DatabaseStorage implements IStorage {
       throw error;
     }
   }
-  async updateMachine(id: number, updates: any): Promise<any> { throw new Error("Not implemented"); }
-  async deleteMachine(id: number): Promise<void> { throw new Error("Not implemented"); }
+  // Machine CRUD methods implemented above - removing duplicates
   
   async getInventoryItems(): Promise<any[]> { return []; }
   async getInventoryItemById(id: number): Promise<any | undefined> { return undefined; }
