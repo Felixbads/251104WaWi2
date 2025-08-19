@@ -1064,7 +1064,7 @@ const BestellungV2: React.FC = () => {
       // Bestelldaten für E-Mail aktualisieren
       if (items.length > 0) {
         // Sicherstellen, dass existingOrderData ein Array von items hat
-        setExistingOrderData(prev => ({
+        setExistingOrderData((prev: any) => ({
           ...prev,
           items: items
         }));
@@ -1300,7 +1300,7 @@ const BestellungV2: React.FC = () => {
         };
         
         // Starte den Ladevorgang
-        loadOrderItems();
+        loadOrderItems(orderId);
       } else {
         console.log("Bestellung hat bereits Items:", hasItems);
         // Fix 3: prepareOrderEmail NICHT automatisch im useEffect aufrufen
@@ -1318,7 +1318,7 @@ const BestellungV2: React.FC = () => {
           return (
             <ForecastOrderMode
               onBack={() => {
-                setOrderMode('new');
+                setOrderMode('standard');
                 setStep('overview');
               }}
               onOrderCreated={(orderId) => {
@@ -1477,8 +1477,8 @@ const BestellungV2: React.FC = () => {
       case 'products':
         return (
           <ProductSelectionTable
-            supplierId={supplierId}
-            warehouseId={warehouseId}
+            supplierId={supplierId || 0}
+            warehouseId={warehouseId || 0}
             sourceOrderId={sourceOrderId}
             mode={orderMode}
             selectedProducts={selectedProducts}
@@ -1503,7 +1503,7 @@ const BestellungV2: React.FC = () => {
             supplierName={supplierName}
             selectedProducts={selectedProducts}
             additionalInfo={additionalInfo}
-            onBack={() => setStep('additionalInfo')}
+            isCreatingOrder={createOrderMutation.isPending}
             onCreateOrder={() => {
               console.log("Übermittle Bestellung mit folgenden Daten:");
               console.log("- Lager:", warehouseId, warehouseName);
@@ -1622,7 +1622,6 @@ const BestellungV2: React.FC = () => {
               // Sende die Bestellung ab
               createOrderMutation.mutate(directSqlPayload);
             }}
-            isSubmitting={createOrderMutation.isPending}
           />
         );
       case 'viewOrder':
@@ -1833,7 +1832,7 @@ const BestellungV2: React.FC = () => {
                   // When dialog is closed, navigate back
                   if (existingOrderData) {
                     setStep('viewOrder');
-                  } else if (orderMode === 'new') {
+                  } else if (orderMode === 'standard') {
                     setStep('summary');
                   } else {
                     setStep('overview');
@@ -1912,7 +1911,6 @@ const BestellungV2: React.FC = () => {
               });
             }}
             isSubmitting={goodsReceiptMutation.isPending}
-            onBack={() => setStep('viewOrder')}
           />
         );
       case 'warehouseReceiptOfExistingOrder':
@@ -2071,8 +2069,7 @@ const BestellungV2: React.FC = () => {
         <div className="mb-8">
           <Steps
             steps={steps}
-            currentIndex={step === 'warehouseReceiptOfExistingOrder' ? 1 : currentIndex}
-            orientation="horizontal"
+            currentStep={step === 'warehouseReceiptOfExistingOrder' ? 1 : currentIndex}
           />
         </div>
       )}
@@ -2081,10 +2078,11 @@ const BestellungV2: React.FC = () => {
       
       {/* Dialog für E-Mail-Versand */}
       {showEmailDialog && (
-        <OrderEmailDialog
-          orderId={orderId}
+        <EmailDialog
+          orderId={orderId!}
           supplierEmail={existingOrderData?.supplierEmail || ''}
           orderNumber={orderNumber}
+          supplierName={supplierName || existingOrderData?.supplier_name || existingOrderData?.supplierName || 'Unbekannt'}
           open={showEmailDialog}
           onOpenChange={setShowEmailDialog}
           onSendEmail={handleSendEmail}

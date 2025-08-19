@@ -427,7 +427,7 @@ router.get('/:orderId/pdf-preview', async (req: Request, res: Response) => {
       // Send the PDF buffer
       return res.send(pdfBuffer);
     } catch (pdfError) {
-      console.warn('[PDF Preview] PDF generation failed, returning error message:', pdfError.message);
+      console.warn('[PDF Preview] PDF generation failed, returning error message:', pdfError instanceof Error ? pdfError.message : String(pdfError));
       
       // Return a user-friendly error that explains the situation
       return res.status(503).json({
