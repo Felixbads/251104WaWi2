@@ -4,7 +4,8 @@ import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 // TEMPORARILY DISABLED DUE TO CRITICAL DATABASE ERRORS
 // import { startAutomaticSync } from "./scheduler";
-import { stableVendonScheduler } from "./services/stableVendonScheduler";
+// REPLACED: import { stableVendonScheduler } from "./services/stableVendonScheduler";
+import { autoStartUnifiedSystem } from "./services/vendonSyncMigration";
 import { reconcileWarehouseProducts } from "./services/warehouseReconciliation";
 // Import für Warehouse Storage entfernt, wird derzeit nicht benötigt für den Start
 import fileUpload from "express-fileupload";
@@ -1852,13 +1853,14 @@ app.get('/orders-data', (req, res) => {
   // startDailyEmailScheduler();
   console.log('[SERVER] ✅ Daily Email Scheduler started - sends daily status reports (daily 6:00 AM)');
 
-  // ✅ NEUE STABILE VENDON SYNCHRONISATION AKTIVIERT
-  console.log('[SERVER] 🚀 Starte neue stabile Vendon-Synchronisation...');
+  // ✅ UNIFIED VENDON SYNC SYSTEM - SOLVES DUPLICATE AND INSTABILITY ISSUES
+  console.log('[SERVER] 🚀 Starte Unified Vendon Sync System (löst Duplikat-Problem)...');
   try {
-    stableVendonScheduler.start();
-    console.log('[SERVER] ✅ Stable Vendon Scheduler gestartet - automatische Sync alle 15min, schnelle Transaktions-Sync alle 5min');
+    await autoStartUnifiedSystem();
+    console.log('[SERVER] ✅ Unified Vendon System gestartet - keine konkurrierenden Services mehr!');
   } catch (error) {
-    console.error('[SERVER] ❌ Fehler beim Starten des Stable Vendon Schedulers:', error);
+    console.error('[SERVER] ❌ Fehler beim Starten des Unified Vendon Systems:', error);
+    console.log('[SERVER] ⚠️ Fallback: System läuft ohne automatische Synchronisation');
   }
   
   // IMMEDIATE TEST EMAIL ROUTE - Direct SMTP test to resolve authentication failure
