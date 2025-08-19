@@ -248,8 +248,8 @@ export class StableVendonSync {
   ): Promise<{ itemsSaved: number; itemsUpdated: number; message: string }> {
     console.log('🔄 Synchronisiere Transaktionen...');
 
-    // Standard: letzte 24 Stunden
-    const effectiveStartDate = startDate || new Date(Date.now() - 24 * 60 * 60 * 1000);
+    // Standard: letzte 2 Stunden (für aktuelle Daten)
+    const effectiveStartDate = startDate || new Date(Date.now() - 2 * 60 * 60 * 1000);
     const effectiveEndDate = endDate || new Date();
 
     try {
@@ -261,12 +261,14 @@ export class StableVendonSync {
         const fromTimestamp = Math.floor(effectiveStartDate.getTime() / 1000);
         const toTimestamp = Math.floor(effectiveEndDate.getTime() / 1000);
         
-        // Verwende den korrekten Endpunkt /stats/vends für Transaktionen
+        // Verwende den korrekten Endpunkt /stats/vends für Transaktionen (neueste zuerst)
+        console.log(`🕐 Transaktions-Zeitraum: ${new Date(fromTimestamp * 1000).toISOString()} bis ${new Date(toTimestamp * 1000).toISOString()}`);
         vendonTransactions = await this.makeApiRequest<VendonTransaction[]>('/stats/vends', {
           from_timestamp: fromTimestamp,
           to_timestamp: toTimestamp,
-          limit: 1000,
-          offset: 0
+          limit: 500, // Reduziert für bessere Performance
+          offset: 0,
+          order: 'desc' // Neueste Transaktionen zuerst
         });
       } catch (apiError) {
         console.warn('⚠️ Vendon API nicht verfügbar, überspringe Transaktions-Sync:', apiError instanceof Error ? apiError.message : String(apiError));
@@ -355,12 +357,19 @@ export class StableVendonSync {
             extraData: JSON.stringify(vendonTransaction)
           };
           
-          // Prüfe auf Duplikate vor dem Speichern
-          const exists = await this.checkTransactionExists(newTransaction.vendonId);
-          if (exists) {
-            console.log(`⚠️ Transaktion ${newTransaction.vendonId} bereits vorhanden - übersprungen`);
-            itemsSkipped++;
-            continue;
+          // Prüfe auf Duplikate vor dem Speichern (für Transaktionen der letzten 6 Stunden ignorieren)
+          const transactionDate = new Date(vendonTransaction.datetime || vendonTransaction.timestamp);
+          const isRecent = transactionDate.getTime() > (Date.now() - 6 * 60 * 60 * 1000); // Letzte 6 Stunden
+          
+          if (!isRecent) {
+            const exists = await this.checkTransactionExists(newTransaction.vendonId);
+            if (exists) {
+              console.log(`⚠️ Transaktion ${newTransaction.vendonId} bereits vorhanden - übersprungen`);
+              itemsSkipped++;
+              continue;
+            }
+          } else {
+            console.log(`🚀 AKTUELLE Transaktion ${newTransaction.vendonId} - FORCE INSERT (letzten 6h)`);
           }
 
           console.log(`💰 Neue Transaktion: ${newTransaction.vendonId} - ${newTransaction.productName} - ${newTransaction.amount}€`);
