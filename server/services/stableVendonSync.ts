@@ -252,6 +252,12 @@ export class StableVendonSync {
     const effectiveStartDate = startDate || new Date(Date.now() - 2 * 60 * 60 * 1000);
     const effectiveEndDate = endDate || new Date();
 
+    // Bei größeren Zeiträumen: Historische Synchronisation
+    const daysDiff = (effectiveEndDate.getTime() - effectiveStartDate.getTime()) / (1000 * 60 * 60 * 24);
+    if (daysDiff > 7) {
+      console.log(`📊 HISTORISCHE SYNC: ${Math.round(daysDiff)} Tage - erweiterte Transaktions-Synchronisation`);
+    }
+
     try {
       // Versuche Transaktionen von Vendon API zu holen
       let vendonTransactions: VendonTransaction[] = [];
@@ -357,17 +363,20 @@ export class StableVendonSync {
             extraData: JSON.stringify(vendonTransaction)
           };
           
-          // Prüfe auf Duplikate vor dem Speichern (für Transaktionen der letzten 6 Stunden ignorieren)
+          // Prüfe auf Duplikate vor dem Speichern (für historische Sync: weniger streng)
           const transactionDate = new Date(vendonTransaction.datetime || vendonTransaction.timestamp);
           const isRecent = transactionDate.getTime() > (Date.now() - 6 * 60 * 60 * 1000); // Letzte 6 Stunden
+          const isHistoricalSync = daysDiff > 7; // Erkennt historische Synchronisation
           
-          if (!isRecent) {
+          if (!isRecent && !isHistoricalSync) {
             const exists = await this.checkTransactionExists(newTransaction.vendonId);
             if (exists) {
               console.log(`⚠️ Transaktion ${newTransaction.vendonId} bereits vorhanden - übersprungen`);
               itemsSkipped++;
               continue;
             }
+          } else if (isHistoricalSync) {
+            console.log(`📊 HISTORISCH: Transaktion ${newTransaction.vendonId} - überspringe Duplikatsprüfung für historische Sync`);
           } else {
             console.log(`🚀 AKTUELLE Transaktion ${newTransaction.vendonId} - FORCE INSERT (letzten 6h)`);
           }

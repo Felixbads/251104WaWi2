@@ -320,7 +320,7 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
   const [selectedSupplierName, setSelectedSupplierName] = useState<string>('');
   const [selectedWarehouseId, setSelectedWarehouseId] = useState<number | null>(null);
   const [selectedWarehouseName, setSelectedWarehouseName] = useState<string>('');
-  const [analysisWeeks, setAnalysisWeeks] = useState<number>(1);
+  const [analysisWeeks, setAnalysisWeeks] = useState<number>(12);
   const [forecastWeeks, setForecastWeeks] = useState<number>(2);
   const [orderQuantities, setOrderQuantities] = useState<Record<number, number>>({});
   const [expandedRows, setExpandedRows] = useState<Record<number, boolean>>({});
@@ -1301,6 +1301,13 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
             <SelectTrigger className="w-32">
               <SelectValue />
             </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="4">4 Wochen</SelectItem>
+              <SelectItem value="8">8 Wochen</SelectItem>
+              <SelectItem value="12">12 Wochen</SelectItem>
+              <SelectItem value="16">16 Wochen</SelectItem>
+              <SelectItem value="24">24 Wochen</SelectItem>
+            </SelectContent>
             <SelectContent>
               <SelectItem value="1">1 Woche</SelectItem>
               <SelectItem value="2">2 Wochen</SelectItem>
