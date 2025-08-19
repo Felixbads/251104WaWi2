@@ -386,7 +386,7 @@ export class StableVendonSync {
   ): Promise<{ itemsSaved: number; message: string }> {
     console.log('🔄 Synchronisiere Events...');
 
-    const effectiveStartDate = startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const effectiveStartDate = startDate || new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
     const effectiveEndDate = endDate || new Date();
 
     try {
@@ -394,16 +394,82 @@ export class StableVendonSync {
       let vendonEvents: VendonEvent[] = [];
       
       try {
-        // Vendon API erwartet UNIX-Zeitstempel in SEKUNDEN
-        const fromTimestamp = Math.floor(effectiveStartDate.getTime() / 1000);
-        const toTimestamp = Math.floor(effectiveEndDate.getTime() / 1000);
+        // Teste verschiedene Events-Endpunkte und Parameter
+        console.log(`🔍 Teste Events API-Endpunkte von ${effectiveStartDate.toISOString()} bis ${effectiveEndDate.toISOString()}`);
         
-        vendonEvents = await this.makeApiRequest<VendonEvent[]>('/stats/events', {
-          from_timestamp: fromTimestamp,
-          to_timestamp: toTimestamp,
-          limit: 1000,
-          offset: 0
-        });
+        let apiSuccess = false;
+        
+        // Versuch 1: /events mit Datum-Parameter
+        try {
+          console.log('📡 Teste /events Endpunkt...');
+          const fromStr = effectiveStartDate.toISOString().split('T')[0];
+          const toStr = effectiveEndDate.toISOString().split('T')[0];
+          
+          vendonEvents = await this.makeApiRequest<VendonEvent[]>('/events', {
+            from_date: fromStr,
+            to_date: toStr,
+            limit: 2000,
+            offset: 0
+          });
+          console.log('✅ /events Endpunkt erfolgreich');
+          apiSuccess = true;
+        } catch (err1) {
+          console.log('⚠️ /events fehlgeschlagen:', err1 instanceof Error ? err1.message : String(err1));
+          
+          // Versuch 2: /events mit Zeitstempel
+          try {
+            console.log('📡 Teste /events mit Zeitstempel...');
+            const fromTimestamp = Math.floor(effectiveStartDate.getTime() / 1000);
+            const toTimestamp = Math.floor(effectiveEndDate.getTime() / 1000);
+            
+            vendonEvents = await this.makeApiRequest<VendonEvent[]>('/events', {
+              from_timestamp: fromTimestamp,
+              to_timestamp: toTimestamp,
+              limit: 2000,
+              offset: 0
+            });
+            console.log('✅ /events mit Zeitstempel erfolgreich');
+            apiSuccess = true;
+          } catch (err2) {
+            console.log('⚠️ /events mit Zeitstempel fehlgeschlagen:', err2 instanceof Error ? err2.message : String(err2));
+            
+            // Versuch 3: /machine-events
+            try {
+              console.log('📡 Teste /machine-events Endpunkt...');
+              const fromTimestamp = Math.floor(effectiveStartDate.getTime() / 1000);
+              const toTimestamp = Math.floor(effectiveEndDate.getTime() / 1000);
+              
+              vendonEvents = await this.makeApiRequest<VendonEvent[]>('/machine-events', {
+                from_timestamp: fromTimestamp,
+                to_timestamp: toTimestamp,
+                limit: 2000,
+                offset: 0
+              });
+              console.log('✅ /machine-events erfolgreich');
+              apiSuccess = true;
+            } catch (err3) {
+              console.log('⚠️ /machine-events fehlgeschlagen:', err3 instanceof Error ? err3.message : String(err3));
+              
+              // Versuch 4: Ohne Parameter (neueste Events)
+              try {
+                console.log('📡 Teste /events ohne Parameter...');
+                vendonEvents = await this.makeApiRequest<VendonEvent[]>('/events', {
+                  limit: 2000,
+                  offset: 0
+                });
+                console.log('✅ /events ohne Parameter erfolgreich');
+                apiSuccess = true;
+              } catch (err4) {
+                console.log('⚠️ /events ohne Parameter fehlgeschlagen:', err4 instanceof Error ? err4.message : String(err4));
+                throw new Error('Alle Events-Endpunkte fehlgeschlagen');
+              }
+            }
+          }
+        }
+        
+        if (!apiSuccess) {
+          throw new Error('Kein funktionierender Events-Endpunkt gefunden');
+        }
       } catch (apiError) {
         console.warn('⚠️ Vendon API nicht verfügbar, überspringe Events-Sync:', apiError instanceof Error ? apiError.message : String(apiError));
         return { itemsSaved: 0, message: 'Vendon API nicht verfügbar - Events-Sync übersprungen' };
@@ -482,7 +548,7 @@ export class StableVendonSync {
   ): Promise<{ itemsSaved: number; message: string }> {
     console.log('🔄 Synchronisiere Refills...');
 
-    const effectiveStartDate = startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const effectiveStartDate = startDate || new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
     const effectiveEndDate = endDate || new Date();
 
     try {
@@ -490,16 +556,61 @@ export class StableVendonSync {
       let vendonRefills: VendonRefill[] = [];
       
       try {
-        // Vendon API erwartet UNIX-Zeitstempel in SEKUNDEN
-        const fromTimestamp = Math.floor(effectiveStartDate.getTime() / 1000);
-        const toTimestamp = Math.floor(effectiveEndDate.getTime() / 1000);
+        // Teste verschiedene Refills-Parameter für bessere Abdeckung
+        console.log(`🔍 Teste Refills API von ${effectiveStartDate.toISOString()} bis ${effectiveEndDate.toISOString()}`);
         
-        vendonRefills = await this.makeApiRequest<VendonRefill[]>('/refills', {
-          from_timestamp: fromTimestamp,
-          to_timestamp: toTimestamp,
-          limit: 1000,
-          offset: 0
-        });
+        let apiSuccess = false;
+        
+        // Versuch 1: Mit Zeitstempel
+        try {
+          const fromTimestamp = Math.floor(effectiveStartDate.getTime() / 1000);
+          const toTimestamp = Math.floor(effectiveEndDate.getTime() / 1000);
+          
+          vendonRefills = await this.makeApiRequest<VendonRefill[]>('/refills', {
+            from_timestamp: fromTimestamp,
+            to_timestamp: toTimestamp,
+            limit: 2000, // Erhöhe Limit
+            offset: 0
+          });
+          console.log('✅ /refills mit Zeitstempel erfolgreich');
+          apiSuccess = true;
+        } catch (err1) {
+          console.log('⚠️ /refills mit Zeitstempel fehlgeschlagen:', err1 instanceof Error ? err1.message : String(err1));
+          
+          // Versuch 2: Mit Datumsstring
+          try {
+            const fromStr = effectiveStartDate.toISOString().split('T')[0];
+            const toStr = effectiveEndDate.toISOString().split('T')[0];
+            
+            vendonRefills = await this.makeApiRequest<VendonRefill[]>('/refills', {
+              from_date: fromStr,
+              to_date: toStr,
+              limit: 2000,
+              offset: 0
+            });
+            console.log('✅ /refills mit Datumsstring erfolgreich');
+            apiSuccess = true;
+          } catch (err2) {
+            console.log('⚠️ /refills mit Datumsstring fehlgeschlagen:', err2 instanceof Error ? err2.message : String(err2));
+            
+            // Versuch 3: Ohne Zeitfilter (alle Refills)
+            try {
+              vendonRefills = await this.makeApiRequest<VendonRefill[]>('/refills', {
+                limit: 2000,
+                offset: 0
+              });
+              console.log('✅ /refills ohne Zeitfilter erfolgreich');
+              apiSuccess = true;
+            } catch (err3) {
+              console.log('⚠️ /refills ohne Zeitfilter fehlgeschlagen:', err3 instanceof Error ? err3.message : String(err3));
+              throw new Error('Alle Refills-Parameter fehlgeschlagen');
+            }
+          }
+        }
+        
+        if (!apiSuccess) {
+          throw new Error('Kein funktionierender Refills-Parameter gefunden');
+        }
       } catch (apiError) {
         console.warn('⚠️ Vendon API nicht verfügbar, überspringe Refills-Sync:', apiError instanceof Error ? apiError.message : String(apiError));
         return { itemsSaved: 0, message: 'Vendon API nicht verfügbar - Refills-Sync übersprungen' };
