@@ -279,6 +279,16 @@ const BestellungV2: React.FC = () => {
         setSupplierName(orderData.supplier_name || 'Unbekannt');
         setWarehouseName(orderData.location_name || 'Unbekannt');
         
+        // Setze die zusätzlichen Informationen (Liefertermin, Lieferart, etc.)
+        setAdditionalInfo({
+          expectedDeliveryDate: orderData.expected_delivery_date ? new Date(orderData.expected_delivery_date) : null,
+          priority: orderData.priority || 'normal',
+          notes: orderData.notes || '',
+          deliveryType: orderData.delivery_type || '',
+          deliveryAddress: orderData.delivery_address || '',
+          pickupLocation: orderData.pickup_location || ''
+        });
+        
         // Lade auch die Bestellpositionen
         await loadOrderItems(orderIdToLoad);
       }

@@ -141,6 +141,8 @@ export default function EmailDialog({
         },
         body: JSON.stringify({
           emailAddress: emailData.to.trim(),
+          cc: emailData.cc.trim(),
+          bcc: emailData.bcc.trim(),
           subject: emailData.subject.trim(),
           content: sendAsPdf ? undefined : emailData.htmlContent.trim(),
           usePdf: sendAsPdf,

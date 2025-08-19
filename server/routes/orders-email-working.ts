@@ -185,7 +185,7 @@ router.post('/:orderId/send-email-working', async (req: Request, res: Response) 
   
   try {
     const orderId = parseInt(req.params.orderId);
-    const { emailAddress, subject, content, usePdf, coverText } = req.body;
+    const { emailAddress, cc, bcc, subject, content, usePdf, coverText } = req.body;
     
     if (!orderId || isNaN(orderId)) {
       return res.status(400).json({
@@ -325,6 +325,14 @@ router.post('/:orderId/send-email-working', async (req: Request, res: Response) 
       subject: emailSubject,
       html: emailContent
     };
+    
+    // Add CC and BCC if provided
+    if (cc && cc.trim()) {
+      mailOptions.cc = cc.trim();
+    }
+    if (bcc && bcc.trim()) {
+      mailOptions.bcc = bcc.trim();
+    }
     
     // Add attachments if present
     if (attachments.length > 0) {

@@ -2384,6 +2384,9 @@ app.get('/orders-data', (req, res) => {
         expectedDeliveryDate,
         priority = 'normal',
         notes = '',
+        deliveryType = '',
+        deliveryAddress = '',
+        pickupLocation = '',
         items,
         orderItems
       } = req.body;
@@ -2434,10 +2437,11 @@ app.get('/orders-data', (req, res) => {
       const orderResult = await pool.query(`
         INSERT INTO orders (
           order_number, warehouse_id, supplier_id, status, 
-          expected_delivery_date, priority, notes, created_at, updated_at
-        ) VALUES ($1, $2, $3, 'draft', $4, $5, $6, NOW(), NOW())
+          expected_delivery_date, priority, notes, delivery_type, 
+          delivery_address, pickup_location, created_at, updated_at
+        ) VALUES ($1, $2, $3, 'draft', $4, $5, $6, $7, $8, $9, NOW(), NOW())
         RETURNING *
-      `, [orderNumber, warehouseId, supplierId, expectedDeliveryDate, priority, notes]);
+      `, [orderNumber, warehouseId, supplierId, expectedDeliveryDate, priority, notes, deliveryType, deliveryAddress, pickupLocation]);
       
       const order = orderResult.rows[0];
       
