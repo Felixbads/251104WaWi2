@@ -1,0 +1,39 @@
+Analyse der Vendon-API-Synchronisation
+1. API-Endpunkte und Parameter
+Events: In resilientVendonSync.ts wird GET /events verwendet, während die dokumentierte Schnittstelle GET /event/ (Singular) ist. Dadurch entstehen 400‑ oder 404‑Fehler.
+Refills: Der aktuelle Code nutzt ausschließlich GET /refills mit from_timestamp/to_timestamp in Sekunden. Laut Kommentaren im Backup erwartet die API jedoch teilweise from/till in Millisekunden. Fehlende Fallbacks oder falsches Format führen zu Bad Request.
+Parameterumfang: vendonEventsSync.ts setzt zusätzlich timeframe_filter_type, offset, limit, sort, etc.—diese fehlen in anderen Implementierungen, was zu nicht erfüllten API‑Anforderungen führt.
+2. Zeitstempel-Handling
+Events und Refills konvertieren Start- und Enddatum konsequent auf Sekunden (Math.floor(Date/1000)). Wenn der Endpunkt Millisekunden erwartet (z. B. from/till), schlagen Abfragen fehl.
+Bei eingehenden Daten werden Zeitstempel in Millisekunden vermutet; fehlen Konvertierungen oder Validierungen, können falsche Datumswerte gespeichert werden.
+3. Response-Struktur
+Die Implementierungen erwarten je nach Endpunkt unterschiedliche Strukturen (response.result, response.data oder Array). Wird ein Format nicht erkannt, endet die Verarbeitung frühzeitig.
+Die Backup-Version zeigt mehrfache Fallbacks – im stabilen Code fehlen diese, wodurch unerwartete Antworten (z. B. nur result) nicht verarbeitet werden.
+4. Authorization
+resilientVendonSync.ts und vendonAPI.ts senden Authorization: Token <API_KEY>.
+vendonEventsSync.ts verwendet hingegen Authorization: Bearer <API_KEY> – dies entspricht nicht der dokumentierten Authentifizierung und kann zu 401/403‑Antworten führen.
+5. Rate-Limiting & Timeouts
+vendonAPI.ts implementiert zwar ein Limit von 60 Requests/Minute, aber resilientVendonSync.ts setzt zusätzlich REQUEST_DELAY = 500 ms.
+Event‑/Refill‑Methoden haben keinen spezifischen Umgang mit 429 (Rate Limit) oder langen Laufzeiten; in Lastspitzen können so Abbrüche ohne Retry passieren.
+6. Duplicate-Key-Verletzungen
+Duplikatsprüfung erfolgt teilweise vor dem Insert. Fehlende oder fehlerhafte Checks führen zu transactions_vendon_id_unique‑Fehlern. Dies betrifft vor allem Transaktionen, kann aber auf Events/Refills übertragen werden.
+Empfohlene Maßnahmen
+Endpunkte vereinheitlichen
+Alle Event-Abfragen auf GET /event/ umstellen; /events, /machine-events und ähnliche Varianten entfernen.
+Refills: Falls refills mit from_timestamp/to_timestamp scheitert, Fallback auf from/till in Millisekunden integrieren.
+Zeitstempel korrekt formatieren
+Für Events: Unix‑Zeitstempel in Sekunden senden (from_timestamp, to_timestamp).
+Für Refills: sowohl Sekunden- als auch Millisekunden-Varianten unterstützen; Parameter-Namen (from/till vs. from_timestamp/to_timestamp) dynamisch wählen.
+Response-Parsing robuster gestalten
+Vor dem Zugriff prüfen, ob response.result, response.data oder das Root‑Array existiert.
+Bei unbekannter Struktur ausführliches Debug-Logging wie im Prompt vorgeschlagen nutzen.
+Authorization konsistent halten
+Einheitlich Authorization: Token <API_KEY> setzen.
+API-Key-Berechtigungen für Events/Refills prüfen (Schlüssel evtl. nur für Transaktionen freigeschaltet).
+Fehler- und Rate-Limit-Behandlung erweitern
+Bei Status 429 retries mit Exponential Backoff implementieren.
+Timeouts auf ≥30 s belassen; bei häufigen Timeouts Batchgröße verkleinern.
+Duplikate vermeiden
+Vor Insert prüfen, ob vendonId bereits existiert; alternativ Datenbank-UPSERT verwenden.
+Fehlerobjekte vollständig loggen (error.response?.data, error.response?.status) um Ursachen zu erkennen.
+Durch konsequente Anwendung dieser Anpassungen lassen sich die aktuellen 400‑/401‑Fehler bei Events und Refills beseitigen, und die Synchronisation wird stabiler und nachvollziehbarer.

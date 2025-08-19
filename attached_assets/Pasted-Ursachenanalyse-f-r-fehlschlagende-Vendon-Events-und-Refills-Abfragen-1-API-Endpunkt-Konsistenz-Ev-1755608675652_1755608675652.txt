@@ -1,0 +1,36 @@
+Ursachenanalyse für fehlschlagende Vendon‑Events- und Refills‑Abfragen
+1. API-Endpunkt-Konsistenz
+Events: In ResilientVendonSync und vendonSync.new.ts wird /events verwendet, während VendonEventsSync den Endpunkt /event/ anspricht. Die Vendon‑Dokumentation (v1.8.0) sieht jedoch den singularen Pfad /event/ vor; der plurale /events liefert keine Daten.
+Refills: Die Endpunkte /refills und /refills/{id}/details sind korrekt hinterlegt.
+2. Parameter & Zeitstempel
+Sekunden vs. Millisekunden: Alle Services konvertieren Datum/Werte mit Math.floor(date.getTime()/1000) korrekt in UNIX‑Sekunden.
+Fehlversuche mit anderen Formaten: In älteren Skripten tauchen Versuche mit from_date/to_date sowie ISO‑Strings auf; diese Formate werden von v1.8.0 nicht unterstützt.
+3. Response‑Struktur
+ResilientVendonSync: Erwartet response.result (Array) ohne Paging‑Infos; bei leeren Ergebnissen bricht die Schleife ab.
+VendonEventsSync: Erwartet {code, result, paging:{has_more,…}}; Abweichende Antworten führen zu Fehlern, da result oder paging nicht validiert werden.
+4. Authorization
+Uneinheitliche Header:
+ResilientVendonSync & vendonSync.ts senden Authorization: Token <key> – korrekt.
+VendonEventsSync nutzt Bearer <key> – führt zu 401‑Fehlern.
+Vereinheitlichung auf Token erforderlich.
+5. Fehler- & Fallback-Strategien
+ResilientVendonSync versucht nur /events mit from_timestamp/to_timestamp. Für v1.8.0 müssten Fallbacks auf /event/ (singular) und ggf. machine-events implementiert werden.
+Mehrfache Sync‑Versuche können Duplikate erzeugen, was sich in transactions_vendon_id_unique widerspiegelt.
+6. Rate Limiting / Timeouts
+Zeitlimits (15–30 s) sind vorhanden; explizite Wartezeiten (REQUEST_DELAY) mildern Rate‑Limits, aber es existiert kein Handling für 429 Too Many Requests.
+Empfohlene Maßnahmen
+A. Endpunkte vereinheitlichen
+Alle Event‑Abfragen auf /event/ umstellen; /events oder /machine-events nur verwenden, wenn Dokumentation dies bestätigt.
+B. Parameter auf UNIX‑Sekunden beschränken
+Nur from_timestamp/to_timestamp senden. ISO‑Datumsstrings entfernen oder vor Aufruf konvertieren.
+C. Response robuster auswerten
+Vor Verarbeitung prüfen, ob result Array ist und ob paging.has_more existiert. Fehlende Felder mit aussagekräftigen Logs quittieren.
+D. Autorisierung korrigieren
+Header überall auf Authorization: Token <API-Key> setzen.
+E. Logging und Fehleranalyse erweitern
+HTTP‑Status, Header und Rohdaten protokollieren.
+Fehlerobjekte vollständig loggen (Status, Response‑Body).
+F. Duplicate-Key-Probleme entschärfen
+Vor dem Insert prüfen, ob vendonId bereits existiert. Dup‑Eingaben zählen und im Log vermerken, statt Fehler werfen.
+Zusammenfassung
+Die Fehlersymptome (leere Antworten, 401‑Fehler, Duplicate Keys) resultieren überwiegend aus falschen Event‑Endpunkten, uneinheitlicher Autorisierung und unzulässigen Zeitformaten. Eine konsequente Angleichung an die Vendon‑API‑Spezifikation, ergänzt durch robustes Logging und Dup‑Checks, stabilisiert die Events‑ und Refills‑Synchronisation nachhaltig.
