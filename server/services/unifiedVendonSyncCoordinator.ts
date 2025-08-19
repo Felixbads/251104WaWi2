@@ -197,9 +197,17 @@ class VendonApiClient {
    * Get transactions for date range
    */
   async getTransactions(startDate: Date, endDate: Date, limit: number = 100): Promise<VendonTransaction[]> {
+    // Vendon API erwartet YYYY-MM-DD Format für Transaktionen
+    const formatDate = (date: Date) => {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+    
     const params = {
-      'date_from': startDate.toISOString(),
-      'date_to': endDate.toISOString(),
+      'date_from': formatDate(startDate),
+      'date_to': formatDate(endDate),
       'limit': limit,
       'offset': 0
     };
@@ -211,9 +219,17 @@ class VendonApiClient {
    * Get events for date range
    */
   async getEvents(startDate: Date, endDate: Date): Promise<VendonEvent[]> {
+    // Vendon API erwartet YYYY-MM-DD Format für Events
+    const formatDate = (date: Date) => {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+    
     const params = {
-      'date_from': startDate.toISOString(),
-      'date_to': endDate.toISOString()
+      'date_from': formatDate(startDate),
+      'date_to': formatDate(endDate)
     };
     
     try {
@@ -228,9 +244,17 @@ class VendonApiClient {
    * Get refills for date range
    */
   async getRefills(startDate: Date, endDate: Date): Promise<VendonRefill[]> {
+    // Vendon API erwartet YYYY-MM-DD Format für Refills
+    const formatDate = (date: Date) => {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+    
     const params = {
-      'date_from': startDate.toISOString(), 
-      'date_to': endDate.toISOString()
+      'date_from': formatDate(startDate), 
+      'date_to': formatDate(endDate)
     };
     
     try {
@@ -515,7 +539,7 @@ export class UnifiedVendonSyncCoordinator {
             vendonId: apiTransaction.transaction_id,
             machineId: null, // Will be resolved later
             machineName: apiTransaction.machine_name || '',
-            datetime: new Date(apiTransaction.datetime),
+            datetime: this.parseVendonDate(apiTransaction.datetime),
             productName: apiTransaction.product_name || 'Unbekanntes Produkt',
             price: apiTransaction.price,
             quantity: apiTransaction.quantity || 1,
@@ -610,7 +634,7 @@ export class UnifiedVendonSyncCoordinator {
             vendonId: apiEvent.id,
             machineId: null, // Will be resolved later
             machineName: '', // Will be resolved later
-            datetime: new Date(apiEvent.datetime),
+            datetime: this.parseVendonDate(apiEvent.datetime),
             eventType: apiEvent.event_type,
             description: apiEvent.description || '',
             source: 'vendon_api',
@@ -667,6 +691,7 @@ export class UnifiedVendonSyncCoordinator {
 
       let itemsSaved = 0;
       let duplicates = 0;
+      const errors: string[] = [];
 
       for (const apiRefill of apiRefills) {
         try {
@@ -681,33 +706,90 @@ export class UnifiedVendonSyncCoordinator {
             continue;
           }
 
+          // Find the correct machine ID based on machine name or vendon ID
+          let machineId: number | null = null;
+          const machineName = apiRefill.machine_name || apiRefill.machine || '';
+          const vendonMachineId = apiRefill.machine_id || apiRefill.vendon_machine_id || '';
+          
+          // First try to find by vendon_id
+          if (vendonMachineId) {
+            const machineResult = await rawDb.query(
+              `SELECT id, machine_name FROM machines WHERE vendon_id = $1 LIMIT 1`,
+              [vendonMachineId]
+            );
+            
+            if (machineResult.rows.length > 0) {
+              machineId = machineResult.rows[0].id;
+              console.log(`✅ Maschine gefunden via Vendon ID ${vendonMachineId}: ${machineResult.rows[0].machine_name}`);
+            }
+          }
+          
+          // If not found, try to find by machine name
+          if (!machineId && machineName) {
+            const machineResult = await rawDb.query(
+              `SELECT id, vendon_id FROM machines WHERE machine_name ILIKE $1 LIMIT 1`,
+              [`%${machineName}%`]
+            );
+            
+            if (machineResult.rows.length > 0) {
+              machineId = machineResult.rows[0].id;
+              console.log(`✅ Maschine gefunden via Name '${machineName}': ID ${machineId}`);
+            } else {
+              console.log(`⚠️ Maschine nicht gefunden für Refill ${apiRefill.id}: Name='${machineName}', VendonID='${vendonMachineId}'`);
+            }
+          }
+
+          // Skip if no machine found
+          if (!machineId) {
+            console.warn(`⚠️ Überspringe Refill ${apiRefill.id} - keine Maschine gefunden`);
+            errors.push(`Keine Maschine gefunden für Refill ${apiRefill.id}`);
+            continue;
+          }
+
+          // Parse datetime safely
+          let refillDatetime: Date;
+          try {
+            refillDatetime = new Date(apiRefill.datetime);
+            // Check if date is valid
+            if (isNaN(refillDatetime.getTime())) {
+              throw new Error('Invalid date');
+            }
+          } catch (dateError) {
+            console.warn(`⚠️ Ungültiges Datum für Refill ${apiRefill.id}: ${apiRefill.datetime}`);
+            errors.push(`Ungültiges Datum für Refill ${apiRefill.id}`);
+            continue;
+          }
+
           const newRefill: InsertRefill = {
             vendonId: apiRefill.id,
-            machineId: 1, // Temporary, will be resolved later
-            machineName: '',
-            datetime: new Date(apiRefill.datetime),
+            machineId,
+            machineName,
+            datetime: refillDatetime,
             operator: apiRefill.operator || apiRefill.user || 'unknown',
             status: apiRefill.status || 'completed',
             source: 'vendon_api'
           };
 
+          console.log(`✅ Speichere Refill ${apiRefill.id} für Maschine ${machineName} (ID: ${machineId})`);
           await storage.createRefill(newRefill);
           itemsSaved++;
 
         } catch (error: any) {
-          console.warn(`⚠️ Fehler bei Refill ${apiRefill.id}: ${error.message}`);
+          const errorMsg = `Fehler bei Refill ${apiRefill.id}: ${error.message}`;
+          console.warn(`⚠️ ${errorMsg}`);
+          errors.push(errorMsg);
         }
       }
 
       return {
-        success: true,
+        success: errors.length === 0,
         itemsFound: apiRefills.length,
         itemsSaved,
         itemsUpdated: 0,
         duplicates,
-        errors: [],
+        errors,
         durationMs: Date.now() - startTime,
-        message: `${itemsSaved} neue Refills gespeichert`
+        message: `${itemsSaved} neue Refills gespeichert, ${duplicates} übersprungen, ${errors.length} Fehler`
       };
 
     } catch (error: any) {
@@ -756,6 +838,41 @@ export class UnifiedVendonSyncCoordinator {
       isRunning: this.isRunning,
       stats: this.syncStats
     };
+  }
+
+  /**
+   * Parse Vendon API date strings safely to prevent "Invalid time value" errors
+   */
+  private parseVendonDate(dateString: any): Date {
+    if (!dateString) {
+      console.warn('⚠️ Kein Datum angegeben - verwende aktuelles Datum');
+      return new Date();
+    }
+    
+    try {
+      // Handle various date formats from Vendon API
+      const date = new Date(dateString);
+      
+      // Check if date is valid
+      if (isNaN(date.getTime())) {
+        console.warn(`⚠️ Ungültiges Datum von Vendon API: ${dateString}`);
+        return new Date(); // Return current date as fallback
+      }
+      
+      // Check if date is reasonable (not in far future or past)
+      const now = new Date();
+      const yearDiff = Math.abs(date.getFullYear() - now.getFullYear());
+      
+      if (yearDiff > 100) {
+        console.warn(`⚠️ Unplausibler Zeitstempel von Vendon API: ${dateString} (Jahr: ${date.getFullYear()})`);
+        return new Date(); // Return current date as fallback
+      }
+      
+      return date;
+    } catch (error: any) {
+      console.error(`❌ Fehler beim Parsen des Datums: ${dateString}`, error.message);
+      return new Date(); // Return current date as fallback
+    }
   }
 }
 
