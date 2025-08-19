@@ -122,7 +122,12 @@ export default function Dashboard() {
   const { data: locationStatus, isLoading: isLoadingLocationStatus } = useQuery({
     queryKey: ['/api/location-status'],
     queryFn: async () => {
-      const response = await fetch('/api/location-status');
+      const response = await fetch('/api/location-status', {
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
       if (!response.ok) throw new Error('Failed to fetch location status');
       return response.json();
     },

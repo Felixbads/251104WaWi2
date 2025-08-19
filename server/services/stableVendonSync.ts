@@ -125,35 +125,97 @@ export class StableVendonSync {
   }
 
   /**
-   * Synchronisiert Maschinen - VERWENDET NUR BESTEHENDE MASCHINEN
-   * FALLBACK: Arbeitet mit bestehenden Maschinen wenn API nicht verfügbar ist
+   * Synchronisiert Maschinen - Versucht API-Abruf, nutzt Fallback bei Fehler
    */
-  private async syncMachines(): Promise<{ itemsUpdated: number; message: string }> {
+  private async syncMachines(): Promise<{ itemsUpdated: number; itemsSaved: number; duplicates: number; message: string }> {
     console.log('🔄 Synchronisiere Maschinen...');
     
+    let itemsSaved = 0;
+    let itemsUpdated = 0;
+    let duplicates = 0;
+    
     try {
-      // FALLBACK STRATEGIE: Verwende bestehende Maschinen aus der Datenbank
+      // Versuche Maschinen von API zu holen
+      let apiMachines: any[] = [];
+      
+      try {
+        // Versuche API-Abruf
+        const response = await this.makeApiRequest<any>('/machines');
+        apiMachines = Array.isArray(response) ? response : [];
+        console.log(`📡 ${apiMachines.length} Maschinen von API erhalten`);
+      } catch (apiError) {
+        console.warn('⚠️ Vendon API nicht verfügbar für Maschinen:', apiError instanceof Error ? apiError.message : String(apiError));
+      }
+      
+      // Wenn API-Maschinen vorhanden, synchronisiere sie
+      if (apiMachines.length > 0) {
+        for (const apiMachine of apiMachines) {
+          const vendonId = String(apiMachine.id || apiMachine.machine_id);
+          
+          // Prüfe ob Maschine bereits existiert
+          const existingMachine = await storage.getMachineByVendonId(vendonId);
+          
+          if (existingMachine) {
+            duplicates++;
+            console.log(`📊 Duplikat gefunden: Maschine ${vendonId} existiert bereits mit ID ${existingMachine.id}`);
+            
+            // Aktualisiere bestehende Maschine
+            await storage.updateMachine(existingMachine.id, {
+              machineName: apiMachine.name || existingMachine.machineName,
+              locationName: apiMachine.location || existingMachine.locationName,
+              lastSync: new Date(),
+              updatedAt: new Date()
+            });
+            itemsUpdated++;
+            console.log(`✅ Maschine ${vendonId} aktualisiert (Duplikat #${duplicates})`);
+          } else {
+            // Erstelle neue Maschine
+            await storage.createMachine({
+              vendonId: vendonId,
+              machineName: apiMachine.name || `Maschine ${vendonId}`,
+              locationName: apiMachine.location || 'Unbekannt',
+              status: 'active',
+              lastSync: new Date()
+            });
+            itemsSaved++;
+            console.log(`🆕 Neue Maschine ${vendonId} erstellt`);
+          }
+        }
+        
+        console.log(`📊 Sync-Ergebnis: ${apiMachines.length} Maschinen, ${itemsSaved} neu, ${itemsUpdated} aktualisiert, ${duplicates} Duplikate`);
+        return {
+          itemsSaved,
+          itemsUpdated,
+          duplicates,
+          message: `${apiMachines.length} Maschinen synchronisiert: ${itemsSaved} neu, ${itemsUpdated} aktualisiert, ${duplicates} Duplikate`
+        };
+      }
+      
+      // FALLBACK: Wenn keine API-Daten, aktualisiere nur lastSync für bestehende Maschinen
       const existingMachines = await storage.getMachines();
       
       if (existingMachines.length === 0) {
-        return { itemsUpdated: 0, message: 'Keine Maschinen in der Datenbank gefunden' };
+        return { itemsSaved: 0, itemsUpdated: 0, duplicates: 0, message: 'Keine Maschinen in der Datenbank gefunden' };
       }
 
       // Aktualisiere lastSync für alle bestehenden Maschinen
-      let itemsUpdated = 0;
       for (const machine of existingMachines) {
         await storage.updateMachine(machine.id, {
           lastSync: new Date(),
           updatedAt: new Date()
         });
         itemsUpdated++;
+        duplicates++; // Im Fallback-Modus zählen alle als Duplikate
       }
 
       console.log(`✅ ${existingMachines.length} bestehende Maschinen aktualisiert (Fallback-Modus)`);
+      console.log(`📊 Fallback-Ergebnis: ${duplicates} Duplikate (alle bestehenden Maschinen)`);
 
       return {
+        itemsSaved: 0,
         itemsUpdated,
-        message: `${itemsUpdated} Maschinen aktualisiert (Fallback-Modus ohne neue Maschinen)`
+        duplicates,
+        message: `${itemsUpdated} Maschinen aktualisiert (Fallback-Modus, ${duplicates} Duplikate)`
       };
 
     } catch (error) {
@@ -163,8 +225,10 @@ export class StableVendonSync {
       try {
         const existingMachines = await storage.getMachines();
         return {
+          itemsSaved: 0,
           itemsUpdated: 0,
-          message: `Fallback: ${existingMachines.length} bestehende Maschinen verfügbar`
+          duplicates: existingMachines.length,
+          message: `Fehler bei Sync: ${existingMachines.length} bestehende Maschinen verfügbar`
         };
       } catch (fallbackError) {
         throw error;

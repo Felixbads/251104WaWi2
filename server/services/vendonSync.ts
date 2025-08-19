@@ -1098,10 +1098,11 @@ export class VendonSyncService {
           if (existingMachine) {
             // 🔧 FIX: Duplikat-Zähler korrekt incrementieren
             duplicates++;
+            console.log(`📊 Duplikat gefunden: Maschine ${vendonId} existiert bereits mit ID ${existingMachine.id}`);
             // Aktualisiere bestehende Maschine
             await storage.updateMachine(existingMachine.id, newMachine);
             itemsUpdated++;
-            console.log(`✅ Maschine ${vendonId} aktualisiert (Duplikat erkannt)`);
+            console.log(`✅ Maschine ${vendonId} aktualisiert (Duplikat #${duplicates})`);
           } else {
             // Erstelle neue Maschine
             await storage.createMachine(newMachine);
@@ -1131,10 +1132,11 @@ export class VendonSyncService {
       });
       
       // Rückgabe des Ergebnisses
+      console.log(`📊 Sync-Ergebnis: ${machines.length} Maschinen, ${itemsSaved} neu, ${itemsUpdated} aktualisiert, ${duplicates} Duplikate, ${errors} Fehler`);
       return {
         syncLogId,
         status: 'success',
-        message: `${machines.length} Maschinen synchronisiert: ${itemsSaved} neu, ${itemsUpdated} aktualisiert, ${errors} Fehler`
+        message: `${machines.length} Maschinen synchronisiert: ${itemsSaved} neu, ${itemsUpdated} aktualisiert, ${duplicates} Duplikate, ${errors} Fehler`
       };
     } catch (error) {
       console.error("Fehler bei der Maschinensynchronisation:", error);

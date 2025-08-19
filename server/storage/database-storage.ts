@@ -715,18 +715,6 @@ export class DatabaseStorage implements IStorage {
   }
 
   /**
-   * Delete machine
-   */
-  async deleteMachine(id: number): Promise<void> {
-    try {
-      await db.delete(machines).where(eq(machines.id, id));
-    } catch (error) {
-      console.error("Error deleting machine:", error);
-      throw error;
-    }
-  }
-
-  /**
    * Get locations
    */
   async getLocations(): Promise<any[]> {
