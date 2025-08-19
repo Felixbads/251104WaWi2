@@ -1,0 +1,55 @@
+
+# KI-Prompt für Vendon Synchronisations-Untersuchung und -Optimierung
+
+## Aufgabenstellung
+
+Du bist ein Experte für Datenintegration und API-Synchronisation. Analysiere und optimiere das bestehende Vendon-Synchronisationssystem für eine stabile, kontinuierliche Hintergrund-Synchronisation ohne Duplikate.
+
+## Kontext
+
+Das System synchronisiert Daten von der Vendon Cloud API (https://cloud.vendon.net/rest/v1.8.0) mit einer PostgreSQL-Datenbank. Es gibt bereits mehrere Synchronisations-Services, aber es treten Probleme mit Duplikaten und instabiler Synchronisation auf.
+
+## Bestehende Codebase-Struktur
+
+### Hauptkomponenten:
+- `server/services/vendonSync.ts` - Haupt-Synchronisationsservice
+- `server/services/stableVendonSync.ts` - Stabile Synchronisation
+- `server/services/resilientVendonSync.ts` - Resiliente Hintergrund-Synchronisation
+- `server/services/vendonBackgroundService.ts` - Hintergrund-Service-Koordinator
+- `server/services/stableVendonScheduler.ts` - Scheduler für automatische Synchronisation
+
+### Datenbank-Schema (PostgreSQL):
+```sql
+-- Maschinen
+machines: id, vendon_id, machine_name, location_name, status, last_sync
+
+-- Transaktionen  
+transactions: id, vendon_id, machine_id, datetime, amount, price, product_name, payment_method
+
+-- Events
+events: id, vendon_id, machine_id, datetime, event_type, description
+
+-- Refills
+refills: id, vendon_id, machine_id, datetime, operator, status
+
+-- Sync-Logs
+sync_logs: id, sync_type, start_date, end_date, items_found, items_saved, duplicates, errors
+```
+
+### Vendon API-Endpunkte:
+- `/stats/vends` - Transaktionen
+- `/event/` - Events/Ereignisse  
+- `/refills` - Nachfüllungen
+- `/machines` - Maschinen (oft nicht verfügbar)
+
+## Zu untersuchende Probleme
+
+### 1. Duplikat-Problem
+- Transaktionen werden mehrfach importiert trotz vendon_id-Prüfung
+- Inkonsistente Duplikatsprüfung zwischen verschiedenen Services
+- Batch-Verarbeitung führt zu Race Conditions
+
+### 2. Instabile Synchronisation
+- Verschiedene Services laufen parallel und interferieren
+- Scheduler startet mehrere Sync-Prozesse gleichzeitig
+- Fehlerhafte API-Antworten führen zu abgebrochenen Synchronisationen
