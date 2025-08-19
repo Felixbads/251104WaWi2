@@ -140,7 +140,10 @@ export class StableVendonSync {
       
       try {
         // Versuche API-Abruf
-        const response = await this.makeApiRequest<any>('/machines');
+        const response = await this.makeApiRequest<any>('/machines', {
+          limit: 100,
+          offset: 0
+        });
         apiMachines = Array.isArray(response) ? response : [];
         console.log(`📡 ${apiMachines.length} Maschinen von API erhalten`);
       } catch (apiError) {
@@ -254,18 +257,37 @@ export class StableVendonSync {
       let vendonTransactions: VendonTransaction[] = [];
       
       try {
-        vendonTransactions = await this.makeApiRequest<VendonTransaction[]>('/transactions', {
-          from: effectiveStartDate.toISOString().split('T')[0],
-          to: effectiveEndDate.toISOString().split('T')[0]
+        // Vendon API erwartet UNIX-Zeitstempel in SEKUNDEN (nicht Millisekunden!)
+        const fromTimestamp = Math.floor(effectiveStartDate.getTime() / 1000);
+        const toTimestamp = Math.floor(effectiveEndDate.getTime() / 1000);
+        
+        // Verwende den korrekten Endpunkt /stats/vends für Transaktionen
+        vendonTransactions = await this.makeApiRequest<VendonTransaction[]>('/stats/vends', {
+          from_timestamp: fromTimestamp,
+          to_timestamp: toTimestamp,
+          limit: 1000,
+          offset: 0
         });
       } catch (apiError) {
         console.warn('⚠️ Vendon API nicht verfügbar, überspringe Transaktions-Sync:', apiError instanceof Error ? apiError.message : String(apiError));
         return { itemsSaved: 0, itemsUpdated: 0, message: 'Vendon API nicht verfügbar - Transaktions-Sync übersprungen' };
       }
 
-      if (!vendonTransactions || vendonTransactions.length === 0) {
+      // Prüfe ob vendonTransactions valide ist
+      if (!vendonTransactions) {
+        console.warn('⚠️ Keine Transaktionsdaten von API erhalten');
         return { itemsSaved: 0, itemsUpdated: 0, message: 'Keine neuen Transaktionen von API erhalten' };
       }
+      
+      // Konvertiere zu Array falls nötig
+      const transactionsArray = Array.isArray(vendonTransactions) ? vendonTransactions : [];
+      
+      if (transactionsArray.length === 0) {
+        console.log('📦 Keine Transaktionen im gewählten Zeitraum');
+        return { itemsSaved: 0, itemsUpdated: 0, message: 'Keine neuen Transaktionen im gewählten Zeitraum' };
+      }
+      
+      console.log(`📡 ${transactionsArray.length} Transaktionen von API erhalten`);
 
       // Hole bestehende Maschinen
       const existingMachines = await storage.getMachines();
@@ -276,7 +298,7 @@ export class StableVendonSync {
       let itemsSaved = 0;
       let itemsSkipped = 0;
 
-      for (const vendonTransaction of vendonTransactions) {
+      for (const vendonTransaction of transactionsArray) {
         try {
           // Prüfe ob Maschine existiert
           const machineId = machinesMap.get(vendonTransaction.machine_id);
@@ -342,18 +364,36 @@ export class StableVendonSync {
       let vendonEvents: VendonEvent[] = [];
       
       try {
+        // Vendon API erwartet UNIX-Zeitstempel in SEKUNDEN
+        const fromTimestamp = Math.floor(effectiveStartDate.getTime() / 1000);
+        const toTimestamp = Math.floor(effectiveEndDate.getTime() / 1000);
+        
         vendonEvents = await this.makeApiRequest<VendonEvent[]>('/events', {
-          from: effectiveStartDate.toISOString().split('T')[0],
-          to: effectiveEndDate.toISOString().split('T')[0]
+          from_timestamp: fromTimestamp,
+          to_timestamp: toTimestamp,
+          limit: 1000,
+          offset: 0
         });
       } catch (apiError) {
         console.warn('⚠️ Vendon API nicht verfügbar, überspringe Events-Sync:', apiError instanceof Error ? apiError.message : String(apiError));
         return { itemsSaved: 0, message: 'Vendon API nicht verfügbar - Events-Sync übersprungen' };
       }
 
-      if (!vendonEvents || vendonEvents.length === 0) {
+      // Prüfe ob vendonEvents valide ist
+      if (!vendonEvents) {
+        console.warn('⚠️ Keine Event-Daten von API erhalten');
         return { itemsSaved: 0, message: 'Keine neuen Events von API erhalten' };
       }
+      
+      // Konvertiere zu Array falls nötig
+      const eventsArray = Array.isArray(vendonEvents) ? vendonEvents : [];
+      
+      if (eventsArray.length === 0) {
+        console.log('📦 Keine Events im gewählten Zeitraum');
+        return { itemsSaved: 0, message: 'Keine neuen Events im gewählten Zeitraum' };
+      }
+      
+      console.log(`📡 ${eventsArray.length} Events von API erhalten`);
 
       const existingMachines = await storage.getMachines();
       const machinesMap = new Map(
@@ -362,7 +402,7 @@ export class StableVendonSync {
 
       let itemsSaved = 0;
 
-      for (const vendonEvent of vendonEvents) {
+      for (const vendonEvent of eventsArray) {
         try {
           const machineId = machinesMap.get(vendonEvent.machine_id);
           if (!machineId) {
@@ -420,18 +460,36 @@ export class StableVendonSync {
       let vendonRefills: VendonRefill[] = [];
       
       try {
+        // Vendon API erwartet UNIX-Zeitstempel in SEKUNDEN
+        const fromTimestamp = Math.floor(effectiveStartDate.getTime() / 1000);
+        const toTimestamp = Math.floor(effectiveEndDate.getTime() / 1000);
+        
         vendonRefills = await this.makeApiRequest<VendonRefill[]>('/refills', {
-          from: effectiveStartDate.toISOString().split('T')[0],
-          to: effectiveEndDate.toISOString().split('T')[0]
+          from_timestamp: fromTimestamp,
+          to_timestamp: toTimestamp,
+          limit: 1000,
+          offset: 0
         });
       } catch (apiError) {
         console.warn('⚠️ Vendon API nicht verfügbar, überspringe Refills-Sync:', apiError instanceof Error ? apiError.message : String(apiError));
         return { itemsSaved: 0, message: 'Vendon API nicht verfügbar - Refills-Sync übersprungen' };
       }
 
-      if (!vendonRefills || vendonRefills.length === 0) {
+      // Prüfe ob vendonRefills valide ist
+      if (!vendonRefills) {
+        console.warn('⚠️ Keine Refill-Daten von API erhalten');
         return { itemsSaved: 0, message: 'Keine neuen Refills von API erhalten' };
       }
+      
+      // Konvertiere zu Array falls nötig
+      const refillsArray = Array.isArray(vendonRefills) ? vendonRefills : [];
+      
+      if (refillsArray.length === 0) {
+        console.log('📦 Keine Refills im gewählten Zeitraum');
+        return { itemsSaved: 0, message: 'Keine neuen Refills im gewählten Zeitraum' };
+      }
+      
+      console.log(`📡 ${refillsArray.length} Refills von API erhalten`);
 
       const existingMachines = await storage.getMachines();
       const machinesMap = new Map(
@@ -440,7 +498,7 @@ export class StableVendonSync {
 
       let itemsSaved = 0;
 
-      for (const vendonRefill of vendonRefills) {
+      for (const vendonRefill of refillsArray) {
         try {
           const machineId = machinesMap.get(vendonRefill.machine_id);
           if (!machineId) {
@@ -497,6 +555,27 @@ export class StableVendonSync {
         
         if (response.status === 200 && response.data) {
           console.log(`✅ API-Request erfolgreich: ${endpoint}`);
+          
+          // Debug: Log response structure
+          if (endpoint.includes('/stats/vends') || endpoint.includes('/machines')) {
+            console.log(`🔍 Response-Typ für ${endpoint}:`, typeof response.data);
+            console.log(`🔍 Response-Keys:`, response.data ? Object.keys(response.data).slice(0, 5) : 'keine');
+            
+            // Vendon API gibt oft ein Objekt mit 'data' oder 'items' Property zurück
+            if (response.data.data && Array.isArray(response.data.data)) {
+              console.log(`📦 Found nested data array with ${response.data.data.length} items`);
+              return response.data.data as T;
+            }
+            if (response.data.items && Array.isArray(response.data.items)) {
+              console.log(`📦 Found nested items array with ${response.data.items.length} items`);
+              return response.data.items as T;
+            }
+            // Wenn response.data selbst ein Array ist
+            if (Array.isArray(response.data)) {
+              console.log(`📦 Response is array with ${response.data.length} items`);
+            }
+          }
+          
           return response.data;
         }
         
