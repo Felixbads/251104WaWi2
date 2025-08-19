@@ -1,0 +1,26 @@
+1. Implement machine CRUD in DatabaseStorage
+DatabaseStorage bietet keine Maschinenvorgänge, obwohl vendonSync sie benötigt.
+
+1. Open `server/storage/database-storage.ts`. 2. Add methods `getMachineByVendonId`, `createMachine`, `updateMachine`, and `deleteMachine` using Drizzle on `machines`. 3. Expose these methods in `DatabaseStorage` so `storage.getMachineByVendonId` etc. resolve. 4. Ensure timestamps (`createdAt`, `updatedAt`) are set in `createMachine`/`updateMachine`.
+
+2. Track duplicates during machine sync
+Der Zähler duplicates wird nie erhöht, sodass Logs falsche Statistiken zeigen.
+
+1. Edit `server/services/vendonSync.ts` inside the `for (const machine …)` loop. 2. When `existingMachine` is found before `updateMachine`, increment `duplicates++`. 3. Keep `duplicates` in the sync log so the counter reflects actual updates.
+
+3. Align transaction date-range parameters
+Der Client sendet start/end, der Server erwartet startDate/endDate, wodurch /transactions leer bleibt.
+
+1. Modify `client/src/lib/api.ts` → function `getTransactionsByDateRange`. 2. Change the query string to `/transactions/byDateRange?startDate=${startDate}&endDate=${endDate}&limit=${limit}`. 3. Ensure any caller (e.g., `Transactions.tsx`) still passes ISO strings.
+
+4. Send credentials in Standort-Status fetch
+Falls die API eine Session benötigt, der fetch aber ohne Cookies läuft, bleibt /standort-status leer.
+
+
+1. Update `getMachineStatusData` in `client/src/pages/StandortStatus.tsx`. 2. Use `fetch('/api/location-status', { credentials: 'include' })` or switch to `axios.get` with `withCredentials: true`. 3. Handle error responses to surface authentication issues in the UI.
+
+Zusammenfassung
+* Maschinensynchronisation scheitert aufgrund fehlender Storage-Methoden; deshalb liefert der Standort‑Status keine Daten.
+* Doppelte Maschinen werden nicht gezählt.
+* /transactions sendet falsche Parameter und erhält keine Ergebnisse.
+	•	/standort-status kann bei auth‑pflichtigen APIs ohne Credentials keine Daten laden.
