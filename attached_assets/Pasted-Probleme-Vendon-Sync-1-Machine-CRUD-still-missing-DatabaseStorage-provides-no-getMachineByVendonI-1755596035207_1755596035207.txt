@@ -1,0 +1,29 @@
+Probleme Vendon Sync
+
+
+1. Machine CRUD still missing
+DatabaseStorage provides no getMachineByVendonId, createMachine, updateMachine, or deleteMachine. Sync code calls these methods, so the machine table remains empty and downstream features (e.g., Standort‑Status) cannot populate data.
+
+1. Edit `server/storage/database-storage.ts`. 2. Add methods `getMachineByVendonId`, `createMachine`, `updateMachine`, and `deleteMachine` using Drizzle on `machines`. 3. Update the class export to expose these methods and satisfy `IStorage`. 4. Ensure `createMachine`/`updateMachine` manage `createdAt`/`updatedAt`.
+
+
+2. Duplicate counter unused during machine sync
+syncMachines declares duplicates but never increments it when an existing machine is updated, so sync statistics remain incorrect.
+
+1. Open `server/services/vendonSync.ts`. 2. Within the loop in `syncMachines`, when `existingMachine` is found, increment `duplicates` before updating the record. 3. Include `duplicates` in the log message and returned status.
+
+3. Wrong query parameters for /transactions
+getTransactionsByDateRange sends start/end while the server expects startDate/endDate, causing empty results.
+
+1. Modify `client/src/lib/api.ts`, function `getTransactionsByDateRange`. 2. Change query string to use `startDate` and `endDate` keys. 3. Adjust any callers if necessary.
+
+4. Standort‑Status requests omit credentials
+StandortStatus.tsx uses fetch('/api/location-status') without credentials; if the API requires authentication, the request fails and no machines display.
+
+1. Update `getMachineStatusData` in `client/src/pages/StandortStatus.tsx`. 2. Use `fetch('/api/location-status', { credentials: 'include' })` or switch to `axios.get` with `withCredentials: true`. 3. Handle error responses to surface authentication issues in the UI.
+
+Summary
+* Machine storage methods remain unimplemented, preventing machine data from persisting and affecting downstream pages.
+* Duplicate counts in machine sync are still inaccurate.
+* /transactions API calls use incorrect query keys, yielding empty results.
+* /standort-status page issues stem from unauthenticated requests.

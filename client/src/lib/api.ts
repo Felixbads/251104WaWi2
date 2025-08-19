@@ -586,7 +586,7 @@ export async function getTransactionsByDateRange(
 ): Promise<Transaction[]> {
   return apiRequest<Transaction[]>(
     'get', 
-    `/transactions/byDateRange?start=${startDate}&end=${endDate}&limit=${limit}`
+    `/transactions/byDateRange?startDate=${startDate}&endDate=${endDate}&limit=${limit}`
   );
 }
 

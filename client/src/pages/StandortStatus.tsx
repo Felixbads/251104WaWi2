@@ -73,7 +73,12 @@ interface MachineStatusData {
 
 // API-Funktionen
 async function getMachineStatusData(): Promise<MachineStatusData[]> {
-  const response = await fetch('/api/location-status');
+  const response = await fetch('/api/location-status', {
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  });
   if (!response.ok) {
     throw new Error('Failed to fetch machine status data');
   }
