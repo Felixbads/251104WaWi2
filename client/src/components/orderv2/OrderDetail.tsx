@@ -1064,44 +1064,6 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
             </CardContent>
           </Card>
 
-          {/* Email Template Preview */}
-          {emailTemplate && (
-            <Card>
-              <CardHeader>
-                <CardTitle>E-Mail-Vorlage</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <label className="text-sm font-medium text-gray-600">An:</label>
-                  <p className="text-sm">{emailTemplate.supplierEmail || 'Keine E-Mail verfügbar'}</p>
-                </div>
-                
-                <div>
-                  <label className="text-sm font-medium text-gray-600">Betreff:</label>
-                  <p className="text-sm">{emailTemplate.subject}</p>
-                </div>
-                
-                <div>
-                  <label className="text-sm font-medium text-gray-600">Inhalt:</label>
-                  <div className="text-sm bg-gray-50 p-3 rounded border max-h-64 overflow-y-auto">
-                    <pre className="whitespace-pre-wrap text-xs">{emailTemplate.content}</pre>
-                  </div>
-                </div>
-                
-                <Button 
-                  className="w-full" 
-                  disabled={!emailTemplate.supplierEmail}
-                  onClick={() => {
-                    if (emailTemplate.supplierEmail) {
-                      window.location.href = `mailto:${emailTemplate.supplierEmail}?subject=${encodeURIComponent(emailTemplate.subject)}&body=${encodeURIComponent(emailTemplate.content)}`;
-                    }
-                  }}
-                >
-                  E-Mail öffnen
-                </Button>
-              </CardContent>
-            </Card>
-          )}
         </div>
       </div>
 
