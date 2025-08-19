@@ -101,31 +101,31 @@ router.get('/', async (req: Request, res: Response) => {
           
         FROM transactions_by_location tbl
         
-        -- Refill stats per machine (JOIN by machine name, aggregate all machines with same name)
+        -- Refill stats per machine (DIRECT machine_name - NO JOIN needed!)
         LEFT JOIN (
           SELECT 
-            COALESCE(m.machine_name, r.machine_id::text) as machine_name,
+            r.machine_name,
             MAX(r.datetime) as last_refill,
             (array_agg(r.operator ORDER BY r.datetime DESC))[1] as last_operator
           FROM refills r
-          LEFT JOIN machines m ON r.machine_id = m.id
           WHERE r.datetime >= CURRENT_DATE - INTERVAL '90 days'
-          GROUP BY COALESCE(m.machine_name, r.machine_id::text)
+            AND r.machine_name IS NOT NULL
+          GROUP BY r.machine_name
         ) r ON tbl.machine_name = r.machine_name
         
-        -- Event stats per machine (JOIN by machine name, aggregate all machines with same name)
+        -- Event stats per machine (DIRECT machine_name - NO JOIN needed!)
         LEFT JOIN (
           SELECT 
-            COALESCE(m.machine_name, e.machine_id::text) as machine_name,
+            e.machine_name,
             MAX(e.datetime) as last_door_open
           FROM events e
-          LEFT JOIN machines m ON e.machine_id = m.id
           WHERE (e.event_name = 'Automatentüre offen' 
             OR e.event_name LIKE '%door%' 
             OR e.event_name LIKE '%Door%'
             OR e.event_name LIKE '%Tür%')
             AND e.datetime >= CURRENT_DATE - INTERVAL '90 days'
-          GROUP BY COALESCE(m.machine_name, e.machine_id::text)
+            AND e.machine_name IS NOT NULL
+          GROUP BY e.machine_name
         ) e ON tbl.machine_name = e.machine_name
         
         -- MHD stats per machine (JOIN by machine name, aggregate all machines with same name)
