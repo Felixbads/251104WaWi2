@@ -17,6 +17,7 @@ import { rawDb } from "../db";
 import { SYNC_TYPE, acquireSyncLock, releaseSyncLock } from "./syncLock";
 import { stockRatioService } from './stockRatioService';
 import axios, { AxiosInstance, AxiosRequestConfig } from "axios";
+import { vendonRateLimiter } from './vendonRateLimiter';
 
 /**
  * Vendon API Client
@@ -44,9 +45,7 @@ class VendonAPI {
       this.apiKey = process.env.API_KEY;
       console.log("API-Schlüssel aus API_KEY Umgebungsvariable verwendet.");
     } else {
-      // Standardwert als letzte Option (sollte in der Praxis durch einen echten API-Schlüssel ersetzt werden)
-      this.apiKey = "e5o9SSU4n2XQp9XmShtbIOK1rStoQvoB";
-      console.warn("Fallback auf bekannten API-Schlüssel. Dieser könnte abgelaufen sein.");
+      throw new Error("Kein gültiger API-Schlüssel gefunden! Bitte setzen Sie VENDON_API_KEY in den Umgebungsvariablen.");
     }
 
     // Überprüfen, ob wir einen API-Schlüssel haben
@@ -103,6 +102,9 @@ class VendonAPI {
           config.data = data;
         }
         
+        // Zentrales Rate Limiting verwenden
+        await vendonRateLimiter.waitForSlot();
+        
         const response = await this.client.request<{result: T}>(config);
         
         // Für Debugging-Zwecke, zeige die ersten 500 Zeichen der Antwort
@@ -142,14 +144,32 @@ class VendonAPI {
   /**
    * Ruft alle Automaten (Maschinen) von der Vendon API ab
    * 
-   * Da /machines nicht funktioniert, extrahieren wir Maschinen-IDs aus den Transaktionen
+   * Versucht mehrere Endpunkte für eine vollständige Maschinenerfassung
    */
   async getMachines() {
     try {
       // Versuche zuerst den ursprünglichen Endpunkt
       return await this.makeRequest<any[]>('/machines');
-    } catch (error) {
-      console.log('Machines-Endpunkt nicht verfügbar, extrahiere aus Transaktionen...');
+    } catch (machinesError) {
+      console.log('Machines-Endpunkt nicht verfügbar, versuche alternative Endpunkte...');
+      
+      // Versuche alternative Endpunkte für Maschinen
+      const alternativeEndpoints = ['/devices', '/locations', '/vending-machines'];
+      
+      for (const endpoint of alternativeEndpoints) {
+        try {
+          console.log(`Versuche Endpunkt: ${endpoint}`);
+          const result = await this.makeRequest<any[]>(endpoint);
+          if (result && Array.isArray(result) && result.length > 0) {
+            console.log(`✅ ${result.length} Automaten über ${endpoint} gefunden`);
+            return result;
+          }
+        } catch (endpointError) {
+          console.log(`Endpunkt ${endpoint} nicht verfügbar`);
+        }
+      }
+      
+      console.log('Alle Maschinen-Endpunkte fehlgeschlagen, extrahiere aus Transaktionen...');
       
       // 🔄 IMPROVED FALLBACK: Paginierte Maschinen-Extraktion aus Transaktionen
       const oneMonthAgo = new Date();

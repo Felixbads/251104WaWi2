@@ -14,15 +14,12 @@ const DEFAULT_API_BASE_URL = 'https://cloud.vendon.net/rest/v1.8.0';
 const MAX_RETRIES = 3;
 // Timeout zwischen Wiederholungsversuchen in ms (exponential backoff)
 const RETRY_BASE_DELAY = 1000;
-// Rate limiting: Anzahl der API-Anfragen pro Minute (reduziert für stabilere API-Nutzung)
-const MAX_REQUESTS_PER_MINUTE = 30;
+import { vendonRateLimiter } from './vendonRateLimiter';
 
 export class VendonAPI {
   private apiKey: string;
   // Mache apiBaseUrl öffentlich zugänglich für Debug-Endpunkte
   public readonly apiBaseUrl: string;
-  private requestCount: number = 0;
-  private lastResetTime: number = Date.now();
   
   constructor(apiKey?: string, apiBaseUrl?: string) {
     this.apiKey = apiKey || DEFAULT_API_KEY;
@@ -34,11 +31,6 @@ export class VendonAPI {
     console.log(`Vendon API initialisiert mit Basis-URL: ${this.apiBaseUrl}`);
     console.log(`API-Schlüssel: ${maskedKey}`);
     
-    // Reset des Request-Counters alle 60 Sekunden
-    setInterval(() => {
-      this.requestCount = 0;
-      this.lastResetTime = Date.now();
-    }, 60000);
   }
   
   /**
@@ -59,8 +51,8 @@ export class VendonAPI {
     
     while (retries < MAX_RETRIES) {
       try {
-        // Ratenbegrenzung prüfen
-        await this.checkRateLimit();
+        // Zentrales Rate Limiting verwenden
+        await vendonRateLimiter.waitForSlot();
         
         // URL mit Parametern aufbauen
         let url = `${this.apiBaseUrl}${endpoint}`;
@@ -145,36 +137,6 @@ export class VendonAPI {
     return null;
   }
   
-  /**
-   * Prüft Ratenbegrenzung und wartet gegebenenfalls
-   */
-  private async checkRateLimit(): Promise<void> {
-    const now = Date.now();
-    const timeElapsed = now - this.lastResetTime;
-    
-    // Reset request count every minute
-    if (timeElapsed >= 60000) {
-      this.requestCount = 0;
-      this.lastResetTime = now;
-      return;
-    }
-    
-    // Check if we're approaching the limit
-    if (this.requestCount >= MAX_REQUESTS_PER_MINUTE) {
-      const waitTime = 60000 - timeElapsed + 500; // +500ms safety buffer
-      console.log(`Rate-Limit erreicht (${this.requestCount}/${MAX_REQUESTS_PER_MINUTE}), warte ${waitTime}ms...`);
-      await new Promise(resolve => setTimeout(resolve, waitTime));
-      
-      // Reset after waiting
-      this.requestCount = 0;
-      this.lastResetTime = Date.now();
-    } else if (this.requestCount >= MAX_REQUESTS_PER_MINUTE * 0.8) {
-      // Slow down when approaching limit (at 80% capacity)
-      const slowdownDelay = 2000; // 2 seconds
-      console.log(`Rate-Limiting: Verlangsamung bei ${this.requestCount}/${MAX_REQUESTS_PER_MINUTE} Anfragen (${slowdownDelay}ms Pause)`);
-      await new Promise(resolve => setTimeout(resolve, slowdownDelay));
-    }
-  }
   
   /**
    * Holt alle Produkte von der API

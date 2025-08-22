@@ -2,8 +2,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import path from "path";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
-// TEMPORARILY DISABLED DUE TO CRITICAL DATABASE ERRORS
-// import { startAutomaticSync } from "./scheduler";
+import { startAutomaticSync } from "./scheduler";
 // REPLACED: import { stableVendonScheduler } from "./services/stableVendonScheduler";
 import { autoStartUnifiedSystem } from "./services/vendonSyncMigration";
 import { reconcileWarehouseProducts } from "./services/warehouseReconciliation";
