@@ -907,6 +907,8 @@ router.get('/warehouse/:id', async (req, res) => {
       batchesByProduct.get(batch.productId).push(batch);
     });
 
+    console.log(`[INVENTORY_WAREHOUSE] Found ${inventoryItems.length} inventory items and ${activeBatches.length} batches for warehouse ${warehouseId}`);
+    
     // Formatiere die Antwort mit korrekten Produktnamen + Batch-Informationen
     const formattedInventory = inventoryItems.map(item => {
       const product = Array.isArray(item.product) ? item.product[0] : item.product;
@@ -916,11 +918,16 @@ router.get('/warehouse/:id', async (req, res) => {
       const nextExpiryDate = batches.length > 0 ? batches[0].expiryDate : null;
       const batchQuantity = batches.length > 0 ? batches.reduce((sum, batch) => sum + (batch.currentQuantity || 0), 0) : 0;
       
+      // Erstelle detaillierte Batch-Strings ähnlich wie in der direkten Query
+      const batchNumbers = batches.length > 0 ? 
+        batches.map(batch => `${batch.batchNumber} (MHD: ${batch.expiryDate ? new Date(batch.expiryDate).toLocaleDateString('de-DE') : 'N/A'}, Menge: ${batch.currentQuantity})`).join(', ') 
+        : null;
+      
       return {
         id: item.id,
         warehouseId: item.warehouseId,
         productId: item.productId,
-        quantity: item.quantity,
+        quantity: batchQuantity > 0 ? batchQuantity : item.quantity, // Verwende Batch-Menge wenn verfügbar
         minQuantity: item.minQuantity,
         reorderPoint: item.reorderPoint,
         locationInWarehouse: item.locationInWarehouse,
@@ -932,6 +939,7 @@ router.get('/warehouse/:id', async (req, res) => {
         unit: product?.unit || 'Stk.',
         // NEUE Batch-Informationen - wie bei /refill-tracking  
         nextExpiryDate: nextExpiryDate,
+        batchNumber: batchNumbers, // Für Frontend-Kompatibilität
         batchQuantity: batchQuantity, 
         batches: batches.map(batch => ({
           id: batch.id,
@@ -944,6 +952,14 @@ router.get('/warehouse/:id', async (req, res) => {
       };
     });
 
+    // Debug-Output für die ersten paar Einträge
+    console.log(`[INVENTORY_WAREHOUSE] Sample formatted results:`, formattedInventory.slice(0, 3).map(item => ({
+      productName: item.productName,
+      quantity: item.quantity,
+      nextExpiryDate: item.nextExpiryDate,
+      batchNumber: item.batchNumber
+    })));
+
 
     // Erfolgreiche Antwort
     return res.status(200).json(formattedInventory);
@@ -952,5 +968,6 @@ router.get('/warehouse/:id', async (req, res) => {
     return res.status(500).json({ error: 'Serverfehler beim Laden des Lagerbestands' });
   }
 });
+
 
 export default router;
