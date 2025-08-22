@@ -1,0 +1,35 @@
+Bei /refill-tracking werden die einzelnen Auffüllungen eines Lagers aus den Tabellen refill_trackings und refill_tracking_items geladen. Dabei werden die Items zusätzlich mit den Chargendaten aus product_batches verknüpft; so stehen in der JSON‑Antwort für jede Position batchNumber, expiryDate (MHD) und die Menge zur Verfügung
+Der Endpunkt /lagerbestand/10 nutzt hingegen inventory_items und liefert nur den aggregierten Bestand pro Produkt zurück. In der Response fehlen daher Felder wie batchNumber oder expiryDate, weil keine Verbindung zu den Batch‑Tabellen hergestellt wird
+
+Kurz gesagt:
+
+/refill-tracking → Join mit product_batches → Chargen + MHD + Menge
+/lagerbestand/10 → Aggregierter Bestand ohne Batch‑Join → keine Chargen/MHD in der JSON-Ausgabe
+Prüfe erneut warum ich noch nichts unter /lagerbestand dazu sehe
+Kopieren
+Befund
+Der Endpunkt /lagerbestand bedient sich in server/routes/warehouse-inventory.ts ausschließlich der Tabelle inventory_items. Eine Zusammenführung mit product_batches erfolgt nur in einer separaten CTE (batch_data), deren Ergebnis anschließend ohne Join zu den Inventardaten per UNION ALL angehängt wird. Für vorhandene Inventarzeilen wird daher weder batchNumber noch nextExpiryDate befüllt
+Das inventory_data‑CTE liefert die Inventardaten, aber ohne Chargen‑ oder MHD‑Informationen
+batch_data aggregiert Batches lediglich nach Produkt und ermittelt das früheste MHD; die Detailfelder wie batch_number werden nicht aufgenommen
+In batch_only_products wird nextExpiryDate nur für Produkte ausgegeben, die gar nicht im Inventar stehen. Für reguläre Inventarartikel bleibt das Feld leer
+Folglich erscheint unter /lagerbestand keine Chargen‑ oder MHD‑Information, solange der Code nicht mit einem Join auf product_batches erweitert wird.
+Hinweise
+Möchtest du Chargennummern und MHDs sehen, muss der Endpunkt erweitert werden, z. B. durch ein Join von inventory_items auf product_batches oder durch eine zusätzliche Abfrage, die diese Felder pro Produkt zusammenträgt.
+Für detaillierte Batch‑Informationen existiert bereits der Endpunkt /api/inventory/batches, der Daten aus product_batches ausgibt, jedoch nicht im Lagerbestand verknüpft ist.
+Wenn du diese Funktionalität benötigst, empfiehlt sich eine Anpassung der Abfrage, damit Chargen und MHDs explizit in der Antwort enthalten sind.
+Schau bitte nochmal. Am code wurde gearbeitet um den fehler zu beheben
+Kopieren
+
+Version 1
+
+Version 2
+Die Route /lagerbestand setzt weiterhin zuerst auf eine direkte SQL-Abfrage. In dieser Abfrage werden Inventardaten (inventory_data) und Batch-Daten (batch_data) lediglich per UNION ALL zusammengeführt; ein Join findet nicht statt. Daher enthalten vorhandene Inventarzeilen nach wie vor keine MHD- oder Chargen-Informationen, weil nextExpiryDate nur im CTE batch_only_products vorkommt und für bestehende inventory_data-Zeilen nicht ergänzt wird
+Der nachgeschaltete Fallback, der tatsächlich die Batches mit den Inventareinträgen verknüpfen und nextExpiryDate setzen würde, wird nicht erreicht, weil die direkte Abfrage bereits Ergebnisse liefert und frühzeitig per return beendet. batchNumber wird in dieser Route überhaupt nicht bereitgestellt, sodass selbst im Fallback keine Chargennummern erscheinen.
+
+Im Gegensatz dazu verknüpft der /refill-tracking‑Pfad die aufgezeichneten Nachfüllpositionen explizit mit product_batches. Die Funktion getRefillTrackingItems liefert für jedes Item batchNumber und expiryDate, weil dort ein leftJoin auf product_batches erfolgt. Daher erscheinen Chargen, MHD und Mengen in der JSON-Ausgabe dieses Endpunkts, aber nicht im Lagerbestand.
+
+Kurz gesagt:
+
+/lagerbestand/10: Direkte Abfrage ohne Join → keine Chargen/MHD.
+/refill-tracking: Join mit product_batches → Chargen + MHD vorhanden.
+Um auch unter /lagerbestand Chargen- und MHD-Daten zu sehen, müsste die direkte Abfrage entweder entfernt oder um einen Join mit product_batches ergänzt werden, sodass nextExpiryDate (und ggf. batchNumber) für bestehende Inventareinträge verfügbar ist.

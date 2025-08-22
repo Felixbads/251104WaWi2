@@ -192,6 +192,13 @@ router.get('/', async (req: Request, res: Response) => {
         ]);
         
         console.log(`Direct query returned ${result.rows.length} rows for warehouse ${warehouseId}, page ${page}`);
+        console.log(`Sample results:`, result.rows.slice(0, 3).map(row => ({
+          id: row.id,
+          productName: row.productName,
+          nextExpiryDate: row.nextExpiryDate,
+          batchNumber: row.batchNumber,
+          notes: row.notes?.substring(0, 100)
+        })));
         
         const totalItems = parseInt(countResult.rows[0]?.total || '0', 10);
         const totalPages = Math.ceil(totalItems / pageSize);
