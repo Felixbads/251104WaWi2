@@ -66,6 +66,30 @@ const WarehouseInventoryTable: React.FC<WarehouseInventoryTableProps> = ({ wareh
     queryKey: [`/api/inventory/warehouse/${warehouseId}`],
   });
   
+  // API-Abfrage für Warenbewegungen mit Benutzerdaten
+  const { data: inventoryMovements = [], isLoading: isMovementsLoading } = useQuery({
+    queryKey: [`/api/inventory-movements`, warehouseId],
+    queryFn: async () => {
+      try {
+        debug(`Lade Warenbewegungen für Lager ${warehouseId}...`);
+        const response = await fetch(`/api/inventory-movements?warehouseId=${warehouseId}&limit=100`);
+        if (!response.ok) {
+          debug(`Fehler beim Laden der Warenbewegungen, Status: ${response.status}`);
+          return [];
+        }
+        
+        const data = await response.json();
+        debug(`${data.length} Warenbewegungen geladen`);
+        return data;
+      } catch (error) {
+        console.error("Fehler beim Laden der Warenbewegungen:", error);
+        debug(`Exception beim Laden der Warenbewegungen: ${error}`);
+        return [];
+      }
+    },
+    enabled: !!warehouseId,
+  });
+
   // API-Abfrage für alle Batches des Lagers
   const { data: allBatches = [], isLoading: isBatchesLoading } = useQuery({
     queryKey: [`/api/product-batches`, warehouseId],
@@ -99,6 +123,35 @@ const WarehouseInventoryTable: React.FC<WarehouseInventoryTableProps> = ({ wareh
     enabled: !!warehouseId,
   });
   
+  // Gruppiere Warenbewegungen nach Produkt-ID
+  const movementsByProduct = React.useMemo(() => {
+    const groupedMovements: Record<number, any[]> = {};
+    
+    debug(`Verarbeite ${inventoryMovements.length} Warenbewegungen zum Gruppieren`);
+    
+    inventoryMovements.forEach((movement: any) => {
+      if (!movement.productId) {
+        debug(`Warenbewegung ohne productId gefunden:`, movement);
+        return;
+      }
+      
+      if (!groupedMovements[movement.productId]) {
+        groupedMovements[movement.productId] = [];
+      }
+      
+      groupedMovements[movement.productId].push(movement);
+    });
+    
+    // Sortiere Bewegungen nach Datum (neueste zuerst)
+    Object.keys(groupedMovements).forEach(productId => {
+      groupedMovements[parseInt(productId)].sort((a, b) => 
+        new Date(b.performedAt || b.createdAt).getTime() - new Date(a.performedAt || a.createdAt).getTime()
+      );
+    });
+    
+    return groupedMovements;
+  }, [inventoryMovements, debug]);
+
   // Gruppiere Batches nach Produkt-ID
   const batchesByProduct = React.useMemo(() => {
     const groupedBatches: Record<number, any[]> = {};
@@ -639,6 +692,69 @@ const WarehouseInventoryTable: React.FC<WarehouseInventoryTableProps> = ({ wareh
                                     <p>Keine Chargen für dieses Produkt vorhanden</p>
                                   </div>
                                 )}
+
+                                {/* Warenbewegungen Sektion */}
+                                <div className="mt-4 border-t pt-3">
+                                  <h4 className="text-sm font-medium mb-2">Warenbewegungen</h4>
+                                  {(() => {
+                                    const productMovements = movementsByProduct[productId] || [];
+                                    return productMovements.length > 0 ? (
+                                      <div className="space-y-1">
+                                        {productMovements.slice(0, 5).map((movement, index) => {
+                                          const formattedDate = movement.performedAt ? 
+                                            format(new Date(movement.performedAt), 'dd.MM.yyyy HH:mm', { locale: de }) : 
+                                            (movement.createdAt ? format(new Date(movement.createdAt), 'dd.MM.yyyy HH:mm', { locale: de }) : '--');
+                                          
+                                          let typeLabel = '';
+                                          let typeColor = 'text-muted-foreground';
+                                          
+                                          if (movement.movementType === 'OUT' && movement.referenceType === 'REFILL') {
+                                            typeLabel = 'Refill';
+                                            typeColor = 'text-blue-600';
+                                          } else if (movement.movementType === 'IN') {
+                                            typeLabel = 'Wareneingang';
+                                            typeColor = 'text-green-600';
+                                          } else if (movement.movementType === 'TRANSFER') {
+                                            typeLabel = 'Transfer';
+                                            typeColor = 'text-orange-600';
+                                          } else if (movement.movementType === 'OUT') {
+                                            typeLabel = 'Warenausgang';
+                                            typeColor = 'text-red-600';
+                                          } else {
+                                            typeLabel = movement.movementType || 'Unbekannt';
+                                          }
+
+                                          return (
+                                            <div key={movement.id || index} className="flex items-center justify-between py-1 px-2 bg-muted/20 rounded text-xs">
+                                              <div className="flex items-center space-x-2">
+                                                <span className={`font-medium ${typeColor}`}>{typeLabel}</span>
+                                                <span className="text-muted-foreground">
+                                                  {movement.quantity > 0 ? '+' : ''}{movement.quantity}
+                                                </span>
+                                                {movement.performedByName && (
+                                                  <span className="text-muted-foreground">
+                                                    von <span className="font-medium text-foreground">{movement.performedByName}</span>
+                                                  </span>
+                                                )}
+                                              </div>
+                                              <span className="text-muted-foreground">{formattedDate}</span>
+                                            </div>
+                                          );
+                                        })}
+                                        {productMovements.length > 5 && (
+                                          <div className="text-xs text-center text-muted-foreground py-1">
+                                            ... und {productMovements.length - 5} weitere Bewegungen
+                                          </div>
+                                        )}
+                                      </div>
+                                    ) : (
+                                      <div className="py-2 text-center text-sm text-muted-foreground">
+                                        <History className="h-4 w-4 mx-auto mb-1" />
+                                        <p>Keine Warenbewegungen für dieses Produkt vorhanden</p>
+                                      </div>
+                                    );
+                                  })()}
+                                </div>
                               </div>
                             </TableCell>
                           </TableRow>
