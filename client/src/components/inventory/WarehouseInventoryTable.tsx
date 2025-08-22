@@ -158,9 +158,9 @@ const WarehouseInventoryTable: React.FC<WarehouseInventoryTableProps> = ({ wareh
     
     debug(`Verarbeite ${allBatches.length} Batches zum Gruppieren`);
     
-    // Filtere Batches mit Null-Werten aus und sortiere
+    // Filtere Batches mit Null-Werten aus und sortiere  
     const filteredBatches = allBatches
-      .filter((batch: any) => batch.currentQuantity > 0) // Verstecke Zero-Wert Batches
+      .filter((batch: any) => (batch.currentQuantity || batch.quantity) > 0) // Verstecke Zero-Wert Batches
       .sort((a: any, b: any) => {
         const today = new Date();
         const aExpired = new Date(a.expiryDate) < today;
