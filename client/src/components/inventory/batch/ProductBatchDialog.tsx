@@ -39,6 +39,7 @@ interface BatchMovement {
   destinationType?: string;
   destinationName?: string;
   machineName?: string;
+  performedByName?: string; // Name des Benutzers, der die Bewegung durchgeführt hat
 }
 
 export default function ProductBatchDialog({
@@ -276,13 +277,28 @@ export default function ProductBatchDialog({
                                           </TableCell>
                                           <TableCell className="text-xs">
                                             {movement.movementType === 'REFILL' && movement.machineName && (
-                                              <span>Auffüllung zu Automat: {movement.machineName}</span>
+                                              <span>
+                                                Auffüllung zu Automat: {movement.machineName}
+                                                {movement.performedByName && (
+                                                  <span className="text-muted-foreground"> (von {movement.performedByName})</span>
+                                                )}
+                                              </span>
                                             )}
                                             {movement.movementType === 'TRANSFER' && (
-                                              <span>Transfer: {movement.destinationName || 'Unbekannt'}</span>
+                                              <span>
+                                                Transfer: {movement.destinationName || 'Unbekannt'}
+                                                {movement.performedByName && (
+                                                  <span className="text-muted-foreground"> (von {movement.performedByName})</span>
+                                                )}
+                                              </span>
                                             )}
                                             {movement.movementType === 'OUT' && (
-                                              <span>Ausgang</span>
+                                              <span>
+                                                Ausgang
+                                                {movement.performedByName && (
+                                                  <span className="text-muted-foreground"> (von {movement.performedByName})</span>
+                                                )}
+                                              </span>
                                             )}
                                           </TableCell>
                                         </TableRow>

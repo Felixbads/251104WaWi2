@@ -1,7 +1,7 @@
 import { db } from "./db";
 import { sql } from "drizzle-orm";
 import { eq, and, or, desc, inArray, gte, lte, like } from "drizzle-orm";
-import { products, machines, purchaseConditions } from "../shared/schema";
+import { products, machines, purchaseConditions, users } from "../shared/schema";
 
 // Import warehouse3 schema definitions for type information
 import {
@@ -1263,6 +1263,17 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
         batch = batchData;
       }
       
+      // User-Daten abfragen (falls vorhanden)
+      let performedByName = null;
+      if (movement.performedBy) {
+        const [user] = await db
+          .select()
+          .from(users)
+          .where(eq(users.id, movement.performedBy));
+        
+        performedByName = user?.username || user?.email || 'Unbekannter Benutzer';
+      }
+      
       // Quell- und Zieldetails abfragen
       let sourceDetails = {};
       if (movement.sourceType === 'warehouse' && movement.sourceId) {
@@ -1327,7 +1338,8 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
         ...sourceDetails,
         ...destinationDetails,
         batchNumber: batch?.batchNumber || '',
-        expiryDate: batch?.expiryDate || null
+        expiryDate: batch?.expiryDate || null,
+        performedByName: performedByName
       };
     }));
     
@@ -1356,6 +1368,17 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
         .where(eq(productBatches.id, movement.batchId));
       
       batch = batchData;
+    }
+    
+    // User-Daten abfragen (falls vorhanden)
+    let performedByName = null;
+    if (movement.performedBy) {
+      const [user] = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, movement.performedBy));
+      
+      performedByName = user?.username || user?.email || 'Unbekannter Benutzer';
     }
     
     // Quell- und Zielinformationen hinzufügen
@@ -1412,7 +1435,8 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
       ...sourceDetails,
       ...destinationDetails,
       batchNumber: batch?.batchNumber || '',
-      expiryDate: batch?.expiryDate || null
+      expiryDate: batch?.expiryDate || null,
+      performedByName: performedByName
     };
   }
   

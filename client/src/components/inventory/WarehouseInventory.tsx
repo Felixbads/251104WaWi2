@@ -48,6 +48,7 @@ interface InventoryMovement {
   batchId?: number;
   batchNumber?: string;
   expiryDate?: string;
+  performedByName?: string; // Name des Benutzers, der die Bewegung durchgeführt hat
 }
 
 // Sicherer Typ für Inventory Items
@@ -621,9 +622,16 @@ export default function WarehouseInventory({
                                     if (movement.destinationType === 'machine') {
                                       typeLabel = 'Refill';
                                       typeDetails = `in ${movement.destinationName || 'Automat'}`;
+                                      // Benutzer-Information für Refills hinzufügen
+                                      if (movement.performedByName) {
+                                        typeDetails += ` (von ${movement.performedByName})`;
+                                      }
                                     } else {
                                       typeLabel = 'Auslagerung';
                                       typeDetails = movement.reason || '';
+                                      if (movement.performedByName) {
+                                        typeDetails += ` (von ${movement.performedByName})`;
+                                      }
                                     }
                                   } else if (movement.movementType === 'TRANSFER') {
                                     typeLabel = 'Umlagerung';
@@ -631,6 +639,10 @@ export default function WarehouseInventory({
                                       typeDetails = `in Lager ${movement.destinationName || ''}`;
                                     } else {
                                       typeDetails = `von ${movement.sourceName || ''} nach ${movement.destinationName || ''}`;
+                                    }
+                                    // Benutzer-Information für Transfers hinzufügen
+                                    if (movement.performedByName) {
+                                      typeDetails += ` (von ${movement.performedByName})`;
                                     }
                                   }
                                   
