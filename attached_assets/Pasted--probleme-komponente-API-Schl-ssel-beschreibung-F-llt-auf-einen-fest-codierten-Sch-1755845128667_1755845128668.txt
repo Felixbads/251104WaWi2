@@ -1,0 +1,46 @@
+{
+"probleme": [
+{
+"komponente": "API-Schlüssel",
+"beschreibung": "Fällt auf einen fest codierten Schlüssel zurück, wenn VENDON_API_KEY fehlt; der Hardcoded-Fallback kann ungültig sein.",
+"beleg": "server/services/vendonSync.ts Zeilen 30–49"
+},
+{
+"komponente": "Scheduler",
+"beschreibung": "startAutomaticSync wird importiert, aber beim Serverstart nicht ausgeführt; dadurch läuft keine kontinuierliche Synchronisierung.",
+"beleg": "server/index.ts Zeilen 1–8"
+},
+{
+"komponente": "Maschinen-Sync",
+"beschreibung": "getMachines weicht auf Transaktionsdaten aus, wenn /machines nicht erreichbar ist, sodass neue Automaten ohne Transaktionen unentdeckt bleiben.",
+"beleg": "server/services/vendonSync.ts Zeilen 143–175"
+},
+{
+"komponente": "Rate-Limit",
+"beschreibung": "Der API-Client limitiert auf 60 Anfragen/Minute; parallele Jobs können das Limit überschreiten und zu Fehlern führen.",
+"beleg": "server/services/vendonAPI.ts Zeilen 17–18"
+},
+{
+"komponente": "Mehrfache Sync-Frameworks",
+"beschreibung": "Parallel vorhandene Services (vendonScheduler.ts, scheduler.ts, vendonBackgroundService.ts) erzeugen uneinheitliche Abläufe und erschweren eine stabile Synchronisation.",
+"beleg": "server/services/vendonBackgroundService.ts Zeilen 1–20"
+}
+],
+"empfohlene_massnahmen": [
+{
+"beschreibung": "Gültigen Vendon-API-Schlüssel per VENDON_API_KEY setzen und den Hardcoded-Fallback entfernen."
+},
+{
+"beschreibung": "startAutomaticSync() oder den VendonBackgroundService beim Serverstart ausführen, damit Transaktionen, Events, Refills und Maschinen geplant synchronisiert werden."
+},
+{
+"beschreibung": "Robusten Maschinenabgleich über den /machine-Endpunkt oder vergleichbare Quelle implementieren, um Automaten ohne Transaktionen zu erfassen."
+},
+{
+"beschreibung": "API-Aufrufe zentral koordinieren und Intervalle anpassen, damit das Limit von 60 Requests/Minute nicht überschritten wird."
+},
+{
+"beschreibung": "Ein einziges, konsistentes Synchronisationsmodul auswählen und die übrigen entfernen oder deaktivieren, um Konflikte zu vermeiden."
+}
+]
+}
