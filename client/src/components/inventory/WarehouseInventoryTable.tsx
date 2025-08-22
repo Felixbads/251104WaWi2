@@ -512,7 +512,13 @@ const WarehouseInventoryTable: React.FC<WarehouseInventoryTableProps> = ({ wareh
                     const productId = item.productId || item.product_id;
                     const isExpanded = expandedRows.has(productId);
                     const productBatches = batchesByProduct[productId] || [];
+                    const productMovements = movementsByProduct[productId] || [];
                     const hasBatches = productBatches.length > 0;
+                    
+                    // Debug: Log erweiterte Ansicht (falls nötig)
+                    if (isExpanded && (productBatches.length === 0 && productMovements.length === 0)) {
+                      debug(`[EXPANDED] Produkt-ID ${productId}: ${productBatches.length} Batches, ${productMovements.length} Bewegungen`);
+                    }
                     
                     // Nächstes MHD berechnen
                     let nextExpiryDate = null;

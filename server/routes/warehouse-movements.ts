@@ -8,6 +8,69 @@ import lodash from 'lodash';
 
 const router = Router();
 
+// GET /warehouse-movements/:warehouseId/enhanced - Erweiterte Warenbewegungen mit Benutzerdaten
+router.get('/:warehouseId/enhanced', async (req, res) => {
+  try {
+    const warehouseId = parseInt(req.params.warehouseId);
+    
+    if (!warehouseId) {
+      return res.status(400).json({ error: 'Ungültige Lager-ID' });
+    }
+    
+    console.log(`[ENHANCED_MOVEMENTS] Lade erweiterte Bewegungen für Lager ${warehouseId}`);
+    
+    // Lade Warenbewegungen mit Benutzerdaten
+    const movements = await db.select({
+      id: inventoryMovements.id,
+      productId: inventoryMovements.productId,
+      productName: products.productName,
+      movementType: inventoryMovements.movementType,
+      quantity: inventoryMovements.quantity,
+      referenceType: inventoryMovements.referenceType,
+      referenceId: inventoryMovements.referenceId,
+      performedAt: inventoryMovements.performedAt,
+      performedBy: inventoryMovements.performedBy,
+      performedByName: sql<string>`users.username`.as('performedByName'),
+      notes: inventoryMovements.notes
+    })
+    .from(inventoryMovements)
+    .leftJoin(products, eq(inventoryMovements.productId, products.id))
+    .leftJoin(sql`users`, sql`inventory_movements.performed_by = users.id`)
+    .where(
+      sql`inventory_movements.source_warehouse_id = ${warehouseId} OR inventory_movements.destination_warehouse_id = ${warehouseId}`
+    )
+    .orderBy(desc(inventoryMovements.performedAt))
+    .limit(100);
+    
+    console.log(`[ENHANCED_MOVEMENTS] ${movements.length} erweiterte Bewegungen geladen für Lager ${warehouseId}`);
+    
+    // Transformiere die Daten für Frontend-Kompatibilität
+    const formattedMovements = movements.map(movement => ({
+      id: movement.id,
+      productId: movement.productId,
+      productName: movement.productName,
+      movementType: movement.movementType,
+      quantity: movement.quantity,
+      referenceType: movement.referenceType,
+      referenceId: movement.referenceId,
+      performedAt: movement.performedAt,
+      performedBy: movement.performedBy,
+      performedByName: movement.performedByName || 'Unbekannt',
+      notes: movement.notes,
+      // Deutsche Beschreibung
+      description: movement.movementType === 'REFILL' 
+        ? `Refill von ${movement.performedByName || 'Unbekannt'}`
+        : `${movement.movementType} von ${movement.performedByName || 'Unbekannt'}`
+    }));
+    
+    res.json(formattedMovements);
+    
+  } catch (error) {
+    console.error('[ENHANCED_MOVEMENTS] Fehler beim Laden der erweiterten Bewegungen:', error);
+    res.status(500).json({ error: 'Fehler beim Laden der erweiterten Bewegungen' });
+  }
+});
+
 // Schema zur Validierung einer Produktübertragung
 const productTransferSchema = z.object({
   productId: z.union([z.number().positive(), z.string().transform(val => parseInt(val, 10))]).refine(val => val > 0, 'Produkt-ID muss eine positive Zahl sein'),
