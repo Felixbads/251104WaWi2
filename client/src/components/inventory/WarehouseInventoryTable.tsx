@@ -66,24 +66,24 @@ const WarehouseInventoryTable: React.FC<WarehouseInventoryTableProps> = ({ wareh
     queryKey: [`/api/inventory/warehouse/${warehouseId}`],
   });
   
-  // API-Abfrage für Warenbewegungen mit Benutzerdaten
+  // API-Abfrage für erweiterte Warenbewegungen über warehouse3 storage
   const { data: inventoryMovements = [], isLoading: isMovementsLoading } = useQuery({
-    queryKey: [`/api/inventory-movements`, warehouseId],
+    queryKey: [`/api/warehouse-movements/${warehouseId}/enhanced`],
     queryFn: async () => {
       try {
-        debug(`Lade Warenbewegungen für Lager ${warehouseId}...`);
-        const response = await fetch(`/api/inventory-movements?warehouseId=${warehouseId}&limit=100`);
+        debug(`Lade erweiterte Warenbewegungen für Lager ${warehouseId}...`);
+        const response = await fetch(`/api/warehouse-movements/${warehouseId}/enhanced`);
         if (!response.ok) {
-          debug(`Fehler beim Laden der Warenbewegungen, Status: ${response.status}`);
+          debug(`Fehler beim Laden der erweiterten Warenbewegungen, Status: ${response.status}`);
           return [];
         }
         
         const data = await response.json();
-        debug(`${data.length} Warenbewegungen geladen`);
+        debug(`${data.length} erweiterte Warenbewegungen geladen`);
         return data;
       } catch (error) {
-        console.error("Fehler beim Laden der Warenbewegungen:", error);
-        debug(`Exception beim Laden der Warenbewegungen: ${error}`);
+        console.error("Fehler beim Laden der erweiterten Warenbewegungen:", error);
+        debug(`Exception beim Laden der erweiterten Warenbewegungen: ${error}`);
         return [];
       }
     },
