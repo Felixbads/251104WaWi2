@@ -134,6 +134,8 @@ const WarehouseInventoryTable: React.FC<WarehouseInventoryTableProps> = ({ wareh
     
     debug(`Verarbeite ${inventoryMovements.length} Warenbewegungen zum Gruppieren`);
     
+    console.log('[DEBUG] Raw inventoryMovements:', inventoryMovements);
+    
     inventoryMovements.forEach((movement: any) => {
       // Verschiedene Produktid-Felder prüfen
       const productId = movement.productId || movement.product_id;
@@ -147,8 +149,10 @@ const WarehouseInventoryTable: React.FC<WarehouseInventoryTableProps> = ({ wareh
       }
       
       groupedMovements[productId].push(movement);
-      debug(`Bewegung für Produkt-ID ${productId} hinzugefügt:`, movement.movementType);
+      console.log(`[DEBUG] Bewegung für Produkt-ID ${productId} gruppiert: ${movement.movementType}`);
     });
+    
+    console.log('[DEBUG] Gruppierte Bewegungen:', groupedMovements);
     
     // Sortiere Bewegungen nach Datum (neueste zuerst)
     Object.keys(groupedMovements).forEach(productId => {
@@ -182,6 +186,9 @@ const WarehouseInventoryTable: React.FC<WarehouseInventoryTableProps> = ({ wareh
         return new Date(a.expiryDate).getTime() - new Date(b.expiryDate).getTime();
       });
     
+    console.log('[DEBUG] Raw allBatches:', allBatches);
+    console.log('[DEBUG] Raw filteredBatches:', filteredBatches);
+    
     filteredBatches.forEach((batch: any) => {
       // Verschiedene Produktid-Felder prüfen
       const productId = batch.productId || batch.product_id;
@@ -195,8 +202,10 @@ const WarehouseInventoryTable: React.FC<WarehouseInventoryTableProps> = ({ wareh
       }
       
       groupedBatches[productId].push(batch);
-      debug(`Batch für Produkt-ID ${productId} hinzugefügt:`, batch.batchNumber);
+      console.log(`[DEBUG] Batch für Produkt-ID ${productId} gruppiert: ${batch.batchNumber}`);
     });
+    
+    console.log('[DEBUG] Gruppierte Batches:', groupedBatches);
     
     // Debug-Log für Produkt 21
     if (allBatches.length > 0 && groupedBatches[21]) {
