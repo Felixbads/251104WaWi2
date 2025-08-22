@@ -876,8 +876,7 @@ router.get('/warehouse/:id', async (req, res) => {
       where: eq(schema.inventoryItems.warehouseId, warehouseId),
       with: {
         product: true
-      },
-
+      }
     });
 
     // Lade alle aktiven Batches für dieses Lager - für Chargen und MHD-Informationen
@@ -922,7 +921,6 @@ router.get('/warehouse/:id', async (req, res) => {
         warehouseId: item.warehouseId,
         productId: item.productId,
         quantity: item.quantity,
-        batchQuantity: batchQuantity, // Gesamtmenge aus allen Batches
         minQuantity: item.minQuantity,
         reorderPoint: item.reorderPoint,
         locationInWarehouse: item.locationInWarehouse,
@@ -932,14 +930,15 @@ router.get('/warehouse/:id', async (req, res) => {
         price: product?.price || 0,
         category: product?.category || '',
         unit: product?.unit || 'Stk.',
-        // NEUE Batch-Informationen - wie bei /refill-tracking
-        nextExpiryDate: nextExpiryDate ? nextExpiryDate.toISOString().split('T')[0] : null,
+        // NEUE Batch-Informationen - wie bei /refill-tracking  
+        nextExpiryDate: nextExpiryDate,
+        batchQuantity: batchQuantity, 
         batches: batches.map(batch => ({
           id: batch.id,
           batchNumber: batch.batchNumber,
           currentQuantity: batch.currentQuantity,
-          expiryDate: batch.expiryDate ? batch.expiryDate.toISOString().split('T')[0] : null,
-          manufacturingDate: batch.manufacturingDate ? batch.manufacturingDate.toISOString().split('T')[0] : null,
+          expiryDate: batch.expiryDate,
+          manufacturingDate: batch.manufacturingDate,
           locationInWarehouse: batch.locationInWarehouse
         }))
       };
