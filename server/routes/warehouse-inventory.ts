@@ -19,6 +19,7 @@ interface FormattedInventoryItem {
   targetQuantity?: number;
   locationInWarehouse?: string;
   nextExpiryDate?: string | null; // MHD des am frühesten ablaufenden Batches
+  batchNumber?: string | null; // Chargennummern (kommagetrennt wenn mehrere)
   [key: string]: any; // Für alle zusätzlichen Felder
 }
 
@@ -47,77 +48,98 @@ router.get('/', async (req: Request, res: Response) => {
         // Versuche einen Direct-Query statt ORM für bessere Kontrolle der SQL-Abfrage
         const offset = (page - 1) * pageSize;
         const directQuery = `
-          WITH inventory_data AS (
-            -- Inventardaten aus der inventory_items Tabelle
+          WITH inventory_with_batches AS (
+            -- Inventardaten mit Batch-Informationen
             SELECT 
               i.id, 
               i.warehouse_id as "warehouseId",
               i.product_id as "productId",
-              i.quantity,
+              -- Verwende Batch-Summe wenn verfügbar, sonst inventory_items Menge
+              COALESCE(batch_summary.total_quantity, i.quantity) as quantity,
               i.min_quantity as "minQuantity",
               i.status,
-              i.notes,
+              CASE 
+                WHEN batch_summary.batch_numbers IS NOT NULL 
+                THEN CONCAT(COALESCE(i.notes, ''), ' | Chargen: ', batch_summary.batch_numbers)
+                ELSE i.notes
+              END as notes,
               i.location_in_warehouse as "locationInWarehouse",
               COALESCE(i.updated_at, i.created_at) as "lastUpdated",
               p.product_name as "productName",
-              w.name as "warehouseName"
+              w.name as "warehouseName",
+              batch_summary.next_expiry_date as "nextExpiryDate",
+              batch_summary.batch_numbers as "batchNumber"
             FROM 
               inventory_items i
             LEFT JOIN
               products p ON i.product_id = p.id
             LEFT JOIN
               warehouses w ON i.warehouse_id = w.id
+            LEFT JOIN (
+              -- Aggregierte Batch-Daten pro Produkt-Lager-Kombination
+              SELECT 
+                pb.product_id,
+                pb.warehouse_id,
+                SUM(pb.current_quantity) as total_quantity,
+                MIN(pb.expiry_date) as next_expiry_date,
+                STRING_AGG(
+                  CONCAT(pb.batch_number, ' (MHD: ', TO_CHAR(pb.expiry_date, 'DD.MM.YYYY'), ', Menge: ', pb.current_quantity, ')'), 
+                  ', ' 
+                  ORDER BY pb.expiry_date ASC
+                ) as batch_numbers
+              FROM 
+                product_batches pb
+              WHERE 
+                pb.status = 'active'
+                ${!includeZeroStock ? 'AND pb.current_quantity > 0' : ''}
+              GROUP BY 
+                pb.product_id, pb.warehouse_id
+            ) batch_summary ON i.product_id = batch_summary.product_id AND i.warehouse_id = batch_summary.warehouse_id
             WHERE 
               i.warehouse_id = $1
-              ${!includeZeroStock ? 'AND i.quantity > 0' : ''}
-              ${critical ? 'AND i.quantity <= COALESCE(i.min_quantity, 0) AND i.quantity > 0' : ''}
+              ${!includeZeroStock ? 'AND COALESCE(batch_summary.total_quantity, i.quantity) > 0' : ''}
+              ${critical ? 'AND COALESCE(batch_summary.total_quantity, i.quantity) <= COALESCE(i.min_quantity, 0) AND COALESCE(batch_summary.total_quantity, i.quantity) > 0' : ''}
           ),
-          batch_data AS (
-            -- Aggregierte Batch-Daten für jedes Produkt
+          batch_only_products AS (
+            -- Produkte die nur in Batches existieren, aber nicht in inventory_items
             SELECT 
-              pb.product_id as "productId",
+              (-1 * (pb.product_id * 1000 + pb.warehouse_id)) as id,
               pb.warehouse_id as "warehouseId",
+              pb.product_id as "productId",
               SUM(pb.current_quantity) as quantity,
-              MIN(pb.expiry_date) as "nextExpiryDate",
+              5 as "minQuantity", -- Standardwert
+              'active' as status,
+              CONCAT('Automatisch aus Batches generiert | Chargen: ', 
+                STRING_AGG(
+                  CONCAT(pb.batch_number, ' (MHD: ', TO_CHAR(pb.expiry_date, 'DD.MM.YYYY'), ', Menge: ', pb.current_quantity, ')'), 
+                  ', ' 
+                  ORDER BY pb.expiry_date ASC
+                )
+              ) as notes,
+              NULL as "locationInWarehouse",
+              NOW() as "lastUpdated",
               p.product_name as "productName",
-              w.name as "warehouseName"
+              w.name as "warehouseName",
+              MIN(pb.expiry_date) as "nextExpiryDate",
+              STRING_AGG(pb.batch_number, ', ' ORDER BY pb.expiry_date ASC) as "batchNumber"
             FROM 
               product_batches pb
             LEFT JOIN
               products p ON pb.product_id = p.id
             LEFT JOIN
               warehouses w ON pb.warehouse_id = w.id
+            LEFT JOIN
+              inventory_items i ON pb.product_id = i.product_id AND pb.warehouse_id = i.warehouse_id
             WHERE 
               pb.status = 'active' 
               AND pb.warehouse_id = $1
+              AND i.id IS NULL -- Nur Produkte die NICHT in inventory_items sind
               ${!includeZeroStock ? 'AND pb.current_quantity > 0' : ''}
             GROUP BY 
               pb.product_id, pb.warehouse_id, p.product_name, w.name
-          ),
-          -- Produkte in diesem Lager, die nicht in inventory_items sind, aber in Batches existieren
-          batch_only_products AS (
-            SELECT 
-              (-1 * (b."productId" * 1000 + b."warehouseId")) as id,
-              b."warehouseId",
-              b."productId",
-              b.quantity,
-              5 as "minQuantity", -- Standardwert
-              'active' as status,
-              'Automatisch aus Batches generiert' as notes,
-              NULL as "locationInWarehouse",
-              NOW() as "lastUpdated",
-              b."productName",
-              b."warehouseName",
-              b."nextExpiryDate"
-            FROM 
-              batch_data b
-            LEFT JOIN
-              inventory_data i ON b."productId" = i."productId" AND b."warehouseId" = i."warehouseId"
-            WHERE 
-              i.id IS NULL
           )
           -- Kombiniere die Ergebnisse
-          SELECT * FROM inventory_data
+          SELECT * FROM inventory_with_batches
           UNION ALL
           SELECT * FROM batch_only_products
           ORDER BY "productName"
@@ -127,23 +149,40 @@ router.get('/', async (req: Request, res: Response) => {
         
         // Count query for total items
         const countQuery = `
-          WITH inventory_data AS (
+          WITH inventory_with_batches AS (
             SELECT i.id
             FROM inventory_items i
-            WHERE i.warehouse_id = $1
-              ${!includeZeroStock ? 'AND i.quantity > 0' : ''}
-              ${critical ? 'AND i.quantity <= COALESCE(i.min_quantity, 0) AND i.quantity > 0' : ''}
+            LEFT JOIN (
+              SELECT 
+                pb.product_id,
+                pb.warehouse_id,
+                SUM(pb.current_quantity) as total_quantity
+              FROM 
+                product_batches pb
+              WHERE 
+                pb.status = 'active'
+                ${!includeZeroStock ? 'AND pb.current_quantity > 0' : ''}
+              GROUP BY 
+                pb.product_id, pb.warehouse_id
+            ) batch_summary ON i.product_id = batch_summary.product_id AND i.warehouse_id = batch_summary.warehouse_id
+            WHERE 
+              i.warehouse_id = $1
+              ${!includeZeroStock ? 'AND COALESCE(batch_summary.total_quantity, i.quantity) > 0' : ''}
+              ${critical ? 'AND COALESCE(batch_summary.total_quantity, i.quantity) <= COALESCE(i.min_quantity, 0) AND COALESCE(batch_summary.total_quantity, i.quantity) > 0' : ''}
           ),
-          batch_data AS (
+          batch_only_products AS (
             SELECT DISTINCT pb.product_id
             FROM product_batches pb
-            WHERE pb.status = 'active' AND pb.warehouse_id = $1
+            LEFT JOIN inventory_items i ON pb.product_id = i.product_id AND pb.warehouse_id = i.warehouse_id
+            WHERE pb.status = 'active' 
+              AND pb.warehouse_id = $1
+              AND i.id IS NULL
               ${!includeZeroStock ? 'AND pb.current_quantity > 0' : ''}
           )
           SELECT COUNT(*) as total FROM (
-            SELECT id FROM inventory_data
+            SELECT id FROM inventory_with_batches
             UNION
-            SELECT product_id as id FROM batch_data
+            SELECT product_id as id FROM batch_only_products
           ) combined;
         `;
         
@@ -284,8 +323,8 @@ router.get('/', async (req: Request, res: Response) => {
     
     if (batchInventory.length > 0) {
       // Sammle alle Produkt-IDs und Lager-IDs
-      const productIds = [...new Set(batchInventory.map(item => item.productId))];
-      const warehouseIds = [...new Set(batchInventory.map(item => item.warehouseId))];
+      const productIds = Array.from(new Set(batchInventory.map(item => item.productId)));
+      const warehouseIds = Array.from(new Set(batchInventory.map(item => item.warehouseId)));
       
       // Lade alle Produktdaten in einem einzigen Query
       const productData = await db
@@ -312,56 +351,91 @@ router.get('/', async (req: Request, res: Response) => {
     }
     
     // Zuerst alle bestehenden Inventareinträge
-    let formattedInventory: FormattedInventoryItem[] = inventoryItems.map(item => {
-      // Erstelle ein Basisobjekt mit den garantierten Feldern
-      const inventoryItem: FormattedInventoryItem = {
-        id: item.id,
-        warehouseId: item.warehouseId,
-        productId: item.productId,
-        quantity: item.quantity || 0,
-        minQuantity: item.minQuantity || 0,
-        status: item.status || 'active',
-        notes: item.notes || '',
-        lastUpdated: item.updatedAt || item.createdAt || new Date()
-      };
-      
-      // Suche nach Batch-Daten für dieses Produkt-Lager-Paar
-      const batchData = batchInventory.find(
-        batch => batch.productId === item.productId && batch.warehouseId === item.warehouseId
-      );
-      
-      // Wenn Batch-Daten vorhanden sind, aktualisiere die Menge und setze das Ablaufdatum
-      if (batchData) {
-        // Bei aktiven Batches verwenden wir die Batch-Menge
-        if (item.status === 'active') {
-          inventoryItem.quantity = batchData.quantity;
+    let formattedInventory: FormattedInventoryItem[] = await Promise.all(
+      inventoryItems.map(async (item) => {
+        // Erstelle ein Basisobjekt mit den garantierten Feldern
+        const inventoryItem: FormattedInventoryItem = {
+          id: item.id,
+          warehouseId: item.warehouseId,
+          productId: item.productId,
+          quantity: item.quantity || 0,
+          minQuantity: item.minQuantity || 0,
+          status: item.status || 'active',
+          notes: item.notes || '',
+          lastUpdated: item.updatedAt || item.createdAt || new Date()
+        };
+        
+        // Suche nach Batch-Daten für dieses Produkt-Lager-Paar
+        const batchData = batchInventory.find(
+          batch => batch.productId === item.productId && batch.warehouseId === item.warehouseId
+        );
+        
+        // Wenn Batch-Daten vorhanden sind, aktualisiere die Menge und setze das Ablaufdatum
+        if (batchData) {
+          // Bei aktiven Batches verwenden wir die Batch-Menge
+          if (item.status === 'active') {
+            inventoryItem.quantity = batchData.quantity;
+          }
+          inventoryItem.nextExpiryDate = batchData.nextExpiryDate;
+          
+          // Hole detaillierte Batch-Informationen für dieses Produkt-Lager-Paar
+          try {
+            const detailedBatches = await db
+              .select({
+                batchNumber: productBatches.batchNumber,
+                expiryDate: productBatches.expiryDate,
+                currentQuantity: productBatches.currentQuantity
+              })
+              .from(productBatches)
+              .where(
+                and(
+                  eq(productBatches.productId, item.productId),
+                  eq(productBatches.warehouseId, item.warehouseId),
+                  eq(productBatches.status, 'active')
+                )
+              )
+              .orderBy(asc(productBatches.expiryDate));
+            
+            if (detailedBatches.length > 0) {
+              // Erstelle eine formatierte Batch-String
+              const batchStrings = detailedBatches.map(batch => 
+                `${batch.batchNumber} (MHD: ${batch.expiryDate ? new Date(batch.expiryDate).toLocaleDateString('de-DE') : 'N/A'}, Menge: ${batch.currentQuantity})`
+              );
+              inventoryItem.batchNumber = batchStrings.join(', ');
+              
+              // Aktualisiere die Notes mit Batch-Informationen
+              const originalNotes = inventoryItem.notes || '';
+              inventoryItem.notes = originalNotes ? `${originalNotes} | Chargen: ${batchStrings.join(', ')}` : `Chargen: ${batchStrings.join(', ')}`;
+            }
+          } catch (error) {
+            console.error(`Error fetching detailed batch information for product ${item.productId}:`, error);
+          }
         }
-        inventoryItem.nextExpiryDate = batchData.nextExpiryDate;
-      }
-      
-      // Füge optionale Felder hinzu, wenn sie existieren
-      if ('productName' in item && item.productName) {
-        inventoryItem.productName = item.productName;
-      } else if (productInfoMap.has(item.productId)) {
-        inventoryItem.productName = productInfoMap.get(item.productId).productName;
-      }
-      
-      if ('warehouseName' in item && item.warehouseName) {
-        inventoryItem.warehouseName = item.warehouseName;
-      } else if (warehouseInfoMap.has(item.warehouseId)) {
-        inventoryItem.warehouseName = warehouseInfoMap.get(item.warehouseId).name;
-      }
-      
-      if ('targetQuantity' in item) {
-        inventoryItem.targetQuantity = item.targetQuantity;
-      }
-      
-      if ('locationInWarehouse' in item) {
-        inventoryItem.locationInWarehouse = item.locationInWarehouse;
-      }
-      
-      return inventoryItem;
-    });
+        
+        // Füge optionale Felder hinzu, wenn sie existieren
+        if ('productName' in item && item.productName) {
+          inventoryItem.productName = item.productName;
+        } else if (productInfoMap.has(item.productId)) {
+          inventoryItem.productName = productInfoMap.get(item.productId).productName;
+        }
+        
+        if ('warehouseName' in item && item.warehouseName) {
+          inventoryItem.warehouseName = item.warehouseName;
+        } else if (warehouseInfoMap.has(item.warehouseId)) {
+          inventoryItem.warehouseName = warehouseInfoMap.get(item.warehouseId).name;
+        }
+        
+        if ('targetQuantity' in item) {
+          inventoryItem.targetQuantity = item.targetQuantity;
+        }
+        
+        if ('locationInWarehouse' in item) {
+          inventoryItem.locationInWarehouse = item.locationInWarehouse;
+        }
+        
+        return inventoryItem;
+      })
+    );
     
     // Jetzt füge alle Batch-Einträge hinzu, die noch nicht im traditionellen Inventar sind
     // Erstelle eine Map der vorhandenen Einträge für schnellen Zugriff
@@ -390,6 +464,37 @@ router.get('/', async (req: Request, res: Response) => {
         continue;
       }
       
+      // Hole detaillierte Batch-Informationen für dieses Produkt
+      let batchDetails = '';
+      let batchNumbers = '';
+      try {
+        const detailedBatches = await db
+          .select({
+            batchNumber: productBatches.batchNumber,
+            expiryDate: productBatches.expiryDate,
+            currentQuantity: productBatches.currentQuantity
+          })
+          .from(productBatches)
+          .where(
+            and(
+              eq(productBatches.productId, batchItem.productId),
+              eq(productBatches.warehouseId, batchItem.warehouseId),
+              eq(productBatches.status, 'active')
+            )
+          )
+          .orderBy(asc(productBatches.expiryDate));
+        
+        if (detailedBatches.length > 0) {
+          const batchStrings = detailedBatches.map(batch => 
+            `${batch.batchNumber} (MHD: ${batch.expiryDate ? new Date(batch.expiryDate).toLocaleDateString('de-DE') : 'N/A'}, Menge: ${batch.currentQuantity})`
+          );
+          batchDetails = batchStrings.join(', ');
+          batchNumbers = detailedBatches.map(batch => batch.batchNumber).join(', ');
+        }
+      } catch (error) {
+        console.error(`Error fetching detailed batch information for batch-only product ${batchItem.productId}:`, error);
+      }
+      
       // Erstelle einen neuen Eintrag basierend auf Batch-Daten
       const newInventoryItem: FormattedInventoryItem = {
         // Virtuelle ID für Batch-basierte Einträge
@@ -399,11 +504,12 @@ router.get('/', async (req: Request, res: Response) => {
         quantity: batchItem.quantity,
         minQuantity: 5, // Standardwert
         status: 'active',
-        notes: 'Automatisch aus Batches generiert',
+        notes: batchDetails ? `Automatisch aus Batches generiert | Chargen: ${batchDetails}` : 'Automatisch aus Batches generiert',
         lastUpdated: new Date(),
         productName: productInfo.productName,
         warehouseName: warehouseInfo ? warehouseInfo.name : 'Unbekanntes Lager',
-        nextExpiryDate: batchItem.nextExpiryDate
+        nextExpiryDate: batchItem.nextExpiryDate,
+        batchNumber: batchNumbers || null
       };
       
       formattedInventory.push(newInventoryItem);
