@@ -80,6 +80,13 @@ const WarehouseInventoryTable: React.FC<WarehouseInventoryTableProps> = ({ wareh
         
         const data = await response.json();
         debug(`${data.length} erweiterte Warenbewegungen geladen`);
+        
+        // Debug: Zeige tatsächliche API-Response-Struktur
+        if (data.length > 0) {
+          console.log('[API DEBUG] Erste Warenbewegung:', data[0]);
+          console.log('[API DEBUG] Verfügbare Felder:', Object.keys(data[0]));
+        }
+        
         return data;
       } catch (error) {
         console.error("Fehler beim Laden der erweiterten Warenbewegungen:", error);
@@ -105,12 +112,10 @@ const WarehouseInventoryTable: React.FC<WarehouseInventoryTableProps> = ({ wareh
         const data = await response.json();
         debug(`${data.length} Batches geladen`);
         
-        // Teste speziell nach Produkt 21
-        const product21Batches = data.filter((batch: any) => batch.productId === 21);
-        if (product21Batches.length > 0) {
-          debug(`${product21Batches.length} Batches für Produkt 21 gefunden`, product21Batches);
-        } else {
-          debug(`Keine Batches für Produkt 21 in der API-Antwort gefunden`);
+        // Debug: Zeige tatsächliche API-Response-Struktur
+        if (data.length > 0) {
+          console.log('[API DEBUG] Erster Batch:', data[0]);
+          console.log('[API DEBUG] Verfügbare Felder:', Object.keys(data[0]));
         }
         
         return data;
@@ -130,16 +135,19 @@ const WarehouseInventoryTable: React.FC<WarehouseInventoryTableProps> = ({ wareh
     debug(`Verarbeite ${inventoryMovements.length} Warenbewegungen zum Gruppieren`);
     
     inventoryMovements.forEach((movement: any) => {
-      if (!movement.productId) {
+      // Verschiedene Produktid-Felder prüfen
+      const productId = movement.productId || movement.product_id;
+      if (!productId) {
         debug(`Warenbewegung ohne productId gefunden:`, movement);
         return;
       }
       
-      if (!groupedMovements[movement.productId]) {
-        groupedMovements[movement.productId] = [];
+      if (!groupedMovements[productId]) {
+        groupedMovements[productId] = [];
       }
       
-      groupedMovements[movement.productId].push(movement);
+      groupedMovements[productId].push(movement);
+      debug(`Bewegung für Produkt-ID ${productId} hinzugefügt:`, movement.movementType);
     });
     
     // Sortiere Bewegungen nach Datum (neueste zuerst)
@@ -175,16 +183,19 @@ const WarehouseInventoryTable: React.FC<WarehouseInventoryTableProps> = ({ wareh
       });
     
     filteredBatches.forEach((batch: any) => {
-      if (!batch.productId) {
+      // Verschiedene Produktid-Felder prüfen
+      const productId = batch.productId || batch.product_id;
+      if (!productId) {
         debug(`Batch ohne productId gefunden:`, batch);
         return;
       }
       
-      if (!groupedBatches[batch.productId]) {
-        groupedBatches[batch.productId] = [];
+      if (!groupedBatches[productId]) {
+        groupedBatches[productId] = [];
       }
       
-      groupedBatches[batch.productId].push(batch);
+      groupedBatches[productId].push(batch);
+      debug(`Batch für Produkt-ID ${productId} hinzugefügt:`, batch.batchNumber);
     });
     
     // Debug-Log für Produkt 21
