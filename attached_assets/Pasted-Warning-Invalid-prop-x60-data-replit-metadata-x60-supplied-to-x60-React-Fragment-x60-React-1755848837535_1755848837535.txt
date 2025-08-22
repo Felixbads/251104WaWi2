@@ -1,0 +1,149 @@
+Warning: Invalid prop &#x60;data-replit-metadata&#x60; supplied to &#x60;React.Fragment&#x60;. React.Fragment can only have &#x60;key&#x60; and &#x60;children&#x60; props.
+WarehouseInventoryTable@https://0882af2d-5e2d-4c19-9208-930be7887108-00-1xybeskgjqft9.sisko.replit.dev/src/components/inventory/WarehouseInventoryTable.tsx:63:47
+div
+TabsContent@https://0882af2d-5e2d-4c19-9208-930be7887108-00-1xybeskgjqft9.sisko.replit.dev/src/components/ui/tabs.tsx:141:4
+div
+Tabs@https://0882af2d-5e2d-4c19-9208-930be7887108-00-1xybeskgjqft9.sisko.replit.dev/src/components/ui/tabs.tsx:31:22
+div
+WarehouseInventoryPage@https://0882af2d-5e2d-4c19-9208-930be7887108-00-1xybeskgjqft9.sisko.replit.dev/src/pages/warehouse/WarehouseInventoryPage.tsx:38:27
+ApprovedUserRoute@https://0882af2d-5e2d-4c19-9208-930be7887108-00-1xybeskgjqft9.sisko.replit.dev/src/components/auth/ApprovedUserRoute.tsx:22:5
+Route@https://0882af2d-5e2d-4c19-9208-930be7887108-00-1xybeskgjqft9.sisko.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js:323:14
+Switch@https://0882af2d-5e2d-4c19-9208-930be7887108-00-1xybeskgjqft9.sisko.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js:380:27
+div
+main
+div
+AppShell@https://0882af2d-5e2d-4c19-9208-930be7887108-00-1xybeskgjqft9.sisko.replit.dev/src/components/layout/AppShell.tsx:203:5
+Layout@https://0882af2d-5e2d-4c19-9208-930be7887108-00-1xybeskgjqft9.sisko.replit.dev/src/components/layout/Layout.tsx:19:32
+AuthenticatedRouter@https://0882af2d-5e2d-4c19-9208-930be7887108-00-1xybeskgjqft9.sisko.replit.dev/src/App.tsx:152:27
+MainRouter@https://0882af2d-5e2d-4c19-9208-930be7887108-00-1xybeskgjqft9.sisko.replit.dev/src/App.tsx:1463:55
+InventoryCartProvider@https://0882af2d-5e2d-4c19-9208-930be7887108-00-1xybeskgjqft9.sisko.replit.dev/src/components/inventory/InventoryCartContext.tsx:21:5
+AuthProvider@https://0882af2d-5e2d-4c19-9208-930be7887108-00-1xybeskgjqft9.sisko.replit.dev/src/lib/auth.tsx:32:6
+QueryClientProvider@https://0882af2d-5e2d-4c19-9208-930be7887108-00-1xybeskgjqft9.sisko.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@tanstack_react-query.js:2805:9
+ErrorBoundary@https://0882af2d-5e2d-4c19-9208-930be7887108-00-1xybeskgjqft9.sisko.replit.dev/src/components/ErrorBoundary.tsx:10:10
+App
+[DEBUG] [EXPANDED] Produkt-ID 86: 0 Batches, 0 Bewegungen 
+Warning: Invalid prop &#x60;data-replit-metadata&#x60; supplied to &#x60;React.Fragment&#x60;. React.Fragment can only have &#x60;key&#x60; and &#x60;children&#x60; props.
+WarehouseInventoryTable@https://0882af2d-5e2d-4c19-9208-930be7887108-00-1xybeskgjqft9.sisko.replit.dev/src/components/inventory/WarehouseInventoryTable.tsx:63:47
+div
+TabsContent@https://0882af2d-5e2d-4c19-9208-930be7887108-00-1xybeskgjqft9.sisko.replit.dev/src/components/ui/tabs.tsx:141:4
+div
+Tabs@https://0882af2d-5e2d-4c19-9208-930be7887108-00-1xybeskgjqft9.sisko.replit.dev/src/components/ui/tabs.tsx:31:22
+div
+WarehouseInventoryPage@https://0882af2d-5e2d-4c19-9208-930be7887108-00-1xybeskgjqft9.sisko.replit.dev/src/pages/warehouse/WarehouseInventoryPage.tsx:38:27
+ApprovedUserRoute@https://0882af2d-5e2d-4c19-9208-930be7887108-00-1xybeskgjqft9.sisko.replit.dev/src/components/auth/ApprovedUserRoute.tsx:22:5
+Route@https://0882af2d-5e2d-4c19-9208-930be7887108-00-1xybeskgjqft9.sisko.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js:323:14
+Switch@https://0882af2d-5e2d-4c19-9208-930be7887108-00-1xybeskgjqft9.sisko.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js:380:27
+div
+main
+div
+AppShell@https://0882af2d-5e2d-4c19-9208-930be7887108-00-1xybeskgjqft9.sisko.replit.dev/src/components/layout/AppShell.tsx:203:5
+Layout@https://0882af2d-5e2d-4c19-9208-930be7887108-00-1xybeskgjqft9.sisko.replit.dev/src/components/layout/Layout.tsx:19:32
+AuthenticatedRouter@https://0882af2d-5e2d-4c19-9208-930be7887108-00-1xybeskgjqft9.sisko.replit.dev/src/App.tsx:152:27
+MainRouter@https://0882af2d-5e2d-4c19-9208-930be7887108-00-1xybeskgjqft9.sisko.replit.dev/src/App.tsx:1463:55
+InventoryCartProvider@https://0882af2d-5e2d-4c19-9208-930be7887108-00-1xybeskgjqft9.sisko.replit.dev/src/components/inventory/InventoryCartContext.tsx:21:5
+AuthProvider@https://0882af2d-5e2d-4c19-9208-930be7887108-00-1xybeskgjqft9.sisko.replit.dev/src/lib/auth.tsx:32:6
+QueryClientProvider@https://0882af2d-5e2d-4c19-9208-930be7887108-00-1xybeskgjqft9.sisko.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@tanstack_react-query.js:2805:9
+ErrorBoundary@https://0882af2d-5e2d-4c19-9208-930be7887108-00-1xybeskgjqft9.sisko.replit.dev/src/components/ErrorBoundary.tsx:10:10
+App
+t@https://0882af2d-5e2d-4c19-9208-930be7887108-00-1xybeskgjqft9.sisko.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:12639
+value@https://0882af2d-5e2d-4c19-9208-930be7887108-00-1xybeskgjqft9.sisko.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:32772
+@https://0882af2d-5e2d-4c19-9208-930be7887108-00-1xybeskgjqft9.sisko.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:34410
+[vite] hot updated: /src/components/inventory/WarehouseInventoryTable.tsx
+[vite] hot updated: /src/index.css?v=bBL3bP55xDCK3W-j97AM5
+[DEBUG] Verarbeite 10 Warenbewegungen zum Gruppieren 
+[DEBUG] Raw inventoryMovements: 
+(10) [{…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}]
+[DEBUG] Bewegung für Produkt-ID 84 gruppiert: REFILL
+[DEBUG] Bewegung für Produkt-ID 81 gruppiert: REFILL
+[DEBUG] Bewegung für Produkt-ID 102 gruppiert: REFILL
+[DEBUG] Bewegung für Produkt-ID 101 gruppiert: REFILL
+[DEBUG] Bewegung für Produkt-ID 2 gruppiert: REFILL
+[DEBUG] Bewegung für Produkt-ID 100 gruppiert: REFILL
+[DEBUG] Bewegung für Produkt-ID 3 gruppiert: REFILL
+[DEBUG] Bewegung für Produkt-ID 4 gruppiert: REFILL
+[DEBUG] Bewegung für Produkt-ID 6 gruppiert: REFILL
+[DEBUG] Bewegung für Produkt-ID 5 gruppiert: REFILL
+[DEBUG] Gruppierte Bewegungen: 
+Object {2: Array(1), 3: Array(1), 4: Array(1), 5: Array(1), 6: Array(1), …}
+[DEBUG] Verarbeite 1 Batches zum Gruppieren 
+[DEBUG] Raw allBatches: 
+Array [{…}]
+[DEBUG] Raw filteredBatches: 
+Array [{…}]
+[DEBUG] Batch für Produkt-ID 84 gruppiert: EI-2025-001
+[DEBUG] Gruppierte Batches: 
+Object {84: Array(1)}
+[DEBUG] Keine Batches für Produkt 21 gefunden 
+[DEBUG] Manuelle Suche nach Produkt 21: 0 Batches gefunden 
+Array []
+Warning: Invalid prop &#x60;data-replit-metadata&#x60; supplied to &#x60;React.Fragment&#x60;. React.Fragment can only have &#x60;key&#x60; and &#x60;children&#x60; props.
+WarehouseInventoryTable@https://0882af2d-5e2d-4c19-9208-930be7887108-00-1xybeskgjqft9.sisko.replit.dev/src/components/inventory/WarehouseInventoryTable.tsx:63:47
+div
+TabsContent@https://0882af2d-5e2d-4c19-9208-930be7887108-00-1xybeskgjqft9.sisko.replit.dev/src/components/ui/tabs.tsx:141:4
+div
+Tabs@https://0882af2d-5e2d-4c19-9208-930be7887108-00-1xybeskgjqft9.sisko.replit.dev/src/components/ui/tabs.tsx:31:22
+div
+WarehouseInventoryPage@https://0882af2d-5e2d-4c19-9208-930be7887108-00-1xybeskgjqft9.sisko.replit.dev/src/pages/warehouse/WarehouseInventoryPage.tsx:38:27
+ApprovedUserRoute@https://0882af2d-5e2d-4c19-9208-930be7887108-00-1xybeskgjqft9.sisko.replit.dev/src/components/auth/ApprovedUserRoute.tsx:22:5
+Route@https://0882af2d-5e2d-4c19-9208-930be7887108-00-1xybeskgjqft9.sisko.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js:323:14
+Switch@https://0882af2d-5e2d-4c19-9208-930be7887108-00-1xybeskgjqft9.sisko.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js:380:27
+div
+main
+div
+AppShell@https://0882af2d-5e2d-4c19-9208-930be7887108-00-1xybeskgjqft9.sisko.replit.dev/src/components/layout/AppShell.tsx:203:5
+Layout@https://0882af2d-5e2d-4c19-9208-930be7887108-00-1xybeskgjqft9.sisko.replit.dev/src/components/layout/Layout.tsx:19:32
+AuthenticatedRouter@https://0882af2d-5e2d-4c19-9208-930be7887108-00-1xybeskgjqft9.sisko.replit.dev/src/App.tsx:152:27
+MainRouter@https://0882af2d-5e2d-4c19-9208-930be7887108-00-1xybeskgjqft9.sisko.replit.dev/src/App.tsx:1463:55
+InventoryCartProvider@https://0882af2d-5e2d-4c19-9208-930be7887108-00-1xybeskgjqft9.sisko.replit.dev/src/components/inventory/InventoryCartContext.tsx:21:5
+AuthProvider@https://0882af2d-5e2d-4c19-9208-930be7887108-00-1xybeskgjqft9.sisko.replit.dev/src/lib/auth.tsx:32:6
+QueryClientProvider@https://0882af2d-5e2d-4c19-9208-930be7887108-00-1xybeskgjqft9.sisko.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@tanstack_react-query.js:2805:9
+ErrorBoundary@https://0882af2d-5e2d-4c19-9208-930be7887108-00-1xybeskgjqft9.sisko.replit.dev/src/components/ErrorBoundary.tsx:10:10
+App
+[DEBUG] [EXPANDED] Produkt-ID 117: 0 Batches, 0 Bewegungen 
+Warning: Invalid prop &#x60;data-replit-metadata&#x60; supplied to &#x60;React.Fragment&#x60;. React.Fragment can only have &#x60;key&#x60; and &#x60;children&#x60; props.
+WarehouseInventoryTable@https://0882af2d-5e2d-4c19-9208-930be7887108-00-1xybeskgjqft9.sisko.replit.dev/src/components/inventory/WarehouseInventoryTable.tsx:63:47
+div
+TabsContent@https://0882af2d-5e2d-4c19-9208-930be7887108-00-1xybeskgjqft9.sisko.replit.dev/src/components/ui/tabs.tsx:141:4
+div
+Tabs@https://0882af2d-5e2d-4c19-9208-930be7887108-00-1xybeskgjqft9.sisko.replit.dev/src/components/ui/tabs.tsx:31:22
+div
+WarehouseInventoryPage@https://0882af2d-5e2d-4c19-9208-930be7887108-00-1xybeskgjqft9.sisko.replit.dev/src/pages/warehouse/WarehouseInventoryPage.tsx:38:27
+ApprovedUserRoute@https://0882af2d-5e2d-4c19-9208-930be7887108-00-1xybeskgjqft9.sisko.replit.dev/src/components/auth/ApprovedUserRoute.tsx:22:5
+Route@https://0882af2d-5e2d-4c19-9208-930be7887108-00-1xybeskgjqft9.sisko.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js:323:14
+Switch@https://0882af2d-5e2d-4c19-9208-930be7887108-00-1xybeskgjqft9.sisko.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js:380:27
+div
+main
+div
+AppShell@https://0882af2d-5e2d-4c19-9208-930be7887108-00-1xybeskgjqft9.sisko.replit.dev/src/components/layout/AppShell.tsx:203:5
+Layout@https://0882af2d-5e2d-4c19-9208-930be7887108-00-1xybeskgjqft9.sisko.replit.dev/src/components/layout/Layout.tsx:19:32
+AuthenticatedRouter@https://0882af2d-5e2d-4c19-9208-930be7887108-00-1xybeskgjqft9.sisko.replit.dev/src/App.tsx:152:27
+MainRouter@https://0882af2d-5e2d-4c19-9208-930be7887108-00-1xybeskgjqft9.sisko.replit.dev/src/App.tsx:1463:55
+InventoryCartProvider@https://0882af2d-5e2d-4c19-9208-930be7887108-00-1xybeskgjqft9.sisko.replit.dev/src/components/inventory/InventoryCartContext.tsx:21:5
+AuthProvider@https://0882af2d-5e2d-4c19-9208-930be7887108-00-1xybeskgjqft9.sisko.replit.dev/src/lib/auth.tsx:32:6
+QueryClientProvider@https://0882af2d-5e2d-4c19-9208-930be7887108-00-1xybeskgjqft9.sisko.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@tanstack_react-query.js:2805:9
+ErrorBoundary@https://0882af2d-5e2d-4c19-9208-930be7887108-00-1xybeskgjqft9.sisko.replit.dev/src/components/ErrorBoundary.tsx:10:10
+App
+[DEBUG] [EXPANDED] Produkt-ID 115: 0 Batches, 0 Bewegungen 
+Warning: Invalid prop &#x60;data-replit-metadata&#x60; supplied to &#x60;React.Fragment&#x60;. React.Fragment can only have &#x60;key&#x60; and &#x60;children&#x60; props.
+WarehouseInventoryTable@https://0882af2d-5e2d-4c19-9208-930be7887108-00-1xybeskgjqft9.sisko.replit.dev/src/components/inventory/WarehouseInventoryTable.tsx:63:47
+div
+TabsContent@https://0882af2d-5e2d-4c19-9208-930be7887108-00-1xybeskgjqft9.sisko.replit.dev/src/components/ui/tabs.tsx:141:4
+div
+Tabs@https://0882af2d-5e2d-4c19-9208-930be7887108-00-1xybeskgjqft9.sisko.replit.dev/src/components/ui/tabs.tsx:31:22
+div
+WarehouseInventoryPage@https://0882af2d-5e2d-4c19-9208-930be7887108-00-1xybeskgjqft9.sisko.replit.dev/src/pages/warehouse/WarehouseInventoryPage.tsx:38:27
+ApprovedUserRoute@https://0882af2d-5e2d-4c19-9208-930be7887108-00-1xybeskgjqft9.sisko.replit.dev/src/components/auth/ApprovedUserRoute.tsx:22:5
+Route@https://0882af2d-5e2d-4c19-9208-930be7887108-00-1xybeskgjqft9.sisko.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js:323:14
+Switch@https://0882af2d-5e2d-4c19-9208-930be7887108-00-1xybeskgjqft9.sisko.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js:380:27
+div
+main
+div
+AppShell@https://0882af2d-5e2d-4c19-9208-930be7887108-00-1xybeskgjqft9.sisko.replit.dev/src/components/layout/AppShell.tsx:203:5
+Layout@https://0882af2d-5e2d-4c19-9208-930be7887108-00-1xybeskgjqft9.sisko.replit.dev/src/components/layout/Layout.tsx:19:32
+AuthenticatedRouter@https://0882af2d-5e2d-4c19-9208-930be7887108-00-1xybeskgjqft9.sisko.replit.dev/src/App.tsx:152:27
+MainRouter@https://0882af2d-5e2d-4c19-9208-930be7887108-00-1xybeskgjqft9.sisko.replit.dev/src/App.tsx:1463:55
+InventoryCartProvider@https://0882af2d-5e2d-4c19-9208-930be7887108-00-1xybeskgjqft9.sisko.replit.dev/src/components/inventory/InventoryCartContext.tsx:21:5
+AuthProvider@https://0882af2d-5e2d-4c19-9208-930be7887108-00-1xybeskgjqft9.sisko.replit.dev/src/lib/auth.tsx:32:6
+QueryClientProvider@https://0882af2d-5e2d-4c19-9208-930be7887108-00-1xybeskgjqft9.sisko.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@tanstack_react-query.js:2805:9
+ErrorBoundary@https://0882af2d-5e2d-4c19-9208-930be7887108-00-1xybeskgjqft9.sisko.replit.dev/src/components/ErrorBoundary.tsx:10:10
+App
