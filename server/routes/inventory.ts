@@ -10,7 +10,8 @@ const {
   inventoryCountItems,
   inventoryCountBatches,
   inventoryItems,
-  warehouses
+  warehouses,
+  productBatches
 } = schema;
 
 const router = express.Router();
@@ -821,7 +822,7 @@ router.get('/warehouse/:id/inventory', async (req, res) => {
       with: {
         product: true
       },
-      orderBy: [asc(schema.inventoryItems.productId)]
+
     });
 
     // Formatiere die Antwort mit korrekten Produktnamen
@@ -876,17 +877,52 @@ router.get('/warehouse/:id', async (req, res) => {
       with: {
         product: true
       },
-      orderBy: [asc(schema.inventoryItems.productId)]
+
     });
 
-    // Formatiere die Antwort mit korrekten Produktnamen
+    // Lade alle aktiven Batches für dieses Lager - für Chargen und MHD-Informationen
+    const activeBatches = await db.select({
+      id: productBatches.id,
+      productId: productBatches.productId,
+      batchNumber: productBatches.batchNumber,
+      currentQuantity: productBatches.currentQuantity,
+      expiryDate: productBatches.expiryDate,
+      manufacturingDate: productBatches.manufacturingDate,
+      locationInWarehouse: productBatches.locationInWarehouse
+    })
+    .from(productBatches)
+    .where(
+      and(
+        eq(productBatches.warehouseId, warehouseId),
+        gt(productBatches.currentQuantity, 0)
+      )
+    )
+    .orderBy(productBatches.expiryDate);
+    
+    // Erstelle Map für Batch-Daten nach Produkt-ID
+    const batchesByProduct = new Map();
+    activeBatches.forEach(batch => {
+      if (!batchesByProduct.has(batch.productId)) {
+        batchesByProduct.set(batch.productId, []);
+      }
+      batchesByProduct.get(batch.productId).push(batch);
+    });
+
+    // Formatiere die Antwort mit korrekten Produktnamen + Batch-Informationen
     const formattedInventory = inventoryItems.map(item => {
       const product = Array.isArray(item.product) ? item.product[0] : item.product;
+      const batches = batchesByProduct.get(item.productId) || [];
+      
+      // Bestimme die nächste Ablaufzeit und Gesamtmenge aus Batches
+      const nextExpiryDate = batches.length > 0 ? batches[0].expiryDate : null;
+      const batchQuantity = batches.length > 0 ? batches.reduce((sum, batch) => sum + (batch.currentQuantity || 0), 0) : 0;
+      
       return {
         id: item.id,
         warehouseId: item.warehouseId,
         productId: item.productId,
         quantity: item.quantity,
+        batchQuantity: batchQuantity, // Gesamtmenge aus allen Batches
         minQuantity: item.minQuantity,
         reorderPoint: item.reorderPoint,
         locationInWarehouse: item.locationInWarehouse,
@@ -895,9 +931,20 @@ router.get('/warehouse/:id', async (req, res) => {
         sku: product?.sku || '',
         price: product?.price || 0,
         category: product?.category || '',
-        unit: product?.unit || 'Stk.'
+        unit: product?.unit || 'Stk.',
+        // NEUE Batch-Informationen - wie bei /refill-tracking
+        nextExpiryDate: nextExpiryDate ? nextExpiryDate.toISOString().split('T')[0] : null,
+        batches: batches.map(batch => ({
+          id: batch.id,
+          batchNumber: batch.batchNumber,
+          currentQuantity: batch.currentQuantity,
+          expiryDate: batch.expiryDate ? batch.expiryDate.toISOString().split('T')[0] : null,
+          manufacturingDate: batch.manufacturingDate ? batch.manufacturingDate.toISOString().split('T')[0] : null,
+          locationInWarehouse: batch.locationInWarehouse
+        }))
       };
     });
+
 
     // Erfolgreiche Antwort
     return res.status(200).json(formattedInventory);
