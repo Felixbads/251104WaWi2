@@ -68,26 +68,27 @@ const WarehouseInventoryTable: React.FC<WarehouseInventoryTableProps> = ({ wareh
   
   // API-Abfrage für erweiterte Warenbewegungen über warehouse3 storage
   const { data: inventoryMovements = [], isLoading: isMovementsLoading } = useQuery({
-    queryKey: [`/api/warehouse-movements/${warehouseId}/enhanced`],
+    queryKey: [`/api/warehouse3/warehouses/${warehouseId}/movements`],
     queryFn: async () => {
       try {
         debug(`Lade erweiterte Warenbewegungen für Lager ${warehouseId}...`);
-        const response = await fetch(`/api/warehouse-movements/${warehouseId}/enhanced`);
+        const response = await fetch(`/api/warehouse3/warehouses/${warehouseId}/movements?limit=1000`);
         if (!response.ok) {
           debug(`Fehler beim Laden der erweiterten Warenbewegungen, Status: ${response.status}`);
           return [];
         }
         
         const data = await response.json();
-        debug(`${data.length} erweiterte Warenbewegungen geladen`);
+        const movements = data.items || [];
+        debug(`${movements.length} erweiterte Warenbewegungen geladen`);
         
         // Debug: Zeige tatsächliche API-Response-Struktur
-        if (data.length > 0) {
-          console.log('[API DEBUG] Erste Warenbewegung:', data[0]);
-          console.log('[API DEBUG] Verfügbare Felder:', Object.keys(data[0]));
+        if (movements.length > 0) {
+          console.log('[API DEBUG] Erste Warenbewegung:', movements[0]);
+          console.log('[API DEBUG] Verfügbare Felder:', Object.keys(movements[0]));
         }
         
-        return data;
+        return movements;
       } catch (error) {
         console.error("Fehler beim Laden der erweiterten Warenbewegungen:", error);
         debug(`Exception beim Laden der erweiterten Warenbewegungen: ${error}`);
@@ -99,26 +100,27 @@ const WarehouseInventoryTable: React.FC<WarehouseInventoryTableProps> = ({ wareh
 
   // API-Abfrage für alle Batches des Lagers
   const { data: allBatches = [], isLoading: isBatchesLoading } = useQuery({
-    queryKey: [`/api/product-batches`, warehouseId],
+    queryKey: [`/api/warehouse3/warehouses/${warehouseId}/batches`],
     queryFn: async () => {
       try {
         debug(`Lade Batches für Lager ${warehouseId}...`);
-        const response = await fetch(`/api/product-batches?warehouseId=${warehouseId}`);
+        const response = await fetch(`/api/warehouse3/warehouses/${warehouseId}/batches`);
         if (!response.ok) {
           debug(`Fehler beim Laden der Batches, Status: ${response.status}`);
           return [];
         }
         
         const data = await response.json();
-        debug(`${data.length} Batches geladen`);
+        const batches = Array.isArray(data) ? data : (data.items || []);
+        debug(`${batches.length} Batches geladen`);
         
         // Debug: Zeige tatsächliche API-Response-Struktur
-        if (data.length > 0) {
-          console.log('[API DEBUG] Erster Batch:', data[0]);
-          console.log('[API DEBUG] Verfügbare Felder:', Object.keys(data[0]));
+        if (batches.length > 0) {
+          console.log('[API DEBUG] Erster Batch:', batches[0]);
+          console.log('[API DEBUG] Verfügbare Felder:', Object.keys(batches[0]));
         }
         
-        return data;
+        return batches;
       } catch (error) {
         console.error("Fehler beim Laden der Batches:", error);
         debug(`Exception beim Laden der Batches: ${error}`);
@@ -172,7 +174,7 @@ const WarehouseInventoryTable: React.FC<WarehouseInventoryTableProps> = ({ wareh
     
     // Filtere Batches mit Null-Werten aus und sortiere  
     const filteredBatches = allBatches
-      .filter((batch: any) => (batch.currentQuantity || batch.quantity) > 0) // Verstecke Zero-Wert Batches
+      .filter((batch: any) => (batch.currentQuantity || batch.current_quantity || batch.quantity) > 0) // Verstecke Zero-Wert Batches
       .sort((a: any, b: any) => {
         const today = new Date();
         const aExpired = new Date(a.expiryDate) < today;

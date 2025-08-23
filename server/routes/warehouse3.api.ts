@@ -658,12 +658,12 @@ router.get("/warehouses/:id/batches", async (req, res) => {
         pb.product_id as "productId",
         pb.batch_number as "batchNumber",
         pb.expiry_date as "expiryDate",
-        pb.initial_quantity as "initialQuantity",
-        pb.current_quantity as "currentQuantity",
-        pb.received_date as "receivedDate",
-        pb.supplier_ref as "supplierRef",
+        pb.quantity as "initialQuantity",
+        pb.quantity as "currentQuantity",
+        pb.incoming_date as "receivedDate",
+        pb.supplier_batch_number as "supplierRef",
         pb.notes,
-        p.name as "productName",
+        p.product_name as "productName",
         p.sku as "productSku",
         CASE 
           WHEN pb.expiry_date IS NOT NULL THEN 
@@ -672,7 +672,7 @@ router.get("/warehouses/:id/batches", async (req, res) => {
         END as "daysUntilExpiry"
       FROM inventory_batches pb
       LEFT JOIN products p ON pb.product_id = p.id
-      WHERE pb.warehouse_id = $1 AND pb.current_quantity > 0
+      WHERE pb.warehouse_id = $1 AND pb.quantity > 0
     `;
     
     const queryParams = [warehouseId];
