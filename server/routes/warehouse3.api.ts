@@ -462,8 +462,7 @@ router.get("/warehouses/:id/movements", async (req, res) => {
         dw.name as "destinationWarehouseName",
         im.machine_id as "machineId",
         u.username as "performedByName",
-        m.machine_name as "machineName",
-        m.location as "machineLocation"
+        m.machine_name as "machineName"
       FROM inventory_movements im
       LEFT JOIN products p ON im.product_id = p.id
       LEFT JOIN inventory_batches pb ON im.batch_id = pb.id
@@ -472,6 +471,7 @@ router.get("/warehouses/:id/movements", async (req, res) => {
       LEFT JOIN users u ON im.performed_by = u.id
       LEFT JOIN machines m ON im.machine_id = m.id
       WHERE (im.source_warehouse_id = $1 OR im.destination_warehouse_id = $1)
+      AND im.performed_at >= CURRENT_DATE - INTERVAL '7 days'
     `;
 
     const queryParams: any[] = [warehouseId];
