@@ -1,0 +1,163 @@
+{
+"status_quo": {
+"vendon_sync_instances": [
+{
+"name": "VendonSync API client",
+"details": "Communicates with Vendon API at https://cloud.vendon.net/rest/v1.8.0 using Authorization: Token, with retry handling and a fallback that extracts machine IDs from transactions when /machines is unavailable
+
+
+"
+},
+{
+"name": "VendonAPI helper",
+"details": "Implements automatic retries and a rate limit of 60 requests per minute to avoid API limits
+
+"
+},
+{
+"name": "VendonHistoryImporter",
+"details": "Synchronizes historical transactions day by day, storing cursor state and saving transactions with duplicate detection
+
+
+"
+},
+{
+"name": "VendonEventsSync",
+"details": "Imports events with pagination, retries, and full field mapping based on Vendon API responses
+
+
+"
+},
+{
+"name": "ResilientVendonSync",
+"details": "Runs background synchronization for transactions, events, and refills; detects and fills data gaps automatically
+
+"
+}
+],
+"api_conditions": {
+"authentication": "Authorization header must send Token $VENDON_API_KEY for all requests
+
+",
+"rate_limit": "60 requests per minute with exponential backoff and retries to handle temporary failures
+
+
+",
+"missing_endpoints": "The /machines endpoint is unreliable; machine IDs are extracted from recent transactions instead
+
+",
+"events_api": "Events retrieved via GET /rest/v1.8.0/event with parameters like from_timestamp, to_timestamp, state, machine_id, and limit for pagination
+
+"
+},
+"data_quality": {
+"product_duplicates": "Initial sync produced ~6,500 product rows although only ~120 unique products exist; improved sync now checks vendon_id and normalized names and provides a cleanup script to remove duplicates
+
+
+",
+"database_fields": "Transactions and events tables define vendon_id columns with unique indexes ensuring each Vendon item is stored once
+
+
+",
+"sync_process": "Synchronization tasks use locks and logs to prevent concurrent runs and track status
+
+"
+}
+},
+"target_state": {
+"goal": "All Vendon transactions, events, refills, machines, and products are imported without gaps or duplicates; every API field maps to its corresponding database column; unique indexes and cleanup scripts prevent duplication; sync logs and coverage checks verify completeness."
+},
+"agent_prompt": "Examine the project's Vendon synchronization services. Ensure that data from https://cloud.vendon.net/rest/v1.8.0 is inserted into PostgreSQL without gaps or duplicates. Use Authorization: Token $VENDON_API_KEY and respect the 60 requests per minute limit. Map every JSON field from the Vendon API to the appropriate columns in tables like transactions and events, using fallbacks to derive machines when the /machines endpoint fails. Run deduplication (fix_vendon_duplicate_products.js) and validate that vendon_id fields remain unique. Maintain sync logs and add coverage checks so that no data points are missed."
+}
+
+Hier ist der aktuelle Status vom Vendon Sync aktuell. 
+
+{
+"instances": [
+{
+"name": "VendonSyncService",
+"file": "server/services/vendonSync.ts",
+"api": {
+"base_url": "https://cloud.vendon.net/rest/v1.8.0
+
+",
+"auth": "Token-based authentication
+
+"
+},
+"functions": {
+"syncTransactions": "Synchronizes transactions over last 7 days with batch size 100 and max 5000 items
+
+",
+"syncRefills": "Fetches refills from last 30 days, currently only first 500 items
+
+",
+"syncEvents": "Retrieves events from last 7 days with pagination of 100 items per page
+
+",
+"syncMachines": "Loads machines and details, creating missing machine entries
+
+",
+"syncProducts": "Uses a lock to prevent concurrent product synchronizations
+
+",
+"syncStocks": "Synchronizes stock products and machine stock levels
+
+",
+"syncAll": "Runs machines, products, transactions, refills, events and stocks sequentially
+
+"
+}
+},
+{
+"name": "HistoricalVendonSyncService",
+"file": "server/services/historicalVendonSync.ts",
+"description": "Creates its own VendonSyncService instance to page through historical transactions
+
+"
+},
+{
+"name": "vendonSync.new.ts",
+"file": "server/services/vendonSync.new.ts",
+"description": "Alternate implementation stored alongside main service
+
+"
+}
+],
+"usage": [
+{
+"context": "Scheduled sync jobs",
+"file": "server/scheduler.ts",
+"details": "Scheduler triggers syncTransactions, syncRefills, syncMachines, syncEvents and syncHistoricalBatch at configured intervals
+
+"
+},
+{
+"context": "Manual sync endpoint",
+"file": "server/routes/vendon.ts",
+"details": "POST /sync endpoint obtains API instance and dispatches to sync routines based on type
+
+"
+}
+],
+"repair_proposals": [
+{
+"issue": "syncRefills processes only first 500 refills without pagination",
+"proposal": "Iterate through pages using offset and limit to cover all refills
+
+"
+},
+{
+"issue": "Multiple VendonSync implementations increase maintenance overhead",
+"proposal": "Consolidate vendonSync.ts, vendonSync.new.ts and backup versions into a single maintained service
+
+"
+},
+{
+"issue": "Transactions without machine_id default to machineId=1, causing misattribution",
+"proposal": "Store transactions with null machine reference or create explicit placeholder records instead of hardcoded ID
+
+"
+}
+]
+}
