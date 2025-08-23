@@ -368,7 +368,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         SELECT 
           id,
           product_id,
-          warehouse_id,
+          source_warehouse_id,
+          destination_warehouse_id,
           movement_type,
           quantity,
           reference_type,
@@ -378,7 +379,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           performed_at,
           performed_by
         FROM inventory_movements
-        WHERE warehouse_id = $1
+        WHERE source_warehouse_id = $1 OR destination_warehouse_id = $1
         ORDER BY performed_at DESC
         LIMIT 50
       `;
@@ -386,33 +387,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const movementsResult = await rawDb.query(movementsQuery, [warehouseId]);
       const movements = movementsResult.rows;
       
-      // Wenn ein warehouseId angegeben wurde, müssen wir auch nach Bewegungen suchen,
-      // bei denen dieses Lager das Ziellager ist
+      // Bereits in der ersten Abfrage enthalten, daher nicht mehr benötigt
       let destMovements: any[] = [];
-      if (warehouseId) {
-        // Direkte SQL-Abfrage für Destination Movements
-        const destMovementsQuery = `
-          SELECT 
-            id,
-            product_id,
-            warehouse_id,
-            movement_type,
-            quantity,
-            reference_type,
-            reference_id,
-            notes,
-            created_at,
-            performed_at,
-            performed_by
-          FROM inventory_movements
-          WHERE warehouse_id = $1
-          ORDER BY performed_at DESC
-          LIMIT 50
-        `;
-        
-        const destMovementsResult = await rawDb.query(destMovementsQuery, [warehouseId]);
-        destMovements = destMovementsResult.rows;
-      }
       
       // Kombiniere beide Listen und sortiere nach Datum (neueste zuerst)
       const combinedMovements = [...movements, ...destMovements].sort((a, b) => {
@@ -435,7 +411,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         productId: item.product_id,
         productName: item.product_name || 'Unbekanntes Produkt',
         quantity: item.quantity,
-        type: item.warehouse_id === warehouseId ? 'IN' : 'OUT',
+        type: item.destination_warehouse_id === warehouseId ? 'IN' : 'OUT',
         movementType: item.movement_type,
         referenceType: item.reference_type,
         referenceId: item.reference_id,
