@@ -1730,7 +1730,7 @@ export class VendonSyncService {
     }
   }
 
-  // Synchronisiere Refills (Auffüllungen)
+  // Synchronisiere Refills (Auffüllungen) mit vollständiger Pagination
   async syncRefills(
     startDate?: Date,
     endDate?: Date,
@@ -1752,7 +1752,6 @@ export class VendonSyncService {
     const syncLogId = logEntry.id;
 
     try {
-      // Da wir die API-Struktur jetzt verstehen, vereinfachen wir den Code
       console.log(`Synchronisiere Refills von ${effectiveStartDate.toISOString()} bis ${effectiveEndDate.toISOString()}`);
       const startTime = Date.now();
       
@@ -1763,24 +1762,48 @@ export class VendonSyncService {
       let errors = 0;
       let detailsSaved = 0;
       
-      // Refills von der API abrufen
-      const result = await this.api.getRefills(
-        effectiveStartDate,
-        effectiveEndDate,
-        1, // Erste Seite
-        500 // Größere Batch-Größe für die meisten Refills
-      );
+      // Sammle alle Refills mit Pagination
+      const allRefills = [];
+      let page = 1;
+      let hasMoreData = true;
       
-      if (!result.data) {
-        throw new Error("API hat keine Refills zurückgegeben");
+      console.log('🔄 Hole Refills mit Pagination...');
+      
+      while (hasMoreData) {
+        const result = await this.api.getRefills(
+          effectiveStartDate,
+          effectiveEndDate,
+          page,
+          batchSize
+        );
+        
+        if (!result.data || result.data.length === 0) {
+          hasMoreData = false;
+          break;
+        }
+        
+        allRefills.push(...result.data);
+        console.log(`📄 Seite ${page}: ${result.data.length} Refills erhalten (Gesamt: ${allRefills.length})`);
+        
+        // Prüfe ob weitere Seiten vorhanden sind
+        if (result.data.length < batchSize) {
+          hasMoreData = false;
+        } else {
+          page++;
+        }
+        
+        // Sicherheitslimit: Maximal 50 Seiten
+        if (page > 50) {
+          console.warn('⚠️ Sicherheitslimit erreicht: Maximal 50 Seiten');
+          hasMoreData = false;
+        }
       }
       
-      const refills = result.data;
-      itemsFound = refills.length;
-      console.log(`${refills.length} Refills gefunden`);
+      itemsFound = allRefills.length;
+      console.log(`✅ Insgesamt ${allRefills.length} Refills gefunden`);
       
       // Jeden Refill verarbeiten
-      for (const refill of refills) {
+      for (const refill of allRefills) {
         try {
           // 1. Beziehe die Maschinen-ID aus relation_id (nicht machine_id)
           const machineVendonId = refill.relation_id?.toString();
@@ -1903,6 +1926,8 @@ export class VendonSyncService {
         durationSeconds,
         syncStatus: 'completed'
       });
+      
+      console.log(`🎯 Refills-Sync abgeschlossen: ${itemsFound} gefunden, ${itemsSaved} neu, ${duplicates} Duplikate`);
       
       return {
         syncLogId,

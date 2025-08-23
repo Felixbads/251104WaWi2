@@ -197,19 +197,20 @@ class VendonApiClient {
    * Get transactions for date range - FIXED API FORMAT
    */
   async getTransactions(startDate: Date, endDate: Date, limit: number = 100): Promise<VendonTransaction[]> {
-    // Vendon API /stats/vends erwartet ISO-Format ohne Zeit
-    const formatDateISO = (date: Date) => {
-      return date.toISOString().split('T')[0]; // Gibt YYYY-MM-DD zurück
+    // Vendon API /stats/vends erwartet Unix-Zeitstempel in Sekunden
+    const toUnixTimestamp = (date: Date) => {
+      return Math.floor(date.getTime() / 1000); // Unix timestamp in seconds
     };
     
     const params = {
-      'date_from': formatDateISO(startDate),
-      'date_to': formatDateISO(endDate),
+      'from_timestamp': toUnixTimestamp(startDate),
+      'to_timestamp': toUnixTimestamp(endDate),
       'limit': limit,
       'offset': 0
     };
     
-    console.log(`🔍 Live-Transaktionen API-Call - Zeitraum: ${formatDateISO(startDate)} bis ${formatDateISO(endDate)}`);
+    console.log(`🔍 Live-Transaktionen API-Call - Zeitraum: ${startDate.toISOString()} bis ${endDate.toISOString()}`);
+    console.log(`📊 Unix timestamps: ${params.from_timestamp} bis ${params.to_timestamp}`);
     
     return await this.makeRequest<VendonTransaction[]>('/stats/vends', params);
   }
@@ -218,17 +219,16 @@ class VendonApiClient {
    * Get events for date range
    */
   async getEvents(startDate: Date, endDate: Date): Promise<VendonEvent[]> {
-    // Vendon API erwartet YYYY-MM-DD Format für Events
-    const formatDate = (date: Date) => {
-      const year = date.getFullYear();
-      const month = String(date.getMonth() + 1).padStart(2, '0');
-      const day = String(date.getDate()).padStart(2, '0');
-      return `${year}-${month}-${day}`;
+    // Vendon API erwartet Unix-Zeitstempel für Events
+    const toUnixTimestamp = (date: Date) => {
+      return Math.floor(date.getTime() / 1000); // Unix timestamp in seconds
     };
     
     const params = {
-      'date_from': formatDate(startDate),
-      'date_to': formatDate(endDate)
+      'from_timestamp': toUnixTimestamp(startDate),
+      'to_timestamp': toUnixTimestamp(endDate),
+      'limit': 100,
+      'offset': 0
     };
     
     try {
@@ -240,28 +240,50 @@ class VendonApiClient {
   }
 
   /**
-   * Get refills for date range
+   * Get refills for date range with pagination
    */
   async getRefills(startDate: Date, endDate: Date): Promise<VendonRefill[]> {
-    // Vendon API erwartet YYYY-MM-DD Format für Refills
-    const formatDate = (date: Date) => {
-      const year = date.getFullYear();
-      const month = String(date.getMonth() + 1).padStart(2, '0');
-      const day = String(date.getDate()).padStart(2, '0');
-      return `${year}-${month}-${day}`;
+    // Vendon API erwartet Unix-Zeitstempel für Refills
+    const toUnixTimestamp = (date: Date) => {
+      return Math.floor(date.getTime() / 1000); // Unix timestamp in seconds
     };
     
-    const params = {
-      'date_from': formatDate(startDate), 
-      'date_to': formatDate(endDate)
-    };
+    const allRefills: VendonRefill[] = [];
+    let offset = 0;
+    const limit = 100;
+    let hasMore = true;
     
-    try {
-      return await this.makeRequest<VendonRefill[]>('/refills', params);
-    } catch (error) {
-      console.warn('⚠️ Refills API nicht verfügbar - wird übersprungen');
-      return [];
+    console.log('📄 Hole Refills mit Pagination...');
+    
+    while (hasMore) {
+      const params = {
+        'from_timestamp': toUnixTimestamp(startDate),
+        'to_timestamp': toUnixTimestamp(endDate),
+        'limit': limit,
+        'offset': offset
+      };
+      
+      try {
+        const batch = await this.makeRequest<VendonRefill[]>('/refills', params);
+        if (batch && batch.length > 0) {
+          allRefills.push(...batch);
+          console.log(`📦 Seite ${Math.floor(offset/limit) + 1}: ${batch.length} Refills erhalten (Gesamt: ${allRefills.length})`);
+          
+          if (batch.length < limit) {
+            hasMore = false;
+          } else {
+            offset += limit;
+          }
+        } else {
+          hasMore = false;
+        }
+      } catch (error) {
+        console.warn('⚠️ Fehler beim Abrufen von Refills - abgebrochen');
+        hasMore = false;
+      }
     }
+    
+    return allRefills;
   }
 }
 
