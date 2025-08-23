@@ -384,9 +384,8 @@ router.get("/warehouses/:id/inventory", async (req, res) => {
           batch_number as "batchNumber",
           expiry_date as "expiryDate",
           quantity as "currentQuantity",
-          initial_quantity as "initialQuantity",
-          received_date as "receivedDate",
-          supplier_ref as "supplierRef",
+          incoming_date as "receivedDate",
+          supplier_batch_number as "supplierRef",
           notes,
           CASE 
             WHEN expiry_date IS NOT NULL THEN 
@@ -394,7 +393,7 @@ router.get("/warehouses/:id/inventory", async (req, res) => {
             ELSE NULL
           END as "daysUntilExpiry"
         FROM inventory_batches
-        WHERE warehouse_id = $1 AND product_id = $2 AND quantity > 0
+        WHERE warehouse_id = $1 AND product_id = $2 AND quantity > 0 AND status = 'active'
         ORDER BY expiry_date ASC NULLS LAST`,
         [warehouseId, item.productId]
       );
