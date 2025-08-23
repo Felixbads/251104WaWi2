@@ -612,9 +612,9 @@ export class UnifiedVendonSyncCoordinator {
     const startTime = Date.now();
     
     try {
-      // Events for last 3 months
+      // FIXED: Events for last 24 hours only (Vendon API rejects large ranges)
       const endDate = new Date();
-      const startDate = new Date(endDate.getTime() - 90 * 24 * 60 * 60 * 1000);
+      const startDate = new Date(endDate.getTime() - 24 * 60 * 60 * 1000);
       
       console.log(`🔍 Teste Events API-Endpunkte von ${startDate.toISOString()} bis ${endDate.toISOString()}`);
       console.log('📡 Teste /event/ Endpunkt...');
@@ -701,9 +701,9 @@ export class UnifiedVendonSyncCoordinator {
     const startTime = Date.now();
     
     try {
-      // Refills for last 3 months
+      // FIXED: Refills for last 7 days only (Vendon API rejects large ranges)
       const endDate = new Date();
-      const startDate = new Date(endDate.getTime() - 90 * 24 * 60 * 60 * 1000);
+      const startDate = new Date(endDate.getTime() - 7 * 24 * 60 * 60 * 1000);
       
       console.log(`🔍 Teste Refills API von ${startDate.toISOString()} bis ${endDate.toISOString()}`);
       
