@@ -393,7 +393,7 @@ router.get("/warehouses/:id/inventory", async (req, res) => {
             ELSE NULL
           END as "daysUntilExpiry"
         FROM inventory_batches
-        WHERE warehouse_id = $1 AND product_id = $2 AND quantity > 0 AND status = 'active'
+        WHERE warehouse_id = $1 AND product_id = $2 AND status = 'active'
         ORDER BY expiry_date ASC NULLS LAST`,
         [warehouseId, item.productId]
       );
@@ -461,7 +461,11 @@ router.get("/warehouses/:id/movements", async (req, res) => {
         sw.name as "sourceWarehouseName",
         dw.name as "destinationWarehouseName",
         im.machine_id as "machineId",
-        u.username as "performedByName",
+        COALESCE(
+          (SELECT operator FROM refills WHERE refill_number = im.reference_id LIMIT 1),
+          u.username,
+          'Unbekannt'
+        ) as "performedByName",
         m.machine_name as "machineName"
       FROM inventory_movements im
       LEFT JOIN products p ON im.product_id = p.id
@@ -471,7 +475,6 @@ router.get("/warehouses/:id/movements", async (req, res) => {
       LEFT JOIN users u ON im.performed_by = u.id
       LEFT JOIN machines m ON im.machine_id = m.id
       WHERE (im.source_warehouse_id = $1 OR im.destination_warehouse_id = $1)
-      AND im.performed_at >= CURRENT_DATE - INTERVAL '7 days'
     `;
 
     const queryParams: any[] = [warehouseId];
@@ -677,7 +680,7 @@ router.get("/warehouses/:id/batches", async (req, res) => {
         END as "daysUntilExpiry"
       FROM inventory_batches pb
       LEFT JOIN products p ON pb.product_id = p.id
-      WHERE pb.warehouse_id = $1 AND pb.quantity > 0
+      WHERE pb.warehouse_id = $1
     `;
     
     const queryParams = [warehouseId];
