@@ -60,21 +60,27 @@ type Product = {
 
 type InventoryBatch = {
   id: number;
-  productId: number;
-  warehouseId: number;
   batchNumber: string;
-  quantity: number;
-  expiryDate: string;
-  incomingDate: string;
+  expiryDate?: string;
+  currentQuantity: number;
+  initialQuantity: number;
+  receivedDate: string;
+  supplierRef?: string;
+  notes?: string;
+  daysUntilExpiry?: number;
 };
 
 type InventoryItem = {
   id: number;
   productId: number;
   warehouseId: number;
-  product?: Product;
+  productName: string;
+  sku?: string;
+  category?: string;
   currentStock: number;
   minimumStock?: number;
+  location?: string;
+  lastCountDate?: string;
   batches?: InventoryBatch[];
 };
 
@@ -89,13 +95,18 @@ type InventoryMovement = {
   movementType: string;
   performedAt: string;
   productName?: string;
+  productSku?: string;
   batchId?: number;
   batchNumber?: string;
+  expiryDate?: string;
   sourceName?: string;
   destinationName?: string;
   reason?: string;
   previousStock?: number;
   currentStock?: number;
+  referenceType?: string;
+  referenceId?: string;
+  notes?: string;
 };
 
 export default function WarehouseDetailPage() {
@@ -110,37 +121,34 @@ export default function WarehouseDetailPage() {
   const [showDateFilter, setShowDateFilter] = useState(false);
   
   // Lade Lagerdaten
-  const { data: warehouse, isLoading: warehouseLoading } = useQuery({
-    queryKey: ['/api/warehouses', warehouseId],
+  const { data: warehouse, isLoading: warehouseLoading } = useQuery<Warehouse>({
+    queryKey: [`/api/warehouse3/warehouses/${warehouseId}`],
     enabled: !isNaN(warehouseId)
   });
   
-  // Lade Inventardaten
+  // Lade Inventardaten mit Batches
   const { 
-    data: inventory = [], 
+    data: inventoryData, 
     isLoading: inventoryLoading,
     refetch: refetchInventory
-  } = useQuery({
-    queryKey: ['/api/warehouses', warehouseId, 'inventory'],
-    enabled: !isNaN(warehouseId)
-  });
-  
-  // Lade Inventarbatches, gruppiert nach Produkt
-  const { 
-    data: batches = [], 
-    isLoading: batchesLoading,
-  } = useQuery({
-    queryKey: ['/api/warehouses', warehouseId, 'batches'],
+  } = useQuery<{items: InventoryItem[], total: number, page: number, limit: number}>({
+    queryKey: [`/api/warehouse3/warehouses/${warehouseId}/inventory`, {
+      page: 1,
+      limit: 1000,
+      search: searchTerm
+    }],
     enabled: !isNaN(warehouseId)
   });
   
   // Lade Warenbewegungen
   const { 
-    data: movements = [], 
+    data: movementsData, 
     isLoading: movementsLoading,
     refetch: refetchMovements
-  } = useQuery({
-    queryKey: ['/api/warehouses', warehouseId, 'movements', { 
+  } = useQuery<{items: InventoryMovement[], total: number, page: number, limit: number}>({
+    queryKey: [`/api/warehouse3/warehouses/${warehouseId}/movements`, { 
+      page: 1,
+      limit: 1000,
       startDate: startDate?.toISOString(),
       endDate: endDate?.toISOString(),
       productId: selectedProductId
@@ -148,17 +156,11 @@ export default function WarehouseDetailPage() {
     enabled: !isNaN(warehouseId)
   });
   
-  // Führe Inventar und Batches zusammen
-  const inventoryWithBatches = inventory.map((item: InventoryItem) => {
-    const productBatches = batches.filter((batch: InventoryBatch) => 
-      batch.productId === item.productId && batch.warehouseId === warehouseId
-    );
-    
-    return {
-      ...item,
-      batches: productBatches
-    };
-  });
+  const inventory = inventoryData?.items || [];
+  const movements = movementsData?.items || [];
+  
+  // Inventar ist bereits mit Batches vom Backend kombiniert
+  const inventoryWithBatches = inventory;
   
   // Filtere Daten nach Suchbegriff
   const filteredInventory = inventoryWithBatches.filter((item: InventoryItem) => {
@@ -167,7 +169,7 @@ export default function WarehouseDetailPage() {
   });
   
   // Zeige Lade-Indikator, wenn Daten geladen werden
-  if (warehouseLoading || (inventoryLoading && batchesLoading)) {
+  if (warehouseLoading || inventoryLoading) {
     return (
       <div className="container py-8">
         <div className="flex flex-col items-center justify-center py-12">
@@ -282,10 +284,10 @@ export default function WarehouseDetailPage() {
               <CardHeader className="bg-muted/40 px-6 py-4">
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-lg">
-                    {item.product?.name || 'Unbekanntes Produkt'}
-                    {item.product?.sku && (
+                    {item.productName || 'Unbekanntes Produkt'}
+                    {item.sku && (
                       <span className="ml-2 text-sm text-muted-foreground">
-                        (SKU: {item.product.sku})
+                        (SKU: {item.sku})
                       </span>
                     )}
                   </CardTitle>
@@ -317,32 +319,37 @@ export default function WarehouseDetailPage() {
                               <TableHead>MHD</TableHead>
                               <TableHead>Eingangsdatum</TableHead>
                               <TableHead className="text-right">Bestand</TableHead>
+                              <TableHead className="text-right">Tage bis MHD</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
                             {item.batches && item.batches.length > 0 ? (
-                              // Sortiere Batches nach MHD (älteste zuerst - FIFO)
-                              [...item.batches]
-                                .sort((a, b) => 
-                                  new Date(a.expiryDate).getTime() - new Date(b.expiryDate).getTime()
-                                )
+                              // Batches sind bereits nach MHD sortiert (FIFO) vom Backend
+                              item.batches
                                 .map((batch) => (
                                 <TableRow key={batch.id}>
                                   <TableCell>{batch.batchNumber}</TableCell>
                                   <TableCell>
-                                    {format(parseISO(batch.expiryDate), 'dd.MM.yyyy', { locale: de })}
+                                    {batch.expiryDate ? format(parseISO(batch.expiryDate), 'dd.MM.yyyy', { locale: de }) : '-'}
                                   </TableCell>
                                   <TableCell>
-                                    {format(parseISO(batch.incomingDate), 'dd.MM.yyyy', { locale: de })}
+                                    {format(parseISO(batch.receivedDate), 'dd.MM.yyyy', { locale: de })}
                                   </TableCell>
                                   <TableCell className="text-right">
-                                    {batch.quantity} Stk.
+                                    {batch.currentQuantity} Stk.
+                                  </TableCell>
+                                  <TableCell className="text-right">
+                                    {batch.daysUntilExpiry !== null && batch.daysUntilExpiry !== undefined ? (
+                                      <Badge variant={batch.daysUntilExpiry < 30 ? "destructive" : batch.daysUntilExpiry < 90 ? "secondary" : "default"}>
+                                        {batch.daysUntilExpiry} Tage
+                                      </Badge>
+                                    ) : '-'}
                                   </TableCell>
                                 </TableRow>
                               ))
                             ) : (
                               <TableRow>
-                                <TableCell colSpan={4} className="text-center py-4 text-muted-foreground">
+                                <TableCell colSpan={5} className="text-center py-4 text-muted-foreground">
                                   Keine Chargen vorhanden
                                 </TableCell>
                               </TableRow>
@@ -365,11 +372,15 @@ export default function WarehouseDetailPage() {
                         <Table>
                           <TableHeader>
                             <TableRow>
-                              <TableHead>Datum</TableHead>
-                              <TableHead>Typ</TableHead>
+                              <TableHead>Datum/Zeit</TableHead>
+                              <TableHead>Artikel</TableHead>
+                              <TableHead>Bewegungstyp</TableHead>
+                              <TableHead>Chargennummer</TableHead>
+                              <TableHead>MHD</TableHead>
                               <TableHead>Menge</TableHead>
-                              <TableHead>Quelle/Ziel</TableHead>
-                              <TableHead className="text-right">Bestand</TableHead>
+                              <TableHead>Von/Nach</TableHead>
+                              <TableHead className="text-right">Vorher</TableHead>
+                              <TableHead className="text-right">Nachher</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
@@ -385,30 +396,57 @@ export default function WarehouseDetailPage() {
                                 const isOutbound = 
                                   (movement.sourceType === 'warehouse' && movement.sourceId === warehouseId);
                                 
+                                // Bestimme die Bewegungsart basierend auf dem Typ
+                                let movementTypeLabel = 'Unbekannt';
+                                let movementVariant: "default" | "destructive" | "secondary" | "outline" = "default";
+                                
+                                if (movement.movementType === 'REFILL') {
+                                  movementTypeLabel = 'Refill-Prozess';
+                                  movementVariant = "destructive";
+                                } else if (movement.movementType === 'OUT' && movement.referenceType === 'MANUAL') {
+                                  movementTypeLabel = 'Manuelle Entnahme';
+                                  movementVariant = "secondary";
+                                } else if (movement.movementType === 'TRANSFER') {
+                                  movementTypeLabel = 'Lagerumbuchung';
+                                  movementVariant = "outline";
+                                } else if (movement.movementType === 'IN' && movement.referenceType === 'ORDER') {
+                                  movementTypeLabel = 'Wareneingang';
+                                  movementVariant = "default";
+                                } else if (movement.movementType === 'DISPOSAL') {
+                                  movementTypeLabel = 'Entsorgung';
+                                  movementVariant = "destructive";
+                                } else if (movement.movementType === 'ADJUST') {
+                                  movementTypeLabel = 'Inventurkorrektur';
+                                  movementVariant = "secondary";
+                                } else {
+                                  movementTypeLabel = movement.movementType;
+                                }
+                                
                                 // Bestimme die Quelle oder das Ziel der Bewegung
                                 let directionEntity = isOutbound ? movement.destinationName : movement.sourceName;
-                                if (!directionEntity) {
-                                  if (isOutbound) {
-                                    // Bei Ausgang zeige das Ziel
-                                    directionEntity = `${movement.destinationType} ${movement.destinationId}`;
-                                  } else {
-                                    // Bei Eingang zeige die Quelle
-                                    directionEntity = `${movement.sourceType} ${movement.sourceId}`;
-                                  }
-                                }
                                 
                                 return (
                                   <TableRow key={movement.id}>
                                     <TableCell>
                                       {format(parseISO(movement.performedAt), 'dd.MM.yyyy HH:mm', { locale: de })}
                                     </TableCell>
+                                    <TableCell>{movement.productName || 'Unbekannt'}</TableCell>
                                     <TableCell>
-                                      <Badge variant={isOutbound ? "destructive" : "success"}>
-                                        {isOutbound ? 'Ausgang' : 'Eingang'}
+                                      <Badge variant={movementVariant}>
+                                        {movementTypeLabel}
                                       </Badge>
                                     </TableCell>
+                                    <TableCell>{movement.batchNumber || '-'}</TableCell>
+                                    <TableCell>
+                                      {movement.expiryDate ? format(parseISO(movement.expiryDate), 'dd.MM.yyyy', { locale: de }) : '-'}
+                                    </TableCell>
                                     <TableCell>{movement.quantity} Stk.</TableCell>
-                                    <TableCell>{directionEntity || 'Unbekannt'}</TableCell>
+                                    <TableCell>{directionEntity || '-'}</TableCell>
+                                    <TableCell className="text-right">
+                                      {movement.previousStock !== undefined && movement.previousStock !== null
+                                        ? `${movement.previousStock} Stk.`
+                                        : '-'}
+                                    </TableCell>
                                     <TableCell className="text-right">
                                       {movement.currentStock !== undefined && movement.currentStock !== null
                                         ? `${movement.currentStock} Stk.`
@@ -419,7 +457,7 @@ export default function WarehouseDetailPage() {
                               })}
                             {!movements.some((m: InventoryMovement) => m.productId === item.productId) && (
                               <TableRow>
-                                <TableCell colSpan={5} className="text-center py-4 text-muted-foreground">
+                                <TableCell colSpan={9} className="text-center py-4 text-muted-foreground">
                                   Keine Warenbewegungen für diesen Zeitraum
                                 </TableCell>
                               </TableRow>

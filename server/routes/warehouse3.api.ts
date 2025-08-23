@@ -233,8 +233,8 @@ router.get("/warehouses/:id/stats", async (req, res) => {
 
     // Produkte mit niedrigem Bestand zählen
     const lowStockCountResult = await pool.query(
-      `SELECT COUNT(*) FROM product_inventory 
-       WHERE warehouse_id = $1 AND current_stock < minimum_stock`,
+      `SELECT COUNT(*) FROM inventory_items 
+       WHERE warehouse_id = $1 AND quantity < min_quantity`,
       [warehouseId]
     );
     const lowStockCount = parseInt(lowStockCountResult.rows[0]?.count) || 0;
@@ -306,22 +306,20 @@ router.get("/warehouses/:id/inventory", async (req, res) => {
     const sortOrder = req.query.sortOrder as string === 'desc' ? 'desc' : 'asc';
     const lowStock = req.query.lowStock === 'true';
 
-    // Basis-SQL erstellen
+    // Basis-SQL erstellen - mit Produktinformationen
     let sqlQuery = `
       SELECT 
         pi.id,
         pi.product_id as "productId",
-        pi.current_stock as "currentStock",
-        pi.minimum_stock as "minimumStock",
-        pi.location,
+        pi.quantity as "currentStock",
+        pi.min_quantity as "minimumStock",
+        pi.location_in_warehouse as "location",
         pi.last_count_date as "lastCountDate",
-        'Produktname' as "productName",
-        'Kategorie' as "category",
-        null as "batchId",
-        null as "batchNumber",
-        null as "expiryDate",
-        null as "daysUntilExpiry"
-      FROM product_inventory pi
+        COALESCE(p.name, 'Unbekanntes Produkt') as "productName",
+        p.sku,
+        COALESCE(p.category, 'Unkategorisiert') as "category"
+      FROM inventory_items pi
+      LEFT JOIN products p ON pi.product_id = p.id
       WHERE pi.warehouse_id = $1
     `;
 
@@ -346,14 +344,14 @@ router.get("/warehouses/:id/inventory", async (req, res) => {
 
     // Filter für niedrigen Bestand
     if (lowStock) {
-      sqlQuery += ` AND pi.current_stock < pi.minimum_stock`;
+      sqlQuery += ` AND pi.quantity < pi.min_quantity`;
     }
 
     // Sortierung anwenden
     if (sortBy === 'currentStock') {
-      sqlQuery += ` ORDER BY pi.current_stock ${sortOrder === 'desc' ? 'DESC' : 'ASC'}`;
+      sqlQuery += ` ORDER BY pi.quantity ${sortOrder === 'desc' ? 'DESC' : 'ASC'}`;
     } else if (sortBy === 'location') {
-      sqlQuery += ` ORDER BY pi.location ${sortOrder === 'desc' ? 'DESC' : 'ASC'}`;
+      sqlQuery += ` ORDER BY pi.location_in_warehouse ${sortOrder === 'desc' ? 'DESC' : 'ASC'}`;
     } else if (sortBy === 'expiryDate') {
       // Für ein Feld, das wir nicht haben, nutzen wir einen Default
       sqlQuery += ` ORDER BY pi.id ${sortOrder === 'desc' ? 'DESC' : 'ASC'}`;
@@ -364,7 +362,7 @@ router.get("/warehouses/:id/inventory", async (req, res) => {
 
     // Gesamtanzahl der Einträge ermitteln
     const countResult = await pool.query(
-      `SELECT COUNT(*) FROM product_inventory WHERE warehouse_id = $1`,
+      `SELECT COUNT(*) FROM inventory_items WHERE warehouse_id = $1`,
       [warehouseId]
     );
     const total = parseInt(countResult.rows[0]?.count) || 0;
@@ -377,6 +375,31 @@ router.get("/warehouses/:id/inventory", async (req, res) => {
     // Abfrage ausführen
     const result = await pool.query(sqlQuery, queryParams);
     const items = result.rows;
+    
+    // Für jedes Inventar-Item die Batches abrufen
+    for (const item of items) {
+      const batchesResult = await pool.query(
+        `SELECT 
+          id,
+          batch_number as "batchNumber",
+          expiry_date as "expiryDate",
+          current_quantity as "currentQuantity",
+          initial_quantity as "initialQuantity",
+          received_date as "receivedDate",
+          supplier_ref as "supplierRef",
+          notes,
+          CASE 
+            WHEN expiry_date IS NOT NULL THEN 
+              DATE_PART('day', expiry_date::timestamp - CURRENT_DATE)
+            ELSE NULL
+          END as "daysUntilExpiry"
+        FROM inventory_batches
+        WHERE warehouse_id = $1 AND product_id = $2 AND current_quantity > 0
+        ORDER BY expiry_date ASC NULLS LAST`,
+        [warehouseId, item.productId]
+      );
+      item.batches = batchesResult.rows;
+    }
 
     // Ergebnis zurückgeben
     return res.json({
@@ -413,17 +436,16 @@ router.get("/warehouses/:id/movements", async (req, res) => {
     const sortBy = req.query.sortBy as string || 'performedAt';
     const sortOrder = req.query.sortOrder as string === 'asc' ? 'asc' : 'desc';
 
-    // Basis-SQL erstellen
+    // Basis-SQL erstellen - mit Produktinformationen und Batch-Details
     let sqlQuery = `
       SELECT 
         im.id,
         im.product_id as "productId",
         im.quantity,
         im.movement_type as "movementType",
-        im.source_type as "sourceType",
-        im.source_id as "sourceId",
-        im.destination_type as "destinationType",
-        im.destination_id as "destinationId",
+        im.source_warehouse_id as "sourceWarehouseId",
+        im.destination_warehouse_id as "destinationWarehouseId",
+        im.direction,
         im.status,
         im.performed_at as "performedAt",
         im.created_at as "createdAt",
@@ -434,15 +456,19 @@ router.get("/warehouses/:id/movements", async (req, res) => {
         im.reference_id as "referenceId", 
         im.reason,
         im.notes,
-        'Produktname' as "productName",
-        null as "batchNumber",
-        null as "machineName",
-        null as "performedByName",
-        null as "sourceName",
-        null as "destinationName"
+        COALESCE(p.name, 'Unbekanntes Produkt') as "productName",
+        p.sku as "productSku",
+        pb.batch_number as "batchNumber",
+        pb.expiry_date as "expiryDate",
+        sw.name as "sourceWarehouseName",
+        dw.name as "destinationWarehouseName",
+        im.machine_id as "machineId"
       FROM inventory_movements im
-      WHERE ((im.source_type = 'warehouse' AND im.source_id = $1)
-           OR (im.destination_type = 'warehouse' AND im.destination_id = $1))
+      LEFT JOIN products p ON im.product_id = p.id
+      LEFT JOIN inventory_batches pb ON im.batch_id = pb.id
+      LEFT JOIN warehouses sw ON im.source_warehouse_id = sw.id
+      LEFT JOIN warehouses dw ON im.destination_warehouse_id = dw.id
+      WHERE (im.source_warehouse_id = $1 OR im.destination_warehouse_id = $1)
     `;
 
     const queryParams = [warehouseId];
@@ -494,8 +520,7 @@ router.get("/warehouses/:id/movements", async (req, res) => {
     // Gesamtanzahl der Einträge ermitteln
     const countResult = await pool.query(
       `SELECT COUNT(*) FROM inventory_movements im
-       WHERE ((im.source_type = 'warehouse' AND im.source_id = $1)
-              OR (im.destination_type = 'warehouse' AND im.destination_id = $1))`,
+       WHERE (im.source_warehouse_id = $1 OR im.destination_warehouse_id = $1)`,
       [warehouseId]
     );
     const total = parseInt(countResult.rows[0]?.count) || 0;
@@ -522,6 +547,153 @@ router.get("/warehouses/:id/movements", async (req, res) => {
   }
 });
 
+// POST /api/warehouse3/warehouses/:id/batches - Neue Charge erstellen
+router.post("/warehouses/:id/batches", async (req, res) => {
+  try {
+    const warehouseId = parseInt(req.params.id);
+    if (isNaN(warehouseId)) {
+      return res.status(400).json({ success: false, message: "Ungültige Lager-ID" });
+    }
+    
+    const { productId, batchNumber, expiryDate, quantity, supplierRef, notes } = req.body;
+    
+    // Validierung
+    if (!productId || !batchNumber || !quantity) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Produkt-ID, Chargennummer und Menge sind erforderlich" 
+      });
+    }
+    
+    // Prüfe ob Charge bereits existiert
+    const existingBatch = await pool.query(
+      `SELECT id FROM inventory_batches 
+       WHERE warehouse_id = $1 AND product_id = $2 AND batch_number = $3`,
+      [warehouseId, productId, batchNumber]
+    );
+    
+    if (existingBatch.rows.length > 0) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Eine Charge mit dieser Nummer existiert bereits für dieses Produkt" 
+      });
+    }
+    
+    // Erstelle neue Charge
+    const insertResult = await pool.query(
+      `INSERT INTO inventory_batches 
+       (warehouse_id, product_id, batch_number, expiry_date, quantity, 
+        incoming_date, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+       RETURNING *`,
+      [warehouseId, productId, batchNumber, expiryDate, quantity]
+    );
+    
+    const newBatch = insertResult.rows[0];
+    
+    // Aktualisiere Lagerbestand
+    const inventoryCheck = await pool.query(
+      `SELECT id, quantity as current_stock FROM inventory_items 
+       WHERE warehouse_id = $1 AND product_id = $2`,
+      [warehouseId, productId]
+    );
+    
+    let previousStock = 0;
+    let currentStock = quantity;
+    
+    if (inventoryCheck.rows.length > 0) {
+      // Aktualisiere existierenden Bestand
+      previousStock = inventoryCheck.rows[0].current_stock || 0;
+      currentStock = previousStock + quantity;
+      
+      await pool.query(
+        `UPDATE inventory_items 
+         SET quantity = $1, updated_at = CURRENT_TIMESTAMP 
+         WHERE warehouse_id = $2 AND product_id = $3`,
+        [currentStock, warehouseId, productId]
+      );
+    } else {
+      // Erstelle neuen Inventareintrag
+      await pool.query(
+        `INSERT INTO inventory_items 
+         (warehouse_id, product_id, quantity, min_quantity, created_at, updated_at)
+         VALUES ($1, $2, $3, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+        [warehouseId, productId, quantity]
+      );
+    }
+    
+    // Erstelle Bewegungseintrag
+    await pool.query(
+      `INSERT INTO inventory_movements 
+       (destination_warehouse_id, product_id, batch_id, quantity, 
+        movement_type, reference_type, reference_id, previous_stock, current_stock, 
+        status, performed_at, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, 'receipt', 'order', $5, $6, $7, 
+        'completed', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+      [warehouseId, productId, newBatch.id, quantity, 
+       `BATCH-${newBatch.id}`, previousStock, currentStock]
+    );
+    
+    return res.status(201).json({
+      success: true,
+      message: "Charge erfolgreich erstellt",
+      batch: newBatch
+    });
+  } catch (error) {
+    return handleServerError(error, res);
+  }
+});
+
+// GET /api/warehouse3/warehouses/:id/batches - Alle Chargen eines Lagers abrufen
+router.get("/warehouses/:id/batches", async (req, res) => {
+  try {
+    const warehouseId = parseInt(req.params.id);
+    if (isNaN(warehouseId)) {
+      return res.status(400).json({ success: false, message: "Ungültige Lager-ID" });
+    }
+    
+    const productId = req.query.productId ? parseInt(req.query.productId as string) : null;
+    
+    let sqlQuery = `
+      SELECT 
+        pb.id,
+        pb.product_id as "productId",
+        pb.batch_number as "batchNumber",
+        pb.expiry_date as "expiryDate",
+        pb.initial_quantity as "initialQuantity",
+        pb.current_quantity as "currentQuantity",
+        pb.received_date as "receivedDate",
+        pb.supplier_ref as "supplierRef",
+        pb.notes,
+        p.name as "productName",
+        p.sku as "productSku",
+        CASE 
+          WHEN pb.expiry_date IS NOT NULL THEN 
+            DATE_PART('day', pb.expiry_date::timestamp - CURRENT_DATE)
+          ELSE NULL
+        END as "daysUntilExpiry"
+      FROM inventory_batches pb
+      LEFT JOIN products p ON pb.product_id = p.id
+      WHERE pb.warehouse_id = $1 AND pb.current_quantity > 0
+    `;
+    
+    const queryParams = [warehouseId];
+    
+    if (productId) {
+      sqlQuery += ` AND pb.product_id = $2`;
+      queryParams.push(productId);
+    }
+    
+    sqlQuery += ` ORDER BY pb.expiry_date ASC NULLS LAST`;
+    
+    const result = await pool.query(sqlQuery, queryParams);
+    
+    return res.json(result.rows);
+  } catch (error) {
+    return handleServerError(error, res);
+  }
+});
+
 // GET /api/warehouse3/products/categories - Alle Produktkategorien abrufen
 router.get("/products/categories", async (req, res) => {
   try {
@@ -539,6 +711,179 @@ router.get("/products/categories", async (req, res) => {
     ];
 
     return res.json(categories);
+  } catch (error) {
+    return handleServerError(error, res);
+  }
+});
+
+// POST /api/warehouse3/warehouses/:id/movements - Manuelle Warenbewegung erstellen
+router.post("/warehouses/:id/movements", async (req, res) => {
+  try {
+    const warehouseId = parseInt(req.params.id);
+    if (isNaN(warehouseId)) {
+      return res.status(400).json({ success: false, message: "Ungültige Lager-ID" });
+    }
+    
+    const { 
+      productId, 
+      quantity, 
+      movementType, 
+      destinationWarehouseId, 
+      batchId,
+      reason,
+      notes 
+    } = req.body;
+    
+    // Validierung
+    if (!productId || !quantity || !movementType) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Produkt-ID, Menge und Bewegungstyp sind erforderlich" 
+      });
+    }
+    
+    // Hole aktuellen Bestand
+    const inventoryResult = await pool.query(
+      `SELECT quantity as current_stock FROM inventory_items 
+       WHERE warehouse_id = $1 AND product_id = $2`,
+      [warehouseId, productId]
+    );
+    
+    if (inventoryResult.rows.length === 0) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Produkt nicht im Lager vorhanden" 
+      });
+    }
+    
+    const previousStock = inventoryResult.rows[0].current_stock;
+    let currentStock = previousStock;
+    let sourceType = 'warehouse';
+    let sourceId = warehouseId;
+    let destinationType = 'warehouse';
+    let destinationId = null;
+    let referenceType = 'MANUAL';
+    
+    // Je nach Bewegungstyp anpassen
+    switch (movementType) {
+      case 'OUT': // Manuelle Entnahme
+        currentStock = previousStock - quantity;
+        destinationType = 'disposal';
+        break;
+        
+      case 'TRANSFER': // Lagerumbuchung
+        if (!destinationWarehouseId) {
+          return res.status(400).json({ 
+            success: false, 
+            message: "Ziel-Lager-ID erforderlich für Umbuchung" 
+          });
+        }
+        currentStock = previousStock - quantity;
+        destinationId = destinationWarehouseId;
+        
+        // Prüfe ob Ziel-Lager existiert
+        const destWarehouse = await pool.query(
+          `SELECT id FROM warehouses WHERE id = $1`,
+          [destinationWarehouseId]
+        );
+        if (destWarehouse.rows.length === 0) {
+          return res.status(400).json({ 
+            success: false, 
+            message: "Ziel-Lager nicht gefunden" 
+          });
+        }
+        
+        // Aktualisiere Bestand im Ziel-Lager
+        const destInventory = await pool.query(
+          `SELECT id, quantity as current_stock FROM inventory_items 
+           WHERE warehouse_id = $1 AND product_id = $2`,
+          [destinationWarehouseId, productId]
+        );
+        
+        if (destInventory.rows.length > 0) {
+          await pool.query(
+            `UPDATE inventory_items 
+             SET quantity = quantity + $1, updated_at = CURRENT_TIMESTAMP 
+             WHERE warehouse_id = $2 AND product_id = $3`,
+            [quantity, destinationWarehouseId, productId]
+          );
+        } else {
+          await pool.query(
+            `INSERT INTO inventory_items 
+             (warehouse_id, product_id, quantity, min_quantity, created_at, updated_at)
+             VALUES ($1, $2, $3, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+            [destinationWarehouseId, productId, quantity]
+          );
+        }
+        break;
+        
+      case 'REFILL': // Refill-Prozess
+        currentStock = previousStock - quantity;
+        destinationType = 'machine';
+        destinationId = 1; // Dummy Maschinen-ID
+        referenceType = 'REFILL';
+        break;
+        
+      case 'DISPOSAL': // Entsorgung
+        currentStock = previousStock - quantity;
+        destinationType = 'disposal';
+        referenceType = 'EXPIRY';
+        break;
+        
+      default:
+        return res.status(400).json({ 
+          success: false, 
+          message: "Ungültiger Bewegungstyp" 
+        });
+    }
+    
+    // Prüfe ob genügend Bestand vorhanden
+    if (currentStock < 0) {
+      return res.status(400).json({ 
+        success: false, 
+        message: `Nicht genügend Bestand. Verfügbar: ${previousStock}, Angefordert: ${quantity}` 
+      });
+    }
+    
+    // Aktualisiere Bestand im Quell-Lager
+    await pool.query(
+      `UPDATE inventory_items 
+       SET quantity = $1, updated_at = CURRENT_TIMESTAMP 
+       WHERE warehouse_id = $2 AND product_id = $3`,
+      [currentStock, warehouseId, productId]
+    );
+    
+    // Erstelle Bewegungseintrag basierend auf Bewegungstyp
+    let sourceWarehouseId = null;
+    let destWarehouseId = null;
+    
+    if (movementType === 'TRANSFER') {
+      sourceWarehouseId = warehouseId;
+      destWarehouseId = destinationWarehouseId || null;
+    } else if (movementType === 'REFILL') {
+      sourceWarehouseId = warehouseId;
+    } else if (movementType === 'DISPOSAL' || movementType === 'REMOVAL') {
+      sourceWarehouseId = warehouseId;
+    }
+    
+    const movementResult = await pool.query(
+      `INSERT INTO inventory_movements 
+       (source_warehouse_id, destination_warehouse_id, product_id, batch_id, 
+        quantity, movement_type, reference_type, reference_id, notes, 
+        previous_stock, current_stock, status, performed_at, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 
+        'completed', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+       RETURNING *`,
+      [sourceWarehouseId, destWarehouseId, productId, batchId,
+       quantity, movementType, referenceType || 'manual', `MANUAL-${Date.now()}`, notes,
+       previousStock, currentStock]
+    );
+    
+    return res.status(201).json({
+      success: true,
+      message: "Warenbewegung erfolgreich erstellt",
+      movement: movementResult.rows[0]
+    });
   } catch (error) {
     return handleServerError(error, res);
   }
