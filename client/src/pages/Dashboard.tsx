@@ -167,14 +167,27 @@ export default function Dashboard() {
       netAmount: 0, 
       netProfit: 0, 
       units: 0,
-      avgPrice: 0
+      avgPrice: 0,
+      displayDate: 'Heute'
     };
     
     const today = new Date();
-    const todayTxs = transactions.filter(tx => {
+    let todayTxs = transactions.filter(tx => {
       const txDate = new Date(tx.datetime);
       return txDate.toDateString() === today.toDateString();
     });
+    
+    // Fallback: Wenn keine heutigen Transaktionen, zeige gestrige
+    let displayDate = 'Heute';
+    if (todayTxs.length === 0) {
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+      todayTxs = transactions.filter(tx => {
+        const txDate = new Date(tx.datetime);
+        return txDate.toDateString() === yesterday.toDateString();
+      });
+      displayDate = 'Gestern (Aktuelle Daten ausstehend)';
+    }
     
     const revenue = todayTxs.reduce((sum, tx) => sum + (tx.price || 0), 0);
     const units = todayTxs.reduce((sum, tx) => sum + (tx.quantity || 1), 0);
@@ -197,7 +210,8 @@ export default function Dashboard() {
       netAmount, // Netto-Umsatz (ohne MwSt)
       netProfit, // Netto-Ergebnis nach Einkaufskosten
       units,
-      avgPrice
+      avgPrice,
+      displayDate
     };
   }, [transactions]);
 
@@ -262,14 +276,17 @@ export default function Dashboard() {
             <CardContent className="p-4">
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <p className="text-sm font-medium text-blue-600">Heutige Performance</p>
+                  <div>
+                    <p className="text-sm font-medium text-blue-600">Performance</p>
+                    <p className="text-xs text-blue-500">{todayData.displayDate}</p>
+                  </div>
                   <Euro className="h-6 w-6 text-blue-500" />
                 </div>
                 <div className="space-y-3">
                   {/* Hauptumsatz und Transaktionszahl */}
                   <div>
                     <p className="text-2xl font-bold text-blue-900">{formatCurrency(todayData.revenue)}</p>
-                    <p className="text-sm text-blue-600">{todayData.transactions} Transaktionen heute</p>
+                    <p className="text-sm text-blue-600">{todayData.transactions} Transaktionen</p>
                   </div>
                   
                   {/* Detaillierte Kennzahlen Grid */}
