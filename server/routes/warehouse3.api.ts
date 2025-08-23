@@ -113,13 +113,13 @@ router.patch("/warehouses/:id", async (req, res) => {
 
     // SQL-Update-Anweisung und Parameter erstellen
     const updateFields = [];
-    const updateValues = [warehouseId]; // Erste Parameter-Position ist für die ID
+    const updateValues: any[] = [warehouseId]; // Erste Parameter-Position ist für die ID
     let paramPosition = 2; // Beginne mit Position 2 für die Update-Werte
 
     for (const [key, value] of Object.entries(validatedData)) {
       if (value !== undefined) {
         updateFields.push(`${snakeCaseKey(key)} = $${paramPosition}`);
-        updateValues.push(value);
+        updateValues.push(value as any);
         paramPosition++;
       }
     }
@@ -154,7 +154,7 @@ router.patch("/warehouses/:id", async (req, res) => {
 });
 
 // Hilfsfunktion zur Umwandlung von camelCase zu snake_case
-function snakeCaseKey(key) {
+function snakeCaseKey(key: string): string {
   return key.replace(/([A-Z])/g, '_$1').toLowerCase();
 }
 
@@ -469,7 +469,7 @@ router.get("/warehouses/:id/movements", async (req, res) => {
       WHERE (im.source_warehouse_id = $1 OR im.destination_warehouse_id = $1)
     `;
 
-    const queryParams = [warehouseId];
+    const queryParams: any[] = [warehouseId];
     let paramIndex = 2;
 
     // Suchfilter anwenden
@@ -483,7 +483,7 @@ router.get("/warehouses/:id/movements", async (req, res) => {
     // Bewegungstyp-Filter anwenden
     if (movementType) {
       sqlQuery += ` AND im.movement_type = $${paramIndex}`;
-      queryParams.push(movementType);
+      queryParams.push(movementType as any);
       paramIndex++;
     }
 
