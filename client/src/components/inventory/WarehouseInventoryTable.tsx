@@ -735,16 +735,26 @@ const WarehouseInventoryTable: React.FC<WarehouseInventoryTableProps> = ({ wareh
                                           
                                           let typeLabel = '';
                                           let typeColor = 'text-muted-foreground';
+                                          let detailText = '';
                                           
-                                          if (movement.movementType === 'OUT' && movement.referenceType === 'REFILL') {
+                                          if (movement.movementType === 'refill' || (movement.movementType === 'OUT' && movement.referenceType === 'refill')) {
                                             typeLabel = 'Refill';
                                             typeColor = 'text-blue-600';
-                                          } else if (movement.movementType === 'IN') {
+                                            if (movement.machineName) {
+                                              detailText = `→ ${movement.machineName}`;
+                                            }
+                                          } else if (movement.movementType === 'IN' || movement.movementType === 'receipt') {
                                             typeLabel = 'Wareneingang';
                                             typeColor = 'text-green-600';
-                                          } else if (movement.movementType === 'TRANSFER') {
+                                          } else if (movement.movementType === 'TRANSFER' || movement.movementType === 'transfer') {
                                             typeLabel = 'Transfer';
                                             typeColor = 'text-orange-600';
+                                            if (movement.destinationWarehouseName) {
+                                              detailText = `→ ${movement.destinationWarehouseName}`;
+                                            }
+                                          } else if (movement.movementType === 'manual_removal') {
+                                            typeLabel = 'Manuelle Entnahme';
+                                            typeColor = 'text-red-600';
                                           } else if (movement.movementType === 'OUT') {
                                             typeLabel = 'Warenausgang';
                                             typeColor = 'text-red-600';
@@ -753,19 +763,27 @@ const WarehouseInventoryTable: React.FC<WarehouseInventoryTableProps> = ({ wareh
                                           }
 
                                           return (
-                                            <div key={movement.id || index} className="flex items-center justify-between py-1 px-2 bg-muted/20 rounded text-xs">
-                                              <div className="flex items-center space-x-2">
-                                                <span className={`font-medium ${typeColor}`}>{typeLabel}</span>
-                                                <span className="text-muted-foreground">
-                                                  {movement.quantity > 0 ? '+' : ''}{movement.quantity}
-                                                </span>
-                                                {movement.performedByName && (
-                                                  <span className="text-muted-foreground">
-                                                    von <span className="font-medium text-foreground">{movement.performedByName}</span>
+                                            <div key={movement.id || index} className="flex flex-col py-1.5 px-2 bg-muted/20 rounded text-xs">
+                                              <div className="flex items-center justify-between">
+                                                <div className="flex items-center space-x-2">
+                                                  <span className={`font-medium ${typeColor}`}>{typeLabel}</span>
+                                                  <span className="font-semibold text-foreground">
+                                                    {movement.quantity > 0 ? '+' : ''}{movement.quantity} Stück
                                                   </span>
-                                                )}
+                                                  {detailText && (
+                                                    <span className="text-muted-foreground">
+                                                      {detailText}
+                                                    </span>
+                                                  )}
+                                                </div>
+                                                <span className="text-muted-foreground">{formattedDate}</span>
                                               </div>
-                                              <span className="text-muted-foreground">{formattedDate}</span>
+                                              {movement.performedByName && (
+                                                <div className="text-muted-foreground mt-0.5">
+                                                  Bearbeiter: <span className="font-medium text-foreground">{movement.performedByName}</span>
+                                                  {movement.notes && <span className="ml-2">• {movement.notes}</span>}
+                                                </div>
+                                              )}
                                             </div>
                                           );
                                         })}

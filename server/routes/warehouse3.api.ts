@@ -460,12 +460,17 @@ router.get("/warehouses/:id/movements", async (req, res) => {
         pb.expiry_date as "expiryDate",
         sw.name as "sourceWarehouseName",
         dw.name as "destinationWarehouseName",
-        im.machine_id as "machineId"
+        im.machine_id as "machineId",
+        u.username as "performedByName",
+        m.machine_name as "machineName",
+        m.location as "machineLocation"
       FROM inventory_movements im
       LEFT JOIN products p ON im.product_id = p.id
       LEFT JOIN inventory_batches pb ON im.batch_id = pb.id
       LEFT JOIN warehouses sw ON im.source_warehouse_id = sw.id
       LEFT JOIN warehouses dw ON im.destination_warehouse_id = dw.id
+      LEFT JOIN users u ON im.performed_by = u.id
+      LEFT JOIN machines m ON im.machine_id = m.id
       WHERE (im.source_warehouse_id = $1 OR im.destination_warehouse_id = $1)
     `;
 
