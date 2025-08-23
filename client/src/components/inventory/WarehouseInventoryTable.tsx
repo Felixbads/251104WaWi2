@@ -762,16 +762,22 @@ const WarehouseInventoryTable: React.FC<WarehouseInventoryTableProps> = ({ wareh
                                           }
 
                                           return (
-                                            <div key={movement.id || index} className="flex flex-col py-1.5 px-2 bg-muted/20 rounded text-xs">
+                                            <div key={movement.id || index} className="flex flex-col py-1.5 px-2 bg-muted/20 rounded text-xs border-l-2 border-blue-500">
                                               <div className="flex items-center justify-between">
                                                 <div className="flex items-center space-x-2">
                                                   <span className={`font-medium ${typeColor}`}>{typeLabel}</span>
                                                   <span className="font-semibold text-foreground">
-                                                    {movement.quantity > 0 ? '+' : ''}{movement.quantity} Stück
+                                                    -{movement.quantity} Stück
                                                   </span>
                                                   {detailText && (
                                                     <span className="text-muted-foreground">
                                                       {detailText}
+                                                    </span>
+                                                  )}
+                                                  {/* Bestand vorher/nachher prominent anzeigen */}
+                                                  {(movement.previousStock !== undefined || movement.currentStock !== undefined) && (
+                                                    <span className="font-bold text-blue-600">
+                                                      Bestand: {movement.previousStock || '?'} → {movement.currentStock || '?'}
                                                     </span>
                                                   )}
                                                 </div>
@@ -779,8 +785,10 @@ const WarehouseInventoryTable: React.FC<WarehouseInventoryTableProps> = ({ wareh
                                               </div>
                                               {movement.performedByName && (
                                                 <div className="text-muted-foreground mt-0.5">
-                                                  Bearbeiter: <span className="font-medium text-foreground">{movement.performedByName}</span>
-                                                  {movement.notes && <span className="ml-2">• {movement.notes}</span>}
+                                                  Befüller: <span className="font-medium text-foreground">{movement.performedByName}</span>
+                                                  {movement.machineName && (
+                                                    <span className="ml-2">• Automat: <span className="font-medium">{movement.machineName}</span></span>
+                                                  )}
                                                 </div>
                                               )}
                                             </div>
