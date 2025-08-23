@@ -386,14 +386,10 @@ export default function Dashboard() {
                         key={index} 
                         className="flex items-center justify-between p-3 bg-orange-50 rounded-lg border hover:bg-orange-100 cursor-pointer transition-colors"
                         onClick={() => {
-                          // PROBLEM 1 BEHOBEN: Bei sent orders direkt zur korrekten Wareneingang-Route
-                          if ((order as any).status === 'sent') {
-                            setLocation(`/bestellungen/${(order as any).id}/wareneingang`);
-                          } else {
-                            setLocation(`/bestellungen/workflow?step=viewOrder&orderId=${(order as any).id}`);
-                          }
+                          // FIXED: Route all orders directly to their respective wareneingang page
+                          setLocation(`/bestellungen/${(order as any).id}/wareneingang`);
                         }}
-                        title={`Klicken um ${(order as any).status === 'sent' ? 'Wareneingang zu bearbeiten' : 'Bestellung anzuzeigen'}`}
+                        title={`Klicken um Wareneingang für Bestellung ${(order as any).orderNumber} zu bearbeiten`}
                       >
                         <div className="flex-1">
                           <div className="flex items-center justify-between mb-1">

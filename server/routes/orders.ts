@@ -31,7 +31,7 @@ router.get('/dashboard/open', async (req: Request, res: Response) => {
   try {
     const limit = parseInt(req.query.limit as string) || 5;
     
-    // Hole verschickte aber noch nicht gelieferte Bestellungen mit Lieferanten-Daten
+    // Hole offene Bestellungen (verschickt, bestätigt, etc.) mit Lieferanten-Daten
     const openOrdersQuery = await db
       .select({
         id: orders.id,
@@ -48,8 +48,14 @@ router.get('/dashboard/open', async (req: Request, res: Response) => {
       .from(orders)
       .leftJoin(suppliers, eq(orders.supplierId, suppliers.id))
       .where(and(
-        eq(orders.status, 'sent'), // Nur verschickte Bestellungen
-        // Noch nicht geliefert (actualDeliveryDate ist null)
+        // Erweiterte Statusfilterung: verschickte, bestätigte und weitere relevante Status
+        or(
+          eq(orders.status, 'sent'),
+          eq(orders.status, 'confirmed'),
+          eq(orders.status, 'in_delivery'),
+          eq(orders.status, 'partial_delivered')
+        ),
+        // Noch nicht vollständig geliefert (actualDeliveryDate ist null)
         isNull(orders.actualDeliveryDate)
       ))
       .orderBy(asc(orders.expectedDeliveryDate), desc(orders.createdAt))
