@@ -161,7 +161,14 @@ export default function Dashboard() {
 
   // Calculate enhanced daily metrics - KORRIGIERT
   const todayData = React.useMemo(() => {
-    if (!transactions) return { transactions: 0, revenue: 0, netAmount: 0, margin: 0, units: 0 };
+    if (!transactions) return { 
+      transactions: 0, 
+      revenue: 0, 
+      netAmount: 0, 
+      netProfit: 0, 
+      units: 0,
+      avgPrice: 0
+    };
     
     const today = new Date();
     const todayTxs = transactions.filter(tx => {
@@ -172,22 +179,25 @@ export default function Dashboard() {
     const revenue = todayTxs.reduce((sum, tx) => sum + (tx.price || 0), 0);
     const units = todayTxs.reduce((sum, tx) => sum + (tx.quantity || 1), 0);
     
-    // KORRIGIERT: Echter Netto-Betrag ohne MwSt
+    // Netto-Umsatz (ohne MwSt)
     const netAmount = todayTxs.reduce((sum, tx) => {
       return sum + (tx.priceWoVat || (tx.price || 0) * 0.85);
     }, 0);
     
-    // WARNUNG: Marge kann ohne echte Kostendaten nicht korrekt berechnet werden
-    // TODO: API für Purchase Conditions implementieren um echte Kosten zu ermitteln
-    const marginNote = "Marge unbekannt - benötigt Kostendaten";
+    // ECHTES Netto-Ergebnis nach Abzug der Einkaufskosten
+    const netProfit = todayTxs.reduce((sum, tx) => {
+      return sum + (tx.netResult || 0); // netResult wird vom Backend berechnet
+    }, 0);
+    
+    const avgPrice = todayTxs.length > 0 ? revenue / todayTxs.length : 0;
     
     return {
       transactions: todayTxs.length,
       revenue,
       netAmount, // Netto-Umsatz (ohne MwSt)
-      margin: 0, // Keine feste Marge mehr - wird als "N/A" angezeigt
-      marginNote,
-      units
+      netProfit, // Netto-Ergebnis nach Einkaufskosten
+      units,
+      avgPrice
     };
   }, [transactions]);
 
@@ -247,28 +257,40 @@ export default function Dashboard() {
       <div className="px-4 py-6 sm:px-6 lg:px-8">
         {/* Enhanced Key Metrics Row - Mobile First */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-          {/* Enhanced Revenue Card */}
+          {/* Enhanced Revenue Card - Heutige Performance */}
           <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200 sm:col-span-2 lg:col-span-1">
             <CardContent className="p-4">
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <p className="text-sm font-medium text-blue-600">Tagesumsatz</p>
+                  <p className="text-sm font-medium text-blue-600">Heutige Performance</p>
                   <Euro className="h-6 w-6 text-blue-500" />
                 </div>
-                <div className="space-y-2">
-                  <p className="text-2xl font-bold text-blue-900">{formatCurrency(todayData.revenue)}</p>
-                  <div className="grid grid-cols-3 gap-2 text-xs">
-                    <div className="text-center">
-                      <p className="text-blue-700 font-medium">{todayData.units}</p>
-                      <p className="text-blue-600">Verkäufe</p>
+                <div className="space-y-3">
+                  {/* Hauptumsatz und Transaktionszahl */}
+                  <div>
+                    <p className="text-2xl font-bold text-blue-900">{formatCurrency(todayData.revenue)}</p>
+                    <p className="text-sm text-blue-600">{todayData.transactions} Transaktionen heute</p>
+                  </div>
+                  
+                  {/* Detaillierte Kennzahlen Grid */}
+                  <div className="grid grid-cols-2 gap-3 pt-2 border-t border-blue-200">
+                    <div>
+                      <p className="text-xs text-blue-600">Netto-Umsatz</p>
+                      <p className="text-sm font-semibold text-blue-800">{formatCurrency(todayData.netAmount)}</p>
                     </div>
-                    <div className="text-center">
-                      <p className="text-green-700 font-medium">{formatCurrency(todayData.netAmount)}</p>
-                      <p className="text-blue-600">Netto-Umsatz</p>
+                    <div>
+                      <p className="text-xs text-blue-600">Ergebnis nach EK</p>
+                      <p className={`text-sm font-semibold ${todayData.netProfit >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+                        {formatCurrency(todayData.netProfit)}
+                      </p>
                     </div>
-                    <div className="text-center">
-                      <p className="text-orange-600 font-medium text-xs">N/A</p>
-                      <p className="text-blue-600">Marge</p>
+                    <div>
+                      <p className="text-xs text-blue-600">Anzahl Verkäufe</p>
+                      <p className="text-sm font-semibold text-blue-800">{todayData.units}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-blue-600">Ø Verkaufspreis</p>
+                      <p className="text-sm font-semibold text-blue-800">{formatCurrency(todayData.avgPrice)}</p>
                     </div>
                   </div>
                 </div>
