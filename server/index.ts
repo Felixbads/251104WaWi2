@@ -1504,6 +1504,11 @@ app.get('/orders-data', (req, res) => {
   });
   console.log('[SERVER] 🚨 KRITISCHE ROUTE: Order Items vollständige Synchronisation mounted ALLERERSTE PRIORITÄT');
 
+  // Mount warehouse3 router FIRST to prevent Vite middleware conflicts
+  const warehouse3Router = (await import('./routes/warehouse3.api')).default;
+  app.use('/api/warehouse3', warehouse3Router);
+  console.log('[SERVER] Warehouse3 API router mounted successfully');
+
   // Mount supplier portal router FIRST to prevent Vite middleware conflicts
   const supplierPortalRouter = (await import('./routes/supplier-portal')).default;
   app.use('/api/supplier-portal', supplierPortalRouter);

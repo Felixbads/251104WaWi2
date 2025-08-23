@@ -88,7 +88,7 @@ import { apiRequest } from "@/lib/queryClient";
 export default function WarehouseDetail() {
   const { id } = useParams();
   const warehouseId = id; // Make sure we have warehouseId for the link
-  const [location, setLocation] = useLocation();
+  const location = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   
@@ -130,7 +130,7 @@ export default function WarehouseDetail() {
     error: inventoryError,
     refetch: refetchInventory
   } = useQuery({
-    queryKey: ['/api/inventory', { warehouseId: id }],
+    queryKey: [`/api/warehouse3/warehouses/${id}/inventory`],
   });
   
   // Lade Maschinen
@@ -159,7 +159,7 @@ export default function WarehouseDetail() {
     error: movementsError,
     refetch: refetchMovements
   } = useQuery({
-    queryKey: ['/api/inventory-movements', { warehouseId: id }],
+    queryKey: [`/api/warehouse3/warehouses/${id}/movements`],
   });
   
   // Lade Automaten-Auffüllungen, die diesem Lager zugeordnet sind
@@ -233,7 +233,7 @@ export default function WarehouseDetail() {
   useEffect(() => {
     // Überprüfe URL-Parameter
     if (location) {
-      const urlParams = new URLSearchParams(location.split('?')[1]);
+      const urlParams = new URLSearchParams(location.search);
       const tabParam = urlParams.get('tab');
       const inventoryIdParam = urlParams.get('inventoryId');
       
@@ -249,7 +249,7 @@ export default function WarehouseDetail() {
         setInventoryIdParam(inventoryIdParam);
       }
     }
-  }, [location]);
+  }, [location.search]);
   
   // Handler: Tab-Wechsel
   const handleTabChange = (tab: string) => {

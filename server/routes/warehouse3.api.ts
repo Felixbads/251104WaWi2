@@ -315,7 +315,7 @@ router.get("/warehouses/:id/inventory", async (req, res) => {
         pi.min_quantity as "minimumStock",
         pi.location_in_warehouse as "location",
         pi.last_count_date as "lastCountDate",
-        COALESCE(p.name, 'Unbekanntes Produkt') as "productName",
+        COALESCE(p.product_name, 'Unbekanntes Produkt') as "productName",
         p.sku,
         COALESCE(p.category, 'Unkategorisiert') as "category"
       FROM inventory_items pi
@@ -383,7 +383,7 @@ router.get("/warehouses/:id/inventory", async (req, res) => {
           id,
           batch_number as "batchNumber",
           expiry_date as "expiryDate",
-          current_quantity as "currentQuantity",
+          quantity as "currentQuantity",
           initial_quantity as "initialQuantity",
           received_date as "receivedDate",
           supplier_ref as "supplierRef",
@@ -394,7 +394,7 @@ router.get("/warehouses/:id/inventory", async (req, res) => {
             ELSE NULL
           END as "daysUntilExpiry"
         FROM inventory_batches
-        WHERE warehouse_id = $1 AND product_id = $2 AND current_quantity > 0
+        WHERE warehouse_id = $1 AND product_id = $2 AND quantity > 0
         ORDER BY expiry_date ASC NULLS LAST`,
         [warehouseId, item.productId]
       );
@@ -454,9 +454,8 @@ router.get("/warehouses/:id/movements", async (req, res) => {
         im.batch_id as "batchId",
         im.reference_type as "referenceType",
         im.reference_id as "referenceId", 
-        im.reason,
         im.notes,
-        COALESCE(p.name, 'Unbekanntes Produkt') as "productName",
+        COALESCE(p.product_name, 'Unbekanntes Produkt') as "productName",
         p.sku as "productSku",
         pb.batch_number as "batchNumber",
         pb.expiry_date as "expiryDate",
