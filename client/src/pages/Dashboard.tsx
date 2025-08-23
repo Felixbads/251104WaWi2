@@ -364,7 +364,7 @@ export default function Dashboard() {
             {/* Enhanced Incoming Goods Tile - ANKLICKBAR */}
             <Card 
               className="cursor-pointer hover:shadow-md transition-all duration-200"
-              onClick={() => setLocation('/orders-overview')}
+              onClick={() => setLocation('/bestellungen')}
             >
               <CardHeader>
                 <CardTitle className="flex items-center text-lg">
@@ -412,7 +412,7 @@ export default function Dashboard() {
                     <Button 
                       variant="outline" 
                       className="w-full mt-3"
-                      onClick={() => setLocation('/orders-overview')}
+                      onClick={() => setLocation('/bestellungen')}
                     >
                       Alle Bestellungen anzeigen
                       <ChevronRight className="h-4 w-4 ml-2" />

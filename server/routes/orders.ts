@@ -48,17 +48,25 @@ router.get('/dashboard/open', async (req: Request, res: Response) => {
       .from(orders)
       .leftJoin(suppliers, eq(orders.supplierId, suppliers.id))
       .where(and(
-        // Erweiterte Statusfilterung: verschickte, bestätigte und weitere relevante Status
+        // Statusfilterung: alle Status die Wareneingang benötigen (aber nicht bereits abgeschlossen)
         or(
           eq(orders.status, 'sent'),
           eq(orders.status, 'confirmed'),
           eq(orders.status, 'in_delivery'),
-          eq(orders.status, 'partial_delivered')
+          eq(orders.status, 'partial_delivered'),
+          eq(orders.status, 'draft'),  // Entwürfe die bereit für Wareneingang sind
+          eq(orders.status, 'pending')
         ),
         // Noch nicht vollständig geliefert (actualDeliveryDate ist null)
-        isNull(orders.actualDeliveryDate)
+        isNull(orders.actualDeliveryDate),
+        // Ausschließen von bereits abgeschlossenen Bestellungen
+        or(
+          orders.status !== 'received',
+          orders.status !== 'completed',
+          orders.status !== 'cancelled'
+        )
       ))
-      .orderBy(asc(orders.expectedDeliveryDate), desc(orders.createdAt))
+      .orderBy(desc(orders.createdAt), asc(orders.expectedDeliveryDate))
       .limit(limit);
 
     const formattedOrders = openOrdersQuery.map(order => {
