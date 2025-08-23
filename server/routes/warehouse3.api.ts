@@ -462,9 +462,9 @@ router.get("/warehouses/:id/movements", async (req, res) => {
         dw.name as "destinationWarehouseName",
         im.machine_id as "machineId",
         COALESCE(
-          (SELECT operator FROM refills WHERE refill_number = im.reference_id LIMIT 1),
+          (SELECT operator FROM refills WHERE vendon_id::text = im.reference_id OR refill_number = im.reference_id ORDER BY datetime DESC LIMIT 1),
           u.username,
-          'Unbekannt'
+          'System'
         ) as "performedByName",
         m.machine_name as "machineName"
       FROM inventory_movements im
