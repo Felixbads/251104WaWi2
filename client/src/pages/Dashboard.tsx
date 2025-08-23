@@ -754,7 +754,13 @@ export default function Dashboard() {
               <Clock className="h-5 w-5 mr-2 text-gray-600" />
               Aktuelle Transaktionen
             </CardTitle>
-            <CardDescription>Die letzten 10 Verkäufe</CardDescription>
+            <CardDescription>
+              {transactions ? (
+                <span>Die letzten 50 von {transactions.length.toLocaleString('de-DE')} geladenen Transaktionen</span>
+              ) : (
+                <span>Die letzten Verkäufe</span>
+              )}
+            </CardDescription>
           </CardHeader>
           <CardContent>
             {isLoadingTransactions ? (
@@ -763,7 +769,7 @@ export default function Dashboard() {
               </div>
             ) : transactions && transactions.length > 0 ? (
               <div className="space-y-3">
-                {transactions.slice(0, 10).map((tx, index) => (
+                {transactions.slice(0, 50).map((tx, index) => (
                   <div key={tx.id} className="flex items-center justify-between p-3 bg-gray-50 rounded border">
                     <div className="flex-1">
                       <p className="font-medium text-sm truncate" title={tx.productName}>
