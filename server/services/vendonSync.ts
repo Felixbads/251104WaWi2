@@ -1287,7 +1287,7 @@ export class VendonSyncService {
             }
             
             // 🛡️ DUPLIKAT-SCHUTZ: Robuste Maschinen-ID Verarbeitung (FIXED)
-            let machineId: number = 1; // Standardwert
+            let machineId: number | null = null; // Kein Standardwert - null wenn unbekannt
             if (transaction.machine_id) {
               const machineVendonId = transaction.machine_id.toString();
               const machineName = transaction.machine_name || `Maschine ${machineVendonId}`;
@@ -1323,6 +1323,10 @@ export class VendonSyncService {
                 machineId = machineData.id;
                 console.log(`🆕 Neue Maschine erstellt: ${machineName} (${machineVendonId})`);
               }
+            } else {
+              // Keine machine_id in der Transaktion - warnen und null verwenden
+              console.warn(`⚠️ Transaktion ${transactionId} hat keine machine_id - wird als unzugeordnet gespeichert`);
+              machineId = null;
             }
             
             // Datetime konvertieren

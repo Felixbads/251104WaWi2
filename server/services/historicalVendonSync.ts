@@ -4,7 +4,7 @@ import {
   InsertTransaction,
   HistoricalSyncOptions
 } from "@shared/schema";
-import { VendonSyncService } from "./vendonSync";
+import { vendonSync } from "./vendonSync";
 import { addDays, format, parseISO } from "date-fns";
 
 /**
@@ -13,12 +13,13 @@ import { addDays, format, parseISO } from "date-fns";
  * Dieser Service implementiert einen optimierten Prozess zum Abruf historischer Transaktionsdaten
  * von der Vendon API. Es wird ein paginierter Abruf implementiert, der die API-Limits berücksichtigt
  * und immer maximal 100 Transaktionen pro Anfrage abruft.
+ * 
+ * FIXED: Verwendet jetzt die gemeinsame vendonSync-Instanz statt einer neuen Instanz zu erstellen.
  */
 export class HistoricalVendonSyncService {
-  private vendonSync: VendonSyncService;
-  
-  constructor() {
-    this.vendonSync = new VendonSyncService();
+  // Verwende die Singleton-Instanz aus vendonSync.ts
+  private get vendonSync() {
+    return vendonSync;
   }
   
   /**
