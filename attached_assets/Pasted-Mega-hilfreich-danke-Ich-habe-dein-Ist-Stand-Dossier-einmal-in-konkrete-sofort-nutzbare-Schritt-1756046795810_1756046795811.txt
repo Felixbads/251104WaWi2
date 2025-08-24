@@ -1,0 +1,364 @@
+Mega hilfreich, danke! Ich habe dein „Ist‑Stand“-Dossier einmal in konkrete, sofort nutzbare Schritte übersetzt: Migrations‑SQL, Code‑Patches, Prüfskripte und eine DoD‑Checkliste. Damit bekommst du die fehlenden Felder in die DB, das Mapping auf 100 % Coverage, robusteres Error‑Handling und eine automatisierte Coverage‑Prüfung (API‑→DB).
+
+⸻
+
+Sofortplan (90‑Minute Fix‑Wave)
+
+1) DB‑Migration (fehlende Felder + sinnvolle Constraints)
+
+-- 001_vendon_transactions_extend.sql
+BEGIN;
+
+-- neue Spalten (idempotent)
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                 WHERE table_name='transactions' AND column_name='temperature') THEN
+    ALTER TABLE transactions ADD COLUMN temperature numeric(5,2);
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                 WHERE table_name='transactions' AND column_name='humidity') THEN
+    ALTER TABLE transactions ADD COLUMN humidity numeric(5,2);
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                 WHERE table_name='transactions' AND column_name='machine_status') THEN
+    ALTER TABLE transactions ADD COLUMN machine_status varchar(100);
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                 WHERE table_name='transactions' AND column_name='error_code') THEN
+    ALTER TABLE transactions ADD COLUMN error_code varchar(100);
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                 WHERE table_name='transactions' AND column_name='maintenance_flag') THEN
+    ALTER TABLE transactions ADD COLUMN maintenance_flag boolean DEFAULT false;
+  END IF;
+END$$;
+
+-- Basis‑Qualität (nur, wenn es eure Workflows nicht bricht)
+ALTER TABLE transactions ALTER COLUMN datetime SET NOT NULL;
+ALTER TABLE transactions ALTER COLUMN vendon_id SET NOT NULL;
+
+-- weiche Enum‑Checks (anpassbar)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint 
+    WHERE conname = 'chk_transactions_payment_method'
+  ) THEN
+    ALTER TABLE transactions
+      ADD CONSTRAINT chk_transactions_payment_method
+      CHECK (payment_method IN ('cash','card','mobile','voucher'));
+  END IF;
+END$$;
+
+COMMIT;
+
+Rollback:
+
+BEGIN;
+ALTER TABLE transactions DROP CONSTRAINT IF EXISTS chk_transactions_payment_method;
+ALTER TABLE transactions DROP COLUMN IF EXISTS maintenance_flag;
+ALTER TABLE transactions DROP COLUMN IF EXISTS error_code;
+ALTER TABLE transactions DROP COLUMN IF EXISTS machine_status;
+ALTER TABLE transactions DROP COLUMN IF EXISTS humidity;
+ALTER TABLE transactions DROP COLUMN IF EXISTS temperature;
+COMMIT;
+
+
+⸻
+
+2) Mapping ergänzen (API → DB) – ohne Breaking Changes
+
+Stelle sicher, dass die Property‑Namen zu den DB‑Spalten passen (snake_case).
+
+// server/services/vendonSync.ts (Ausschnitt)
+type VendonTx = {
+  id: string;
+  datetime: string; // "YYYY-MM-DD HH:mm:ss"
+  machine_id?: string;
+  machine_name?: string;
+  location_id?: string;
+  location_name?: string;
+  product_id?: string;
+  product_name?: string;
+  product_price?: number; // cents
+  product_cost?: number;  // cents (oft null)
+  quantity?: number;
+  total_amount?: number;  // cents
+  payment_method?: string;
+  transaction_type?: string;
+  currency?: string;
+  status?: string;
+  refund_reason?: string | null;
+  customer_id?: string | null;
+  session_id?: string | null;
+
+  // NEU / bisher ignoriert:
+  temperature?: number | null;
+  humidity?: number | null;
+  machine_status?: string | null;
+  error_code?: string | null;
+  maintenance_flag?: boolean | null;
+};
+
+function centsToEuro(v?: number | null): number | null {
+  return (typeof v === 'number') ? Math.round(v) / 100 : null;
+}
+
+function toTZ(dateStr: string): string {
+  // API liefert "local naive"; wir speichern als timestamptz (Europe/Berlin).
+  // Wenn ihr serverseitig UTC wollt: hier explizit konvertieren.
+  return `${dateStr}+01:00`; // minimal-invasiv; besser: luxon/dayjs+tz einsetzen
+}
+
+export function mapVendonTransaction(tx: VendonTx) {
+  return {
+    vendon_id: tx.id,
+    datetime: toTZ(tx.datetime),
+    machine_id: tx.machine_id ?? null,
+    machine_name: tx.machine_name ?? null,
+    location_id: tx.location_id ?? null,
+    location_name: tx.location_name ?? null,
+    product_id: tx.product_id ?? null,
+    product_name: tx.product_name ?? null,
+    price: centsToEuro(tx.product_price),
+    cost: centsToEuro(tx.product_cost), // bleibt null, wenn API nichts liefert
+    quantity: tx.quantity ?? 1,
+    total_amount: centsToEuro(tx.total_amount),
+    payment_method: tx.payment_method ?? null,
+    transaction_type: tx.transaction_type ?? null,
+    currency: tx.currency ?? 'EUR',
+    status: tx.status ?? null,
+    refund_reason: tx.refund_reason ?? null,
+    customer_id: tx.customer_id ?? null,
+    session_id: tx.session_id ?? null,
+
+    // NEU: direkt durchreichen
+    temperature: (typeof tx.temperature === 'number') ? tx.temperature : null,
+    humidity: (typeof tx.humidity === 'number') ? tx.humidity : null,
+    machine_status: tx.machine_status ?? null,
+    error_code: tx.error_code ?? null,
+    maintenance_flag: tx.maintenance_flag ?? false,
+
+    sync_timestamp: new Date().toISOString(),
+  };
+}
+
+Upsert unverändert weiter nutzen, Spaltenliste um die neuen Felder erweitern.
+
+⸻
+
+3) Robustere Retries + sauberes Error‑Handling (Events & Transactions)
+
+// server/lib/retry.ts
+export async function retryWithBackoff<T>(
+  op: () => Promise<T>,
+  tries = 3,
+  baseMs = 1000
+): Promise<T> {
+  let lastErr: any;
+  for (let i = 0; i < tries; i++) {
+    try { return await op(); } 
+    catch (err: any) {
+      lastErr = err;
+      const status = err?.response?.status;
+      // Keine Retries bei 4xx außer 408/429
+      if (status && status >= 400 && status < 500 && status !== 408 && status !== 429) break;
+      const delay = baseMs * Math.pow(2, i);
+      await new Promise(r => setTimeout(r, delay));
+    }
+  }
+  throw lastErr;
+}
+
+// server/services/vendonEventsSync.ts (Ausschnitt)
+import { retryWithBackoff } from '../lib/retry';
+
+async function fetchEventsPaged(params: any) {
+  return retryWithBackoff(() => vendonAPI.getEvents(params), 4, 750);
+}
+
+
+⸻
+
+4) Eingabe‑Validierung (z. B. manuelle Backfills/Time‑Windows)
+
+// server/routes/vendon.ts (Ausschnitt)
+import { z } from 'zod';
+
+const SyncRequest = z.object({
+  startDate: z.string().datetime().optional(),
+  endDate: z.string().datetime().optional(),
+});
+
+router.post('/sync', async (req, res) => {
+  const parse = SyncRequest.safeParse(req.body);
+  if (!parse.success) return res.status(400).json({ error: 'Invalid payload' });
+  // …
+});
+
+
+⸻
+
+Automatisierte Coverage‑Prüfung (API‑Keys → DB‑Spalten)
+
+Dieses Skript zieht ein Sample aus der Vendon‑API, extrahiert die Keys und vergleicht sie mit information_schema.columns eurer DB. Ausgegeben werden: abgedeckte Felder, fehlende Spalten, gemappte aber leere Felder.
+
+// scripts/check_vendon_api_db_coverage.ts
+import pg from 'pg';
+import { getTransactions } from '../server/services/vendonAPI';
+
+async function main() {
+  const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+  const client = await pool.connect();
+
+  try {
+    const sample = await getTransactions({ limit: 50 }); // kleine Stichprobe
+    const apiKeys = new Set<string>();
+    for (const tx of sample) Object.keys(tx).forEach(k => apiKeys.add(k));
+
+    const { rows } = await client.query(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name='transactions'
+    `);
+    const dbCols = new Set(rows.map(r => r.column_name));
+
+    // simple Heuristik: snake_case der API‑Keys
+    const normalize = (k: string) => k.replace(/[A-Z]/g, m => `_${m.toLowerCase()}`);
+
+    const missingInDB: string[] = [];
+    apiKeys.forEach(k => {
+      const col = normalize(k);
+      if (!dbCols.has(col)) missingInDB.push(`${k} → ${col}`);
+    });
+
+    console.log('API Keys:', [...apiKeys].sort());
+    console.log('DB Columns:', [...dbCols].sort());
+    console.log('Missing columns (proposed mapping):', missingInDB);
+
+  } finally {
+    client.release();
+  }
+}
+
+main().catch(e => { console.error(e); process.exit(1); });
+
+Erwartetes Ergebnis bei dir (vor Migration):
+temperature, humidity, machine_status, error_code, maintenance_flag werden als fehlend gelistet.
+Nach Migration + Mapping sollten 0 fehlende erscheinen.
+
+⸻
+
+Verifikation nach Deployment
+
+SQL‑Health‑Checks
+
+-- Abdeckung der neuen Felder
+SELECT 
+  COUNT(*) AS n,
+  COUNT(temperature) AS n_temp,
+  COUNT(humidity) AS n_hum,
+  COUNT(machine_status) AS n_mstatus,
+  ROUND(100.0 * COUNT(temperature)::numeric/NULLIF(COUNT(*),0),2) AS pct_temp,
+  ROUND(100.0 * COUNT(humidity)::numeric/NULLIF(COUNT(*),0),2)    AS pct_hum
+FROM transactions
+WHERE datetime >= NOW() - INTERVAL '30 days';
+
+-- Duplikate weiterhin im Griff?
+SELECT vendon_id, COUNT(*) c
+FROM transactions
+GROUP BY vendon_id
+HAVING COUNT(*)>1;
+
+Jest‑Smoke‑Tests (Mapping)
+
+// test/vendon-mapping.smoke.test.ts
+import { mapVendonTransaction } from '../server/services/vendonSync';
+
+test('maps all new fields', () => {
+  const r = mapVendonTransaction({
+    id: 'x',
+    datetime: '2024-01-15 14:30:25',
+    product_price: 150,
+    product_cost: 80,
+    temperature: 22.5,
+    humidity: 45,
+    machine_status: 'operational',
+    error_code: null,
+    maintenance_flag: true,
+  } as any);
+
+  expect(r.price).toBe(1.5);
+  expect(r.cost).toBe(0.8);
+  expect(r.temperature).toBe(22.5);
+  expect(r.humidity).toBe(45);
+  expect(r.machine_status).toBe('operational');
+  expect(r.maintenance_flag).toBe(true);
+});
+
+
+⸻
+
+Monitoring & Alerts (leichtgewichtig, sofort wirksam)
+	•	Sync‑Failure‑Alert: wenn sync_logs.errors > 0 in den letzten 15 min oder items_saved/items_found < 0.9.
+
+Pseudocode (cron alle 5 min):
+
+const r = await db.one(`
+  SELECT
+    SUM(errors) AS errors,
+    SUM(items_found) AS found,
+    SUM(items_saved) AS saved
+  FROM sync_logs
+  WHERE created_at >= NOW() - INTERVAL '15 min'
+`);
+const ok = (Number(r.saved) / Math.max(1, Number(r.found))) >= 0.9 && Number(r.errors) === 0;
+if (!ok) sendAlert('Vendon Sync degradation detected (15m window).');
+
+
+⸻
+
+Rate‑Limiting (kleiner Hardening‑Schritt)
+
+Behalte 100 req/min vorerst bei (das ist sicher konservativ). Ergänze Jitter zwischen Batches, damit parallele Jobs nicht phasen‑synchron feuern:
+
+const jitter = Math.floor(Math.random()*200); // 0..200ms
+await new Promise(r => setTimeout(r, 800 + jitter));
+
+
+⸻
+
+Definition of Done (für „Vendon Sync – vollständige Coverage & Robustheit“)
+	1.	DB‑Migration deployed, neue Spalten vorhanden.
+	2.	Mapping setzt temperature, humidity, machine_status, error_code, maintenance_flag.
+	3.	Coverage‑Script zeigt 0 fehlende Felder (Sample ≥ 50).
+	4.	Smoke‑Tests grün.
+	5.	Health‑SQL: keine Duplikate, Coverage‑Anteil > 0 % (falls API liefert).
+	6.	Retries aktiv in Events‑ und Tx‑Pfad.
+	7.	Light‑Alert aktiv (15 min‑Fenster).
+
+⸻
+
+Optional (nächste Iteration)
+	•	Zeitzonen‑Sauberkeit: luxon/dayjs‑tz → serverseitig UTC speichern, UI lokal rendern.
+	•	Schema‑Change‑Guard: nightly Job, der check_vendon_api_db_coverage.ts fährt und bei „Missing columns > 0“ alarmiert.
+	•	Refills reaktivieren: gleichen Mapping‑Weg nutzen, separate Tabelle refills + DoD wie oben.
+	•	Input‑Validation überall (Zod) und typed API‑Client (OpenAPI/TypeBox) für strukturierte Responses.
+
+⸻
+
+Wenn du willst, bereite ich dir die Patches als git‑diff (vier Dateien) und ein npm‑script:
+
+// package.json
+"scripts": {
+  "db:migrate:vendon": "psql \"$DATABASE_URL\" -f migrations/001_vendon_transactions_extend.sql",
+  "check:vendon:coverage": "ts-node scripts/check_vendon_api_db_coverage.ts",
+  "test:vendon:smoke": "jest -i test/vendon-mapping.smoke.test.ts"
+}
+
+Sag kurz Bescheid, ob ich dir die Diffs exakt für deine Pfade ausspielen soll – ich liefere sie dann direkt mit.
