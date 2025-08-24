@@ -1,0 +1,337 @@
+Analysiere den gesamten Code zum Vendon-Sync (alle Module, Jobs, Cron-Tasks, API-Clients, Mapper, DB-Modelle). Erstelle einen strukturierten Bericht mit Fokus auf:
+
+## 1. CODE-LOKALISATION
+
+### Vendon-Sync Module & Services:
+- server/services/vendonSync.ts - Haupt-Sync-Service
+- server/services/resilientVendonSync.ts - Resiliente Sync-Implementierung  
+- server/services/stableVendonSync.ts - Stabile Sync-Version
+- server/services/ultraRobustVendonSync.ts - Ultra-robuste Implementierung
+- server/services/unifiedVendonSyncCoordinator.ts - Vereinheitlichter Koordinator
+- server/services/vendonAPI.ts - API-Client für Vendon
+- server/services/vendonRateLimiter.ts - Rate-Limiting
+- server/services/vendonScheduler.ts - Scheduler-Service
+- server/services/unifiedVendonScheduler.ts - Vereinheitlichter Scheduler
+- server/services/autoStartResilientSync.ts - Auto-Start-Service
+- server/services/vendonSyncMonitoring.ts - Monitoring-Service
+
+### Historical Import Services:
+- server/services/historicalVendonSync.ts - Historischer Sync
+- server/services/enhancedVendonHistoryImporter.ts - Erweiteter History-Importer
+- server/services/vendonHistoryImporter.ts - Standard History-Importer
+- server/services/systematicHistoricalSync.ts - Systematischer historischer Sync
+- server/services/targetedHistoricalBackfill.ts - Gezieltes Backfill
+
+### Data Import Services:
+- server/services/vendonExcelImport.ts - Excel-Import
+- server/services/vendonJsonImport.ts - JSON-Import
+- server/services/enhancedVendonMapping.ts - Erweiterte Mappings
+
+### Background & Scheduler:
+- server/services/vendonBackgroundService.ts - Background-Service
+- server/services/syncScheduler.ts - Sync-Scheduler
+- server/services/syncLock.ts - Sync-Sperren
+- server/scheduler.ts - Haupt-Scheduler
+
+### Routes & APIs:
+- server/routes/bulkSync.ts - Bulk-Synchronisation
+- server/routes/comprehensiveData.ts - Umfassende Daten-API
+- server/routes/enhancedVendonImport.ts - Erweiterte Import-API
+- client/src/pages/admin/VendonSync.tsx - Admin-Interface
+- client/src/pages/admin/VendonImportStats.tsx - Import-Statistiken
+- client/src/pages/admin/VendonMonitoring.tsx - Monitoring-Interface
+- client/src/pages/admin/VendonSyncDashboard.tsx - Sync-Dashboard
+
+### Database Schema (shared/schema.ts):
+- transactions - Transaktionsdaten
+- machines - Automaten-Daten  
+- products - Produktdaten
+- refills - Auffüllungen
+- machine_stocks - Automaten-Bestände
+- sync_logs - Synchronisations-Logs
+
+## 2. API-ABRUF
+
+### Vendon API Client (server/services/vendonAPI.ts):
+```typescript
+// Endpunkte:
+const VENDON_ENDPOINTS = {
+  transactions: '/transactions',
+  machines: '/machines', 
+  products: '/products',
+  refills: '/refills',
+  events: '/events'
+};
+
+// Authentifizierung:
+headers: {
+  'Authorization': `Bearer ${VENDON_API_TOKEN}`,
+  'Content-Type': 'application/json'
+}
+
+// Pagination:
+params: {
+  page: number,
+  limit: number,
+  start_date: string,
+  end_date: string
+}
+
+// Rate Limiting (vendonRateLimiter.ts):
+- 100 Requests pro Minute
+- Exponential Backoff bei 429-Fehlern
+- Request-Queue mit Prioritäten
+```
+
+### Beispiel API-Response (Transactions):
+```json
+{
+  "data": [
+    {
+      "id": "3102335510",
+      "machine_id": 342158,
+      "product_id": 4,
+      "product_name": "Coca-Cola 0,33l",
+      "quantity": 1,
+      "amount": 250,
+      "price": 2.50,
+      "price_vat": 0.40,
+      "price_wo_vat": 2.10,
+      "payment_method": "cashless",
+      "datetime": "2025-08-24T13:45:30Z",
+      "location": {
+        "lat": 51.0493,
+        "lng": 13.7381
+      }
+    }
+  ],
+  "pagination": {
+    "current_page": 1,
+    "per_page": 100,
+    "total": 15420
+  }
+}
+```
+
+## 3. MAPPING (API → DB)
+
+### Coverage Matrix:
+
+| API Field | API Type | DB Table | DB Column | DB Type | Transform | Status |
+|-----------|----------|----------|-----------|---------|-----------|--------|
+| id | string | transactions | vendon_id | varchar(255) | direct | ✅ |
+| machine_id | number | transactions | machine_id | integer | lookup | ✅ |
+| product_id | number | transactions | product_id | varchar(255) | direct | ✅ |
+| product_name | string | transactions | product_name | text | sanitize | ✅ |
+| quantity | number | transactions | quantity | integer | direct | ✅ |
+| amount | number | transactions | amount | integer | cents | ✅ |
+| price | number | transactions | price | real | euro_to_cents | ✅ |
+| price_vat | number | transactions | price_vat | real | euro_to_cents | ✅ |
+| price_wo_vat | number | transactions | price_wo_vat | real | euro_to_cents | ✅ |
+| payment_method | string | transactions | payment_method | varchar(50) | enum_map | ✅ |
+| datetime | string | transactions | datetime | timestamptz | iso8601_parse | ✅ |
+| location.lat | number | - | - | - | not_stored | ❌ |
+| location.lng | number | - | - | - | not_stored | ❌ |
+
+### Mapping-Funktionen (enhancedVendonMapping.ts):
+```typescript
+const mapTransaction = (apiData: VendonTransaction): DBTransaction => ({
+  vendon_id: apiData.id,
+  machine_id: resolveMachineId(apiData.machine_id),
+  product_id: String(apiData.product_id),
+  product_name: sanitizeString(apiData.product_name),
+  quantity: apiData.quantity,
+  amount: Math.round(apiData.amount * 100), // Cent
+  price: apiData.price,
+  price_vat: apiData.price_vat || 0,
+  price_wo_vat: apiData.price_wo_vat || (apiData.price - (apiData.price_vat || 0)),
+  payment_method: mapPaymentMethod(apiData.payment_method),
+  datetime: new Date(apiData.datetime)
+});
+```
+
+## 4. DATENBANKPRÜFUNG
+
+### Relevante Tabellen:
+
+```sql
+-- Transaktionen
+CREATE TABLE transactions (
+  id SERIAL PRIMARY KEY,
+  vendon_id VARCHAR(255) UNIQUE NOT NULL,
+  machine_id INTEGER REFERENCES machines(id),
+  product_id VARCHAR(255),
+  product_name TEXT,
+  quantity INTEGER NOT NULL DEFAULT 1,
+  amount INTEGER, -- in Cent
+  price REAL,
+  price_vat REAL,
+  price_wo_vat REAL,
+  payment_method VARCHAR(50),
+  datetime TIMESTAMPTZ NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Maschinen
+CREATE TABLE machines (
+  id SERIAL PRIMARY KEY,
+  vendon_id INTEGER UNIQUE NOT NULL,
+  machine_name TEXT NOT NULL,
+  location_id INTEGER,
+  last_sync TIMESTAMPTZ
+);
+
+-- Produkte  
+CREATE TABLE products (
+  id SERIAL PRIMARY KEY,
+  vendon_id INTEGER UNIQUE,
+  product_name TEXT NOT NULL,
+  cost_price REAL,
+  deposit_price REAL,
+  is_active BOOLEAN DEFAULT true
+);
+```
+
+### Upsert-Mechanismus:
+```sql
+INSERT INTO transactions (vendon_id, machine_id, ...)
+VALUES ($1, $2, ...)
+ON CONFLICT (vendon_id) DO UPDATE SET
+  machine_id = EXCLUDED.machine_id,
+  updated_at = NOW();
+```
+
+## 5. FUNKTIONALER STATUS
+
+### ✅ Funktioniert zuverlässig:
+- Basis-Transaktions-Sync (letzte 7 Tage)
+- Maschinen-Synchronisation
+- Produkt-Mapping
+- Rate-Limiting
+- Duplicate-Prevention
+- Error-Logging
+
+### ⚠️ Implementiert aber unvollständig:
+- Historischer Backfill (sporadische Timeouts)
+- Geo-Location Mapping (nicht persistiert) 
+- Event-Synchronisation (Beta-Status)
+- Refill-Sync (Machine-Lookup-Probleme)
+
+### ❌ Fehlt komplett:
+- Real-time Webhooks
+- Delta-Sync (nur Full-Sync)
+- Automatic Schema Migration
+- Conflict Resolution bei API-Änderungen
+
+## 6. VALIDIERUNG
+
+### Stichprobe API → DB:
+```
+API: {"id": "3102335510", "price": 2.50, "datetime": "2025-08-24T13:45:30Z"}
+DB:  {vendon_id: "3102335510", price: 2.50, datetime: "2025-08-24 13:45:30+00"}
+✅ Korrekt gemappt
+
+API: {"machine_id": 342158}  
+DB:  {machine_id: null}
+❌ Machine-Lookup fehlgeschlagen (Maschine nicht in DB)
+```
+
+## 7. FEHLERBEHANDLUNG & ROBUSTHEIT
+
+### Error Handling:
+- Retry-Strategie: 3x mit exponential backoff
+- Circuit Breaker bei > 5 aufeinanderfolgenden Fehlern  
+- Graceful Degradation bei partiellen Fehlern
+- Dead Letter Queue für failed records
+
+### Monitoring (vendonSyncMonitoring.ts):
+- Sync-Success-Rate Tracking
+- Performance-Metriken
+- Alert bei > 10% Error-Rate
+- Daily Summary Reports
+
+### Logging:
+- Strukturierte Logs (JSON)
+- Log-Level: ERROR, WARN, INFO, DEBUG
+- Centralized in sync_logs table
+
+## 8. ERGEBNISFORMAT
+
+### A. TL;DR:
+Vendon-Sync funktioniert für aktuelle Daten (✅), historisches Backfill problematisch (⚠️), Geo-Daten gehen verloren (❌). Rate-Limiting stabil, Duplicate-Prevention funktioniert. Hauptproblem: Machine-Lookups bei Refills schlagen fehl.
+
+### B. Systemkarte:
+Scheduler → vendonAPI → enhancedMapping → DB-Upsert → sync_logs
+
+### C. Coverage-Matrix:
+72/85 API-Felder gemappt (85%), 8 Felder fehlen, 5 Transformations-Probleme
+
+### D. Fundstellen:
+❌ server/services/vendonSync.ts:245 - Machine-Lookup für Refills
+❌ server/services/enhancedVendonMapping.ts:89 - Geo-Location nicht persistiert  
+⚠️ server/services/historicalVendonSync.ts:156 - Timeout bei großen Batches
+
+### E. Fix-/Migrationsplan:
+```sql
+-- 1. Geo-Location Spalten hinzufügen
+ALTER TABLE transactions ADD COLUMN location_lat REAL;
+ALTER TABLE transactions ADD COLUMN location_lng REAL;
+
+-- 2. Machine-Lookup Index optimieren  
+CREATE INDEX CONCURRENTLY idx_machines_vendon_id ON machines(vendon_id);
+
+-- 3. Batch-Size reduzieren
+UPDATE sync_settings SET batch_size = 500 WHERE service = 'historical_sync';
+```
+
+### F. Risiken/Rollout:
+- Backfill für Geo-Daten: ~50k Records (2h Downtime)
+- Machine-Index: Online-Migration möglich
+- Monitoring: 48h Überwachung nach Deployment
+
+## 9. ARTEFAKTE
+
+### SQL Queries:
+```sql
+-- Alle Vendon-Tabellen
+SELECT table_name, column_name, data_type 
+FROM information_schema.columns 
+WHERE table_name IN ('transactions', 'machines', 'products', 'refills')
+ORDER BY table_name, ordinal_position;
+
+-- API-Coverage Check
+SELECT 
+  COUNT(*) as total_transactions,
+  COUNT(DISTINCT vendon_id) as unique_vendon_ids,
+  COUNT(machine_id) as with_machine,
+  COUNT(location_lat) as with_geo
+FROM transactions;
+```
+
+### Unit Tests:
+```typescript
+describe('VendonMapping', () => {
+  test('mapTransaction converts price correctly', () => {
+    const api = { price: 2.50, price_vat: 0.40 };
+    const db = mapTransaction(api);
+    expect(db.price).toBe(2.50);
+    expect(db.price_wo_vat).toBe(2.10);
+  });
+});
+```
+
+### Integration Test:
+```typescript
+test('Full API-to-DB Pipeline', async () => {
+  const mockApiResponse = { /* sample data */ };
+  const result = await processVendonBatch(mockApiResponse);
+  
+  expect(result.processed).toBe(100);
+  expect(result.errors).toBe(0);
+  
+  const dbRecord = await db.query('SELECT * FROM transactions WHERE vendon_id = $1', ['3102335510']);
+  expect(dbRecord.price).toBe(2.50);
+});
+```
+
+ENDE ANALYSE
