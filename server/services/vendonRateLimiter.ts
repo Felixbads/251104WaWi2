@@ -10,6 +10,7 @@ export class VendonRateLimiter {
   private windowStart = Date.now();
   private readonly maxRequestsPerMinute = 50; // Konservativ unter dem 60er Limit
   private readonly windowSizeMs = 60 * 1000; // 1 Minute
+  private readonly useJitter = true; // Add jitter to prevent thundering herd
   private isProcessing = false;
 
   private constructor() {
@@ -69,8 +70,10 @@ export class VendonRateLimiter {
           next.resolve();
         }
       } else {
-        // Warte bis ein Slot frei wird
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        // Warte bis ein Slot frei wird (mit Jitter)
+        const baseDelay = 1000;
+        const jitter = this.useJitter ? Math.random() * 200 : 0; // 0-200ms jitter
+        await new Promise(resolve => setTimeout(resolve, baseDelay + jitter));
       }
     }
 

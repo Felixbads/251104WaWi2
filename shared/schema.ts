@@ -634,6 +634,11 @@ export const transactions = pgTable("transactions", {
   precipitation: real("precipitation"),                       // Niederschlag in mm
   windSpeed: real("wind_speed"),                              // Windgeschwindigkeit in km/h
   
+  // Maschinen-Status und Fehlercodes (aus Vendon API)
+  machineStatus: text("machine_status"),                     // Status der Maschine (operational, maintenance, error)
+  errorCode: text("error_code"),                             // Fehlercode falls vorhanden
+  maintenanceFlag: boolean("maintenance_flag").default(false), // Wartungsmarkierung
+  
   // Event- und Sonderkontext
   eventType: text("event_type"),                              // Besondere Events (festival, market, tourist_season)
   touristSeason: boolean("tourist_season").default(false),   // Ist Touristen-Hochsaison
