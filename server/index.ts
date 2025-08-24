@@ -10,6 +10,8 @@ import { reconcileWarehouseProducts } from "./services/warehouseReconciliation";
 import fileUpload from "express-fileupload";
 import WebSocket from 'ws';
 import http from 'http';
+import session from 'express-session';
+import connectPgSimple from 'connect-pg-simple';
 import inventoryApiRouter from './routes/inventory-api';
 import inventoryRouter from './routes/inventory';
 import mailTemplatesRouter from './routes/mail-templates';
@@ -78,6 +80,34 @@ import pagePermissionsRouter from './routes/page-permissions';
 import machinesRouter from './routes/machines';
 
 const app = express();
+
+// Session Store Setup
+const PgSession = connectPgSimple(session);
+
+// Session Configuration
+app.use(session({
+  store: new PgSession({
+    pool: pool, // Use existing PostgreSQL pool
+    tableName: 'session', // Session table name
+    createTableIfMissing: true,
+  }),
+  secret: process.env.SESSION_SECRET || 'dev-fallback-session-secret-change-in-production',
+  name: 'sessionId',
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    maxAge: 8 * 60 * 60 * 1000, // 8 hours
+  },
+  rolling: true, // Reset expiration on activity
+}));
+
+// WARNING: Display session secret warning if not set
+if (!process.env.SESSION_SECRET) {
+  console.warn('⚠️ WARNUNG: SESSION_SECRET ist nicht gesetzt. Verwende Fallback-Secret für Entwicklung.');
+}
 
 // DEBUG: Portal-Route-Logging vor allen anderen Middlewares
 app.use((req, res, next) => {
