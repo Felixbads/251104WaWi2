@@ -1,0 +1,123 @@
+# CODEX-VERIFIKATIONS-PROMPT (Schritt 1) — Sessions & Hash-Audit
+
+## Ziel
+Verifiziere **Schritt 1: Sichere Sessions (express-session) & Hash‑Audit** anhand des aktuellen Repos. Führe eine technische Prüfung mit **Belegen (Dateipfad:Zeile)** durch, gib eine **PASS/FAIL**-Matrix aus und liefere bei FAIL **präzise Remediation‑Diffs**. **Keine Geheimnisse leaken** (nur Variablennamen nennen).
+
+---
+
+## Konkreter Prüfrahmen
+
+### A) Code-Artefakte (müssen vorhanden & korrekt sein)
+1. **Session-Middleware**
+   - `server/index.ts` importiert:
+     - `express-session`
+     - `connect-pg-simple` (Default‑Export/Factory: `connectPgSimple(session)`)
+   - Store-Konfiguration:
+     - `new PgSession({ pool, tableName: 'session', createTableIfMissing: true })`
+   - Session-Setup:
+     - `secret: process.env.SESSION_SECRET`
+     - `name: 'sessionId'` (oder dokumentierter Name)
+     - `resave: false`, `saveUninitialized: false`
+     - `cookie.httpOnly: true`
+     - `cookie.secure: process.env.NODE_ENV === 'production'`
+     - `cookie.sameSite: 'lax'`
+     - `cookie.maxAge: 8 * 60 * 60 * 1000` (8h)
+     - `rolling: true`
+   - **Beleg**: zeige exakte Fundstellen (`server/index.ts:<zeile>`)
+
+2. **Hash-Audit (bcrypt)**
+   - Login‑Flow nutzt **`bcrypt.compare(input, user.password)`** (oder `passwordHash`).
+   - Es existiert **kein** Klartext‑Vergleich wie `user.password === password`.
+   - **Beleg**: `server/auth.ts:<zeile>` (oder relevanter Router/Service)
+
+3. **Build/Checks**
+   - `npm run check` läuft ohne Fehler (Typecheck & Lint).
+   - **Beleg**: kompakter Output‑Auszug (max. 5 Zeilen).
+
+4. **Health/Runtime**
+   - Server startbar (Dev/Prod egal), Session‑Middleware initialisiert ohne Fehler.
+   - `curl -fsS http://localhost:5000/api/inter-app/health` liefert `healthy` und `database: connected`.
+   - **Beleg**: 1–3 Zeilen Output.
+
+5. **Session-Tabelle**
+   - `connect-pg-simple` hat Tabelle `session` erstellt **oder** ist konfiguriert, sie bei Bedarf zu erstellen.
+   - **Beleg**:
+     - Entweder Log-Auszug „creating session table“ **oder**
+     - `psql "$DATABASE_URL" -c "\d session"` mit Tabellenkopf **oder**
+     - Code‑Fundstelle `createTableIfMissing: true`.
+
+6. **Warnungen**
+   - Prüfe Warnungen wie „SESSION_SECRET is not set“. Wenn vorhanden: als **WARN** mit Fundstelle ausgeben (und Remediation vorschlagen: `.env` Name nur nennen).
+
+---
+
+## Auszuführende Kommandos (bitte automatisiert ausführen & Auszüge einfügen)
+- `npm run check`
+- Start: `npm run dev` **oder** `npm run start` (welches im Repo funktioniert)
+- Probe: `curl -fsS http://localhost:5000/api/inter-app/health`
+- DB: `psql "$DATABASE_URL" -c "\d session"` (falls erreichbar; andernfalls Code‑Beleg für `createTableIfMissing` nutzen)
+
+> **Hinweis**: Keine Geheimnisse im Output. Nur Variablennamen.
+
+---
+
+## OUTPUTFORMAT (exakt einhalten)
+
+```md
+# Schritt 1 — Verifikationsbericht
+
+## Zusammenfassung (PASS/FAIL)
+- Session-Middleware: <PASS|FAIL>
+- Store-Konfiguration: <PASS|FAIL>
+- Cookie-Flags (httpOnly/secure/sameSite/maxAge/rolling): <PASS|FAIL> (Detail je Flag)
+- SESSION_SECRET als Env-Name vorhanden: <PASS|FAIL>
+- bcrypt.compare im Login: <PASS|FAIL>
+- Kein Klartextvergleich: <PASS|FAIL>
+- npm run check: <PASS|FAIL>
+- Health-Endpoint: <PASS|FAIL>
+- Session-Tabelle vorhanden/auto-erstellt: <PASS|WARN|FAIL>
+- Warnungen (z. B. fehlendes SESSION_SECRET): <LISTE|keine>
+
+## Belege
+- Code:
+  - `server/index.ts:<zeile>` → Auszug (max. 6 Zeilen um die Kernstelle)
+  - `server/auth.ts:<zeile>` → Auszug (max. 6 Zeilen)
+- Kommandos:
+  - `npm run check` → <3–5 Zeilen>
+  - `curl /api/inter-app/health` → <1–2 Zeilen>
+  - `psql "\d session"` → <1–5 Zeilen> **oder** Code-Fundstelle `createTableIfMissing: true`
+
+## Abweichungen & Ursachen
+- <Liste konkreter Abweichungen mit kurzer Ursache-Analyse>
+
+## REMEDIATION (nur falls FAIL/WARN; kompakte Unified-Diffs)
+```diff
+--- a/server/index.ts
++++ b/server/index.ts
+@@
+- // <alte Zeile falls falsch>
++ // <neue Zeile mit Korrektur>
+
+--- a/server/auth.ts
++++ b/server/auth.ts
+@@
+- if (user.password === password) { ... }
++ const ok = await bcrypt.compare(password, user.password);
++ if (!ok) { ... }
+
+ROLLBACK-Hinweise (für obige Remediations)
+	•	Dateien/Zeilen, die rückgängig zu machen sind
+	•	Falls DB betroffen: DROP TABLE IF EXISTS session; (nur falls manuell erstellt)
+
+Empfehlung Nächster Schritt
+	•	Wenn alle Punkte PASS (und max. WARN zu ENV): Fortfahren mit Schritt 2 (helmet + CSP + CSRF).
+	•	Wenn irgendein FAIL: nicht fortfahren. Zuerst Remediations anwenden, erneut diesen Verifikations‑Prompt ausführen.
+
+---
+
+## Erweiterte Konsistenzprüfung (optional, wenn schnell möglich)
+- Prüfe, ob `SESSION_SECRET` als **Variablenname** in README/docs erwähnt ist.
+- Prüfe, ob Session‑Cookie‑Name (`name: 'sessionId'`) in Doku steht.
+- Ausgabe unter „Belege“ ergänzen (PASS/WARN).
+
+> **Starte jetzt die Verifikation** und gib den Bericht **exakt** im OUTPUTFORMAT zurück.
