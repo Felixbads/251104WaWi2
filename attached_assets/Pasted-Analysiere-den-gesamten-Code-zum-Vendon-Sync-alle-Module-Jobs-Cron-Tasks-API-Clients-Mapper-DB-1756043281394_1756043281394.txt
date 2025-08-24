@@ -1,0 +1,47 @@
+Analysiere den gesamten Code zum Vendon-Sync (alle Module, Jobs, Cron-Tasks, API-Clients, Mapper, DB-Modelle). Erstelle einen strukturierten Bericht mit Fokus auf:
+	1.	Code-Lokalisation
+	•	Liste alle Dateien/Module mit Bezug zu Vendon oder Sync (inkl. Services, Jobs, Scheduler, DB-Modelle, Tests).
+	•	Kurze Beschreibung, welche Rolle sie spielen (API-Abruf, Parser, DB-Speicherung etc.).
+	2.	API-Abruf
+	•	Zeige, wie die Vendon-API angebunden ist (Endpunkte, Authentifizierung, Pagination, Rate-Limits, Error-Handling).
+	•	Gib ein Beispiel der JSON-Antwort (gekürzt, aber mit allen Keys sichtbar).
+	•	Liste alle Felder der API-Antwort (Name, Typ, Einheit, Beispielwert).
+	3.	Mapping (API → DB)
+	•	Erstelle eine Coverage-Matrix aller Felder:
+	•	api_field
+	•	api_type
+	•	db_table
+	•	db_column
+	•	db_type
+	•	transform/parse (z. B. Umrechnung, Zeitformat, Enum-Mapping)
+	•	status (✅ gespeichert / ⚠️ teilweise / ❌ fehlt)
+	•	Markiere explizit, ob jedes API-Feld eine eigene Spalte bekommt.
+	4.	Datenbankprüfung
+	•	Liste die relevanten Tabellen (mit CREATE TABLE).
+	•	Prüfe, ob alle Spalten sinnvoll typisiert sind (INT, NUMERIC, TIMESTAMPTZ, BOOLEAN).
+	•	Prüfe Einheiten (z. B. °C, mL, Cent vs. Euro).
+	•	Prüfe Zeitzonenhandling (timestamptz statt timestamp).
+	•	Zeige, wie Insert/Upsert funktioniert (Idempotenz, ON CONFLICT).
+	5.	Funktionaler Status
+	•	Was funktioniert heute zuverlässig?
+	•	Was ist implementiert, aber unvollständig oder fehlerhaft?
+	•	Was fehlt komplett?
+	6.	Validierung
+	•	Wenn möglich, ziehe eine Stichprobe der API-Antwort und zeige, wie die Daten tatsächlich in die Tabelle geschrieben werden.
+	•	Erzeuge ein Beispiel: API-Feld → gespeicherter Wert in Spalte.
+	•	Markiere alle Abweichungen (fehlend, falscher Typ, falsche Einheit).
+	7.	Fehlerbehandlung & Robustheit
+	•	Prüfe, wie mit API-Fehlern (Timeout, 4xx/5xx), Schemaänderungen oder unbekannten Enums umgegangen wird.
+	•	Prüfe Logging, Monitoring, Retry-Strategien.
+	8.	Ergebnisformat (Bericht)
+	•	A. TL;DR – Kurzüberblick (10–15 Zeilen, was funktioniert / was nicht).
+	•	B. Systemkarte – Sequenzdiagramm oder Ablaufbeschreibung: Scheduler → API-Client → Mapper → DB.
+	•	C. Coverage-Matrix (komplette Liste aller Felder mit Mapping-Status).
+	•	D. Fundstellen – Liste aller ❌/⚠️ inkl. Datei:Zeile und Begründung.
+	•	E. Fix-/Migrationsplan – konkrete SQL-Migrationsbefehle, Code-Snippets, Tests.
+	•	F. Risiken/Rollout – Datenrückfüllung, Backfill-Jobs, Downtime-Risiken.
+	9.	Artefakte (wenn möglich generieren):
+	•	SQL: SELECT column_name FROM information_schema.columns WHERE table_name='vendon_*';
+	•	Vergleich API-Keys ↔ DB-Spalten.
+	•	Unit-Tests für Mapping-Funktionen.
+	•	Integrationstest: API-Payload → DB-Resultat (jede Spalte geprüft).
