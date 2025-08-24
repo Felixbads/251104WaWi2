@@ -1,0 +1,50 @@
+Du agierst als Projekt-Inventarisierer für dieses Replit-Projekt. Ziel: Erstelle eine präzise, vollständige Bestandsaufnahme des aktuellen Stands der App, damit ein externer Reviewer das System sofort versteht – ohne Code zu lesen.
+Wichtig: Keine Geheimnisse ausgeben (API-Keys, Passwörter, Tokens). Inhalte aus .env nur als Platzhalter benennen.
+
+Aufgaben
+	1.	Repository-Überblick
+	•	Monorepo oder Single-App? Programmiersprachen, Frameworks/Runtime(s).
+	•	Ordnerstruktur (Top-Level + die 2–3 wichtigsten Ebenen) mit kurzen Zweck-Beschreibungen.
+	•	Haupt-Einstiegspunkte (Server/CLI/Frontends), Build-/Run-Skripte, Docker/Procfile/Nix/Replit-Konfiguration.
+	2.	Abhängigkeiten & Tooling
+	•	Paketmanager und Lockfiles (npm/yarn/pnpm, pip/poetry, bundler, cargo, go mod etc.).
+	•	Hauptdependencies (Frameworks, ORMs, Routing, Auth, Queueing, Observability) + Versionen.
+	•	Linter/Formatter/Test-Frameworks, CI/CD-Hinweise, Husky/Git Hooks.
+	3.	Konfiguration
+	•	Konfig-Dateien: .replit, replit.nix, Dockerfile, docker-compose.*, package.json-Skripte, pyproject.toml, settings.*, vite/webpack/tsconfig, .env.example (nur Variablennamen).
+	•	Laufzeit-Profile (dev/prod/staging) und Feature Flags.
+	4.	Datenbanken & Persistenz
+	•	Welche DB(s)? (z. B. Postgres/MySQL/SQLite/Mongo/Redis/Prisma/Drizzle/TypeORM/Sequelize/SQLAlchemy/Django ORM/ActiveRecord).
+	•	Schema-Zusammenfassung: Tabellen/Collections mit Schlüsselspalten, Relationen, Indizes.
+	•	Migrations-Setup (Ordner, letzte Migrationen, Seeds).
+	•	Event-/Message‑Brokers, Caches, Blob Storage (S3/Cloudinary/Local).
+	5.	Backend-Funktionen & APIs
+	•	Server-Framework/Routing.
+	•	Liste zentraler Endpoints (Methode, Pfad, kurzer Zweck, Auth ja/nein).
+	•	DTO/Schema-Validierung (z. B. Zod/Marshmallow/Pydantic), Fehler-Handling, Rate Limiting, Middlewares.
+	6.	Frontend
+	•	Framework (React/Vue/Svelte/Next/Nuxt/etc.), Build-Tool (Vite/Webpack), State-Management, UI‑Libs.
+	•	Haupt-Routen/Views, globale Layouts, zentrale Stores, API-Clients.
+	7.	Auth & Security
+	•	Auth-Strategie (Sessions/JWT/OAuth/OpenID, NextAuth/Passport/Devise/Django Auth etc.).
+	•	Rollen/Berechtigungen, CSRF/CORS/eingesetzte Security-Middlewares.
+	•	Geheimnis-Management (nur Mechanismus, keine Werte).
+	8.	Tests & Qualität
+	•	Testarten (Unit, Integrations, E2E), Beispiel-Pfade, Coverage-Hinweise.
+	•	Lint/Format/Type‑Check Befehle.
+	9.	Operations
+	•	Start-/Build-Befehle; Healthcheck/Status-Endpunkte.
+	•	Logging/Tracing/Metrics (z. B. Winston, OpenTelemetry), Fehler-Reporting (Sentry etc.).
+	•	Deployment-Hinweise (Replit Run, Docker, Cloud), Cron/Worker/Queues.
+	10.	Offene Punkte & Risiken
+	•	TODOs, FIXME-Hotspots, Tech‑Schulden, bekannte Bugs, fehlende Tests.
+	•	Performance- oder Sicherheitsrisiken (knapp, sachlich).
+
+Wie du die Infos sammelst
+	•	Lies und interpretiere: package.json, pyproject.toml, requirements.txt, Pipfile, Gemfile, Cargo.toml, go.mod, composer.json, pom.xml, build.gradle, tsconfig.json, vite.config.*, webpack.*, .replit, replit.nix, Dockerfile, docker-compose.*, .env.example, Procfile, Makefile, Orm‑Dateien (schema.prisma, drizzle/*, migrations/*, models/*, database/*), Framework-Configs (Django settings, Rails config, Nest/Express/Koa modules, FastAPI apps), Routen/Controller, routes/*, api/*.
+	•	Wenn möglich, nutze eine kurze Dateibaum‑Übersicht (Top‑2/3 Ebenen). Große Verzeichnisse bitte bündeln („…“), keine Riesen‑Listings.
+	•	Keine geheimen Inhalte zeigen. Variablennamen dürfen genannt werden, Werte NIE.
+
+Ausgabeformat (exakt einhalten)
+
+Erstelle eine Markdown‑Antwort mit folgendem Gerüst:

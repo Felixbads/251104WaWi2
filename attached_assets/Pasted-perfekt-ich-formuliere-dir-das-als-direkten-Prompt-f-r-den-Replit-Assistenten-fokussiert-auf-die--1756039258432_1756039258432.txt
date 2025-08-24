@@ -1,0 +1,119 @@
+perfekt — ich formuliere dir das als direkten Prompt für den Replit‑Assistenten, fokussiert auf die Lücken aus der Analyse. Einfach kopieren & einfügen:
+
+⸻
+
+Prompt für Replit (Runde 3 – Lücken schließen)
+
+Bitte analysiere das Repo gezielt zu den folgenden Punkten. Nenne konkrete Dateien/Zeilenpfade (z. B. server/services/auth.ts:42) als Beleg, wenn vorhanden. Gib keine geheimen Werte aus .env o. ä. aus.
+
+1) User- & Rollenmodell
+	•	Vollständiges Schema der users‑Tabelle (Spalten, Indizes, Relationen).
+	•	Existiert eine separate Rollen-/Permissions‑Tabelle (RBAC/ABAC)? Wenn nein: wo und wie werden Rollen gespeichert/ausgewertet?
+	•	Passwort-Handling: Wird Hashing (bcrypt/argon2/scrypt) verwendet? Zeige Fundstellen. Falls nicht: wo müsste es ergänzt werden (Datei/Modul-Hinweis)?
+
+2) Auth‑Härtung & Sitzungen
+	•	Session-Speicher (In‑Memory, DB, Redis?) und Cookie‑Flags (Secure, HttpOnly, SameSite).
+	•	Login‑Rate‑Limit / Brute‑Force‑Schutz vorhanden? Wo?
+	•	MFA / externe Provider (OIDC/OAuth) – Hinweise im Code/Config?
+
+3) Web‑Security (XSS/CSRF/CSP)
+	•	CSRF‑Schutz: Middleware/Token vorhanden? Fundstelle.
+	•	XSS‑Schutz: Output‑Escaping, helmet/ähnliche Middleware?
+	•	Content‑Security‑Policy (CSP) definiert? Wo?
+	•	Upload‑Sicherheit: MIME/Dateigröße/Dateinamen‑Sanitizing in uploads/‑Pfad? Zeige Prüf‑/Validierungslogik.
+
+4) Datenbank: Indizes, Partitionierung, Migrationsstand
+	•	Fehlende oder suboptimale Indizes für Hot‑Tabellen (transactions, events, refills, inventory_items): liste empfohlene Indizes basierend auf vorhandenen JOIN/WHERE‑Mustern (mit Code‑Referenzen).
+	•	Hinweise auf Partitionierung (z. B. zeitbasiert für transactions)?
+	•	Aktueller Migrationsstand (letzte 3 Migrationen) + offene/fehlerhafte Migrationen.
+	•	Gibt es Foreign‑Key‑Constraints überall, wo FK im Code impliziert sind?
+
+5) Datenlebenszyklus, Backups, DSGVO
+	•	Retention/Archivierung: Gibt es Jobs/Queries, die alte transactions/events zusammenfassen/archivieren?
+	•	Backup‑Strategie: Wo dokumentiert/automatisiert?
+	•	Personenbezogene Daten: Welche Tabellen/Spalten enthalten PII? Gibt es Lösch-/Anonymisierungsroutinen und Audit‑Logs?
+
+6) Hintergrundjobs: Robustheit & Idempotenz
+	•	Job‑Idempotenz (z. B. bei Vendon‑Sync): Mechanismus/Keys?
+	•	Retry‑Strategie, Dead‑Letter‑Queue oder Fehlerzähler?
+	•	Zeitouts & Circuit‑Breaker für externe Calls (Vendon, E‑Mail, Wetter).
+	•	Temporär deaktivierte Crons: liste genaue Dateien/Exports + Voraussetzungen, um sie sicher zu reaktivieren.
+
+7) Python‑ML‑Integration (Child‑Process)
+	•	Prozess‑Management: Zeitouts, max. Parallelität, Queueing, Memory‑Limits, Absturz‑Recovery.
+	•	Modell‑Versionierung & Warm‑Start: Wie wird entschieden, wann neu trainiert wird?
+	•	Serialisierung der Forecast‑Outputs (Schema) + Validierung an der Übergabestelle (Zod/Pydantic‑Äquivalent?).
+
+8) API‑Verträge & Stabilität
+	•	Gibt es (auch teil-)automatische API‑Docs (OpenAPI/Swagger/Rapidoc)? Wenn nein: wo wären die besten Einstiegspunkte, um OpenAPI zu generieren (Dateien nennen)?
+	•	Versionierung der Endpunkte (z. B. /api/v1), Deprecation‑Hinweise, Pagination‑Standards (Limit/Offset/Cursor) – Fundstellen.
+	•	Rate‑Limiting für alle Endpoints vorhanden? Wenn nur Vendon: Vorschlag, wo globales Limiting/Backoff am besten zu integrieren wäre.
+
+9) Observability & Betriebsmetriken
+	•	Gibt es strukturierte Logs (JSON), Korrelation/Request‑IDs, Log‑Redaktion?
+	•	Health/Ready/Live‑Checks außer /api/inter-app/health (DB‑Ping, externen Dienst testen)?
+	•	Wo ließen sich Sentry/OTel minimal‑invasiv einhängen (Dateien/Init‑Punkte nennen)?
+
+10) Frontend‑Qualität & Sicherheit
+	•	Globale Error‑Boundary vorhanden – deckt sie Datenladefehler und Routing‑Fehler ab?
+	•	Input‑Validierung im UI (Form‑Schemas mit Zod/Yup) – Fundstellen.
+	•	Auth‑Flows im Client: Token/Session‑Leak‑Risiken (z. B. Speicherung in localStorage), CORS‑Einstellungen.
+
+11) Tests: minimale Abdeckung
+	•	Prüfe erneut, ob irgendwo Test‑Artefakte versteckt sind (*.spec.*, *.test.*, E2E‑Skripte).
+	•	Wenn keine Tests: zeige konkrete Orte, an denen sich „Smoke‑Tests“ am meisten lohnen (1) Auth‑Login, (2) Vendon‑Sync kleiner Batch, (3) Forecast‑Endpoint, (4) Orders‑CRUD.
+	•	Schlage passende Test‑Runner/Configs vor (Jest für Server, Vitest für Client), mit Dateipfaden für Setup‑Dateien.
+
+12) Quick‑Wins & harte Risiken (konkret)
+	•	Liste 5–8 Quick‑Wins mit Aufwand (S, M, L) und erwartbarem Nutzen (z. B. „helmet + CSP‑Baseline“ – S – Sicherheitsbasis).
+	•	Liste 3–5 Top‑Risiken mit betroffenen Dateien/Module und kurzer Mitigation.
+
+Ausgabeformat
+
+Bitte strikt so ausgeben:
+
+# Lückenanalyse (Runde 3)
+
+## 1) User & Rollenmodell
+- …
+
+## 2) Auth-Härtung & Sitzungen
+- …
+
+## 3) Web-Security (XSS/CSRF/CSP)
+- …
+
+## 4) DB: Indizes & Migrations
+- …
+
+## 5) Datenlebenszyklus & DSGVO
+- …
+
+## 6) Hintergrundjobs: Robustheit
+- …
+
+## 7) Python-ML (Child-Process)
+- …
+
+## 8) API-Verträge & Stabilität
+- …
+
+## 9) Observability
+- …
+
+## 10) Frontend-Qualität & Sicherheit
+- …
+
+## 11) Tests
+- …
+
+## 12) Quick-Wins & Risiken
+- Quick-Wins:
+  - …
+- Risiken:
+  - …
+
+
+⸻
+
+Wenn du willst, formuliere ich dir anschließend aus den Antworten eine konkrete To‑Do‑Roadmap (2–4 Wochen) mit Prioritäten & Aufwand.

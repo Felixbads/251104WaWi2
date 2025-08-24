@@ -1,0 +1,36 @@
+Bitte erweitere die bisherige Bestandsaufnahme des Projekts und beantworte die folgenden Fragen so konkret wie möglich, basierend auf den vorhandenen Dateien und Konfigurationen im Repository.
+Zeige dabei nur Strukturen und Meta-Informationen, niemals geheime Werte aus .env oder ähnlichen Dateien.
+
+Fragen
+	1.	Deployment & Infrastruktur
+	•	Wird das Projekt ausschließlich über Replit betrieben oder gibt es Hinweise auf alternative Deployment-Setups (Dockerfile, docker-compose, Kubernetes, CI/CD-Pipelines wie GitHub Actions)?
+	•	Gibt es Hinweise auf Staging/Production-Konfigurationen?
+	2.	Cronjobs & Hintergrundprozesse
+	•	Welche Cronjobs oder Hintergrund-Skripte sind im Code definiert?
+	•	Welche davon sind aktiv, welche deaktiviert?
+	•	Gibt es einen zentralen Scheduler oder werden Jobs über einzelne Skripte ausgeführt?
+	3.	ML-Services (Python)
+	•	Wie werden die Prophet-Modelle eingebunden? Läuft ein eigener Python-Service (z. B. über Flask/FastAPI) oder werden Skripte direkt aus Node.js heraus gestartet?
+	•	Werden Modelle regelmäßig neu trainiert oder statisch geladen?
+	4.	Skalierung & Performance
+	•	Welche Tabellen in der PostgreSQL-Datenbank sind besonders groß oder kritisch für die Performance (z. B. transactions, orders)?
+	•	Gibt es Indizes oder Partitionierungen, die im Schema definiert sind?
+	•	Wird ein Caching-Layer (z. B. Redis) genutzt oder ist nur clientseitiges Caching (TanStack Query) vorhanden?
+	5.	Fehlerhandling & Observability
+	•	Wie ist das zentrale Fehlerlogging umgesetzt (nur Console-Logs oder Tools wie Sentry/Datadog)?
+	•	Gibt es Monitoring/Statuschecks für Jobs, APIs oder den Vendon-Sync?
+	6.	Sicherheitsaspekte
+	•	Welche Library wird für Passwort-Hashing genutzt (bcrypt, argon2, etc.)?
+	•	Gibt es Hinweise auf MFA oder externe Auth-Provider (Google, Azure AD, etc.)?
+	•	Wie wird gegen SQL-Injection, XSS und CSRF abgesichert (Middleware, Sanitizer, Libraries)?
+	7.	Testing & Qualität
+	•	Gibt es versteckte oder einfache Tests im Repo (z. B. in /tests, *.spec.ts, *.test.ts)?
+	•	Ist ein Test-Framework (Jest, Vitest, Playwright, Cypress) irgendwo konfiguriert, auch wenn nicht aktiv genutzt?
+	•	Wie ist Code-Qualität abgesichert (Linting, Code-Review-Hinweise, CI-Skripte)?
+	8.	Dokumentation
+	•	Gibt es technische Dokumentation im Repo (README, API-Doku, ER-Diagramme, ADRs)?
+	•	Wo werden Schema- oder API-Änderungen dokumentiert?
+
+Ausgabeformat
+
+Bitte gib die Antwort in folgendem Markdown-Format aus:
