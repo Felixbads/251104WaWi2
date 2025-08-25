@@ -1,0 +1,221 @@
+{
+"phase1_analysis": {
+"code_audit": {
+"duplicate_detection": {
+"observations": [
+"Each sync service performs per-record duplicate checks by calling storage.getTransactionByVendonId in a loop, causing N+1 database queries and non‑atomic inserts.",
+"Example: ResilientVendonSync.syncTransactions checks each transaction sequentially before insert.",
+"vendonSync.ts repeats the same pattern with additional logging; duplicate detection is executed for every item with a blocking DB call.",
+"Gap crawler and Excel importer replicate this logic, increasing risk of inconsistencies."
+],
+"root_causes": [
+"No centralized duplicate-check strategy; every service implements its own logic.",
+"Missing bulk upsert operations; each item is queried individually.",
+"Database unique constraints exist for transactions/refills/events but not leveraged via upsert; machines table lacks a unique index on vendon_id."
+],
+"impact": [
+"High DB load and slow imports for large batches.",
+"Race conditions: two parallel services can read 'not found' and insert simultaneously, bypassing the per-record check and triggering duplicates or constraint errors."
+],
+"critical_files": [
+"server/services/resilientVendonSync.ts",
+"server/services/vendonSync.ts",
+"server/services/vendonGapCrawler.ts",
+"server/services/vendonExcelImport.ts",
+"server/services/vendonJsonImport.ts"
+]
+},
+"race_conditions": {
+"observations": [
+"Multiple schedulers start automatically: vendonScheduler auto-starts on import; autoStartResilientSync triggers VendonBackgroundService on server start.",
+"In-memory lock (syncLock.ts) provides no cross-process safety; locks vanish on restart.",
+"Parallel cron jobs (scheduler + background service + ad-hoc scripts) can interleave and insert duplicates or exhaust API limits."
+],
+"impact": [
+"Simultaneous sync processes interfere, causing duplicate imports and inconsistent sync state.",
+"Locking across Node instances or crashes is not guaranteed; restarted service may assume lock free while another process is still running."
+],
+"critical_files": [
+"server/services/vendonScheduler.ts",
+"server/services/autoStartResilientSync.ts",
+"server/services/vendonBackgroundService.ts",
+"server/services/syncLock.ts"
+]
+},
+"performance_bottlenecks": {
+"observations": [
+"Per-record duplicate checks and inserts lead to N+1 queries; no batch fetch or bulk upserts.",
+"Console logging for each item (transactions, events, refills) floods logs and slows Node event loop.",
+"Vendon API calls executed sequentially with single-item processing; no pagination prefetch or parallelization."
+],
+"critical_points": [
+"ResilientVendonSync uses REQUEST_DELAY (1s) between batches, causing long runtimes for large backfills.",
+"VendonAPI.makeRequest retries but no rate-limit awareness; repeated errors can stall sync."
+]
+}
+},
+"database_analysis": {
+"index_status": {
+"transactions": "Unique index on vendon_id defined (vendonIdx).",
+"refills": "Composite unique index on (vendon_id, machine_id, datetime).",
+"events": "Unique index on vendon_id and combined index on (vendon_machine_id, event_datetime).",
+"machines": "No unique constraint on vendon_id; duplicates possible."
+},
+"duplicate_detection_in_db": {
+"needs": [
+"Audit existing data for duplicate vendon_ids in transactions/refills/events.",
+"Identify duplicates in machines due to missing unique constraint."
+]
+},
+"sync_log_patterns": {
+"table": "sync_logs stores counts of items found/saved/duplicates/errors but lacks indexes for querying by sync_type or date.",
+"issue": "No standardized updates; different services write varying fields, making analysis harder."
+}
+},
+"api_behavior": {
+"documented_endpoints": [
+"/stats/vends",
+"/event/",
+"/refills",
+"/machines (often failing, fallback via transactions)"
+],
+"limitations": [
+"Pagination requires limit and offset parameters; several services rely on sequential offset loops.",
+"No explicit rate-limit handling; makeRequest only retries with exponential backoff.",
+"Timestamp handling uses UNIX seconds; incorrect conversions may cause boundary overlaps (e.g., from_timestamp and to_timestamp rounding)."
+],
+"response_format": "Most responses wrapped in { result: ... } per API client implementation."
+}
+},
+"phase2_concept_development": {
+"unified_sync_architecture": {
+"goals": [
+"Centralize synchronization logic in UnifiedVendonSync to eliminate duplicated services.",
+"Introduce persistent distributed lock (DB table sync_locks) to prevent parallel runs across processes.",
+"Define hierarchy: background scheduler -> unified sync -> domain-specific handlers (transactions, events, refills, machines)."
+],
+"design_notes": [
+"UnifiedVendonSync provides methods: syncTransactions, syncEvents, syncRefills, syncMachines.",
+"Expose high-level runFullSync and runIncrementalSync(fromDate, toDate) APIs.",
+"Services such as vendonScheduler and VendonBackgroundService should delegate to this class."
+],
+"touch_points": [
+"server/services/vendonSync.ts (split responsibilities)",
+"server/services/resilientVendonSync.ts (merge logic)",
+"server/services/vendonBackgroundService.ts (adapt to unified service)"
+]
+},
+"duplicate_prevention_strategy": {
+"components": [
+{
+"service": "DuplicatePreventionService",
+"functions": [
+"Batch fetch existing vendon_ids using IN queries to reduce DB round‑trips.",
+"Use PostgreSQL INSERT ... ON CONFLICT (vendon_id) DO NOTHING or DO UPDATE for atomic upserts.",
+"Support conflict resolution rules for different entities (transactions, events, refills, machines)."
+]
+}
+],
+"db_changes": [
+"Add unique index on machines.vendon_id.",
+"Consider composite index (vendon_id, machine_id) on transactions for faster lookups."
+]
+},
+"background_service_design": {
+"features": [
+"Single VendonBackgroundScheduler (singleton) managing intervals per sync type.",
+"Sync priority: recent transactions > events > refills > machines.",
+"Automatic recovery: exponential backoff and error thresholds; write status into sync_logs."
+],
+"integration": [
+"Replace auto-start modules (autoStartResilientSync.ts, vendonScheduler.ts) with explicit scheduler start in server bootstrap.",
+"Ensure scheduler uses persistent lock before triggering sync."
+]
+}
+},
+"phase3_implementation_plan": {
+"core_sync_engine": {
+"class": "UnifiedVendonSync",
+"responsibilities": [
+"Central API client and batch processing.",
+"Lock acquisition/release using persistent DB locks.",
+"Transaction-safe batch import with upsert and bulk duplicate detection."
+],
+"key_methods": [
+"constructor(vendonApi: VendonAPI, storage: Storage)",
+"syncTransactions(range, options)",
+"syncEvents(range, options)",
+"syncRefills(range, options)",
+"syncMachines(options)",
+"runFullSync()",
+"runIncrementalSync(fromDate?)"
+],
+"file_targets": [
+"server/services/vendonSync.ts (refactor)",
+"server/services/resilientVendonSync.ts (merge or remove)",
+"server/services/ultraRobustVendonSync.ts (logic consolidation)"
+]
+},
+"duplicate_prevention_service": {
+"class": "DuplicatePreventionService",
+"features": [
+"fetchExistingIds(table, vendonIds) returns Set<string>.",
+"upsertRecords(table, records, conflictKeys) executes batch insert with ON CONFLICT.",
+"Conflict resolution hooks for updating selected fields."
+],
+"usage": [
+"UnifiedVendonSync calls this service before writing to DB.",
+"Remove per-record getTransactionByVendonId checks."
+],
+"file_targets": [
+"server/services/vendonSync.ts",
+"server/services/vendonGapCrawler.ts",
+"server/services/vendonExcelImport.ts",
+"server/services/vendonJsonImport.ts"
+]
+},
+"robust_background_scheduler": {
+"class": "VendonBackgroundScheduler",
+"design": [
+"Singleton with method start(); all sync intervals configurable through environment variables.",
+"Maintains job queue with priorities; ensures no overlapping runs using persistent lock.",
+"Health monitoring and metrics aggregated into sync_logs."
+],
+"integration": [
+"Remove auto-start side effects in vendonScheduler.ts and autoStartResilientSync.ts.",
+"Server startup explicitly invokes VendonBackgroundScheduler.start()."
+]
+}
+},
+"phase4_database_optimization": {
+"index_strategies": [
+"Create unique index on machines(vendon_id).",
+"Add composite index transactions(vendon_id, machine_id) and events(vendon_id, machine_id) for rapid lookups.",
+"Consider partial indexes for transactions where processed_at IS NULL to speed up processing queues."
+],
+"sync_state_management": [
+"Persist checkpoints per sync type in sync_state table; store last_date, last_offset, and last_id.",
+"UnifiedVendonSync reads/writes checkpoints to resume after failures."
+]
+},
+"phase5_monitoring_and_recovery": {
+"dashboard": {
+"metrics": [
+"Current sync status per entity type.",
+"Duplicate counts avoided by upserts.",
+"API error rates and retry counts."
+],
+"implementation": [
+"Expose /sync/status route returning aggregated metrics from sync_logs and lock table.",
+"Optional WebSocket or SSE for real-time dashboard."
+]
+},
+"automatic_recovery": {
+"mechanisms": [
+"Exponential backoff with capped retries inside UnifiedVendonSync.makeRequest.",
+"On persistent failure, release locks, log error, schedule retry via scheduler.",
+"Notification hook (e-mail or log) when failure exceeds threshold."
+]
+}
+}
+}
