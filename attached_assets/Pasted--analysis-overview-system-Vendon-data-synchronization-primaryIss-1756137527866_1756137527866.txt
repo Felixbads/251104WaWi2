@@ -1,0 +1,76 @@
+{
+  "analysis": {
+    "overview": {
+      "system": "Vendon data synchronization",
+      "primaryIssues": [
+        "Per-record duplicate checks and inserts causing race conditions",
+        "Volatile in-memory locking mechanism",
+        "Fragmented schedulers initiating parallel syncs",
+        "Monolithic legacy sync service with redundant logic",
+        "Insufficient database indexing for composite keys",
+        "API client lacks status-aware retries and rate limiting"
+      ]
+    },
+    "issues": [
+      {
+        "issue": "ResilientVendonSync performs per-record duplicate checks for transactions, events and refills.",
+        "evidence": [
+          "Transactions check: storage.getTransactionByVendonId​:codex-file-citation[codex-file-citation]{line_range_start=316 line_range_end=323 path=server/services/resilientVendonSync.ts git_url="https://github.com/Felixbads/Wawi/blob/main/server/services/resilientVendonSync.ts#L316-L323"}​",
+          "Events check: storage.getEventByVendonId​:codex-file-citation[codex-file-citation]{line_range_start=398 line_range_end=405 path=server/services/resilientVendonSync.ts git_url="https://github.com/Felixbads/Wawi/blob/main/server/services/resilientVendonSync.ts#L398-L405"}​",
+          "Refills check: storage.getRefillByVendonId​:codex-file-citation[codex-file-citation]{line_range_start=483 line_range_end=489 path=server/services/resilientVendonSync.ts git_url="https://github.com/Felixbads/Wawi/blob/main/server/services/resilientVendonSync.ts#L483-L489"}​"
+        ],
+        "impact": "Each item triggers its own lookup, leading to N+1 queries and allowing duplicates when concurrent syncs insert rows between checks.",
+        "task_stub": ":::task-stub{title=\"Batch duplicate detection with transactional upsert\"}\n1. In `server/services/resilientVendonSync.ts`, collect vendon_ids per batch and query existing `transactions`, `events`, and `refills` with `SELECT ... WHERE vendon_id IN (...)`.\n2. Implement batch insert methods `createTransactionsBatch`, `createEventsBatch`, `createRefillsBatch` in `server/storage/database-storage.ts` using `INSERT ... ON CONFLICT` within a single transaction.\n3. Remove per-item `get*ByVendonId` calls and rely on prefetched sets for duplicate detection.\n:::\n"
+      },
+      {
+        "issue": "Synchronization locking is held in-process only, so locks vanish on restart and do not protect across multiple Node instances.",
+        "evidence": [
+          "In-memory `locks` object with expiration timestamp​:codex-file-citation[codex-file-citation]{line_range_start=22 line_range_end=58 path=server/services/syncLock.ts git_url="https://github.com/Felixbads/Wawi/blob/main/server/services/syncLock.ts#L22-L58"}​"
+        ],
+        "impact": "Parallel processes or crashes can bypass locking, resulting in concurrent sync runs and duplicate imports.",
+        "task_stub": ":::task-stub{title=\"Persistent synchronization locks\"}\n1. Add a migration under `shared/migrations/` creating table `sync_locks(sync_type, owner, expires_at)` with UNIQUE on `sync_type`.\n2. Replace the in-memory implementation in `server/services/syncLock.ts` with SQL-based `INSERT ... ON CONFLICT` (acquire) and `DELETE` (release), including expiration cleanup.\n3. Update all consumers (e.g., `resilientVendonSync`, `vendonScheduler`, `productSync`) to use the new DB-backed lock.\n:::\n"
+      },
+      {
+        "issue": "Multiple schedulers auto-start separate sync loops, leading to overlapping jobs.",
+        "evidence": [
+          "Auto-start via process.nextTick in autoStartResilientSync.ts​:codex-file-citation[codex-file-citation]{line_range_start=34 line_range_end=37 path=server/services/autoStartResilientSync.ts git_url="https://github.com/Felixbads/Wawi/blob/main/server/services/autoStartResilientSync.ts#L34-L37"}​",
+          "Legacy VendonScheduler with its own interval loop​:codex-file-citation[codex-file-citation]{line_range_start=1 line_range_end=39 path=server/services/vendonScheduler.ts git_url="https://github.com/Felixbads/Wawi/blob/main/server/services/vendonScheduler.ts#L1-L39"}​",
+          "Additional configurable SyncScheduler class​:codex-file-citation[codex-file-citation]{line_range_start=1 line_range_end=40 path=server/services/syncScheduler.ts git_url="https://github.com/Felixbads/Wawi/blob/main/server/services/syncScheduler.ts#L1-L40"}​"
+        ],
+        "impact": "Competing schedulers can run simultaneously, producing duplicate work and unnecessary API load.",
+        "task_stub": ":::task-stub{title=\"Unify background scheduling\"}\n1. Create `server/services/vendonBackgroundScheduler.ts` as a singleton that queues all sync jobs and acquires a persistent lock before execution.\n2. Migrate logic from `vendonScheduler.ts`, `autoStartResilientSync.ts`, and `syncScheduler.ts` into the new scheduler and remove their auto-start mechanisms.\n3. Modify the server bootstrap so only `VendonBackgroundScheduler.start()` is invoked once at startup.\n:::\n"
+      },
+      {
+        "issue": "vendonSync.ts is a 2840-line monolithic service duplicating logic already present in ResilientVendonSync.",
+        "evidence": [
+          "File length showing monolithic structure​:codex-terminal-citation[codex-terminal-citation]{line_range_start=1 line_range_end=2 terminal_chunk_id=359fe5}​",
+          "Multiple per-record lookups such as getTransactionByVendonId in vendonSync.ts​:codex-file-citation[codex-file-citation]{line_range_start=1370 line_range_end=1373 path=server/services/vendonSync.ts git_url="https://github.com/Felixbads/Wawi/blob/main/server/services/vendonSync.ts#L1370-L1373"}​"
+        ],
+        "impact": "Redundant code paths complicate maintenance, and some still rely on per-item duplicate checks.",
+        "task_stub": ":::task-stub{title=\"Introduce UnifiedVendonSync\"}\n1. Create `server/services/unifiedVendonSync.ts` encapsulating shared sync logic (transactions, events, refills) with modular methods and batch duplicate handling.\n2. Extract common helpers (pagination, mapping, logging) from `vendonSync.ts` into reusable utilities.\n3. Update existing schedulers and services to call `UnifiedVendonSync`; deprecate `vendonSync.ts` after migration.\n:::\n"
+      },
+      {
+        "issue": "Transactions table only has a unique index on vendon_id, lacking composite indexes for machine_id or datetime.",
+        "evidence": [
+          "Schema defines only `vendonIdx` on vendonId​:codex-file-citation[codex-file-citation]{line_range_start=602 line_range_end=606 path=shared/schema.ts git_url="https://github.com/Felixbads/Wawi/blob/main/shared/schema.ts#L602-L606"}​"
+        ],
+        "impact": "Queries filtering by vendon_id with machine_id or datetime require full scans, and historical duplicates may persist.",
+        "task_stub": ":::task-stub{title=\"Add compound indexes and deduplicate\"}\n1. Create migrations adding composite indexes/uniques such as `(vendon_id, machine_id)` and `(vendon_id, datetime)` for `transactions`, and `(vendon_id, event_datetime)` for `events`.\n2. Write a cleanup script in `scripts/` to remove existing duplicates using these new indexes.\n3. Ensure storage-layer upserts match the composite keys to maintain idempotency.\n:::\n"
+      },
+      {
+        "issue": "API client makeApiRequest ignores HTTP status codes and implements only basic retries.",
+        "evidence": [
+          "makeApiRequest lacks status handling or rate limit logic​:codex-file-citation[codex-file-citation]{line_range_start=627 line_range_end=639 path=server/services/resilientVendonSync.ts git_url="https://github.com/Felixbads/Wawi/blob/main/server/services/resilientVendonSync.ts#L627-L639"}​"
+        ],
+        "impact": "429 or 5xx responses can silently fail without proper backoff, risking data loss and excessive retries.",
+        "task_stub": ":::task-stub{title=\"Robust Vendon API client\"}\n1. Enhance `makeApiRequest` (or a new `vendonApiClient` module) to check HTTP status codes; for 429/5xx, apply exponential backoff and log retry attempts.\n2. Expose `REQUEST_DELAY` and `MAX_RETRIES` through environment variables for configuration.\n3. Reuse this client across all sync services to centralize rate-limit handling and structured error reporting.\n:::\n"
+      }
+    ],
+    "architecture_proposal": {
+      "core": "Centralize synchronization via a `UnifiedVendonSync` managed by a singleton `VendonBackgroundScheduler` using persistent database locks.",
+      "duplicatePrevention": "Perform batch prefetch of vendon_ids and execute `INSERT ... ON CONFLICT` inside transactions, backed by compound indexes.",
+      "backgroundService": "Replace scattered schedulers with a single queue-based scheduler that supports configurable intervals and health monitoring.",
+      "apiStrategy": "Adopt a shared API client with status-aware retries, rate-limit enforcement, and structured logging."
+    }
+  }
+}

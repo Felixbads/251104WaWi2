@@ -1,0 +1,83 @@
+{
+  "analysis": {
+    "overview": {
+      "system": "Vendon data integration and background synchronization",
+      "primaryIssues": [
+        "Duplicate records despite vendon_id checks",
+        "Parallel schedulers causing race conditions",
+        "In-memory locking vanishes on restart",
+        "Per-record database operations degrading performance",
+        "API client lacks status-aware retries and rate limiting"
+      ]
+    },
+    "issues": [
+      {
+        "issue": "Sync locks are stored only in memory; process restarts or multiple Node instances bypass locking.",
+        "evidence": [
+          "server/services/syncLock.ts:22-26",
+          "server/services/syncLock.ts:37-60"
+        ],
+        "impact": "Concurrent sync services may run simultaneously, causing duplicate imports and database contention.",
+        "task_stub": ":::task-stub{title=\"Persistente Synchronisations-Sperren\"}\n1. Migration unter `shared/migrations/` erstellen: Tabelle `sync_locks(sync_type text PRIMARY KEY, owner text, expires_at timestamptz)`.\n2. `server/services/syncLock.ts` so refaktorisieren, dass `acquireSyncLock`/`releaseSyncLock` per SQL (`INSERT ... ON CONFLICT`, `DELETE`) arbeiten.\n3. Periodisches Cleanup `DELETE FROM sync_locks WHERE expires_at < NOW()` ergänzen und alle Aufrufer (`resilientVendonSync`, `vendonScheduler`, `productSyncService` usw.) auf die neue Implementierung umstellen.\n:::"
+      },
+      {
+        "issue": "ResilientVendonSync performs per-item duplicate checks and machine lookups (N+1 queries).",
+        "evidence": [
+          "server/services/resilientVendonSync.ts:312-330",
+          "server/services/resilientVendonSync.ts:640-652"
+        ],
+        "impact": "Each transaction/event/refill triggers its own SELECT, allowing race conditions and causing high DB load.",
+        "task_stub": ":::task-stub{title=\"Batch-Duplikatsprüfung und Maschinen-Cache\"}\n1. Vendon-IDs eines Batches sammeln und vorhandene Datensätze via `SELECT ... WHERE vendon_id IN (...)` vorab laden.\n2. Neue Storage-Methoden (`getTransactionsByVendonIds`, `createTransactionsBatch`, analog für Events/Refills`) mit `INSERT ... ON CONFLICT` implementieren und innerhalb einer Transaktion ausführen.\n3. Maschinen-IDs ebenfalls per `IN (...)` vorausladen, in einer Map cachen und `ensureMachine` zuerst den Cache prüfen lassen.\n:::\n"
+      },
+      {
+        "issue": "Multiple schedulers auto-start and run concurrently without coordination.",
+        "evidence": [
+          "server/services/vendonScheduler.ts:153-157",
+          "server/services/autoStartResilientSync.ts:34-36",
+          "server/services/syncScheduler.ts:78-102"
+        ],
+        "impact": "Parallel sync jobs compete for locks and API calls, reintroducing duplicates and excessive load.",
+        "task_stub": ":::task-stub{title=\"Einheitlicher VendonBackgroundScheduler\"}\n1. Neue Klasse `VendonBackgroundScheduler` in `server/services/` erstellen (Singleton, zentrale Job-Queue, persistent locking).\n2. Logik aus `vendonScheduler.ts`, `autoStartResilientSync.ts` und `syncScheduler.ts` migrieren und Auto-Start-Konstrukte entfernen.\n3. Server-Bootstrap (`server/index.ts` o. Ä.) so anpassen, dass ausschließlich `VendonBackgroundScheduler.start()` aufgerufen wird.\n:::\n"
+      },
+      {
+        "issue": "vendonSync.ts is a 2840-line monolith with per-record duplicate checks and redundant logic.",
+        "evidence": [
+          "wc -l server/services/vendonSync.ts → 2840 lines",
+          "server/services/vendonSync.ts:1360-1383"
+        ],
+        "impact": "The massive file duplicates functionality from other services, complicates maintenance, and repeats N+1 checks.",
+        "task_stub": ":::task-stub{title=\"UnifiedVendonSync modularisieren\"}\n1. Neue Datei `server/services/unifiedVendonSync.ts` anlegen, die Transaktionen/Events/Refills modular synchronisiert und Batch-Duplikatsprüfung zentral implementiert.\n2. Gemeinsame Helper (Pagination, Mapping, Logging) aus `vendonSync.ts` extrahieren.\n3. Scheduler und Services auf `UnifiedVendonSync` umstellen; Altdatei `vendonSync.ts` schrittweise entfernen.\n:::\n"
+      },
+      {
+        "issue": "Transactions table only indexes vendon_id; queries by machine or datetime require full scans.",
+        "evidence": [
+          "shared/schema.ts:602-606"
+        ],
+        "impact": "Historical duplicates slip through and queries filtering by machine/time are slow.",
+        "task_stub": ":::task-stub{title=\"Datenbank-Indizes und Cleanup\"}\n1. Migrationen ergänzen: `transactions` UNIQUE `(vendon_id, machine_id)` sowie optional `(vendon_id, datetime)`; `events` bestehende Indizes verifizieren.\n2. Skript `scripts/cleanupDuplicates.cjs` erstellen, das anhand der neuen Indizes historische Duplikate entfernt.\n3. Storage-Upserts (`createTransactionsBatch` etc.) an die neuen Index-Schlüssel anpassen.\n:::\n"
+      },
+      {
+        "issue": "`makeApiRequest` lacks HTTP status handling and configurable rate limiting.",
+        "evidence": [
+          "server/services/resilientVendonSync.ts:627-638"
+        ],
+        "impact": "429/5xx responses may cause silent data loss without structured retries or logging.",
+        "task_stub": ":::task-stub{title=\"Robuster Vendon API-Client\"}\n1. `makeApiRequest` erweitern: Statuscodes auswerten, bei 429/5xx exponentielles Backoff mit Logging; `REQUEST_DELAY` und `MAX_RETRIES` über ENV steuern.\n2. Gemeinsames Modul `server/services/vendonApiClient.ts` erstellen und in allen Sync-Services verwenden.\n:::\n"
+      },
+      {
+        "issue": "Storage layer interface lacks vendon_id lookups and batch APIs required by sync services.",
+        "evidence": [
+          "server/storage.ts:430-451"
+        ],
+        "impact": "Sync services implement ad-hoc duplicate checks and inserts, leading to inconsistencies and poor performance.",
+        "task_stub": ":::task-stub{title=\"Storage-Layer vervollständigen\"}\n1. Interface `IStorage` um Methoden wie `getTransactionsByVendonIds`, `createTransactionsBatch`, `getEventsByVendonIds` usw. erweitern.\n2. In `server/storage/database-storage.ts` die Batch-Upserts mit `INSERT ... ON CONFLICT` implementieren und Tests hinzufügen.\n:::\n"
+      }
+    ],
+    "architecture_proposal": {
+      "core": "Centralize synchronization through a single `UnifiedVendonSync` orchestrated by a singleton `VendonBackgroundScheduler` protected by persistent DB locks.",
+      "duplicatePrevention": "Use batch lookups and transactional upserts with compound indexes to guarantee idempotent writes.",
+      "backgroundService": "Replace scattered schedulers with one configurable service supporting priority queues and health metrics.",
+      "apiStrategy": "Adopt a shared Vendon API client featuring status-aware retries, rate limiting, and structured logging."
+    }
+  }
+}
