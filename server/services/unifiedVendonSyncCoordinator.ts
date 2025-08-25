@@ -293,7 +293,7 @@ class VendonApiClient {
 // =============================================================================
 
 export class UnifiedVendonSyncCoordinator {
-  private apiClient: VendonApiClient;
+  private apiClient: EnhancedVendonApiClient;
   private duplicatePreventionService: DuplicatePreventionService;
   private isRunning: boolean = false;
   private syncStats = {
@@ -305,9 +305,21 @@ export class UnifiedVendonSyncCoordinator {
   };
 
   constructor(apiKey?: string) {
-    this.apiClient = new VendonApiClient(apiKey);
+    // ✅ UPGRADE: Enhanced API Client mit Rate-Limiting & Exponential Backoff
+    const clientConfig = {
+      baseUrl: "https://cloud.vendon.net/rest/v1.8.0",
+      apiKey: apiKey || process.env.VENDON_API_KEY || process.env.API_KEY || '',
+      maxRetries: 3,
+      initialDelay: 1000,
+      maxDelay: 10000, 
+      requestsPerSecond: 2,
+      burstLimit: 5,
+      timeout: 30000
+    };
+    
+    this.apiClient = new EnhancedVendonApiClient(clientConfig);
     this.duplicatePreventionService = new DuplicatePreventionService();
-    console.log('🚀 Unified Vendon Sync Coordinator initialisiert');
+    console.log('🚀 Unified Vendon Sync Coordinator mit Enhanced API Client initialisiert');
   }
 
   /**
