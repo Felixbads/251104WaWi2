@@ -20,6 +20,7 @@ export class VendonAPI {
   private apiKey: string;
   // Mache apiBaseUrl öffentlich zugänglich für Debug-Endpunkte
   public readonly apiBaseUrl: string;
+  private requestCount: number = 0;
   
   constructor(apiKey?: string, apiBaseUrl?: string) {
     this.apiKey = apiKey || DEFAULT_API_KEY;
