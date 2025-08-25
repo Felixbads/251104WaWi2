@@ -44,6 +44,8 @@ import supportTicketsRouter from './routes/support-tickets';
 import productsRouter from './routes/products';
 import { pool } from './db';
 import { db } from './db';
+import pkg from 'pg';
+const { Pool: PgPool } = pkg;
 import { orders } from '../shared/schema';
 import { eq } from 'drizzle-orm';
 import nodemailer from 'nodemailer';
@@ -81,13 +83,20 @@ import machinesRouter from './routes/machines';
 
 const app = express();
 
-// Session Store Setup
+// Session Store Setup - Create a standard pg Pool for session store
+const sessionPool = new PgPool({
+  connectionString: process.env.DATABASE_URL,
+  max: 5, // Smaller pool for sessions
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 10000,
+});
+
 const PgSession = connectPgSimple(session);
 
 // Session Configuration
 app.use(session({
   store: new PgSession({
-    pool: pool, // Use existing PostgreSQL pool
+    pool: sessionPool, // Use standard pg Pool for session store
     tableName: 'session', // Session table name
     createTableIfMissing: true,
   }),
