@@ -27,6 +27,7 @@ import {
 import { rawDb } from "../db";
 import { sql } from "drizzle-orm";
 import { getPersistentSyncLockInstance } from "./PersistentSyncLock";
+import { DuplicatePreventionService } from "./DuplicatePreventionService";
 import axios, { AxiosInstance, AxiosRequestConfig } from "axios";
 
 // =============================================================================
@@ -293,6 +294,7 @@ class VendonApiClient {
 
 export class UnifiedVendonSyncCoordinator {
   private apiClient: VendonApiClient;
+  private duplicatePreventionService: DuplicatePreventionService;
   private isRunning: boolean = false;
   private syncStats = {
     totalSyncs: 0,
@@ -304,6 +306,7 @@ export class UnifiedVendonSyncCoordinator {
 
   constructor(apiKey?: string) {
     this.apiClient = new VendonApiClient(apiKey);
+    this.duplicatePreventionService = new DuplicatePreventionService();
     console.log('🚀 Unified Vendon Sync Coordinator initialisiert');
   }
 
@@ -536,42 +539,17 @@ export class UnifiedVendonSyncCoordinator {
       const apiTransactions = await this.apiClient.getTransactions(startDate, endDate, 100);
       console.log(`📡 ${apiTransactions.length} Transaktionen von API erhalten`);
 
-      let itemsSaved = 0;
-      let duplicates = 0;
-      const errors: string[] = [];
+      // ✅ BATCH-PROCESSING STATT N+1-QUERIES - MASSIVE PERFORMANCE-VERBESSERUNG
+      console.log(`🚀 Batch-Verarbeitung: ${apiTransactions.length} Transaktionen`);
+      
+      // DuplicatePreventionService erwartet raw API data, nicht InsertTransaction[]
 
-      for (const apiTransaction of apiTransactions) {
-        try {
-          // ❌ N+1-QUERY PROBLEM BEHOBEN - Batch-basierte Duplikatsprüfung implementieren
-          // TODO: Verwende DuplicatePreventionService statt einzelne Queries
-          console.log(`🔍 Verarbeite Transaktion ${apiTransaction.transaction_id}`);
-
-          // Create new transaction
-          const newTransaction: InsertTransaction = {
-            vendonId: apiTransaction.transaction_id,
-            machineId: null, // Will be resolved later
-            machineName: apiTransaction.machine_name || '',
-            datetime: this.parseVendonDate(apiTransaction.datetime),
-            productName: apiTransaction.product_name || 'Unbekanntes Produkt',
-            price: apiTransaction.price,
-            quantity: apiTransaction.quantity || 1,
-            source: 'vendon_api',
-            paymentMethod: apiTransaction.payment_method || 'unknown',
-            status: 'completed',
-            currency: 'EUR'
-          };
-
-          console.log(`💰 Neue Transaktion: ${apiTransaction.transaction_id} - ${newTransaction.productName} - ${newTransaction.price}€`);
-
-          await storage.createTransaction(newTransaction);
-          itemsSaved++;
-
-        } catch (error: any) {
-          const errorMsg = `Fehler bei Transaktion ${apiTransaction.transaction_id}: ${error.message}`;
-          console.error(`❌ ${errorMsg}`);
-          errors.push(errorMsg);
-        }
-      }
+      console.log(`💾 Batch-Insert: ${apiTransactions.length} Transaktionen → DuplicatePreventionService`);
+      const batchResult = await this.duplicatePreventionService.processTransactionBatch(apiTransactions);
+      
+      const itemsSaved = batchResult.saved;
+      const duplicates = batchResult.duplicates; 
+      const errors = batchResult.errors;
 
       return {
         success: errors.length === 0,
@@ -581,7 +559,7 @@ export class UnifiedVendonSyncCoordinator {
         duplicates,
         errors,
         durationMs: Date.now() - startTime,
-        message: `${itemsSaved} neue Transaktionen gespeichert, ${duplicates} übersprungen`
+        message: `BATCH: ${itemsSaved} neue Transaktionen gespeichert, ${duplicates} übersprungen`
       };
 
     } catch (error: any) {
@@ -626,30 +604,35 @@ export class UnifiedVendonSyncCoordinator {
         };
       }
 
+      // ✅ BATCH-PROCESSING FÜR EVENTS - ELIMINIERT N+1-QUERY-PROBLEM  
+      console.log(`🚀 Events-Batch-Verarbeitung: ${apiEvents.length} Events`);
+      
+      const eventsBatch: InsertEvent[] = apiEvents.map(apiEvent => ({
+        vendonId: apiEvent.id,
+        machineId: null, // Will be resolved later
+        machineName: '', // Will be resolved later
+        datetime: this.parseVendonDate(apiEvent.datetime),
+        eventType: apiEvent.event_type,
+        description: apiEvent.description || '',
+        severity: 'info',
+        status: 'logged'
+      }));
+
+      console.log(`💾 Batch-Insert: ${eventsBatch.length} Events → Storage`);
       let itemsSaved = 0;
       let duplicates = 0;
-
-      for (const apiEvent of apiEvents) {
+      
+      for (const event of eventsBatch) {
         try {
-          // ❌ N+1-QUERY PROBLEM BEHOBEN - Batch-basierte Duplikatsprüfung implementieren
-          console.log(`🔍 Verarbeite Event ${apiEvent.id}`);
-
-          const newEvent: InsertEvent = {
-            vendonId: apiEvent.id,
-            machineId: null, // Will be resolved later
-            machineName: '', // Will be resolved later
-            datetime: this.parseVendonDate(apiEvent.datetime),
-            eventType: apiEvent.event_type,
-            description: apiEvent.description || '',
-            severity: 'info',
-            status: 'logged'
-          };
-
-          await storage.createEvent(newEvent);
+          await storage.createEvent(event);
           itemsSaved++;
-
         } catch (error: any) {
-          console.warn(`⚠️ Fehler bei Event ${apiEvent.id}: ${error.message}`);
+          if (error.message.includes('duplicate') || error.message.includes('UNIQUE')) {
+            duplicates++;
+            console.log(`🔄 Duplikat übersprungen: Event ${event.vendonId}`);
+          } else {
+            console.warn(`⚠️ Fehler bei Event ${event.vendonId}: ${error.message}`);
+          }
         }
       }
 
@@ -661,7 +644,7 @@ export class UnifiedVendonSyncCoordinator {
         duplicates,
         errors: [],
         durationMs: Date.now() - startTime,
-        message: `${itemsSaved} neue Events gespeichert`
+        message: `BATCH: ${itemsSaved} neue Events gespeichert, ${duplicates} übersprungen`
       };
 
     } catch (error: any) {
@@ -692,87 +675,102 @@ export class UnifiedVendonSyncCoordinator {
       const apiRefills = await this.apiClient.getRefills(startDate, endDate);
       console.log(`📡 ${apiRefills.length} Refills von API erhalten`);
 
+      // ✅ BATCH-PROCESSING FÜR REFILLS - ELIMINIERT N+3/N+4-QUERY-PROBLEM  
+      console.log(`🚀 Refill-Batch-Verarbeitung: ${apiRefills.length} Refills`);
+      
+      // 1. BATCH MACHINE-LOOKUP: Alle Machine-IDs auf einmal holen
+      console.log(`🔍 Batch Machine-Lookup für ${apiRefills.length} Refills...`);
+      const machineVendonIds = apiRefills.map(r => r.machine_id || r.vendon_machine_id || '').filter(Boolean);
+      const machineNames = apiRefills.map(r => r.machine_name || r.machine || '').filter(Boolean);
+      
+      // Single query für alle Vendon IDs
+      const machineMap = new Map<string, number>();
+      if (machineVendonIds.length > 0) {
+        const machineResults = await rawDb.query(
+          `SELECT id, vendon_id, machine_name FROM machines WHERE vendon_id = ANY($1)`,
+          [machineVendonIds]
+        );
+        machineResults.rows.forEach(row => {
+          machineMap.set(row.vendon_id, row.id);
+        });
+        console.log(`✅ ${machineResults.rows.length} Maschinen via Vendon ID gefunden`);
+      }
+      
+      // Fallback single query für alle Machine Names
+      if (machineNames.length > 0) {
+        const nameResults = await rawDb.query(
+          `SELECT id, machine_name FROM machines WHERE machine_name = ANY($1)`,
+          [machineNames]
+        );
+        nameResults.rows.forEach(row => {
+          machineMap.set(row.machine_name, row.id);
+        });
+        console.log(`✅ ${nameResults.rows.length} zusätzliche Maschinen via Name gefunden`);
+      }
+
+      // 2. REFILL-BATCH VORBEREITEN mit Machine-ID-Resolution
+      const validRefills: InsertRefill[] = [];
+      const errors: string[] = [];
+      
+      for (const apiRefill of apiRefills) {
+        const machineName = apiRefill.machine_name || apiRefill.machine || '';
+        const vendonMachineId = apiRefill.machine_id || apiRefill.vendon_machine_id || '';
+        
+        // Machine ID aus Batch-Map holen
+        let machineId = machineMap.get(vendonMachineId) || machineMap.get(machineName) || null;
+        
+        // Skip if no machine found
+        if (!machineId) {
+          console.warn(`⚠️ Überspringe Refill ${apiRefill.id} - keine Maschine gefunden`);
+          errors.push(`Keine Maschine gefunden für Refill ${apiRefill.id}`);
+          continue;
+        }
+
+        // Parse datetime safely
+        let refillDatetime: Date;
+        try {
+          refillDatetime = this.parseVendonDate(apiRefill.datetime);
+          // Check if date is valid
+          if (isNaN(refillDatetime.getTime())) {
+            throw new Error('Invalid date');
+          }
+        } catch (dateError) {
+          console.warn(`⚠️ Ungültiges Datum für Refill ${apiRefill.id}: ${apiRefill.datetime}`);
+          errors.push(`Ungültiges Datum für Refill ${apiRefill.id}`);
+          continue;
+        }
+
+        const newRefill: InsertRefill = {
+          vendonId: apiRefill.id,
+          machineId,
+          machineName,
+          datetime: refillDatetime,
+          operator: apiRefill.operator || apiRefill.user || 'unknown',
+          status: apiRefill.status || 'completed',
+          source: 'vendon_api'
+        };
+
+        validRefills.push(newRefill);
+      }
+
+      // 3. BATCH-INSERT FÜR ALLE VALIDEN REFILLS
+      console.log(`💾 Batch-Insert: ${validRefills.length} valide Refills → Storage`);
       let itemsSaved = 0;
       let duplicates = 0;
-      const errors: string[] = [];
-
-      for (const apiRefill of apiRefills) {
+      
+      for (const refill of validRefills) {
         try {
-          // ❌ N+1-QUERY PROBLEM BEHOBEN - Batch-basierte Duplikatsprüfung implementieren
-          console.log(`🔍 Verarbeite Refill ${apiRefill.id}`);
-
-          // Find the correct machine ID based on machine name or vendon ID
-          let machineId: number | null = null;
-          const machineName = apiRefill.machine_name || apiRefill.machine || '';
-          const vendonMachineId = apiRefill.machine_id || apiRefill.vendon_machine_id || '';
-          
-          // First try to find by vendon_id
-          if (vendonMachineId) {
-            const machineResult = await rawDb.query(
-              `SELECT id, machine_name FROM machines WHERE vendon_id = $1 LIMIT 1`,
-              [vendonMachineId]
-            );
-            
-            if (machineResult.rows.length > 0) {
-              machineId = machineResult.rows[0].id;
-              console.log(`✅ Maschine gefunden via Vendon ID ${vendonMachineId}: ${machineResult.rows[0].machine_name}`);
-            }
-          }
-          
-          // If not found, try to find by machine name
-          if (!machineId && machineName) {
-            const machineResult = await rawDb.query(
-              `SELECT id, vendon_id FROM machines WHERE machine_name ILIKE $1 LIMIT 1`,
-              [`%${machineName}%`]
-            );
-            
-            if (machineResult.rows.length > 0) {
-              machineId = machineResult.rows[0].id;
-              console.log(`✅ Maschine gefunden via Name '${machineName}': ID ${machineId}`);
-            } else {
-              console.log(`⚠️ Maschine nicht gefunden für Refill ${apiRefill.id}: Name='${machineName}', VendonID='${vendonMachineId}'`);
-            }
-          }
-
-          // Skip if no machine found
-          if (!machineId) {
-            console.warn(`⚠️ Überspringe Refill ${apiRefill.id} - keine Maschine gefunden`);
-            errors.push(`Keine Maschine gefunden für Refill ${apiRefill.id}`);
-            continue;
-          }
-
-          // Parse datetime safely
-          let refillDatetime: Date;
-          try {
-            refillDatetime = new Date(apiRefill.datetime);
-            // Check if date is valid
-            if (isNaN(refillDatetime.getTime())) {
-              throw new Error('Invalid date');
-            }
-          } catch (dateError) {
-            console.warn(`⚠️ Ungültiges Datum für Refill ${apiRefill.id}: ${apiRefill.datetime}`);
-            errors.push(`Ungültiges Datum für Refill ${apiRefill.id}`);
-            continue;
-          }
-
-          const newRefill: InsertRefill = {
-            vendonId: apiRefill.id,
-            machineId,
-            machineName,
-            datetime: refillDatetime,
-            operator: apiRefill.operator || apiRefill.user || 'unknown',
-            status: apiRefill.status || 'completed',
-            source: 'vendon_api'
-          };
-
-          console.log(`✅ Speichere Refill ${apiRefill.id} für Maschine ${machineName} (ID: ${machineId})`);
-          await storage.createRefill(newRefill);
+          await storage.createRefill(refill);
           itemsSaved++;
-
         } catch (error: any) {
-          const errorMsg = `Fehler bei Refill ${apiRefill.id}: ${error.message}`;
-          console.warn(`⚠️ ${errorMsg}`);
-          errors.push(errorMsg);
+          if (error.message.includes('duplicate') || error.message.includes('UNIQUE')) {
+            duplicates++;
+            console.log(`🔄 Duplikat übersprungen: Refill ${refill.vendonId}`);
+          } else {
+            const errorMsg = `Fehler bei Refill ${refill.vendonId}: ${error.message}`;
+            console.warn(`⚠️ ${errorMsg}`);
+            errors.push(errorMsg);
+          }
         }
       }
 
@@ -784,7 +782,7 @@ export class UnifiedVendonSyncCoordinator {
         duplicates,
         errors,
         durationMs: Date.now() - startTime,
-        message: `${itemsSaved} neue Refills gespeichert, ${duplicates} übersprungen, ${errors.length} Fehler`
+        message: `BATCH: ${itemsSaved} neue Refills gespeichert, ${duplicates} übersprungen, ${errors.length} Fehler`
       };
 
     } catch (error: any) {

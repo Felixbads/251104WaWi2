@@ -66,11 +66,13 @@ class PersistentSyncLock {
         return false;
       }
 
-      // Versuche Lock zu erstellen
+      // Versuche Lock zu erstellen mit allen erforderlichen Feldern
       await db.insert(syncLocks).values({
-        syncType,
+        syncType: syncType,
+        owner: process.env.HOSTNAME || 'node-server',
+        expiresAt: lockedUntil,
         lockedAt: now,
-        lockedUntil,
+        lockedUntil: lockedUntil,
       });
 
       console.log(`✅ Lock für ${syncType} erfolgreich erworben (läuft ab: ${lockedUntil.toISOString()})`);

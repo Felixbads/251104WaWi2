@@ -1,5 +1,7 @@
 import { db } from '../db';
 import { sql } from 'drizzle-orm';
+import { syncLocks } from '@shared/schema';
+import { eq, lt } from 'drizzle-orm';
 
 /**
  * Aufzählung der unterstützten Synchronisierungstypen
@@ -15,15 +17,10 @@ export enum SYNC_TYPE {
 }
 
 /**
- * Lock-Manager für sichere Synchronisierungsoperationen
- * Verhindert, dass mehrere Prozesse gleichzeitig die gleichen Daten synchronisieren
+ * PERSISTENT DB-LOCKS - ERSETZT IN-MEMORY LOCKS
+ * Verhindert Race Conditions zwischen mehreren Node-Instanzen und nach Restarts
+ * Basierend auf Analyse-Empfehlung: INSERT ... ON CONFLICT für Lock-Erwerb
  */
-
-const locks: Record<string, {
-  acquiredAt: Date,
-  owner: string,
-  expiresAt: Date
-}> = {};
 
 // Lock-Timeout in Millisekunden (5 Minuten)
 const LOCK_TIMEOUT_MS = 5 * 60 * 1000;

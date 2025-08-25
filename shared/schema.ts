@@ -8,10 +8,15 @@ import { relations } from "drizzle-orm";
 export const syncLocks = pgTable("sync_locks", {
   id: serial("id").primaryKey(),
   syncType: varchar("sync_type", { length: 50 }).notNull(),
+  owner: varchar("owner", { length: 100 }).notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
   lockedAt: timestamp("locked_at").defaultNow().notNull(),
-  lockedUntil: timestamp("locked_until").notNull(),
+  lockedUntil: timestamp("locked_until").notNull(), 
   createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+}, (table) => ({
+  // UNIQUE constraint auf sync_type - nur ein Lock pro Sync-Typ
+  uniqueSyncType: unique("sync_locks_sync_type_unique").on(table.syncType),
+}));
 
 // Sync-Logs Tabelle für die Protokollierung von Synchronisierungsprozessen
 export const syncLogs = pgTable("sync_logs", {

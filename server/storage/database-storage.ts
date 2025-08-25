@@ -892,13 +892,25 @@ export class DatabaseStorage implements IStorage {
     }
   }
   async createTransaction(transaction: any): Promise<any> {
-    // Direkte SQL-Insertion um Schema-Konflikte zu vermeiden
+    // ✅ INSERT ... ON CONFLICT um UNIQUE CONSTRAINT Fehler zu vermeiden
+    console.log(`💾 INSERT Transaction ${transaction.vendonId} mit ON CONFLICT Handling`);
+    
     const result = await rawDb.query(`
       INSERT INTO transactions (
         vendon_id, machine_id, machine_name, datetime, 
         product_name, price, quantity, source, extra_data,
         payment_method, status, currency, vat, price_vat, price_wo_vat
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+      ON CONFLICT (vendon_id) DO UPDATE SET
+        machine_id = EXCLUDED.machine_id,
+        machine_name = EXCLUDED.machine_name,
+        datetime = EXCLUDED.datetime,
+        product_name = EXCLUDED.product_name,
+        price = EXCLUDED.price,
+        quantity = EXCLUDED.quantity,
+        payment_method = EXCLUDED.payment_method,
+        status = EXCLUDED.status,
+        updated_at = NOW()
       RETURNING id, vendon_id, machine_id, machine_name, datetime, 
                 product_name, price, quantity, source, payment_method, status
     `, [
