@@ -409,6 +409,17 @@ export interface IStorage {
   // Transaction count for sync status
   getTransactionCount(): Promise<number>;
   
+  // Batch operations for Vendon sync (performance optimization)
+  getExistingTransactionIds(vendonIds: string[]): Promise<Set<string>>;
+  createTransactionsBatch(transactions: any[]): Promise<any[]>;
+  getExistingEventIds(vendonIds: string[]): Promise<Set<string>>;
+  createEventsBatch(events: any[]): Promise<any[]>;
+  getExistingRefillIds(vendonIds: string[]): Promise<Set<string>>;
+  createRefillsBatch(refills: any[]): Promise<any[]>;
+  getTransactionsByVendonIds(vendonIds: string[]): Promise<any[]>;
+  getEventsByVendonIds(vendonIds: string[]): Promise<any[]>;
+  getRefillsByVendonIds(vendonIds: string[]): Promise<any[]>;
+  
   // User operations
   getUserById(id: number): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;

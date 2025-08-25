@@ -28,6 +28,7 @@ import { rawDb } from "../db";
 import { sql } from "drizzle-orm";
 import { getPersistentSyncLockInstance } from "./PersistentSyncLock";
 import { DuplicatePreventionService } from "./DuplicatePreventionService";
+import { EnhancedVendonApiClient, getVendonApiClient } from "./enhancedVendonApiClient";
 import axios, { AxiosInstance, AxiosRequestConfig } from "axios";
 
 // =============================================================================
@@ -306,18 +307,12 @@ export class UnifiedVendonSyncCoordinator {
 
   constructor(apiKey?: string) {
     // ✅ UPGRADE: Enhanced API Client mit Rate-Limiting & Exponential Backoff
-    const clientConfig = {
-      baseUrl: "https://cloud.vendon.net/rest/v1.8.0",
-      apiKey: apiKey || process.env.VENDON_API_KEY || process.env.API_KEY || '',
-      maxRetries: 3,
-      initialDelay: 1000,
-      maxDelay: 10000, 
-      requestsPerSecond: 2,
-      burstLimit: 5,
-      timeout: 30000
-    };
+    // API Key wird über Umgebungsvariable gesetzt, falls vorhanden
+    if (apiKey) {
+      process.env.VENDON_API_KEY = apiKey;
+    }
     
-    this.apiClient = new EnhancedVendonApiClient(clientConfig);
+    this.apiClient = getVendonApiClient();
     this.duplicatePreventionService = new DuplicatePreventionService();
     console.log('🚀 Unified Vendon Sync Coordinator mit Enhanced API Client initialisiert');
   }

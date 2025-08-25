@@ -1034,6 +1034,96 @@ export class DatabaseStorage implements IStorage {
       throw error;
     }
   }
+
+  /**
+   * Batch-Methoden für Refills - Performance-Optimierung für Vendon-Sync
+   */
+  async getExistingRefillIds(vendonIds: string[]): Promise<Set<string>> {
+    console.log(`🔍 Batch-Duplikatsprüfung für ${vendonIds.length} Refill vendon_ids`);
+    
+    if (vendonIds.length === 0) {
+      return new Set();
+    }
+
+    try {
+      const result = await db.select({ vendonId: refills.vendonId })
+        .from(refills)
+        .where(inArray(refills.vendonId, vendonIds));
+      
+      const existingIds = new Set(result.map(row => row.vendonId));
+      console.log(`✅ Gefunden: ${existingIds.size}/${vendonIds.length} bereits existierende Refills`);
+      
+      return existingIds;
+    } catch (error) {
+      console.error("Fehler bei Batch-Duplikatsprüfung für Refills:", error);
+      return new Set();
+    }
+  }
+
+  async createRefillsBatch(refillList: any[]): Promise<any[]> {
+    console.log(`📦 Batch-Insertion für ${refillList.length} Refills`);
+    
+    if (refillList.length === 0) {
+      return [];
+    }
+
+    try {
+      // Use raw SQL for batch insertion
+      const values: string[] = [];
+      const params: any[] = [];
+      let paramIndex = 1;
+
+      for (const refill of refillList) {
+        values.push(`($${paramIndex}, $${paramIndex + 1}, $${paramIndex + 2}, $${paramIndex + 3}, $${paramIndex + 4}, $${paramIndex + 5}, $${paramIndex + 6})`);
+        params.push(
+          refill.vendonId,
+          refill.machineId,
+          refill.machineName || 'Unbekannt',
+          refill.datetime,
+          refill.refillNumber || null,
+          refill.isCompleted || false,
+          refill.extraData || null
+        );
+        paramIndex += 7;
+      }
+
+      const sql = `
+        INSERT INTO refills (
+          vendon_id, machine_id, machine_name, datetime, 
+          refill_number, is_completed, extra_data
+        ) VALUES ${values.join(', ')}
+        ON CONFLICT (vendon_id) DO UPDATE SET
+          machine_id = EXCLUDED.machine_id,
+          machine_name = EXCLUDED.machine_name,
+          datetime = EXCLUDED.datetime,
+          updated_at = NOW()
+        RETURNING id, vendon_id, machine_id, machine_name, datetime
+      `;
+
+      const result = await rawDb.query(sql, params);
+      
+      console.log(`✅ ${result.rows.length} Refills erfolgreich verarbeitet`);
+      return result.rows;
+    } catch (error) {
+      console.error("Fehler bei Batch-Insertion für Refills:", error);
+      throw error;
+    }
+  }
+
+  async getRefillsByVendonIds(vendonIds: string[]): Promise<any[]> {
+    if (vendonIds.length === 0) {
+      return [];
+    }
+
+    try {
+      return await db.select()
+        .from(refills)
+        .where(inArray(refills.vendonId, vendonIds));
+    } catch (error) {
+      console.error("Fehler beim Abrufen von Refills nach Vendon-IDs:", error);
+      return [];
+    }
+  }
   
   async updateRefill(id: number, updates: any): Promise<any> { 
     try {
@@ -1339,6 +1429,113 @@ export class DatabaseStorage implements IStorage {
     } catch (error) {
       console.error("Error creating event:", error);
       throw error;
+    }
+  }
+
+  /**
+   * Batch-Methoden für Events - Performance-Optimierung für Vendon-Sync
+   */
+  async getExistingEventIds(vendonIds: string[]): Promise<Set<string>> {
+    console.log(`🔍 Batch-Duplikatsprüfung für ${vendonIds.length} Event vendon_ids`);
+    
+    if (vendonIds.length === 0) {
+      return new Set();
+    }
+
+    try {
+      const result = await db.select({ vendonId: events.vendonId })
+        .from(events)
+        .where(inArray(events.vendonId, vendonIds));
+      
+      const existingIds = new Set(result.map(row => row.vendonId));
+      console.log(`✅ Gefunden: ${existingIds.size}/${vendonIds.length} bereits existierende Events`);
+      
+      return existingIds;
+    } catch (error) {
+      console.error("Fehler bei Batch-Duplikatsprüfung für Events:", error);
+      return new Set();
+    }
+  }
+
+  async createEventsBatch(eventList: any[]): Promise<any[]> {
+    console.log(`📦 Batch-Insertion für ${eventList.length} Events`);
+    
+    if (eventList.length === 0) {
+      return [];
+    }
+
+    try {
+      // Use raw SQL for batch insertion
+      const values: string[] = [];
+      const params: any[] = [];
+      let paramIndex = 1;
+
+      for (const event of eventList) {
+        values.push(`($${paramIndex}, $${paramIndex + 1}, $${paramIndex + 2}, $${paramIndex + 3}, $${paramIndex + 4}, $${paramIndex + 5}, $${paramIndex + 6})`);
+        params.push(
+          event.vendonId,
+          event.machineId,
+          event.machineName || 'Unbekannt',
+          event.datetime,
+          event.eventType || 'unknown',
+          event.description || null,
+          event.extraData || null
+        );
+        paramIndex += 7;
+      }
+
+      const sql = `
+        INSERT INTO events (
+          vendon_id, machine_id, machine_name, datetime, 
+          event_type, description, extra_data
+        ) VALUES ${values.join(', ')}
+        ON CONFLICT (vendon_id) DO UPDATE SET
+          machine_id = EXCLUDED.machine_id,
+          machine_name = EXCLUDED.machine_name,
+          datetime = EXCLUDED.datetime,
+          event_type = EXCLUDED.event_type,
+          description = EXCLUDED.description,
+          updated_at = NOW()
+        RETURNING id, vendon_id, machine_id, machine_name, datetime, event_type
+      `;
+
+      const result = await rawDb.query(sql, params);
+      
+      console.log(`✅ ${result.rows.length} Events erfolgreich verarbeitet`);
+      return result.rows;
+    } catch (error) {
+      console.error("Fehler bei Batch-Insertion für Events:", error);
+      throw error;
+    }
+  }
+
+  async getEventsByVendonIds(vendonIds: string[]): Promise<any[]> {
+    if (vendonIds.length === 0) {
+      return [];
+    }
+
+    try {
+      return await db.select()
+        .from(events)
+        .where(inArray(events.vendonId, vendonIds));
+    } catch (error) {
+      console.error("Fehler beim Abrufen von Events nach Vendon-IDs:", error);
+      return [];
+    }
+  }
+
+  async getTransactionsByVendonIds(vendonIds: string[]): Promise<any[]> {
+    if (vendonIds.length === 0) {
+      return [];
+    }
+
+    try {
+      return await db.select()
+        .from(transactions)
+        .where(inArray(transactions.vendonId, vendonIds));
+    } catch (error) {
+      console.error("Fehler beim Abrufen von Transaktionen nach Vendon-IDs:", error);
+      return [];
     }
   }
   
