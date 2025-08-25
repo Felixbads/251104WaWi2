@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp, real, doublePrecision, unique, primaryKey, date, varchar, time, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, real, doublePrecision, unique, primaryKey, date, varchar, time, jsonb, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { sql } from "drizzle-orm";
@@ -664,6 +664,9 @@ export const transactions = pgTable("transactions", {
 }, (table) => {
   return {
     vendonIdx: unique().on(table.vendonId),                   // Eindeutiger Index auf Vendon-ID
+    vendonMachineIdx: index("transactions_vendon_machine_idx").on(table.vendonId, table.machineId), // Compound index für batch-Duplikatschecks
+    datetimeVendonIdx: index("transactions_datetime_vendon_idx").on(table.datetime, table.vendonId), // Index für Datum-basierte Queries
+    machineTimestampIdx: index("transactions_machine_timestamp_idx").on(table.machineId, table.datetime), // Index für Maschinen-Zeitbereich Queries
   };
 });
 
@@ -709,6 +712,8 @@ export const refills = pgTable("refills", {
 }, (table) => {
   return {
     vendonIdx: unique().on(table.vendonId, table.machineId, table.datetime),
+    vendonRefillIdx: index("refills_vendon_idx").on(table.vendonId), // Index für batch-basierte Duplikatschecks
+    machineRefillDateIdx: index("refills_machine_date_idx").on(table.machineId, table.datetime), // Index für Maschinen-Zeitbereich Queries
   };
 });
 

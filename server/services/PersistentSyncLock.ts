@@ -24,7 +24,7 @@ interface LockInfo {
   remainingSeconds: number;
 }
 
-export class PersistentSyncLock {
+class PersistentSyncLock {
   private readonly defaultTimeoutMinutes = 30;
   private readonly cleanupIntervalMs = 60000; // 1 Minute
   private cleanupTimer: NodeJS.Timeout | null = null;

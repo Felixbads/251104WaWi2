@@ -305,10 +305,13 @@ function scheduleNextSync(syncType: string): void {
 
 /**
  * Startet die automatische Synchronisierung
+ * ⚠️ DEAKTIVIERT - Ersetzt durch UnifiedVendonSync für batch-basierte Operationen
  */
 export function startAutomaticSync(): void {
-  console.log('Starte automatische Synchronisierung...');
+  console.log('⚠️ Legacy scheduler.ts deaktiviert - Unified Vendon System aktiv');
+  return; // FRÜHE RÜCKKEHR - Deaktiviert das alte N+1-Query System
   
+  // ===== AB HIER DEAKTIVIERT =====
   // Starte sofortige Synchronisierungen
   syncConfig.immediate.syncTypes.forEach(syncType => {
     console.log(`Plane sofortige Synchronisierung für: ${syncType}`);

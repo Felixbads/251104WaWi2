@@ -1,5 +1,15 @@
 import { productSyncService } from './productSyncService';
-import { SYNC_TYPE } from './syncLock';
+import { getPersistentSyncLockInstance } from './PersistentSyncLock';
+
+const SYNC_TYPE = {
+  PRODUCTS: 'products',
+  MACHINES: 'machines', 
+  TRANSACTIONS: 'transactions',
+  REFILLS: 'refills',
+  EVENTS: 'events',
+  WAREHOUSES: 'warehouses',
+  WEATHER: 'weather'
+} as const;
 
 type SyncJob = {
   syncType: string;

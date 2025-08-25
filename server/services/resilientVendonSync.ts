@@ -23,7 +23,7 @@ import {
   InsertRefill,
   InsertRefillDetail
 } from "@shared/schema";
-import { SYNC_TYPE, acquireSyncLock, releaseSyncLock } from "./syncLock";
+import { getPersistentSyncLockInstance } from "./PersistentSyncLock";
 import axios, { AxiosInstance } from "axios";
 import { rawDb } from "../db";
 

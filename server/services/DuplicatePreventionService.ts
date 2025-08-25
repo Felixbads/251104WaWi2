@@ -32,7 +32,7 @@ interface BatchProcessResult {
   errors: string[];
 }
 
-export class DuplicatePreventionService {
+class DuplicatePreventionService {
   
   constructor() {
     console.log('🛡️ DuplicatePreventionService initialisiert - bereit für batch-basierte Duplikatsprüfung');
@@ -631,6 +631,7 @@ export class DuplicatePreventionService {
 
       const event: InsertEvent = {
         vendonId: vendonId,
+        datetime: new Date(vendonEvent.event_datetime ? vendonEvent.event_datetime * 1000 : Date.now()),
         machineId: machineId,
         machineName: vendonEvent.machine_name || 'Unbekannt',
         eventType: vendonEvent.event_type || 'unknown',

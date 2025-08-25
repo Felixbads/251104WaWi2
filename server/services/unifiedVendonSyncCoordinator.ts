@@ -26,7 +26,7 @@ import {
 } from "@shared/schema";
 import { rawDb } from "../db";
 import { sql } from "drizzle-orm";
-import { SYNC_TYPE, acquireSyncLock, releaseSyncLock } from "./syncLock";
+import { getPersistentSyncLockInstance } from "./PersistentSyncLock";
 import axios, { AxiosInstance, AxiosRequestConfig } from "axios";
 
 // =============================================================================
@@ -324,7 +324,8 @@ export class UnifiedVendonSyncCoordinator {
     };
 
     // Global sync lock to prevent multiple syncs
-    if (!(await acquireSyncLock('VENDON_FULL_SYNC', 'UnifiedCoordinator'))) {
+    const syncLock = getPersistentSyncLockInstance();
+    if (!(await syncLock.acquire('VENDON_FULL_SYNC', 30))) {
       return {
         ...totalResult,
         success: false,
@@ -398,7 +399,7 @@ export class UnifiedVendonSyncCoordinator {
 
     } finally {
       this.isRunning = false;
-      await releaseSyncLock('VENDON_FULL_SYNC', 'UnifiedCoordinator');
+      await syncLock.release('VENDON_FULL_SYNC');
     }
   }
 
@@ -408,7 +409,8 @@ export class UnifiedVendonSyncCoordinator {
   async performQuickSync(): Promise<SyncResult> {
     const startTime = Date.now();
     
-    if (!(await acquireSyncLock('VENDON_QUICK_SYNC', 'UnifiedCoordinator'))) {
+    const syncLock = getPersistentSyncLockInstance();
+    if (!(await syncLock.acquire('VENDON_QUICK_SYNC', 15))) {
       return {
         success: false,
         itemsFound: 0,
@@ -438,7 +440,7 @@ export class UnifiedVendonSyncCoordinator {
       return result;
       
     } finally {
-      await releaseSyncLock('VENDON_QUICK_SYNC', 'UnifiedCoordinator');
+      await syncLock.release('VENDON_QUICK_SYNC');
     }
   }
 
@@ -658,7 +660,6 @@ export class UnifiedVendonSyncCoordinator {
             datetime: this.parseVendonDate(apiEvent.datetime),
             eventType: apiEvent.event_type,
             description: apiEvent.description || '',
-            source: 'vendon_api',
             severity: 'info',
             status: 'logged'
           };
