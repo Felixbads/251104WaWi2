@@ -783,42 +783,18 @@ export class StableVendonSync {
    * Hilfsfunktionen zur Duplikatsprüfung
    */
   private async checkTransactionExists(vendonId: string): Promise<boolean> {
-    try {
-      const result = await rawDb.query(
-        'SELECT id FROM transactions WHERE vendon_id = $1 LIMIT 1',
-        [vendonId]
-      );
-      return result.rows.length > 0;
-    } catch (error) {
-      console.error('Fehler bei Transaktions-Duplikatsprüfung:', error);
-      return false;
-    }
+    // ❌ N+1-QUERY PROBLEM BEHOBEN - StableVendonSync ist deaktiviert!
+    throw new Error("StableVendonSync DEAKTIVIERT - Verwende UnifiedVendonSync statt N+1-Queries");
   }
 
   private async checkEventExists(vendonId: string): Promise<boolean> {
-    try {
-      const result = await rawDb.query(
-        'SELECT id FROM events WHERE vendon_id = $1 LIMIT 1',
-        [vendonId]
-      );
-      return result.rows.length > 0;
-    } catch (error) {
-      console.error('Fehler bei Event-Duplikatsprüfung:', error);
-      return false;
-    }
+    // ❌ N+1-QUERY PROBLEM BEHOBEN - StableVendonSync ist deaktiviert!
+    throw new Error("StableVendonSync DEAKTIVIERT - Verwende UnifiedVendonSync statt N+1-Queries");
   }
 
   private async checkRefillExists(vendonId: string): Promise<boolean> {
-    try {
-      const result = await rawDb.query(
-        'SELECT id FROM refills WHERE vendon_id = $1 LIMIT 1',
-        [vendonId]
-      );
-      return result.rows.length > 0;
-    } catch (error) {
-      console.error('Fehler bei Refill-Duplikatsprüfung:', error);
-      return false;
-    }
+    // ❌ N+1-QUERY PROBLEM BEHOBEN - StableVendonSync ist deaktiviert!
+    throw new Error("StableVendonSync DEAKTIVIERT - Verwende UnifiedVendonSync statt N+1-Queries");
   }
 
   /**

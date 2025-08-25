@@ -59,7 +59,8 @@ interface SystemStatus {
   health: 'healthy' | 'warning' | 'critical';
 }
 
-export class ResilientVendonSync {
+// ⚠️ DEAKTIVIERT - Ersetzt durch UnifiedVendonSync für batch-basierte Operationen
+export class ResilientVendonSync_DISABLED {
   private readonly BASE_URL = "https://cloud.vendon.net/rest/v1.8.0";
   private readonly apiKey: string;
   private readonly client: AxiosInstance;
@@ -745,16 +746,13 @@ export class ResilientVendonSync {
 // Singleton-Instanz für globale Verwendung
 let resilientSyncInstance: ResilientVendonSync | null = null;
 
-export function getResilientSyncInstance(): ResilientVendonSync {
-  if (!resilientSyncInstance) {
-    resilientSyncInstance = new ResilientVendonSync();
-  }
-  return resilientSyncInstance;
+// ⚠️ DEAKTIVIERT - Ersetzt durch UnifiedVendonSync
+export function getResilientSyncInstance(): any {
+  throw new Error("ResilientVendonSync DEAKTIVIERT - Verwende UnifiedVendonSync");
 }
 
 export async function startResilientSync(): Promise<void> {
-  const instance = getResilientSyncInstance();
-  await instance.startBackgroundSync();
+  throw new Error("ResilientVendonSync DEAKTIVIERT - Verwende UnifiedVendonSync");
 }
 
 export function stopResilientSync(): void {

@@ -8,7 +8,10 @@ import { vendonSync } from '../services/vendonSync';
 const router = express.Router();
 
 // Erstelle den Bulk-Exporter mit den vorhandenen Services
-const vendonApi = vendonSync.getApi();
+// ⚠️ TEMPORÄRER FIX - Verwende EnhancedVendonApiClient stattdessen
+// const vendonApi = vendonSync.getApi(); 
+// Temporarily disable bulkSync until we fix the N+1 problem
+const vendonApi = null;
 const bulkExporter = new BulkTransactionExporter(vendonApi, storage);
 
 // Bulk-Export starten

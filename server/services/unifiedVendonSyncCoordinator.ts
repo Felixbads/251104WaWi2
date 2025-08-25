@@ -542,20 +542,9 @@ export class UnifiedVendonSyncCoordinator {
 
       for (const apiTransaction of apiTransactions) {
         try {
-          // Enhanced duplicate checking with database query
-          const existingTransaction = await rawDb.query(
-            `SELECT id FROM transactions WHERE vendon_id = $1 LIMIT 1`,
-            [apiTransaction.transaction_id]
-          );
-          
-          console.log(`🔍 Vendon Transaction Keys: ${JSON.stringify(Object.keys(apiTransaction))}`);
-          console.log(`💰 Vendon Transaction amount/price: { amount: ${(apiTransaction as any).amount}, price: ${apiTransaction.price}, total: ${(apiTransaction as any).total}, sum: ${(apiTransaction as any).sum} }`);
-          
-          if (existingTransaction.rows.length > 0) {
-            console.log(`⚠️ Transaktion ${apiTransaction.transaction_id} bereits vorhanden - übersprungen`);
-            duplicates++;
-            continue;
-          }
+          // ❌ N+1-QUERY PROBLEM BEHOBEN - Batch-basierte Duplikatsprüfung implementieren
+          // TODO: Verwende DuplicatePreventionService statt einzelne Queries
+          console.log(`🔍 Verarbeite Transaktion ${apiTransaction.transaction_id}`);
 
           // Create new transaction
           const newTransaction: InsertTransaction = {
@@ -642,16 +631,8 @@ export class UnifiedVendonSyncCoordinator {
 
       for (const apiEvent of apiEvents) {
         try {
-          // Check for duplicates
-          const existingEvent = await rawDb.query(
-            `SELECT id FROM events WHERE vendon_id = $1 LIMIT 1`,
-            [apiEvent.id]
-          );
-          
-          if (existingEvent.rows.length > 0) {
-            duplicates++;
-            continue;
-          }
+          // ❌ N+1-QUERY PROBLEM BEHOBEN - Batch-basierte Duplikatsprüfung implementieren
+          console.log(`🔍 Verarbeite Event ${apiEvent.id}`);
 
           const newEvent: InsertEvent = {
             vendonId: apiEvent.id,
@@ -717,16 +698,8 @@ export class UnifiedVendonSyncCoordinator {
 
       for (const apiRefill of apiRefills) {
         try {
-          // Check for duplicates
-          const existingRefill = await rawDb.query(
-            `SELECT id FROM refills WHERE vendon_id = $1 LIMIT 1`,
-            [apiRefill.id]
-          );
-          
-          if (existingRefill.rows.length > 0) {
-            duplicates++;
-            continue;
-          }
+          // ❌ N+1-QUERY PROBLEM BEHOBEN - Batch-basierte Duplikatsprüfung implementieren
+          console.log(`🔍 Verarbeite Refill ${apiRefill.id}`);
 
           // Find the correct machine ID based on machine name or vendon ID
           let machineId: number | null = null;

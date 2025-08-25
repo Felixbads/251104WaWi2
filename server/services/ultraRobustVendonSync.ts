@@ -9,7 +9,8 @@ import { InsertTransaction, InsertMachine } from "@shared/schema";
 import axios from "axios";
 import { db, rawDb } from "../db";
 
-export class UltraRobustVendonSync {
+// ⚠️ DEAKTIVIERT - Ersetzt durch UnifiedVendonSync für batch-basierte Operationen
+export class UltraRobustVendonSync_DISABLED {
   private readonly BASE_URL = "https://cloud.vendon.net/rest/v1.8.0";
   private readonly apiKey: string;
   private readonly maxRetries = 5;
@@ -522,4 +523,7 @@ export class UltraRobustVendonSync {
 }
 
 // Exportiere eine Standard-Instanz
-export const ultraRobustVendonSync = new UltraRobustVendonSync();
+// ⚠️ DEAKTIVIERT - Ersetzt durch UnifiedVendonSync
+export const ultraRobustVendonSync = { 
+  performCompleteSync: () => { throw new Error("UltraRobustVendonSync DEAKTIVIERT - Verwende UnifiedVendonSync"); }
+};

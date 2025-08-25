@@ -43,7 +43,8 @@ interface ServiceHealth {
   };
 }
 
-export class VendonBackgroundService {
+// ⚠️ DEAKTIVIERT - Ersetzt durch UnifiedVendonSync für batch-basierte Operationen  
+export class VendonBackgroundService_DISABLED {
   private config: BackgroundServiceConfig;
   private resilientSync: ResilientVendonSync;
   private gapCrawler: VendonGapCrawler;
@@ -435,7 +436,7 @@ let backgroundServiceInstance: VendonBackgroundService | null = null;
 
 export function getBackgroundServiceInstance(): VendonBackgroundService {
   if (!backgroundServiceInstance) {
-    backgroundServiceInstance = new VendonBackgroundService();
+    throw new Error("VendonBackgroundService DEAKTIVIERT - Verwende UnifiedVendonSync");
   }
   return backgroundServiceInstance;
 }

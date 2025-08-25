@@ -1,0 +1,281 @@
+Offene Probleme & empfohlene Änderungen
+1. In‑Memory Sync-Locks statt persistenter Sperren Aktuell verwaltet syncLock.ts die Locks nur im RAM; nach einem Neustart gehen die Sperren verloren und parallele Node-Prozesse werden nicht verhindert
+
+1. Eine neue Tabelle `sync_locks` über Drizzle-Migration unter `shared/migrations/` anlegen (`sync_type`, `owner`, `expires_at`, UNIQUE auf `sync_type`). 2. `server/services/syncLock.ts` ersetzen: * `locks`-Objekt durch SQL-basierte `INSERT ... ON CONFLICT`-Logik (Acquire/Release). * Hilfsfunktionen `acquireSyncLock`/`releaseSyncLock` anpassen. * Periodisches Cleanup via `DELETE WHERE expires_at < NOW()`. 3. Alle Nutzer von `syncLock` (z. B. `resilientVendonSync`, `vendonSync`, `productSync`, Scheduler) auf die neue DB-Implementierung umstellen.
+
+2. N+1-Duplikatsprüfungen in ResilientVendonSync & VendonSync Jeder Datensatz prüft einzeln auf Duplikate, was Race Conditions und hohe DB-Last erzeugt
+
+1. In `resilientVendonSync.ts` und `vendonSync.ts` Vendon-IDs einer Seite sammeln und via `IN (...)` vorab aus DB laden (`transactions`, `events`, `refills`). 2. Per Batch-Inserts arbeiten: * `storage`-Layer (`server/storage`) um `create*Batch`-Methoden mit `INSERT ... ON CONFLICT` erweitern. * Ganze Batch in einer Transaktion ausführen. 3. Alte per‑Item `storage.get*ByVendonId`-Aufrufe entfernen. 4. Tests/Logs anpassen, um gefundene/gespeicherte/duplizierte Items pro Batch auszugeben.
+
+3. Parallele Scheduler und Auto-Starts vendonScheduler.ts sowie autoStartResilientSync.ts starten eigenständig Synchronisationsprozesse und laufen gleichzeitig
+
+1. Neue Klasse `VendonBackgroundScheduler` unter `server/services/` anlegen: * zentraler Queue-basierter Scheduler (Singleton). * nutzt persistenten Sync-Lock. 2. Logik aus `vendonScheduler.ts`, `autoStartResilientSync.ts` und ggf. `syncScheduler.ts` migrieren: * Jobs (Transactions/Events/Refills/Products) registrieren. * Konfigurierbare Intervalle & Prioritäten. 3. Auto-Starts am Dateiende entfernen (`vendonScheduler.start()`, `process.nextTick`). 4. Server-Bootstrap aktualisieren, sodass nur `VendonBackgroundScheduler.start()` einmalig aufgerufen wird.
+
+4. Monolithisches vendonSync.ts mit redundanter Logik Die Datei umfasst ~2.8 k Zeilen mit eigener Sync-Implementierung und überschneidet sich stark mit resilientVendonSync.ts, was Wartung erschwert
+
+1. Neue Datei `server/services/unifiedVendonSync.ts`: * Klasse `UnifiedVendonSync` mit gemeinsamen Helfern (Pagination, Mapping, Logging). * Nutzt Batch-Duplikatsprüfung & persistente Locks. 2. Gemeinsame Utility-Funktionen aus `vendonSync.ts` extrahieren. 3. Aufrufe in Scheduler/Services auf `UnifiedVendonSync` umstellen; `vendonSync.ts` nur noch für Legacy-Testzwecke belassen oder entfernen. 4. Dokumentation & Tests anpassen.
+
+
+5. Fehlende zusammengesetzte DB-Indizes Für transactions existiert nur ein Unique-Index auf vendon_id; Abfragen nach Maschine/Zeit benötigen Full Scans
+
+1. Migrationen erstellen: * `transactions`: UNIQUE/INDEX auf (`vendon_id`, `machine_id`), optional (`vendon_id`, `datetime`). * `events`: UNIQUE/INDEX auf (`vendon_id`, `event_datetime`) sofern noch nicht vorhanden. 2. Skript unter `scripts/cleanupDuplicates.cjs` schreiben, das historische Duplikate auf Basis der neuen Indizes findet und bereinigt. 3. Storage-Upserts (`createTransaction`, `createEvent`) an neue Schlüssel anpassen.
+
+6. API-Client ohne Statuscode-Handling & Rate-Limits makeApiRequest führt einfache Retries ohne Auswertung der HTTP-Codes durch
+
+1. `makeApiRequest` erweitern: * HTTP-Statuscodes prüfen. * Bei `429` oder `5xx` mit exponentiellem Backoff (konfigurierbar via ENV) erneut versuchen. * Anzahl & Grund der Retries loggen. 2. Gemeinsames Modul `server/services/vendonApiClient.ts` erstellen: * Standardisierte Axios-Instanz mit Retry-/Rate-Limit-Logik. * Von `resilientVendonSync`, `unifiedVendonSync` etc. verwenden. 3. Konfigurationswerte (`REQUEST_DELAY`, `MAX_RETRIES`) in `.env` bzw. Konfigurationslayer verschieben.
+
+
+{
+  "prompt": {
+    "objective": "Stabile, duplikatfreie und performante Vendon-Hintergrundsynchronisation",
+    "context": {
+      "repository": "/workspace/Wawi",
+      "runtime": "Node.js / TypeScript",
+      "database": "PostgreSQL via Drizzle ORM",
+      "vendon_api": "https://cloud.vendon.net/rest/v1.8.0",
+      "core_services": [
+        "server/services/vendonSync.ts",
+        "server/services/resilientVendonSync.ts",
+        "server/services/vendonBackgroundService.ts",
+        "server/services/vendonScheduler.ts",
+        "server/services/syncScheduler.ts",
+        "server/services/autoStartResilientSync.ts",
+        "server/services/syncLock.ts",
+        "shared/schema.ts"
+      ]
+    },
+    "analysis": {
+      "duplicate_detection": {
+        "transactions": {
+          "primary_location": "server/services/vendonSync.ts",
+          "code_excerpt": "Lines 1330‑1450",
+          "description": "Für jede einzelne Transaktion wird `storage.getTransactionByVendonId` aufgerufen. Bei Force‑Update oder divergierenden Timestamps werden Vendon‑IDs modifiziert (`vendonId_timestamp`), wodurch die Unique‑Constraint umgangen wird. Kein Batch‑Vergleich, keine Upserts.",
+          "consequences": [
+            "Duplikate trotz eindeutiger Indexdefinition",
+            "Hohe Latenz durch Einzelabfragen",
+            "Race Conditions bei parallelen Imports"
+          ]
+        },
+        "transactions_resilient_sync": {
+          "primary_location": "server/services/resilientVendonSync.ts",
+          "code_excerpt": "Lines 293‑340",
+          "description": "Auch hier wird jede Transaktion einzeln geprüft (`getTransactionByVendonId`). Keine Sammelabfrage, kein Locking, keine Upsert-Strategie."
+        },
+        "events": {
+          "primary_location": "server/services/vendonSync.ts",
+          "code_excerpt": "Lines 1620‑1680",
+          "description": "Events werden mit `getEventByVendonId` einzeln geprüft. Update statt Upsert; Duplikate werden nicht gezählt, sondern überschrieben. Keine Batch‑Prüfung."
+        },
+        "refills": {
+          "primary_location": "server/services/vendonSync.ts",
+          "code_excerpt": "Lines 1810‑1860",
+          "description": "Refills prüfen auf Existenz via `getRefillByVendonId` und überspringen bei Fund. Keine Upserts; Details werden separat ohne Gesamt-Transaktion gespeichert."
+        }
+      },
+      "locking_and_race_conditions": {
+        "syncLock_usage": {
+          "file": "server/services/syncLock.ts",
+          "issues": [
+            "Locking ist rein in-memory → Mehrere Node-Prozesse/Instanzen erkennen sich nicht.",
+            "Nur `syncProducts` in `vendonSync.ts` nutzt Locking (Lines 2140‑2160). Transaktionen, Events und Refills laufen ohne Locks."
+          ]
+        },
+        "competing_services": [
+          {
+            "service": "autoStartResilientSync.ts",
+            "lines": "1‑33",
+            "note": "Startet `vendonBackgroundService` automatisch 5 s nach Serverstart."
+          },
+          {
+            "service": "vendonScheduler.ts",
+            "lines": "1‑120, auto-start at file end",
+            "note": "Scheduler startet sofort beim Import und führt alle 5 Minuten `vendonSync.syncTransactions/Events/Refills` aus."
+          },
+          {
+            "service": "vendonBackgroundService.ts",
+            "lines": "1‑200 (initialization/start methods)",
+            "note": "Startet erneut `ResilientVendonSync` mit eigenen Timern. Kombination aus mehreren Autostarts führt zu parallelen Sync-Läufen ohne zentrale Koordination."
+          }
+        ],
+        "result": "Mehrere Hintergrundprozesse konkurrieren gleichzeitig um dieselben Daten, ohne konsistente Sperren. Das erzeugt Duplikate, abgebrochene Läufe und unvorhersehbare Zustände."
+      },
+      "performance_bottlenecks": {
+        "single_record_queries": [
+          "Für jede Transaktion/Event/Refill wird separat `get*ByVendonId` aufgerufen.",
+          "Maschinen werden pro Transaktion via `getMachineByVendonId` überprüft und ggf. angelegt."
+        ],
+        "lack_of_batching": "Keine Sammelabfragen oder Bulk-Upserts. Keine Nutzung von DB-seitigen UPSERT (`INSERT ... ON CONFLICT`).",
+        "no_rate_limiting_or_throttling": "API-Aufrufe erfolgen ohne globales Request-Limit. `makeRequest` (vendonSync.ts Lines ~50‑100) bietet Retry, aber keinen zentralen Throttle.",
+        "redundant_schedulers": "Mehrere Timer (vendonScheduler, ResilientVendonSync, gapCrawler) erzeugen zusätzliche Last durch überlappende API-Anfragen."
+      },
+      "database_analysis": {
+        "indexes": {
+          "transactions": "shared/schema.ts Lines ~500‑550: unique index on vendonId.",
+          "events": "shared/schema.ts Lines ~703‑760: unique index on vendonId and (vendonMachineId,eventDatetime).",
+          "refills": "shared/schema.ts Lines ~650‑702: unique index on (vendonId, machineId, datetime)."
+        },
+        "missing_indexes": [
+          "Keine zusammengesetzten Indizes auf (vendon_id, machine_id) in transactions (nur vendon_id).",
+          "Kein dedizierter Index für `sync_logs.sync_type` oder `last_sync` Felder, erschwert Monitoring."
+        ],
+        "potential_duplicates": [
+          "Trotz Unique-Constraint existieren in der Produktivdatenbank Duplikate (vermutlich vor Index-Erstellung oder durch ID-Manipulation).",
+          "Refill- und Event-Tabellen können historische Duplikate enthalten, da vor dem Unique-Index eingefügt."
+        ]
+      },
+      "api_behavior": {
+        "vendon_api_client": {
+          "file": "server/services/vendonSync.ts Lines 1‑240",
+          "behavior": [
+            "Requests über `makeRequest` mit bis zu 3 Retries und exponentiellem Backoff (0.5s, 1s, 2s).",
+            "Keine explizite Behandlung von HTTP 429 oder Rate-Limits.",
+            "Pagination über `offset`/`limit`, aber kein Schutz vor `max_offset`-Fehlern."
+          ]
+        },
+        "endpoints_used": [
+          "/stats/vends (transactions)",
+          "/event/",
+          "/refills",
+          "/machines (fallback via transactions)"
+        ],
+        "timestamp_handling": "Zeitstempel werden in Sekunden an die API übergeben und intern in Millisekunden konvertiert. Fehlerhafte oder fehlende Datumsangaben führen zu `new Date()` Fallbacks."
+      }
+    },
+    "critical_problems": [
+      {
+        "id": "P1_duplicates_transactions",
+        "severity": "high",
+        "summary": "Transaktionen werden trotz Unique-Index mehrfach importiert. Unterschiedliche Services (vendonSync, resilientVendonSync, scheduler) laufen parallel ohne Sync-Lock und nutzen Einzelabfragen statt Upsert."
+      },
+      {
+        "id": "P2_competing_schedulers",
+        "severity": "high",
+        "summary": "Mindestens drei Hintergrundprozesse starten automatisch und synchronisieren dieselben Tabellen. In-memory-Locks verhindern keine parallelen Instanzen."
+      },
+      {
+        "id": "P3_performance_db_calls",
+        "severity": "medium",
+        "summary": "Jede Transaktion/Event/Refill löst mehrere DB-Lese-/Schreibvorgänge aus (Machine-Check, Duplicate-Check). Keine Batch-Operationen oder Caching."
+      },
+      {
+        "id": "P4_api_rate_handling",
+        "severity": "medium",
+        "summary": "Keine zentrale Rate-Limit-Steuerung. Bei Fehlern nur 3 Retries; fehlende 429-Behandlung kann zu Abbrüchen führen."
+      },
+      {
+        "id": "P5_missing_persistent_locking",
+        "severity": "high",
+        "summary": "Locking findet nur im Arbeitsspeicher statt. Mehrere Node-Instanzen oder Restarts brechen Schutz auf."
+      }
+    ],
+    "implementation_guidance": {
+      "unified_sync_engine": {
+        "goal": "Eine zentrale Klasse koordiniert alle Vendon-Sync-Operationen, stellt Locking bereit und orchestriert Batch-Processing.",
+        "core_components": [
+          {
+            "name": "UnifiedVendonSync",
+            "responsibilities": [
+              "Einheitliche API-Aufrufe mit Request-Throttling und Retry",
+              "Batch-Verarbeitung mit Upsert",
+              "Persistente Sync-Locks (DB-basiert statt in-memory)",
+              "Sync-State-Management für inkrementelle Läufe",
+              "Konfigurierbare Sync-Intervalle"
+            ]
+          },
+          {
+            "name": "DuplicatePreventionService",
+            "responsibilities": [
+              "Batchweise Prüfung vorhandener vendon_id-Werte (z.B. `SELECT vendon_id FROM transactions WHERE vendon_id IN (...)`)",
+              "Upsert (`INSERT ... ON CONFLICT`) für transactions, events, refills",
+              "Konflikt-Logik bei abweichenden Timestamps",
+              "Optionale Reinigung historischer Duplikate"
+            ]
+          },
+          {
+            "name": "VendonBackgroundScheduler",
+            "pattern": "Singleton",
+            "responsibilities": [
+              "Nur EIN Scheduler, der alle Sync-Jobs verwaltet",
+              "Konfigurierbare Prioritäten (Transaktionen > Events > Refills > Machines)",
+              "Health Monitoring & automatische Recovery",
+              "Trigger für manuelle Syncs"
+            ]
+          }
+        ]
+      },
+      "database_optimisation": {
+        "indexes": [
+          "Transaktionen: zusätzlicher zusammengesetzter Index (vendon_id, machine_id) zur schnelleren Suche und Integrität",
+          "Events/Refills: sicherstellen, dass Unique-Indices aktiv und in Migrationen verankert sind",
+          "sync_logs: Index auf (sync_type, start_date) für schnelleres Monitoring"
+        ],
+        "migrations": [
+          "Migration-Skripte erstellen und in Drizzle-Migrationsordner ablegen",
+          "Historische Duplikate bereinigen (`DELETE FROM transactions t USING transactions t2 ...`)"
+        ],
+        "batch_upserts": [
+          "Nutzung von `INSERT INTO ... ON CONFLICT (vendon_id) DO UPDATE SET ...`",
+          "Drizzle ORM unterstützt `db.insert(transactions).values(...).onConflictDoUpdate(...)`"
+        ]
+      },
+      "locking_strategy": {
+        "persistent_locks": [
+          "sync_locks-Tabelle (bereits in schema.ts definiert) aktiv verwenden",
+          "Funktionen `acquireSyncLock`/`releaseSyncLock` so erweitern, dass sie DB-gestützt sind",
+          "Locks beim Start der Synchronisation eintragen und nach Abschluss/Timeout entfernen"
+        ],
+        "scope": "Pro Sync-Typ (transactions, events, refills, products). Der zentrale Scheduler darf pro Typ nur einen Job gleichzeitig starten."
+      },
+      "scheduler_unification": {
+        "actions": [
+          "Entferne Autostarts aus `vendonScheduler.ts` und `autoStartResilientSync.ts`.",
+          "Erstelle eine zentrale Startfunktion (z.B. `startUnifiedVendonSync()`), die nur EINEN Scheduler initialisiert.",
+          "Verwende `vendonBackgroundService` als Koordinator, der `ResilientVendonSync` ersetzt oder integriert."
+        ]
+      },
+      "api_resilience": {
+        "request_throttling": "Globale Queue oder Token-Bucket, der max. X Requests/Sekunde zulässt.",
+        "retry_policy": "Erkenne HTTP 429/500 und backoff exponentiell, logge Fehler im Sync-Log.",
+        "pagination": "Nutze `next`/`offset` sauber, breche bei leeren Seiten ab. Verwende Cap für `maxTransactions`."
+      },
+      "monitoring_and_logging": {
+        "sync_logs": "Erweitere Logs um `items_updated`, `duplicates`, `duration_seconds` (teilweise vorhanden).",
+        "health_dashboard": "Route/Endpoint, der Status des Schedulers, Locks und letzte Sync-Zeiten liefert.",
+        "alerts": "Bei >N Fehlern oder fehlgeschlagenen Retries Notification (Konsole, Email)."
+      },
+      "testing_recommendations": {
+        "unit_tests": [
+          "DuplicatePreventionService: Batch-Insert mit vorhandenen IDs → keine Duplikate",
+          "SyncLock: gleichzeitige `acquire`-Aufrufe simulieren"
+        ],
+        "integration_tests": [
+          "API-Mock für Vendon, der Duplikate und Fehler liefert",
+          "Background-Scheduler: parallele Startversuche dürfen nicht konkurrieren"
+        ],
+        "load_tests": [
+          "1000 Transaktionen im Batch <5s verarbeiten",
+          "Simulierte Rate-Limit-Fehler → System recovert automatisch"
+        ]
+      }
+    },
+    "deliverables_for_next_agent": {
+      "code_refactor": [
+        "Neuen Ordner `server/services/unifiedSync/` anlegen mit Klassen `UnifiedVendonSync`, `DuplicatePreventionService`, `VendonBackgroundScheduler`.",
+        "Bestehende Sync-Methoden (Transactions/Events/Refills) in UnifiedVendonSync portieren.",
+        "Sync-Lock-Funktionen in `syncLock.ts` DB-basiert implementieren; In-Memory-Version entfernen oder als Fallback belassen."
+      ],
+      "database_migrations": [
+        "Erstelle Drizzle-Migration für neue Indizes und Sync-Lock-Tabelle (falls noch nicht angewendet).",
+        "Bereinigungsskripte für vorhandene Duplikate in `transactions`, `events`, `refills`."
+      ],
+      "configuration": [
+        "ENV-Variablen: `VENDON_SYNC_INTERVAL`, `VENDON_API_RATE_LIMIT`, `SYNC_LOCK_TIMEOUT`.",
+        "Konfigurationsdatei für Scheduler-Prioritäten und Intervall pro Sync-Typ."
+      ],
+      "documentation": [
+        "README Abschnitt zur neuen Sync-Architektur, Locking und Scheduling.",
+        "API-Dokumentation aktualisieren (Rate-Limit, Retry, Pagination)."
+      ]
+    }
+  }
+}

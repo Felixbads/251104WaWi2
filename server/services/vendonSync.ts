@@ -3522,4 +3522,15 @@ export class VendonSyncService {
   }
 }
 
-export const vendonSync = new VendonSyncService();
+// ⚠️ DEAKTIVIERT - Ersetzt durch UnifiedVendonSync für batch-basierte Operationen
+export const vendonSync_DISABLED = new VendonSyncService();
+export const vendonSync = {
+  syncTransactions: () => { throw new Error("vendonSync DEAKTIVIERT - Verwende UnifiedVendonSync"); },
+  syncEvents: () => { throw new Error("vendonSync DEAKTIVIERT - Verwende UnifiedVendonSync"); },
+  syncRefills: () => { throw new Error("vendonSync DEAKTIVIERT - Verwende UnifiedVendonSync"); },
+  syncMachines: () => { throw new Error("vendonSync DEAKTIVIERT - Verwende UnifiedVendonSync"); },
+  getApi: () => { throw new Error("vendonSync.getApi DEAKTIVIERT - Verwende EnhancedVendonApiClient"); },
+  syncProducts: () => { throw new Error("vendonSync DEAKTIVIERT - Verwende UnifiedVendonSync"); },
+  analyzeDataGaps: () => { throw new Error("vendonSync DEAKTIVIERT - Verwende UnifiedVendonSync"); },
+  syncHistoricalBatch: () => { throw new Error("vendonSync DEAKTIVIERT - Verwende UnifiedVendonSync"); }
+};
