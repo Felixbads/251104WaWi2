@@ -1,0 +1,76 @@
+{
+  "analysis": {
+    "overview": {
+      "system": "Vendon data integration and background synchronization",
+      "primaryIssues": [
+        "Duplicate records despite vendon_id checks",
+        "Parallel services causing race conditions",
+        "Unstable synchronization due to in-memory locking and fragmented schedulers",
+        "Performance bottlenecks from per‑record database operations",
+        "Limited API error handling and retry strategies"
+      ]
+    },
+    "findings": [
+      {
+        "issue": "Per-record duplicate checks and inserts in ResilientVendonSync lead to race conditions and poor performance.",
+        "evidence": [
+          "server/services/resilientVendonSync.ts:319",
+          "server/services/resilientVendonSync.ts:401",
+          "server/services/resilientVendonSync.ts:486"
+        ],
+        "impact": "Each transaction/event/refill triggers its own duplicate query, allowing concurrent sync processes to insert the same vendon_id before checks complete.",
+        "task_stub": ":::task-stub{title=\"Batch duplicate detection with transactional upsert\"}\n1. In `server/services/resilientVendonSync.ts`, gather vendon_ids for a batch and query `transactions`, `events`, and `refills` tables using `IN (...)` to prefetch existing rows.\n2. Replace per-item `storage.get*ByVendonId` calls with lookups against these prefetched sets.\n3. Implement `INSERT ... ON CONFLICT (vendon_id) DO UPDATE` logic in the storage layer (`server/storage/database-storage.ts`) to guarantee idempotent writes.\n4. Wrap batch inserts in a single transaction to prevent race conditions.\n:::\n"
+      },
+      {
+        "issue": "syncLock uses in-memory storage, so locks disappear on process restart and do not protect against parallel Node instances.",
+        "evidence": [
+          "server/services/syncLock.ts:22-26"
+        ],
+        "impact": "Concurrent services (e.g., vendonScheduler and background sync) can run simultaneously, leading to duplicate imports and database contention.",
+        "task_stub": ":::task-stub{title=\"Persistent synchronization locking\"}\n1. Create a `sync_locks` table via migration (e.g., `drizzle` migration under `shared/migrations/`). Fields: `sync_type`, `owner`, `expires_at` with unique constraint on `sync_type`.\n2. Replace in-memory `locks` object in `server/services/syncLock.ts` with queries using `INSERT ... ON CONFLICT` to acquire/release locks.\n3. Expose helper functions `acquireSyncLock`/`releaseSyncLock` that operate on the new table and support expiration cleanup via SQL.\n:::\n"
+      },
+      {
+        "issue": "Multiple schedulers initiate Vendon syncs independently, creating overlapping jobs.",
+        "evidence": [
+          "server/services/autoStartResilientSync.ts:11-36",
+          "server/services/vendonScheduler.ts:23-41",
+          "server/services/syncScheduler.ts:1-80"
+        ],
+        "impact": "Parallel sync loops (VendonScheduler, ResilientVendonSync background, product SyncScheduler) can run concurrently without coordination, increasing API load and duplicate risk.",
+        "task_stub": ":::task-stub{title=\"Consolidate schedulers into a unified background service\"}\n1. Introduce a singleton `VendonBackgroundScheduler` (new file in `server/services/`) that manages all sync jobs via a central queue.\n2. Migrate logic from `vendonScheduler.ts`, `autoStartResilientSync.ts`, and `syncScheduler.ts` into this scheduler, exposing start/stop methods.\n3. Ensure the scheduler acquires a global lock (using the persistent locking from previous task) before launching sync cycles.\n4. Remove automatic `process.nextTick` startup from `autoStartResilientSync.ts` and instead start the unified scheduler from the server bootstrap.\n:::\n"
+      },
+      {
+        "issue": "vendonSync.ts is a monolithic 2.8k-line module with inconsistent duplicate handling and overlapping functionality with ResilientVendonSync.",
+        "evidence": [
+          "server/services/vendonSync.ts (file length 2840 lines)",
+          "Duplicate checks at lines ~1370, ~2616"
+        ],
+        "impact": "Maintaining multiple large sync implementations increases bug surface area and hinders consistent duplicate prevention.",
+        "task_stub": ":::task-stub{title=\"Refactor into UnifiedVendonSync\"}\n1. Create `server/services/unifiedVendonSync.ts` implementing a `UnifiedVendonSync` class that encapsulates shared sync logic (transactions, events, refills) with pluggable strategies.\n2. Extract reusable helpers from `vendonSync.ts` (API pagination, mapping, logging) into this new class.\n3. Gradually migrate callers (`vendonScheduler`, background service) to the unified engine and deprecate `vendonSync.ts`.\n4. Ensure duplicate detection uses the batch approach from earlier tasks and centralizes error handling.\n:::\n"
+      },
+      {
+        "issue": "Database deduplication relies on single-column unique indexes; additional composite indexes and upsert strategies are inconsistently applied.",
+        "evidence": [
+          "shared/schema.ts:500-640 (transactions only unique on vendon_id)",
+          "shared/schema.ts:615-675 (refills unique on vendon_id, machine_id, datetime)"
+        ],
+        "impact": "Queries filtering by vendon_id and machine_id or datetime require full scans; existing duplicates may remain if indexes were added after insertion.",
+        "task_stub": ":::task-stub{title=\"Enhance database indexing and cleanup\"}\n1. Create migrations to add compound indexes: `(vendon_id, machine_id)` on `transactions` and `(vendon_id, event_datetime)` on `events` (if not already present).\n2. Write cleanup scripts under `scripts/` to detect and remove historical duplicates using these indices.\n3. Update storage insert methods to use `ON CONFLICT` with these compound keys to guarantee idempotent writes.\n:::\n"
+      },
+      {
+        "issue": "API request handling lacks explicit rate limit awareness beyond simple retries.",
+        "evidence": [
+          "server/services/resilientVendonSync.ts:627-640 (`makeApiRequest`)"
+        ],
+        "impact": "Burst requests may exceed Vendon API limits, leading to failures and skipped data without logging retry cause.",
+        "task_stub": ":::task-stub{title=\"Robust API client with rate limit handling\"}\n1. Extend `makeApiRequest` in `resilientVendonSync.ts` to inspect HTTP status codes; implement exponential backoff for 429 or 5xx responses and log retry counts.\n2. Parameterize `REQUEST_DELAY` and `MAX_RETRIES` via environment variables for tuning.\n3. Centralize API client creation in a dedicated module (e.g., `server/services/vendonApiClient.ts`) to share rate-limit logic across all sync services.\n:::\n"
+      }
+    ],
+    "architecture_proposal": {
+      "core": "Introduce `UnifiedVendonSync` orchestrated by a singleton `VendonBackgroundScheduler` guarded by persistent database locks.",
+      "duplicatePrevention": "Batch fetch existing vendon_ids, use transactional upserts, and ensure compound indexes.",
+      "backgroundService": "Replace disparate schedulers with one configurable service supporting priority queues and health metrics.",
+      "apiStrategy": "Shared API client with rate-limit awareness, exponential backoff, and structured logging."
+    }
+  }
+}
