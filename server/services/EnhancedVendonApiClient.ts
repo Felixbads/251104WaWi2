@@ -174,16 +174,20 @@ class EnhancedVendonApiClient {
 
       try {
         console.log(`📡 API Request: ${endpoint} (Versuch ${retryStats.attempt}/${this.config.maxRetries})`);
-        if (Object.keys(params).length > 0) {
-          console.log(`📋 Parameter:`, params);
+        
+        // WICHTIG: Stelle sicher, dass params ein Objekt ist und nicht undefined
+        const queryParams = params || {};
+        
+        if (Object.keys(queryParams).length > 0) {
+          console.log(`📋 Parameter:`, queryParams);
         }
         
         // Log full URL being called
-        const fullUrl = `${this.config.baseUrl}${endpoint}${params && Object.keys(params).length > 0 ? '?' + new URLSearchParams(params).toString() : ''}`;
+        const fullUrl = `${this.config.baseUrl}${endpoint}${Object.keys(queryParams).length > 0 ? '?' + new URLSearchParams(queryParams).toString() : ''}`;
         console.log(`🔗 Full URL: ${fullUrl}`);
 
         const response = await this.client.get<any>(endpoint, {
-          params,
+          params: queryParams,
           ...options
         });
 
