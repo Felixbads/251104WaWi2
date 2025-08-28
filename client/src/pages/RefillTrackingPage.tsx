@@ -29,10 +29,10 @@ interface RefillHistory {
   id: number;
   machineId: number;
   machineName: string;
-  warehouseId: number;
-  warehouseName: string;
   performedBy: string;
   performedAt: string;
+  refillType?: string;
+  refillNumber?: string;
   items: RefillHistoryItem[];
 }
 
@@ -41,8 +41,11 @@ interface RefillHistoryItem {
   quantity: number;
   batchNumber: string;
   expiryDate: string;
-  stockBefore: number;
-  stockAfter: number;
+  stockBefore?: number;
+  stockAfter?: number;
+  warehouseId?: number;
+  warehouseName?: string;
+  withdrawalTime?: string;
 }
 
 export default function RefillTrackingPage() {
@@ -53,13 +56,14 @@ export default function RefillTrackingPage() {
   const [selectedMachine, setSelectedMachine] = useState<string>('');
   const [refillItems, setRefillItems] = useState<RefillItem[]>([]);
   const [activeTab, setActiveTab] = useState('new-refill');
+  const [selectedRefill, setSelectedRefill] = useState<string>('');
 
   // Load warehouses
   const { data: warehousesResponse, isLoading: isLoadingWarehouses } = useQuery({
     queryKey: ['/api/warehouses'],
     staleTime: 5 * 60 * 1000,
   });
-  const warehouses = warehousesResponse?.data || [];
+  const warehouses = (warehousesResponse as any)?.data || [];
 
   // Load machines
   const { data: machines = [], isLoading: isLoadingMachines } = useQuery({
@@ -76,6 +80,11 @@ export default function RefillTrackingPage() {
   // Load refill history
   const { data: refillHistory = [], isLoading: isLoadingHistory } = useQuery({
     queryKey: ['/api/refill-history'],
+  });
+
+  // Load unlinked refills (for linking warehouse inventory)
+  const { data: unlinkedRefills = [], isLoading: isLoadingUnlinked } = useQuery({
+    queryKey: ['/api/unlinked-refills'],
   });
 
   // Mutation for performing refill
@@ -108,6 +117,42 @@ export default function RefillTrackingPage() {
     onError: (error: any) => {
       toast({
         title: "Fehler beim Refill",
+        description: error.message || "Es ist ein Fehler aufgetreten.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Mutation for linking warehouse to existing refill
+  const linkWarehouseMutation = useMutation({
+    mutationFn: async (data: {
+      refillId: number;
+      warehouseId: number;
+      items: RefillItem[];
+    }) => {
+      return await apiRequest('/api/link-warehouse-to-refill', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/warehouse-inventory-batches'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/refill-history'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/unlinked-refills'] });
+      
+      toast({
+        title: "Verknüpfung erfolgreich",
+        description: "Die Lagerentnahme wurde erfolgreich zum Refill zugeordnet.",
+      });
+      
+      // Reset form
+      setRefillItems([]);
+      setSelectedWarehouse('');
+      setSelectedRefill('');
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Fehler bei der Verknüpfung",
         description: error.message || "Es ist ein Fehler aufgetreten.",
         variant: "destructive",
       });
@@ -164,6 +209,23 @@ export default function RefillTrackingPage() {
     });
   };
 
+  const handleLinkToRefill = () => {
+    if (!selectedWarehouse || !selectedRefill || refillItems.length === 0) {
+      toast({
+        title: "Unvollständige Eingabe",
+        description: "Bitte wählen Sie Lager, Refill und mindestens einen Artikel aus.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    linkWarehouseMutation.mutate({
+      refillId: parseInt(selectedRefill),
+      warehouseId: parseInt(selectedWarehouse),
+      items: refillItems,
+    });
+  };
+
   const isExpired = (expiryDate: string) => {
     return new Date(expiryDate) < new Date();
   };
@@ -188,6 +250,7 @@ export default function RefillTrackingPage() {
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="new-refill">Neuer Refill</TabsTrigger>
+          <TabsTrigger value="link-refill">Lager zu Refill zuordnen</TabsTrigger>
           <TabsTrigger value="history">Verlauf</TabsTrigger>
           <TabsTrigger value="warnings">MHD-Warnungen</TabsTrigger>
         </TabsList>
@@ -227,7 +290,7 @@ export default function RefillTrackingPage() {
                       <SelectValue placeholder="Automat auswählen" />
                     </SelectTrigger>
                     <SelectContent>
-                      {machines.map((machine: any) => (
+                      {(machines as any[]).map((machine: any) => (
                         <SelectItem key={machine.id} value={machine.id.toString()}>
                           {machine.machineName} ({machine.locationName})
                         </SelectItem>
@@ -302,7 +365,7 @@ export default function RefillTrackingPage() {
               <CardContent>
                 {isLoadingInventory ? (
                   <p>Lade Lagerbestand...</p>
-                ) : warehouseInventory.length === 0 ? (
+                ) : (warehouseInventory as any[]).length === 0 ? (
                   <p className="text-muted-foreground text-center py-4">
                     Keine Artikel im Lager verfügbar
                   </p>
@@ -319,7 +382,7 @@ export default function RefillTrackingPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {warehouseInventory.map((item: any) => (
+                      {(warehouseInventory as any[]).map((item: any) => (
                         <TableRow key={`${item.productId}-${item.batchNumber}`}>
                           <TableCell>{item.productName}</TableCell>
                           <TableCell>{item.batchNumber}</TableCell>
@@ -376,6 +439,260 @@ export default function RefillTrackingPage() {
           )}
         </TabsContent>
 
+        <TabsContent value="link-refill" className="space-y-6">
+          <div className="grid gap-6 md:grid-cols-2">
+            {/* Refill and Warehouse Selection */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Refill & Lager auswählen</CardTitle>
+                <CardDescription>Verknüpfen Sie Lagerentnahmen mit bestehenden Vendon-Refills</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Refill auswählen</Label>
+                  <Select value={selectedRefill} onValueChange={setSelectedRefill}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Refill auswählen" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(unlinkedRefills as any[]).map((refill: any) => (
+                        <SelectItem key={refill.id} value={refill.id.toString()}>
+                          <div className="flex flex-col">
+                            <span className="font-medium">
+                              {refill.machineName} - {refill.operator}
+                            </span>
+                            <span className="text-xs text-muted-foreground">
+                              {format(new Date(refill.datetime), 'dd.MM.yyyy HH:mm', { locale: de })}
+                            </span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Lager (Quelle)</Label>
+                  <Select value={selectedWarehouse} onValueChange={setSelectedWarehouse}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Lager auswählen" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {warehouses.map((warehouse: any) => (
+                        <SelectItem key={warehouse.id} value={warehouse.id.toString()}>
+                          <div className="flex items-center">
+                            <Box className="h-4 w-4 mr-2" />
+                            {warehouse.name}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {selectedRefill && (
+                  <Alert>
+                    <ArrowRight className="h-4 w-4" />
+                    <AlertTitle>Ausgewählter Refill</AlertTitle>
+                    <AlertDescription>
+                      {(unlinkedRefills as any[]).find((r: any) => r.id.toString() === selectedRefill)?.machineName} -{' '}
+                      {(unlinkedRefills as any[]).find((r: any) => r.id.toString() === selectedRefill)?.operator}
+                      <br />
+                      <span className="text-xs">
+                        {selectedRefill && format(new Date((unlinkedRefills as any[]).find((r: any) => r.id.toString() === selectedRefill)?.datetime || ''), 'dd.MM.yyyy HH:mm', { locale: de })}
+                      </span>
+                    </AlertDescription>
+                  </Alert>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Selected Items for Linking */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Artikel für Verknüpfung</CardTitle>
+                <CardDescription>
+                  {refillItems.length} Artikel zum Verknüpfen ausgewählt
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {refillItems.length === 0 ? (
+                  <p className="text-muted-foreground text-center py-4">
+                    Keine Artikel ausgewählt
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {refillItems.map((item, index) => (
+                      <div key={index} className="flex items-center justify-between p-2 border rounded">
+                        <div className="flex-1">
+                          <p className="font-medium">{item.productName}</p>
+                          <div className="flex gap-4 text-sm text-muted-foreground">
+                            <span>Charge: {item.batchNumber}</span>
+                            <span>MHD: {format(new Date(item.expiryDate), 'dd.MM.yyyy')}</span>
+                            {isExpired(item.expiryDate) && (
+                              <Badge variant="destructive">Abgelaufen!</Badge>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Input
+                            type="number"
+                            value={item.quantity}
+                            onChange={(e) => handleUpdateQuantity(index, parseInt(e.target.value) || 0)}
+                            className="w-20"
+                            min="1"
+                            max={item.warehouseStock}
+                          />
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleRemoveItem(index)}
+                          >
+                            ×
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Available Inventory for Linking */}
+          {selectedWarehouse && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Verfügbare Artikel im Lager</CardTitle>
+                <CardDescription>
+                  Wählen Sie Artikel mit Chargen für die Verknüpfung aus
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {isLoadingInventory ? (
+                  <p>Lade Lagerbestand...</p>
+                ) : (warehouseInventory as any[]).length === 0 ? (
+                  <p className="text-muted-foreground text-center py-4">
+                    Keine Artikel im Lager verfügbar
+                  </p>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Artikel</TableHead>
+                        <TableHead>Charge</TableHead>
+                        <TableHead>MHD</TableHead>
+                        <TableHead>Verfügbar</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead></TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {(warehouseInventory as any[]).map((item: any) => (
+                        <TableRow key={`${item.productId}-${item.batchNumber}`}>
+                          <TableCell>{item.productName}</TableCell>
+                          <TableCell>{item.batchNumber}</TableCell>
+                          <TableCell>
+                            {format(new Date(item.expiryDate), 'dd.MM.yyyy')}
+                          </TableCell>
+                          <TableCell>{item.quantity} Stück</TableCell>
+                          <TableCell>
+                            {isExpired(item.expiryDate) ? (
+                              <Badge variant="destructive">Abgelaufen</Badge>
+                            ) : isExpiringSoon(item.expiryDate) ? (
+                              <Badge variant="outline" className="border-yellow-500">
+                                <AlertTriangle className="h-3 w-3 mr-1" />
+                                Läuft bald ab
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="border-green-500">
+                                <CheckCircle className="h-3 w-3 mr-1" />
+                                OK
+                              </Badge>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleAddItem(item)}
+                              disabled={item.quantity === 0 || isExpired(item.expiryDate)}
+                            >
+                              Hinzufügen
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Perform Linking Button */}
+          {refillItems.length > 0 && selectedRefill && (
+            <div className="flex justify-end">
+              <Button
+                onClick={handleLinkToRefill}
+                disabled={linkWarehouseMutation.isPending}
+                size="lg"
+              >
+                <ArrowRight className="h-5 w-5 mr-2" />
+                Zu Refill verknüpfen
+              </Button>
+            </div>
+          )}
+
+          {/* Show unlinked refills for selection */}
+          {!selectedRefill && (unlinkedRefills as any[]).length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Verfügbare Refills ohne Lager-Zuordnung</CardTitle>
+                <CardDescription>
+                  Diese Refills wurden in Vendon durchgeführt, haben aber noch keine Lagerzuordnung
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Automat</TableHead>
+                      <TableHead>Operator</TableHead>
+                      <TableHead>Datum/Zeit</TableHead>
+                      <TableHead>Typ</TableHead>
+                      <TableHead></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {(unlinkedRefills as any[]).map((refill: any) => (
+                      <TableRow key={refill.id}>
+                        <TableCell>{refill.machineName}</TableCell>
+                        <TableCell>{refill.operator}</TableCell>
+                        <TableCell>
+                          {format(new Date(refill.datetime), 'dd.MM.yyyy HH:mm', { locale: de })}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline">{refill.refillType}</Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setSelectedRefill(refill.id.toString())}
+                          >
+                            Auswählen
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
         <TabsContent value="history" className="space-y-6">
           <Card>
             <CardHeader>
@@ -387,54 +704,83 @@ export default function RefillTrackingPage() {
             <CardContent>
               {isLoadingHistory ? (
                 <p>Lade Verlauf...</p>
-              ) : refillHistory.length === 0 ? (
+              ) : (refillHistory as RefillHistory[]).length === 0 ? (
                 <p className="text-muted-foreground text-center py-4">
                   Noch keine Refills durchgeführt
                 </p>
               ) : (
                 <div className="space-y-4">
-                  {refillHistory.map((refill: RefillHistory) => (
+                  {(refillHistory as RefillHistory[]).map((refill: RefillHistory) => (
                     <Card key={refill.id}>
                       <CardHeader>
                         <div className="flex justify-between items-start">
                           <div>
                             <CardTitle className="text-lg">
-                              {refill.warehouseName} → {refill.machineName}
+                              {refill.machineName} 
+                              {refill.items.length > 0 && refill.items[0].warehouseName && (
+                                <span> ← {refill.items[0].warehouseName}</span>
+                              )}
                             </CardTitle>
                             <CardDescription>
                               <div className="flex items-center gap-4 mt-2">
                                 <span className="flex items-center gap-1">
                                   <User className="h-3 w-3" />
-                                  {refill.performedBy}
+                                  <strong>{refill.performedBy}</strong>
                                 </span>
                                 <span className="flex items-center gap-1">
                                   <Calendar className="h-3 w-3" />
                                   {format(new Date(refill.performedAt), 'dd.MM.yyyy HH:mm', { locale: de })}
                                 </span>
+                                {refill.refillType && (
+                                  <Badge variant="outline">{refill.refillType}</Badge>
+                                )}
                               </div>
                             </CardDescription>
                           </div>
                         </div>
                       </CardHeader>
                       <CardContent>
-                        <div className="space-y-2">
-                          {refill.items.map((item, index) => (
-                            <div key={index} className="flex justify-between items-center p-2 bg-muted rounded">
-                              <div>
-                                <p className="font-medium">{item.productName}</p>
-                                <p className="text-sm text-muted-foreground">
-                                  Charge: {item.batchNumber} | MHD: {format(new Date(item.expiryDate), 'dd.MM.yyyy')}
-                                </p>
+                        {refill.items.length === 0 ? (
+                          <Alert>
+                            <AlertTriangle className="h-4 w-4" />
+                            <AlertTitle>Keine Lagerzuordnung</AlertTitle>
+                            <AlertDescription>
+                              Dieser Refill hat noch keine Zuordnung zu Lagerentnahmen. 
+                              Verwenden Sie den Tab "Lager zu Refill zuordnen" für die Verknüpfung.
+                            </AlertDescription>
+                          </Alert>
+                        ) : (
+                          <div className="space-y-2">
+                            {refill.items.map((item, index) => (
+                              <div key={index} className="flex justify-between items-center p-2 bg-muted rounded">
+                                <div>
+                                  <p className="font-medium">{item.productName}</p>
+                                  <p className="text-sm text-muted-foreground">
+                                    Charge: {item.batchNumber} | MHD: {item.expiryDate ? format(new Date(item.expiryDate), 'dd.MM.yyyy') : 'Unbekannt'}
+                                  </p>
+                                  {item.warehouseName && (
+                                    <p className="text-xs text-muted-foreground">
+                                      Lager: {item.warehouseName}
+                                    </p>
+                                  )}
+                                </div>
+                                <div className="text-right">
+                                  <p className="font-medium">{item.quantity} Stück entnommen</p>
+                                  {item.stockBefore !== undefined && item.stockAfter !== undefined ? (
+                                    <p className="text-sm text-muted-foreground">
+                                      Bestand: {item.stockBefore} → {item.stockAfter}
+                                    </p>
+                                  ) : null}
+                                  {item.withdrawalTime && (
+                                    <p className="text-xs text-muted-foreground">
+                                      Entnahme: {format(new Date(item.withdrawalTime), 'dd.MM.yyyy HH:mm', { locale: de })}
+                                    </p>
+                                  )}
+                                </div>
                               </div>
-                              <div className="text-right">
-                                <p className="font-medium">{item.quantity} Stück entnommen</p>
-                                <p className="text-sm text-muted-foreground">
-                                  Bestand: {item.stockBefore} → {item.stockAfter}
-                                </p>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
+                            ))}
+                          </div>
+                        )}
                       </CardContent>
                     </Card>
                   ))}

@@ -1,0 +1,109 @@
+{
+“issues”: [
+{
+“file”: “client/src/components/CleanupDashboard.tsx”,
+“line”: 182,
+“issue”: “Unescaped ‘>’ in text causes TypeScript syntax error”,
+“suggestion”: “Use > or {’>’}”
+},
+{
+“file”: “server/routes/forecast.ts”,
+“lines”: [934, 1146, 1168, 1358, 1393, 1459],
+“issue”: “Imports from meteostatService and holidayService reference functions not exported”,
+“suggestion”: “Export missing functions or adjust imports to existing methods”
+},
+{
+“file”: “client/src/components/settings/DatabaseViewer.tsx”,
+“lines”: [225, 246, 261],
+“issue”: “Pagination anchors use href="#" placeholders”,
+“suggestion”: “Replace with real routes or buttons”
+,
+},
+{
+“file”: “client/src/pages/OrderDetail.tsx.backup”,
+“line”: 1182,
+“issue”: “Anchor tag uses href="#" placeholder”,
+“suggestion”: “Use proper link or button”
+},
+{
+“file”: “client/src/components/RecurringOrderForm.tsx”,
+“lines”: [130, 131],
+“issue”: “Created-by fields hardcoded”,
+“suggestion”: “Retrieve user data from context”
+},
+{
+“file”: “client/src/components/SupplierEditDialog.tsx”,
+“line”: 577,
+“issue”: “Photo upload functionality not implemented”,
+“suggestion”: “Implement upload or remove placeholder”
+},
+{
+“file”: “server/routes/stock-ratios.ts”,
+“line”: 19,
+“issue”: “getAllMachineStockData not implemented”,
+“suggestion”: “Add missing service method”
+},
+{
+“file”: “server/routes/retroactive-inventory.ts”,
+“lines”: [213, 310, 311, 481, 482],
+“issue”: “Gap detection and user metadata placeholders”,
+“suggestion”: “Implement gap detection and replace hardcoded user info”
+},
+{
+“file”: “server/routes/warehouse3.api.ts”,
+“lines”: [175, 304, 312, 424, 499],
+“issue”: “Missing joins with products table and dependency checks”,
+“suggestion”: “Add joins and dependency handling”
+},
+{
+“file”: “server/routes/enhanced-profitability.ts”,
+“line”: 189,
+“issue”: “ROI calculation placeholder”,
+“suggestion”: “Calculate ROI based on investment data”
+},
+{
+“file”: “server/routes/weather-correction.ts”,
+“line”: 75,
+“issue”: “Status endpoint not implemented”,
+“suggestion”: “Implement status query with statistics”
+},
+{
+“file”: “server/routes.ts”,
+“line”: 4765,
+“issue”: “lastDoorOpen placeholder; event data missing”,
+“suggestion”: “Implement event data retrieval”
+},
+{
+“file”: “client/src/components/inventory/InventoryCountNew.tsx.new”,
+“issue”: “.new file indicates unfinished component”
+},
+{
+“file”: “client/src/components/inventur/InventurStatistik.tsx.new”,
+“issue”: “.new file indicates unfinished component”
+},
+{
+“file”: “client/src/pages/InventurDetailNewPage.tsx.new”,
+“issue”: “.new file indicates unfinished page”
+},
+{
+“file”: “client/src/pages/Dashboard.tsx.new”,
+“issue”: “.new file indicates unfinished page”
+},
+{
+“file”: “client/src/pages/WarehouseMovements.tsx.new”,
+“issue”: “.new file indicates unfinished page”
+},
+{
+“file”: “client/src/pages/Reporting.tsx.new”,
+“issue”: “.new file indicates unfinished page”
+},
+{
+“file”: “BestellungV2.tsx.new”,
+“issue”: “.new file indicates unfinished component”
+},
+{
+“file”: “NewOrder.tsx.new”,
+“issue”: “.new file indicates unfinished component”
+}
+]
+}

@@ -67,21 +67,21 @@ router.post('/warehouse-refills', async (req: AuthRequest, res: Response) => {
   try {
     const { warehouseId, machineId, items } = req.body;
     const userId = req.user?.id || 1; // Default to system user if not authenticated
-    const userName = req.user?.username || 'System';
+    const userName = req.user?.username || req.user?.email || 'System';
     
     if (!warehouseId || !machineId || !items || items.length === 0) {
       await rawDb.query('ROLLBACK');
       return res.status(400).json({ error: 'Unvollständige Daten für Refill' });
     }
 
-    // Create refill record
+    // Create refill record with proper operator field
     const refillResult = await db.insert(refills)
       .values({
         machineId,
         datetime: Math.floor(Date.now() / 1000),
         refillType: 'manual',
         refillNumber: `REF-${Date.now()}`,
-        rawData: JSON.stringify({ warehouseId, performedBy: userName }),
+        operator: userName, // Use the operator field instead of rawData
         createdAt: new Date(),
         updatedAt: new Date()
       })
@@ -220,7 +220,7 @@ router.post('/warehouse-refills', async (req: AuthRequest, res: Response) => {
   }
 });
 
-// GET - Get refill history
+// GET - Get refill history (shows actual Vendon refills with proper operators)
 router.get('/refill-history', async (req: AuthRequest, res: Response) => {
   try {
     const limit = parseInt(req.query.limit as string) || 50;
@@ -230,75 +230,55 @@ router.get('/refill-history', async (req: AuthRequest, res: Response) => {
       SELECT 
         r.id,
         r.machine_id as "machineId",
-        m.machine_name as "machineName",
+        m.machine_name as "machineName", 
         r.datetime as "performedAt",
-        r.raw_data as "rawData",
+        r.operator as "performedBy",
+        r.refill_type as "refillType",
+        r.refill_number as "refillNumber",
+        -- Get related inventory movements for this refill
         COALESCE(
           JSON_AGG(
-            JSON_BUILD_OBJECT(
-              'productName', rd.product_name,
-              'quantity', rd.quantity,
-              'batchNumber', rbm.batch_number,
-              'expiryDate', rbm.expiry_date,
-              'stockBefore', rd.previous_quantity,
-              'stockAfter', rd.previous_quantity - rd.quantity
-            ) ORDER BY rd.id
-          ) FILTER (WHERE rd.id IS NOT NULL), 
+            DISTINCT JSON_BUILD_OBJECT(
+              'productName', p.product_name,
+              'quantity', im.quantity,
+              'batchNumber', im.batch_number,
+              'expiryDate', im.expiry_date,
+              'warehouseId', im.source_warehouse_id,
+              'warehouseName', w.name,
+              'stockBefore', im.previous_stock,
+              'stockAfter', im.current_stock,
+              'withdrawalTime', im.performed_at
+            ) ORDER BY im.performed_at DESC
+          ) FILTER (WHERE im.id IS NOT NULL), 
           '[]'::json
         ) as items
       FROM refills r
       LEFT JOIN machines m ON r.machine_id = m.id
-      LEFT JOIN refill_details rd ON rd.refill_id = r.id
-      LEFT JOIN refill_batch_movements rbm ON rbm.refill_detail_id = rd.id
-      WHERE r.refill_type = 'manual'
-      GROUP BY r.id, r.machine_id, m.machine_name, r.datetime, r.raw_data
+      LEFT JOIN inventory_movements im ON im.reference_type = 'REFILL' 
+        AND im.reference_id = r.id::text
+        AND im.direction = 'OUT'
+      LEFT JOIN products p ON p.id = im.product_id
+      LEFT JOIN warehouses w ON w.id = im.source_warehouse_id
+      WHERE r.operator IS NOT NULL 
+        AND r.operator != ''
+        AND r.datetime >= (CURRENT_DATE - INTERVAL '30 days')
+      GROUP BY r.id, r.machine_id, m.machine_name, r.datetime, r.operator, r.refill_type, r.refill_number
       ORDER BY r.datetime DESC
       LIMIT $1 OFFSET $2
     `;
 
     const result = await rawDb.query(query, [limit, offset]);
     
-    // Parse the raw data to extract warehouse and user information
-    const refillHistory = result.rows.map(row => {
-      let warehouseId = null;
-      let warehouseName = 'Unbekannt';
-      let performedBy = 'System';
-      
-      try {
-        const rawData = JSON.parse(row.rawData || '{}');
-        warehouseId = rawData.warehouseId;
-        performedBy = rawData.performedBy || 'System';
-      } catch (e) {
-        // Ignore parsing errors
-      }
-
-      return {
-        id: row.id,
-        machineId: row.machineId,
-        machineName: row.machineName,
-        warehouseId,
-        warehouseName,
-        performedBy,
-        performedAt: new Date(row.performedAt * 1000).toISOString(),
-        items: row.items
-      };
-    });
-
-    // Get warehouse names if we have warehouse IDs
-    const warehouseIds = [...new Set(refillHistory.map(r => r.warehouseId).filter(Boolean))];
-    if (warehouseIds.length > 0) {
-      const warehouseQuery = `
-        SELECT id, name FROM warehouses WHERE id = ANY($1)
-      `;
-      const warehouseResult = await rawDb.query(warehouseQuery, [warehouseIds]);
-      const warehouseMap = new Map(warehouseResult.rows.map(w => [w.id, w.name]));
-      
-      refillHistory.forEach(r => {
-        if (r.warehouseId && warehouseMap.has(r.warehouseId)) {
-          r.warehouseName = warehouseMap.get(r.warehouseId);
-        }
-      });
-    }
+    const refillHistory = result.rows.map(row => ({
+      id: row.id,
+      machineId: row.machineId,
+      machineName: row.machineName || 'Unbekannter Automat',
+      performedBy: row.performedBy || 'Unbekannter Operator',
+      performedAt: new Date(row.performedAt * 1000).toISOString(),
+      refillType: row.refillType,
+      refillNumber: row.refillNumber,
+      items: row.items
+    }));
 
     res.json(refillHistory);
   } catch (error) {
@@ -349,6 +329,179 @@ router.get('/mhd-warnings', async (req: AuthRequest, res: Response) => {
     console.error('Fehler beim Abrufen der MHD-Warnungen:', error);
     res.status(500).json({ 
       error: 'Fehler beim Abrufen der MHD-Warnungen',
+      details: error instanceof Error ? error.message : String(error)
+    });
+  }
+});
+
+// POST - Link warehouse inventory to an existing Vendon refill
+router.post('/link-warehouse-to-refill', async (req: AuthRequest, res: Response) => {
+  const transaction = await rawDb.query('BEGIN');
+  
+  try {
+    const { refillId, warehouseId, items } = req.body;
+    const userId = req.user?.id || 1;
+    
+    if (!refillId || !warehouseId || !items || items.length === 0) {
+      await rawDb.query('ROLLBACK');
+      return res.status(400).json({ error: 'Unvollständige Daten für Warehouse-Refill-Verknüpfung' });
+    }
+
+    // Verify refill exists
+    const refillCheck = await rawDb.query('SELECT * FROM refills WHERE id = $1', [refillId]);
+    if (refillCheck.rows.length === 0) {
+      await rawDb.query('ROLLBACK');
+      return res.status(404).json({ error: 'Refill nicht gefunden' });
+    }
+
+    const refill = refillCheck.rows[0];
+    const inventoryMovements = [];
+
+    // Process each item and create inventory movements
+    for (const item of items) {
+      const { productId, batchNumber, quantity } = item;
+
+      // Get current batch inventory
+      const batchQuery = `
+        SELECT * FROM inventory_batches 
+        WHERE warehouse_id = $1 
+          AND product_id = $2 
+          AND batch_number = $3 
+          AND status = 'active'
+        LIMIT 1
+      `;
+      
+      const batchResult = await rawDb.query(batchQuery, [warehouseId, productId, batchNumber]);
+      
+      if (batchResult.rows.length === 0) {
+        await rawDb.query('ROLLBACK');
+        return res.status(400).json({ 
+          error: `Charge ${batchNumber} nicht im Lager gefunden` 
+        });
+      }
+
+      const batch = batchResult.rows[0];
+      const stockBefore = batch.quantity;
+      const stockAfter = stockBefore - quantity;
+
+      if (stockAfter < 0) {
+        await rawDb.query('ROLLBACK');
+        return res.status(400).json({ 
+          error: `Nicht genügend Bestand für Charge ${batchNumber}. Verfügbar: ${stockBefore}, Angefordert: ${quantity}` 
+        });
+      }
+
+      // Update batch inventory
+      await rawDb.query(
+        `UPDATE inventory_batches 
+         SET quantity = $1, updated_at = NOW() 
+         WHERE id = $2`,
+        [stockAfter, batch.id]
+      );
+
+      // Create inventory movement record linked to the refill
+      const movementResult = await db.insert(inventoryMovements)
+        .values({
+          sourceWarehouseId: warehouseId,
+          destinationWarehouseId: null,
+          machineId: refill.machine_id,
+          productId,
+          quantity,
+          movementType: 'REFILL',
+          direction: 'OUT',
+          referenceType: 'REFILL',
+          referenceId: refillId.toString(),
+          batchId: batch.id,
+          batchNumber,
+          expiryDate: new Date(batch.expiry_date),
+          previousStock: stockBefore,
+          currentStock: stockAfter,
+          performedBy: userId,
+          performedAt: new Date(refill.datetime * 1000), // Use refill timestamp
+          status: 'completed',
+          notes: `Nachträgliche Zuordnung zu Refill ${refill.refill_number || refill.id} durch ${refill.operator}`,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        })
+        .returning();
+
+      inventoryMovements.push({
+        productId,
+        batchNumber,
+        quantity,
+        stockBefore,
+        stockAfter,
+        withdrawalTime: new Date(refill.datetime * 1000).toISOString()
+      });
+    }
+
+    await rawDb.query('COMMIT');
+
+    res.json({
+      success: true,
+      refillId,
+      operator: refill.operator,
+      refillTime: new Date(refill.datetime * 1000).toISOString(),
+      inventoryMovements,
+      message: `Lagerentnahme erfolgreich zu Refill verknüpft. ${items.length} Artikel zugeordnet.`
+    });
+
+  } catch (error) {
+    await rawDb.query('ROLLBACK');
+    console.error('Fehler beim Verknüpfen der Lagerentnahme:', error);
+    res.status(500).json({ 
+      error: 'Fehler beim Verknüpfen der Lagerentnahme',
+      details: error instanceof Error ? error.message : String(error)
+    });
+  }
+});
+
+// GET - Get recent refills without warehouse linkage (for linking)
+router.get('/unlinked-refills', async (req: AuthRequest, res: Response) => {
+  try {
+    const limit = parseInt(req.query.limit as string) || 20;
+
+    const query = `
+      SELECT 
+        r.id,
+        r.machine_id as "machineId",
+        m.machine_name as "machineName",
+        r.datetime,
+        r.operator,
+        r.refill_type as "refillType",
+        r.refill_number as "refillNumber",
+        -- Check if this refill already has inventory movements
+        COUNT(im.id) as "linkedInventoryCount"
+      FROM refills r
+      LEFT JOIN machines m ON r.machine_id = m.id
+      LEFT JOIN inventory_movements im ON im.reference_type = 'REFILL' 
+        AND im.reference_id = r.id::text
+      WHERE r.operator IS NOT NULL 
+        AND r.operator != ''
+        AND r.datetime >= (CURRENT_DATE - INTERVAL '7 days')
+      GROUP BY r.id, r.machine_id, m.machine_name, r.datetime, r.operator, r.refill_type, r.refill_number
+      HAVING COUNT(im.id) = 0  -- Only show refills without inventory movements
+      ORDER BY r.datetime DESC
+      LIMIT $1
+    `;
+
+    const result = await rawDb.query(query, [limit]);
+    
+    const unlinkedRefills = result.rows.map(row => ({
+      id: row.id,
+      machineId: row.machineId,
+      machineName: row.machineName || 'Unbekannter Automat',
+      operator: row.operator,
+      datetime: new Date(row.datetime * 1000).toISOString(),
+      refillType: row.refillType,
+      refillNumber: row.refillNumber
+    }));
+
+    res.json(unlinkedRefills);
+  } catch (error) {
+    console.error('Fehler beim Abrufen der unverknüpften Refills:', error);
+    res.status(500).json({ 
+      error: 'Fehler beim Abrufen der unverknüpften Refills',
       details: error instanceof Error ? error.message : String(error)
     });
   }
