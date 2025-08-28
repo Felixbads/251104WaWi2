@@ -159,7 +159,7 @@ export default function WarehouseDetail() {
     error: movementsError,
     refetch: refetchMovements
   } = useQuery({
-    queryKey: [`/api/warehouse3/warehouses/${id}/movements`],
+    queryKey: [`/api/warehouse3/warehouses/${id}/movements-fixed`],
   });
   
   // Lade Automaten-Auffüllungen, die diesem Lager zugeordnet sind

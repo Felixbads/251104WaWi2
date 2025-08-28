@@ -146,7 +146,7 @@ export default function WarehouseDetailPage() {
     isLoading: movementsLoading,
     refetch: refetchMovements
   } = useQuery<{items: InventoryMovement[], total: number, page: number, limit: number}>({
-    queryKey: [`/api/warehouse3/warehouses/${warehouseId}/movements`, { 
+    queryKey: [`/api/warehouse3/warehouses/${warehouseId}/movements-fixed`, { 
       page: 1,
       limit: 1000,
       startDate: startDate?.toISOString(),

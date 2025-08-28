@@ -68,11 +68,11 @@ const WarehouseInventoryTable: React.FC<WarehouseInventoryTableProps> = ({ wareh
   
   // API-Abfrage für erweiterte Warenbewegungen über warehouse3 storage
   const { data: inventoryMovements = [], isLoading: isMovementsLoading } = useQuery({
-    queryKey: [`/api/warehouse3/warehouses/${warehouseId}/movements`],
+    queryKey: [`/api/warehouse3/warehouses/${warehouseId}/movements-fixed`],
     queryFn: async () => {
       try {
         debug(`Lade erweiterte Warenbewegungen für Lager ${warehouseId}...`);
-        const response = await fetch(`/api/warehouse3/warehouses/${warehouseId}/movements?limit=1000`);
+        const response = await fetch(`/api/warehouse3/warehouses/${warehouseId}/movements-fixed?limit=1000`);
         if (!response.ok) {
           debug(`Fehler beim Laden der erweiterten Warenbewegungen, Status: ${response.status}`);
           return [];
