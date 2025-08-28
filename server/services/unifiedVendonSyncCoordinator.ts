@@ -22,7 +22,8 @@ import {
   InsertMachine, 
   InsertTransaction, 
   InsertEvent,
-  InsertRefill
+  InsertRefill,
+  machines
 } from "@shared/schema";
 import { rawDb } from "../db";
 import { sql } from "drizzle-orm";
@@ -668,16 +669,72 @@ export class UnifiedVendonSyncCoordinator {
       // ✅ BATCH-PROCESSING FÜR EVENTS - ELIMINIERT N+1-QUERY-PROBLEM  
       console.log(`🚀 Events-Batch-Verarbeitung: ${apiEvents.length} Events`);
       
-      const eventsBatch: InsertEvent[] = apiEvents.map(apiEvent => ({
-        vendonId: apiEvent.id,
-        machineId: null, // Will be resolved later
-        machineName: '', // Will be resolved later
-        datetime: this.parseVendonDate(apiEvent.datetime),
-        eventType: apiEvent.event_type,
-        description: apiEvent.description || '',
-        severity: 'info',
-        status: 'logged'
-      }));
+      // Debug: Zeige Struktur des ersten Events
+      if (apiEvents.length > 0) {
+        console.log('🔍 EVENT-STRUKTUR ANALYSE:');
+        console.log('Erstes Event von API:', JSON.stringify(apiEvents[0], null, 2));
+        console.log('Verfügbare Felder:', Object.keys(apiEvents[0]));
+      }
+      
+      // Batch Machine-Lookup für Events
+      const machineVendonIds = new Set(apiEvents.map(e => e.machine_id || e.vendon_machine_id || '').filter(Boolean));
+      const machineMap = new Map<string, { id: number, name: string }>();
+      
+      if (machineVendonIds.size > 0) {
+        const machinesData = await rawDb
+          .select({ 
+            id: machines.id, 
+            vendon_id: machines.vendon_id,
+            machine_name: machines.machine_name 
+          })
+          .from(machines)
+          .where(sql`${machines.vendon_id} = ANY(${Array.from(machineVendonIds)})`)
+          .execute();
+        
+        for (const m of machinesData) {
+          if (m.vendon_id) {
+            machineMap.set(m.vendon_id, { id: m.id, name: m.machine_name || '' });
+          }
+        }
+        console.log(`✅ Machine-Map für Events erstellt: ${machineMap.size} Maschinen gefunden`);
+      }
+      
+      const eventsBatch: InsertEvent[] = apiEvents.map(apiEvent => {
+        // Machine-Zuordnung
+        const machineVendonId = apiEvent.machine_id || apiEvent.vendon_machine_id || '';
+        const machineData = machineVendonId ? machineMap.get(machineVendonId) : null;
+        
+        // Event-Typ bestimmen (viele API-Felder prüfen)
+        let eventType = apiEvent.type || apiEvent.event_type || apiEvent.name || '';
+        
+        // Spezifische Event-Typen erkennen
+        const eventText = (apiEvent.text || apiEvent.description || '').toLowerCase();
+        if (eventText.includes('door open') || eventText.includes('tür öffnung')) {
+          eventType = 'DOOR_OPEN';
+        } else if (eventText.includes('power') || eventText.includes('strom')) {
+          eventType = 'POWER_EVENT';
+        } else if (eventText.includes('temperature') || eventText.includes('temperatur')) {
+          eventType = 'TEMPERATURE_EVENT';
+        } else if (eventText.includes('error') || eventText.includes('fehler')) {
+          eventType = 'ERROR';
+        } else if (!eventType && apiEvent.text) {
+          // Fallback: Verwende text als event_type
+          eventType = apiEvent.text.substring(0, 50).toUpperCase().replace(/\s+/g, '_');
+        }
+        
+        console.log(`📌 Event ${apiEvent.id}: type="${eventType}", machine="${machineVendonId}" → DB ID ${machineData?.id || 'NULL'}, Name: "${machineData?.name || ''}"`);
+        
+        return {
+          vendonId: apiEvent.id,
+          machineId: machineData?.id || null,
+          machineName: machineData?.name || apiEvent.machine_name || apiEvent.machine || '',
+          datetime: this.parseVendonDate(apiEvent.datetime),
+          eventType: eventType,
+          description: apiEvent.description || apiEvent.text || '',
+          severity: eventType === 'ERROR' ? 'error' : 'info',
+          status: 'logged'
+        };
+      });
 
       console.log(`💾 Batch-Insert: ${eventsBatch.length} Events → Storage`);
       let itemsSaved = 0;
