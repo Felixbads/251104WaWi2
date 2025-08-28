@@ -1887,8 +1887,7 @@ app.get('/orders-data', (req, res) => {
   console.log('[SERVER] ✅ Daily Summary Service started - sends daily overview to einkauf@proviantomat.de (daily 6:00 AM)');
   
   // Start weekly report cron service for automated weekly email reports
-  // CRITICAL FIX: TEMPORARILY DISABLED DUE TO DATABASE CONSTRAINT ERRORS
-  // weeklyReportCron.start();
+  weeklyReportCron.start();
   console.log('[SERVER] Weekly report cron service started (Monday 6:00 AM)');
   
   // CRITICAL FIX: TEMPORARILY DISABLED DUE TO DATABASE CONSTRAINT ERRORS

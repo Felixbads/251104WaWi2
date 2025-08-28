@@ -172,7 +172,7 @@ class WeeklyReportService {
         LIMIT 10
       `);
 
-      return result.map((row: any) => ({
+      return result.rows.map((row: any) => ({
         productName: row.product_name,
         currentStock: parseInt(row.current_stock) || 0,
         forecast14Days: Math.round(parseFloat(row.forecast_14_days)) || 0,
@@ -217,7 +217,7 @@ class WeeklyReportService {
         LIMIT 5
       `);
 
-      return result.map((row: any) => ({
+      return result.rows.map((row: any) => ({
         productName: row.product_name,
         currentStock: parseInt(row.current_stock) || 0,
         forecast14Days: Math.round(parseFloat(row.forecast_14_days)) || 0,
@@ -234,28 +234,28 @@ class WeeklyReportService {
    */
   private async getExpiringProducts(twoWeeksFromNow: Date) {
     try {
-      const result = await db
-        .select({
-          productName: products.name,
-          expiryDate: inventoryItems.expiryDate,
-          quantity: inventoryItems.quantity,
-          location: inventoryItems.warehouseName,
-        })
-        .from(inventoryItems)
-        .leftJoin(products, eq(inventoryItems.productId, products.id))
-        .where(
-          and(
-            lte(inventoryItems.expiryDate, twoWeeksFromNow),
-            gte(inventoryItems.quantity, 1)
-          )
-        )
-        .orderBy(asc(inventoryItems.expiryDate));
+      // Vereinfachte Abfrage mit SQL da die Tabellenschemas komplex sind
+      const result = await db.execute(sql`
+        SELECT 
+          p.product_name as product_name,
+          ib.expiry_date,
+          ib.current_quantity as quantity,
+          w.name as warehouse_name
+        FROM inventory_batches ib
+        LEFT JOIN products p ON ib.product_id = p.id  
+        LEFT JOIN warehouses w ON ib.warehouse_id = w.id
+        WHERE ib.expiry_date <= ${twoWeeksFromNow}
+          AND ib.current_quantity > 0
+          AND ib.status = 'active'
+        ORDER BY ib.expiry_date ASC
+        LIMIT 20
+      `);
 
-      return result.map(item => ({
-        productName: item.productName || 'Unbekanntes Produkt',
-        expiryDate: item.expiryDate?.toLocaleDateString('de-DE') || 'Nicht definiert',
-        quantity: item.quantity || 0,
-        location: item.location || 'Unbekannter Ort'
+      return result.rows.map((item: any) => ({
+        productName: item.product_name || 'Unbekanntes Produkt',
+        expiryDate: item.expiry_date ? new Date(item.expiry_date).toLocaleDateString('de-DE') : 'Nicht definiert',
+        quantity: parseInt(item.quantity) || 0,
+        location: item.warehouse_name || 'Unbekannter Ort'
       }));
     } catch (error) {
       console.error('❌ Fehler beim Abrufen ablaufender Produkte:', error);

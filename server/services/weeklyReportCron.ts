@@ -35,7 +35,6 @@ class WeeklyReportCron {
         console.error('❌ Kritischer Fehler beim automatischen wöchentlichen Bericht:', error.message);
       }
     }, {
-      scheduled: true,
       timezone: "Europe/Berlin"
     });
 
