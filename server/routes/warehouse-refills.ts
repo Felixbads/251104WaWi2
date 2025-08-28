@@ -507,4 +507,174 @@ router.get('/unlinked-refills', async (req: AuthRequest, res: Response) => {
   }
 });
 
+// POST - Auto-assign existing refills to warehouse inventory (for demo/testing)
+router.post('/auto-assign-existing-refills', async (req: AuthRequest, res: Response) => {
+  const transaction = await rawDb.query('BEGIN');
+  
+  try {
+    // Get recent refills without inventory linkage
+    const refillsQuery = `
+      SELECT 
+        r.id,
+        r.machine_id,
+        m.machine_name,
+        r.datetime,
+        r.operator,
+        r.refill_type,
+        r.refill_number
+      FROM refills r
+      LEFT JOIN machines m ON r.machine_id = m.id
+      LEFT JOIN inventory_movements im ON im.reference_type = 'REFILL' 
+        AND im.reference_id = r.id::text
+      WHERE r.operator IS NOT NULL 
+        AND r.operator != ''
+        AND r.datetime >= (CURRENT_DATE - INTERVAL '7 days')
+        AND im.id IS NULL  -- Only refills without inventory movements
+      ORDER BY r.datetime DESC
+      LIMIT 20
+    `;
+
+    const refillsResult = await rawDb.query(refillsQuery);
+    const refills = refillsResult.rows;
+
+    if (refills.length === 0) {
+      await rawDb.query('ROLLBACK');
+      return res.json({ 
+        success: true, 
+        message: 'Keine unverknüpften Refills gefunden',
+        assignedRefills: []
+      });
+    }
+
+    // Get available inventory batches from Stolpen warehouse (ID 4)
+    const batchesQuery = `
+      SELECT 
+        ib.id,
+        ib.product_id,
+        p.product_name,
+        ib.batch_number,
+        ib.quantity,
+        ib.expiry_date,
+        ib.warehouse_id
+      FROM inventory_batches ib
+      LEFT JOIN products p ON p.id = ib.product_id
+      WHERE ib.warehouse_id = 4 
+        AND ib.status = 'active'
+        AND ib.quantity > 0
+      ORDER BY ib.expiry_date ASC  -- FIFO - oldest first
+    `;
+
+    const batchesResult = await rawDb.query(batchesQuery);
+    const batches = batchesResult.rows;
+
+    const assignedRefills = [];
+    const productAssignments = {
+      2: 'Cola Classic',
+      3: 'Fruchtaufstriche',
+      4: 'Soljanka', 
+      5: 'Linseneintopf',
+      6: 'Pasta Lucia Tomatensauce',
+      7: 'Pasta Lucia Tomatenpesto',
+      8: 'Nudossi'
+    };
+
+    // Process each refill
+    for (const refill of refills) {
+      // Randomly assign 2-4 products per refill
+      const numProducts = Math.floor(Math.random() * 3) + 2; // 2-4 products
+      const selectedProductIds = Object.keys(productAssignments)
+        .sort(() => 0.5 - Math.random())
+        .slice(0, numProducts);
+
+      const refillMovements = [];
+
+      for (const productId of selectedProductIds) {
+        // Find available batch for this product
+        const availableBatch = batches.find(b => 
+          b.product_id == productId && 
+          b.quantity > 0
+        );
+
+        if (!availableBatch) continue;
+
+        // Random quantity between 5-20 pieces
+        const quantity = Math.floor(Math.random() * 16) + 5;
+        const stockBefore = availableBatch.quantity;
+        const stockAfter = Math.max(0, stockBefore - quantity);
+
+        // Update batch quantity
+        await rawDb.query(
+          `UPDATE inventory_batches 
+           SET quantity = $1, updated_at = NOW() 
+           WHERE id = $2`,
+          [stockAfter, availableBatch.id]
+        );
+
+        // Update our local batch tracking
+        availableBatch.quantity = stockAfter;
+
+        // Create inventory movement record
+        const movementResult = await db.insert(inventoryMovements)
+          .values({
+            sourceWarehouseId: 4, // Stolpen
+            destinationWarehouseId: null,
+            machineId: refill.machine_id,
+            productId: parseInt(productId),
+            quantity,
+            movementType: 'REFILL',
+            direction: 'OUT',
+            referenceType: 'REFILL',
+            referenceId: refill.id.toString(),
+            batchId: availableBatch.id,
+            batchNumber: availableBatch.batch_number,
+            expiryDate: new Date(availableBatch.expiry_date),
+            previousStock: stockBefore,
+            currentStock: stockAfter,
+            performedBy: 1, // System user
+            performedAt: new Date(refill.datetime * 1000),
+            status: 'completed',
+            notes: `Automatische Zuordnung zu Refill ${refill.refill_number || refill.id} durch ${refill.operator}`,
+            createdAt: new Date(),
+            updatedAt: new Date()
+          })
+          .returning();
+
+        refillMovements.push({
+          productName: availableBatch.product_name,
+          batchNumber: availableBatch.batch_number,
+          quantity,
+          stockBefore,
+          stockAfter,
+          expiryDate: availableBatch.expiry_date
+        });
+      }
+
+      assignedRefills.push({
+        refillId: refill.id,
+        machineName: refill.machine_name,
+        operator: refill.operator,
+        datetime: new Date(refill.datetime * 1000).toISOString(),
+        movements: refillMovements
+      });
+    }
+
+    await rawDb.query('COMMIT');
+
+    res.json({
+      success: true,
+      message: `${assignedRefills.length} Refills erfolgreich zu Lagerbeständen zugeordnet`,
+      assignedRefills,
+      totalMovements: assignedRefills.reduce((sum, r) => sum + r.movements.length, 0)
+    });
+
+  } catch (error) {
+    await rawDb.query('ROLLBACK');
+    console.error('Fehler bei der automatischen Refill-Zuordnung:', error);
+    res.status(500).json({ 
+      error: 'Fehler bei der automatischen Refill-Zuordnung',
+      details: error instanceof Error ? error.message : String(error)
+    });
+  }
+});
+
 export default router;
