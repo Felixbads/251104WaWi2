@@ -135,14 +135,18 @@ class VendonApiClient {
     
     for (let attempt = 1; attempt <= retries; attempt++) {
       try {
-        console.log(`📡 API-Request: ${endpoint} (Versuch ${attempt}/${retries})`);
+        // BUGFIX: Baue URL mit Parametern manuell, da axios params nicht zuverlässig funktioniert
+        const queryString = Object.keys(params).length > 0 
+          ? '?' + new URLSearchParams(params as any).toString() 
+          : '';
+        const finalEndpoint = endpoint + queryString;
+        
+        console.log(`📡 API-Request: GET ${finalEndpoint} (Versuch ${attempt}/${retries})`);
         if (Object.keys(params).length > 0) {
           console.log('📋 Parameter:', params);
         }
         
-        const response = await this.client.get<VendonApiResponse<T>>(endpoint, { 
-          params 
-        });
+        const response = await this.client.get<VendonApiResponse<T>>(finalEndpoint);
         
         console.log(`✅ API-Request erfolgreich: ${endpoint}`);
         console.log(`🔍 Response-Typ für ${endpoint}: ${typeof response.data}`);
@@ -312,9 +316,10 @@ export class UnifiedVendonSyncCoordinator {
       process.env.VENDON_API_KEY = apiKey;
     }
     
-    this.apiClient = getVendonApiClient();
+    // BUGFIX: Verwende die lokale VendonApiClient-Klasse mit dem Fix statt des externen EnhancedVendonApiClient
+    this.apiClient = new VendonApiClient();
     this.duplicatePreventionService = new DuplicatePreventionService();
-    console.log('🚀 Unified Vendon Sync Coordinator mit Enhanced API Client initialisiert');
+    console.log('🚀 Unified Vendon Sync Coordinator mit lokalem VendonApiClient (mit BUGFIX) initialisiert');
   }
 
   /**

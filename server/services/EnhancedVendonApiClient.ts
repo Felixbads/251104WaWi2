@@ -173,21 +173,32 @@ class EnhancedVendonApiClient {
       retryStats.attempt++;
 
       try {
-        console.log(`📡 API Request: ${endpoint} (Versuch ${retryStats.attempt}/${this.config.maxRetries})`);
-        
         // WICHTIG: Stelle sicher, dass params ein Objekt ist und nicht undefined
         const queryParams = params || {};
         
+        console.log(`📡 🆕 API-Request mit FIX: GET ${endpoint}${Object.keys(queryParams).length > 0 ? '?' + new URLSearchParams(queryParams).toString() : ''} (Versuch ${retryStats.attempt}/${this.config.maxRetries})`);
+        
         if (Object.keys(queryParams).length > 0) {
           console.log(`📋 Parameter:`, queryParams);
+          console.log(`📋 Parameter als URLSearchParams:`, new URLSearchParams(queryParams).toString());
+        } else {
+          console.log(`⚠️ WARNUNG: Keine Parameter für ${endpoint}!`);
         }
         
         // Log full URL being called
         const fullUrl = `${this.config.baseUrl}${endpoint}${Object.keys(queryParams).length > 0 ? '?' + new URLSearchParams(queryParams).toString() : ''}`;
         console.log(`🔗 Full URL: ${fullUrl}`);
 
-        const response = await this.client.get<any>(endpoint, {
-          params: queryParams,
+        // BUGFIX: Axios params werden nicht korrekt übertragen - baue URL manuell
+        const queryString = Object.keys(queryParams).length > 0 
+          ? '?' + new URLSearchParams(queryParams).toString() 
+          : '';
+        const finalEndpoint = endpoint + queryString;
+        
+        console.log(`🔧 BUGFIX: Verwende manuelle URL: ${finalEndpoint}`);
+        
+        const response = await this.client.get<any>(finalEndpoint, {
+          // params: queryParams, // DEAKTIVIERT wegen Bug
           ...options
         });
 
@@ -404,6 +415,7 @@ class EnhancedVendonApiClient {
     };
     
     console.log(`🔍 Transactions API Call - Zeitraum: ${startDate.toISOString()} bis ${endDate.toISOString()}`);
+    console.log(`📊 Transactions params:`, params);
     
     try {
       const result = await this.makeRequest<any[]>('/stats/vends', params);
