@@ -1186,72 +1186,12 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
   async getInventoryMovements(filters?: any): Promise<any[]> {
     console.log(`[DEBUG] getInventoryMovements called with filters:`, filters);
     
-    // Für Lager-ID 10 (Bahnhof) hole direkt die Refill-Bewegungen
-    if (filters?.warehouseId && parseInt(filters.warehouseId.toString()) === 10) {
-      console.log(`[DEBUG] Processing warehouse 10 - fetching refills...`);
-      
-      // Vereinfachte Abfrage für Refills
-      const refillsQuery = `
-        SELECT 
-          r.id,
-          r.machine_id,
-          r.machine_name,
-          r.datetime as performed_at,
-          r.operator,
-          r.refill_type,
-          r.actual_amount,
-          r.total_products,
-          r.notes,
-          r.refill_number
-        FROM refills r
-        JOIN machine_warehouse_assignments mwa ON r.machine_id = mwa.machine_id
-        WHERE mwa.warehouse_id = $1
-        ORDER BY r.datetime DESC
-        LIMIT $2
-      `;
-      
-      const limit = filters.limit || 10;
-      console.log(`[DEBUG] Executing refills query with warehouse_id=10, limit=${limit}`);
-      
-      const refillResults = await db.execute(sql.raw(refillsQuery, [10, limit]));
-      console.log(`[DEBUG] Refill results count:`, refillResults.rows.length);
-      
-      if (refillResults.rows.length > 0) {
-        console.log(`[DEBUG] Sample refill:`, refillResults.rows[0]);
-      }
-      
-      // Refill-Bewegungen in das gleiche Format konvertieren
-      const refillMovements = refillResults.rows.map((refill: any) => ({
-        id: `refill_${refill.id}`,
-        productId: null,
-        quantity: refill.actual_amount || refill.total_products || 0,
-        movementType: 'REFILL',
-        sourceWarehouseId: 10,
-        destinationWarehouseId: null,
-        direction: 'OUT',
-        status: 'completed',
-        performedAt: refill.performed_at,
-        createdAt: refill.performed_at,
-        machineId: refill.machine_id,
-        referenceType: 'REFILL',
-        referenceId: refill.refill_number,
-        notes: refill.notes || `Refill durch ${refill.operator} - ${refill.machine_name}`,
-        productName: 'Refill-Bewegung',
-        productSku: '',
-        sourceName: 'Lager',
-        destinationName: refill.machine_name,
-        machineName: refill.machine_name,
-        performedByName: refill.operator || 'Unbekannt'
-      }));
-      
-      console.log(`[DEBUG] Returning ${refillMovements.length} refill movements`);
-      return refillMovements;
-    }
-
-    // Für andere Lager: Original-Logik
     let allMovements: any[] = [];
     
-    // 1. Holen der normalen Inventory-Bewegungen
+    // ERWEITERTE LÖSUNG: Kombiniere inventory_movements UND refill_details für ALLE Lager
+    console.log(`[DEBUG] Fetching movements for warehouse ${filters?.warehouseId || 'ALL'}`);
+
+    // 1. Hole normale Inventory-Bewegungen
     const conditions: any[] = [];
     
     // Filter anwenden
@@ -1290,22 +1230,115 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
       }
     }
     
-    // Abfrage für inventory_movements erstellen
+    // Abfrage für inventory_movements
     let query = db.select().from(inventoryMovements);
-    
-    // Wenn Bedingungen vorhanden sind, diese anwenden
     if (conditions.length > 0) {
       query = query.where(and(...conditions));
     }
-    
-    // Sortierung
     query = query.orderBy(desc(inventoryMovements.performedAt));
     
-    const movements = await query;
-    allMovements = [...movements];
+    const normalMovements = await query;
+    console.log(`[DEBUG] Found ${normalMovements.length} normal inventory movements`);
+
+    // 2. NEUE LOGIC: Hole Refill-Details mit Produktinformationen
+    let refillMovements: any[] = [];
     
-    // Bewegungen mit Produkt- und Batchinformationen erweitern
+    if (filters?.warehouseId) {
+      // Erweiterte Refill-Abfrage mit Produktdetails
+      const refillDetailsQuery = `
+        SELECT 
+          r.id as refill_id,
+          r.machine_id,
+          r.machine_name,
+          r.datetime as performed_at,
+          r.operator,
+          r.refill_type,
+          r.notes as refill_notes,
+          r.refill_number,
+          rd.product_id,
+          rd.quantity,
+          rd.product_name as refill_product_name,
+          p.product_name,
+          p.sku,
+          p.category,
+          p.price
+        FROM refills r
+        JOIN machine_warehouse_assignments mwa ON r.machine_id = mwa.machine_id
+        LEFT JOIN refill_details rd ON r.id = rd.refill_id
+        LEFT JOIN products p ON rd.product_id::int = p.id
+        WHERE mwa.warehouse_id = $1
+        ${filters.productId ? 'AND rd.product_id::int = $3' : ''}
+        ${filters.startDate ? 'AND r.datetime >= $4' : ''}
+        ${filters.endDate ? 'AND r.datetime <= $5' : ''}
+        ORDER BY r.datetime DESC
+        LIMIT $2
+      `;
+      
+      const limit = filters.limit || 50;
+      const queryParams = [filters.warehouseId, limit];
+      
+      if (filters.productId) queryParams.push(filters.productId);
+      if (filters.startDate) queryParams.push(filters.startDate.toISOString());
+      if (filters.endDate) queryParams.push(filters.endDate.toISOString());
+      
+      console.log(`[DEBUG] Executing enhanced refill details query for warehouse ${filters.warehouseId}`);
+      console.log(`[DEBUG] Query params:`, queryParams);
+      
+      const refillResults = await db.execute(sql.raw(refillDetailsQuery, queryParams));
+      console.log(`[DEBUG] Found ${refillResults.rows.length} refill detail entries`);
+      
+      // Konvertiere zu Movement-Format
+      refillMovements = refillResults.rows
+        .filter((refill: any) => refill.product_id) // Nur Entries mit Produktdaten
+        .map((refill: any) => ({
+          id: `refill_${refill.refill_id}_${refill.product_id}`,
+          productId: parseInt(refill.product_id),
+          quantity: parseInt(refill.quantity) || 0,
+          movementType: 'REFILL',
+          sourceWarehouseId: filters.warehouseId,
+          destinationWarehouseId: null,
+          direction: 'OUT',
+          status: 'completed',
+          performedAt: new Date(refill.performed_at),
+          createdAt: new Date(refill.performed_at),
+          machineId: refill.machine_id,
+          referenceType: 'REFILL',
+          referenceId: refill.refill_number,
+          notes: `Refill: ${refill.quantity}x ${refill.product_name || refill.refill_product_name} → ${refill.machine_name}`,
+          productName: refill.product_name || refill.refill_product_name || 'Unbekanntes Produkt',
+          productSku: refill.sku || '',
+          sourceName: 'Lager',
+          destinationName: refill.machine_name,
+          machineName: refill.machine_name,
+          performedByName: refill.operator || 'Unbekannt',
+          // Zusätzliche Refill-Details
+          refillType: refill.refill_type,
+          isRefillMovement: true
+        }));
+      
+      console.log(`[DEBUG] Converted ${refillMovements.length} refill movements with product details`);
+    }
+
+    // 3. Kombiniere normale Movements und Refill-Movements
+    allMovements = [...normalMovements, ...refillMovements];
+    console.log(`[DEBUG] Total movements: ${allMovements.length} (${normalMovements.length} normal + ${refillMovements.length} refills)`);
+
+    // Sortiere alle Bewegungen nach Datum
+    allMovements.sort((a, b) => new Date(b.performedAt).getTime() - new Date(a.performedAt).getTime());
+
+    // Wende Limit an, falls gesetzt
+    if (filters?.limit) {
+      allMovements = allMovements.slice(0, filters.limit);
+    }
+    
+    // Nur normale Bewegungen erweitern (Refill-Bewegungen sind bereits vollständig verarbeitet)
     const enhancedMovements = await Promise.all(allMovements.map(async (movement) => {
+      // Refill-Bewegungen sind bereits vollständig und brauchen keine weitere Verarbeitung
+      if (movement.isRefillMovement) {
+        return movement;
+      }
+
+      // Nur normale Inventory-Bewegungen erweitern
       // Produktdaten abfragen
       const [product] = await db
         .select()
@@ -1382,6 +1415,7 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
       };
     }));
     
+    console.log(`[DEBUG] Final enhanced movements count: ${enhancedMovements.length}`);
     return enhancedMovements;
   }
   
