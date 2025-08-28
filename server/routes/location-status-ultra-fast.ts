@@ -113,12 +113,13 @@ router.get('/', async (req: Request, res: Response) => {
           GROUP BY r.machine_name
         ) r ON tbl.machine_name = r.machine_name
         
-        -- Event stats per machine (DIRECT machine_name - NO JOIN needed!)
+        -- Event stats per machine (JOIN über machine_id ODER machine_name für vollständige Abdeckung!)
         LEFT JOIN (
           SELECT 
-            e.machine_name,
+            COALESCE(e.machine_name, m.machine_name) as machine_name,
             MAX(e.datetime) as last_door_open
           FROM events e
+          LEFT JOIN machines m ON e.machine_id = m.id
           WHERE (e.description LIKE '%Automatentüre in Stellung offen%'
             OR e.description LIKE '%door open%' 
             OR e.description LIKE '%Door open%'
@@ -126,8 +127,8 @@ router.get('/', async (req: Request, res: Response) => {
             OR e.event_type = 'DOOR_OPEN'
             OR (e.event_type = 'R' AND e.description LIKE '%Automatentüre%offen%'))
             AND e.datetime >= CURRENT_DATE - INTERVAL '90 days'
-            AND e.machine_name IS NOT NULL
-          GROUP BY e.machine_name
+            AND (e.machine_name IS NOT NULL OR e.machine_id IS NOT NULL)
+          GROUP BY COALESCE(e.machine_name, m.machine_name)
         ) e ON tbl.machine_name = e.machine_name
         
         -- MHD stats per machine (JOIN by machine name, aggregate all machines with same name)

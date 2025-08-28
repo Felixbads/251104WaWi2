@@ -678,8 +678,8 @@ export class UnifiedVendonSyncCoordinator {
         console.log('Verfügbare Felder:', Object.keys(apiEvents[0]));
       }
       
-      // Batch Machine-Lookup für Events
-      const machineVendonIds = new Set(apiEvents.map(e => e.machine_id || e.vendon_machine_id || '').filter(Boolean));
+      // Batch Machine-Lookup für Events - konvertiere machine_id zu String für konsistente Verarbeitung
+      const machineVendonIds = new Set(apiEvents.map(e => String(e.machine_id || e.vendon_machine_id || '')).filter(Boolean));
       const machineMap = new Map<string, { id: number, name: string }>();
       
       if (machineVendonIds.size > 0) {
@@ -695,16 +695,16 @@ export class UnifiedVendonSyncCoordinator {
         
         for (const m of machinesData) {
           if (m.vendon_id) {
-            machineMap.set(m.vendon_id, { id: m.id, name: m.machine_name || '' });
+            machineMap.set(String(m.vendon_id), { id: m.id, name: m.machine_name || '' });
           }
         }
         console.log(`✅ Machine-Map für Events erstellt: ${machineMap.size} Maschinen gefunden`);
       }
       
       const eventsBatch: InsertEvent[] = apiEvents.map(apiEvent => {
-        // Machine-Zuordnung
-        const machineVendonId = apiEvent.machine_id || apiEvent.vendon_machine_id || '';
-        const machineData = machineVendonId ? machineMap.get(machineVendonId) : null;
+        // Machine-Zuordnung - API liefert machine_id als Nummer, muss zu String konvertiert werden
+        const machineVendonId = String(apiEvent.machine_id || apiEvent.vendon_machine_id || '');
+        const machineData = machineVendonId && machineVendonId !== '' ? machineMap.get(machineVendonId) : null;
         
         // Event-Typ bestimmen (viele API-Felder prüfen)
         let eventType = apiEvent.type || apiEvent.event_type || apiEvent.name || '';
