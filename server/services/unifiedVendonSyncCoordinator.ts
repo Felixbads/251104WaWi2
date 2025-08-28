@@ -443,7 +443,9 @@ export class UnifiedVendonSyncCoordinator {
       console.log('⚡ Starte schnelle Transaktions-Synchronisation...');
       
       const endDate = new Date();
-      const startDate = new Date(endDate.getTime() - 2 * 60 * 60 * 1000); // 2 hours ago
+      // Sync ab Mitternacht für vollständige Tagesabdeckung
+      const startDate = new Date();
+      startDate.setHours(0, 0, 0, 0);
       
       const result = await this.syncTransactionsForPeriod(startDate, endDate);
       result.durationMs = Date.now() - startTime;

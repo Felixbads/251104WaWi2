@@ -119,10 +119,12 @@ router.get('/', async (req: Request, res: Response) => {
             e.machine_name,
             MAX(e.datetime) as last_door_open
           FROM events e
-          WHERE (e.event_name = 'Automatentüre offen' 
-            OR e.event_name LIKE '%door%' 
-            OR e.event_name LIKE '%Door%'
-            OR e.event_name LIKE '%Tür%')
+          WHERE (e.description LIKE '%Automatentüre in Stellung offen%'
+            OR e.description LIKE '%door open%' 
+            OR e.description LIKE '%Door open%'
+            OR e.description LIKE '%Türöffnung%'
+            OR e.event_type = 'DOOR_OPEN'
+            OR (e.event_type = 'R' AND e.description LIKE '%Automatentüre%offen%'))
             AND e.datetime >= CURRENT_DATE - INTERVAL '90 days'
             AND e.machine_name IS NOT NULL
           GROUP BY e.machine_name
