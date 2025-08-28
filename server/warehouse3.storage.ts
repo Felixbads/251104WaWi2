@@ -90,34 +90,41 @@ const productBatches = pgTable("product_batches", {
 const inventoryMovements = pgTable("inventory_movements", {
   id: serial("id").primaryKey(),
   
-  // Quelle und Ziel
-  sourceType: text("source_type").notNull(),
-  sourceId: integer("source_id"),
-  destinationType: text("destination_type").notNull(),
-  destinationId: integer("destination_id"),
+  // Quelle und Ziel (tatsächliche Datenbankstruktur)
+  sourceWarehouseId: integer("source_warehouse_id"),
+  destinationWarehouseId: integer("destination_warehouse_id"),
   
   // Produkt und Mengeninformationen
   productId: integer("product_id").notNull(),
-  batchId: integer("batch_id"),
   quantity: integer("quantity").notNull(),
-  
-  // Bestandsinformationen für Audit-Trail
-  previousStock: integer("previous_stock"),
-  currentStock: integer("current_stock"),
-  
-  // Bewegungstyp und Referenzen
   movementType: text("movement_type").notNull(),
+  direction: text("direction"),
+  
+  // Referenzen
   referenceType: text("reference_type"),
   referenceId: text("reference_id"),
   
   // Metadaten
-  reason: text("reason"),
-  notes: text("notes"),
   status: text("status").default("completed"),
+  notes: text("notes"),
   
   // Wer hat die Bewegung durchgeführt
   performedBy: integer("performed_by"),
   performedAt: timestamp("performed_at").defaultNow(),
+  
+  // Machine und Batch-Informationen
+  machineId: integer("machine_id"),
+  batchId: integer("batch_id"),
+  batchNumber: text("batch_number"),
+  expiryDate: date("expiry_date"),
+  
+  // Standort-Informationen
+  locationFrom: text("location_from"),
+  locationTo: text("location_to"),
+  
+  // Bestandsinformationen für Audit-Trail
+  previousStock: integer("previous_stock"),
+  currentStock: integer("current_stock"),
   
   // Zeitstempel
   createdAt: timestamp("created_at").defaultNow(),
@@ -1185,14 +1192,8 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
       if (filters.warehouseId) {
         conditions.push(
           or(
-            and(
-              eq(inventoryMovements.sourceType, 'warehouse'),
-              eq(inventoryMovements.sourceId, filters.warehouseId)
-            ),
-            and(
-              eq(inventoryMovements.destinationType, 'warehouse'),
-              eq(inventoryMovements.destinationId, filters.warehouseId)
-            )
+            eq(inventoryMovements.sourceWarehouseId, filters.warehouseId),
+            eq(inventoryMovements.destinationWarehouseId, filters.warehouseId)
           )
         );
       }
@@ -1276,58 +1277,37 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
       
       // Quell- und Zieldetails abfragen
       let sourceDetails = {};
-      if (movement.sourceType === 'warehouse' && movement.sourceId) {
+      let destinationDetails = {};
+      
+      if (movement.sourceWarehouseId) {
         const [warehouse] = await db
           .select()
           .from(warehouses)
-          .where(eq(warehouses.id, movement.sourceId));
+          .where(eq(warehouses.id, movement.sourceWarehouseId));
         
         sourceDetails = {
           sourceName: warehouse?.name || 'Unbekanntes Lager',
           sourceLocation: warehouse?.city || ''
         };
-      } else if (movement.sourceType === 'machine' && movement.sourceId) {
-        const [machine] = await db
-          .select()
-          .from(machines)
-          .where(eq(machines.id, movement.sourceId));
-        
-        sourceDetails = {
-          sourceName: machine?.machineName || 'Unbekannter Automat',
-          sourceLocation: machine?.locationName || ''
-        };
       } else {
         sourceDetails = {
-          sourceName: movement.sourceType === 'supplier' ? 'Lieferant' : 
-                     (movement.sourceType === 'disposal' ? 'Entsorgung' : movement.sourceType)
+          sourceName: 'Externer Lieferant'
         };
       }
       
-      let destinationDetails = {};
-      if (movement.destinationType === 'warehouse' && movement.destinationId) {
+      if (movement.destinationWarehouseId) {
         const [warehouse] = await db
           .select()
           .from(warehouses)
-          .where(eq(warehouses.id, movement.destinationId));
+          .where(eq(warehouses.id, movement.destinationWarehouseId));
         
         destinationDetails = {
           destinationName: warehouse?.name || 'Unbekanntes Lager',
           destinationLocation: warehouse?.city || ''
         };
-      } else if (movement.destinationType === 'machine' && movement.destinationId) {
-        const [machine] = await db
-          .select()
-          .from(machines)
-          .where(eq(machines.id, movement.destinationId));
-        
-        destinationDetails = {
-          destinationName: machine?.machineName || 'Unbekannter Automat',
-          destinationLocation: machine?.locationName || ''
-        };
       } else {
         destinationDetails = {
-          destinationName: movement.destinationType === 'customer' ? 'Kunde' : 
-                          (movement.destinationType === 'disposal' ? 'Entsorgung' : movement.destinationType)
+          destinationName: 'Externer Empfänger'
         };
       }
       
