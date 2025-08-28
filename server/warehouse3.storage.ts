@@ -1184,7 +1184,74 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
   }
   
   async getInventoryMovements(filters?: any): Promise<any[]> {
-    // Basis-Bedingungen sammeln
+    console.log(`[DEBUG] getInventoryMovements called with filters:`, filters);
+    
+    // Für Lager-ID 10 (Bahnhof) hole direkt die Refill-Bewegungen
+    if (filters?.warehouseId && parseInt(filters.warehouseId.toString()) === 10) {
+      console.log(`[DEBUG] Processing warehouse 10 - fetching refills...`);
+      
+      // Vereinfachte Abfrage für Refills
+      const refillsQuery = `
+        SELECT 
+          r.id,
+          r.machine_id,
+          r.machine_name,
+          r.datetime as performed_at,
+          r.operator,
+          r.refill_type,
+          r.actual_amount,
+          r.total_products,
+          r.notes,
+          r.refill_number
+        FROM refills r
+        JOIN machine_warehouse_assignments mwa ON r.machine_id = mwa.machine_id
+        WHERE mwa.warehouse_id = $1
+        ORDER BY r.datetime DESC
+        LIMIT $2
+      `;
+      
+      const limit = filters.limit || 10;
+      console.log(`[DEBUG] Executing refills query with warehouse_id=10, limit=${limit}`);
+      
+      const refillResults = await db.execute(sql.raw(refillsQuery, [10, limit]));
+      console.log(`[DEBUG] Refill results count:`, refillResults.rows.length);
+      
+      if (refillResults.rows.length > 0) {
+        console.log(`[DEBUG] Sample refill:`, refillResults.rows[0]);
+      }
+      
+      // Refill-Bewegungen in das gleiche Format konvertieren
+      const refillMovements = refillResults.rows.map((refill: any) => ({
+        id: `refill_${refill.id}`,
+        productId: null,
+        quantity: refill.actual_amount || refill.total_products || 0,
+        movementType: 'REFILL',
+        sourceWarehouseId: 10,
+        destinationWarehouseId: null,
+        direction: 'OUT',
+        status: 'completed',
+        performedAt: refill.performed_at,
+        createdAt: refill.performed_at,
+        machineId: refill.machine_id,
+        referenceType: 'REFILL',
+        referenceId: refill.refill_number,
+        notes: refill.notes || `Refill durch ${refill.operator} - ${refill.machine_name}`,
+        productName: 'Refill-Bewegung',
+        productSku: '',
+        sourceName: 'Lager',
+        destinationName: refill.machine_name,
+        machineName: refill.machine_name,
+        performedByName: refill.operator || 'Unbekannt'
+      }));
+      
+      console.log(`[DEBUG] Returning ${refillMovements.length} refill movements`);
+      return refillMovements;
+    }
+
+    // Für andere Lager: Original-Logik
+    let allMovements: any[] = [];
+    
+    // 1. Holen der normalen Inventory-Bewegungen
     const conditions: any[] = [];
     
     // Filter anwenden
@@ -1223,7 +1290,7 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
       }
     }
     
-    // Abfrage erstellen
+    // Abfrage für inventory_movements erstellen
     let query = db.select().from(inventoryMovements);
     
     // Wenn Bedingungen vorhanden sind, diese anwenden
@@ -1234,19 +1301,11 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
     // Sortierung
     query = query.orderBy(desc(inventoryMovements.performedAt));
     
-    // Limit und Offset
-    if (filters?.limit && typeof filters.limit === 'number') {
-      query = query.limit(filters.limit);
-    }
-    
-    if (filters?.offset && typeof filters.offset === 'number') {
-      query = query.offset(filters.offset);
-    }
-    
     const movements = await query;
+    allMovements = [...movements];
     
     // Bewegungen mit Produkt- und Batchinformationen erweitern
-    const enhancedMovements = await Promise.all(movements.map(async (movement) => {
+    const enhancedMovements = await Promise.all(allMovements.map(async (movement) => {
       // Produktdaten abfragen
       const [product] = await db
         .select()
