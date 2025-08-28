@@ -56,8 +56,8 @@ class EnhancedVendonApiClient {
 
   constructor(config?: Partial<ApiClientConfig>) {
     this.config = {
-      baseUrl: "https://cloud.vendon.net/rest/v1.8.0",
-      apiKey: process.env.VENDON_API_KEY || 'e5o9SSU4n2XQp9XmShtbIOK1rStoQvoB',
+      baseUrl: "https://cloud.vendon.net/rest/v1.9.0",
+      apiKey: process.env.VENDON_API_KEY || '',
       maxRetries: parseInt(process.env.VENDON_MAX_RETRIES || '3'),
       initialDelay: parseInt(process.env.VENDON_INITIAL_DELAY || '1000'),
       maxDelay: parseInt(process.env.VENDON_MAX_DELAY || '30000'),
@@ -66,6 +66,13 @@ class EnhancedVendonApiClient {
       timeout: parseInt(process.env.VENDON_TIMEOUT || '30000'),
       ...config
     };
+
+    // Prüfe ob API-Key vorhanden ist
+    if (!this.config.apiKey) {
+      console.error('❌ KRITISCHER FEHLER: Kein VENDON_API_KEY vorhanden!');
+      console.error('Bitte setzen Sie den API-Key in den Secrets mit dem Namen VENDON_API_KEY');
+      throw new Error('VENDON_API_KEY is missing - please set it in secrets');
+    }
 
     this.client = axios.create({
       baseURL: this.config.baseUrl,
@@ -79,7 +86,9 @@ class EnhancedVendonApiClient {
     });
 
     console.log('🌐 Enhanced Vendon API Client initialisiert');
+    console.log(`📊 Base URL: ${this.config.baseUrl}`);
     console.log(`📊 Rate-Limit: ${this.config.requestsPerSecond} req/s, Burst: ${this.config.burstLimit}`);
+    console.log(`🔑 API-Key vorhanden: ${this.config.apiKey ? 'Ja' : 'NEIN'}`);
   }
 
   /**
