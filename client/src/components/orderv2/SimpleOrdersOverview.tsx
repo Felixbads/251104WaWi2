@@ -249,14 +249,8 @@ const SimpleOrdersOverview: React.FC<SimpleOrdersOverviewProps> = ({
                 if (onSelectOrder) {
                   onSelectOrder(order.id);
                 } else {
-                  // Basierend auf Status zur richtigen Ansicht navigieren
-                  if (order.status === 'draft') {
-                    window.location.href = `/bestellungen/workflow?step=sendOrder&orderId=${order.id}`;
-                  } else if (order.status === 'sent') {
-                    window.location.href = `/bestellungen/workflow?step=goodsReceipt&orderId=${order.id}`;
-                  } else {
-                    window.location.href = `/bestellungen/workflow?step=viewOrder&orderId=${order.id}`;
-                  }
+                  // Alle Bestellungen zeigen zuerst die Detailansicht
+                  window.location.href = `/bestellungen/workflow?step=viewOrder&orderId=${order.id}`;
                 }
               }}
             >
