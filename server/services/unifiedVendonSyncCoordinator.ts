@@ -465,9 +465,15 @@ export class UnifiedVendonSyncCoordinator {
     try {
       const apiMachines = await this.apiClient.getMachines();
       console.log(`📡 ${apiMachines.length} Maschinen von API erhalten`);
+      
+      // Debug: Log first machine to see structure
+      if (apiMachines.length > 0) {
+        console.log('🔍 Erste Maschine Struktur:', JSON.stringify(apiMachines[0], null, 2));
+      }
 
       let itemsUpdated = 0;
       let duplicates = 0;
+      let skipped = 0;
 
       // Get existing machines from database for comparison
       const existingMachines = await storage.getMachines();
@@ -475,28 +481,42 @@ export class UnifiedVendonSyncCoordinator {
 
       for (const apiMachine of apiMachines) {
         try {
-          const existingMachine = existingMachines.find(m => m.vendonId === apiMachine.id);
+          // WICHTIG: Prüfen ob ID vorhanden ist
+          const machineId = apiMachine.id || apiMachine.machine_id || apiMachine.vendon_id;
+          const machineName = apiMachine.name || apiMachine.machine_name || 'Unknown Machine';
+          
+          if (!machineId) {
+            console.warn(`⚠️ Maschine ohne ID übersprungen:`, JSON.stringify(apiMachine));
+            skipped++;
+            continue;
+          }
+          
+          // Ensure machineId is a string
+          const vendonId = String(machineId);
+          
+          const existingMachine = existingMachines.find(m => m.vendonId === vendonId);
           
           if (existingMachine) {
             // Update existing machine
             await storage.updateMachine(existingMachine.id, {
-              machineName: apiMachine.name,
+              machineName: machineName,
               status: apiMachine.status || 'unknown',
               lastSync: new Date()
             });
             itemsUpdated++;
           } else {
             // Create new machine
+            console.log(`➕ Erstelle neue Maschine: ${vendonId} - ${machineName}`);
             await storage.createMachine({
-              vendonId: apiMachine.id,
-              machineName: apiMachine.name,
+              vendonId: vendonId,
+              machineName: machineName,
               machineType: 'vending_machine',
               status: apiMachine.status || 'unknown'
             });
             itemsUpdated++;
           }
         } catch (error: any) {
-          console.warn(`⚠️ Fehler bei Maschine ${apiMachine.id}: ${error.message}`);
+          console.warn(`⚠️ Fehler bei Maschine ${JSON.stringify(apiMachine)}: ${error.message}`);
           duplicates++; // Count as duplicate if already exists
         }
       }
@@ -544,12 +564,40 @@ export class UnifiedVendonSyncCoordinator {
     
     try {
       const apiTransactions = await this.apiClient.getTransactions(startDate, endDate, 100);
+      
+      // WICHTIG: Validiere dass wir ein Array erhalten haben
+      if (!Array.isArray(apiTransactions)) {
+        console.error('❌ API hat kein Array zurückgegeben:', typeof apiTransactions);
+        throw new Error('Invalid API response: expected array of transactions');
+      }
+      
       console.log(`📡 ${apiTransactions.length} Transaktionen von API erhalten`);
+      
+      // Wenn keine Transaktionen gefunden wurden
+      if (apiTransactions.length === 0) {
+        return {
+          success: true,
+          itemsFound: 0,
+          itemsSaved: 0,
+          itemsUpdated: 0,
+          duplicates: 0,
+          errors: [],
+          durationMs: Date.now() - startTime,
+          message: 'Keine Transaktionen im gewählten Zeitraum gefunden'
+        };
+      }
 
       // ✅ BATCH-PROCESSING STATT N+1-QUERIES - MASSIVE PERFORMANCE-VERBESSERUNG
       console.log(`🚀 Batch-Verarbeitung: ${apiTransactions.length} Transaktionen`);
       
-      // DuplicatePreventionService erwartet raw API data, nicht InsertTransaction[]
+      // Zusätzliche Validierung: Prüfe ob erste Transaktion die erwartete Struktur hat
+      if (apiTransactions.length > 0) {
+        const firstTx = apiTransactions[0];
+        if (!firstTx || typeof firstTx !== 'object' || typeof firstTx.transaction_id === 'undefined') {
+          console.error('❌ Ungültige Transaktionsstruktur:', firstTx);
+          throw new Error('Invalid transaction structure in API response');
+        }
+      }
 
       console.log(`💾 Batch-Insert: ${apiTransactions.length} Transaktionen → DuplicatePreventionService`);
       const batchResult = await this.duplicatePreventionService.processTransactionBatch(apiTransactions);
@@ -570,6 +618,7 @@ export class UnifiedVendonSyncCoordinator {
       };
 
     } catch (error: any) {
+      console.error('❌ Transaktions-Sync Fehler:', error);
       return {
         success: false,
         itemsFound: 0,

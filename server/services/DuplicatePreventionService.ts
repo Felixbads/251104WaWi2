@@ -568,8 +568,10 @@ class DuplicatePreventionService {
    */
   private async convertVendonTransactionToDb(vendonTx: any): Promise<InsertTransaction | null> {
     try {
-      const vendonId = vendonTx.id?.toString();
+      // WICHTIG: Vendon API gibt "transaction_id", nicht "id" zurück!
+      const vendonId = (vendonTx.transaction_id || vendonTx.id)?.toString();
       if (!vendonId) {
+        console.warn('Transaktion ohne ID übersprungen:', vendonTx);
         return null;
       }
 
@@ -589,14 +591,20 @@ class DuplicatePreventionService {
         machineId: machineId,
         machineName: vendonTx.machine_name || 'Unbekannt',
         datetime: datetime,
-        amount: vendonTx.amount || 0,
+        // Vendon API nutzt "quantity" nicht "amount"
+        amount: vendonTx.quantity || vendonTx.amount || 1,
         price: vendonTx.price || 0,
-        productId: vendonTx.product_id?.toString() || null,
-        productName: vendonTx.product_name || vendonTx.name || 'Unbekanntes Produkt',
+        priceVat: vendonTx.price_vat || null,
+        priceWoVat: vendonTx.price_wo_vat || null,
+        // Vendon API nutzt "stock_id" nicht "product_id"
+        productId: (vendonTx.stock_id || vendonTx.product_id)?.toString() || null,
+        // Vendon API nutzt "name" für Produktnamen
+        productName: vendonTx.name || vendonTx.product_name || 'Unbekanntes Produkt',
         coinCredit: vendonTx.coin_credit || 0,
         cardCredit: vendonTx.card_credit || 0,
         cashlessCredit: vendonTx.cashless_credit || 0,
-        paymentMethod: vendonTx.payment_type || 'unknown',
+        // Vendon API nutzt "payment_method" nicht "payment_type"
+        paymentMethod: vendonTx.payment_method || vendonTx.payment_type || 'unknown',
         locationId: null,
         locationName: vendonTx.location_name || null,
         isTest: vendonTx.is_test === true,

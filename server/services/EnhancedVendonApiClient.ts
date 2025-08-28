@@ -155,13 +155,18 @@ class EnhancedVendonApiClient {
         if (Object.keys(params).length > 0) {
           console.log(`📋 Parameter:`, params);
         }
+        
+        // Log full URL being called
+        const fullUrl = `${this.config.baseUrl}${endpoint}${params && Object.keys(params).length > 0 ? '?' + new URLSearchParams(params).toString() : ''}`;
+        console.log(`🔗 Full URL: ${fullUrl}`);
 
         const response = await this.client.get<any>(endpoint, {
           params,
           ...options
         });
 
-        console.log(`✅ API Request erfolgreich: ${endpoint}`);
+        console.log(`✅ API Response: ${response.status} - ${endpoint}`);
+        console.log(`📊 Response Type: ${typeof response.data}`);
         
         // Reset retry stats bei Erfolg
         retryStats.totalRetries = retryStats.attempt - 1;
@@ -278,16 +283,45 @@ class EnhancedVendonApiClient {
    * Parse API Response mit Fehlerbehandlung
    */
   private parseResponse<T>(response: AxiosResponse<any>): T {
+    // Debug: Log response details
+    console.log(`🔍 Parsing Response - Type: ${typeof response.data}, Content-Type: ${response.headers['content-type']}`);
+    
+    // Prüfe ob Response HTML ist (Fehlerfall)
+    const contentType = response.headers['content-type'] || '';
+    if (contentType.includes('text/html')) {
+      console.error('❌ API gibt HTML statt JSON zurück - möglicherweise Authentifizierungsfehler');
+      console.error('Response Headers:', response.headers);
+      console.error('Response Data (first 500 chars):', String(response.data).substring(0, 500));
+      throw new Error('API returned HTML instead of JSON - check authentication');
+    }
+    
+    // Prüfe ob Response ein String ist (sollte nicht vorkommen bei korrekter API)
+    if (typeof response.data === 'string') {
+      console.warn('⚠️ API gibt String statt JSON Object zurück - versuche zu parsen');
+      console.log('Response Data (first 200 chars):', response.data.substring(0, 200));
+      // Versuche den String als JSON zu parsen
+      try {
+        const parsed = JSON.parse(response.data);
+        console.log(`✅ String erfolgreich als JSON geparst - Type: ${typeof parsed}`);
+        response.data = parsed;
+      } catch (e) {
+        console.error('❌ String konnte nicht als JSON geparst werden');
+        throw new Error('API returned non-JSON string response');
+      }
+    }
+    
     if (response.data && typeof response.data === 'object' && 'result' in response.data) {
       // Standard Vendon API Format
       if (Array.isArray(response.data.result)) {
+        console.log(`✅ Parsed ${response.data.result.length} items from API response`);
         return response.data.result as T;
       } else {
         return response.data.result as T;
       }
     }
     
-    // Fallback für non-standard responses
+    // Fallback für non-standard responses - aber mit Warnung
+    console.warn('⚠️ Non-standard API response structure, returning raw data');
     return response.data as T;
   }
 
