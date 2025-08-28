@@ -82,7 +82,20 @@ class EnhancedVendonApiClient {
         'Accept': 'application/json',
         'User-Agent': 'Enhanced-Vendon-Client/1.0'
       },
-      timeout: this.config.timeout
+      timeout: this.config.timeout,
+      // Force JSON parsing
+      transformResponse: [(data) => {
+        try {
+          // Wenn data ein String ist, versuche es als JSON zu parsen
+          if (typeof data === 'string') {
+            return JSON.parse(data);
+          }
+          return data;
+        } catch (e) {
+          // Wenn Parsing fehlschlägt, gib Original-Daten zurück
+          return data;
+        }
+      }]
     });
 
     console.log('🌐 Enhanced Vendon API Client initialisiert');
@@ -304,34 +317,41 @@ class EnhancedVendonApiClient {
       throw new Error('API returned HTML instead of JSON - check authentication');
     }
     
-    // Prüfe ob Response ein String ist (sollte nicht vorkommen bei korrekter API)
-    if (typeof response.data === 'string') {
+    // WICHTIG: Handle alle möglichen Response-Typen
+    let parsedData = response.data;
+    
+    // Prüfe ob Response ein String ist (kann bei Axios passieren wenn JSON nicht automatisch geparst wird)
+    if (typeof parsedData === 'string') {
       console.warn('⚠️ API gibt String statt JSON Object zurück - versuche zu parsen');
-      console.log('Response Data (first 200 chars):', response.data.substring(0, 200));
+      console.log('Response Data (first 200 chars):', parsedData.substring(0, 200));
       // Versuche den String als JSON zu parsen
       try {
-        const parsed = JSON.parse(response.data);
-        console.log(`✅ String erfolgreich als JSON geparst - Type: ${typeof parsed}`);
-        response.data = parsed;
+        parsedData = JSON.parse(parsedData);
+        console.log(`✅ String erfolgreich als JSON geparst - Type: ${typeof parsedData}`);
       } catch (e) {
-        console.error('❌ String konnte nicht als JSON geparst werden');
+        console.error('❌ String konnte nicht als JSON geparst werden:', e);
+        console.error('Raw string:', parsedData);
         throw new Error('API returned non-JSON string response');
       }
     }
     
-    if (response.data && typeof response.data === 'object' && 'result' in response.data) {
+    // Jetzt prüfe die geparste Struktur
+    if (parsedData && typeof parsedData === 'object' && 'result' in parsedData) {
       // Standard Vendon API Format
-      if (Array.isArray(response.data.result)) {
-        console.log(`✅ Parsed ${response.data.result.length} items from API response`);
-        return response.data.result as T;
-      } else {
-        return response.data.result as T;
+      const result = parsedData.result;
+      if (Array.isArray(result)) {
+        console.log(`✅ Parsed ${result.length} items from API response`);
+        return result as T;
+      } else if (result !== null && result !== undefined) {
+        console.log(`✅ Parsed single item from API response`);
+        return result as T;
       }
     }
     
     // Fallback für non-standard responses - aber mit Warnung
     console.warn('⚠️ Non-standard API response structure, returning raw data');
-    return response.data as T;
+    console.log('Raw parsed data:', parsedData);
+    return parsedData as T;
   }
 
   /**
@@ -381,7 +401,31 @@ class EnhancedVendonApiClient {
     
     console.log(`🔍 Transactions API Call - Zeitraum: ${startDate.toISOString()} bis ${endDate.toISOString()}`);
     
-    return await this.makeRequest<any[]>('/stats/vends', params);
+    try {
+      const result = await this.makeRequest<any[]>('/stats/vends', params);
+      
+      // Extra Debug für Transaktionen
+      console.log(`📊 Transactions Response Type: ${typeof result}`);
+      console.log(`📊 Is Array: ${Array.isArray(result)}`);
+      if (!Array.isArray(result)) {
+        console.error('❌ Transactions API returned non-array:', result);
+        console.error('Type:', typeof result);
+        if (typeof result === 'string') {
+          console.error('String content (first 500 chars):', result.substring(0, 500));
+        }
+        // Versuche trotzdem zu konvertieren
+        if (typeof result === 'object' && result?.result && Array.isArray(result.result)) {
+          console.log('🔧 Konvertiere object.result zu Array');
+          return result.result;
+        }
+        throw new Error('Transactions API did not return an array');
+      }
+      console.log(`✅ Transactions: ${result.length} Einträge erhalten`);
+      return result;
+    } catch (error) {
+      console.error('❌ Fehler in getTransactions:', error);
+      throw error;
+    }
   }
 
   async getMachines(): Promise<any[]> {
