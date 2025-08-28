@@ -78,7 +78,7 @@ router.post('/:orderId/send-email', async (req: Request, res: Response) => {
       if (supplierResult && supplierResult.length > 0) {
         supplierData = supplierResult[0];
         console.log('[CompleteEmailFix] Supplier found:', supplierData.name);
-        console.log('[CompleteEmailFix] Supplier CC emails:', supplierData.orderEmailCc);
+        console.log('[CompleteEmailFix] Supplier CC emails:', supplierData.order_email_cc);
       }
     }
     
@@ -330,8 +330,8 @@ router.post('/:orderId/send-email', async (req: Request, res: Response) => {
     let ccRecipients = cc;
     
     // If no CC provided in request, use supplier's default CC configuration
-    if (!ccRecipients && supplierData && supplierData.orderEmailCc) {
-      ccRecipients = supplierData.orderEmailCc;
+    if (!ccRecipients && supplierData && supplierData.order_email_cc) {
+      ccRecipients = supplierData.order_email_cc;
       console.log('[CompleteEmailFix] Using supplier default CC emails:', ccRecipients);
     }
     
