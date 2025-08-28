@@ -66,14 +66,14 @@ router.get('/', async (req: Request, res: Response) => {
           MAX(tbl.datetime) as last_sale,
           COALESCE(SUM(CASE WHEN tbl.datetime >= CURRENT_DATE THEN tbl.price ELSE 0 END), 0) as today_revenue,
           COUNT(CASE WHEN tbl.datetime >= CURRENT_DATE THEN 1 END) as today_transactions,
-          MAX(CASE WHEN UPPER(TRIM(tbl.payment_method)) IN ('CASHLESS', 'CARD') THEN tbl.datetime END) as last_cashless_sale,
+          MAX(CASE WHEN UPPER(TRIM(tbl.payment_method)) IN ('CASHLESS', 'CARD', 'MOBILE', 'CONTACTLESS', 'NFC', 'QR') THEN tbl.datetime END) as last_cashless_sale,
           (SELECT t2.product_name FROM transactions t2 WHERE 
             CASE 
               WHEN POSITION(',' IN t2.machine_name) > 0 
               THEN TRIM(SUBSTRING(t2.machine_name FROM 1 FOR POSITION(',' IN t2.machine_name) - 1))
               ELSE t2.machine_name
             END = tbl.location 
-            AND UPPER(TRIM(t2.payment_method)) IN ('CASHLESS', 'CARD')
+            AND UPPER(TRIM(t2.payment_method)) IN ('CASHLESS', 'CARD', 'MOBILE', 'CONTACTLESS', 'NFC', 'QR')
             AND t2.datetime >= CURRENT_DATE - INTERVAL '30 days'
             ORDER BY t2.datetime DESC LIMIT 1) as last_cashless_product,
           MAX(CASE WHEN EXISTS(SELECT 1 FROM products p WHERE LOWER(TRIM(tbl.product_name)) = LOWER(TRIM(p.product_name)) AND p."isAlcoholic" = true) THEN tbl.datetime END) as last_alcohol_sale,
