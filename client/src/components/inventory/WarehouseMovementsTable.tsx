@@ -20,6 +20,25 @@ import { CalendarRange, MoveDown, MoveUp, Package2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 
+interface Movement {
+  id: number;
+  productName: string;
+  quantity: number;
+  movementType: string;
+  performedAt: string;
+  sourceType?: string;
+  destinationType?: string;
+  referenceType?: string;
+  reason?: string;
+  machineName?: string;
+  sourceWarehouseName?: string;
+  destinationWarehouseName?: string;
+}
+
+interface MovementsResponse {
+  items: Movement[];
+}
+
 interface WarehouseMovementsTableProps {
   warehouseId: number;
   limit?: number;
@@ -29,9 +48,12 @@ const WarehouseMovementsTable: React.FC<WarehouseMovementsTableProps> = ({
   warehouseId, 
   limit = 50
 }) => {
-  const { data: movements = [], isLoading, error } = useQuery({
-    queryKey: [`/api/warehouses/${warehouseId}/movements`, { limit }],
+  const { data, isLoading, error } = useQuery<MovementsResponse>({
+    queryKey: [`/api/warehouse3/warehouses/${warehouseId}/movements`, { limit }],
   });
+  
+  // Extract movements array from the response
+  const movements = data?.items || [];
 
   // Formatiert ein Datum im deutschen Format
   const formatDate = (dateString: string) => {
@@ -60,7 +82,7 @@ const WarehouseMovementsTable: React.FC<WarehouseMovementsTableProps> = ({
   };
 
   // Gibt eine Kurzbeschreibung für die Bewegung zurück
-  const getMovementDescription = (movement: any) => {
+  const getMovementDescription = (movement: Movement) => {
     const { sourceType, destinationType, movementType, referenceType, reason, machineName, sourceWarehouseName, destinationWarehouseName } = movement;
     
     // Basis der Beschreibung ist der Grund, falls vorhanden
@@ -162,7 +184,7 @@ const WarehouseMovementsTable: React.FC<WarehouseMovementsTableProps> = ({
             </TableHeader>
             <TableBody>
               {movements.length > 0 ? (
-                movements.map((movement: any) => (
+                movements.map((movement: Movement) => (
                   <TableRow key={movement.id}>
                     <TableCell>
                       <div className="flex items-center gap-2">

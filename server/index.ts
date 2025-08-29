@@ -1547,6 +1547,10 @@ app.get('/orders-data', (req, res) => {
   const warehouse3Router = (await import('./routes/warehouse3.api')).default;
   app.use('/api/warehouse3', warehouse3Router);
   console.log('[SERVER] Warehouse3 API router mounted successfully');
+  
+  // Mount inventory-api router for alternative endpoint
+  app.use('/api/inventory-api', inventoryApiRouter);
+  console.log('[SERVER] Inventory API router mounted at /api/inventory-api');
 
   // Mount supplier portal router FIRST to prevent Vite middleware conflicts
   const supplierPortalRouter = (await import('./routes/supplier-portal')).default;

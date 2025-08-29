@@ -12970,3 +12970,38 @@ DATA: {
   "isCritical": false
 }
 
+[2025-08-29T13:30:32.058Z] [MovementsAPI] Warenbewegungen für Lager ID 10 abrufen mit neuem Service, Limit: 2, Offset: 0
+
+[2025-08-29T13:30:32.073Z] [WarehouseMovements] Fetching movements for warehouse ID: 10, limit: 2, offset: 0
+
+[2025-08-29T13:30:32.073Z] [SQL] Query: getWarehouseMovements
+DATA: {
+  "sql": "\n      SELECT \n        im.id,\n        im.product_id,\n        p.product_name,\n        im.quantity,\n        im.movement_type,\n        im.source_warehouse_id,\n        im.destination_warehouse_id,\n        im.machine_id,\n        im.reference_type,\n        im.reference_id,\n        im.notes,\n        im.performed_at,\n        im.performed_by\n      FROM \n        inventory_movements im\n      JOIN \n        products p ON im.product_id = p.id\n      WHERE \n        (im.source_warehouse_id = $1) OR\n        (im.destination_warehouse_id = $1)\n      ORDER BY \n        im.performed_at DESC\n      LIMIT $2 OFFSET $3\n    ",
+  "params": [
+    10,
+    2,
+    0
+  ]
+}
+
+[2025-08-29T13:30:32.310Z] [WarehouseMovements] Found 1 movements for warehouse 10
+
+[2025-08-29T13:30:32.310Z] [MovementsAPI] Warenbewegungen für Lager 10 geladen: 1 Einträge gefunden
+
+[2025-08-29T13:30:32.310Z] [MovementsAPI] Beispiel-Eintrag:
+DATA: {
+  "id": 505,
+  "productId": 18,
+  "productName": "Leberwurst (Landfleischerei Struppen)",
+  "quantity": -5,
+  "movementType": "transfer_out",
+  "sourceWarehouseId": 10,
+  "destinationWarehouseId": null,
+  "machineId": null,
+  "referenceType": "transfer",
+  "referenceId": null,
+  "notes": "Transfer to warehouse 4",
+  "performedAt": "2025-08-29T12:05:44.750Z",
+  "performedBy": null
+}
+
