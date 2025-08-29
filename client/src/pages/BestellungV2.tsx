@@ -119,7 +119,7 @@ const BestellungV2: React.FC = () => {
   }, []);
   const [warehouseId, setWarehouseId] = useState<number | null>(null);
   const [warehouseName, setWarehouseName] = useState<string>('');
-  const [orderMode, setOrderMode] = useState<OrderMode>('standard');
+  const [orderMode, setOrderMode] = useState<OrderMode>('copy');
   const [sourceOrderId, setSourceOrderId] = useState<number | null>(null);
   const [supplierId, setSupplierId] = useState<number | null>(null);
   const [supplierName, setSupplierName] = useState<string>('');

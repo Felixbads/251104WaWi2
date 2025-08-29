@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/select";
 
 // Export type for OrderMode - Updated to match specification
-export type OrderMode = 'standard' | 'copy' | 'forecast' | 'bulk';
+export type OrderMode = 'copy' | 'bulk';
 
 interface OrderModeSelectorProps {
   mode: OrderMode;
@@ -45,47 +45,6 @@ const OrderModeSelector: React.FC<OrderModeSelectorProps> = ({
       </CardHeader>
       <CardContent>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {/* Standard-Bestellung */}
-          <Card className={`cursor-pointer border-2 transition-all hover:shadow-lg ${mode === 'standard' ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'}`}>
-            <CardContent className="pt-6" onClick={() => onSelectMode('standard')}>
-              <div className="flex items-center justify-center mb-4">
-                <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
-                  <div className="text-2xl">📝</div>
-                </div>
-              </div>
-              <h3 className="text-center font-semibold text-lg mb-2">Standard-Bestellung</h3>
-              <p className="text-center text-sm text-muted-foreground leading-relaxed">
-                Manuelle Produktauswahl
-              </p>
-              
-              {mode === 'standard' && (
-                <div className="mt-4 flex justify-center">
-                  <CheckCircle2 className="h-5 w-5 text-primary" />
-                </div>
-              )}
-            </CardContent>
-          </Card>
-          
-          {/* Prognose-Bestellung */}
-          <Card className={`cursor-pointer border-2 transition-all hover:shadow-lg ${mode === 'forecast' ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'}`}>
-            <CardContent className="pt-6" onClick={() => onSelectMode('forecast')}>
-              <div className="flex items-center justify-center mb-4">
-                <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
-                  <div className="text-2xl">📊</div>
-                </div>
-              </div>
-              <h3 className="text-center font-semibold text-lg mb-2">Prognose-Bestellung</h3>
-              <p className="text-center text-sm text-muted-foreground leading-relaxed">
-                Auf Basis von Verkaufsprognosen
-              </p>
-              
-              {mode === 'forecast' && (
-                <div className="mt-4 flex justify-center">
-                  <CheckCircle2 className="h-5 w-5 text-primary" />
-                </div>
-              )}
-            </CardContent>
-          </Card>
 
           {/* Großbestellung */}
           <Card className={`cursor-pointer border-2 transition-all hover:shadow-lg ${mode === 'bulk' ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'}`}>
@@ -141,13 +100,6 @@ const OrderModeSelector: React.FC<OrderModeSelectorProps> = ({
           </div>
         )}
         
-        {/* Prognosemodelle */}
-        {mode === 'forecast' && (
-          <div className="mt-6">
-            <h3 className="font-medium text-lg mb-4">Prognosemodell auswählen</h3>
-            <ForecastModelSelector />
-          </div>
-        )}
       </CardContent>
     </Card>
   );

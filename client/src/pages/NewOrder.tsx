@@ -119,7 +119,7 @@ const warehouseSelectSchema = z.object({
 });
 
 // Schema für Bestelloptionen
-const orderOptionSchema = z.enum(["new", "copy", "forecast"]);
+const orderOptionSchema = z.enum(["new", "copy", "bulk"]);
 
 // Schema für neue Bestellung
 const newOrderSchema = z.object({
