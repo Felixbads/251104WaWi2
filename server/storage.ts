@@ -519,6 +519,19 @@ export interface IStorage {
   updateInventoryMovement(id: number, updates: Partial<InventoryMovement>): Promise<InventoryMovement>;
   deleteInventoryMovement(id: number): Promise<void>;
   
+  // Inventory transfer operations
+  getInventoryTransfers(filter?: Record<string, any>): Promise<any[]>;
+  getInventoryTransferById(id: number): Promise<any | undefined>;
+  createInventoryTransfer(transfer: any): Promise<any>;
+  updateInventoryTransfer(id: number, updates: any): Promise<any>;
+  deleteInventoryTransfer(id: number): Promise<void>;
+  getInventoryTransferItems(filter: { transferId: number }): Promise<any[]>;
+  createInventoryTransferItems(items: any[]): Promise<any[]>;
+  
+  // Inventory utilities
+  getInventoryItemByProductAndWarehouse(productId: number, warehouseId: number): Promise<any | undefined>;
+  updateInventoryForTransfer(sourceWarehouseId: number, targetWarehouseId: number, productId: number, quantity: number): Promise<any>;
+  
   // Refill operations
   getRefills(): Promise<Refill[]>;
   getRefillById(id: number): Promise<Refill | undefined>;

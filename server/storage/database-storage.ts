@@ -18,6 +18,8 @@ import {
   inventoryMovements, type InventoryMovement, type InsertInventoryMovement,
   inventoryCounts, type InventoryCount, type InsertInventoryCount,
   inventoryCountItems, type InventoryCountItem, type InsertInventoryCountItem,
+  inventoryTransfers, type InventoryTransfer, type InsertInventoryTransfer,
+  inventoryTransferItems, type InventoryTransferItem, type InsertInventoryTransferItem,
   machineWarehouseAssignments, type MachineWarehouseAssignment, type InsertMachineWarehouseAssignment,
   productDisposals, type ProductDisposal, type InsertProductDisposal,
   productDisposalItems, type ProductDisposalItem, type InsertProductDisposalItem,
@@ -1711,5 +1713,225 @@ export class DatabaseStorage implements IStorage {
 
   async deleteMachineWarehouseAssignment(id: number): Promise<void> {
     await db.delete(machineWarehouseAssignments).where(eq(machineWarehouseAssignments.id, id));
+  }
+
+  // 🚀 INVENTORY TRANSFER OPERATIONS
+  async getInventoryTransfers(filter?: Record<string, any>): Promise<any[]> {
+    try {
+      console.log('[STORAGE] Getting inventory transfers with filter:', filter);
+      const query = db.select().from(inventoryTransfers);
+      
+      if (filter?.status) {
+        query.where(eq(inventoryTransfers.status, filter.status));
+      }
+      if (filter?.warehouseId) {
+        query.where(or(
+          eq(inventoryTransfers.sourceWarehouseId, parseInt(filter.warehouseId)),
+          eq(inventoryTransfers.targetWarehouseId, parseInt(filter.warehouseId))
+        ));
+      }
+      
+      const result = await query.orderBy(desc(inventoryTransfers.createdAt));
+      console.log(`[STORAGE] Found ${result.length} inventory transfers`);
+      return result;
+    } catch (error) {
+      console.error('[STORAGE] Error getting inventory transfers:', error);
+      throw error;
+    }
+  }
+
+  async getInventoryTransferById(id: number): Promise<any | undefined> {
+    try {
+      console.log('[STORAGE] Getting inventory transfer by ID:', id);
+      const result = await db.select().from(inventoryTransfers).where(eq(inventoryTransfers.id, id)).limit(1);
+      return result[0];
+    } catch (error) {
+      console.error('[STORAGE] Error getting inventory transfer by ID:', error);
+      throw error;
+    }
+  }
+
+  async createInventoryTransfer(transfer: any): Promise<any> {
+    try {
+      console.log('[STORAGE] Creating inventory transfer:', transfer);
+      const result = await db.insert(inventoryTransfers).values({
+        ...transfer,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      }).returning();
+      console.log('[STORAGE] Created inventory transfer:', result[0]);
+      return result[0];
+    } catch (error) {
+      console.error('[STORAGE] Error creating inventory transfer:', error);
+      throw error;
+    }
+  }
+
+  async updateInventoryTransfer(id: number, updates: any): Promise<any> {
+    try {
+      console.log('[STORAGE] Updating inventory transfer:', id, updates);
+      const result = await db.update(inventoryTransfers)
+        .set({ ...updates, updatedAt: new Date() })
+        .where(eq(inventoryTransfers.id, id))
+        .returning();
+      console.log('[STORAGE] Updated inventory transfer:', result[0]);
+      return result[0];
+    } catch (error) {
+      console.error('[STORAGE] Error updating inventory transfer:', error);
+      throw error;
+    }
+  }
+
+  async deleteInventoryTransfer(id: number): Promise<void> {
+    try {
+      console.log('[STORAGE] Deleting inventory transfer:', id);
+      // First delete all related items
+      await db.delete(inventoryTransferItems).where(eq(inventoryTransferItems.transferId, id));
+      // Then delete the transfer itself
+      await db.delete(inventoryTransfers).where(eq(inventoryTransfers.id, id));
+      console.log('[STORAGE] Deleted inventory transfer and items:', id);
+    } catch (error) {
+      console.error('[STORAGE] Error deleting inventory transfer:', error);
+      throw error;
+    }
+  }
+
+  async getInventoryTransferItems(filter: { transferId: number }): Promise<any[]> {
+    try {
+      console.log('[STORAGE] Getting inventory transfer items for transfer:', filter.transferId);
+      const result = await db.select().from(inventoryTransferItems).where(eq(inventoryTransferItems.transferId, filter.transferId));
+      console.log(`[STORAGE] Found ${result.length} inventory transfer items`);
+      return result;
+    } catch (error) {
+      console.error('[STORAGE] Error getting inventory transfer items:', error);
+      throw error;
+    }
+  }
+
+  async createInventoryTransferItems(items: any[]): Promise<any[]> {
+    try {
+      console.log('[STORAGE] Creating inventory transfer items:', items.length);
+      const result = await db.insert(inventoryTransferItems).values(
+        items.map(item => ({
+          ...item,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        }))
+      ).returning();
+      console.log(`[STORAGE] Created ${result.length} inventory transfer items`);
+      return result;
+    } catch (error) {
+      console.error('[STORAGE] Error creating inventory transfer items:', error);
+      throw error;
+    }
+  }
+
+  // 🚀 INVENTORY UTILITIES
+  async getInventoryItemByProductAndWarehouse(productId: number, warehouseId: number): Promise<any | undefined> {
+    try {
+      console.log('[STORAGE] Getting inventory item by product and warehouse:', productId, warehouseId);
+      const result = await db.select().from(inventoryItems)
+        .where(and(
+          eq(inventoryItems.productId, productId),
+          eq(inventoryItems.warehouseId, warehouseId)
+        ))
+        .limit(1);
+      console.log('[STORAGE] Found inventory item:', result[0] || 'not found');
+      return result[0];
+    } catch (error) {
+      console.error('[STORAGE] Error getting inventory item by product and warehouse:', error);
+      throw error;
+    }
+  }
+
+  async updateInventoryForTransfer(sourceWarehouseId: number, targetWarehouseId: number, productId: number, quantity: number): Promise<any> {
+    try {
+      console.log('[STORAGE] Updating inventory for transfer:', { sourceWarehouseId, targetWarehouseId, productId, quantity });
+      
+      // Get source inventory item
+      const sourceItem = await this.getInventoryItemByProductAndWarehouse(productId, sourceWarehouseId);
+      if (!sourceItem || (sourceItem.quantity || 0) < quantity) {
+        return {
+          success: false,
+          sourceStock: sourceItem?.quantity || 0,
+          message: `Insufficient stock in source warehouse (available: ${sourceItem?.quantity || 0}, requested: ${quantity})`
+        };
+      }
+
+      // Update source warehouse - decrease quantity
+      await db.update(inventoryItems)
+        .set({ 
+          quantity: (sourceItem.quantity || 0) - quantity,
+          updatedAt: new Date()
+        })
+        .where(and(
+          eq(inventoryItems.productId, productId),
+          eq(inventoryItems.warehouseId, sourceWarehouseId)
+        ));
+
+      // Get or create target inventory item
+      const targetItem = await this.getInventoryItemByProductAndWarehouse(productId, targetWarehouseId);
+      
+      if (targetItem) {
+        // Update existing target inventory - increase quantity
+        await db.update(inventoryItems)
+          .set({ 
+            quantity: (targetItem.quantity || 0) + quantity,
+            updatedAt: new Date()
+          })
+          .where(and(
+            eq(inventoryItems.productId, productId),
+            eq(inventoryItems.warehouseId, targetWarehouseId)
+          ));
+      } else {
+        // Create new target inventory item
+        await db.insert(inventoryItems).values({
+          productId,
+          warehouseId: targetWarehouseId,
+          quantity,
+          status: 'active',
+          createdAt: new Date(),
+          updatedAt: new Date()
+        });
+      }
+
+      // Create inventory movements for audit trail
+      await db.insert(inventoryMovements).values([
+        {
+          productId,
+          sourceWarehouseId,
+          destinationWarehouseId: null,
+          movementType: 'transfer_out',
+          quantity: -quantity,
+          referenceType: 'transfer',
+          notes: `Transfer to warehouse ${targetWarehouseId}`,
+          createdAt: new Date(),
+          performedAt: new Date(),
+          performedBy: 'system'
+        },
+        {
+          productId,
+          sourceWarehouseId: null,
+          destinationWarehouseId: targetWarehouseId,
+          movementType: 'transfer_in',
+          quantity: quantity,
+          referenceType: 'transfer',
+          notes: `Transfer from warehouse ${sourceWarehouseId}`,
+          createdAt: new Date(),
+          performedAt: new Date(),
+          performedBy: 'system'
+        }
+      ]);
+
+      console.log('[STORAGE] Successfully updated inventory for transfer');
+      return {
+        success: true,
+        sourceStock: (sourceItem.quantity || 0) - quantity,
+        targetStock: (targetItem?.quantity || 0) + quantity
+      };
+    } catch (error) {
+      console.error('[STORAGE] Error updating inventory for transfer:', error);
+      throw error;
+    }
   }
 }
