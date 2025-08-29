@@ -744,26 +744,46 @@ const WarehouseInventoryTable: React.FC<WarehouseInventoryTableProps> = ({ wareh
                                           let typeColor = 'text-muted-foreground';
                                           let detailText = '';
                                           
-                                          if (movement.movementType === 'refill' || (movement.movementType === 'OUT' && movement.referenceType === 'refill')) {
-                                            typeLabel = 'Refill';
+                                          if (movement.movementType === 'refill' || movement.movementType === 'REFILL' || (movement.movementType === 'OUT' && movement.referenceType === 'refill')) {
+                                            typeLabel = '🔧 Refill';
                                             typeColor = 'text-blue-600';
                                             if (movement.machineName) {
                                               detailText = `→ ${movement.machineName}`;
                                             }
+                                            // Extrahiere Befüller-Info aus notes
+                                            if (movement.notes) {
+                                              const befuellerMatch = movement.notes.match(/\(Befüller: ([^)]+)\)/);
+                                              if (befuellerMatch) {
+                                                detailText = (detailText || '') + ` | Befüller: ${befuellerMatch[1]}`;
+                                              }
+                                            }
                                           } else if (movement.movementType === 'IN' || movement.movementType === 'receipt') {
-                                            typeLabel = 'Wareneingang';
+                                            typeLabel = '📥 Wareneingang';
                                             typeColor = 'text-green-600';
+                                            // Zeige Details aus notes
+                                            if (movement.notes) {
+                                              const lieferantMatch = movement.notes.match(/von Lieferant ([^,]+)/);
+                                              if (lieferantMatch) {
+                                                detailText = `von ${lieferantMatch[1]}`;
+                                              }
+                                            }
                                           } else if (movement.movementType === 'TRANSFER' || movement.movementType === 'transfer') {
-                                            typeLabel = 'Transfer';
+                                            typeLabel = '🔄 Transfer';
                                             typeColor = 'text-orange-600';
                                             if (movement.destinationWarehouseName) {
                                               detailText = `→ ${movement.destinationWarehouseName}`;
+                                            } else if (movement.notes) {
+                                              // Extrahiere Ziel-Lager aus notes
+                                              const lagerMatch = movement.notes.match(/nach Lager ([^,]+)/);
+                                              if (lagerMatch) {
+                                                detailText = `→ ${lagerMatch[1]}`;
+                                              }
                                             }
                                           } else if (movement.movementType === 'manual_removal') {
-                                            typeLabel = 'Manuelle Entnahme';
+                                            typeLabel = '👤 Manuelle Entnahme';
                                             typeColor = 'text-red-600';
                                           } else if (movement.movementType === 'OUT') {
-                                            typeLabel = 'Warenausgang';
+                                            typeLabel = '📤 Warenausgang';
                                             typeColor = 'text-red-600';
                                           } else {
                                             typeLabel = movement.movementType || 'Unbekannt';
