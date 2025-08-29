@@ -292,6 +292,26 @@ class VendonApiClient {
     
     return allRefills;
   }
+
+  /**
+   * Get detailed refill information including products added/removed
+   */
+  async getRefillDetails(refillId: string): Promise<any> {
+    try {
+      console.log(`🔍 Rufe Refill-Details für ID ${refillId} ab...`);
+      const result = await this.makeRequest<any>(`/refills/${refillId}`);
+      
+      // Log structure for debugging
+      if (result) {
+        console.log(`📦 Refill-Details Struktur für ${refillId}: ${Object.keys(result).join(', ')}`);
+      }
+      
+      return result;
+    } catch (error: any) {
+      console.error(`❌ Fehler beim Abrufen der Refill-Details für Refill ${refillId}:`, error.message);
+      return null;
+    }
+  }
 }
 
 // =============================================================================
@@ -299,7 +319,7 @@ class VendonApiClient {
 // =============================================================================
 
 export class UnifiedVendonSyncCoordinator {
-  private apiClient: EnhancedVendonApiClient;
+  private apiClient: VendonApiClient;
   private duplicatePreventionService: DuplicatePreventionService;
   private isRunning: boolean = false;
   private syncStats = {
@@ -850,16 +870,23 @@ export class UnifiedVendonSyncCoordinator {
           continue;
         }
 
-        // Parse datetime safely
+        // Parse datetime safely - API verwendet refill_date, nicht datetime
         let refillDatetime: Date;
         try {
-          refillDatetime = this.parseVendonDate(apiRefill.datetime);
+          // Convert Unix timestamp to Date
+          if (apiRefill.refill_date) {
+            refillDatetime = new Date(apiRefill.refill_date * 1000); // Unix timestamp to Date
+          } else {
+            console.warn(`⚠️ Kein Datum angegeben - verwende aktuelles Datum`);
+            refillDatetime = new Date();
+          }
+          
           // Check if date is valid
           if (isNaN(refillDatetime.getTime())) {
             throw new Error('Invalid date');
           }
         } catch (dateError) {
-          console.warn(`⚠️ Ungültiges Datum für Refill ${apiRefill.id}: ${apiRefill.datetime}`);
+          console.warn(`⚠️ Ungültiges Datum für Refill ${apiRefill.id}: ${apiRefill.refill_date}`);
           errors.push(`Ungültiges Datum für Refill ${apiRefill.id}`);
           continue;
         }
@@ -869,7 +896,7 @@ export class UnifiedVendonSyncCoordinator {
           machineId,
           machineName,
           datetime: refillDatetime,
-          operator: apiRefill.operator || apiRefill.user || 'unknown',
+          operator: apiRefill.refiller || apiRefill.operator || apiRefill.user || 'unknown',
           status: apiRefill.status || 'completed',
           source: 'vendon_api'
         };
@@ -884,12 +911,87 @@ export class UnifiedVendonSyncCoordinator {
       
       for (const refill of validRefills) {
         try {
-          await storage.createRefill(refill);
+          const savedRefill = await storage.createRefill(refill);
           itemsSaved++;
+          
+          // 🎯 CRITICAL FIX: Hole und speichere die refill_details mit entfernten Produkten
+          try {
+            console.log(`📦 Hole Details für Refill ${refill.vendonId}...`);
+            const details = await this.apiClient.getRefillDetails(refill.vendonId.toString());
+            
+            if (details && details.products && Array.isArray(details.products)) {
+              let detailsSaved = 0;
+              for (const product of details.products) {
+                // Nur Details mit entfernten Produkten speichern
+                if (product.removed && product.removed > 0) {
+                  try {
+                    await storage.createRefillDetail({
+                      refillId: savedRefill.id,
+                      productName: product.product_name || product.name || 'Unbekanntes Produkt',
+                      removed: product.removed,
+                      added: product.added || 0,
+                      beforeRefill: product.before_refill || 0,
+                      afterRefill: product.after_refill || 0
+                    });
+                    detailsSaved++;
+                  } catch (detailError: any) {
+                    console.warn(`⚠️ Fehler beim Speichern Refill-Detail: ${detailError.message}`);
+                  }
+                }
+              }
+              if (detailsSaved > 0) {
+                console.log(`✅ ${detailsSaved} Refill-Details mit Entnahmen für ${refill.vendonId} gespeichert`);
+              }
+            }
+          } catch (detailsError: any) {
+            console.warn(`⚠️ Konnte Details für Refill ${refill.vendonId} nicht abrufen: ${detailsError.message}`);
+          }
+          
         } catch (error: any) {
           if (error.message.includes('duplicate') || error.message.includes('UNIQUE')) {
             duplicates++;
             console.log(`🔄 Duplikat übersprungen: Refill ${refill.vendonId}`);
+            
+            // 🎯 AUCH FÜR DUPLIKATE: Prüfe ob Details fehlen und füge sie hinzu
+            try {
+              const existingRefill = await storage.getRefillByVendonId(refill.vendonId);
+              if (existingRefill) {
+                const existingDetails = await storage.getRefillDetails(existingRefill.id);
+                const hasRemovals = existingDetails.some(d => d.removed > 0);
+                
+                if (!hasRemovals) {
+                  console.log(`📦 Hole fehlende Details für existierenden Refill ${refill.vendonId}...`);
+                  const details = await this.apiClient.getRefillDetails(refill.vendonId.toString());
+                  
+                  if (details && details.products && Array.isArray(details.products)) {
+                    let detailsSaved = 0;
+                    for (const product of details.products) {
+                      if (product.removed && product.removed > 0) {
+                        try {
+                          await storage.createRefillDetail({
+                            refillId: existingRefill.id,
+                            productName: product.product_name || product.name || 'Unbekanntes Produkt',
+                            removed: product.removed,
+                            added: product.added || 0,
+                            beforeRefill: product.before_refill || 0,
+                            afterRefill: product.after_refill || 0
+                          });
+                          detailsSaved++;
+                        } catch (detailError: any) {
+                          console.warn(`⚠️ Fehler beim Speichern Detail: ${detailError.message}`);
+                        }
+                      }
+                    }
+                    if (detailsSaved > 0) {
+                      console.log(`✅ ${detailsSaved} nachträgliche Details für ${refill.vendonId} gespeichert`);
+                    }
+                  }
+                }
+              }
+            } catch (retroError: any) {
+              console.warn(`⚠️ Fehler beim Nachholen von Details: ${retroError.message}`);
+            }
+            
           } else {
             const errorMsg = `Fehler bei Refill ${refill.vendonId}: ${error.message}`;
             console.warn(`⚠️ ${errorMsg}`);
