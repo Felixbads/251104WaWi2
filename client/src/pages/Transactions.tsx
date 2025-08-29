@@ -365,128 +365,6 @@ export default function Transactions() {
               </TooltipTrigger>
               <TooltipContent>Aktualisieren</TooltipContent>
             </Tooltip>
-            
-            {/* Export Button */}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="outline"
-                  className="h-9 flex items-center"
-                  onClick={handleExport}
-                >
-                  <FileDown className="h-4 w-4 mr-1.5" />
-                  Export
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Als Excel exportieren</TooltipContent>
-            </Tooltip>
-            
-            {/* Import Button */}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Dialog open={importIsOpen} onOpenChange={setImportIsOpen}>
-                  <DialogTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className="h-9 flex items-center"
-                    >
-                      <FileUp className="h-4 w-4 mr-1.5" />
-                      Import
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="sm:max-w-md">
-                    <DialogHeader>
-                      <DialogTitle>Transaktionen importieren</DialogTitle>
-                      <DialogDescription>
-                        Lade eine Excel-Datei mit Transaktionsdaten hoch, um sie zu importieren.
-                      </DialogDescription>
-                    </DialogHeader>
-                    
-                    <div className="space-y-4 py-4">
-                      <div className="flex items-center gap-4">
-                        <Label htmlFor="file" className="w-24 text-right">
-                          Excel-Datei
-                        </Label>
-                        <Input
-                          id="file"
-                          ref={fileInputRef}
-                          type="file"
-                          accept=".xlsx,.xls"
-                          onChange={handleFileSelected}
-                          disabled={isImporting}
-                        />
-                      </div>
-                      
-                      {importFile && (
-                        <div className="flex items-center gap-4">
-                          <Label className="w-24 text-right">
-                            Ausgewählt
-                          </Label>
-                          <div className="flex items-center space-x-2">
-                            <FileCheck className="h-4 w-4 text-green-500" />
-                            <span className="text-sm">{importFile.name}</span>
-                          </div>
-                        </div>
-                      )}
-                      
-                      {isImporting && (
-                        <div className="flex items-center gap-4">
-                          <Label className="w-24 text-right">
-                            Fortschritt
-                          </Label>
-                          <div className="flex-1 space-y-1">
-                            <Progress value={importProgress} />
-                            <p className="text-xs text-muted-foreground text-right">
-                              {importProgress}%
-                            </p>
-                          </div>
-                        </div>
-                      )}
-                      
-                      {importResult && (
-                        <div className="rounded-md bg-muted p-4">
-                          <div className="flex">
-                            <div className="flex-shrink-0">
-                              <FileCheck className="h-5 w-5 text-green-400" />
-                            </div>
-                            <div className="ml-3">
-                              <h3 className="text-sm font-medium text-green-800">
-                                Import erfolgreich
-                              </h3>
-                              <div className="mt-2 text-sm text-green-700">
-                                <ul className="list-disc space-y-1 pl-5">
-                                  <li>Gesamt: {importResult.results.total}</li>
-                                  <li>Importiert: {importResult.results.saved}</li>
-                                  <li>Duplikate: {importResult.results.duplicates}</li>
-                                  <li>Fehler: {importResult.results.errors}</li>
-                                </ul>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                    
-                    <DialogFooter>
-                      <Button variant="outline" onClick={() => setImportIsOpen(false)} disabled={isImporting}>
-                        Abbrechen
-                      </Button>
-                      <Button onClick={handleImport} disabled={!importFile || isImporting}>
-                        {isImporting ? (
-                          <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Importiere...
-                          </>
-                        ) : (
-                          "Importieren"
-                        )}
-                      </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
-              </TooltipTrigger>
-              <TooltipContent>Aus Excel importieren</TooltipContent>
-            </Tooltip>
           </TooltipProvider>
         </div>
       </div>
@@ -615,8 +493,12 @@ export default function Transactions() {
                       <td className="px-4 py-3 text-sm text-gray-500">
                         {transaction.paymentMethod === 'CASH' ? 'Bargeld' : 
                          transaction.paymentMethod === 'CASHLESS' ? 'Bargeldlos' :
+                         transaction.paymentMethod === 'cash' ? 'Bargeld' :
+                         transaction.paymentMethod === 'card' ? 'Bargeldlos' :
                          transaction.paymentMethod === 'TEST' ? 'Test' :
-                         transaction.paymentMethod || '-'}
+                         transaction.paymentMethod === 'unknown' ? 'Unbekannt' :
+                         transaction.paymentMethod === null || transaction.paymentMethod === undefined ? 'Unbekannt' :
+                         transaction.paymentMethod || 'Unbekannt'}
                       </td>
                     </tr>
                   ))
