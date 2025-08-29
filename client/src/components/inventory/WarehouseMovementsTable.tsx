@@ -33,6 +33,9 @@ interface Movement {
   machineName?: string;
   sourceWarehouseName?: string;
   destinationWarehouseName?: string;
+  previousStock?: number | null;
+  currentStock?: number | null;
+  notes?: string;
 }
 
 interface MovementsResponse {
@@ -48,12 +51,12 @@ const WarehouseMovementsTable: React.FC<WarehouseMovementsTableProps> = ({
   warehouseId, 
   limit = 50
 }) => {
-  const { data, isLoading, error } = useQuery<MovementsResponse>({
-    queryKey: [`/api/warehouse3/warehouses/${warehouseId}/movements`, { limit }],
+  const { data, isLoading, error } = useQuery<Movement[]>({
+    queryKey: [`/api/inventory-api/warehouse/${warehouseId}/movements`, { limit }],
   });
   
   // Extract movements array from the response
-  const movements = data?.items || [];
+  const movements = data || [];
 
   // Formatiert ein Datum im deutschen Format
   const formatDate = (dateString: string) => {
@@ -83,7 +86,7 @@ const WarehouseMovementsTable: React.FC<WarehouseMovementsTableProps> = ({
 
   // Gibt eine Kurzbeschreibung für die Bewegung zurück
   const getMovementDescription = (movement: Movement) => {
-    const { sourceType, destinationType, movementType, referenceType, reason, machineName, sourceWarehouseName, destinationWarehouseName } = movement;
+    const { sourceType, destinationType, movementType, referenceType, reason, machineName, sourceWarehouseName, destinationWarehouseName, notes } = movement;
     
     // Basis der Beschreibung ist der Grund, falls vorhanden
     if (reason) return reason;
@@ -119,6 +122,23 @@ const WarehouseMovementsTable: React.FC<WarehouseMovementsTableProps> = ({
       }
       return 'Transfer zwischen Lagern';
     } else if (movementType === 'REFILL') {
+      // Bei REFILL-Bewegungen die Informationen aus den Notes extrahieren
+      if (notes) {
+        // Extrahiere Durchführer aus Notes
+        const performerMatch = notes.match(/Durchgeführt von: ([^,]+)/i);
+        const performer = performerMatch ? performerMatch[1] : null;
+        
+        // Extrahiere Automat aus Notes oder nutze machineName
+        const machineMatch = notes.match(/Automat: ([^-]+)/i);
+        const machine = machineName || (machineMatch ? machineMatch[1].trim() : '');
+        
+        if (performer && machine) {
+          return `Refill ${machine} (${performer})`;
+        } else if (machine) {
+          return `Refill ${machine}`;
+        }
+      }
+      
       if (destinationType === 'machine' && machineName) {
         return `Befüllung Automat ${machineName}`;
       }
@@ -180,6 +200,7 @@ const WarehouseMovementsTable: React.FC<WarehouseMovementsTableProps> = ({
                 <TableHead className="font-medium text-center">Typ</TableHead>
                 <TableHead className="font-medium">Beschreibung</TableHead>
                 <TableHead className="font-medium text-right">Menge</TableHead>
+                <TableHead className="font-medium text-center">Bestand</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -201,18 +222,40 @@ const WarehouseMovementsTable: React.FC<WarehouseMovementsTableProps> = ({
                     <TableCell>
                       {getMovementDescription(movement)}
                     </TableCell>
-                    <TableCell className="text-right font-mono flex items-center justify-end">
-                      {movement.movementType === 'IN' && <MoveDown className="h-4 w-4 mr-1 text-green-600" />}
-                      {movement.movementType === 'OUT' && <MoveUp className="h-4 w-4 mr-1 text-red-600" />}
-                      {movement.movementType === 'TRANSFER' && <MoveUp className="h-4 w-4 mr-1 text-blue-600" />}
-                      {movement.movementType === 'REFILL' && <MoveUp className="h-4 w-4 mr-1 text-purple-600" />}
-                      {movement.quantity}
+                    <TableCell className="text-right font-mono">
+                      <div className="flex items-center justify-end">
+                        {movement.movementType === 'IN' && <MoveDown className="h-4 w-4 mr-1 text-green-600" />}
+                        {movement.movementType === 'OUT' && <MoveUp className="h-4 w-4 mr-1 text-red-600" />}
+                        {movement.movementType === 'TRANSFER' && <MoveUp className="h-4 w-4 mr-1 text-blue-600" />}
+                        {movement.movementType === 'REFILL' && <MoveUp className="h-4 w-4 mr-1 text-purple-600" />}
+                        {Math.abs(movement.quantity)}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      {movement.movementType === 'REFILL' && movement.previousStock !== null && movement.currentStock !== null ? (
+                        <div className="text-sm">
+                          <div className="font-mono">
+                            {movement.previousStock} → {movement.currentStock}
+                          </div>
+                          {movement.machineName && (
+                            <div className="text-xs text-muted-foreground mt-1">
+                              Automat: {movement.machineName}
+                            </div>
+                          )}
+                        </div>
+                      ) : movement.previousStock !== null && movement.currentStock !== null ? (
+                        <div className="font-mono text-sm">
+                          {movement.previousStock} → {movement.currentStock}
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground">-</span>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={5} className="h-24 text-center">
+                  <TableCell colSpan={6} className="h-24 text-center">
                     <div className="flex flex-col items-center justify-center text-muted-foreground">
                       <CalendarRange className="h-8 w-8 mb-2" />
                       <p>Keine Warenbewegungen gefunden.</p>

@@ -1051,7 +1051,7 @@ export class UnifiedVendonSyncCoordinator {
                           // Finde das Produkt basierend auf dem Namen
                           const productResult = await rawDb.query(
                             'SELECT id FROM products WHERE name = $1 LIMIT 1',
-                            [product.product_name || product.name]
+                            [product.product_name]
                           );
                           
                           if (productResult.rows.length > 0) {
@@ -1082,7 +1082,7 @@ export class UnifiedVendonSyncCoordinator {
                               product.before_refill || 0,
                               product.after_refill || 0,
                               null, // performed_by (integer field, we store operator name in notes)
-                              `Refill-Entnahme: ${product.removed} ${product.product_name || product.name} - Automat: ${existingRefill.machineName || existingRefill.machine_name} - Durchgeführt von: ${existingRefill.operator || 'System'}`,
+                              `Refill-Entnahme: ${product.removed} ${product.product_name} - Automat: ${existingRefill.machineName || existingRefill.machine_name} - Durchgeführt von: ${existingRefill.operator || 'System'}`,
                               existingRefill.datetime
                             ]);
                             

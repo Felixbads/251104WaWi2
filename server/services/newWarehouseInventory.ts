@@ -46,6 +46,9 @@ interface InventoryMovement {
   notes: string | null;
   performedAt: string;
   performedBy: string | null;
+  previousStock: number | null;
+  currentStock: number | null;
+  machineName: string | null;
 }
 
 /**
@@ -199,11 +202,16 @@ export async function getWarehouseMovements(warehouseId: number, limit: number =
         im.reference_id,
         im.notes,
         im.performed_at,
-        im.performed_by
+        im.performed_by,
+        im.previous_stock,
+        im.current_stock,
+        m.machine_name
       FROM 
         inventory_movements im
       JOIN 
         products p ON im.product_id = p.id
+      LEFT JOIN 
+        machines m ON im.machine_id = m.id
       WHERE 
         (im.source_warehouse_id = $1) OR
         (im.destination_warehouse_id = $1)
@@ -228,7 +236,10 @@ export async function getWarehouseMovements(warehouseId: number, limit: number =
       referenceId: row.reference_id,
       notes: row.notes,
       performedAt: row.performed_at,
-      performedBy: row.performed_by
+      performedBy: row.performed_by,
+      previousStock: row.previous_stock !== null ? parseInt(row.previous_stock) : null,
+      currentStock: row.current_stock !== null ? parseInt(row.current_stock) : null,
+      machineName: row.machine_name
     }));
     
     logDebug('WarehouseMovements', `Found ${movements.length} movements for warehouse ${warehouseId}`);
