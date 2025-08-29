@@ -232,11 +232,18 @@ const WarehouseMovementsTable: React.FC<WarehouseMovementsTableProps> = ({
                       </div>
                     </TableCell>
                     <TableCell className="text-center">
-                      {movement.movementType === 'REFILL' && movement.previousStock !== null && movement.currentStock !== null ? (
+                      {movement.movementType === 'REFILL' ? (
                         <div className="text-sm">
-                          <div className="font-mono">
-                            {movement.previousStock} → {movement.currentStock}
-                          </div>
+                          {(movement.previousStock !== null && movement.previousStock !== undefined && movement.previousStock !== 0) || 
+                           (movement.currentStock !== null && movement.currentStock !== undefined && movement.currentStock !== 0) ? (
+                            <div className="font-mono">
+                              {movement.previousStock !== null && movement.previousStock !== undefined ? movement.previousStock : 'N/A'} → {movement.currentStock !== null && movement.currentStock !== undefined ? movement.currentStock : 'N/A'}
+                            </div>
+                          ) : (
+                            <div className="text-muted-foreground text-xs">
+                              Entnahme: {Math.abs(movement.quantity)} Stück
+                            </div>
+                          )}
                           {movement.machineName && (
                             <div className="text-xs text-muted-foreground mt-1">
                               Automat: {movement.machineName}
