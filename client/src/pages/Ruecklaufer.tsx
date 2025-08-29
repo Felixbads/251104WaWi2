@@ -128,7 +128,7 @@ const exportRemovedProducts = async (params: any) => {
 
 export default function Ruecklaufer() {
   const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
-  const [dateRange, setDateRange] = useState(30);
+  const [dateRange, setDateRange] = useState(90);
   const [filterMachine, setFilterMachine] = useState<string>("");
   const [filterProduct, setFilterProduct] = useState<string>("");
 
