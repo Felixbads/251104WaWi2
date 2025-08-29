@@ -74,7 +74,7 @@ router.post("/", async (req, res) => {
     if (autoExecute) {
       for (const item of validatedItems) {
         const sourceStock = await storage.getInventoryItemByProductAndWarehouse(
-          parseInt(item.productId), 
+          item.productId, 
           validatedTransferData.sourceWarehouseId
         );
         
@@ -111,7 +111,7 @@ router.post("/", async (req, res) => {
         const result = await storage.updateInventoryForTransfer(
           validatedTransferData.sourceWarehouseId, 
           validatedTransferData.targetWarehouseId, 
-          parseInt(item.productId), 
+          item.productId, 
           item.quantity
         );
         

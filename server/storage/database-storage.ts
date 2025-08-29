@@ -1907,7 +1907,7 @@ export class DatabaseStorage implements IStorage {
           notes: `Transfer to warehouse ${targetWarehouseId}`,
           createdAt: new Date(),
           performedAt: new Date(),
-          performedBy: 'system'
+          performedBy: null
         },
         {
           productId,
@@ -1919,7 +1919,7 @@ export class DatabaseStorage implements IStorage {
           notes: `Transfer from warehouse ${sourceWarehouseId}`,
           createdAt: new Date(),
           performedAt: new Date(),
-          performedBy: 'system'
+          performedBy: null
         }
       ]);
 
