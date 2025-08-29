@@ -23,10 +23,12 @@ import {
   InsertTransaction, 
   InsertEvent,
   InsertRefill,
-  machines
+  machines,
+  refills,
+  refillDetails
 } from "@shared/schema";
 import { rawDb } from "../db";
-import { sql } from "drizzle-orm";
+import { sql, eq, and, gt } from "drizzle-orm";
 import { getPersistentSyncLockInstance } from "./PersistentSyncLock";
 import { DuplicatePreventionService } from "./DuplicatePreventionService";
 import { EnhancedVendonApiClient, getVendonApiClient } from "./enhancedVendonApiClient";
@@ -919,9 +921,12 @@ export class UnifiedVendonSyncCoordinator {
             console.log(`📦 Hole Details für Refill ${refill.vendonId}...`);
             const details = await this.apiClient.getRefillDetails(refill.vendonId.toString());
             
-            if (details && details.products && Array.isArray(details.products)) {
+            // API gibt Details direkt als Array zurück, nicht als {products: [...]}
+            const products = Array.isArray(details) ? details : (details?.products || []);
+            
+            if (products.length > 0) {
               let detailsSaved = 0;
-              for (const product of details.products) {
+              for (const product of products) {
                 // Nur Details mit entfernten Produkten speichern
                 if (product.removed && product.removed > 0) {
                   try {
@@ -956,35 +961,53 @@ export class UnifiedVendonSyncCoordinator {
             try {
               const existingRefill = await storage.getRefillByVendonId(refill.vendonId);
               if (existingRefill) {
-                const existingDetails = await storage.getRefillDetails(existingRefill.id);
-                const hasRemovals = existingDetails.some(d => d.removed > 0);
+                console.log(`📦 Hole fehlende Details für existierenden Refill ${refill.vendonId}...`);
+                const details = await this.apiClient.getRefillDetails(refill.vendonId.toString());
                 
-                if (!hasRemovals) {
-                  console.log(`📦 Hole fehlende Details für existierenden Refill ${refill.vendonId}...`);
-                  const details = await this.apiClient.getRefillDetails(refill.vendonId.toString());
+                // API gibt Details direkt als Array zurück, nicht als {products: [...]}
+                const products = Array.isArray(details) ? details : (details?.products || []);
+                
+                if (products.length > 0) {
+                  let detailsSaved = 0;
+                  let totalProducts = 0;
+                  let productsWithRemovals = 0;
                   
-                  if (details && details.products && Array.isArray(details.products)) {
-                    let detailsSaved = 0;
-                    for (const product of details.products) {
-                      if (product.removed && product.removed > 0) {
-                        try {
-                          await storage.createRefillDetail({
-                            refillId: existingRefill.id,
-                            productName: product.product_name || product.name || 'Unbekanntes Produkt',
-                            removed: product.removed,
-                            added: product.added || 0,
-                            beforeRefill: product.before_refill || 0,
-                            afterRefill: product.after_refill || 0
-                          });
-                          detailsSaved++;
-                        } catch (detailError: any) {
-                          console.warn(`⚠️ Fehler beim Speichern Detail: ${detailError.message}`);
-                        }
+                  for (const product of products) {
+                    totalProducts++;
+                    console.log(`🔍 Produkt ${totalProducts}: ${JSON.stringify({
+                      name: product.product_name || product.name,
+                      removed: product.removed,
+                      added: product.added,
+                      before: product.before_refill,
+                      after: product.after_refill
+                    })}`);
+                    
+                    if (product.removed && product.removed > 0) {
+                      productsWithRemovals++;
+                      try {
+                        // Verwende bekannten rawDb-Ansatz wie andere Stellen im Code
+                        const insertQuery = `
+                          INSERT INTO refill_details (refill_id, product_name, removed, added, before_refill, after_refill)
+                          VALUES ($1, $2, $3, $4, $5, $6)
+                        `;
+                        await rawDb.query(insertQuery, [
+                          existingRefill.id,
+                          product.product_name || product.name || 'Unbekanntes Produkt',
+                          product.removed,
+                          product.added || 0,
+                          product.before_refill || 0,
+                          product.after_refill || 0
+                        ]);
+                        detailsSaved++;
+                      } catch (detailError: any) {
+                        console.warn(`⚠️ Fehler beim Speichern Detail: ${detailError.message}`);
                       }
                     }
-                    if (detailsSaved > 0) {
-                      console.log(`✅ ${detailsSaved} nachträgliche Details für ${refill.vendonId} gespeichert`);
-                    }
+                  }
+                  console.log(`📊 Refill ${refill.vendonId} Zusammenfassung: ${totalProducts} Produkte, ${productsWithRemovals} mit Entnahmen, ${detailsSaved} gespeichert`);
+                  
+                  if (detailsSaved > 0) {
+                    console.log(`✅ ${detailsSaved} nachträgliche Details für ${refill.vendonId} gespeichert`);
                   }
                 }
               }
