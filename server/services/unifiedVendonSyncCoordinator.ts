@@ -800,30 +800,25 @@ export class UnifiedVendonSyncCoordinator {
       
       // 1. BATCH MACHINE-LOOKUP: Alle Machine-IDs auf einmal holen
       console.log(`🔍 Batch Machine-Lookup für ${apiRefills.length} Refills...`);
-      const machineVendonIds = apiRefills.map(r => r.machine_id || r.vendon_machine_id || '').filter(Boolean);
-      const machineNames = apiRefills.map(r => r.machine_name || r.machine || '').filter(Boolean);
+      const machineVendonIds = apiRefills.map(r => r.machine_id || r.relation_machine_id || r.vendon_machine_id || '').filter(Boolean);
+      const machineNames = apiRefills.map(r => r.machine_name || r.relation_name || r.machine || '').filter(Boolean);
       
       // 🔍 DEBUG: Log first few machine IDs being searched
       console.log(`🔍 DEBUG: Erste 5 Machine-IDs aus Refills:`, machineVendonIds.slice(0, 5));
       console.log(`🔍 DEBUG: Erste 5 Machine-Namen aus Refills:`, machineNames.slice(0, 5));
       
-      // FIXED: Query für Machine IDs (nicht Vendon IDs) - machine_id in refills refers to machines.id
-      const machineMap = new Map<string, number>();
-      if (machineVendonIds.length > 0) {
-        const machineResults = await rawDb.query(
-          `SELECT id, vendon_id, machine_name FROM machines WHERE id = ANY($1)`,
-          [machineVendonIds]
-        );
-        machineResults.rows.forEach(row => {
-          // Map both the ID and vendon_id for lookup flexibility
-          machineMap.set(row.id.toString(), row.id);
-          if (row.vendon_id) {
-            machineMap.set(row.vendon_id.toString(), row.id);
-          }
-        });
-        console.log(`✅ ${machineResults.rows.length} Maschinen via Machine ID gefunden`);
-        console.log(`🔍 DEBUG: Gefundene Maschinen-IDs:`, machineResults.rows.map(r => `${r.id}(${r.machine_name})`));
+      // 🔍 DEBUG: Log actual API response structure
+      if (apiRefills.length > 0) {
+        console.log(`🔍 DEBUG: Erstes Refill API Response:`, JSON.stringify(apiRefills[0], null, 2));
+        console.log(`🔍 DEBUG: Verfügbare Felder im ersten Refill:`, Object.keys(apiRefills[0]));
       }
+      
+      // FIXED: Refill machine_id ist NICHT machines.id - verwende Namen-basiertes Mapping!
+      const machineMap = new Map<string, number>();
+      
+      // 🔍 DEBUG: Prüfe unterschiedliche ID-Systeme
+      console.log(`🔍 DEBUG: API Refill machine_ids (7-8 stellig):`, machineVendonIds.slice(0, 3));
+      console.log(`🔍 DEBUG: Diese IDs existieren NICHT in machines.id - verwende Namen-Mapping!`);
       
       // Fallback single query für alle Machine Names
       if (machineNames.length > 0) {
@@ -842,8 +837,8 @@ export class UnifiedVendonSyncCoordinator {
       const errors: string[] = [];
       
       for (const apiRefill of apiRefills) {
-        const machineName = apiRefill.machine_name || apiRefill.machine || '';
-        const vendonMachineId = apiRefill.machine_id || apiRefill.vendon_machine_id || '';
+        const machineName = apiRefill.machine_name || apiRefill.relation_name || apiRefill.machine || '';
+        const vendonMachineId = apiRefill.machine_id || apiRefill.relation_machine_id || apiRefill.vendon_machine_id || '';
         
         // Machine ID aus Batch-Map holen
         let machineId = machineMap.get(vendonMachineId) || machineMap.get(machineName) || null;
