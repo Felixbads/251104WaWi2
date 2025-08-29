@@ -14,6 +14,7 @@ router.get('/', async (req, res) => {
     const { productId, warehouseId, batchId, batchIds } = req.query;
     
     console.log('[INVENTORY_MOVEMENTS] Query params:', { productId, warehouseId, batchId, batchIds });
+    console.log('[INVENTORY_MOVEMENTS] warehouseId type:', typeof warehouseId, 'value:', warehouseId, 'isEmpty:', warehouseId === '', 'isUndefined:', warehouseId === undefined);
 
     let movementsQuery = db
       .select({
@@ -45,20 +46,22 @@ router.get('/', async (req, res) => {
     }
 
     // Filter by warehouseId if provided (either source or destination)
-    if (warehouseId) {
+    if (warehouseId && warehouseId !== '') {
       const whId = parseInt(warehouseId as string);
-      movementsQuery = movementsQuery.where(
-        or(
-          eq(inventoryMovements.sourceWarehouseId, whId),
-          eq(inventoryMovements.destinationWarehouseId, whId)
-        )
-      );
+      if (!isNaN(whId)) {
+        movementsQuery = movementsQuery.where(
+          or(
+            eq(inventoryMovements.sourceWarehouseId, whId),
+            eq(inventoryMovements.destinationWarehouseId, whId)
+          )
+        );
+      }
     }
 
     const movements = await movementsQuery.orderBy(desc(inventoryMovements.createdAt));
 
     // Get inventory transfers with their items
-    const transfers = await db
+    let transfersQuery = db
       .select({
         transferId: inventoryTransfers.id,
         sourceWarehouseId: inventoryTransfers.sourceWarehouseId,
@@ -73,8 +76,22 @@ router.get('/', async (req, res) => {
         reason: inventoryTransferItems.reason
       })
       .from(inventoryTransfers)
-      .leftJoin(inventoryTransferItems, eq(inventoryTransfers.id, inventoryTransferItems.transferId))
-      .orderBy(desc(inventoryTransfers.createdAt));
+      .leftJoin(inventoryTransferItems, eq(inventoryTransfers.id, inventoryTransferItems.transferId));
+
+    // Apply warehouse filter to transfers as well
+    if (warehouseId && warehouseId !== '') {
+      const whId = parseInt(warehouseId as string);
+      if (!isNaN(whId)) {
+        transfersQuery = transfersQuery.where(
+          or(
+            eq(inventoryTransfers.sourceWarehouseId, whId),
+            eq(inventoryTransfers.targetWarehouseId, whId)
+          )
+        );
+      }
+    }
+
+    const transfers = await transfersQuery.orderBy(desc(inventoryTransfers.createdAt));
 
     // Convert transfers to movement format
     const transferMovements = transfers.map(transfer => ({
@@ -104,6 +121,7 @@ router.get('/', async (req, res) => {
     );
 
     console.log(`[INVENTORY_MOVEMENTS] Found ${movements.length} movements and ${transferMovements.length} transfers`);
+    console.log('[INVENTORY_MOVEMENTS] Transfer movements sample:', transferMovements.slice(0, 2));
 
     // Get warehouse names for source and destination from all movements
     const warehouseIds = new Set<number>();

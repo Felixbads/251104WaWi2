@@ -341,8 +341,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   // NOTE: Warehouse routes moved to /routes/warehouses.ts router for full CRUD operations
   
-  // GET /inventory-movements - Warenbewegungen abrufen
-  app.get(`${API_PREFIX}/inventory-movements`, async (req: Request, res: Response) => {
+  // MOVED TO inventoryMovementsRouter - legacy code commented out
+  /* app.get(`${API_PREFIX}/inventory-movements`, async (req: Request, res: Response) => {
     try {
       const limit = req.query.limit ? parseInt(req.query.limit as string) : 50;
       const offset = req.query.offset ? parseInt(req.query.offset as string) : 0;
@@ -440,7 +440,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         details: error instanceof Error ? error.message : String(error) 
       });
     }
-  });
+  }); */
   
   // GET /warehouses/:id/movements - Warenbewegungen für ein bestimmtes Lager abrufen
   app.get(`${API_PREFIX}/warehouses/:id/movements`, async (req: Request, res: Response) => {
