@@ -329,44 +329,104 @@ export default function AutomatDetail() {
   };
 
   return (
-    <div className="space-y-6 p-6">
-      {/* Header */}
-      <div className="flex justify-between items-center">
-        <div className="flex items-center space-x-4">
-          <Button 
-            onClick={() => window.history.back()}
-            variant="outline"
-            size="sm"
-          >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Zurück
+    <div className="min-h-screen bg-background">
+      {/* Mobile-optimized Header */}
+      <div className="sticky top-0 z-50 bg-background border-b px-4 py-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <Button 
+              onClick={() => window.history.back()}
+              variant="ghost"
+              size="sm"
+              className="p-2"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <div>
+              <h1 className="text-lg font-bold truncate max-w-[200px] sm:max-w-none sm:text-2xl">{machine.machineName}</h1>
+              <StatusBadge status={machine.status} />
+            </div>
+          </div>
+          <Button onClick={handleRefreshAll} variant="ghost" size="sm" className="p-2">
+            <RefreshCw className="h-5 w-5" />
           </Button>
-          <h1 className="text-3xl font-bold">{machine.machineName}</h1>
-          <StatusBadge status={machine.status} />
         </div>
-        <Button onClick={handleRefreshAll} variant="outline" size="sm">
-          <RefreshCw className="h-4 w-4 mr-2" />
-          Aktualisieren
-        </Button>
       </div>
 
-      {/* Main Content */}
+      {/* Mobile-optimized Navigation */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-5 lg:grid-cols-10 gap-1">
-          <TabsTrigger value="allgemein">Allgemein</TabsTrigger>
-          <TabsTrigger value="transaktionen">Transaktionen</TabsTrigger>
-          <TabsTrigger value="analysen">Analysen</TabsTrigger>
-          <TabsTrigger value="auswertung">Auswertung</TabsTrigger>
-          <TabsTrigger value="auffullungen">Auffüllungen</TabsTrigger>
-          <TabsTrigger value="mhd">MHD</TabsTrigger>
-          <TabsTrigger value="entnommene-produkte">Entfernte Produkte</TabsTrigger>
-          <TabsTrigger value="kosten">Kosten</TabsTrigger>
-          <TabsTrigger value="wirtschaftlichkeit">Wirtschaftlichkeit</TabsTrigger>
-          <TabsTrigger value="warenbestand">Warenbestand</TabsTrigger>
-        </TabsList>
+        <div className="sticky top-[73px] z-40 bg-background border-b">
+          <div className="overflow-x-auto tab-scroll">
+            <TabsList className="inline-flex h-12 items-center justify-start rounded-none bg-transparent p-0 gap-0 min-w-max">
+              <TabsTrigger 
+                value="allgemein" 
+                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-3 text-sm font-medium whitespace-nowrap min-w-[100px] h-12"
+              >
+                Allgemein
+              </TabsTrigger>
+              <TabsTrigger 
+                value="transaktionen"
+                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-3 text-sm font-medium whitespace-nowrap min-w-[100px] h-12"
+              >
+                Transaktionen
+              </TabsTrigger>
+              <TabsTrigger 
+                value="analysen"
+                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-3 text-sm font-medium whitespace-nowrap min-w-[100px] h-12"
+              >
+                Analysen
+              </TabsTrigger>
+              <TabsTrigger 
+                value="auswertung"
+                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-3 text-sm font-medium whitespace-nowrap min-w-[100px] h-12"
+              >
+                Auswertung
+              </TabsTrigger>
+              <TabsTrigger 
+                value="auffullungen"
+                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-3 text-sm font-medium whitespace-nowrap min-w-[100px] h-12"
+              >
+                Auffüllungen
+              </TabsTrigger>
+              <TabsTrigger 
+                value="mhd"
+                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-3 text-sm font-medium whitespace-nowrap min-w-[80px] h-12"
+              >
+                MHD
+              </TabsTrigger>
+              <TabsTrigger 
+                value="entnommene-produkte"
+                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-3 text-sm font-medium whitespace-nowrap min-w-[140px] h-12"
+              >
+                Entfernte Produkte
+              </TabsTrigger>
+              <TabsTrigger 
+                value="kosten"
+                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-3 text-sm font-medium whitespace-nowrap min-w-[80px] h-12"
+              >
+                Kosten
+              </TabsTrigger>
+              <TabsTrigger 
+                value="wirtschaftlichkeit"
+                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-3 text-sm font-medium whitespace-nowrap min-w-[140px] h-12"
+              >
+                Wirtschaftlichkeit
+              </TabsTrigger>
+              <TabsTrigger 
+                value="warenbestand"
+                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-3 text-sm font-medium whitespace-nowrap min-w-[120px] h-12"
+              >
+                Warenbestand
+              </TabsTrigger>
+            </TabsList>
+          </div>
+        </div>
 
+        {/* Content with proper mobile spacing */}
+        <div className="px-4 py-6">
+        
         {/* Allgemein Tab */}
-        <TabsContent value="allgemein" className="space-y-6">
+        <TabsContent value="allgemein" className="space-y-6 mt-0">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {/* Stammdaten Card */}
             <Card>
@@ -1258,6 +1318,8 @@ export default function AutomatDetail() {
             </Card>
           )}
         </TabsContent>
+        
+        </div> {/* Close content wrapper */}
       </Tabs>
     </div>
   );
