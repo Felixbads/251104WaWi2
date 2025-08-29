@@ -17,7 +17,7 @@ export default function BatchMovementsList({ batchId }: BatchMovementsListProps)
   const { data: movements, isLoading, error } = useQuery<any[]>({
     queryKey: ['inventory-movements', batchId],
     queryFn: async () => {
-      const response = await fetch(`/api/inventory/movements?batchId=${batchId}`);
+      const response = await fetch(`/api/inventory-movements?batchId=${batchId}`);
       if (!response.ok) {
         throw new Error(`Fehler beim Laden der Batch-Bewegungen: ${response.status}`);
       }

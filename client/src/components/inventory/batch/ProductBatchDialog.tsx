@@ -85,7 +85,7 @@ export default function ProductBatchDialog({
         const batchIds = productBatches.map((batch: any) => batch.id);
         if (!batchIds.length) return {};
         
-        const response = await fetch(`/api/inventory/movements?batchIds=${batchIds.join(',')}`);
+        const response = await fetch(`/api/inventory-movements?batchIds=${batchIds.join(',')}`);
         if (!response.ok) return {};
         
         const movementsData = await response.json();

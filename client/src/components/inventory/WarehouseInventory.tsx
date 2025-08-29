@@ -178,7 +178,7 @@ export default function WarehouseInventory({
   // Warenbewegungen für ein Produkt laden
   const getProductMovements = async (productId: number, warehouseId: number) => {
     try {
-      const response = await fetch(`/api/inventory/movements?productId=${productId}&warehouseId=${warehouseId}`);
+      const response = await fetch(`/api/inventory-movements?productId=${productId}&warehouseId=${warehouseId}`);
       if (!response.ok) {
         throw new Error(`Fehler beim Laden der Warenbewegungen: ${response.status}`);
       }
@@ -193,7 +193,7 @@ export default function WarehouseInventory({
   // Warenbewegungen für einen Batch laden
   const getBatchMovements = async (batchId: number) => {
     try {
-      const response = await fetch(`/api/inventory/movements?batchId=${batchId}`);
+      const response = await fetch(`/api/inventory-movements?batchId=${batchId}`);
       if (!response.ok) {
         throw new Error(`Fehler beim Laden der Batch-Warenbewegungen: ${response.status}`);
       }
