@@ -66,20 +66,28 @@ const WarehouseInventoryTable: React.FC<WarehouseInventoryTableProps> = ({ wareh
     queryKey: [`/api/inventory/warehouse/${warehouseId}`],
   });
   
-  // API-Abfrage für erweiterte Warenbewegungen über warehouse3 storage
+  // API-Abfrage für erweiterte Warenbewegungen über inventory-api
   const { data: inventoryMovements = [], isLoading: isMovementsLoading } = useQuery({
-    queryKey: [`/api/warehouse3/warehouses/${warehouseId}/movements-fixed`],
+    queryKey: [`/api/inventory-api/warehouse/${warehouseId}/movements`],
     queryFn: async () => {
       try {
         debug(`Lade erweiterte Warenbewegungen für Lager ${warehouseId}...`);
-        const response = await fetch(`/api/warehouse3/warehouses/${warehouseId}/movements-fixed?limit=1000`);
+        const response = await fetch(`/api/inventory-api/warehouse/${warehouseId}/movements?limit=1000`);
         if (!response.ok) {
           debug(`Fehler beim Laden der erweiterten Warenbewegungen, Status: ${response.status}`);
+          // Fallback zu warehouse3 API
+          const fallbackResponse = await fetch(`/api/warehouse3/warehouses/${warehouseId}/movements?limit=1000`);
+          if (fallbackResponse.ok) {
+            const fallbackData = await fallbackResponse.json();
+            const fallbackMovements = fallbackData.items || [];
+            debug(`Fallback: ${fallbackMovements.length} Warenbewegungen von warehouse3 API geladen`);
+            return fallbackMovements;
+          }
           return [];
         }
         
         const data = await response.json();
-        const movements = data.items || [];
+        const movements = Array.isArray(data) ? data : (data.items || []);
         debug(`${movements.length} erweiterte Warenbewegungen geladen`);
         
         // Debug: Zeige tatsächliche API-Response-Struktur
