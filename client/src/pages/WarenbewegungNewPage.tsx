@@ -16,7 +16,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { queryClient } from '@/lib/queryClient';
+import { queryClient, apiRequest } from '@/lib/queryClient';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertCircle, MoveHorizontal, PackageOpen, RefreshCw } from "lucide-react";
 import { useInventoryCart } from "@/components/inventory/InventoryCartContext";
@@ -157,6 +157,7 @@ export default function WarenbewegungNewPage() {
   // Get products for selected source warehouse (transfer)
   const { data: sourceProducts, isLoading: sourceProductsLoading } = useQuery({
     queryKey: ['/api/warehouse-products', { warehouseId: sourceWarehouseId, includeZeroStock: false }],
+    queryFn: () => apiRequest(`/api/warehouse-products?warehouseId=${sourceWarehouseId}&includeZeroStock=false`, {}, "GET"),
     enabled: !!sourceWarehouseId,
     select: (data: any[]) => {
       return data
@@ -180,6 +181,7 @@ export default function WarenbewegungNewPage() {
     refetch: refetchDisposalProducts
   } = useQuery({
     queryKey: ['/api/warehouse-products', { warehouseId: disposalWarehouseId, includeZeroStock: false }],
+    queryFn: () => apiRequest(`/api/warehouse-products?warehouseId=${disposalWarehouseId}&includeZeroStock=false`, {}, "GET"),
     enabled: !!disposalWarehouseId,
     select: (data: any[]) => {
       return data
