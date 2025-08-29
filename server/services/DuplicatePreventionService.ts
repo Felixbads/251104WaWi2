@@ -603,8 +603,12 @@ class DuplicatePreventionService {
         coinCredit: vendonTx.coin_credit || 0,
         cardCredit: vendonTx.card_credit || 0,
         cashlessCredit: vendonTx.cashless_credit || 0,
-        // Vendon API nutzt "payment_method" nicht "payment_type"
-        paymentMethod: vendonTx.payment_method || vendonTx.payment_type || 'unknown',
+        // Vendon API nutzt "payment_method" nicht "payment_type" - DEBUG LOGGING
+        paymentMethod: (() => {
+          const method = vendonTx.payment_method || vendonTx.payment_type || 'unknown';
+          console.log(`🔄 Payment Method Mapping: ${vendonTx.payment_method} → ${method} (Transaction: ${vendonTx.id})`);
+          return method;
+        })(),
         locationId: null,
         locationName: vendonTx.location_name || null,
         isTest: vendonTx.is_test === true,

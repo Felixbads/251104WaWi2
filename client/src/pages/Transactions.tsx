@@ -493,6 +493,7 @@ export default function Transactions() {
                       <td className="px-4 py-3 text-sm text-gray-500">
                         {transaction.paymentMethod === 'CASH' ? 'Bargeld' : 
                          transaction.paymentMethod === 'CASHLESS' ? 'Bargeldlos' :
+                         transaction.paymentMethod === 'CARD' ? 'Bargeldlos' :
                          transaction.paymentMethod === 'cash' ? 'Bargeld' :
                          transaction.paymentMethod === 'card' ? 'Bargeldlos' :
                          transaction.paymentMethod === 'TEST' ? 'Test' :
