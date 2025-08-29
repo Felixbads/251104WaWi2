@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { db } from '../db';
 import { inventoryMovements, inventoryTransfers, inventoryTransferItems, products, warehouses } from '../../shared/schema';
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, or } from 'drizzle-orm';
 
 const router = Router();
 
@@ -11,10 +11,11 @@ const router = Router();
  */
 router.get('/', async (req, res) => {
   try {
-    console.log('[INVENTORY_MOVEMENTS] Fetching all inventory movements and transfers');
+    const { productId, warehouseId, batchId, batchIds } = req.query;
+    
+    console.log('[INVENTORY_MOVEMENTS] Query params:', { productId, warehouseId, batchId, batchIds });
 
-    // Get regular inventory movements
-    const movements = await db
+    let movementsQuery = db
       .select({
         id: inventoryMovements.id,
         productId: inventoryMovements.productId,
@@ -36,8 +37,25 @@ router.get('/', async (req, res) => {
         referenceId: inventoryMovements.referenceId
       })
       .from(inventoryMovements)
-      .leftJoin(products, eq(inventoryMovements.productId, products.id))
-      .orderBy(desc(inventoryMovements.createdAt));
+      .leftJoin(products, eq(inventoryMovements.productId, products.id));
+
+    // Filter by productId if provided
+    if (productId) {
+      movementsQuery = movementsQuery.where(eq(inventoryMovements.productId, parseInt(productId as string)));
+    }
+
+    // Filter by warehouseId if provided (either source or destination)
+    if (warehouseId) {
+      const whId = parseInt(warehouseId as string);
+      movementsQuery = movementsQuery.where(
+        or(
+          eq(inventoryMovements.sourceWarehouseId, whId),
+          eq(inventoryMovements.destinationWarehouseId, whId)
+        )
+      );
+    }
+
+    const movements = await movementsQuery.orderBy(desc(inventoryMovements.createdAt));
 
     // Get inventory transfers with their items
     const transfers = await db
