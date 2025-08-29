@@ -20,10 +20,10 @@ import {
 } from "@/components/ui/select";
 
 // Export type for OrderMode - Updated to match specification
-export type OrderMode = 'copy' | 'bulk';
+export type OrderMode = 'copy' | 'bulk' | 'standard' | 'forecast';
 
 interface OrderModeSelectorProps {
-  mode: OrderMode;
+  mode: OrderMode | null;
   onSelectMode: (mode: OrderMode) => void;
   sourceOrderId?: number | null;
   onSourceOrderChange?: (id: number) => void;
@@ -54,7 +54,7 @@ const OrderModeSelector: React.FC<OrderModeSelectorProps> = ({
                   <div className="text-2xl">📦</div>
                 </div>
               </div>
-              <h3 className="text-center font-semibold text-lg mb-2">Großbestellung</h3>
+              <h3 className="text-center font-semibold text-lg mb-2">Warenbestellung</h3>
               <p className="text-center text-sm text-muted-foreground leading-relaxed">
                 Bestellung größerer Mengen
               </p>

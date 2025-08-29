@@ -119,7 +119,7 @@ const BestellungV2: React.FC = () => {
   }, []);
   const [warehouseId, setWarehouseId] = useState<number | null>(null);
   const [warehouseName, setWarehouseName] = useState<string>('');
-  const [orderMode, setOrderMode] = useState<OrderMode>('copy');
+  const [orderMode, setOrderMode] = useState<OrderMode | null>(null);
   const [sourceOrderId, setSourceOrderId] = useState<number | null>(null);
   const [supplierId, setSupplierId] = useState<number | null>(null);
   const [supplierName, setSupplierName] = useState<string>('');
@@ -1480,7 +1480,7 @@ const BestellungV2: React.FC = () => {
             supplierId={supplierId || 0}
             warehouseId={warehouseId || 0}
             sourceOrderId={sourceOrderId}
-            mode={orderMode}
+            mode={orderMode || 'bulk'}
             selectedProducts={selectedProducts}
             setSelectedProducts={setSelectedProducts}
             onNext={() => setStep('additionalInfo')}
