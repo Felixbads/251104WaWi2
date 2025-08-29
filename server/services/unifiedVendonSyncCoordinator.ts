@@ -939,6 +939,52 @@ export class UnifiedVendonSyncCoordinator {
                       afterRefill: product.after_refill || 0
                     });
                     detailsSaved++;
+
+                    // AUTOMATISCH WARENBEWEGUNG ERSTELLEN für jede Refill-Entnahme
+                    try {
+                      // Finde das Produkt basierend auf dem Namen
+                      const productResult = await rawDb.query(
+                        'SELECT id FROM products WHERE name = $1 LIMIT 1',
+                        [product.product_name || product.name]
+                      );
+                      
+                      if (productResult.rows.length > 0) {
+                        const productId = productResult.rows[0].id;
+                        
+                        // Erstelle automatische Warenbewegung
+                        const movementQuery = `
+                          INSERT INTO inventory_movements (
+                            product_id,
+                            source_warehouse_id,
+                            machine_id,
+                            movement_type,
+                            quantity,
+                            previous_stock,
+                            current_stock,
+                            performed_by,
+                            notes,
+                            performed_at
+                          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                        `;
+                        
+                        await rawDb.query(movementQuery, [
+                          productId,
+                          null, // source_warehouse_id (null für Refills aus Automaten)
+                          savedRefill.machineId,
+                          'REFILL',
+                          product.removed,
+                          product.before_refill || 0,
+                          product.after_refill || 0,
+                          null, // performed_by (integer field, we store operator name in notes)
+                          `Refill-Entnahme: ${product.removed} ${product.product_name || product.name} - Automat: ${savedRefill.machineName} - Durchgeführt von: ${savedRefill.operator || 'System'}`,
+                          savedRefill.datetime
+                        ]);
+                        
+                        console.log(`📝 Warenbewegung automatisch erstellt für ${product.product_name}: ${product.removed} Stück entnommen`);
+                      }
+                    } catch (movementError: any) {
+                      console.warn(`⚠️ Warnung: Konnte Warenbewegung nicht erstellen: ${movementError.message}`);
+                    }
                   } catch (detailError: any) {
                     console.warn(`⚠️ Fehler beim Speichern Refill-Detail: ${detailError.message}`);
                   }
@@ -999,6 +1045,52 @@ export class UnifiedVendonSyncCoordinator {
                           product.after_refill || 0
                         ]);
                         detailsSaved++;
+
+                        // AUTOMATISCH WARENBEWEGUNG ERSTELLEN für jede Refill-Entnahme
+                        try {
+                          // Finde das Produkt basierend auf dem Namen
+                          const productResult = await rawDb.query(
+                            'SELECT id FROM products WHERE name = $1 LIMIT 1',
+                            [product.product_name || product.name]
+                          );
+                          
+                          if (productResult.rows.length > 0) {
+                            const productId = productResult.rows[0].id;
+                            
+                            // Erstelle automatische Warenbewegung
+                            const movementQuery = `
+                              INSERT INTO inventory_movements (
+                                product_id,
+                                source_warehouse_id,
+                                machine_id,
+                                movement_type,
+                                quantity,
+                                previous_stock,
+                                current_stock,
+                                performed_by,
+                                notes,
+                                performed_at
+                              ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                            `;
+                            
+                            await rawDb.query(movementQuery, [
+                              productId,
+                              null, // source_warehouse_id (null für Refills aus Automaten)
+                              existingRefill.machineId,
+                              'REFILL',
+                              product.removed,
+                              product.before_refill || 0,
+                              product.after_refill || 0,
+                              null, // performed_by (integer field, we store operator name in notes)
+                              `Refill-Entnahme: ${product.removed} ${product.product_name || product.name} - Automat: ${existingRefill.machineName || existingRefill.machine_name} - Durchgeführt von: ${existingRefill.operator || 'System'}`,
+                              existingRefill.datetime
+                            ]);
+                            
+                            console.log(`📝 Warenbewegung automatisch erstellt für ${product.product_name}: ${product.removed} Stück entnommen`);
+                          }
+                        } catch (movementError: any) {
+                          console.warn(`⚠️ Warnung: Konnte Warenbewegung nicht erstellen: ${movementError.message}`);
+                        }
                       } catch (detailError: any) {
                         console.warn(`⚠️ Fehler beim Speichern Detail: ${detailError.message}`);
                       }
