@@ -556,7 +556,7 @@ export default function Transactions() {
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <span className="cursor-help">Netto</span>
+                          <span className="cursor-help">Netto-Ergebnis</span>
                         </TooltipTrigger>
                         <TooltipContent>
                           <p>Netto-Ergebnis: Verkaufspreis ohne MwSt - Einkaufspreis - Pfand</p>
@@ -570,9 +570,6 @@ export default function Transactions() {
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Zahlungsart
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -585,7 +582,6 @@ export default function Transactions() {
                       <td className="px-4 py-3"><Skeleton className="h-5 w-16" /></td>
                       <td className="px-4 py-3"><Skeleton className="h-5 w-16" /></td>
                       <td className="px-4 py-3"><Skeleton className="h-5 w-32" /></td>
-                      <td className="px-4 py-3"><Skeleton className="h-5 w-20" /></td>
                       <td className="px-4 py-3"><Skeleton className="h-5 w-20" /></td>
                     </tr>
                   ))
@@ -617,26 +613,16 @@ export default function Transactions() {
                         {transaction.machineName || '-'}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-500">
-                        {transaction.paymentMethod || '-'}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span
-                          className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadgeClass(transaction.status || "")}`}
-                        >
-                          {transaction.status === "success"
-                            ? "Erfolg"
-                            : transaction.status === "pending"
-                            ? "Ausstehend"
-                            : transaction.status === "failed"
-                            ? "Fehlgeschlagen"
-                            : transaction.status || "Unbekannt"}
-                        </span>
+                        {transaction.paymentMethod === 'CASH' ? 'Bargeld' : 
+                         transaction.paymentMethod === 'CASHLESS' ? 'Bargeldlos' :
+                         transaction.paymentMethod === 'TEST' ? 'Test' :
+                         transaction.paymentMethod || '-'}
                       </td>
                     </tr>
                   ))
                 ) : (
                   <tr className="border-b">
-                    <td colSpan={8} className="px-4 py-6 text-center text-sm text-gray-500">
+                    <td colSpan={7} className="px-4 py-6 text-center text-sm text-gray-500">
                       {error ? `Fehler beim Laden der Daten: ${error}` : "Keine Transaktionen gefunden"}
                     </td>
                   </tr>
