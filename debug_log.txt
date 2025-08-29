@@ -13005,3 +13005,73 @@ DATA: {
   "performedBy": null
 }
 
+[2025-08-29T15:11:14.256Z] [MovementsAPI] Warenbewegungen für Lager ID 10 abrufen mit neuem Service, Limit: 1000, Offset: 0
+
+[2025-08-29T15:11:14.257Z] [WarehouseMovements] Fetching movements for warehouse ID: 10, limit: 1000, offset: 0
+
+[2025-08-29T15:11:14.257Z] [SQL] Query: getWarehouseMovements
+DATA: {
+  "sql": "\n      SELECT \n        im.id,\n        im.product_id,\n        p.product_name,\n        im.quantity,\n        im.movement_type,\n        im.source_warehouse_id,\n        im.destination_warehouse_id,\n        im.machine_id,\n        im.reference_type,\n        im.reference_id,\n        im.notes,\n        im.performed_at,\n        im.performed_by\n      FROM \n        inventory_movements im\n      JOIN \n        products p ON im.product_id = p.id\n      WHERE \n        (im.source_warehouse_id = $1) OR\n        (im.destination_warehouse_id = $1)\n      ORDER BY \n        im.performed_at DESC\n      LIMIT $2 OFFSET $3\n    ",
+  "params": [
+    10,
+    1000,
+    0
+  ]
+}
+
+[2025-08-29T15:11:15.160Z] [WarehouseMovements] Found 563 movements for warehouse 10
+
+[2025-08-29T15:11:15.161Z] [MovementsAPI] Warenbewegungen für Lager 10 geladen: 563 Einträge gefunden
+
+[2025-08-29T15:11:15.161Z] [MovementsAPI] Beispiel-Eintrag:
+DATA: {
+  "id": 980,
+  "productId": 81,
+  "productName": "Jagdwurst im Glas (Landfleicherei Struppen)",
+  "quantity": -1,
+  "movementType": "REFILL",
+  "sourceWarehouseId": 10,
+  "destinationWarehouseId": null,
+  "machineId": 12,
+  "referenceType": "refill",
+  "referenceId": "1963",
+  "notes": "Refill-Entnahme: 1 Jagdwurst im Glas (Landfleicherei Struppen) für Automat Berggishübel (Befüller: Armand Mathy)",
+  "performedAt": "2025-08-29T13:57:52.000Z",
+  "performedBy": null
+}
+
+[2025-08-29T15:13:05.644Z] [MovementsAPI] Warenbewegungen für Lager ID 10 abrufen mit neuem Service, Limit: 50, Offset: 0
+
+[2025-08-29T15:13:05.645Z] [WarehouseMovements] Fetching movements for warehouse ID: 10, limit: 50, offset: 0
+
+[2025-08-29T15:13:05.646Z] [SQL] Query: getWarehouseMovements
+DATA: {
+  "sql": "\n      SELECT \n        im.id,\n        im.product_id,\n        p.product_name,\n        im.quantity,\n        im.movement_type,\n        im.source_warehouse_id,\n        im.destination_warehouse_id,\n        im.machine_id,\n        im.reference_type,\n        im.reference_id,\n        im.notes,\n        im.performed_at,\n        im.performed_by\n      FROM \n        inventory_movements im\n      JOIN \n        products p ON im.product_id = p.id\n      WHERE \n        (im.source_warehouse_id = $1) OR\n        (im.destination_warehouse_id = $1)\n      ORDER BY \n        im.performed_at DESC\n      LIMIT $2 OFFSET $3\n    ",
+  "params": [
+    10,
+    50,
+    0
+  ]
+}
+
+[2025-08-29T15:13:05.872Z] [WarehouseMovements] Found 50 movements for warehouse 10
+
+[2025-08-29T15:13:05.872Z] [MovementsAPI] Warenbewegungen für Lager 10 geladen: 50 Einträge gefunden
+
+[2025-08-29T15:13:05.872Z] [MovementsAPI] Beispiel-Eintrag:
+DATA: {
+  "id": 1019,
+  "productId": 34,
+  "productName": "Nationalpark-Knacker Paar ([Wild] Fleischerei Dünnebier, Bad Schandau)",
+  "quantity": -1,
+  "movementType": "REFILL",
+  "sourceWarehouseId": 10,
+  "destinationWarehouseId": null,
+  "machineId": 12,
+  "referenceType": "refill",
+  "referenceId": "1963",
+  "notes": "Refill-Entnahme: 1 Nationalpark-Knacker Paar ([Wild] Fleischerei Dünnebier, Bad Schandau) für Automat Berggishübel (Befüller: Armand Mathy)",
+  "performedAt": "2025-08-29T13:57:52.000Z",
+  "performedBy": null
+}
+
