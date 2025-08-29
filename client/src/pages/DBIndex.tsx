@@ -11,7 +11,11 @@ import {
   RefreshCwIcon,
   ArrowUpIcon,
   ArrowDownIcon,
-  MinusIcon 
+  MinusIcon,
+  BarChart3Icon,
+  TrendingUp,
+  Calculator,
+  Package
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -111,10 +115,18 @@ export default function DBIndex() {
     queryFn: async () => {
       const response = await fetch('/api/db-index');
       if (!response.ok) {
-        throw new Error('Failed to fetch DB-Index data');
+        const errorText = await response.text();
+        throw new Error(`API Error ${response.status}: ${errorText || 'Failed to fetch DB-Index data'}`);
       }
-      return response.json();
+      const result = await response.json();
+      if (!result.success) {
+        throw new Error(result.error || 'API returned unsuccessful response');
+      }
+      return result;
     },
+    retry: 2,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    gcTime: 10 * 60 * 1000, // 10 minutes (gcTime replaces cacheTime in v5)
   });
 
   const handleSort = (field: keyof DBIProduct) => {
@@ -193,49 +205,116 @@ export default function DBIndex() {
         </Button>
       </div>
 
-      {/* KPI Tile */}
-      {topProduct && (
+      {/* Enhanced KPI Dashboard */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center space-x-2">
+              <Package className="h-5 w-5 text-blue-600" />
+              <div className="text-sm font-medium text-gray-600">Gesamtprodukte</div>
+            </div>
+            <div className="text-2xl font-bold text-gray-900 mt-2">
+              {data?.data?.summary?.totalProducts || 0}
+            </div>
+            <p className="text-xs text-gray-500 mt-1">mit Umsatz (30 Tage)</p>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center space-x-2">
+              <TrendingUp className="h-5 w-5 text-green-600" />
+              <div className="text-sm font-medium text-gray-600">Höchster DBI</div>
+            </div>
+            <div className="text-2xl font-bold text-gray-900 mt-2">
+              {topProduct ? formatNumber(topProduct.deckungsbeitragsindex, 2) : '-'}
+            </div>
+            <p className="text-xs text-gray-500 mt-1">€ je Automat</p>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center space-x-2">
+              <Calculator className="h-5 w-5 text-purple-600" />
+              <div className="text-sm font-medium text-gray-600">Durchschnitt DBI</div>
+            </div>
+            <div className="text-2xl font-bold text-gray-900 mt-2">
+              {sortedProducts && sortedProducts.length > 0 ? formatNumber(
+                sortedProducts.filter(p => p.deckungsbeitragsindex !== null).reduce((sum, p) => sum + (p.deckungsbeitragsindex || 0), 0) / 
+                sortedProducts.filter(p => p.deckungsbeitragsindex !== null).length || 1, 2
+              ) : '-'}
+            </div>
+            <p className="text-xs text-gray-500 mt-1">€ je Automat</p>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center space-x-2">
+              <BarChart3Icon className="h-5 w-5 text-orange-600" />
+              <div className="text-sm font-medium text-gray-600">Positive DBIs</div>
+            </div>
+            <div className="text-2xl font-bold text-gray-900 mt-2">
+              {sortedProducts ? sortedProducts.filter(p => p.deckungsbeitragsindex && p.deckungsbeitragsindex > 0).length : 0}
+            </div>
+            <p className="text-xs text-gray-500 mt-1">von {sortedProducts?.length || 0} Produkten</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Top Product Highlight */}
+      {topProduct && (
+        <Card className="border-l-4 border-l-green-500">
           <CardHeader className="pb-3">
-            <CardTitle className="text-lg font-medium">
-              Deckungsbeitragsindex – Top-Produkt (30 Tage)
-            </CardTitle>
-            <CardDescription>
-              {topProduct.produkt_name}
-            </CardDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-lg font-medium flex items-center">
+                  <TrendingUpIcon className="h-5 w-5 text-green-600 mr-2" />
+                  Top-Performer: Deckungsbeitragsindex
+                </CardTitle>
+                <CardDescription className="text-base font-medium mt-1">
+                  {topProduct.produkt_name}
+                </CardDescription>
+              </div>
+              <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                Rang #1
+              </Badge>
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-4">
-                <div>
-                  <div className="flex items-center">
-                    <EuroIcon className="h-5 w-5 text-green-600 mr-1" />
-                    <span className="text-2xl font-bold text-gray-900">
-                      {formatNumber(topProduct.deckungsbeitragsindex, 2)}
-                    </span>
-                  </div>
-                  <p className="text-sm text-gray-600 mt-1">DBI je Automat</p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="space-y-2">
+                <div className="flex items-center">
+                  <EuroIcon className="h-5 w-5 text-green-600 mr-1" />
+                  <span className="text-3xl font-bold text-gray-900">
+                    {formatNumber(topProduct.deckungsbeitragsindex, 2)}
+                  </span>
                 </div>
-                
-                <div className="h-8 w-px bg-gray-200" />
-                
-                <div>
-                  <p className="text-sm text-gray-600">Δ vs. Vorperiode</p>
-                  <div className="flex items-center space-x-2 mt-1">
-                    <DeltaIndicator value={topProduct.dbi_delta_abs} />
-                    <span className="text-gray-400">|</span>
-                    <DeltaIndicator value={topProduct.dbi_delta_rel} isPercent />
-                  </div>
+                <p className="text-sm text-gray-600">DBI je Automat</p>
+              </div>
+              
+              <div className="space-y-2">
+                <p className="text-sm text-gray-600">Veränderung vs. Vorperiode</p>
+                <div className="flex items-center space-x-2">
+                  <DeltaIndicator value={topProduct.dbi_delta_abs} />
+                  <span className="text-gray-400">|</span>
+                  <DeltaIndicator value={topProduct.dbi_delta_rel} isPercent />
                 </div>
               </div>
-
-              <div className="text-right">
-                <Badge variant="outline">
-                  {topProduct.anzahl_automaten_gelistet} Automaten
-                </Badge>
-                <p className="text-sm text-gray-600 mt-1">
-                  Umsatz: {formatCurrency(topProduct.monatsumsatz_netto)}
-                </p>
+              
+              <div className="space-y-2 text-right">
+                <div className="space-y-1">
+                  <Badge variant="outline" className="block">
+                    {topProduct.anzahl_automaten_gelistet} {topProduct.anzahl_automaten_gelistet === 1 ? 'Automat' : 'Automaten'}
+                  </Badge>
+                  <p className="text-sm text-gray-600">
+                    Monatsumsatz: {formatCurrency(topProduct.monatsumsatz_netto)}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    Marge: {formatCurrency(topProduct.gesamtmarge)}
+                  </p>
+                </div>
               </div>
             </div>
           </CardContent>
@@ -259,105 +338,154 @@ export default function DBIndex() {
               </div>
             </div>
           ) : sortedProducts && sortedProducts.length > 0 ? (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead 
-                      className="cursor-pointer hover:bg-gray-50"
-                      onClick={() => handleSort('deckungsbeitragsindex')}
-                    >
-                      <div className="flex items-center">
-                        Deckungsbeitragsindex
-                        {sortField === 'deckungsbeitragsindex' && (
-                          sortDirection === 'desc' ? <ArrowDownIcon className="ml-1 h-4 w-4" /> : <ArrowUpIcon className="ml-1 h-4 w-4" />
-                        )}
-                      </div>
-                    </TableHead>
-                    <TableHead 
-                      className="cursor-pointer hover:bg-gray-50"
-                      onClick={() => handleSort('produkt_name')}
-                    >
-                      <div className="flex items-center">
-                        Produkt
-                        {sortField === 'produkt_name' && (
-                          sortDirection === 'desc' ? <ArrowDownIcon className="ml-1 h-4 w-4" /> : <ArrowUpIcon className="ml-1 h-4 w-4" />
-                        )}
-                      </div>
-                    </TableHead>
-                    <TableHead 
-                      className="cursor-pointer hover:bg-gray-50 text-right"
-                      onClick={() => handleSort('monatsumsatz_netto')}
-                    >
-                      <div className="flex items-center justify-end">
-                        Monatsumsatz (netto, o. Pfand)
-                        {sortField === 'monatsumsatz_netto' && (
-                          sortDirection === 'desc' ? <ArrowDownIcon className="ml-1 h-4 w-4" /> : <ArrowUpIcon className="ml-1 h-4 w-4" />
-                        )}
-                      </div>
-                    </TableHead>
-                    <TableHead 
-                      className="cursor-pointer hover:bg-gray-50 text-right"
-                      onClick={() => handleSort('anzahl_automaten_gelistet')}
-                    >
-                      <div className="flex items-center justify-end">
-                        Automaten (gelistet)
-                        {sortField === 'anzahl_automaten_gelistet' && (
-                          sortDirection === 'desc' ? <ArrowDownIcon className="ml-1 h-4 w-4" /> : <ArrowUpIcon className="ml-1 h-4 w-4" />
-                        )}
-                      </div>
-                    </TableHead>
-                    <TableHead 
-                      className="cursor-pointer hover:bg-gray-50 text-right"
-                      onClick={() => handleSort('dbi_vorperiode')}
-                    >
-                      <div className="flex items-center justify-end">
-                        DBI Vormonat
-                        {sortField === 'dbi_vorperiode' && (
-                          sortDirection === 'desc' ? <ArrowDownIcon className="ml-1 h-4 w-4" /> : <ArrowUpIcon className="ml-1 h-4 w-4" />
-                        )}
-                      </div>
-                    </TableHead>
-                    <TableHead className="text-right">Δ DBI</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {sortedProducts.map((product) => (
-                    <TableRow key={product.id}>
-                      <TableCell className="font-medium">
+            <div className="space-y-4">
+              {/* Performance Summary Bar */}
+              <div className="bg-gray-50 rounded-lg p-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                  <div className="text-center">
+                    <div className="text-lg font-semibold text-green-600">
+                      {sortedProducts.filter(p => p.deckungsbeitragsindex && p.deckungsbeitragsindex > 100).length}
+                    </div>
+                    <div className="text-gray-600">DBI &gt; 100€</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-lg font-semibold text-yellow-600">
+                      {sortedProducts.filter(p => p.deckungsbeitragsindex && p.deckungsbeitragsindex > 0 && p.deckungsbeitragsindex <= 100).length}
+                    </div>
+                    <div className="text-gray-600">DBI 0-100€</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-lg font-semibold text-red-600">
+                      {sortedProducts.filter(p => p.deckungsbeitragsindex && p.deckungsbeitragsindex <= 0).length}
+                    </div>
+                    <div className="text-gray-600">DBI ≤ 0€</div>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-12">#</TableHead>
+                      <TableHead 
+                        className="cursor-pointer hover:bg-gray-50"
+                        onClick={() => handleSort('deckungsbeitragsindex')}
+                      >
                         <div className="flex items-center">
-                          <EuroIcon className="h-4 w-4 text-green-600 mr-1" />
-                          {formatNumber(product.deckungsbeitragsindex, 2)}
+                          Deckungsbeitragsindex
+                          {sortField === 'deckungsbeitragsindex' && (
+                            sortDirection === 'desc' ? <ArrowDownIcon className="ml-1 h-4 w-4" /> : <ArrowUpIcon className="ml-1 h-4 w-4" />
+                          )}
                         </div>
-                      </TableCell>
-                      <TableCell className="max-w-xs">
-                        <div className="truncate" title={product.produkt_name}>
-                          {product.produkt_name}
+                      </TableHead>
+                      <TableHead 
+                        className="cursor-pointer hover:bg-gray-50"
+                        onClick={() => handleSort('produkt_name')}
+                      >
+                        <div className="flex items-center">
+                          Produkt
+                          {sortField === 'produkt_name' && (
+                            sortDirection === 'desc' ? <ArrowDownIcon className="ml-1 h-4 w-4" /> : <ArrowUpIcon className="ml-1 h-4 w-4" />
+                          )}
                         </div>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {formatCurrency(product.monatsumsatz_netto)}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {product.anzahl_automaten_gelistet}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {formatNumber(product.dbi_vorperiode, 2)}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="space-y-1">
-                          <DeltaIndicator value={product.dbi_delta_abs} />
-                          <DeltaIndicator value={product.dbi_delta_rel} isPercent />
+                      </TableHead>
+                      <TableHead 
+                        className="cursor-pointer hover:bg-gray-50 text-right"
+                        onClick={() => handleSort('monatsumsatz_netto')}
+                      >
+                        <div className="flex items-center justify-end">
+                          Monatsumsatz (netto)
+                          {sortField === 'monatsumsatz_netto' && (
+                            sortDirection === 'desc' ? <ArrowDownIcon className="ml-1 h-4 w-4" /> : <ArrowUpIcon className="ml-1 h-4 w-4" />
+                          )}
                         </div>
-                      </TableCell>
+                      </TableHead>
+                      <TableHead 
+                        className="cursor-pointer hover:bg-gray-50 text-right"
+                        onClick={() => handleSort('anzahl_automaten_gelistet')}
+                      >
+                        <div className="flex items-center justify-end">
+                          Automaten
+                          {sortField === 'anzahl_automaten_gelistet' && (
+                            sortDirection === 'desc' ? <ArrowDownIcon className="ml-1 h-4 w-4" /> : <ArrowUpIcon className="ml-1 h-4 w-4" />
+                          )}
+                        </div>
+                      </TableHead>
+                      <TableHead 
+                        className="cursor-pointer hover:bg-gray-50 text-right"
+                        onClick={() => handleSort('dbi_vorperiode')}
+                      >
+                        <div className="flex items-center justify-end">
+                          DBI Vormonat
+                          {sortField === 'dbi_vorperiode' && (
+                            sortDirection === 'desc' ? <ArrowDownIcon className="ml-1 h-4 w-4" /> : <ArrowUpIcon className="ml-1 h-4 w-4" />
+                          )}
+                        </div>
+                      </TableHead>
+                      <TableHead className="text-right">Veränderung</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {sortedProducts.map((product, index) => {
+                      const dbiValue = product.deckungsbeitragsindex;
+                      const dbiColor = dbiValue === null ? 'text-gray-400' : 
+                                      dbiValue > 100 ? 'text-green-600' :
+                                      dbiValue > 0 ? 'text-yellow-600' : 'text-red-600';
+                      const bgColor = index < 3 ? 'bg-yellow-50' : 
+                                      dbiValue && dbiValue > 100 ? 'bg-green-50' :
+                                      dbiValue && dbiValue <= 0 ? 'bg-red-50' : '';
+                      
+                      return (
+                        <TableRow key={product.id} className={bgColor}>
+                          <TableCell className="font-medium text-gray-500">
+                            {index + 1}
+                            {index < 3 && <span className="ml-1 text-yellow-500">★</span>}
+                          </TableCell>
+                          <TableCell className={`font-medium ${dbiColor}`}>
+                            <div className="flex items-center">
+                              <EuroIcon className="h-4 w-4 mr-1" />
+                              {formatNumber(product.deckungsbeitragsindex, 2)}
+                            </div>
+                          </TableCell>
+                          <TableCell className="max-w-xs">
+                            <div className="truncate font-medium" title={product.produkt_name}>
+                              {product.produkt_name}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right font-medium">
+                            {formatCurrency(product.monatsumsatz_netto)}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Badge variant={product.anzahl_automaten_gelistet > 1 ? 'default' : 'secondary'}>
+                              {product.anzahl_automaten_gelistet}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {formatNumber(product.dbi_vorperiode, 2)}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="space-y-1">
+                              <DeltaIndicator value={product.dbi_delta_abs} />
+                              <DeltaIndicator value={product.dbi_delta_rel} isPercent />
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
             </div>
           ) : (
             <div className="flex items-center justify-center h-40">
-              <p className="text-gray-600">Keine Daten im 30-Tage-Zeitraum.</p>
+              <div className="text-center">
+                <BarChart3Icon className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                <p className="text-gray-600 font-medium">Keine Produktdaten verfügbar</p>
+                <p className="text-sm text-gray-500 mt-1">
+                  Keine Produkte mit Umsatz im 30-Tage-Zeitraum gefunden.
+                </p>
+              </div>
             </div>
           )}
         </CardContent>

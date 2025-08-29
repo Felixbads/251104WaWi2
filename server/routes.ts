@@ -6236,90 +6236,120 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`[DB-INDEX] Current window: ${startDate.toISOString()} to ${endDate.toISOString()}`);
       console.log(`[DB-INDEX] Previous window: ${prevStartDate.toISOString()} to ${prevEndDate.toISOString()}`);
 
-      // Complex SQL query for DB-Index calculation based on specifications
+      // Complex SQL query for DB-Index calculation with proper product ID mapping
       const dbIndexQuery = `
-        WITH current_sales AS (
+        WITH product_mapping AS (
+          -- Create mapping between different product ID formats
           SELECT 
-            COALESCE(t.product_id, p.vendon_id) AS product_vendon_id,
-            SUM(t.quantity * (COALESCE(t.price_wo_vat, t.price - COALESCE(t.price_vat, 0)) - COALESCE(p.deposit_price, 0))) AS monatsumsatz_netto,
-            SUM(t.quantity * ((COALESCE(t.price_wo_vat, t.price - COALESCE(t.price_vat, 0)) - COALESCE(p.deposit_price, 0)) - COALESCE(p.cost_price, 0))) AS gesamtmarge
+            p.id,
+            p.vendon_id,
+            p.product_name,
+            p.cost_price,
+            p.deposit_price
+          FROM products p
+          WHERE p.vendon_id IS NOT NULL
+        ),
+        current_sales AS (
+          SELECT 
+            pm.vendon_id AS product_vendon_id,
+            SUM(t.quantity * (COALESCE(t.price_wo_vat, t.price - COALESCE(t.price_vat, 0)) - COALESCE(pm.deposit_price, 0))) AS monatsumsatz_netto,
+            SUM(t.quantity * ((COALESCE(t.price_wo_vat, t.price - COALESCE(t.price_vat, 0)) - COALESCE(pm.deposit_price, 0)) - COALESCE(pm.cost_price, 0))) AS gesamtmarge
           FROM transactions t
-          LEFT JOIN products p ON (t.product_id = p.vendon_id OR t.product_name = p.product_name)
+          JOIN product_mapping pm ON (t.product_id = pm.vendon_id OR t.product_name = pm.product_name)
           WHERE t.datetime >= $1 AND t.datetime < $2
-            AND p.vendon_id IS NOT NULL
-          GROUP BY COALESCE(t.product_id, p.vendon_id)
+          GROUP BY pm.vendon_id
         ),
         current_withdrawals AS (
           SELECT 
-            di.product_id AS product_vendon_id,
-            SUM(di.quantity * COALESCE(p.cost_price, 0)) AS wert_entnahmen
+            pm.vendon_id AS product_vendon_id,
+            SUM(di.quantity * COALESCE(pm.cost_price, 0)) AS wert_entnahmen
           FROM product_disposal_items di
           JOIN product_disposals d ON d.id = di.disposal_id
-          LEFT JOIN products p ON p.vendon_id = di.product_id
+          JOIN product_mapping pm ON pm.vendon_id = di.product_id
           WHERE d.created_at >= $1 AND d.created_at < $2
-          GROUP BY di.product_id
+          GROUP BY pm.vendon_id
         ),
         current_listing AS (
+          -- Join machine_stocks with products table to get proper vendon_id mapping
           SELECT 
-            ms.product_vendon_id AS product_vendon_id,
+            pm.vendon_id AS product_vendon_id,
             COUNT(DISTINCT ms.machine_id) AS anzahl_automaten_gelistet
           FROM machine_stocks ms
+          JOIN product_mapping pm ON (
+            ms.product_vendon_id = pm.vendon_id OR 
+            ms.product_vendon_id IN (
+              SELECT unnest(string_to_array(pm.vendon_id::text, ','))
+            )
+          )
           WHERE ms.product_vendon_id IS NOT NULL
-          GROUP BY ms.product_vendon_id
+          GROUP BY pm.vendon_id
+          
+          UNION ALL
+          
+          -- For products that have sales but no machine stock entries, assume 1 machine
+          SELECT 
+            cs.product_vendon_id,
+            1 as anzahl_automaten_gelistet
+          FROM current_sales cs
+          WHERE cs.product_vendon_id NOT IN (
+            SELECT pm2.vendon_id 
+            FROM machine_stocks ms2
+            JOIN product_mapping pm2 ON ms2.product_vendon_id = pm2.vendon_id
+            WHERE ms2.product_vendon_id IS NOT NULL
+          )
         ),
         previous_sales AS (
           SELECT 
-            COALESCE(t.product_id, p.vendon_id) AS product_vendon_id,
-            SUM(t.quantity * (COALESCE(t.price_wo_vat, t.price - COALESCE(t.price_vat, 0)) - COALESCE(p.deposit_price, 0))) AS monatsumsatz_netto_prev,
-            SUM(t.quantity * ((COALESCE(t.price_wo_vat, t.price - COALESCE(t.price_vat, 0)) - COALESCE(p.deposit_price, 0)) - COALESCE(p.cost_price, 0))) AS gesamtmarge_prev
+            pm.vendon_id AS product_vendon_id,
+            SUM(t.quantity * (COALESCE(t.price_wo_vat, t.price - COALESCE(t.price_vat, 0)) - COALESCE(pm.deposit_price, 0))) AS monatsumsatz_netto_prev,
+            SUM(t.quantity * ((COALESCE(t.price_wo_vat, t.price - COALESCE(t.price_vat, 0)) - COALESCE(pm.deposit_price, 0)) - COALESCE(pm.cost_price, 0))) AS gesamtmarge_prev
           FROM transactions t
-          LEFT JOIN products p ON (t.product_id = p.vendon_id OR t.product_name = p.product_name)
+          JOIN product_mapping pm ON (t.product_id = pm.vendon_id OR t.product_name = pm.product_name)
           WHERE t.datetime >= $3 AND t.datetime < $4
-            AND p.vendon_id IS NOT NULL
-          GROUP BY COALESCE(t.product_id, p.vendon_id)
+          GROUP BY pm.vendon_id
         ),
         previous_withdrawals AS (
           SELECT 
-            di.product_id AS product_vendon_id,
-            SUM(di.quantity * COALESCE(p.cost_price, 0)) AS wert_entnahmen_prev
+            pm.vendon_id AS product_vendon_id,
+            SUM(di.quantity * COALESCE(pm.cost_price, 0)) AS wert_entnahmen_prev
           FROM product_disposal_items di
           JOIN product_disposals d ON d.id = di.disposal_id
-          LEFT JOIN products p ON p.vendon_id = di.product_id
+          JOIN product_mapping pm ON pm.vendon_id = di.product_id
           WHERE d.created_at >= $3 AND d.created_at < $4
-          GROUP BY di.product_id
+          GROUP BY pm.vendon_id
         ),
         combined_current AS (
           SELECT 
-            p.id,
-            p.vendon_id AS product_vendon_id,
-            p.product_name AS produkt_name,
+            pm.id,
+            pm.vendon_id AS product_vendon_id,
+            pm.product_name AS produkt_name,
             COALESCE(cs.monatsumsatz_netto, 0) AS monatsumsatz_netto,
             COALESCE(cw.wert_entnahmen, 0) AS wert_entnahmen,
             COALESCE(cs.gesamtmarge, 0) AS gesamtmarge,
             (COALESCE(cs.gesamtmarge, 0) - COALESCE(cw.wert_entnahmen, 0)) AS delta_ergebnis_minus_entnahmen,
-            COALESCE(cl.anzahl_automaten_gelistet, 0) AS anzahl_automaten_gelistet,
+            COALESCE(MAX(cl.anzahl_automaten_gelistet), 0) AS anzahl_automaten_gelistet,
             CASE 
-              WHEN COALESCE(cl.anzahl_automaten_gelistet, 0) = 0 THEN NULL
-              ELSE (COALESCE(cs.gesamtmarge, 0) - COALESCE(cw.wert_entnahmen, 0))::numeric / NULLIF(cl.anzahl_automaten_gelistet, 0)
+              WHEN COALESCE(MAX(cl.anzahl_automaten_gelistet), 0) = 0 THEN NULL
+              ELSE (COALESCE(cs.gesamtmarge, 0) - COALESCE(cw.wert_entnahmen, 0))::numeric / NULLIF(MAX(cl.anzahl_automaten_gelistet), 0)
             END AS deckungsbeitragsindex
-          FROM products p
-          LEFT JOIN current_sales cs ON cs.product_vendon_id = p.vendon_id
-          LEFT JOIN current_withdrawals cw ON cw.product_vendon_id = p.vendon_id
-          LEFT JOIN current_listing cl ON cl.product_vendon_id = p.vendon_id
-          WHERE p.vendon_id IS NOT NULL
+          FROM product_mapping pm
+          LEFT JOIN current_sales cs ON cs.product_vendon_id = pm.vendon_id
+          LEFT JOIN current_withdrawals cw ON cw.product_vendon_id = pm.vendon_id
+          LEFT JOIN current_listing cl ON cl.product_vendon_id = pm.vendon_id
+          GROUP BY pm.id, pm.vendon_id, pm.product_name, cs.monatsumsatz_netto, cs.gesamtmarge, cw.wert_entnahmen
         ),
         combined_previous AS (
           SELECT 
-            p.vendon_id AS product_vendon_id,
+            pm.vendon_id AS product_vendon_id,
             CASE 
-              WHEN COALESCE(cl.anzahl_automaten_gelistet, 0) = 0 THEN NULL
-              ELSE ((COALESCE(ps.gesamtmarge_prev, 0) - COALESCE(pw.wert_entnahmen_prev, 0))::numeric / NULLIF(cl.anzahl_automaten_gelistet, 0))
+              WHEN COALESCE(MAX(cl.anzahl_automaten_gelistet), 0) = 0 THEN NULL
+              ELSE ((COALESCE(ps.gesamtmarge_prev, 0) - COALESCE(pw.wert_entnahmen_prev, 0))::numeric / NULLIF(MAX(cl.anzahl_automaten_gelistet), 0))
             END AS dbi_vorperiode
-          FROM products p
-          LEFT JOIN previous_sales ps ON ps.product_vendon_id = p.vendon_id
-          LEFT JOIN previous_withdrawals pw ON pw.product_vendon_id = p.vendon_id
-          LEFT JOIN current_listing cl ON cl.product_vendon_id = p.vendon_id
-          WHERE p.vendon_id IS NOT NULL
+          FROM product_mapping pm
+          LEFT JOIN previous_sales ps ON ps.product_vendon_id = pm.vendon_id
+          LEFT JOIN previous_withdrawals pw ON pw.product_vendon_id = pm.vendon_id
+          LEFT JOIN current_listing cl ON cl.product_vendon_id = pm.vendon_id
+          GROUP BY pm.vendon_id, ps.gesamtmarge_prev, pw.wert_entnahmen_prev
         )
         SELECT 
           cc.*,
