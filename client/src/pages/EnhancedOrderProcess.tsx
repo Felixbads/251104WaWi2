@@ -68,7 +68,7 @@ import AdditionalInfoForm from '@/components/orderv2/AdditionalInfoForm';
 import OrderSummary from '@/components/orderv2/OrderSummary';
 
 // Enhanced Order Mode Types
-export type EnhancedOrderMode = 'standard' | 'refill' | 'special' | 'emergency' | 'copy';
+export type EnhancedOrderMode = 'special' | 'emergency' | 'copy';
 
 // Define the enhanced order steps
 type EnhancedOrderStep = 'mode' | 'warehouse' | 'supplier' | 'products' | 'additionalInfo' | 'summary' | 'complete';
@@ -250,7 +250,7 @@ const EnhancedOrderProcess: React.FC = () => {
   
   // State for the enhanced order process
   const [step, setStep] = useState<EnhancedOrderStep>('mode');
-  const [orderMode, setOrderMode] = useState<EnhancedOrderMode>('standard');
+  const [orderMode, setOrderMode] = useState<EnhancedOrderMode>('special');
   const [warehouseId, setWarehouseId] = useState<number | null>(null);
   const [warehouseName, setWarehouseName] = useState<string>('');
   const [supplierId, setSupplierId] = useState<number | null>(null);
@@ -277,22 +277,6 @@ const EnhancedOrderProcess: React.FC = () => {
 
   // Enhanced Order Modes with detailed descriptions
   const orderModes: OrderModeOption[] = [
-    {
-      id: 'standard',
-      title: 'Standardbestellung',
-      description: 'Reguläre Bestellung mit normaler Priorität und Standard-Lieferzeit.',
-      icon: <Clipboard className="h-8 w-8" />,
-      color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300',
-      features: ['Normale Priorität', 'Standard-Lieferzeit', 'Reguläre Konditionen']
-    },
-    {
-      id: 'refill',
-      title: 'Nachfüllbestellung',
-      description: 'Automatisierte Bestellung basierend auf Mindestbeständen und Verbrauchsprognosen.',
-      icon: <Package2 className="h-8 w-8" />,
-      color: 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300',
-      features: ['Bestandsbasiert', 'Automatische Mengen', 'Optimierte Nachfüllung']
-    },
     {
       id: 'special',
       title: 'Sonderbestellung',
@@ -648,7 +632,7 @@ const EnhancedOrderProcess: React.FC = () => {
               <Button onClick={() => {
                 // Reset state for new order
                 setStep('mode');
-                setOrderMode('standard');
+                setOrderMode('special');
                 setWarehouseId(null);
                 setWarehouseName('');
                 setSupplierId(null);

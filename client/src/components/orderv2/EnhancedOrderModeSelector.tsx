@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 
 // Enhanced Order Mode Types
-export type EnhancedOrderMode = 'standard' | 'refill' | 'special' | 'emergency' | 'copy';
+export type EnhancedOrderMode = 'special' | 'emergency' | 'copy';
 
 interface OrderModeOption {
   id: EnhancedOrderMode;
@@ -45,22 +45,6 @@ const EnhancedOrderModeSelector: React.FC<EnhancedOrderModeSelectorProps> = ({
 }) => {
   // Enhanced Order Modes with detailed descriptions
   const orderModes: OrderModeOption[] = [
-    {
-      id: 'standard',
-      title: 'Standardbestellung',
-      description: 'Reguläre Bestellung mit normaler Priorität und Standard-Lieferzeit.',
-      icon: <Clipboard className="h-8 w-8" />,
-      color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300',
-      features: ['Normale Priorität', 'Standard-Lieferzeit', 'Reguläre Konditionen']
-    },
-    {
-      id: 'refill',
-      title: 'Nachfüllbestellung',
-      description: 'Automatisierte Bestellung basierend auf Mindestbeständen und Verbrauchsprognosen.',
-      icon: <Package2 className="h-8 w-8" />,
-      color: 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300',
-      features: ['Bestandsbasiert', 'Automatische Mengen', 'Optimierte Nachfüllung']
-    },
     {
       id: 'special',
       title: 'Sonderbestellung',
