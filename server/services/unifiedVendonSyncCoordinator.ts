@@ -985,9 +985,9 @@ export class UnifiedVendonSyncCoordinator {
                     if (product.removed && product.removed > 0) {
                       productsWithRemovals++;
                       try {
-                        // Verwende bekannten rawDb-Ansatz wie andere Stellen im Code
+                        // Verwende korrekte Spalten-Namen: previous_stock, current_stock
                         const insertQuery = `
-                          INSERT INTO refill_details (refill_id, product_name, removed, added, before_refill, after_refill)
+                          INSERT INTO refill_details (refill_id, product_name, removed, added, previous_stock, current_stock)
                           VALUES ($1, $2, $3, $4, $5, $6)
                         `;
                         await rawDb.query(insertQuery, [
