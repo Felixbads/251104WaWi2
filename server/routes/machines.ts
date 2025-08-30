@@ -644,31 +644,43 @@ router.get('/:id/stock', async (req, res) => {
     if (vendonStock && vendonStock.length > 0) {
       console.log(`[MACHINES API] ✅ Using Vendon API data as PRIMARY source (${vendonStock.length} products)`);
       
-      // Format Vendon data to match our interface - DEBUG MAPPING
-      formattedStock = vendonStock.map((product, index) => {
+      // FIFO ENHANCEMENT: Enrich Vendon data with batch/MHD information
+      console.log(`[FIFO] Starting FIFO batch allocation for ${vendonStock.length} products`);
+      
+      const enrichedProducts = [];
+      
+      for (let index = 0; index < vendonStock.length; index++) {
+        const product = vendonStock[index];
         const currentQty = parseInt(product.amount) || parseInt(product.quantity) || parseInt(product.stock) || 0;
         const maxQty = parseInt(product.amount_max) || parseInt(product.capacity) || parseInt(product.max_capacity) || currentQty || 10;
         
-        console.log(`[MAPPING DEBUG] Product ${index}: ${product.name} - Raw amount: ${product.amount}, Parsed: ${currentQty}`);
+        // Get FIFO batch allocation for this product
+        const batchInfo = await calculateFifoBatchAllocation(rawDb, machineInternalId!, product.name, currentQty);
         
-        return {
+        const enrichedProduct = {
           id: index + 1,
           productName: product.name || product.product_name || 'Unbekanntes Produkt',
           currentQuantity: currentQty,
           maxQuantity: maxQty,
           lastRefill: product.last_purchase ? new Date(product.last_purchase * 1000).toISOString() : null,
           vendonId: product.id || product.vendon_id,
-          status: currentQty <= 2 ? 'critical' : currentQty <= 5 ? 'warning' : 'good'
+          status: currentQty <= 2 ? 'critical' : currentQty <= 5 ? 'warning' : 'good',
+          // FIFO batch information
+          batches: batchInfo.batches,
+          earliestMhd: batchInfo.earliestMhd,
+          totalBatches: batchInfo.totalBatches,
+          mhdStatus: batchInfo.mhdStatus
         };
-      });
+        
+        enrichedProducts.push(enrichedProduct);
+      }
       
-      console.log(`[MACHINES API] 📦 Formatted ${formattedStock.length} Vendon products`);
-      console.log(`[MACHINES API] 🔍 Sample formatted product:`, JSON.stringify(formattedStock[0], null, 2));
+      console.log(`[FIFO] ✅ Enriched ${enrichedProducts.length} products with batch information`);
+      console.log(`[MACHINES API] 🔍 Sample enriched product:`, JSON.stringify(enrichedProducts[0], null, 2));
       
-      // WICHTIG: Return early nach erfolgreichem Vendon Mapping
-      console.log(`[MACHINES API] ✅ VENDON SUCCESS - Returning ${formattedStock.length} products directly`);
-      console.log(`[MACHINES API] Found ${formattedStock.length} stock entries for machine ${machineInternalId}`);
-      return res.json(formattedStock);
+      console.log(`[MACHINES API] ✅ VENDON SUCCESS - Returning ${enrichedProducts.length} products with FIFO batch data`);
+      console.log(`[MACHINES API] Found ${enrichedProducts.length} stock entries for machine ${machineInternalId}`);
+      return res.json(enrichedProducts);
     } else {
       console.log(`[MACHINES API] 🔄 FALLBACK: Using refill-based calculation since Vendon API failed`);
       try {
@@ -919,6 +931,121 @@ router.get('/:id/stock', async (req, res) => {
     });
   }
 });
+
+/**
+ * FIFO Batch Allocation Algorithm
+ * Calculates which batches should be allocated to current stock based on FIFO principle
+ */
+async function calculateFifoBatchAllocation(rawDb: any, machineId: number, productName: string, currentQuantity: number) {
+  try {
+    console.log(`[FIFO] Calculating batch allocation for ${productName} with ${currentQuantity} units`);
+    
+    // 1. Get all refill movements for this product in chronological order
+    const refillMovements = await rawDb.query(`
+      SELECT 
+        rd.added,
+        rd.removed,
+        r.datetime as refill_datetime,
+        rd.refill_id
+      FROM refill_details rd
+      JOIN refills r ON rd.refill_id = r.id
+      WHERE r.machine_id = $1 
+        AND rd.product_name = $2
+        AND (rd.added > 0 OR rd.removed > 0)
+      ORDER BY r.datetime ASC
+    `, [machineId, productName]);
+    
+    // 2. Get available batches for this product
+    const availableBatches = await rawDb.query(`
+      SELECT 
+        ib.id,
+        ib.batch_number,
+        ib.expiry_date,
+        ib.incoming_date,
+        ib.quantity as batch_quantity,
+        ib.status
+      FROM inventory_batches ib
+      JOIN products p ON ib.product_id = p.id
+      WHERE p.product_name = $1
+        AND ib.status = 'active'
+      ORDER BY ib.incoming_date ASC, ib.expiry_date ASC
+    `, [productName]);
+    
+    console.log(`[FIFO] Found ${refillMovements.rows.length} refill movements and ${availableBatches.rows.length} batches`);
+    
+    if (availableBatches.rows.length === 0) {
+      return {
+        batches: [],
+        earliestMhd: null,
+        totalBatches: 0,
+        mhdStatus: 'no_data'
+      };
+    }
+    
+    // 3. FIFO Algorithm: Simulate consumption
+    let remainingStock = currentQuantity;
+    const allocatedBatches = [];
+    let totalAdded = 0;
+    let totalRemoved = 0;
+    
+    // Calculate total movements to understand stock history
+    refillMovements.rows.forEach((movement: any) => {
+      totalAdded += movement.added || 0;
+      totalRemoved += movement.removed || 0;
+    });
+    
+    console.log(`[FIFO] Stock history: ${totalAdded} added, ${totalRemoved} removed, current: ${currentQuantity}`);
+    
+    // 4. Allocate batches using FIFO principle
+    for (const batch of availableBatches.rows) {
+      if (remainingStock <= 0) break;
+      
+      const allocatedFromBatch = Math.min(remainingStock, batch.batch_quantity);
+      
+      allocatedBatches.push({
+        batchId: batch.id,
+        batchNumber: batch.batch_number,
+        expiryDate: batch.expiry_date,
+        incomingDate: batch.incoming_date,
+        allocatedQuantity: allocatedFromBatch,
+        totalBatchQuantity: batch.batch_quantity,
+        status: batch.status
+      });
+      
+      remainingStock -= allocatedFromBatch;
+    }
+    
+    // 5. Calculate MHD status
+    const earliestMhd = allocatedBatches.length > 0 ? 
+      Math.min(...allocatedBatches.map(b => new Date(b.expiryDate).getTime())) : null;
+    
+    let mhdStatus = 'ok';
+    if (earliestMhd) {
+      const daysUntilExpiry = (earliestMhd - Date.now()) / (1000 * 60 * 60 * 24);
+      if (daysUntilExpiry < 0) mhdStatus = 'expired';
+      else if (daysUntilExpiry <= 7) mhdStatus = 'warning';
+      else if (daysUntilExpiry <= 30) mhdStatus = 'attention';
+    }
+    
+    console.log(`[FIFO] Allocated ${allocatedBatches.length} batches for ${productName}, earliest MHD: ${earliestMhd ? new Date(earliestMhd).toISOString().split('T')[0] : 'unknown'}`);
+    
+    return {
+      batches: allocatedBatches,
+      earliestMhd: earliestMhd ? new Date(earliestMhd).toISOString().split('T')[0] : null,
+      totalBatches: allocatedBatches.length,
+      mhdStatus: mhdStatus
+    };
+    
+  } catch (error) {
+    console.error(`[FIFO] Error calculating batch allocation for ${productName}:`, error);
+    return {
+      batches: [],
+      earliestMhd: null,
+      totalBatches: 0,
+      mhdStatus: 'error'
+    };
+  }
+}
 
 /**
  * GET /api/machines/:id/removed-products
