@@ -310,28 +310,105 @@ class EnhancedEmailService {
   }
 
   /**
-   * Holt den access_token für einen Lieferanten und generiert Portal-Link
+   * Holt den access_token für einen Lieferanten und generiert sicheren Portal-Link
    */
   async getSupplierPortalLink(supplierId: number): Promise<string> {
     try {
+      // Validiere supplierId
+      if (!supplierId || supplierId <= 0) {
+        console.warn('[EnhancedEmailService] Ungültige Lieferanten-ID:', supplierId);
+        return '';
+      }
+
+      // Sichere Datenbankabfrage mit Validierung
       const result = await rawDb.query(
-        'SELECT access_token FROM supplier_access_pins WHERE supplier_id = $1 AND is_active = true LIMIT 1',
+        'SELECT access_token, created_at, expires_at FROM supplier_access_pins WHERE supplier_id = $1 AND is_active = true ORDER BY created_at DESC LIMIT 1',
         [supplierId]
       );
       
-      if (result.rows.length > 0) {
-        const accessToken = result.rows[0].access_token;
-        const baseUrl = process.env.REPLIT_DEV_DOMAIN ? 
-          `https://${process.env.REPLIT_DEV_DOMAIN}` : 
-          'https://www.proviantomat.de';
-        return `${baseUrl}/lieferant/${accessToken}`;
+      if (result.rows.length === 0) {
+        console.log(`[EnhancedEmailService] Kein aktiver Access-Token für Lieferant ${supplierId} gefunden`);
+        return '';
       }
+
+      const tokenData = result.rows[0];
+      const accessToken = tokenData.access_token;
       
-      return '';
+      // Validiere Access-Token Format
+      if (!accessToken || typeof accessToken !== 'string' || accessToken.length < 10) {
+        console.error('[EnhancedEmailService] Ungültiger Access-Token:', accessToken);
+        return '';
+      }
+
+      // Prüfe Token-Gültigkeit (falls expires_at gesetzt ist)
+      if (tokenData.expires_at) {
+        const expiresAt = new Date(tokenData.expires_at);
+        const now = new Date();
+        if (expiresAt <= now) {
+          console.warn(`[EnhancedEmailService] Access-Token für Lieferant ${supplierId} ist abgelaufen:`, expiresAt);
+          return '';
+        }
+      }
+
+      // Sichere URL-Generierung
+      const baseUrl = this.getSecureBaseUrl();
+      const portalUrl = `${baseUrl}/lieferant/${encodeURIComponent(accessToken)}`;
+      
+      // Validiere generierte URL
+      if (!this.isValidUrl(portalUrl)) {
+        console.error('[EnhancedEmailService] Generierte URL ist ungültig:', portalUrl);
+        return '';
+      }
+
+      console.log(`[EnhancedEmailService] Sicherer Portal-Link generiert für Lieferant ${supplierId}`);
+      return portalUrl;
+      
     } catch (error) {
       console.error('[EnhancedEmailService] Fehler beim Abrufen des Portal-Links:', error);
       return '';
     }
+  }
+
+  /**
+   * Ermittelt sichere Basis-URL
+   */
+  private getSecureBaseUrl(): string {
+    // Production URL hat Priorität
+    if (process.env.PRODUCTION_DOMAIN) {
+      return `https://${process.env.PRODUCTION_DOMAIN}`;
+    }
+    
+    // Development URL falls verfügbar
+    if (process.env.REPLIT_DEV_DOMAIN) {
+      return `https://${process.env.REPLIT_DEV_DOMAIN}`;
+    }
+    
+    // Fallback auf Standard-Domain
+    return 'https://www.proviantomat.de';
+  }
+
+  /**
+   * Validiert URL-Format
+   */
+  private isValidUrl(url: string): boolean {
+    try {
+      const urlObj = new URL(url);
+      return urlObj.protocol === 'https:' && urlObj.hostname.length > 0;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Escapes HTML entities für sichere E-Mail-Darstellung
+   */
+  private escapeHtml(unsafe: string): string {
+    return unsafe
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
   }
 
   /**
@@ -383,21 +460,22 @@ class EnhancedEmailService {
         break;
     }
     
-    // Portal-Link-Sektion erstellen
-    const portalLinkSection = portalLink ? `
-      <div style="background-color: #f0f9ff; border: 2px solid #0891b2; border-radius: 8px; padding: 20px; margin: 20px 0;">
-        <h3 style="color: #0891b2; margin: 0 0 10px 0; font-size: 16px;">🚚 Lieferung online bestätigen</h3>
-        <p style="margin: 0 0 15px 0; color: #374151;">Nutzen Sie unser Lieferantenportal, um:</p>
-        <ul style="margin: 0 0 15px 0; color: #374151; padding-left: 20px;">
+    // Portal-Link-Sektion erstellen (sicher und robust)
+    const portalLinkSection = portalLink && this.isValidUrl(portalLink) ? `
+      <div style="background-color: #f0f9ff; border: 2px solid #0891b2; border-radius: 8px; padding: 20px; margin: 20px 0; text-align: left;">
+        <h3 style="color: #0891b2; margin: 0 0 10px 0; font-size: 16px; font-family: Arial, sans-serif;">🚚 Lieferung online bestätigen</h3>
+        <p style="margin: 0 0 15px 0; color: #374151; font-family: Arial, sans-serif; line-height: 1.4;">Nutzen Sie unser sicheres Lieferantenportal, um:</p>
+        <ul style="margin: 0 0 15px 0; color: #374151; padding-left: 20px; font-family: Arial, sans-serif; line-height: 1.5;">
           <li>Den Liefertermin zu bestätigen</li>
           <li>Genaue Lieferzeit anzugeben</li>
           <li>Kommentare zur Bestellung zu hinterlassen</li>
           <li>Bei Bedarf Mengen anzupassen</li>
         </ul>
         <p style="margin: 0; text-align: center;">
-          <a href="${portalLink}" style="background-color: #0891b2; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">🔗 Zum Lieferantenportal</a>
+          <a href="${this.escapeHtml(portalLink)}" target="_blank" rel="noopener noreferrer" style="background-color: #0891b2; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; font-family: Arial, sans-serif;">🔗 Zum Lieferantenportal</a>
         </p>
-        <p style="margin: 10px 0 0 0; font-size: 12px; color: #6b7280; text-align: center;">Dieser Link ist nur für Sie bestimmt und 30 Tage gültig.</p>
+        <p style="margin: 10px 0 0 0; font-size: 12px; color: #6b7280; text-align: center; font-family: Arial, sans-serif;">Dieser sichere Link ist nur für Sie bestimmt und 30 Tage gültig.</p>
+        <p style="margin: 5px 0 0 0; font-size: 11px; color: #9ca3af; text-align: center; font-family: Arial, sans-serif;">🔒 SSL-verschlüsselt | Automatischer Timeout</p>
       </div>
     ` : '';
 
