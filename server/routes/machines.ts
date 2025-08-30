@@ -1155,12 +1155,112 @@ router.get('/:id/mhd', async (req, res) => {
   try {
     const inputId = req.params.id;
 
-    console.log(`[MACHINES API] Fetching MHD entries for machine ID: ${inputId}`);
+    console.log(`[MHD API] Fetching MHD entries for machine ID: ${inputId}`);
 
-    // For now, return empty array as MHD functionality is not implemented yet
-    // This will be enhanced when product batch management is fully implemented
+    // Resolve machine ID (reuse logic from stock endpoint)
+    let machineInternalId: number | undefined;
+    let vendonId: string | undefined;
     
-    res.json([]);
+    const parsedId = parseInt(inputId);
+    
+    if (!isNaN(parsedId)) {
+      const machineCheck = await rawDb.query(
+        'SELECT id, vendon_id FROM machines WHERE id = $1 LIMIT 1',
+        [parsedId]
+      );
+      
+      if (machineCheck.rows.length > 0) {
+        machineInternalId = parsedId;
+        vendonId = machineCheck.rows[0].vendon_id;
+      } else {
+        const locationCheck = await rawDb.query(
+          'SELECT id, vendon_id FROM machines WHERE location_id = $1 LIMIT 1',
+          [parsedId]
+        );
+        
+        if (locationCheck.rows.length > 0) {
+          machineInternalId = locationCheck.rows[0].id;
+          vendonId = locationCheck.rows[0].vendon_id;
+        }
+      }
+    }
+
+    if (!machineInternalId) {
+      const vendonCheck = await rawDb.query(
+        'SELECT id, vendon_id FROM machines WHERE vendon_id = $1 LIMIT 1',
+        [inputId]
+      );
+      
+      if (vendonCheck.rows.length > 0) {
+        machineInternalId = vendonCheck.rows[0].id;
+        vendonId = vendonCheck.rows[0].vendon_id;
+      }
+    }
+
+    if (!machineInternalId) {
+      return res.status(404).json({
+        error: 'Maschine nicht gefunden'
+      });
+    }
+
+    // Get current stock with FIFO batch allocation
+    console.log(`[MHD API] Using FIFO logic to get MHD data for machine ${inputId}`);
+    
+    // Get Vendon stock data
+    let vendonStock: any[] = [];
+    try {
+      const { fetchMachineProducts } = await import('../services/vendonAPI');
+      const products = await fetchMachineProducts(parseInt(vendonId!));
+      
+      if (products && Array.isArray(products) && products.length > 0) {
+        vendonStock = products;
+        console.log(`[MHD API] ✅ Got ${vendonStock.length} products from Vendon API`);
+      }
+    } catch (error) {
+      console.log(`[MHD API] ⚠️ Vendon API failed, using fallback data`);
+    }
+
+    // Process MHD data using FIFO allocation
+    const mhdEntries: any[] = [];
+    
+    if (vendonStock.length > 0) {
+      for (const product of vendonStock) {
+        const currentQty = parseInt(product.amount) || parseInt(product.quantity) || parseInt(product.stock) || 0;
+        
+        if (currentQty > 0) {
+          // Get FIFO batch allocation for products with stock
+          const batchInfo = await calculateFifoBatchAllocation(rawDb, machineInternalId!, product.name, currentQty);
+          
+          if (batchInfo.batches && batchInfo.batches.length > 0) {
+            // Create MHD entries for each allocated batch
+            batchInfo.batches.forEach(batch => {
+              const daysUntilExpiry = Math.ceil((new Date(batch.expiryDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+              
+              let mhdStatus = 'ok';
+              if (daysUntilExpiry < 0) mhdStatus = 'expired';
+              else if (daysUntilExpiry <= 7) mhdStatus = 'critical';
+              else if (daysUntilExpiry <= 30) mhdStatus = 'warning';
+              
+              mhdEntries.push({
+                productName: product.name,
+                mhd: new Date(batch.expiryDate).toISOString().split('T')[0], // Format: YYYY-MM-DD
+                menge: batch.allocatedQuantity,
+                status: mhdStatus,
+                batchNumber: batch.batchNumber,
+                daysUntilExpiry: daysUntilExpiry,
+                incomingDate: new Date(batch.incomingDate).toISOString().split('T')[0]
+              });
+            });
+          }
+        }
+      }
+    }
+
+    // Sort by MHD date (earliest first)
+    mhdEntries.sort((a, b) => new Date(a.mhd).getTime() - new Date(b.mhd).getTime());
+
+    console.log(`[MHD API] ✅ Returning ${mhdEntries.length} MHD entries for machine ${inputId}`);
+    res.json(mhdEntries);
 
   } catch (error) {
     console.error(`[MACHINES API] Error fetching MHD entries for machine ${req.params.id}:`, error);
