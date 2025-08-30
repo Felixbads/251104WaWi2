@@ -288,15 +288,45 @@ export default function SupplierPortal({ params: routeParams }: { params?: { acc
         fetch('/api/supplier-portal/supplier-data', {
           method: 'GET',
           headers: { 'Authorization': `Bearer ${token}` }
-        }).then(res => res.json()),
+        }).then(async res => {
+          console.log('[SUPPLIER-DATA] Response status:', res.status);
+          const text = await res.text();
+          console.log('[SUPPLIER-DATA] Response text:', text);
+          try {
+            return JSON.parse(text);
+          } catch (e) {
+            console.error('[SUPPLIER-DATA] JSON parse error:', e);
+            return { success: false, error: 'Invalid JSON response' };
+          }
+        }),
         fetch('/api/supplier-portal/products', {
           method: 'GET',
           headers: { 'Authorization': `Bearer ${token}` }
-        }).then(res => res.json()),
+        }).then(async res => {
+          console.log('[PRODUCTS] Response status:', res.status);
+          const text = await res.text();
+          console.log('[PRODUCTS] Response text:', text.substring(0, 200) + '...');
+          try {
+            return JSON.parse(text);
+          } catch (e) {
+            console.error('[PRODUCTS] JSON parse error:', e);
+            return { success: false, error: 'Invalid JSON response' };
+          }
+        }),
         fetch('/api/supplier-portal/orders', {
           method: 'GET',
           headers: { 'Authorization': `Bearer ${token}` }
-        }).then(res => res.json())
+        }).then(async res => {
+          console.log('[ORDERS] Response status:', res.status);
+          const text = await res.text();
+          console.log('[ORDERS] Response text:', text.substring(0, 200) + '...');
+          try {
+            return JSON.parse(text);
+          } catch (e) {
+            console.error('[ORDERS] JSON parse error:', e);
+            return { success: false, error: 'Invalid JSON response' };
+          }
+        })
       ]);
 
       console.log('Supplier response:', supplierResponse);
@@ -528,47 +558,67 @@ export default function SupplierPortal({ params: routeParams }: { params?: { acc
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="bg-white shadow-sm">
+      {/* Header mit verbessertem Responsive Design */}
+      <div className="bg-white shadow-sm sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-4">
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center py-4 space-y-3 sm:space-y-0">
             <div className="flex items-center space-x-3">
-              <Shield className="h-8 w-8 text-blue-600" />
-              <div>
-                <h1 className="text-xl font-semibold text-gray-900">Lieferantenportal</h1>
-                <p className="text-sm text-gray-500">{supplierData?.name}</p>
+              <Shield className="h-8 w-8 text-blue-600 flex-shrink-0" />
+              <div className="min-w-0 flex-1">
+                <h1 className="text-lg sm:text-xl font-semibold text-gray-900 truncate">Lieferantenportal</h1>
+                <p className="text-sm text-gray-500 truncate">
+                  {supplierData?.name || 'Vollständige Datenübersicht und Verwaltung'}
+                </p>
+                <p className="text-xs text-gray-400">
+                  Letzter Zugriff: {new Date().toLocaleDateString('de-DE', { 
+                    weekday: 'short', 
+                    year: 'numeric', 
+                    month: 'short', 
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  })}
+                </p>
               </div>
             </div>
-            <Button variant="outline" onClick={logout}>
+            <Button variant="outline" onClick={logout} className="self-start sm:self-center">
               Abmelden
             </Button>
           </div>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5">
-            <TabsTrigger value="stammdaten" className="flex items-center space-x-2">
-              <Building2 className="h-4 w-4" />
-              <span>Stammdaten</span>
-            </TabsTrigger>
-            <TabsTrigger value="produkte" className="flex items-center space-x-2">
-              <Package className="h-4 w-4" />
-              <span>Produkte</span>
-            </TabsTrigger>
-            <TabsTrigger value="bestellungen" className="flex items-center space-x-2">
-              <ShoppingCart className="h-4 w-4" />
-              <span>Bestellungen</span>
-            </TabsTrigger>
-            <TabsTrigger value="bestaetigung" className="flex items-center space-x-2">
-              <Clock className="h-4 w-4" />
-              <span>Bestätigung</span>
-            </TabsTrigger>
-            <TabsTrigger value="feedback" className="flex items-center space-x-2">
-              <MessageSquare className="h-4 w-4" />
-              <span>Änderungen</span>
-            </TabsTrigger>
-          </TabsList>
+          {/* Verbesserte Navigation für Mobile */}
+          <div className="bg-white rounded-lg shadow-sm p-1">
+            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-1">
+              <TabsTrigger value="stammdaten" className="flex flex-col sm:flex-row items-center justify-center space-y-1 sm:space-y-0 sm:space-x-2 px-2 py-2 text-xs sm:text-sm">
+                <Building2 className="h-4 w-4 flex-shrink-0" />
+                <span className="hidden sm:inline">Grunddaten</span>
+                <span className="sm:hidden">Firma</span>
+              </TabsTrigger>
+              <TabsTrigger value="produkte" className="flex flex-col sm:flex-row items-center justify-center space-y-1 sm:space-y-0 sm:space-x-2 px-2 py-2 text-xs sm:text-sm">
+                <Package className="h-4 w-4 flex-shrink-0" />
+                <span>Produkte</span>
+              </TabsTrigger>
+              <TabsTrigger value="bestellungen" className="flex flex-col sm:flex-row items-center justify-center space-y-1 sm:space-y-0 sm:space-x-2 px-2 py-2 text-xs sm:text-sm">
+                <ShoppingCart className="h-4 w-4 flex-shrink-0" />
+                <span className="hidden sm:inline">Bestellungen</span>
+                <span className="sm:hidden">Orders</span>
+              </TabsTrigger>
+              <TabsTrigger value="bestaetigung" className="flex flex-col sm:flex-row items-center justify-center space-y-1 sm:space-y-0 sm:space-x-2 px-2 py-2 text-xs sm:text-sm">
+                <Clock className="h-4 w-4 flex-shrink-0" />
+                <span className="hidden sm:inline">Bestätigung</span>
+                <span className="sm:hidden">Status</span>
+              </TabsTrigger>
+              <TabsTrigger value="feedback" className="flex flex-col sm:flex-row items-center justify-center space-y-1 sm:space-y-0 sm:space-x-2 px-2 py-2 text-xs sm:text-sm col-span-2 sm:col-span-1">
+                <MessageSquare className="h-4 w-4 flex-shrink-0" />
+                <span className="hidden sm:inline">Änderungen</span>
+                <span className="sm:hidden">Feedback</span>
+              </TabsTrigger>
+            </TabsList>
+          </div>
 
           <TabsContent value="stammdaten">
             <div className="grid gap-6">
@@ -582,66 +632,73 @@ export default function SupplierPortal({ params: routeParams }: { params?: { acc
                 <CardContent className="space-y-6">
                   {supplierData ? (
                     <>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         <div className="space-y-4">
-                          <div>
-                            <Label className="text-sm font-medium text-gray-500">Firmenname</Label>
-                            <p className="text-base font-medium">{supplierData.name}</p>
+                          <div className="bg-blue-50 p-4 rounded-lg">
+                            <Label className="text-sm font-medium text-blue-700">Firmenname</Label>
+                            <p className="text-base font-semibold text-blue-900 mt-1">{supplierData.name}</p>
                           </div>
                           <div>
                             <Label className="text-sm font-medium text-gray-500">Ansprechpartner</Label>
-                            <p className="text-base">{supplierData.contactPerson || 'Nicht angegeben'}</p>
+                            <p className="text-base mt-1">{supplierData.contactPerson || 'Nicht verfügbar'}</p>
                           </div>
                           <div>
                             <Label className="text-sm font-medium text-gray-500">Kurzbeschreibung</Label>
-                            <p className="text-base">{supplierData.shortDescription || 'Nicht angegeben'}</p>
+                            <p className="text-base mt-1">{supplierData.shortDescription || 'Nicht verfügbar'}</p>
                           </div>
+                          {supplierData.description && (
+                            <div>
+                              <Label className="text-sm font-medium text-gray-500">Detailbeschreibung</Label>
+                              <p className="text-sm text-gray-600 mt-1">{supplierData.description}</p>
+                            </div>
+                          )}
                         </div>
                         <div className="space-y-4">
                           <div>
                             <Label className="text-sm font-medium text-gray-500">Adresse</Label>
-                            <p className="text-base">
-                              {supplierData.address && (
-                                <>
-                                  {supplierData.address}<br />
-                                  {supplierData.postalCode} {supplierData.city}<br />
-                                  {supplierData.country}
-                                </>
+                            <div className="text-base mt-1">
+                              {supplierData.address ? (
+                                <div className="bg-gray-50 p-3 rounded-lg">
+                                  <p>{supplierData.address}</p>
+                                  <p>{supplierData.postalCode} {supplierData.city}</p>
+                                  {supplierData.country && <p>{supplierData.country}</p>}
+                                </div>
+                              ) : (
+                                <p className="text-gray-400 italic">Nicht verfügbar</p>
                               )}
-                              {!supplierData.address && 'Nicht angegeben'}
-                            </p>
+                            </div>
                           </div>
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-6 border-t">
-                        <div className="flex items-center space-x-3">
-                          <Phone className="h-5 w-5 text-gray-400" />
-                          <div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pt-6 border-t">
+                        <div className="flex items-start space-x-3 p-3 rounded-lg border">
+                          <Phone className="h-5 w-5 text-blue-500 mt-1 flex-shrink-0" />
+                          <div className="min-w-0 flex-1">
                             <Label className="text-sm font-medium text-gray-500">Telefon</Label>
-                            <p className="text-base">{supplierData.phone || 'Nicht angegeben'}</p>
+                            <p className="text-base mt-1 truncate">{supplierData.phone || 'Nicht verfügbar'}</p>
                           </div>
                         </div>
-                        <div className="flex items-center space-x-3">
-                          <Mail className="h-5 w-5 text-gray-400" />
-                          <div>
+                        <div className="flex items-start space-x-3 p-3 rounded-lg border">
+                          <Mail className="h-5 w-5 text-green-500 mt-1 flex-shrink-0" />
+                          <div className="min-w-0 flex-1">
                             <Label className="text-sm font-medium text-gray-500">E-Mail</Label>
-                            <p className="text-base">{supplierData.email || 'Nicht angegeben'}</p>
+                            <p className="text-base mt-1 truncate">{supplierData.email || 'Nicht verfügbar'}</p>
                           </div>
                         </div>
-                        <div className="flex items-center space-x-3">
-                          <Globe className="h-5 w-5 text-gray-400" />
-                          <div>
+                        <div className="flex items-start space-x-3 p-3 rounded-lg border">
+                          <Globe className="h-5 w-5 text-purple-500 mt-1 flex-shrink-0" />
+                          <div className="min-w-0 flex-1">
                             <Label className="text-sm font-medium text-gray-500">Website</Label>
-                            <p className="text-base">
+                            <div className="text-base mt-1">
                               {supplierData.website ? (
-                                <a href={supplierData.website} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                                <a href={supplierData.website} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline truncate block">
                                   {supplierData.website}
                                 </a>
                               ) : (
-                                'Nicht angegeben'
+                                <span className="text-gray-400 italic">Nicht verfügbar</span>
                               )}
-                            </p>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -673,9 +730,27 @@ export default function SupplierPortal({ params: routeParams }: { params?: { acc
                       )}
                     </>
                   ) : (
-                    <div className="text-center py-8">
-                      <p className="text-gray-500">Lieferantendaten werden geladen...</p>
-                      <p className="text-xs text-gray-400 mt-2">Debug: supplierData = {JSON.stringify(supplierData)}</p>
+                    <div className="text-center py-12">
+                      <div className="max-w-md mx-auto">
+                        <Building2 className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                        <h3 className="text-lg font-medium text-gray-900 mb-2">Grunddaten werden geladen...</h3>
+                        <p className="text-gray-500 mb-4">
+                          Wir laden Ihre Lieferanten-Stammdaten. Dies dauert normalerweise nur wenige Sekunden.
+                        </p>
+                        <div className="flex items-center justify-center space-x-2">
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                          <span className="text-sm text-gray-400">Daten werden abgerufen...</span>
+                        </div>
+                        {/* Debug-Info nur für Development */}
+                        {import.meta.env.DEV && (
+                          <details className="mt-4 text-left">
+                            <summary className="text-xs text-gray-400 cursor-pointer">Debug-Info (nur Development)</summary>
+                            <pre className="text-xs text-gray-400 mt-2 p-2 bg-gray-100 rounded overflow-auto">
+                              {JSON.stringify({ supplierData, isAuthenticated, sessionToken: sessionToken?.substring(0, 10) + '...' }, null, 2)}
+                            </pre>
+                          </details>
+                        )}
+                      </div>
                     </div>
                   )}
                 </CardContent>
@@ -817,24 +892,34 @@ export default function SupplierPortal({ params: routeParams }: { params?: { acc
                           </div>
                         </div>
                         
-                        {order.items && order.items.length > 0 && (
+                        {order.items && order.items.length > 0 ? (
                           <div className="border-t pt-4">
-                            <h4 className="font-medium mb-2">Bestellpositionen:</h4>
+                            <h4 className="font-medium mb-3 flex items-center">
+                              <Package className="h-4 w-4 mr-2 text-blue-500" />
+                              Bestellpositionen ({order.items.length}):
+                            </h4>
                             <div className="space-y-2">
                               {order.items.map((item, index) => (
-                                <div key={item.id || index} className="flex justify-between items-center text-sm bg-gray-50 p-2 rounded">
-                                  <div className="flex-1">
-                                    <span className="font-medium">{item.productName}</span>
-                                    {item.sku && <span className="text-gray-500 ml-2">({item.sku})</span>}
+                                <div key={item.id || index} className="flex justify-between items-center text-sm bg-gray-50 p-3 rounded-lg hover:bg-gray-100 transition-colors">
+                                  <div className="flex-1 min-w-0">
+                                    <span className="font-medium text-gray-900 block truncate">{item.productName}</span>
+                                    {item.sku && <span className="text-gray-500 text-xs">SKU: {item.sku}</span>}
                                   </div>
-                                  <div className="text-right">
-                                    <span className="font-medium">{item.quantity} {item.unit || 'Stück'}</span>
+                                  <div className="text-right ml-4 flex-shrink-0">
+                                    <span className="font-semibold text-blue-600">{item.quantity} {item.unit || 'Stück'}</span>
                                     {item.unitPrice && (
-                                      <span className="text-gray-600 ml-2">à {item.unitPrice.toFixed(2)} €</span>
+                                      <div className="text-gray-600 text-xs">à {item.unitPrice.toFixed(2)} €</div>
                                     )}
                                   </div>
                                 </div>
                               ))}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="border-t pt-4">
+                            <div className="text-center py-4 text-gray-400">
+                              <Package className="h-6 w-6 mx-auto mb-2 opacity-50" />
+                              <p className="text-sm">Keine Bestellpositionen verfügbar</p>
                             </div>
                           </div>
                         )}

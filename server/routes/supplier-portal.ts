@@ -121,14 +121,18 @@ router.post('/authenticate', async (req: Request, res: Response) => {
  */
 router.get('/supplier-data', async (req: Request, res: Response) => {
   try {
+    console.log('[SUPPLIER-PORTAL] /supplier-data aufgerufen');
     const sessionToken = req.headers.authorization?.replace('Bearer ', '');
 
     if (!sessionToken) {
+      console.log('[SUPPLIER-PORTAL] Kein Session Token gefunden');
       return res.status(401).json({
         success: false,
         error: 'Session Token erforderlich'
       });
     }
+
+    console.log('[SUPPLIER-PORTAL] Session Token gefunden:', sessionToken.substring(0, 10) + '...');
 
     // Extract supplier ID from session token
     const sessionCheck = await rawDb.query(
@@ -138,7 +142,10 @@ router.get('/supplier-data', async (req: Request, res: Response) => {
       [sessionToken]
     );
 
+    console.log('[SUPPLIER-PORTAL] Session Check Ergebnis:', sessionCheck.rows);
+
     if (sessionCheck.rows.length === 0) {
+      console.log('[SUPPLIER-PORTAL] Session nicht gefunden oder inaktiv');
       return res.status(401).json({
         success: false,
         error: 'Ungültige Session'
@@ -147,8 +154,11 @@ router.get('/supplier-data', async (req: Request, res: Response) => {
 
     const session = sessionCheck.rows[0];
     const supplierId = session.supplier_id;
+
+    console.log('[SUPPLIER-PORTAL] Supplier ID aus Session extrahiert:', supplierId);
     
     if (new Date(session.session_expires_at) < new Date()) {
+      console.log('[SUPPLIER-PORTAL] Session abgelaufen');
       return res.status(401).json({
         success: false,
         error: 'Session abgelaufen'
@@ -156,6 +166,7 @@ router.get('/supplier-data', async (req: Request, res: Response) => {
     }
 
     // Get supplier data
+    console.log('[SUPPLIER-PORTAL] Lade Supplier-Daten für ID:', supplierId);
     const supplierQuery = `
       SELECT 
         id,
@@ -181,14 +192,17 @@ router.get('/supplier-data', async (req: Request, res: Response) => {
     `;
 
     const supplierResult = await rawDb.query(supplierQuery, [supplierId]);
+    console.log('[SUPPLIER-PORTAL] Supplier Query Ergebnis:', supplierResult.rows);
 
     if (supplierResult.rows.length === 0) {
+      console.log('[SUPPLIER-PORTAL] Kein Lieferant mit ID', supplierId, 'gefunden');
       return res.status(404).json({
         success: false,
         error: 'Lieferant nicht gefunden'
       });
     }
 
+    console.log('[SUPPLIER-PORTAL] Supplier-Daten erfolgreich geladen:', supplierResult.rows[0]);
     res.json({
       success: true,
       data: supplierResult.rows[0]
