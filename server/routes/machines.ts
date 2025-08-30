@@ -1,7 +1,8 @@
 import { Router } from 'express';
 import { db, rawDb } from '../db';
 import { eq, desc, and, gte, lte, count, sql } from 'drizzle-orm';
-import { machines, transactions, refills, events } from '../../shared/schema';
+import { machines, transactions, refills, events, locationCosts } from '../../shared/schema';
+import { storage } from '../storage';
 
 const router = Router();
 
@@ -731,10 +732,69 @@ router.get('/:id/costs', async (req, res) => {
 
     console.log(`[MACHINES API] Fetching costs for machine ID: ${inputId}`);
 
-    // For now, return empty array as machine costs functionality is not implemented yet
-    // This will be enhanced when cost tracking is fully implemented
+    // Resolve machine ID
+    let machineInternalId: number | undefined;
+    const parsedId = parseInt(inputId);
     
-    res.json([]);
+    if (!isNaN(parsedId)) {
+      const machineCheck = await rawDb.query(
+        'SELECT id FROM machines WHERE id = $1 LIMIT 1',
+        [parsedId]
+      );
+      
+      if (machineCheck.rows.length > 0) {
+        machineInternalId = parsedId;
+      } else {
+        const locationCheck = await rawDb.query(
+          'SELECT id FROM machines WHERE location_id = $1 LIMIT 1',
+          [parsedId]
+        );
+        
+        if (locationCheck.rows.length > 0) {
+          machineInternalId = locationCheck.rows[0].id;
+        }
+      }
+    }
+
+    if (!machineInternalId) {
+      const vendonCheck = await rawDb.query(
+        'SELECT id FROM machines WHERE vendon_id = $1 LIMIT 1',
+        [inputId]
+      );
+      
+      if (vendonCheck.rows.length > 0) {
+        machineInternalId = vendonCheck.rows[0].id;
+      }
+    }
+
+    if (!machineInternalId) {
+      return res.status(404).json({
+        error: 'Maschine nicht gefunden',
+        message: `Keine Maschine mit ID ${inputId} gefunden`
+      });
+    }
+
+    // Get costs from database
+    const costs = await storage.getMachineCosts(machineInternalId);
+    
+    // Format costs for frontend compatibility
+    const formattedCosts = costs.map(cost => ({
+      id: cost.id,
+      machine_location: cost.locationName,
+      cost_type: cost.costType,
+      amount: cost.amountNet,
+      currency: cost.currency || 'EUR',
+      frequency: cost.billingCycle,
+      description: cost.description || '',
+      is_active: cost.isActive,
+      valid_from: cost.validFrom,
+      valid_until: cost.validTo,
+      created_at: cost.createdAt,
+      updated_at: cost.updatedAt
+    }));
+    
+    console.log(`[MACHINES API] Found ${formattedCosts.length} costs for machine ${machineInternalId}`);
+    res.json(formattedCosts);
 
   } catch (error) {
     console.error(`[MACHINES API] Error fetching costs for machine ${req.params.id}:`, error);
@@ -753,11 +813,103 @@ router.get('/:id/costs', async (req, res) => {
 router.post('/:id/costs', async (req, res) => {
   try {
     const inputId = req.params.id;
+    const { costType, amount, frequency, description } = req.body;
     
-    // For now, return success without actually saving
-    // This will be implemented when cost tracking is added
+    console.log(`[MACHINES API] Adding cost for machine ID: ${inputId}`, req.body);
+
+    // Validate required fields
+    if (!costType || !amount) {
+      return res.status(400).json({
+        error: 'Validierungsfehler',
+        message: 'Kostenart und Betrag sind erforderlich'
+      });
+    }
+
+    // Resolve machine ID and get machine details
+    let machineInternalId: number | undefined;
+    let machineData: any;
+    const parsedId = parseInt(inputId);
     
-    res.json({ success: true, message: 'Kosten-Funktionalität wird implementiert' });
+    if (!isNaN(parsedId)) {
+      const machineCheck = await rawDb.query(
+        'SELECT id, machine_name, location_name FROM machines WHERE id = $1 LIMIT 1',
+        [parsedId]
+      );
+      
+      if (machineCheck.rows.length > 0) {
+        machineInternalId = parsedId;
+        machineData = machineCheck.rows[0];
+      } else {
+        const locationCheck = await rawDb.query(
+          'SELECT id, machine_name, location_name FROM machines WHERE location_id = $1 LIMIT 1',
+          [parsedId]
+        );
+        
+        if (locationCheck.rows.length > 0) {
+          machineInternalId = locationCheck.rows[0].id;
+          machineData = locationCheck.rows[0];
+        }
+      }
+    }
+
+    if (!machineInternalId) {
+      const vendonCheck = await rawDb.query(
+        'SELECT id, machine_name, location_name FROM machines WHERE vendon_id = $1 LIMIT 1',
+        [inputId]
+      );
+      
+      if (vendonCheck.rows.length > 0) {
+        machineInternalId = vendonCheck.rows[0].id;
+        machineData = vendonCheck.rows[0];
+      }
+    }
+
+    if (!machineInternalId || !machineData) {
+      return res.status(404).json({
+        error: 'Maschine nicht gefunden',
+        message: `Keine Maschine mit ID ${inputId} gefunden`
+      });
+    }
+
+    // Create cost entry
+    const costData = {
+      machineId: machineInternalId,
+      machineName: machineData.machine_name,
+      locationName: machineData.location_name || machineData.machine_name,
+      costType: costType,
+      costName: costType, // Use costType as costName
+      amountNet: parseFloat(amount),
+      amountGross: parseFloat(amount) * 1.19, // Add 19% VAT
+      vatRate: 19,
+      currency: 'EUR',
+      validFrom: new Date().toISOString().split('T')[0], // Today's date
+      billingCycle: frequency || 'monthly',
+      category: costType,
+      description: description || '',
+      isActive: true,
+      createdBy: req.user?.id || null
+    };
+
+    const newCost = await storage.createMachineCost(costData);
+    
+    console.log(`[MACHINES API] Created new cost: ${newCost.id}`);
+    res.json({ 
+      success: true, 
+      cost: {
+        id: newCost.id,
+        machine_location: newCost.locationName,
+        cost_type: newCost.costType,
+        amount: newCost.amountNet,
+        currency: newCost.currency,
+        frequency: newCost.billingCycle,
+        description: newCost.description,
+        is_active: newCost.isActive,
+        valid_from: newCost.validFrom,
+        valid_until: newCost.validTo,
+        created_at: newCost.createdAt,
+        updated_at: newCost.updatedAt
+      }
+    });
 
   } catch (error) {
     console.error(`[MACHINES API] Error adding cost for machine ${req.params.id}:`, error);
@@ -770,18 +922,95 @@ router.post('/:id/costs', async (req, res) => {
 });
 
 /**
+ * PUT /api/machines/:id/costs/:costId
+ * Update cost entry for a machine
+ */
+router.put('/:id/costs/:costId', async (req, res) => {
+  try {
+    const inputId = req.params.id;
+    const costId = parseInt(req.params.costId);
+    const { costType, amount, frequency, description } = req.body;
+    
+    console.log(`[MACHINES API] Updating cost ${costId} for machine ID: ${inputId}`, req.body);
+
+    if (isNaN(costId)) {
+      return res.status(400).json({
+        error: 'Ungültige Kosten-ID'
+      });
+    }
+
+    const updateData: any = {};
+    if (costType !== undefined) {
+      updateData.costType = costType;
+      updateData.costName = costType;
+    }
+    if (amount !== undefined) {
+      updateData.amountNet = parseFloat(amount);
+      updateData.amountGross = parseFloat(amount) * 1.19;
+    }
+    if (frequency !== undefined) {
+      updateData.billingCycle = frequency;
+    }
+    if (description !== undefined) {
+      updateData.description = description;
+    }
+
+    const updatedCost = await storage.updateMachineCost(costId, updateData);
+    
+    console.log(`[MACHINES API] Updated cost: ${costId}`);
+    res.json({ 
+      success: true, 
+      cost: {
+        id: updatedCost.id,
+        machine_location: updatedCost.locationName,
+        cost_type: updatedCost.costType,
+        amount: updatedCost.amountNet,
+        currency: updatedCost.currency,
+        frequency: updatedCost.billingCycle,
+        description: updatedCost.description,
+        is_active: updatedCost.isActive,
+        valid_from: updatedCost.validFrom,
+        valid_until: updatedCost.validTo,
+        created_at: updatedCost.createdAt,
+        updated_at: updatedCost.updatedAt
+      }
+    });
+
+  } catch (error) {
+    console.error(`[MACHINES API] Error updating cost for machine ${req.params.id}:`, error);
+    const errorMessage = error instanceof Error ? error.message : 'Unbekannter Fehler';
+    res.status(500).json({
+      error: 'Fehler beim Aktualisieren der Kosten',
+      message: errorMessage
+    });
+  }
+});
+
+/**
  * DELETE /api/machines/:id/costs/:costId
  * Delete cost entry for a machine
  */
 router.delete('/:id/costs/:costId', async (req, res) => {
   try {
     const inputId = req.params.id;
-    const costId = req.params.costId;
+    const costId = parseInt(req.params.costId);
     
-    // For now, return success without actually deleting
-    // This will be implemented when cost tracking is added
+    console.log(`[MACHINES API] Deleting cost ${costId} for machine ID: ${inputId}`);
+
+    if (isNaN(costId)) {
+      return res.status(400).json({
+        error: 'Ungültige Kosten-ID'
+      });
+    }
+
+    const deleted = await storage.deleteMachineCost(costId);
     
-    res.json({ success: true, message: 'Kosten-Funktionalität wird implementiert' });
+    if (deleted) {
+      console.log(`[MACHINES API] Deleted cost: ${costId}`);
+      res.json({ success: true, message: 'Kosten erfolgreich gelöscht' });
+    } else {
+      res.status(404).json({ error: 'Kosten nicht gefunden' });
+    }
 
   } catch (error) {
     console.error(`[MACHINES API] Error deleting cost for machine ${req.params.id}:`, error);

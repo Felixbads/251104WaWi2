@@ -1,0 +1,94 @@
+Klar! Hier ist ein kopierfertiger Prompt (auf Deutsch) für die Erstellung einer Seite, die je Automat den aktuellen und maximalen Bestand anzeigt und daraus den Füllungs-Prozentsatz pro Automat berechnet. Ich habe die Felder so formuliert, wie sie in der Vendon-/stock-API üblich sind (u. a. quantity und capacity) ￼ ￼ ￼.
+
+⸻
+
+Prompt: Bestandsseite für Vendon-Automaten
+
+Erstelle eine responsive Web-Seite (HTML + CSS + JavaScript, optional ein minimaler Build ohne Framework), die den Füllstand aller Vendon-Automaten anzeigt. Nutze dafür die Vendon REST-API:
+	•	Endpoint: GET /stock
+	•	Zweck: Liefert pro Automat und pro Slot u. a. aktuelle Menge (quantity) und maximale Kapazität (capacity). Diese Felder sind Grundlage für Prozentberechnungen ￼ ￼ ￼.
+
+Zielbild (Funktional)
+	1.	Übersichts-Karten (eine Karte pro Automat). Jede Karte zeigt:
+	•	Automat-Name/ID.
+	•	Gesamtbestand aktuell (Summe aller quantity des Automaten).
+	•	Gesamtkapazität (Summe aller capacity des Automaten).
+	•	Füllstand in % = round( (sum(quantity) / sum(capacity)) * 100 ).
+	•	Progress-Bar mit dem Prozentwert.
+	•	Letzte Aktualisierung (jüngster lastUpdate-Zeitpunkt aus den Slots).
+	2.	Detailtabelle je Automat (ein-/ausklappbar):
+	•	Spalten: Slot, Produkt, Menge (quantity), Kapazität (capacity), Füllung %.
+	•	Sortier- und Filteroptionen (z. B. nach niedrigster Füllung).
+	3.	Leere/Edge Cases:
+	•	Wenn capacity = 0 oder fehlt → Slot ignorieren und in einer Warnliste „Slots ohne Kapazität“ anzeigen.
+	•	Wenn ein Produkt/Slot fehlt → robust weiterrechnen; unbekannte Felder als „–“ darstellen.
+	4.	Fehlerhandling:
+	•	Bei Netzwerk-/Auth-Fehlern: gut sichtbare Fehlermeldung mit Retry-Button.
+	•	Loading-Zustand (Spinner/Skelett).
+
+Datenbeschaffung
+	•	Abruf: Rufe GET /stock auf (Basis-URL und Auth-Header als Konfigurationsvariablen an den Anfang des Skripts stellen).
+	•	Erwartete Felder pro Slot:
+	•	machineId (oder vergleichbar), slot, productId / productName, quantity, capacity, lastUpdate.
+Diese Felder sind laut Vendon-Stock-Dokumentation verfügbar und für die Füllstandsberechnung gedacht ￼ ￼ ￼.
+	•	Aggregation pro Automat:
+	•	sumQuantity = Σ quantity (alle Slots der Maschine)
+	•	sumCapacity = Σ capacity (alle Slots der Maschine)
+	•	fillPct = (sumQuantity / sumCapacity) * 100
+	•	Auf 0-Division prüfen; wenn sumCapacity=0, Prozent als „n/a“ anzeigen.
+
+UI/UX-Anforderungen
+	•	Design: Schlicht, modern, klar; Systemschrift; dunkle Progress-Bar mit Prozentlabel.
+	•	Responsiveness: Karten im Grid (minmax 320px), Tabelle horizontal scrollbar auf Mobil.
+	•	Visualisierung:
+	•	Karten zeigen große Prozentzahl (z. B. „78 %“), darunter Balken.
+	•	Farb-Feedback:
+	•	≥ 70 %: neutral/grün
+	•	40–69 %: gelb
+	•	< 40 %: rot
+	•	Barrierefreiheit: ARIA-Labels für Progress-Bars; ausreichender Kontrast; Tastaturbedienung.
+
+Technik/Qualität
+	•	Kein Framework notwendig. Pures JS (Fetch API).
+	•	Keine Inline-Styles; nutze eine kleine CSS-Datei/Block.
+	•	Trennung von Logik & Darstellung:
+	•	fetchStock() → Daten abrufen
+	•	groupByMachine() → Aggregation
+	•	renderMachineCards() und renderMachineDetails() → DOM-Render
+	•	Zeitformat: lastUpdate als lokale Zeit anzeigen (mit Zeitzone).
+	•	Zahlenformat: Deutsch (Tausenderpunkt, Komma für Dezimalstellen).
+	•	Tests (leicht): Eine Mock-JSON (Array von 2 Maschinen, je 3 Slots) als Fallback, um Render zu prüfen, wenn API nicht erreichbar ist.
+
+Akzeptanzkriterien
+	•	Für jede Maschine werden Summe Menge, Summe Kapazität und Prozent korrekt berechnet (manuell prüfbar).
+	•	Die Seite zeigt mindestens 1 Karte pro Maschine und eine Detailtabelle mit Slot-Infos.
+	•	Slots mit fehlender/Null-Kapazität verfälschen den Prozentwert nicht und erscheinen in einer separaten Hinweisliste.
+	•	Fehler- und Ladezustände sind sichtbar und verständlich.
+	•	Code ist gut kommentiert (woher Felder kommen, wie Prozent berechnet werden) und leicht anpassbar (Basis-URL/Token oben im Skript).
+
+Beispiel-Codefragmente (Leitplanken)
+
+Prozentberechnung pro Automat
+
+function computeMachineFill(machineSlots) {
+  const valid = machineSlots.filter(s => Number(s.capacity) > 0);
+  const sumQ = valid.reduce((a, s) => a + Number(s.quantity || 0), 0);
+  const sumC = valid.reduce((a, s) => a + Number(s.capacity || 0), 0);
+  const pct = sumC > 0 ? Math.round((sumQ / sumC) * 100) : null;
+  return { sumQ, sumC, pct };
+}
+
+Farbskala
+
+function fillClass(pct) {
+  if (pct === null) return 'fill-na';
+  if (pct < 40) return 'fill-low';
+  if (pct < 70) return 'fill-mid';
+  return 'fill-ok';
+}
+
+Hinweis: Die Felder quantity (aktuelle Menge) und capacity (maximale Füllmenge pro Slot) stammen aus der Vendon /stock-Ressource und werden dort dokumentiert ￼ ￼ ￼. Andere Endpunkte wie /refills, /stats, /machine, /sensor, /event liefern keine aktuellen Bestandsmengen ￼ ￼ ￼ ￼ ￼.
+
+⸻
+
+Wenn du willst, passe ich den Prompt noch auf dein konkretes Setup an (Basis-URL, Token, Branding/Farben, Logos).

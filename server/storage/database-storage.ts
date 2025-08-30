@@ -11,6 +11,7 @@ import {
   events, type Event, type InsertEvent,
   syncLogs, type SyncLog, type InsertSyncLog,
   locations, type Location, type InsertLocation,
+  locationCosts, type LocationCost, type InsertLocationCost,
   suppliers, type Supplier, type InsertSupplier,
   warehouses, type Warehouse, type InsertWarehouse,
   inventoryItems, type InventoryItem, type InsertInventoryItem,
@@ -1931,6 +1932,176 @@ export class DatabaseStorage implements IStorage {
       };
     } catch (error) {
       console.error('[STORAGE] Error updating inventory for transfer:', error);
+      throw error;
+    }
+  }
+
+  // ==================== KOSTEN MANAGEMENT ====================
+
+  /**
+   * Get all costs for a specific machine
+   */
+  async getMachineCosts(machineId: number): Promise<LocationCost[]> {
+    try {
+      const costs = await db.select()
+        .from(locationCosts)
+        .where(and(
+          eq(locationCosts.machineId, machineId),
+          eq(locationCosts.isActive, true)
+        ))
+        .orderBy(desc(locationCosts.createdAt));
+      
+      return costs;
+    } catch (error) {
+      console.error('[STORAGE] Error getting machine costs:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Create a new cost entry for a machine
+   */
+  async createMachineCost(data: Omit<InsertLocationCost, 'id' | 'createdAt' | 'updatedAt'>): Promise<LocationCost> {
+    try {
+      const [newCost] = await db.insert(locationCosts)
+        .values({
+          ...data,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        })
+        .returning();
+      
+      console.log('[STORAGE] Created new machine cost:', newCost.id);
+      return newCost;
+    } catch (error) {
+      console.error('[STORAGE] Error creating machine cost:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Update an existing cost entry
+   */
+  async updateMachineCost(id: number, data: Partial<Omit<InsertLocationCost, 'id' | 'createdAt' | 'updatedAt'>>): Promise<LocationCost> {
+    try {
+      const [updatedCost] = await db.update(locationCosts)
+        .set({
+          ...data,
+          updatedAt: new Date()
+        })
+        .where(eq(locationCosts.id, id))
+        .returning();
+      
+      if (!updatedCost) {
+        throw new Error('Cost entry not found');
+      }
+      
+      console.log('[STORAGE] Updated machine cost:', id);
+      return updatedCost;
+    } catch (error) {
+      console.error('[STORAGE] Error updating machine cost:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Delete a cost entry (soft delete by setting isActive to false)
+   */
+  async deleteMachineCost(id: number): Promise<boolean> {
+    try {
+      const [deletedCost] = await db.update(locationCosts)
+        .set({
+          isActive: false,
+          updatedAt: new Date()
+        })
+        .where(eq(locationCosts.id, id))
+        .returning();
+      
+      if (!deletedCost) {
+        throw new Error('Cost entry not found');
+      }
+      
+      console.log('[STORAGE] Deleted machine cost:', id);
+      return true;
+    } catch (error) {
+      console.error('[STORAGE] Error deleting machine cost:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get cost summary for a machine (monthly total, etc.)
+   */
+  async getMachineCostSummary(machineId: number): Promise<{
+    totalMonthly: number;
+    totalYearly: number;
+    activeCosts: number;
+    costsByCategory: { category: string; amount: number }[];
+  }> {
+    try {
+      const costs = await this.getMachineCosts(machineId);
+      
+      let totalMonthly = 0;
+      let totalYearly = 0;
+      const costsByCategory: { [key: string]: number } = {};
+      
+      costs.forEach(cost => {
+        const amount = cost.amountNet || 0;
+        
+        // Calculate monthly equivalent
+        switch (cost.billingCycle) {
+          case 'monthly':
+            totalMonthly += amount;
+            break;
+          case 'quarterly':
+            totalMonthly += amount / 3;
+            break;
+          case 'yearly':
+            totalMonthly += amount / 12;
+            break;
+          case 'weekly':
+            totalMonthly += amount * 4.33; // Average weeks per month
+            break;
+          case 'one_time':
+            // Don't include one-time costs in recurring totals
+            break;
+        }
+        
+        // Calculate yearly equivalent
+        switch (cost.billingCycle) {
+          case 'monthly':
+            totalYearly += amount * 12;
+            break;
+          case 'quarterly':
+            totalYearly += amount * 4;
+            break;
+          case 'yearly':
+            totalYearly += amount;
+            break;
+          case 'weekly':
+            totalYearly += amount * 52;
+            break;
+          case 'one_time':
+            totalYearly += amount; // Include one-time costs in yearly total
+            break;
+        }
+        
+        // Group by category
+        const category = cost.category || cost.costType || 'Sonstige';
+        costsByCategory[category] = (costsByCategory[category] || 0) + amount;
+      });
+      
+      return {
+        totalMonthly: Math.round(totalMonthly * 100) / 100,
+        totalYearly: Math.round(totalYearly * 100) / 100,
+        activeCosts: costs.length,
+        costsByCategory: Object.entries(costsByCategory).map(([category, amount]) => ({
+          category,
+          amount: Math.round(amount * 100) / 100
+        }))
+      };
+    } catch (error) {
+      console.error('[STORAGE] Error getting machine cost summary:', error);
       throw error;
     }
   }

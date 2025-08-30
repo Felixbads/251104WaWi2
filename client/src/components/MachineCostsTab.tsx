@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getMachineCosts } from '@/lib/api';
 import { apiRequest } from '@/lib/queryClient';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -42,18 +41,44 @@ const MachineCostsTab: React.FC<MachineCostsTabProps> = ({ machineId }) => {
   });
 
   // Fetch machine costs
-  const { data: costs, isLoading, error } = useQuery({
+  const { data: costs, isLoading, error, refetch } = useQuery({
     queryKey: ['/api/machines', machineId, 'costs'],
-    queryFn: () => getMachineCosts(machineId!),
-    enabled: !!machineId
+    queryFn: async () => {
+      const response = await fetch(`/api/machines/${machineId}/costs`, {
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      if (!response.ok) {
+        throw new Error('Fehler beim Laden der Kosten');
+      }
+      return response.json();
+    },
+    enabled: !!machineId,
+    staleTime: 2 * 60 * 1000
   });
 
   // Add new cost mutation
   const addCostMutation = useMutation({
-    mutationFn: (data: typeof newCost) => 
-      apiRequest(`/api/machines/${machineId}/costs`, data, 'POST'),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/machines', machineId, 'costs'] });
+    mutationFn: async (data: typeof newCost) => {
+      const response = await fetch(`/api/machines/${machineId}/costs`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data)
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Fehler beim Hinzufügen der Kosten');
+      }
+      return response.json();
+    },
+    onSuccess: (response) => {
+      console.log('Cost added successfully:', response);
+      refetch(); // Use refetch instead of invalidateQueries for immediate update
       setShowForm(false);
       setNewCost({
         costType: '',
@@ -66,11 +91,44 @@ const MachineCostsTab: React.FC<MachineCostsTabProps> = ({ machineId }) => {
         description: "Neue Kosten wurden erfolgreich hinzugefügt."
       });
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       console.error('Error adding cost:', error);
       toast({
         title: "Fehler",
-        description: "Fehler beim Hinzufügen der Kosten.",
+        description: error.message || "Fehler beim Hinzufügen der Kosten.",
+        variant: "destructive"
+      });
+    }
+  });
+
+  // Delete cost mutation
+  const deleteCostMutation = useMutation({
+    mutationFn: async (costId: number) => {
+      const response = await fetch(`/api/machines/${machineId}/costs/${costId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Fehler beim Löschen der Kosten');
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      refetch();
+      toast({
+        title: "Erfolg",
+        description: "Kosten wurden erfolgreich gelöscht."
+      });
+    },
+    onError: (error: Error) => {
+      console.error('Error deleting cost:', error);
+      toast({
+        title: "Fehler",
+        description: error.message || "Fehler beim Löschen der Kosten.",
         variant: "destructive"
       });
     }
@@ -87,6 +145,12 @@ const MachineCostsTab: React.FC<MachineCostsTabProps> = ({ machineId }) => {
       return;
     }
     addCostMutation.mutate(newCost);
+  };
+
+  const handleDeleteCost = (costId: number) => {
+    if (window.confirm('Sind Sie sicher, dass Sie diese Kosten löschen möchten?')) {
+      deleteCostMutation.mutate(costId);
+    }
   };
 
   const formatCurrency = (amount: number) => {
@@ -291,8 +355,8 @@ const MachineCostsTab: React.FC<MachineCostsTabProps> = ({ machineId }) => {
                     variant="ghost"
                     size="sm"
                     className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                    disabled
-                    title="Löschen (nicht implementiert)"
+                    onClick={() => handleDeleteCost(cost.id)}
+                    title="Kosten löschen"
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
