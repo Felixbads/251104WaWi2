@@ -33,6 +33,7 @@ export default function EmailDialog({
   const [isLoading, setIsLoading] = useState(false);
   const [useTemplate, setUseTemplate] = useState(true);
   const [sendAsPdf, setSendAsPdf] = useState(false);
+  const [includePortalLink, setIncludePortalLink] = useState(true);
   const [coverText, setCoverText] = useState('');
   const [emailData, setEmailData] = useState({
     to: '',
@@ -146,6 +147,7 @@ export default function EmailDialog({
           subject: emailData.subject.trim(),
           content: sendAsPdf ? undefined : emailData.htmlContent.trim(),
           usePdf: sendAsPdf,
+          includePortalLink: includePortalLink,
           coverText: sendAsPdf ? coverText : undefined,
         }),
       });
@@ -311,6 +313,18 @@ export default function EmailDialog({
               </Label>
             </div>
             
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="portal-link"
+                checked={includePortalLink}
+                onCheckedChange={setIncludePortalLink}
+                disabled={isLoading}
+              />
+              <Label htmlFor="portal-link" className="text-sm font-medium">
+                🔗 Portal-Link mitschicken
+              </Label>
+            </div>
+            
             {sendAsPdf && (
               <div className="space-y-3">
                 <div className="space-y-2">
@@ -360,15 +374,22 @@ export default function EmailDialog({
               </div>
             )}
             
-            <div className="text-sm text-gray-600">
-              {sendAsPdf ? (
-                <>
-                  📄 <strong>PDF-Modus:</strong> Die Bestellung wird als PDF-Datei angehängt und der E-Mail-Inhalt wird durch den Begleittext ersetzt.
-                </>
-              ) : (
-                <>
-                  📧 <strong>HTML-Modus:</strong> Die vollständigen Bestelldetails werden direkt im E-Mail-Inhalt angezeigt.
-                </>
+            <div className="text-sm text-gray-600 space-y-2">
+              <div>
+                {sendAsPdf ? (
+                  <>
+                    📄 <strong>PDF-Modus:</strong> Die Bestellung wird als PDF-Datei angehängt und der E-Mail-Inhalt wird durch den Begleittext ersetzt.
+                  </>
+                ) : (
+                  <>
+                    📧 <strong>HTML-Modus:</strong> Die vollständigen Bestelldetails werden direkt im E-Mail-Inhalt angezeigt.
+                  </>
+                )}
+              </div>
+              {includePortalLink && (
+                <div className="text-blue-600">
+                  🔗 <strong>Portal-Link:</strong> Ein Link zum Lieferantenportal wird automatisch in die E-Mail eingefügt. Der Lieferant kann dort Bestellungen bestätigen und Liefertermine angeben.
+                </div>
               )}
             </div>
           </div>

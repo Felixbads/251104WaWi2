@@ -306,7 +306,7 @@ router.post('/:orderId/send-email-working', async (req: Request, res: Response) 
   
   try {
     const orderId = parseInt(req.params.orderId);
-    const { emailAddress, cc, bcc, subject, content, usePdf, coverText } = req.body;
+    const { emailAddress, cc, bcc, subject, content, usePdf, includePortalLink, coverText } = req.body;
     
     if (!orderId || isNaN(orderId)) {
       return res.status(400).json({
@@ -373,10 +373,10 @@ router.post('/:orderId/send-email-working', async (req: Request, res: Response) 
     
     console.log(`[WorkingOrderEmail] Found ${items.length} order items`);
     
-    // Generate Portal-Link for supplier
+    // Generate Portal-Link for supplier (only if requested)
     let portalLink = '';
-    if (order.supplierId) {
-      console.log(`[WorkingOrderEmail] Generiere Portal-Link für Lieferant ${order.supplierId}...`);
+    if (includePortalLink !== false && order.supplierId) {
+      console.log(`[WorkingOrderEmail] Portal-Link aktiviert - Generiere für Lieferant ${order.supplierId}...`);
       try {
         portalLink = await getSupplierPortalLink(order.supplierId);
         if (portalLink) {
@@ -387,6 +387,8 @@ router.post('/:orderId/send-email-working', async (req: Request, res: Response) 
       } catch (error) {
         console.error('[WorkingOrderEmail] Fehler beim Generieren des Portal-Links:', error);
       }
+    } else if (includePortalLink === false) {
+      console.log('[WorkingOrderEmail] Portal-Link deaktiviert - wird nicht in E-Mail eingefügt');
     } else {
       console.log('[WorkingOrderEmail] Keine Lieferanten-ID verfügbar - kein Portal-Link');
     }
