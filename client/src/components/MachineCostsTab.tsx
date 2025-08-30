@@ -233,16 +233,17 @@ const MachineCostsTab: React.FC<MachineCostsTabProps> = ({ machineId }) => {
       </div>
 
       {showForm && (
-        <Card>
+        <Card className="w-full">
           <CardHeader>
             <CardTitle>Neue Kosten hinzufügen</CardTitle>
             <CardDescription>
-              Fügen Sie neue Kosten für diesen Automaten hinzu
+              Fügen Sie neue laufende Kosten für diesen Automaten hinzu.
             </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Erste Zeile: Kostenart und Betrag */}
+              <div className="space-y-4">
                 <div>
                   <Label htmlFor="costType">Kostenart *</Label>
                   <Input
@@ -251,6 +252,7 @@ const MachineCostsTab: React.FC<MachineCostsTabProps> = ({ machineId }) => {
                     onChange={(e) => setNewCost(prev => ({ ...prev, costType: e.target.value }))}
                     placeholder="z.B. Miete, Strom, Wartung"
                     required
+                    className="w-full"
                   />
                 </div>
                 <div>
@@ -263,19 +265,21 @@ const MachineCostsTab: React.FC<MachineCostsTabProps> = ({ machineId }) => {
                     onChange={(e) => setNewCost(prev => ({ ...prev, amount: e.target.value }))}
                     placeholder="0.00"
                     required
+                    className="w-full"
                   />
                 </div>
               </div>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Zweite Zeile: Häufigkeit */}
+              <div className="space-y-4">
                 <div>
                   <Label htmlFor="frequency">Häufigkeit</Label>
                   <Select
                     value={newCost.frequency}
                     onValueChange={(value) => setNewCost(prev => ({ ...prev, frequency: value }))}
                   >
-                    <SelectTrigger>
-                      <SelectValue />
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Wählen Sie die Häufigkeit" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="monthly">Monatlich</SelectItem>
@@ -286,6 +290,10 @@ const MachineCostsTab: React.FC<MachineCostsTabProps> = ({ machineId }) => {
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
+
+              {/* Dritte Zeile: Beschreibung */}
+              <div className="space-y-4">
                 <div>
                   <Label htmlFor="description">Beschreibung</Label>
                   <Input
@@ -293,23 +301,27 @@ const MachineCostsTab: React.FC<MachineCostsTabProps> = ({ machineId }) => {
                     value={newCost.description}
                     onChange={(e) => setNewCost(prev => ({ ...prev, description: e.target.value }))}
                     placeholder="Weitere Details (optional)"
+                    className="w-full"
                   />
                 </div>
               </div>
 
-              <div className="flex justify-end gap-2">
+              {/* Buttons */}
+              <div className="flex flex-col sm:flex-row justify-end gap-2 pt-4">
                 <Button 
                   type="button" 
                   variant="outline" 
                   onClick={() => setShowForm(false)}
+                  className="w-full sm:w-auto"
                 >
                   Abbrechen
                 </Button>
                 <Button 
                   type="submit" 
                   disabled={addCostMutation.isPending}
+                  className="w-full sm:w-auto"
                 >
-                  {addCostMutation.isPending ? 'Speichern...' : 'Speichern'}
+                  {addCostMutation.isPending ? 'Speichern...' : 'Hinzufügen'}
                 </Button>
               </div>
             </form>
