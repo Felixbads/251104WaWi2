@@ -141,6 +141,26 @@ interface MHDEntry {
   status: 'good' | 'attention' | 'warning' | 'expired';
 }
 
+interface RefillTemplate {
+  id: number;
+  name: string;
+  machineId: number;
+  machineName: string;
+  vendonId: string;
+  isDefault: boolean;
+  createdAt: string;
+  updatedAt: string;
+  products: RefillTemplateProduct[];
+}
+
+interface RefillTemplateProduct {
+  productId: number;
+  productName: string;
+  quantity: number;
+  minRefill: number;
+  maxCapacity: number;
+}
+
 interface ProfitabilityData {
   grossRevenue: number;
   netRevenueWithoutDeposit: number;
@@ -223,6 +243,12 @@ export default function AutomatDetail() {
   const [stockFilter, setStockFilter] = useState('all'); // all, critical, warning, good
   const [stockSortBy, setStockSortBy] = useState('fillLevel'); // fillLevel, productName, currentQuantity
   const [stockSortOrder, setStockSortOrder] = useState('asc'); // asc, desc
+  const [refillTemplateFilter, setRefillTemplateFilter] = useState('all'); // all, default, custom
+  const [refillTemplateSearch, setRefillTemplateSearch] = useState('');
+  const [newRefillTemplate, setNewRefillTemplate] = useState({
+    name: '',
+    description: ''
+  });
   const { toast } = useToast();
 
   const machineId = params?.id;
@@ -299,6 +325,13 @@ export default function AutomatDetail() {
   const { data: mhdEntries, isLoading: mhdLoading, refetch: refetchMHD } = useQuery<MHDEntry[]>({
     queryKey: [`/api/machines/${machineId}/mhd`],
     enabled: !!machineId && activeTab === 'mhd',
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Fetch refill templates
+  const { data: refillTemplates, isLoading: refillTemplatesLoading, refetch: refetchRefillTemplates } = useQuery<RefillTemplate[]>({
+    queryKey: [`/api/machines/${machineId}/refill-templates`],
+    enabled: !!machineId && activeTab === 'refill-vorlagen',
     staleTime: 5 * 60 * 1000,
   });
 
@@ -385,6 +418,29 @@ export default function AutomatDetail() {
     });
   }, [machineStock, stockFilter, stockSortBy, stockSortOrder]);
 
+  // Filtered and sorted refill templates
+  const filteredRefillTemplates = useMemo(() => {
+    if (!refillTemplates) return [];
+    
+    let filtered = refillTemplates;
+    
+    // Apply filter
+    if (refillTemplateFilter === 'default') {
+      filtered = filtered.filter(template => template.isDefault);
+    } else if (refillTemplateFilter === 'custom') {
+      filtered = filtered.filter(template => !template.isDefault);
+    }
+    
+    // Apply search
+    if (refillTemplateSearch) {
+      filtered = filtered.filter(template => 
+        template.name.toLowerCase().includes(refillTemplateSearch.toLowerCase())
+      );
+    }
+    
+    return filtered;
+  }, [refillTemplates, refillTemplateFilter, refillTemplateSearch]);
+
   // Calculate date range for profitability analysis
   const dateRange = useMemo(() => getDateRange(profitabilityPeriod), [profitabilityPeriod]);
 
@@ -442,6 +498,50 @@ export default function AutomatDetail() {
     onSuccess: () => {
       refetchCosts();
       toast({ title: "Kosten gelöscht", description: "Die Kosten wurden erfolgreich gelöscht." });
+    },
+  });
+
+  // Mutations for refill templates
+  const addRefillTemplateMutation = useMutation({
+    mutationFn: async (template: { name: string; description?: string }) => {
+      const response = await fetch(`/api/machines/${machineId}/refill-templates`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(template),
+      });
+      if (!response.ok) throw new Error('Fehler beim Erstellen der Refill-Vorlage');
+      return response.json();
+    },
+    onSuccess: () => {
+      refetchRefillTemplates();
+      setNewRefillTemplate({ name: '', description: '' });
+      toast({ title: "Refill-Vorlage erstellt", description: "Die Refill-Vorlage wurde erfolgreich erstellt." });
+    },
+  });
+
+  const deleteRefillTemplateMutation = useMutation({
+    mutationFn: async (templateId: number) => {
+      const response = await fetch(`/api/machines/${machineId}/refill-templates/${templateId}`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) throw new Error('Fehler beim Löschen der Refill-Vorlage');
+    },
+    onSuccess: () => {
+      refetchRefillTemplates();
+      toast({ title: "Refill-Vorlage gelöscht", description: "Die Refill-Vorlage wurde erfolgreich gelöscht." });
+    },
+  });
+
+  const setDefaultTemplateMutation = useMutation({
+    mutationFn: async ({ templateId, isDefault }: { templateId: number; isDefault: boolean }) => {
+      const response = await fetch(`/api/machines/${machineId}/refill-templates/${templateId}/default`, {
+        method: isDefault ? 'POST' : 'DELETE',
+      });
+      if (!response.ok) throw new Error('Fehler beim Setzen der Standard-Vorlage');
+    },
+    onSuccess: () => {
+      refetchRefillTemplates();
+      toast({ title: "Standard-Vorlage aktualisiert", description: "Die Standard-Vorlage wurde erfolgreich geändert." });
     },
   });
 
@@ -614,6 +714,12 @@ export default function AutomatDetail() {
                 className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-3 text-sm font-medium whitespace-nowrap min-w-[120px] h-12"
               >
                 Warenbestand
+              </TabsTrigger>
+              <TabsTrigger 
+                value="refill-vorlagen"
+                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-3 text-sm font-medium whitespace-nowrap min-w-[120px] h-12"
+              >
+                Refill-Vorlagen
               </TabsTrigger>
             </TabsList>
           </div>
@@ -1864,6 +1970,229 @@ export default function AutomatDetail() {
                 </CardContent>
               </Card>
             </>
+          )}
+        </TabsContent>
+
+        {/* Refill-Vorlagen Tab */}
+        <TabsContent value="refill-vorlagen" className="space-y-4">
+          <div className="flex justify-between items-center flex-wrap gap-4">
+            <h2 className="text-xl font-semibold">Refill-Vorlagen</h2>
+            <div className="flex items-center space-x-2">
+              <Input
+                placeholder="Vorlagen suchen..."
+                value={refillTemplateSearch}
+                onChange={(e) => setRefillTemplateSearch(e.target.value)}
+                className="w-48"
+              />
+              <Select value={refillTemplateFilter} onValueChange={setRefillTemplateFilter}>
+                <SelectTrigger className="w-32">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Alle</SelectItem>
+                  <SelectItem value="default">Standard</SelectItem>
+                  <SelectItem value="custom">Benutzerdefiniert</SelectItem>
+                </SelectContent>
+              </Select>
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Neue Vorlage
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Neue Refill-Vorlage erstellen</DialogTitle>
+                    <DialogDescription>
+                      Erstellen Sie eine neue Refill-Vorlage für diesen Automaten.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <form onSubmit={(e) => {
+                    e.preventDefault();
+                    if (!newRefillTemplate.name.trim()) {
+                      toast({
+                        title: "Validierungsfehler",
+                        description: "Name der Vorlage ist erforderlich.",
+                        variant: "destructive"
+                      });
+                      return;
+                    }
+                    addRefillTemplateMutation.mutate(newRefillTemplate);
+                  }} className="space-y-4">
+                    <div className="space-y-4">
+                      <div>
+                        <Label htmlFor="templateName">Vorlagen-Name *</Label>
+                        <Input 
+                          id="templateName" 
+                          value={newRefillTemplate.name}
+                          onChange={(e) => setNewRefillTemplate(prev => ({ ...prev, name: e.target.value }))}
+                          placeholder="z.B. Standard-Auffüllung, Wochenende-Mix"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="templateDescription">Beschreibung</Label>
+                        <Input 
+                          id="templateDescription" 
+                          value={newRefillTemplate.description}
+                          onChange={(e) => setNewRefillTemplate(prev => ({ ...prev, description: e.target.value }))}
+                          placeholder="Beschreibung der Vorlage (optional)"
+                        />
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button 
+                        type="button" 
+                        variant="outline" 
+                        onClick={() => {
+                          setNewRefillTemplate({ name: '', description: '' });
+                        }}
+                      >
+                        Zurücksetzen
+                      </Button>
+                      <Button type="submit" disabled={addRefillTemplateMutation.isPending}>
+                        {addRefillTemplateMutation.isPending ? 'Erstellen...' : 'Erstellen'}
+                      </Button>
+                    </DialogFooter>
+                  </form>
+                </DialogContent>
+              </Dialog>
+            </div>
+          </div>
+
+          {refillTemplatesLoading ? (
+            <div className="space-y-2">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <Skeleton key={i} className="h-12 w-full" />
+              ))}
+            </div>
+          ) : (
+            <Card>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name der Vorlage</TableHead>
+                      <TableHead>Standard</TableHead>
+                      <TableHead>Produkte</TableHead>
+                      <TableHead>Erstellt am</TableHead>
+                      <TableHead>Aktualisiert am</TableHead>
+                      <TableHead>Aktionen</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredRefillTemplates?.map((template: RefillTemplate) => (
+                      <TableRow key={template.id}>
+                        <TableCell>
+                          <div>
+                            <div className="font-medium">{template.name}</div>
+                            {template.products?.length > 0 && (
+                              <div className="text-sm text-muted-foreground">
+                                {template.products.length} Produkte konfiguriert
+                              </div>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center space-x-2">
+                            <Badge variant={template.isDefault ? 'default' : 'outline'}>
+                              {template.isDefault ? 'Standard' : 'Benutzerdefiniert'}
+                            </Badge>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setDefaultTemplateMutation.mutate({
+                                templateId: template.id,
+                                isDefault: !template.isDefault
+                              })}
+                              disabled={setDefaultTemplateMutation.isPending}
+                            >
+                              {template.isDefault ? 'Entfernen' : 'Als Standard setzen'}
+                            </Button>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {template.products?.length || 0} Produkte
+                        </TableCell>
+                        <TableCell>{formatDate(template.createdAt)}</TableCell>
+                        <TableCell>{formatDate(template.updatedAt)}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center space-x-2">
+                            <Button variant="outline" size="sm">
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => {
+                                if (confirm('Sind Sie sicher, dass Sie diese Refill-Vorlage löschen möchten?')) {
+                                  deleteRefillTemplateMutation.mutate(template.id);
+                                }
+                              }}
+                              disabled={deleteRefillTemplateMutation.isPending}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )) || (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center text-muted-foreground">
+                          {refillTemplateSearch ? 
+                            'Keine Refill-Vorlagen gefunden, die Ihrer Suche entsprechen' :
+                            'Noch keine Refill-Vorlagen erstellt'}
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Template Details */}
+          {filteredRefillTemplates?.length > 0 && (
+            <div className="grid gap-4">
+              {filteredRefillTemplates.map((template: RefillTemplate) => (
+                template.products?.length > 0 && (
+                  <Card key={`details-${template.id}`}>
+                    <CardHeader>
+                      <CardTitle className="text-lg flex items-center justify-between">
+                        <span>Details: {template.name}</span>
+                        {template.isDefault && (
+                          <Badge variant="default">Standard-Vorlage</Badge>
+                        )}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {template.products.map((product: RefillTemplateProduct, index: number) => (
+                          <div key={`${template.id}-product-${index}`} className="border rounded p-4">
+                            <h4 className="font-medium mb-2">{product.productName}</h4>
+                            <div className="space-y-1 text-sm">
+                              <div className="flex justify-between">
+                                <span>Auffüll-Menge:</span>
+                                <span className="font-medium">{product.quantity}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span>Min. Auffüllung:</span>
+                                <span>{product.minRefill}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span>Max. Kapazität:</span>
+                                <span>{product.maxCapacity}</span>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )
+              ))}
+            </div>
           )}
         </TabsContent>
         

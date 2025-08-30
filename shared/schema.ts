@@ -3504,6 +3504,80 @@ export const retroactiveInventoryAdjustmentRelations = relations(retroactiveInve
   }),
 }));
 
+// Refill Templates table
+export const refillTemplates = pgTable("refill_templates", {
+  id: serial("id").primaryKey(),
+  machineId: integer("machine_id").notNull().references(() => machines.id),
+  vendonId: varchar("vendon_id", { length: 50 }), // Optional: for Vendon integration
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  isDefault: boolean("is_default").default(false),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  createdBy: integer("created_by").references(() => users.id),
+  updatedBy: integer("updated_by").references(() => users.id),
+});
+
+// Refill Template Products table
+export const refillTemplateProducts = pgTable("refill_template_products", {
+  id: serial("id").primaryKey(),
+  templateId: integer("template_id").notNull().references(() => refillTemplates.id, { onDelete: "cascade" }),
+  productId: integer("product_id").references(() => products.id),
+  productName: varchar("product_name", { length: 255 }).notNull(),
+  quantity: integer("quantity").notNull().default(0),
+  minRefill: integer("min_refill").notNull().default(0),
+  maxCapacity: integer("max_capacity").notNull().default(0),
+  position: varchar("position", { length: 50 }), // Optional: machine position/slot
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Create insert schemas for refill templates
+export const insertRefillTemplateSchema = createInsertSchema(refillTemplates).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertRefillTemplateProductSchema = createInsertSchema(refillTemplateProducts).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertRefillTemplate = z.infer<typeof insertRefillTemplateSchema>;
+export type InsertRefillTemplateProduct = z.infer<typeof insertRefillTemplateProductSchema>;
+export type RefillTemplate = typeof refillTemplates.$inferSelect;
+export type RefillTemplateProduct = typeof refillTemplateProducts.$inferSelect;
+
+// Define relations for refill templates
+export const refillTemplateRelations = relations(refillTemplates, ({ one, many }) => ({
+  machine: one(machines, {
+    fields: [refillTemplates.machineId],
+    references: [machines.id],
+  }),
+  products: many(refillTemplateProducts),
+  createdByUser: one(users, {
+    fields: [refillTemplates.createdBy],
+    references: [users.id],
+  }),
+  updatedByUser: one(users, {
+    fields: [refillTemplates.updatedBy],
+    references: [users.id],
+  }),
+}));
+
+export const refillTemplateProductRelations = relations(refillTemplateProducts, ({ one }) => ({
+  template: one(refillTemplates, {
+    fields: [refillTemplateProducts.templateId],
+    references: [refillTemplates.id],
+  }),
+  product: one(products, {
+    fields: [refillTemplateProducts.productId],
+    references: [products.id],
+  }),
+}));
+
 export const allRelations = {
   orderRelations,
   orderItemRelations,
@@ -3529,6 +3603,8 @@ export const allRelations = {
   retroactiveInventoryCountRelations,
   retroactiveInventoryCountItemRelations,
   retroactiveInventoryAdjustmentRelations,
+  refillTemplateRelations,
+  refillTemplateProductRelations,
 };
 
 // Email notification relations
