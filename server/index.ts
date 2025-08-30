@@ -80,6 +80,7 @@ import supplierFavoritesRouter from './routes/supplier-favorites';
 import orderItemsRouter from './routes/order-items';
 import pagePermissionsRouter from './routes/page-permissions';
 import machinesRouter from './routes/machines';
+import refillTemplatesRouter from './routes/refill-templates';
 
 const app = express();
 
@@ -1862,6 +1863,10 @@ app.get('/orders-data', (req, res) => {
   // Mount machines router BEFORE registerRoutes for machine detail views
   app.use('/api/machines', machinesRouter);
   console.log('[SERVER] Machines router mounted at /api/machines BEFORE registerRoutes');
+
+  // Mount refill templates router for machine-specific refill templates
+  app.use('/api/machines', refillTemplatesRouter);
+  console.log('[SERVER] Refill templates router mounted at /api/machines BEFORE registerRoutes');
 
   // CRITICAL: Register API routes FIRST before any static/wildcard routes
   console.log('[SERVER] Registering API routes BEFORE Vite middleware...');
