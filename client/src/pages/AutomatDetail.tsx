@@ -298,6 +298,25 @@ export default function AutomatDetail() {
   // Fetch profitability data
   const { data: profitabilityData, isLoading: profitabilityLoading } = useQuery<ProfitabilityData>({
     queryKey: [`/api/machines/${machineId}/profitability`, profitabilityPeriod, dateRange.startDate.toISOString(), dateRange.endDate.toISOString()],
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        startDate: dateRange.startDate.toISOString(),
+        endDate: dateRange.endDate.toISOString(),
+        period: profitabilityPeriod
+      });
+      
+      const response = await fetch(`/api/machines/${machineId}/profitability?${params}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token') || ''}`
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      return response.json();
+    },
     enabled: !!machineId && activeTab === 'wirtschaftlichkeit',
     staleTime: 2 * 60 * 1000,
   });
