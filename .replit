@@ -65,4 +65,3 @@ task = "shell.exec"
 args = "node restart-server.js"
 
 [agent]
-integrations = ["javascript_sendgrid==1.0.0"]
