@@ -944,7 +944,7 @@ export class UnifiedVendonSyncCoordinator {
                     try {
                       // Finde das Produkt basierend auf dem Namen
                       const productResult = await rawDb.query(
-                        'SELECT id FROM products WHERE name = $1 LIMIT 1',
+                        'SELECT id FROM products WHERE product_name = $1 LIMIT 1',
                         [product.product_name || product.name]
                       );
                       
@@ -1050,7 +1050,7 @@ export class UnifiedVendonSyncCoordinator {
                         try {
                           // Finde das Produkt basierend auf dem Namen
                           const productResult = await rawDb.query(
-                            'SELECT id FROM products WHERE name = $1 LIMIT 1',
+                            'SELECT id FROM products WHERE product_name = $1 LIMIT 1',
                             [product.product_name]
                           );
                           
