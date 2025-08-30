@@ -141,6 +141,12 @@ export default function AutomatDetail() {
   const [activeTab, setActiveTab] = useState("allgemein");
   const [editingMHD, setEditingMHD] = useState<number | null>(null);
   const [removedProductsFilter, setRemovedProductsFilter] = useState("30"); // days
+  const [newCost, setNewCost] = useState({
+    costType: '',
+    amount: '',
+    frequency: 'monthly' as const,
+    description: ''
+  });
   const { toast } = useToast();
 
   const machineId = params?.id;
@@ -231,6 +237,7 @@ export default function AutomatDetail() {
     },
     onSuccess: () => {
       refetchCosts();
+      setNewCost({ costType: '', amount: '', frequency: 'monthly', description: '' });
       toast({ title: "Kosten hinzugefügt", description: "Die Kosten wurden erfolgreich hinzugefügt." });
     },
   });
@@ -1060,20 +1067,86 @@ export default function AutomatDetail() {
                     Fügen Sie neue laufende Kosten für diesen Automaten hinzu.
                   </DialogDescription>
                 </DialogHeader>
-                {/* Cost form would go here */}
-                <div className="grid gap-4 py-4">
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="costType" className="text-right">Kostenart</Label>
-                    <Input id="costType" className="col-span-3" />
+                <form onSubmit={(e) => {
+                  e.preventDefault();
+                  if (!newCost.costType.trim() || !newCost.amount.trim()) {
+                    toast({
+                      title: "Validierungsfehler",
+                      description: "Kostenart und Betrag sind erforderlich.",
+                      variant: "destructive"
+                    });
+                    return;
+                  }
+                  addCostMutation.mutate({
+                    costType: newCost.costType,
+                    amount: parseFloat(newCost.amount),
+                    frequency: newCost.frequency,
+                    description: newCost.description
+                  });
+                }} className="space-y-4">
+                  <div className="space-y-4">
+                    <div>
+                      <Label htmlFor="costType">Kostenart *</Label>
+                      <Input 
+                        id="costType" 
+                        value={newCost.costType}
+                        onChange={(e) => setNewCost(prev => ({ ...prev, costType: e.target.value }))}
+                        placeholder="z.B. Miete, Strom, Wartung"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="amount">Betrag (€) *</Label>
+                      <Input 
+                        id="amount" 
+                        type="number" 
+                        step="0.01"
+                        value={newCost.amount}
+                        onChange={(e) => setNewCost(prev => ({ ...prev, amount: e.target.value }))}
+                        placeholder="0.00"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="frequency">Häufigkeit</Label>
+                      <Select value={newCost.frequency} onValueChange={(value) => setNewCost(prev => ({ ...prev, frequency: value as any }))}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="monthly">Monatlich</SelectItem>
+                          <SelectItem value="yearly">Jährlich</SelectItem>
+                          <SelectItem value="quarterly">Vierteljährlich</SelectItem>
+                          <SelectItem value="weekly">Wöchentlich</SelectItem>
+                          <SelectItem value="once">Einmalig</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label htmlFor="description">Beschreibung</Label>
+                      <Input 
+                        id="description" 
+                        value={newCost.description}
+                        onChange={(e) => setNewCost(prev => ({ ...prev, description: e.target.value }))}
+                        placeholder="Weitere Details (optional)"
+                      />
+                    </div>
                   </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="amount" className="text-right">Betrag</Label>
-                    <Input id="amount" type="number" className="col-span-3" />
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button type="submit">Hinzufügen</Button>
-                </DialogFooter>
+                  <DialogFooter>
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      onClick={() => {
+                        setNewCost({ costType: '', amount: '', frequency: 'monthly', description: '' });
+                      }}
+                    >
+                      Zurücksetzen
+                    </Button>
+                    <Button type="submit" disabled={addCostMutation.isPending}>
+                      {addCostMutation.isPending ? 'Speichern...' : 'Hinzufügen'}
+                    </Button>
+                  </DialogFooter>
+                </form>
               </DialogContent>
             </Dialog>
           </div>
