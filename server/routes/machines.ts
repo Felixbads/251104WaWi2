@@ -554,71 +554,36 @@ router.get('/:id/stock', async (req, res) => {
     
     console.log(`[MACHINES API] Fetching current stock from Vendon API for machine ${inputId} (vendon_id: ${vendonId})`);
     
-    // 1. FIRST: Get current stock from Vendon API for real-time data
+    // 1. FIRST: Get current stock from Vendon API using correct products endpoint
     try {
-      const { getVendonApiClient } = await import('../services/enhancedVendonApiClient');
-      const vendonClient = getVendonApiClient();
+      const { fetchMachineProducts } = await import('../services/vendonAPI');
       
-      // Get current stock data from Vendon API
-      const vendonMachine = await vendonClient.get(`/machines/${vendonId}`);
-      
-      // DEBUG: Log the complete Vendon API response structure
-      console.log(`[MACHINES API] 🔍 DEBUG: Vendon API Response Type:`, typeof vendonMachine);
-      console.log(`[MACHINES API] 🔍 DEBUG: Vendon API Response Keys:`, Object.keys(vendonMachine || {}));
-      console.log(`[MACHINES API] 🔍 DEBUG: Vendon API Response:`, JSON.stringify(vendonMachine, null, 2));
-      
-      // Check different possible data structures
-      let products = null;
-      if (vendonMachine) {
-        if (vendonMachine.products) {
-          products = vendonMachine.products;
-          console.log(`[MACHINES API] 📦 Found products in .products:`, products.length);
-        } else if (vendonMachine.result?.products) {
-          products = vendonMachine.result.products;
-          console.log(`[MACHINES API] 📦 Found products in .result.products:`, products.length);
-        } else if (vendonMachine.result && Array.isArray(vendonMachine.result)) {
-          products = vendonMachine.result;
-          console.log(`[MACHINES API] 📦 Found products as result array:`, products.length);
-        } else if (Array.isArray(vendonMachine)) {
-          products = vendonMachine;
-          console.log(`[MACHINES API] 📦 Found products as direct array:`, products.length);
-        } else if (vendonMachine.machine?.products) {
-          products = vendonMachine.machine.products;
-          console.log(`[MACHINES API] 📦 Found products in .machine.products:`, products.length);
-        } else if (vendonMachine.inventory) {
-          products = vendonMachine.inventory;
-          console.log(`[MACHINES API] 📦 Found products in .inventory:`, products.length);
-        } else if (vendonMachine.stock) {
-          products = vendonMachine.stock;
-          console.log(`[MACHINES API] 📦 Found products in .stock:`, products.length);
-        }
-      }
+      console.log(`[MACHINES API] 🎯 Using dedicated products endpoint: /machine/${vendonId}/products`);
+      const products = await fetchMachineProducts(parseInt(vendonId!));
       
       if (products && Array.isArray(products) && products.length > 0) {
         vendonStock = products;
-        console.log(`[MACHINES API] ✅ Vendon API: ${vendonStock.length} Produkte von Vendon API erhalten`);
+        console.log(`[MACHINES API] ✅ Vendon API: ${vendonStock.length} Produkte von korrektem /products Endpoint erhalten`);
         console.log(`[MACHINES API] 🔍 Sample Product:`, JSON.stringify(vendonStock[0], null, 2));
       } else {
-        console.log(`[MACHINES API] ⚠️ Vendon API: Keine Produktdaten erhalten für Maschine ${vendonId}`);
-        console.log(`[MACHINES API] 🔍 Available properties:`, vendonMachine ? Object.keys(vendonMachine) : 'none');
-        console.log(`[MACHINES API] 🔍 DEBUG: Vendon Machine Response:`, JSON.stringify(vendonMachine, null, 2));
+        console.log(`[MACHINES API] ⚠️ Vendon API: Keine Produktdaten von /products Endpoint erhalten für Maschine ${vendonId}`);
         
-        // IMPORTANT: Try multiple alternative stock endpoints
+        // FALLBACK: Try enhanced client with alternative endpoints
+        const { getVendonApiClient } = await import('../services/enhancedVendonApiClient');
+        const vendonClient = getVendonApiClient();
+        
         const stockEndpoints = [
+          `/machines/${vendonId}/products`,
           `/machines/${vendonId}/stock`,
           `/machines/${vendonId}/inventory`, 
-          `/machines/${vendonId}/products`,
           `/inventory?machine_id=${vendonId}`,
-          `/stock?machine_id=${vendonId}`,
-          `/stocks/${vendonId}`,
-          `/products?machine_id=${vendonId}`
+          `/stock?machine_id=${vendonId}`
         ];
         
         for (const endpoint of stockEndpoints) {
           try {
-            console.log(`[MACHINES API] 🔄 Versuche Endpoint: ${endpoint}`);
+            console.log(`[MACHINES API] 🔄 Versuche Fallback-Endpoint: ${endpoint}`);
             const stockResponse = await vendonClient.get(endpoint);
-            console.log(`[MACHINES API] 📦 Response für ${endpoint}:`, JSON.stringify(stockResponse, null, 2));
             
             let foundProducts = null;
             if (stockResponse && Array.isArray(stockResponse)) {
@@ -627,13 +592,11 @@ router.get('/:id/stock', async (req, res) => {
               foundProducts = stockResponse.result;
             } else if (stockResponse?.data && Array.isArray(stockResponse.data)) {
               foundProducts = stockResponse.data;
-            } else if (stockResponse?.products && Array.isArray(stockResponse.products)) {
-              foundProducts = stockResponse.products;
             }
             
             if (foundProducts && foundProducts.length > 0) {
               vendonStock = foundProducts;
-              console.log(`[MACHINES API] ✅ Erfolg mit ${endpoint}: ${vendonStock.length} Produkte gefunden`);
+              console.log(`[MACHINES API] ✅ Fallback Erfolg mit ${endpoint}: ${vendonStock.length} Produkte gefunden`);
               break;
             }
           } catch (stockError) {
@@ -674,12 +637,41 @@ router.get('/:id/stock', async (req, res) => {
       localBatchData = [];
     }
     
-    // 3. THIRD: PRIMARY STRATEGY - Use refill_details for current stock (Vendon API has 400 errors)
+    // 3. THIRD: FALLBACK STRATEGY - Use refill_details only if Vendon API failed
     let formattedStock: any[] = [];
     
-    // PRIMARY: Try refill_details first since Vendon API is unreliable
-    console.log(`[MACHINES API] 🎯 PRIMARY: Verwende Refill-Daten für aktuelle Bestände`);
-    try {
+    // Check if we have valid Vendon data first
+    if (vendonStock && vendonStock.length > 0) {
+      console.log(`[MACHINES API] ✅ Using Vendon API data as PRIMARY source (${vendonStock.length} products)`);
+      
+      // Format Vendon data to match our interface - DEBUG MAPPING
+      formattedStock = vendonStock.map((product, index) => {
+        const currentQty = parseInt(product.amount) || parseInt(product.quantity) || parseInt(product.stock) || 0;
+        const maxQty = parseInt(product.amount_max) || parseInt(product.capacity) || parseInt(product.max_capacity) || currentQty || 10;
+        
+        console.log(`[MAPPING DEBUG] Product ${index}: ${product.name} - Raw amount: ${product.amount}, Parsed: ${currentQty}`);
+        
+        return {
+          id: index + 1,
+          productName: product.name || product.product_name || 'Unbekanntes Produkt',
+          currentQuantity: currentQty,
+          maxQuantity: maxQty,
+          lastRefill: product.last_purchase ? new Date(product.last_purchase * 1000).toISOString() : null,
+          vendonId: product.id || product.vendon_id,
+          status: currentQty <= 2 ? 'critical' : currentQty <= 5 ? 'warning' : 'good'
+        };
+      });
+      
+      console.log(`[MACHINES API] 📦 Formatted ${formattedStock.length} Vendon products`);
+      console.log(`[MACHINES API] 🔍 Sample formatted product:`, JSON.stringify(formattedStock[0], null, 2));
+      
+      // WICHTIG: Return early nach erfolgreichem Vendon Mapping
+      console.log(`[MACHINES API] ✅ VENDON SUCCESS - Returning ${formattedStock.length} products directly`);
+      console.log(`[MACHINES API] Found ${formattedStock.length} stock entries for machine ${machineInternalId}`);
+      return res.json(formattedStock);
+    } else {
+      console.log(`[MACHINES API] 🔄 FALLBACK: Using refill-based calculation since Vendon API failed`);
+      try {
       const refillStockResult = await rawDb.query(
         `WITH latest_refills AS (
           SELECT 
@@ -734,8 +726,9 @@ router.get('/:id/stock', async (req, res) => {
         
         console.log(`[MACHINES API] ✅ ERFOLG: ${formattedStock.length} Produkte mit aktuellen Beständen aus Refill-Daten`);
       }
-    } catch (refillError) {
-      console.log('[MACHINES API] ❌ Refill-Daten nicht verfügbar');
+      } catch (refillError) {
+        console.log('[MACHINES API] ❌ Refill-Daten nicht verfügbar');
+      }
     }
     
     // SECONDARY: Only try Vendon if refill data failed AND we have Vendon data
