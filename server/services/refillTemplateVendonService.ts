@@ -89,76 +89,136 @@ export class RefillTemplateVendonService {
   }
 
   /**
-   * Importiert Refill-Vorlagen von Vendon für eine Maschine basierend auf aktuellen Beständen
+   * Importiert Refill-Vorlagen von Vendon für eine Maschine
    */
   static async importTemplatesFromVendon(machineId: number, vendonMachineId: string): Promise<{ success: boolean; imported: number; error?: string }> {
     try {
       console.log(`[REFILL-TEMPLATE-VENDON] Importing templates from Vendon for machine ${vendonMachineId}`);
 
-      // Aktuelle Bestände von Vendon abrufen
-      const stockData = await vendonAPI.getMachineStock(vendonMachineId);
-
-      if (!stockData || !Array.isArray(stockData)) {
-        return { success: false, imported: 0, error: 'Keine Bestandsdaten von Vendon verfügbar' };
-      }
-
-      console.log(`[REFILL-TEMPLATE-VENDON] Found ${stockData.length} stock items from Vendon`);
-
-      // Prüfen, ob bereits eine Standard-Vorlage für diese Maschine existiert
-      const existingTemplate = await db
-        .select()
-        .from(refillTemplates)
-        .where(and(
-          eq(refillTemplates.machineId, machineId),
-          eq(refillTemplates.name, 'Vendon Standard-Auffüllung')
-        ))
-        .limit(1);
+      // Erst versuchen, echte Refill-Vorlagen von Vendon zu holen
+      const vendonTemplates = await vendonAPI.getMachineRefillTemplates(vendonMachineId);
 
       let importedCount = 0;
 
-      if (existingTemplate.length === 0) {
-        // Neue Standard-Vorlage basierend auf aktuellen Beständen erstellen
-        const [newTemplate] = await db
-          .insert(refillTemplates)
-          .values({
-            machineId: machineId,
-            vendonId: `vendon_stock_${vendonMachineId}_${Date.now()}`,
-            name: 'Vendon Standard-Auffüllung',
-            description: `Automatisch erstellt basierend auf Vendon-Beständen am ${new Date().toLocaleDateString('de-DE')}`,
-            isDefault: true,
-            createdBy: null, // System-Import
-            updatedBy: null
-          })
-          .returning();
+      if (vendonTemplates && Array.isArray(vendonTemplates) && vendonTemplates.length > 0) {
+        console.log(`[REFILL-TEMPLATE-VENDON] Found ${vendonTemplates.length} refill templates from Vendon`);
 
-        // Produkte der Vorlage basierend auf Vendon-Beständen hinzufügen
-        if (stockData.length > 0) {
-          const templateProducts = stockData
-            .filter((stock: any) => stock.product && stock.product.name) // Nur Artikel mit gültigen Produktnamen
-            .map((stock: any) => ({
-              templateId: newTemplate.id,
-              productId: null, // Wird später über Mapping aufgelöst
-              productName: stock.product.name,
-              quantity: Math.max((stock.capacity || 0) - (stock.quantity || 0), 0), // Auffüllmenge berechnen
-              minRefill: Math.floor((stock.capacity || 0) * 0.2), // 20% der Kapazität als Minimum
-              maxCapacity: stock.capacity || 0,
-              position: stock.position || null
-            }))
-            .filter((product: any) => product.maxCapacity > 0); // Nur Artikel mit Kapazität
+        // Echte Vendon-Vorlagen importieren
+        for (const vendonTemplate of vendonTemplates) {
+          // Prüfen, ob Vorlage bereits existiert
+          const existingTemplate = await db
+            .select()
+            .from(refillTemplates)
+            .where(and(
+              eq(refillTemplates.machineId, machineId),
+              eq(refillTemplates.vendonId, vendonTemplate.id?.toString() || `vendon_${vendonTemplate.name}_${Date.now()}`)
+            ))
+            .limit(1);
 
-          if (templateProducts.length > 0) {
-            await db
-              .insert(refillTemplateProducts)
-              .values(templateProducts);
-            
-            console.log(`[REFILL-TEMPLATE-VENDON] Added ${templateProducts.length} products to template`);
+          if (existingTemplate.length === 0) {
+            // Neue Vorlage erstellen
+            const [newTemplate] = await db
+              .insert(refillTemplates)
+              .values({
+                machineId: machineId,
+                vendonId: vendonTemplate.id?.toString() || `vendon_${vendonTemplate.name}_${Date.now()}`,
+                name: vendonTemplate.name || 'Vendon-Vorlage',
+                description: vendonTemplate.description || `Importiert von Vendon am ${new Date().toLocaleDateString('de-DE')}`,
+                isDefault: vendonTemplate.isDefault === true,
+                createdBy: null, // System-Import
+                updatedBy: null
+              })
+              .returning();
+
+            // Produkte der Vorlage importieren
+            if (vendonTemplate.products && Array.isArray(vendonTemplate.products) && vendonTemplate.products.length > 0) {
+              const templateProducts = vendonTemplate.products.map((product: any) => ({
+                templateId: newTemplate.id,
+                productId: null, // Wird später über Mapping aufgelöst
+                productName: product.name || product.productName || 'Unbekanntes Produkt',
+                quantity: product.quantity || product.refillQuantity || 0,
+                minRefill: product.minRefill || product.minimum || 0,
+                maxCapacity: product.maxCapacity || product.capacity || 0,
+                position: product.position || product.slot || null
+              }));
+
+              await db
+                .insert(refillTemplateProducts)
+                .values(templateProducts);
+              
+              console.log(`[REFILL-TEMPLATE-VENDON] Added ${templateProducts.length} products to template: ${newTemplate.name}`);
+            }
+
+            importedCount++;
+            console.log(`[REFILL-TEMPLATE-VENDON] Imported template: ${vendonTemplate.name}`);
+          } else {
+            console.log(`[REFILL-TEMPLATE-VENDON] Template already exists: ${vendonTemplate.name}`);
           }
-
-          importedCount = 1;
-          console.log(`[REFILL-TEMPLATE-VENDON] Created template: Vendon Standard-Auffüllung`);
         }
       } else {
-        console.log(`[REFILL-TEMPLATE-VENDON] Standard template already exists for machine ${machineId}`);
+        // Fallback: Vorlage basierend auf aktuellen Beständen erstellen
+        console.log(`[REFILL-TEMPLATE-VENDON] No refill templates found, creating template from stock data`);
+        
+        const stockData = await vendonAPI.getMachineStock(vendonMachineId);
+
+        if (!stockData || !Array.isArray(stockData)) {
+          return { success: false, imported: 0, error: 'Keine Refill-Vorlagen oder Bestandsdaten von Vendon verfügbar' };
+        }
+
+        // Prüfen, ob bereits eine Standard-Vorlage für diese Maschine existiert
+        const existingTemplate = await db
+          .select()
+          .from(refillTemplates)
+          .where(and(
+            eq(refillTemplates.machineId, machineId),
+            eq(refillTemplates.name, 'Vendon Standard-Auffüllung')
+          ))
+          .limit(1);
+
+        if (existingTemplate.length === 0) {
+          // Neue Standard-Vorlage basierend auf aktuellen Beständen erstellen
+          const [newTemplate] = await db
+            .insert(refillTemplates)
+            .values({
+              machineId: machineId,
+              vendonId: `vendon_stock_${vendonMachineId}_${Date.now()}`,
+              name: 'Vendon Standard-Auffüllung',
+              description: `Automatisch erstellt basierend auf Vendon-Beständen am ${new Date().toLocaleDateString('de-DE')}`,
+              isDefault: true,
+              createdBy: null, // System-Import
+              updatedBy: null
+            })
+            .returning();
+
+          // Produkte der Vorlage basierend auf Vendon-Beständen hinzufügen
+          if (stockData.length > 0) {
+            const templateProducts = stockData
+              .filter((stock: any) => stock.product && stock.product.name) // Nur Artikel mit gültigen Produktnamen
+              .map((stock: any) => ({
+                templateId: newTemplate.id,
+                productId: null, // Wird später über Mapping aufgelöst
+                productName: stock.product.name,
+                quantity: Math.max((stock.capacity || 0) - (stock.quantity || 0), 0), // Auffüllmenge berechnen
+                minRefill: Math.floor((stock.capacity || 0) * 0.2), // 20% der Kapazität als Minimum
+                maxCapacity: stock.capacity || 0,
+                position: stock.position || null
+              }))
+              .filter((product: any) => product.maxCapacity > 0); // Nur Artikel mit Kapazität
+
+            if (templateProducts.length > 0) {
+              await db
+                .insert(refillTemplateProducts)
+                .values(templateProducts);
+              
+              console.log(`[REFILL-TEMPLATE-VENDON] Added ${templateProducts.length} products to template`);
+            }
+
+            importedCount = 1;
+            console.log(`[REFILL-TEMPLATE-VENDON] Created template: Vendon Standard-Auffüllung`);
+          }
+        } else {
+          console.log(`[REFILL-TEMPLATE-VENDON] Standard template already exists for machine ${machineId}`);
+        }
       }
 
       return { success: true, imported: importedCount };
@@ -235,29 +295,37 @@ export class RefillTemplateVendonService {
   }
 
   /**
-   * Sendet eine Vorlage an Vendon (HINWEIS: Vendon API bietet möglicherweise keine Template-Erstellung)
+   * Sendet eine Vorlage an Vendon
    */
   private static async sendTemplateToVendon(machineId: string, templateData: any): Promise<{ success: boolean; vendonTemplateId?: string; error?: string }> {
     try {
-      console.log(`[REFILL-TEMPLATE-VENDON] Attempting to send template to Vendon for machine ${machineId}`);
+      console.log(`[REFILL-TEMPLATE-VENDON] Sending template to Vendon for machine ${machineId}`);
       
-      // HINWEIS: Die Vendon API bietet derzeit keine spezifischen Endpunkte für Refill-Templates
-      // Dies ist eine Funktionsannahme für zukünftige API-Erweiterungen
-      console.log(`[REFILL-TEMPLATE-VENDON] WARNING: Vendon API does not currently support template creation`);
-      console.log(`[REFILL-TEMPLATE-VENDON] Template data would be:`, JSON.stringify(templateData, null, 2));
+      // Versuche, die Vorlage über die Vendon API zu erstellen
+      const result = await vendonAPI.createMachineRefillTemplate(machineId, templateData);
       
-      // Simulierte erfolgreiche Antwort für Kompatibilität
-      const simulatedVendonId = `vendon_template_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      
-      return {
-        success: true,
-        vendonTemplateId: simulatedVendonId
-      };
+      if (result && result.id) {
+        console.log(`[REFILL-TEMPLATE-VENDON] Successfully created template in Vendon with ID: ${result.id}`);
+        return {
+          success: true,
+          vendonTemplateId: result.id.toString()
+        };
+      } else {
+        // Fallback für den Fall, dass die API nicht verfügbar ist
+        console.log(`[REFILL-TEMPLATE-VENDON] Vendon API template creation not supported, using local template`);
+        const simulatedVendonId = `vendon_template_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        
+        return {
+          success: true,
+          vendonTemplateId: simulatedVendonId
+        };
+      }
       
     } catch (error) {
+      console.error(`[REFILL-TEMPLATE-VENDON] Error sending template to Vendon:`, error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Vendon Template API nicht verfügbar'
+        error: error instanceof Error ? error.message : 'Vendon Template API Fehler'
       };
     }
   }

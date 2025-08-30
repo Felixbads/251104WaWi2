@@ -269,6 +269,37 @@ export class VendonAPI {
       return null;
     }
   }
+
+  /**
+   * Holt alle Refill-Vorlagen für einen bestimmten Automaten
+   * @param machineId Die Automaten-ID  
+   * @returns Liste der Refill-Vorlagen oder null im Fehlerfall
+   */
+  async getMachineRefillTemplates(machineId: string): Promise<any[] | null> {
+    try {
+      console.log(`[VENDON API] Fetching refill templates for machine ${machineId}`);
+      return await this.request(`/machine/${machineId}/refilltemplates`);
+    } catch (error) {
+      console.error(`Fehler beim Abrufen der Refill-Vorlagen für Automat ${machineId}:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Erstellt eine neue Refill-Vorlage für einen Automaten
+   * @param machineId Die Automaten-ID
+   * @param templateData Die Vorlage-Daten
+   * @returns Erstellte Vorlage oder null im Fehlerfall
+   */
+  async createMachineRefillTemplate(machineId: string, templateData: any): Promise<any | null> {
+    try {
+      console.log(`[VENDON API] Creating refill template for machine ${machineId}`);
+      return await this.request(`/machine/${machineId}/refilltemplates`, templateData, 'POST');
+    } catch (error) {
+      console.error(`Fehler beim Erstellen der Refill-Vorlage für Automat ${machineId}:`, error);
+      return null;
+    }
+  }
 }
 
 /**
