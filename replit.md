@@ -45,6 +45,30 @@ The system employs a robust architecture to manage complex vending machine opera
 -   **Vendon API**: Primary integration for real-time vending machine data collection and synchronization.
 -   **PostgreSQL**: Relational database used for persistent data storage.
 
+## Recent Major Fixes (30.08.2025)
+
+### PORTAL-LINKS IN ALLE BESTELL-E-MAILS INTEGRIERT ✅ (30.08.2025)
+
+**Problem gelöst**: Portal-Links fehlten in Bestell-E-Mails des orderEmailUtils.ts Systems.
+
+1. **Vollständige E-Mail-Integration implementiert**
+   - Portal-Links in beide E-Mail-Systeme integriert: enhancedEmailService.ts UND orderEmailUtils.ts
+   - `getSupplierPortalLink()` Funktion zu orderEmailUtils.ts hinzugefügt
+   - Alle E-Mail-Templates (standard, urgent, reorder) erweitert mit Portal-Link-Sektion
+
+2. **Umfassende Template-Erweiterung**
+   - Neue {{portalLinkSection}} Platzhalter in allen Template-Typen
+   - Visuell ansprechende Portal-Link-Box mit Emoji-Icons (🚚 🔗)
+   - Sichere Gültigkeitsdauer (30 Tage) und Benutzerfreundliche Beschreibung
+   - Responsive Design für alle E-Mail-Clients
+
+3. **System-weite Konsistenz erreicht**
+   - createAndSendOrderEmail() Funktion erweitert für automatische Portal-Link-Generierung
+   - Alle Bestellungs-E-Mails enthalten jetzt Portal-Links unabhängig vom verwendeten E-Mail-System
+   - Robuste Fehlerbehandlung bei fehlenden access_tokens
+
+**Technische Verbesserungen**: Dual E-Mail System Integration, Portal-Link Consistency, Enhanced User Experience
+
 ## Recent Major Fixes (14.08.2025)
 
 ### WAREHOUSE DROPDOWN PROBLEM BEHOBEN ✅ (14.08.2025 04:10)

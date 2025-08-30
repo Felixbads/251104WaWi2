@@ -2,6 +2,7 @@ import { createTransport } from 'nodemailer';
 import sgMail from '@sendgrid/mail';
 import { orders, orderItems, suppliers } from '../../shared/schema';
 import { db } from '../db';
+import { rawDb } from '../db';
 import { eq } from 'drizzle-orm';
 
 // Mail-Service-Konfiguration
@@ -309,9 +310,34 @@ class EnhancedEmailService {
   }
 
   /**
+   * Holt den access_token für einen Lieferanten und generiert Portal-Link
+   */
+  async getSupplierPortalLink(supplierId: number): Promise<string> {
+    try {
+      const result = await rawDb.query(
+        'SELECT access_token FROM supplier_access_pins WHERE supplier_id = $1 AND is_active = true LIMIT 1',
+        [supplierId]
+      );
+      
+      if (result.rows.length > 0) {
+        const accessToken = result.rows[0].access_token;
+        const baseUrl = process.env.REPLIT_DEV_DOMAIN ? 
+          `https://${process.env.REPLIT_DEV_DOMAIN}` : 
+          'https://www.proviantomat.de';
+        return `${baseUrl}/lieferant/${accessToken}`;
+      }
+      
+      return '';
+    } catch (error) {
+      console.error('[EnhancedEmailService] Fehler beim Abrufen des Portal-Links:', error);
+      return '';
+    }
+  }
+
+  /**
    * Erstellt eine E-Mail-Vorlage für eine Bestellung
    */
-  createOrderEmailTemplate(order: any, supplier: any, templateType: string = 'standard'): string {
+  createOrderEmailTemplate(order: any, supplier: any, templateType: string = 'standard', portalLink: string = ''): string {
     let template = '';
     
     switch (templateType) {
@@ -322,6 +348,7 @@ class EnhancedEmailService {
           <p><strong>wir benötigen dringend folgende Artikel und bitten um schnellstmögliche Lieferung:</strong></p>
           {{orderItems}}
           <p>Bitte bestätigen Sie den Empfang dieser Bestellung und teilen Sie uns den voraussichtlichen Liefertermin mit.</p>
+          {{portalLinkSection}}
           <p>Bei Fragen stehen wir Ihnen gerne zur Verfügung.</p>
           <p>Mit freundlichen Grüßen<br>Ihr Proviantomat Team</p>`;
         break;
@@ -333,6 +360,7 @@ class EnhancedEmailService {
           <p>hiermit bestellen wir in Ergänzung zu unserer vorherigen Bestellung folgende Artikel:</p>
           {{orderItems}}
           <p>Diese Bestellung bezieht sich auf unsere vorherige Bestellung <strong>{{orderNumber}}</strong> vom {{orderDate}}.</p>
+          {{portalLinkSection}}
           <p>Bei Fragen stehen wir Ihnen gerne zur Verfügung.</p>
           <p>Mit freundlichen Grüßen<br>Ihr Proviantomat Team</p>`;
         break;
@@ -349,18 +377,38 @@ class EnhancedEmailService {
           01829 Stadt Wehlen<br>
           Deutschland</p>
           <p>Bitte liefern Sie die Ware innerhalb der vereinbarten Lieferzeit.</p>
+          {{portalLinkSection}}
           <p>Bei Fragen stehen wir Ihnen gerne zur Verfügung.</p>
           <p>Mit freundlichen Grüßen<br>Ihr Proviantomat Team</p>`;
         break;
     }
     
+    // Portal-Link-Sektion erstellen
+    const portalLinkSection = portalLink ? `
+      <div style="background-color: #f0f9ff; border: 2px solid #0891b2; border-radius: 8px; padding: 20px; margin: 20px 0;">
+        <h3 style="color: #0891b2; margin: 0 0 10px 0; font-size: 16px;">🚚 Lieferung online bestätigen</h3>
+        <p style="margin: 0 0 15px 0; color: #374151;">Nutzen Sie unser Lieferantenportal, um:</p>
+        <ul style="margin: 0 0 15px 0; color: #374151; padding-left: 20px;">
+          <li>Den Liefertermin zu bestätigen</li>
+          <li>Genaue Lieferzeit anzugeben</li>
+          <li>Kommentare zur Bestellung zu hinterlassen</li>
+          <li>Bei Bedarf Mengen anzupassen</li>
+        </ul>
+        <p style="margin: 0; text-align: center;">
+          <a href="${portalLink}" style="background-color: #0891b2; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">🔗 Zum Lieferantenportal</a>
+        </p>
+        <p style="margin: 10px 0 0 0; font-size: 12px; color: #6b7280; text-align: center;">Dieser Link ist nur für Sie bestimmt und 30 Tage gültig.</p>
+      </div>
+    ` : '';
+
     // Platzhalter ersetzen
     const compiled = template
       .replace('{{supplierName}}', supplier.name || order.supplierName || 'Unbekannt')
       .replace('{{orderNumber}}', order.orderNumber || `#${order.id}`)
       .replace('{{orderDate}}', this.formatDate(order.orderDate))
       .replace('{{warehouseName}}', order.warehouseName || 'Hauptlager')
-      .replace('{{warehouseAddress}}', order.warehouseAddress || 'Keine Adresse angegeben');
+      .replace('{{warehouseAddress}}', order.warehouseAddress || 'Keine Adresse angegeben')
+      .replace('{{portalLinkSection}}', portalLinkSection);
     
     return compiled;
   }
@@ -416,18 +464,25 @@ class EnhancedEmailService {
       
       console.log(`[EnhancedEmailService] ${items.length} Bestellpositionen gefunden`);
       
-      // 4. E-Mail-Inhalt erstellen
+      // 4. Portal-Link für Lieferanten generieren
+      let portalLink = '';
+      if (order.supplierId) {
+        portalLink = await this.getSupplierPortalLink(order.supplierId);
+        console.log(`[EnhancedEmailService] Portal-Link für Lieferant ${order.supplierId}: ${portalLink ? 'Generiert' : 'Nicht verfügbar'}`);
+      }
+
+      // 5. E-Mail-Inhalt erstellen
       let emailContent = customContent;
       
       if (!emailContent) {
-        emailContent = this.createOrderEmailTemplate(order, supplier, templateType);
+        emailContent = this.createOrderEmailTemplate(order, supplier, templateType, portalLink);
       }
       
-      // 5. Bestellpositionen-Tabelle einfügen
+      // 6. Bestellpositionen-Tabelle einfügen
       const itemsTable = this.createOrderItemsTable(items);
       const fullHtml = emailContent.replace('{{orderItems}}', itemsTable);
       
-      // 6. E-Mail-Betreff erstellen
+      // 7. E-Mail-Betreff erstellen
       let subject = customSubject;
       
       if (!subject) {
@@ -440,7 +495,7 @@ class EnhancedEmailService {
         }
       }
       
-      // 7. E-Mail senden
+      // 8. E-Mail senden
       return await this.sendEmail(emailAddress, subject, fullHtml, undefined, cc, bcc);
       
     } catch (error: any) {
