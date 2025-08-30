@@ -34,7 +34,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { format, parseISO } from "date-fns";
+import { format, parseISO, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear, subDays, subWeeks, subMonths, subYears } from "date-fns";
 import { de } from "date-fns/locale";
 import { 
   LineChart, 
@@ -136,6 +136,73 @@ interface MHDEntry {
   status: 'good' | 'attention' | 'warning' | 'expired';
 }
 
+interface ProfitabilityData {
+  grossRevenue: number;
+  netRevenueWithoutDeposit: number;
+  costOfGoods: number;
+  locationCosts: number;
+  result: number;
+  margin: number;
+  period: string;
+}
+
+// Helper function to calculate date ranges for time filters
+function getDateRange(period: string): { startDate: Date; endDate: Date } {
+  const now = new Date();
+  
+  switch (period) {
+    case 'heute':
+      return {
+        startDate: startOfDay(now),
+        endDate: endOfDay(now)
+      };
+    case 'gestern':
+      const yesterday = subDays(now, 1);
+      return {
+        startDate: startOfDay(yesterday),
+        endDate: endOfDay(yesterday)
+      };
+    case 'diese-woche':
+      return {
+        startDate: startOfWeek(now, { weekStartsOn: 1 }), // Monday
+        endDate: endOfWeek(now, { weekStartsOn: 1 })
+      };
+    case 'letzte-woche':
+      const lastWeek = subWeeks(now, 1);
+      return {
+        startDate: startOfWeek(lastWeek, { weekStartsOn: 1 }),
+        endDate: endOfWeek(lastWeek, { weekStartsOn: 1 })
+      };
+    case 'dieser-monat':
+      return {
+        startDate: startOfMonth(now),
+        endDate: endOfMonth(now)
+      };
+    case 'letzter-monat':
+      const lastMonth = subMonths(now, 1);
+      return {
+        startDate: startOfMonth(lastMonth),
+        endDate: endOfMonth(lastMonth)
+      };
+    case 'dieses-jahr':
+      return {
+        startDate: startOfYear(now),
+        endDate: endOfYear(now)
+      };
+    case 'letztes-jahr':
+      const lastYear = subYears(now, 1);
+      return {
+        startDate: startOfYear(lastYear),
+        endDate: endOfYear(lastYear)
+      };
+    default:
+      return {
+        startDate: startOfMonth(now),
+        endDate: endOfMonth(now)
+      };
+  }
+}
+
 export default function AutomatDetail() {
   const [match, params] = useRoute("/automaten/:id");
   const [activeTab, setActiveTab] = useState("allgemein");
@@ -147,6 +214,7 @@ export default function AutomatDetail() {
     frequency: 'monthly' as const,
     description: ''
   });
+  const [profitabilityPeriod, setProfitabilityPeriod] = useState('dieser-monat');
   const { toast } = useToast();
 
   const machineId = params?.id;
@@ -222,6 +290,16 @@ export default function AutomatDetail() {
     queryKey: [`/api/machines/${machineId}/mhd`],
     enabled: !!machineId && activeTab === 'mhd',
     staleTime: 5 * 60 * 1000,
+  });
+
+  // Calculate date range for profitability analysis
+  const dateRange = useMemo(() => getDateRange(profitabilityPeriod), [profitabilityPeriod]);
+
+  // Fetch profitability data
+  const { data: profitabilityData, isLoading: profitabilityLoading } = useQuery<ProfitabilityData>({
+    queryKey: [`/api/machines/${machineId}/profitability`, profitabilityPeriod, dateRange.startDate.toISOString(), dateRange.endDate.toISOString()],
+    enabled: !!machineId && activeTab === 'wirtschaftlichkeit',
+    staleTime: 2 * 60 * 1000,
   });
 
   // Mutations for costs
@@ -1215,100 +1293,196 @@ export default function AutomatDetail() {
           <div className="flex justify-between items-center">
             <h2 className="text-xl font-semibold">Rentabilitätsanalyse</h2>
             <div className="flex items-center space-x-2">
-              <Input type="date" className="w-40" placeholder="Von" />
-              <Input type="date" className="w-40" placeholder="Bis" />
-              <Button variant="outline">
-                <Filter className="h-4 w-4 mr-2" />
-                Filtern
-              </Button>
+              <Select value={profitabilityPeriod} onValueChange={setProfitabilityPeriod}>
+                <SelectTrigger className="w-48">
+                  <SelectValue placeholder="Zeitraum wählen" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="heute">Heute</SelectItem>
+                  <SelectItem value="gestern">Gestern</SelectItem>
+                  <SelectItem value="diese-woche">Diese Woche</SelectItem>
+                  <SelectItem value="letzte-woche">Letzte Woche</SelectItem>
+                  <SelectItem value="dieser-monat">Dieser Monat</SelectItem>
+                  <SelectItem value="letzter-monat">Letzter Monat</SelectItem>
+                  <SelectItem value="dieses-jahr">Dieses Jahr</SelectItem>
+                  <SelectItem value="letztes-jahr">Letztes Jahr</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
-          {/* Profitability Overview */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium">Monatsumsatz</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">€1,245.80</div>
-                <p className="text-xs text-muted-foreground">+12% vs. Vormonat</p>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium">Monatliche Kosten</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">€892.50</div>
-                <p className="text-xs text-muted-foreground">-5% vs. Vormonat</p>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium">Netto-Gewinn</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-green-600">€353.30</div>
-                <p className="text-xs text-muted-foreground">+28% vs. Vormonat</p>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium">Gewinnmarge</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">28.4%</div>
-                <p className="text-xs text-muted-foreground">+4.2% vs. Vormonat</p>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Profitability Analysis */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Rentabilitätstrend</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="h-64 bg-muted rounded flex items-center justify-center text-muted-foreground">
-                  Rentabilitätsdiagramm wird implementiert
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Break-Even-Analyse</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="text-sm font-medium">Täglicher Break-Even</span>
-                    <span className="text-sm font-bold">€29.75</span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div className="bg-green-500 h-2 rounded-full" style={{ width: '73%' }}></div>
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-1">73% erreicht (€21.70 heute)</p>
-                </div>
+          {profitabilityLoading ? (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <Skeleton key={i} className="h-24 w-full" />
+                ))}
+              </div>
+              <Skeleton className="h-64 w-full" />
+            </div>
+          ) : profitabilityData ? (
+            <>
+              {/* Profitability Metrics */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium">Umsatz Brutto</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-blue-600">
+                      {formatCurrency(profitabilityData.grossRevenue)}
+                    </div>
+                  </CardContent>
+                </Card>
                 
-                <div>
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="text-sm font-medium">Monatlicher Break-Even</span>
-                    <span className="text-sm font-bold">€892.50</span>
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium">Umsatz Netto ohne Pfand</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-cyan-600">
+                      {formatCurrency(profitabilityData.netRevenueWithoutDeposit)}
+                    </div>
+                  </CardContent>
+                </Card>
+                
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium">Wareneinsatz</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-orange-600">
+                      {formatCurrency(profitabilityData.costOfGoods)}
+                    </div>
+                  </CardContent>
+                </Card>
+                
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium">Standort-Kosten (Netto)</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-red-600">
+                      {formatCurrency(profitabilityData.locationCosts)}
+                    </div>
+                  </CardContent>
+                </Card>
+                
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium">Ergebnis</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className={`text-2xl font-bold ${
+                      profitabilityData.result >= 0 ? 'text-green-600' : 'text-red-600'
+                    }`}>
+                      {formatCurrency(profitabilityData.result)}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {profitabilityData.margin.toFixed(1)}% Marge
+                    </p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Profitability Chart */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Rentabilitätsübersicht - {profitabilityData.period}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-80">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={[
+                        {
+                          name: 'Umsatz Brutto',
+                          value: profitabilityData.grossRevenue,
+                          color: '#3B82F6'
+                        },
+                        {
+                          name: 'Umsatz Netto',
+                          value: profitabilityData.netRevenueWithoutDeposit,
+                          color: '#06B6D4'
+                        },
+                        {
+                          name: 'Wareneinsatz',
+                          value: -profitabilityData.costOfGoods,
+                          color: '#F97316'
+                        },
+                        {
+                          name: 'Standort-Kosten',
+                          value: -profitabilityData.locationCosts,
+                          color: '#EF4444'
+                        },
+                        {
+                          name: 'Ergebnis',
+                          value: profitabilityData.result,
+                          color: profitabilityData.result >= 0 ? '#10B981' : '#EF4444'
+                        }
+                      ]}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis 
+                          dataKey="name" 
+                          tick={{ fontSize: 12 }}
+                          angle={-45}
+                          textAnchor="end"
+                          height={80}
+                        />
+                        <YAxis 
+                          tickFormatter={(value) => formatCurrency(value)}
+                          tick={{ fontSize: 12 }}
+                        />
+                        <Tooltip 
+                          formatter={(value: number) => [formatCurrency(Math.abs(value)), '']}
+                          labelStyle={{ color: '#000' }}
+                        />
+                        <Bar dataKey="value">
+                          {[
+                            { name: 'Umsatz Brutto', value: profitabilityData.grossRevenue, color: '#3B82F6' },
+                            { name: 'Umsatz Netto', value: profitabilityData.netRevenueWithoutDeposit, color: '#06B6D4' },
+                            { name: 'Wareneinsatz', value: -profitabilityData.costOfGoods, color: '#F97316' },
+                            { name: 'Standort-Kosten', value: -profitabilityData.locationCosts, color: '#EF4444' },
+                            { name: 'Ergebnis', value: profitabilityData.result, color: profitabilityData.result >= 0 ? '#10B981' : '#EF4444' }
+                          ].map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
                   </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div className="bg-blue-500 h-2 rounded-full" style={{ width: '139%' }}></div>
+                  
+                  {/* Summary and Analysis */}
+                  <div className="mt-6 p-4 bg-muted/50 rounded-lg">
+                    <h4 className="font-semibold mb-2">Analyse für {profitabilityData.period}:</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <p><strong>Umsatzrentabilität:</strong> {profitabilityData.margin.toFixed(1)}%</p>
+                        <p><strong>Deckungsbeitrag:</strong> {formatCurrency(profitabilityData.netRevenueWithoutDeposit - profitabilityData.costOfGoods)}</p>
+                      </div>
+                      <div>
+                        <p><strong>Kostenverhältnis:</strong> {((profitabilityData.locationCosts + profitabilityData.costOfGoods) / profitabilityData.grossRevenue * 100).toFixed(1)}%</p>
+                        <p className={`font-medium ${
+                          profitabilityData.result >= 0 ? 'text-green-600' : 'text-red-600'
+                        }`}>
+                          <strong>Status:</strong> {profitabilityData.result >= 0 ? 'Gewinnbringend' : 'Verlustbringend'}
+                        </p>
+                      </div>
+                    </div>
                   </div>
-                  <p className="text-xs text-muted-foreground mt-1">139% erreicht (€1,245.80 aktuell)</p>
+                </CardContent>
+              </Card>
+            </>
+          ) : (
+            <Card>
+              <CardContent className="p-8">
+                <div className="text-center text-muted-foreground">
+                  <BarChart3 className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p>Keine Rentabilitätsdaten für den ausgewählten Zeitraum verfügbar.</p>
+                  <p className="text-sm mt-2">Wählen Sie einen anderen Zeitraum oder prüfen Sie die Datenverfügbarkeit.</p>
                 </div>
               </CardContent>
             </Card>
-          </div>
+          )}
         </TabsContent>
 
         {/* Warenbestand Tab */}

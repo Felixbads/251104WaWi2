@@ -1022,4 +1022,190 @@ router.delete('/:id/costs/:costId', async (req, res) => {
   }
 });
 
+/**
+ * GET /api/machines/:id/profitability
+ * Get profitability analysis for a specific machine within a date range
+ */
+router.get('/:id/profitability', async (req, res) => {
+  try {
+    const inputId = req.params.id;
+    const { startDate, endDate, period } = req.query;
+    
+    console.log(`[MACHINES API] Fetching profitability for machine ID: ${inputId}, period: ${period}`);
+    
+    if (!startDate || !endDate) {
+      return res.status(400).json({
+        error: 'Start- und Enddatum sind erforderlich',
+        message: 'Parameter startDate und endDate müssen angegeben werden'
+      });
+    }
+    
+    // Resolve machine ID using the existing logic
+    let machineInternalId: number | undefined;
+    const parsedId = parseInt(inputId);
+    
+    if (!isNaN(parsedId)) {
+      const machineCheck = await rawDb.query(
+        'SELECT id FROM machines WHERE id = $1 LIMIT 1',
+        [parsedId]
+      );
+      
+      if (machineCheck.rows.length > 0) {
+        machineInternalId = parsedId;
+      } else {
+        const locationCheck = await rawDb.query(
+          'SELECT id FROM machines WHERE location_id = $1 LIMIT 1',
+          [parsedId]
+        );
+        
+        if (locationCheck.rows.length > 0) {
+          machineInternalId = locationCheck.rows[0].id;
+        }
+      }
+    }
+
+    if (!machineInternalId) {
+      const vendonCheck = await rawDb.query(
+        'SELECT id FROM machines WHERE vendon_id = $1 LIMIT 1',
+        [inputId]
+      );
+      
+      if (vendonCheck.rows.length > 0) {
+        machineInternalId = vendonCheck.rows[0].id;
+      }
+    }
+
+    if (!machineInternalId) {
+      return res.status(404).json({
+        error: 'Maschine nicht gefunden',
+        message: `Keine Maschine mit ID ${inputId} gefunden`
+      });
+    }
+    
+    // Calculate profitability metrics
+    const profitabilityQuery = `
+      WITH transaction_data AS (
+        SELECT 
+          COUNT(t.id) as transaction_count,
+          SUM(t.quantity) as quantity_sold,
+          -- Umsatz Brutto (Gross Revenue)
+          SUM(t.price * t.quantity) as gross_revenue,
+          -- Umsatz Netto ohne MwSt (Net Revenue without VAT)
+          SUM(
+            CASE 
+              WHEN t.price_wo_vat IS NOT NULL THEN t.price_wo_vat * t.quantity
+              ELSE (t.price / 1.19) * t.quantity
+            END
+          ) as net_revenue_without_vat,
+          -- Pfand-Umsatz (Deposit Revenue)
+          SUM(COALESCE(p.deposit_price, 0) * t.quantity) as deposit_revenue,
+          -- Wareneinsatz (Cost of Goods) - basiert auf Einkaufspreisen
+          SUM(
+            COALESCE(pc.unit_price, 
+              CASE 
+                WHEN t.price_wo_vat IS NOT NULL THEN t.price_wo_vat * 0.65
+                ELSE (t.price / 1.19) * 0.65
+              END
+            ) * t.quantity
+          ) as cost_of_goods
+        FROM transactions t
+        LEFT JOIN products p ON t.product_name = p.product_name
+        LEFT JOIN purchase_conditions pc ON p.id = pc.product_id AND pc.is_preferred = true
+        WHERE t.machine_id = $1 
+          AND t.datetime >= $2 
+          AND t.datetime <= $3
+      ),
+      location_costs AS (
+        SELECT 
+          COALESCE(SUM(
+            CASE 
+              WHEN lc.frequency = 'monthly' THEN lc.amount
+              WHEN lc.frequency = 'yearly' THEN lc.amount / 12
+              WHEN lc.frequency = 'quarterly' THEN lc.amount / 3
+              WHEN lc.frequency = 'weekly' THEN lc.amount * 4.33
+              ELSE lc.amount
+            END
+          ), 0) as monthly_costs
+        FROM location_costs lc
+        JOIN machines m ON m.location_name = lc.location_name OR m.location_address = lc.location_name
+        WHERE m.id = $1 
+          AND lc.is_active = true
+          AND (lc.valid_to IS NULL OR lc.valid_to >= $2)
+      )
+      SELECT 
+        td.gross_revenue,
+        (td.net_revenue_without_vat - td.deposit_revenue) as net_revenue_without_deposit,
+        td.deposit_revenue,
+        td.cost_of_goods,
+        -- Standort-Kosten (Location Costs) - anteilig für den Zeitraum
+        (lc.monthly_costs * 
+          EXTRACT(epoch FROM ($3::timestamp - $2::timestamp)) / 
+          EXTRACT(epoch FROM interval '1 month')
+        ) as location_costs,
+        td.transaction_count,
+        td.quantity_sold
+      FROM transaction_data td, location_costs lc
+    `;
+    
+    const result = await rawDb.query(profitabilityQuery, [
+      machineInternalId,
+      startDate,
+      endDate
+    ]);
+    
+    if (result.rows.length === 0) {
+      return res.json({
+        grossRevenue: 0,
+        netRevenueWithoutDeposit: 0,
+        costOfGoods: 0,
+        locationCosts: 0,
+        result: 0,
+        margin: 0,
+        period: String(period || 'custom')
+      });
+    }
+    
+    const data = result.rows[0];
+    const grossRevenue = parseFloat(data.gross_revenue) || 0;
+    const netRevenueWithoutDeposit = parseFloat(data.net_revenue_without_deposit) || 0;
+    const costOfGoods = parseFloat(data.cost_of_goods) || 0;
+    const locationCosts = parseFloat(data.location_costs) || 0;
+    
+    // Ergebnis = Netto-Umsatz ohne Pfand - Wareneinsatz - Standortkosten
+    const result_value = netRevenueWithoutDeposit - costOfGoods - locationCosts;
+    
+    // Gewinnmarge = Ergebnis / Brutto-Umsatz * 100
+    const margin = grossRevenue > 0 ? (result_value / grossRevenue) * 100 : 0;
+    
+    const profitabilityData = {
+      grossRevenue,
+      netRevenueWithoutDeposit,
+      costOfGoods,
+      locationCosts,
+      result: result_value,
+      margin,
+      period: String(period || 'custom')
+    };
+    
+    console.log(`[MACHINES API] Profitability calculated for machine ${machineInternalId}:`, {
+      grossRevenue: profitabilityData.grossRevenue,
+      netRevenue: profitabilityData.netRevenueWithoutDeposit,
+      costOfGoods: profitabilityData.costOfGoods,
+      locationCosts: profitabilityData.locationCosts,
+      result: profitabilityData.result,
+      margin: `${profitabilityData.margin.toFixed(1)}%`
+    });
+    
+    res.json(profitabilityData);
+
+  } catch (error) {
+    console.error(`[MACHINES API] Error calculating profitability for machine ${req.params.id}:`, error);
+    const errorMessage = error instanceof Error ? error.message : 'Unbekannter Fehler';
+    res.status(500).json({
+      error: 'Fehler bei der Rentabilitätsberechnung',
+      message: errorMessage
+    });
+  }
+});
+
 export default router;
