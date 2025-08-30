@@ -558,13 +558,23 @@ router.get('/:id/stock', async (req, res) => {
           ms.quantity as "currentQuantity",
           ms.max_quantity as "maxQuantity",
           ms.last_filled as "lastRefill",
+          ms.expiry_date as "expiryDate",
+          ms.batch_id as "batchId",
+          ib.batch_number as "batchNumber",
+          ib.expiry_date as "batchExpiryDate",
           CASE 
             WHEN ms.quantity = 0 THEN 'critical'
             WHEN ms.max_quantity > 0 AND (ms.quantity::float / ms.max_quantity) < 0.2 THEN 'warning'
             ELSE 'good'
-          END as status
+          END as status,
+          CASE 
+            WHEN COALESCE(ms.expiry_date, ib.expiry_date) < CURRENT_DATE THEN 'expired'
+            WHEN COALESCE(ms.expiry_date, ib.expiry_date) <= CURRENT_DATE + INTERVAL '7 days' THEN 'warning'
+            ELSE 'ok'
+          END as mhd_status
         FROM machine_stocks ms
         LEFT JOIN products p ON p.vendon_id = ms.product_vendon_id
+        LEFT JOIN inventory_batches ib ON ms.batch_id = ib.id
         WHERE ms.machine_id = $1
         ORDER BY ms.selection_number`,
         [machineInternalId!]
@@ -581,7 +591,11 @@ router.get('/:id/stock', async (req, res) => {
       currentQuantity: parseInt(row.currentQuantity || 0),
       maxQuantity: parseInt(row.maxQuantity || 0),
       lastRefill: row.lastRefill,
-      status: row.status
+      status: row.status,
+      expiryDate: row.expiryDate || row.batchExpiryDate,
+      batchId: row.batchId,
+      batchNumber: row.batchNumber,
+      mhdStatus: row.mhd_status
     }));
 
     console.log(`[MACHINES API] Found ${formattedStock.length} stock entries for machine ${machineInternalId}`);

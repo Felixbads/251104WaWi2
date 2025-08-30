@@ -127,6 +127,10 @@ interface MachineStock {
   maxQuantity: number;
   lastRefill?: string;
   status: 'good' | 'warning' | 'critical';
+  expiryDate?: string;
+  batchId?: number;
+  batchNumber?: string;
+  mhdStatus?: 'ok' | 'warning' | 'expired';
 }
 
 interface MHDEntry {
@@ -1764,6 +1768,7 @@ export default function AutomatDetail() {
                           <TableHead className="text-right">Max. Kapazität</TableHead>
                           <TableHead>Füllstand</TableHead>
                           <TableHead>Status</TableHead>
+                          <TableHead>MHD</TableHead>
                           <TableHead>Letzte Auffüllung</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -1812,6 +1817,27 @@ export default function AutomatDetail() {
                                   </Badge>
                                 </TableCell>
                                 <TableCell>
+                                  {stock.expiryDate ? (
+                                    <div className="flex items-center gap-1">
+                                      <span className={
+                                        stock.mhdStatus === 'expired' ? 'text-red-600 font-semibold' :
+                                        stock.mhdStatus === 'warning' ? 'text-yellow-600 font-medium' : 
+                                        'text-gray-600'
+                                      }>
+                                        {formatDateOnly(stock.expiryDate)}
+                                      </span>
+                                      {stock.mhdStatus === 'expired' && (
+                                        <Badge variant="destructive" className="text-xs">ABGELAUFEN</Badge>
+                                      )}
+                                      {stock.mhdStatus === 'warning' && (
+                                        <Badge variant="outline" className="text-xs text-yellow-600">BALD</Badge>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <span className="text-muted-foreground">–</span>
+                                  )}
+                                </TableCell>
+                                <TableCell>
                                   {stock.lastRefill ? formatDate(stock.lastRefill) : '–'}
                                 </TableCell>
                               </TableRow>
@@ -1819,7 +1845,7 @@ export default function AutomatDetail() {
                           })
                         ) : (
                           <TableRow>
-                            <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                            <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
                               <div className="flex flex-col items-center gap-2">
                                 <Package className="h-8 w-8 opacity-50" />
                                 <p>Keine Bestandsdaten verfügbar</p>
