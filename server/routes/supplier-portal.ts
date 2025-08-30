@@ -7,6 +7,7 @@
 import { Router, Request, Response } from 'express';
 import { rawDb } from '../db';
 import { validatePin } from '../services/supplierPinService';
+import { emailService } from '../utils/enhancedEmailService';
 
 const router = Router();
 
@@ -972,20 +973,33 @@ router.get('/purchase-conditions', async (req, res) => {
   }
 
   try {
-    const supplierId = await validateSession(sessionToken);
-    
-    if (!supplierId) {
+    // Extract supplier ID from session token
+    const sessionCheck = await rawDb.query(
+      `SELECT sp.supplier_id, sp.session_expires_at 
+       FROM supplier_access_pins sp 
+       WHERE sp.session_token = $1 AND sp.is_active = true`,
+      [sessionToken]
+    );
+
+    if (sessionCheck.rows.length === 0) {
       return jsonResponse(res, 401, {
         success: false,
         error: 'Ungültige Session'
       });
     }
 
-    const client = await pool.connect();
+    const session = sessionCheck.rows[0];
+    const supplierId = session.supplier_id;
     
-    try {
-      // Hole alle Einkaufsbedingungen für diesen Lieferanten
-      const result = await client.query(`
+    if (new Date(session.session_expires_at) < new Date()) {
+      return jsonResponse(res, 401, {
+        success: false,
+        error: 'Session abgelaufen'
+      });
+    }
+    
+    // Hole alle Einkaufsbedingungen für diesen Lieferanten
+    const result = await rawDb.query(`
         SELECT 
           id, supplier_id as "supplierId", product_id as "productId", 
           discount_type as "discountType", discount_percentage as "discountPercentage",
@@ -999,14 +1013,10 @@ router.get('/purchase-conditions', async (req, res) => {
         ORDER BY created_at DESC
       `, [supplierId]);
 
-      return jsonResponse(res, 200, {
-        success: true,
-        data: result.rows
-      });
-      
-    } finally {
-      client.release();
-    }
+    return jsonResponse(res, 200, {
+      success: true,
+      data: result.rows
+    });
     
   } catch (error) {
     console.error('Fehler beim Abrufen der Einkaufsbedingungen:', error);
@@ -1017,63 +1027,497 @@ router.get('/purchase-conditions', async (req, res) => {
   }
 });
 
-// GET /api/supplier-portal/order-items - Bestellpositionen abrufen
-router.get('/order-items', async (req, res) => {
-  const sessionToken = req.headers.authorization?.replace('Bearer ', '');
-  
-  if (!sessionToken) {
-    return jsonResponse(res, 401, {
-      success: false,
-      error: 'Session Token erforderlich'
-    });
-  }
 
+/**
+ * LIEFERANTENBESTÄTIGUNG APIs
+ * Diese Endpunkte ermöglichen es Lieferanten, Bestellungen zu bestätigen,
+ * Liefertermine anzugeben und Mengen anzupassen
+ */
+
+/**
+ * GET /api/supplier-portal/pending-orders
+ * Abrufen aller Bestellungen die auf Lieferantenbestätigung warten
+ */
+router.get('/pending-orders', async (req: Request, res: Response) => {
   try {
-    const supplierId = await validateSession(sessionToken);
-    
-    if (!supplierId) {
+    const sessionToken = req.headers.authorization?.replace('Bearer ', '');
+
+    if (!sessionToken) {
+      return jsonResponse(res, 401, {
+        success: false,
+        error: 'Session Token erforderlich'
+      });
+    }
+
+    // Extract supplier ID from session token
+    const sessionCheck = await rawDb.query(
+      `SELECT sp.supplier_id, sp.session_expires_at 
+       FROM supplier_access_pins sp 
+       WHERE sp.session_token = $1 AND sp.is_active = true`,
+      [sessionToken]
+    );
+
+    if (sessionCheck.rows.length === 0) {
       return jsonResponse(res, 401, {
         success: false,
         error: 'Ungültige Session'
       });
     }
 
-    const client = await pool.connect();
+    const session = sessionCheck.rows[0];
+    const supplierId = session.supplier_id;
     
-    try {
-      // Hole alle Bestellpositionen für Bestellungen dieses Lieferanten
-      const result = await client.query(`
-        SELECT 
-          oi.id, oi.order_id as "orderId", oi.product_id as "productId",
-          oi.product_name as "productName", oi.sku, oi.supplier_sku as "supplierSku",
-          oi.quantity, oi.unit, oi.quantity_delivered as "quantityDelivered",
-          oi.unit_price as "unitPrice", oi.total_price as "totalPrice",
-          oi.vat_rate as "vatRate", oi.vat_amount as "vatAmount",
-          oi.discount, oi.discount_amount as "discountAmount",
-          oi.position_number as "positionNumber", oi.status,
-          oi.notes, oi.item_comment as "itemComment", 
-          oi.delivery_comment as "deliveryComment",
-          o.order_number as "orderNumber", o.order_date as "orderDate"
-        FROM order_items oi
-        INNER JOIN orders o ON oi.order_id = o.id
-        WHERE o.supplier_id = $1
-        ORDER BY o.order_date DESC, oi.position_number ASC
-      `, [supplierId]);
-
-      return jsonResponse(res, 200, {
-        success: true,
-        data: result.rows
+    if (new Date(session.session_expires_at) < new Date()) {
+      return jsonResponse(res, 401, {
+        success: false,
+        error: 'Session abgelaufen'
       });
-      
-    } finally {
-      client.release();
     }
-    
+
+    // Hole alle Bestellungen die auf Bestätigung warten
+    const ordersQuery = `
+      SELECT 
+        o.id,
+        o.order_number as "orderNumber",
+        o.status,
+        o.order_date as "orderDate",
+        o.expected_delivery_date as "expectedDeliveryDate",
+        o.confirmed_delivery_date as "confirmedDeliveryDate",
+        o.confirmed_delivery_time as "confirmedDeliveryTime",
+        o.supplier_comments as "supplierComments",
+        o.delivery_confirmation_status as "deliveryConfirmationStatus",
+        o.total_amount as "totalAmount",
+        o.currency,
+        o.notes,
+        o.priority,
+        w.name as "locationName",
+        o.delivery_location as "deliveryLocation",
+        o.delivery_address as "deliveryAddress"
+      FROM orders o
+      LEFT JOIN warehouses w ON o.warehouse_id = w.id
+      WHERE o.supplier_id = $1 
+        AND (o.delivery_confirmation_status = 'pending' OR o.delivery_confirmation_status IS NULL)
+        AND o.status IN ('open', 'ordered', 'sent_to_supplier')
+      ORDER BY o.order_date DESC
+    `;
+
+    const ordersResult = await rawDb.query(ordersQuery, [supplierId]);
+
+    // Für jede Bestellung die Positionen laden
+    const ordersWithItems = await Promise.all(
+      ordersResult.rows.map(async (order) => {
+        const itemsQuery = `
+          SELECT 
+            oi.id,
+            oi.product_name as "productName",
+            oi.quantity,
+            oi.unit,
+            oi.unit_price as "unitPrice",
+            oi.total_price as "totalPrice",
+            oi.vat_rate as "vatRate",
+            oi.sku,
+            oi.supplier_sku as "supplierSku",
+            oi.notes,
+            oi.item_comment as "itemComment"
+          FROM order_items oi
+          WHERE oi.order_id = $1
+          ORDER BY oi.position_number ASC
+        `;
+        
+        const itemsResult = await rawDb.query(itemsQuery, [order.id]);
+        
+        return {
+          ...order,
+          items: itemsResult.rows
+        };
+      })
+    );
+
+    return jsonResponse(res, 200, {
+      success: true,
+      data: ordersWithItems
+    });
+
   } catch (error) {
-    console.error('Fehler beim Abrufen der Bestellpositionen:', error);
+    console.error('[SUPPLIER-PORTAL] Error fetching pending orders:', error);
     return jsonResponse(res, 500, {
       success: false,
-      error: 'Interner Serverfehler'
+      error: 'Fehler beim Laden der Bestellungen'
+    });
+  }
+});
+
+/**
+ * POST /api/supplier-portal/confirm-delivery
+ * Bestätigung einer Bestellung durch den Lieferanten
+ */
+router.post('/confirm-delivery', async (req: Request, res: Response) => {
+  try {
+    const sessionToken = req.headers.authorization?.replace('Bearer ', '');
+    const { orderId, confirmedDeliveryDate, confirmedDeliveryTime, supplierComments } = req.body;
+
+    if (!sessionToken) {
+      return jsonResponse(res, 401, {
+        success: false,
+        error: 'Session Token erforderlich'
+      });
+    }
+
+    if (!orderId || !confirmedDeliveryDate) {
+      return jsonResponse(res, 400, {
+        success: false,
+        error: 'Bestellungs-ID und Lieferdatum sind erforderlich'
+      });
+    }
+
+    // Session validieren und Supplier ID ermitteln
+    const sessionCheck = await rawDb.query(
+      `SELECT sp.supplier_id, sp.session_expires_at 
+       FROM supplier_access_pins sp 
+       WHERE sp.session_token = $1 AND sp.is_active = true`,
+      [sessionToken]
+    );
+
+    if (sessionCheck.rows.length === 0) {
+      return jsonResponse(res, 401, {
+        success: false,
+        error: 'Ungültige Session'
+      });
+    }
+
+    const session = sessionCheck.rows[0];
+    const supplierId = session.supplier_id;
+
+    if (new Date(session.session_expires_at) < new Date()) {
+      return jsonResponse(res, 401, {
+        success: false,
+        error: 'Session abgelaufen'
+      });
+    }
+
+    // Prüfen ob die Bestellung zu diesem Lieferanten gehört
+    const orderCheck = await rawDb.query(
+      'SELECT id, order_number, status FROM orders WHERE id = $1 AND supplier_id = $2',
+      [orderId, supplierId]
+    );
+
+    if (orderCheck.rows.length === 0) {
+      return jsonResponse(res, 404, {
+        success: false,
+        error: 'Bestellung nicht gefunden oder nicht berechtigt'
+      });
+    }
+
+    const order = orderCheck.rows[0];
+
+    // Bestätigung in der Datenbank speichern
+    const updateResult = await rawDb.query(`
+      UPDATE orders 
+      SET 
+        supplier_confirmed_date = NOW(),
+        confirmed_delivery_date = $1,
+        confirmed_delivery_time = $2,
+        supplier_comments = $3,
+        delivery_confirmation_status = 'confirmed',
+        status = CASE 
+          WHEN status = 'open' THEN 'confirmed_by_supplier'
+          WHEN status = 'sent_to_supplier' THEN 'confirmed_by_supplier'
+          ELSE status 
+        END,
+        updated_at = NOW()
+      WHERE id = $4 AND supplier_id = $5
+      RETURNING id, order_number, delivery_confirmation_status, status
+    `, [confirmedDeliveryDate, confirmedDeliveryTime, supplierComments, orderId, supplierId]);
+
+    if (updateResult.rows.length === 0) {
+      return jsonResponse(res, 500, {
+        success: false,
+        error: 'Bestätigung konnte nicht gespeichert werden'
+      });
+    }
+
+    const updatedOrder = updateResult.rows[0];
+
+    // Lieferantendaten für E-Mail-Benachrichtigung abrufen
+    const supplierData = await rawDb.query(
+      'SELECT name FROM suppliers WHERE id = $1',
+      [supplierId]
+    );
+    
+    const supplierName = supplierData.rows[0]?.name || `Lieferant ${supplierId}`;
+
+    // Automatische E-Mail-Benachrichtigung an interne Mitarbeiter senden
+    console.log(`[SUPPLIER-PORTAL] Bestellung ${order.order_number} von ${supplierName} bestätigt - sende E-Mail-Benachrichtigung`);
+    
+    try {
+      const emailResult = await emailService.sendSupplierConfirmationNotification(
+        orderId,
+        supplierName,
+        confirmedDeliveryDate,
+        confirmedDeliveryTime,
+        supplierComments
+      );
+      
+      if (emailResult.success) {
+        console.log(`[SUPPLIER-PORTAL] ✅ E-Mail-Benachrichtigung erfolgreich gesendet für Bestellung ${order.order_number}`);
+      } else {
+        console.error(`[SUPPLIER-PORTAL] ❌ E-Mail-Benachrichtigung fehlgeschlagen für Bestellung ${order.order_number}:`, emailResult.error);
+      }
+    } catch (emailError) {
+      console.error('[SUPPLIER-PORTAL] Exception beim Senden der E-Mail-Benachrichtigung:', emailError);
+      // Bestätigung trotzdem erfolgreich - E-Mail-Fehler soll nicht den ganzen Prozess blockieren
+    }
+
+    return jsonResponse(res, 200, {
+      success: true,
+      message: 'Lieferung erfolgreich bestätigt',
+      data: {
+        orderId: updatedOrder.id,
+        orderNumber: updatedOrder.order_number,
+        confirmationStatus: updatedOrder.delivery_confirmation_status,
+        orderStatus: updatedOrder.status
+      }
+    });
+
+  } catch (error) {
+    console.error('[SUPPLIER-PORTAL] Error confirming delivery:', error);
+    return jsonResponse(res, 500, {
+      success: false,
+      error: 'Fehler bei der Bestätigung'
+    });
+  }
+});
+
+/**
+ * PUT /api/supplier-portal/update-quantities
+ * Mengenänderung durch den Lieferanten
+ */
+router.put('/update-quantities', async (req: Request, res: Response) => {
+  try {
+    const sessionToken = req.headers.authorization?.replace('Bearer ', '');
+    const { orderId, items } = req.body; // items: [{ itemId, newQuantity }]
+
+    if (!sessionToken) {
+      return jsonResponse(res, 401, {
+        success: false,
+        error: 'Session Token erforderlich'
+      });
+    }
+
+    if (!orderId || !Array.isArray(items)) {
+      return jsonResponse(res, 400, {
+        success: false,
+        error: 'Bestellungs-ID und Items-Array sind erforderlich'
+      });
+    }
+
+    // Session validieren
+    const sessionCheck = await rawDb.query(
+      `SELECT sp.supplier_id, sp.session_expires_at 
+       FROM supplier_access_pins sp 
+       WHERE sp.session_token = $1 AND sp.is_active = true`,
+      [sessionToken]
+    );
+
+    if (sessionCheck.rows.length === 0) {
+      return jsonResponse(res, 401, {
+        success: false,
+        error: 'Ungültige Session'
+      });
+    }
+
+    const session = sessionCheck.rows[0];
+    const supplierId = session.supplier_id;
+
+    if (new Date(session.session_expires_at) < new Date()) {
+      return jsonResponse(res, 401, {
+        success: false,
+        error: 'Session abgelaufen'
+      });
+    }
+
+    // Prüfen ob Bestellung zu diesem Lieferanten gehört
+    const orderCheck = await rawDb.query(
+      'SELECT id FROM orders WHERE id = $1 AND supplier_id = $2',
+      [orderId, supplierId]
+    );
+
+    if (orderCheck.rows.length === 0) {
+      return jsonResponse(res, 404, {
+        success: false,
+        error: 'Bestellung nicht gefunden oder nicht berechtigt'
+      });
+    }
+
+    // Mengen aktualisieren
+    const updateResults = [];
+    for (const item of items) {
+      const { itemId, newQuantity } = item;
+      
+      if (!itemId || newQuantity === undefined || newQuantity < 0) {
+        continue;
+      }
+
+      const updateResult = await rawDb.query(`
+        UPDATE order_items 
+        SET 
+          quantity = $1,
+          total_price = quantity * unit_price,
+          updated_at = NOW()
+        WHERE id = $2 
+          AND order_id = $3
+        RETURNING id, product_name, quantity, unit_price, total_price
+      `, [newQuantity, itemId, orderId]);
+
+      if (updateResult.rows.length > 0) {
+        updateResults.push(updateResult.rows[0]);
+      }
+    }
+
+    // Gesamtbetrag der Bestellung neu berechnen
+    await rawDb.query(`
+      UPDATE orders 
+      SET 
+        total_amount = (
+          SELECT COALESCE(SUM(total_price), 0) 
+          FROM order_items 
+          WHERE order_id = $1
+        ),
+        updated_at = NOW()
+      WHERE id = $1
+    `, [orderId]);
+
+    return jsonResponse(res, 200, {
+      success: true,
+      message: 'Mengen erfolgreich aktualisiert',
+      data: {
+        updatedItems: updateResults.length,
+        items: updateResults
+      }
+    });
+
+  } catch (error) {
+    console.error('[SUPPLIER-PORTAL] Error updating quantities:', error);
+    return jsonResponse(res, 500, {
+      success: false,
+      error: 'Fehler beim Aktualisieren der Mengen'
+    });
+  }
+});
+
+/**
+ * GET /api/supplier-portal/order/:orderId
+ * Details einer spezifischen Bestellung für Lieferanten
+ */
+router.get('/order/:orderId', async (req: Request, res: Response) => {
+  try {
+    const sessionToken = req.headers.authorization?.replace('Bearer ', '');
+    const orderId = parseInt(req.params.orderId);
+
+    if (!sessionToken) {
+      return jsonResponse(res, 401, {
+        success: false,
+        error: 'Session Token erforderlich'
+      });
+    }
+
+    // Session validieren
+    const sessionCheck = await rawDb.query(
+      `SELECT sp.supplier_id, sp.session_expires_at 
+       FROM supplier_access_pins sp 
+       WHERE sp.session_token = $1 AND sp.is_active = true`,
+      [sessionToken]
+    );
+
+    if (sessionCheck.rows.length === 0) {
+      return jsonResponse(res, 401, {
+        success: false,
+        error: 'Ungültige Session'
+      });
+    }
+
+    const session = sessionCheck.rows[0];
+    const supplierId = session.supplier_id;
+
+    if (new Date(session.session_expires_at) < new Date()) {
+      return jsonResponse(res, 401, {
+        success: false,
+        error: 'Session abgelaufen'
+      });
+    }
+
+    // Bestelldetails abrufen
+    const orderQuery = `
+      SELECT 
+        o.id,
+        o.order_number as "orderNumber",
+        o.status,
+        o.order_date as "orderDate",
+        o.expected_delivery_date as "expectedDeliveryDate",
+        o.confirmed_delivery_date as "confirmedDeliveryDate",
+        o.confirmed_delivery_time as "confirmedDeliveryTime",
+        o.supplier_comments as "supplierComments",
+        o.delivery_confirmation_status as "deliveryConfirmationStatus",
+        o.total_amount as "totalAmount",
+        o.currency,
+        o.notes,
+        o.priority,
+        w.name as "locationName",
+        o.delivery_location as "deliveryLocation",
+        o.delivery_address as "deliveryAddress",
+        s.name as "supplierName"
+      FROM orders o
+      LEFT JOIN warehouses w ON o.warehouse_id = w.id
+      LEFT JOIN suppliers s ON o.supplier_id = s.id
+      WHERE o.id = $1 AND o.supplier_id = $2
+    `;
+
+    const orderResult = await rawDb.query(orderQuery, [orderId, supplierId]);
+
+    if (orderResult.rows.length === 0) {
+      return jsonResponse(res, 404, {
+        success: false,
+        error: 'Bestellung nicht gefunden'
+      });
+    }
+
+    const order = orderResult.rows[0];
+
+    // Bestellpositionen abrufen
+    const itemsQuery = `
+      SELECT 
+        oi.id,
+        oi.product_name as "productName",
+        oi.quantity,
+        oi.unit,
+        oi.unit_price as "unitPrice",
+        oi.total_price as "totalPrice",
+        oi.vat_rate as "vatRate",
+        oi.sku,
+        oi.supplier_sku as "supplierSku",
+        oi.notes,
+        oi.item_comment as "itemComment",
+        oi.position_number as "positionNumber"
+      FROM order_items oi
+      WHERE oi.order_id = $1
+      ORDER BY oi.position_number ASC
+    `;
+
+    const itemsResult = await rawDb.query(itemsQuery, [orderId]);
+
+    return jsonResponse(res, 200, {
+      success: true,
+      data: {
+        ...order,
+        items: itemsResult.rows
+      }
+    });
+
+  } catch (error) {
+    console.error('[SUPPLIER-PORTAL] Error fetching order details:', error);
+    return jsonResponse(res, 500, {
+      success: false,
+      error: 'Fehler beim Laden der Bestelldetails'
     });
   }
 });

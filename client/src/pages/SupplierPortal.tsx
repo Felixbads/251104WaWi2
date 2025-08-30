@@ -94,17 +94,46 @@ interface OrderItemData {
   supplierSku?: string;
 }
 
+interface PendingOrderData {
+  id: number;
+  orderNumber: string;
+  status: string;
+  orderDate: string;
+  expectedDeliveryDate?: string;
+  confirmedDeliveryDate?: string;
+  confirmedDeliveryTime?: string;
+  supplierComments?: string;
+  deliveryConfirmationStatus?: string;
+  totalAmount?: number;
+  currency?: string;
+  notes?: string;
+  priority?: string;
+  locationName?: string;
+  deliveryLocation?: string;
+  deliveryAddress?: string;
+  items: OrderItemData[];
+}
+
 export default function SupplierPortal({ params: routeParams }: { params?: { accessToken: string } }) {
   const [match, params] = useRoute('/lieferant/:accessToken');
   
   // Use direct params if provided, otherwise use route params
   const finalParams = routeParams || params;
+  const [pinCode, setPinCode] = useState('');
+  const [activeTab, setActiveTab] = useState('stammdaten');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [sessionToken, setSessionToken] = useState<string | null>(null);
   const [supplierData, setSupplierData] = useState<SupplierData | null>(null);
   const [products, setProducts] = useState<ProductData[]>([]);
   const [orders, setOrders] = useState<OrderData[]>([]);
+  const [pendingOrders, setPendingOrders] = useState<PendingOrderData[]>([]);
+  const [confirmationData, setConfirmationData] = useState({
+    orderId: null as number | null,
+    confirmedDeliveryDate: '',
+    confirmedDeliveryTime: '',
+    supplierComments: ''
+  });
   const [feedbackData, setFeedbackData] = useState({
     feedbackType: 'general' as 'supplier_data' | 'product_data' | 'order_data' | 'general',
     entityType: 'supplier' as 'supplier' | 'product' | 'order' | undefined,
@@ -294,11 +323,89 @@ export default function SupplierPortal({ params: routeParams }: { params?: { acc
       } else {
         console.error('Orders loading failed:', ordersResponse);
       }
+
+      // Lade auch pending orders für Bestätigung
+      await loadPendingOrders(token);
+
     } catch (error) {
       console.error('Fehler beim Laden der Daten:', error);
       toast({
         title: "Fehler",
         description: "Daten konnten nicht geladen werden.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const loadPendingOrders = async (token: string) => {
+    try {
+      const response = await fetch('/api/supplier-portal/pending-orders', {
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
+        setPendingOrders(data.data);
+      } else {
+        console.error('Pending orders loading failed:', data);
+      }
+    } catch (error) {
+      console.error('Fehler beim Laden der zu bestätigenden Bestellungen:', error);
+    }
+  };
+
+  const handleConfirmDelivery = async (orderId: number) => {
+    if (!sessionToken || !confirmationData.confirmedDeliveryDate) {
+      toast({
+        title: "Fehler",
+        description: "Bitte wählen Sie ein Lieferdatum aus.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      const response = await apiRequest('/api/supplier-portal/confirm-delivery', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${sessionToken}` },
+        body: {
+          orderId,
+          confirmedDeliveryDate: confirmationData.confirmedDeliveryDate,
+          confirmedDeliveryTime: confirmationData.confirmedDeliveryTime,
+          supplierComments: confirmationData.supplierComments
+        }
+      });
+
+      if (response.success) {
+        toast({
+          title: "Bestätigung erfolgreich",
+          description: `Bestellung ${response.data.orderNumber} wurde bestätigt.`
+        });
+
+        // Reset confirmation form
+        setConfirmationData({
+          orderId: null,
+          confirmedDeliveryDate: '',
+          confirmedDeliveryTime: '',
+          supplierComments: ''
+        });
+
+        // Reload pending orders
+        await loadPendingOrders(sessionToken);
+      } else {
+        toast({
+          title: "Fehler bei Bestätigung",
+          description: response.error || "Bestätigung konnte nicht gespeichert werden.",
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      console.error('Bestätigung fehlgeschlagen:', error);
+      toast({
+        title: "Fehler",
+        description: "Ein unerwarteter Fehler ist aufgetreten.",
         variant: "destructive"
       });
     }
@@ -439,8 +546,8 @@ export default function SupplierPortal({ params: routeParams }: { params?: { acc
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <Tabs defaultValue="stammdaten" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="stammdaten" className="flex items-center space-x-2">
               <Building2 className="h-4 w-4" />
               <span>Stammdaten</span>
@@ -452,6 +559,10 @@ export default function SupplierPortal({ params: routeParams }: { params?: { acc
             <TabsTrigger value="bestellungen" className="flex items-center space-x-2">
               <ShoppingCart className="h-4 w-4" />
               <span>Bestellungen</span>
+            </TabsTrigger>
+            <TabsTrigger value="bestaetigung" className="flex items-center space-x-2">
+              <Clock className="h-4 w-4" />
+              <span>Bestätigung</span>
             </TabsTrigger>
             <TabsTrigger value="feedback" className="flex items-center space-x-2">
               <MessageSquare className="h-4 w-4" />
@@ -673,17 +784,17 @@ export default function SupplierPortal({ params: routeParams }: { params?: { acc
                       <div key={order.id} className="border rounded-lg p-4 space-y-4">
                         <div className="flex justify-between items-start">
                           <div>
-                            <h3 className="font-medium text-lg">{order.order_number || order.orderNumber}</h3>
+                            <h3 className="font-medium text-lg">{order.orderNumber}</h3>
                             <p className="text-sm text-gray-600">
-                              Bestellt am: {new Date(order.created_at || order.orderDate).toLocaleDateString('de-DE')}
+                              Bestellt am: {new Date(order.orderDate).toLocaleDateString('de-DE')}
                             </p>
-                            {order.delivery_date && (
+                            {order.expectedDeliveryDate && (
                               <p className="text-sm text-gray-600">
-                                Lieferdatum: {new Date(order.delivery_date).toLocaleDateString('de-DE')}
+                                Lieferdatum: {new Date(order.expectedDeliveryDate).toLocaleDateString('de-DE')}
                               </p>
                             )}
                             <p className="text-sm text-gray-600">
-                              {order.delivery_type === 'pickup' ? '🚚 Abholung' : '📦 Lieferung'} - {order.warehouse_name || order.locationName}
+                              📦 Lieferung - {order.locationName}
                             </p>
                           </div>
                           <div className="text-right">
@@ -698,9 +809,9 @@ export default function SupplierPortal({ params: routeParams }: { params?: { acc
                                order.status === 'ordered' ? 'Bestellt' : 
                                order.status}
                             </Badge>
-                            {(order.total_amount || order.totalAmount) && (
+                            {order.totalAmount && (
                               <p className="text-sm font-medium mt-2">
-                                {(order.total_amount || order.totalAmount).toFixed(2)} €
+                                {order.totalAmount.toFixed(2)} €
                               </p>
                             )}
                           </div>
@@ -713,13 +824,13 @@ export default function SupplierPortal({ params: routeParams }: { params?: { acc
                               {order.items.map((item, index) => (
                                 <div key={item.id || index} className="flex justify-between items-center text-sm bg-gray-50 p-2 rounded">
                                   <div className="flex-1">
-                                    <span className="font-medium">{item.product_name || item.productName}</span>
+                                    <span className="font-medium">{item.productName}</span>
                                     {item.sku && <span className="text-gray-500 ml-2">({item.sku})</span>}
                                   </div>
                                   <div className="text-right">
                                     <span className="font-medium">{item.quantity} {item.unit || 'Stück'}</span>
-                                    {(item.unit_price || item.unitPrice) && (
-                                      <span className="text-gray-600 ml-2">à {(item.unit_price || item.unitPrice).toFixed(2)} €</span>
+                                    {item.unitPrice && (
+                                      <span className="text-gray-600 ml-2">à {item.unitPrice.toFixed(2)} €</span>
                                     )}
                                   </div>
                                 </div>
@@ -734,6 +845,144 @@ export default function SupplierPortal({ params: routeParams }: { params?: { acc
                             <p className="text-sm">{order.notes}</p>
                           </div>
                         )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="bestaetigung">
+            <Card>
+              <CardHeader>
+                <CardTitle>Bestellungen bestätigen</CardTitle>
+                <CardDescription>
+                  Hier können Sie Liefertermine bestätigen und Bestellungen bearbeiten ({pendingOrders.length} Bestellungen warten auf Bestätigung)
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {pendingOrders.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    <Clock className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <p className="text-lg font-medium">Keine offenen Bestellungen</p>
+                    <p className="text-sm">Alle Bestellungen sind bereits bestätigt oder bearbeitet.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    {pendingOrders.map((order) => (
+                      <div key={order.id} className="border rounded-lg p-6 space-y-4 bg-blue-50">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <h3 className="font-medium text-lg text-blue-900">{order.orderNumber}</h3>
+                            <p className="text-sm text-gray-600">
+                              Bestellt am: {new Date(order.orderDate).toLocaleDateString('de-DE')}
+                            </p>
+                            {order.expectedDeliveryDate && (
+                              <p className="text-sm text-gray-600">
+                                Gewünschtes Lieferdatum: {new Date(order.expectedDeliveryDate).toLocaleDateString('de-DE')}
+                              </p>
+                            )}
+                            <p className="text-sm text-gray-600">
+                              📍 Lieferort: {order.locationName}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
+                              ⏳ Bestätigung ausstehend
+                            </Badge>
+                            {order.totalAmount && (
+                              <p className="text-sm font-medium mt-2">
+                                {order.totalAmount.toFixed(2)} €
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        {order.items && order.items.length > 0 && (
+                          <div className="border-t pt-4">
+                            <h4 className="font-medium mb-3">Bestellpositionen:</h4>
+                            <div className="space-y-2">
+                              {order.items.map((item) => (
+                                <div key={item.id} className="flex justify-between items-center text-sm bg-white p-3 rounded border">
+                                  <div className="flex-1">
+                                    <span className="font-medium">{item.productName}</span>
+                                    {item.sku && <span className="text-gray-500 ml-2">({item.sku})</span>}
+                                  </div>
+                                  <div className="flex items-center space-x-4">
+                                    <span className="font-medium">{item.quantity} {item.unit || 'Stück'}</span>
+                                    {item.unitPrice && (
+                                      <span className="text-gray-600">à {item.unitPrice.toFixed(2)} €</span>
+                                    )}
+                                    {item.totalPrice && (
+                                      <span className="font-medium text-blue-600">{item.totalPrice.toFixed(2)} €</span>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="border-t pt-4 bg-white rounded-lg p-4">
+                          <h4 className="font-medium mb-4 text-blue-900">🚚 Lieferung bestätigen</h4>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label htmlFor={`delivery-date-${order.id}`}>Lieferdatum *</Label>
+                              <Input
+                                id={`delivery-date-${order.id}`}
+                                type="date"
+                                value={confirmationData.orderId === order.id ? confirmationData.confirmedDeliveryDate : ''}
+                                onChange={(e) => setConfirmationData({
+                                  orderId: order.id,
+                                  confirmedDeliveryDate: e.target.value,
+                                  confirmedDeliveryTime: confirmationData.orderId === order.id ? confirmationData.confirmedDeliveryTime : '',
+                                  supplierComments: confirmationData.orderId === order.id ? confirmationData.supplierComments : ''
+                                })}
+                                min={new Date().toISOString().split('T')[0]}
+                                required
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor={`delivery-time-${order.id}`}>Lieferzeit (optional)</Label>
+                              <Input
+                                id={`delivery-time-${order.id}`}
+                                type="time"
+                                value={confirmationData.orderId === order.id ? confirmationData.confirmedDeliveryTime : ''}
+                                onChange={(e) => setConfirmationData(prev => 
+                                  prev.orderId === order.id 
+                                    ? { ...prev, confirmedDeliveryTime: e.target.value }
+                                    : { orderId: order.id, confirmedDeliveryDate: '', confirmedDeliveryTime: e.target.value, supplierComments: '' }
+                                )}
+                              />
+                            </div>
+                          </div>
+                          
+                          <div className="space-y-2 mt-4">
+                            <Label htmlFor={`comments-${order.id}`}>Kommentare zur Lieferung (optional)</Label>
+                            <Textarea
+                              id={`comments-${order.id}`}
+                              value={confirmationData.orderId === order.id ? confirmationData.supplierComments : ''}
+                              onChange={(e) => setConfirmationData(prev => 
+                                prev.orderId === order.id 
+                                  ? { ...prev, supplierComments: e.target.value }
+                                  : { orderId: order.id, confirmedDeliveryDate: '', confirmedDeliveryTime: '', supplierComments: e.target.value }
+                              )}
+                              placeholder="Weitere Hinweise zur Lieferung..."
+                              rows={2}
+                            />
+                          </div>
+
+                          <div className="flex justify-end mt-4">
+                            <Button 
+                              onClick={() => handleConfirmDelivery(order.id)}
+                              disabled={confirmationData.orderId !== order.id || !confirmationData.confirmedDeliveryDate}
+                              className="bg-green-600 hover:bg-green-700"
+                            >
+                              ✓ Lieferung bestätigen
+                            </Button>
+                          </div>
+                        </div>
                       </div>
                     ))}
                   </div>

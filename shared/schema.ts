@@ -2092,7 +2092,17 @@ export const orders = pgTable("orders", {
   forecastPeriodDays: integer("forecast_period_days").default(7), // Prognosezeitraum in Tagen (für Prognose-Bestellungen)
   emailContent: text("email_content"), // Anpassbare E-Mail-Inhalte vor dem Versenden
   cartData: text("cart_data"), // JSON-Daten des Warenkorbs für die Bestellung
-  orderMode: text("order_mode").default("standard") // Bestellmodus: standard, forecast, copy
+  orderMode: text("order_mode").default("standard"), // Bestellmodus: standard, forecast, copy
+  
+  // Lieferantenbestätigung
+  supplierConfirmedDate: timestamp("supplier_confirmed_date"), // Datum der Lieferantenbestätigung
+  confirmedDeliveryDate: timestamp("confirmed_delivery_date"), // Vom Lieferant bestätigter Liefertermin
+  confirmedDeliveryTime: time("confirmed_delivery_time"), // Vom Lieferant bestätigte Lieferzeit
+  supplierComments: text("supplier_comments"), // Kommentare des Lieferanten bei der Bestätigung
+  deliveryConfirmationStatus: text("delivery_confirmation_status").default("pending"), // Status: pending, confirmed, modified, cancelled
+  supplierAccessToken: text("supplier_access_token"), // Access Token für Lieferantenzugang
+  emailSentToSupplier: timestamp("email_sent_to_supplier"), // Zeitpunkt des E-Mail-Versands an Lieferant
+  supplierNotificationsSent: boolean("supplier_notifications_sent").default(false) // Wurden interne Benachrichtigungen nach Bestätigung gesendet?
 });
 
 export const insertOrderSchema = createInsertSchema(orders).omit({

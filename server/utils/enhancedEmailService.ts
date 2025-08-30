@@ -453,6 +453,128 @@ class EnhancedEmailService {
   }
 
   /**
+   * Sendet E-Mail-Benachrichtigung für Lieferantenbestätigung
+   */
+  async sendSupplierConfirmationNotification(
+    orderId: number,
+    supplierName: string,
+    confirmedDate: string,
+    confirmedTime?: string,
+    supplierComments?: string
+  ): Promise<{ success: boolean; error?: string; method?: string; messageId?: string }> {
+    try {
+      console.log(`[EnhancedEmailService] Bereite Bestätigungs-E-Mail vor für Bestellung ${orderId}`);
+      
+      // 1. Bestellungsdaten abrufen
+      const orderResult = await db
+        .select()
+        .from(orders)
+        .where(eq(orders.id, orderId))
+        .limit(1);
+      
+      if (!orderResult || orderResult.length === 0) {
+        throw new Error('Bestellung nicht gefunden');
+      }
+      
+      const order = orderResult[0];
+      
+      // 2. Bestellpositionen abrufen
+      const items = await db
+        .select()
+        .from(orderItems)
+        .where(eq(orderItems.orderId, orderId));
+      
+      // 3. E-Mail-Inhalt erstellen
+      const deliveryDateTime = confirmedTime 
+        ? `${new Date(confirmedDate).toLocaleDateString('de-DE')} um ${confirmedTime}`
+        : new Date(confirmedDate).toLocaleDateString('de-DE');
+      
+      const emailContent = this.createSupplierConfirmationTemplate(
+        order,
+        supplierName,
+        deliveryDateTime,
+        supplierComments,
+        items
+      );
+      
+      // 4. E-Mail-Betreff erstellen
+      const subject = `✅ Lieferung bestätigt: Bestellung ${order.orderNumber} - ${supplierName}`;
+      
+      // 5. E-Mail an internes Team senden
+      const internalEmail = 'einkauf@proviantomat.de';
+      
+      return await this.sendEmail(
+        internalEmail,
+        subject,
+        emailContent,
+        'orders@proviantomat.de'
+      );
+      
+    } catch (error: any) {
+      console.error('[EnhancedEmailService] Fehler beim Versenden der Bestätigungs-E-Mail:', error);
+      return {
+        success: false,
+        error: error.message || error.toString()
+      };
+    }
+  }
+
+  /**
+   * Erstellt E-Mail-Template für Lieferantenbestätigung
+   */
+  private createSupplierConfirmationTemplate(
+    order: any,
+    supplierName: string,
+    deliveryDateTime: string,
+    supplierComments?: string,
+    items: any[] = []
+  ): string {
+    const itemsTable = this.createOrderItemsTable(items);
+    
+    return `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9fafb;">
+        <div style="background-color: #10b981; color: white; padding: 20px; border-radius: 8px 8px 0 0; text-align: center;">
+          <h1 style="margin: 0; font-size: 24px;">✅ Lieferung bestätigt</h1>
+          <p style="margin: 10px 0 0 0; opacity: 0.9;">Der Lieferant hat den Liefertermin bestätigt</p>
+        </div>
+        
+        <div style="background-color: white; padding: 30px; border-radius: 0 0 8px 8px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+          <h2 style="color: #1f2937; margin-top: 0;">Bestätigung für Bestellung ${order.orderNumber}</h2>
+          
+          <div style="background-color: #ecfdf5; border-left: 4px solid #10b981; padding: 16px; margin: 20px 0; border-radius: 4px;">
+            <h3 style="color: #065f46; margin: 0 0 10px 0;">📋 Bestelldetails</h3>
+            <p style="margin: 5px 0;"><strong>Lieferant:</strong> ${supplierName}</p>
+            <p style="margin: 5px 0;"><strong>Bestellnummer:</strong> ${order.orderNumber}</p>
+            <p style="margin: 5px 0;"><strong>Bestellt am:</strong> ${new Date(order.orderDate).toLocaleDateString('de-DE')}</p>
+            <p style="margin: 5px 0;"><strong>Status:</strong> ${order.status || 'Bestätigt'}</p>
+            ${order.deliveryLocation ? `<p style="margin: 5px 0;"><strong>📍 Lieferort:</strong> ${order.deliveryLocation}</p>` : ''}
+          </div>
+
+          <div style="background-color: #f3f4f6; border-left: 4px solid #3b82f6; padding: 16px; margin: 20px 0; border-radius: 4px;">
+            <h3 style="color: #1e40af; margin: 0 0 10px 0;">🚚 Bestätigte Lieferung</h3>
+            <p style="margin: 5px 0; font-size: 16px; font-weight: bold; color: #059669;">
+              <strong>Liefertermin:</strong> ${deliveryDateTime}
+            </p>
+            ${supplierComments ? `
+              <h4 style="color: #374151; margin: 15px 0 5px 0;">💬 Kommentare des Lieferanten:</h4>
+              <p style="margin: 5px 0; padding: 10px; background-color: #f9fafb; border-radius: 4px; font-style: italic;">
+                "${supplierComments}"
+              </p>
+            ` : ''}
+          </div>
+
+          ${itemsTable}
+          
+          <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb; text-align: center; color: #6b7280; font-size: 14px;">
+            <p>Diese Benachrichtigung wurde automatisch generiert, als der Lieferant die Bestellung bestätigt hat.</p>
+            <p>Warenwirtschaftssystem - ${new Date().toLocaleDateString('de-DE')} ${new Date().toLocaleTimeString('de-DE')}</p>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  /**
    * Gibt Informationen über die verfügbare Konfiguration zurück
    */
   getConfiguration(): EmailConfig {
