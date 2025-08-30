@@ -500,7 +500,7 @@ router.get('/:id/stock', async (req, res) => {
   try {
     const inputId = req.params.id;
 
-    console.log(`[MACHINES API] Fetching stock for machine ID: ${inputId}`);
+    console.log(`[MACHINES API] 🚀🚀🚀 STOCK ENDPOINT AUFGERUFEN für Machine ID: ${inputId} 🚀🚀🚀`);
 
     // Resolve machine ID
     let machineInternalId: number | undefined;
@@ -601,6 +601,45 @@ router.get('/:id/stock', async (req, res) => {
       } else {
         console.log(`[MACHINES API] ⚠️ Vendon API: Keine Produktdaten erhalten für Maschine ${vendonId}`);
         console.log(`[MACHINES API] 🔍 Available properties:`, vendonMachine ? Object.keys(vendonMachine) : 'none');
+        console.log(`[MACHINES API] 🔍 DEBUG: Vendon Machine Response:`, JSON.stringify(vendonMachine, null, 2));
+        
+        // IMPORTANT: Try multiple alternative stock endpoints
+        const stockEndpoints = [
+          `/machines/${vendonId}/stock`,
+          `/machines/${vendonId}/inventory`, 
+          `/machines/${vendonId}/products`,
+          `/inventory?machine_id=${vendonId}`,
+          `/stock?machine_id=${vendonId}`,
+          `/stocks/${vendonId}`,
+          `/products?machine_id=${vendonId}`
+        ];
+        
+        for (const endpoint of stockEndpoints) {
+          try {
+            console.log(`[MACHINES API] 🔄 Versuche Endpoint: ${endpoint}`);
+            const stockResponse = await vendonClient.get(endpoint);
+            console.log(`[MACHINES API] 📦 Response für ${endpoint}:`, JSON.stringify(stockResponse, null, 2));
+            
+            let foundProducts = null;
+            if (stockResponse && Array.isArray(stockResponse)) {
+              foundProducts = stockResponse;
+            } else if (stockResponse?.result && Array.isArray(stockResponse.result)) {
+              foundProducts = stockResponse.result;
+            } else if (stockResponse?.data && Array.isArray(stockResponse.data)) {
+              foundProducts = stockResponse.data;
+            } else if (stockResponse?.products && Array.isArray(stockResponse.products)) {
+              foundProducts = stockResponse.products;
+            }
+            
+            if (foundProducts && foundProducts.length > 0) {
+              vendonStock = foundProducts;
+              console.log(`[MACHINES API] ✅ Erfolg mit ${endpoint}: ${vendonStock.length} Produkte gefunden`);
+              break;
+            }
+          } catch (stockError) {
+            console.log(`[MACHINES API] ❌ Endpoint ${endpoint} Fehler: ${stockError instanceof Error ? stockError.message : String(stockError)}`);
+          }
+        }
       }
     } catch (vendonError) {
       console.log(`[MACHINES API] ❌ Vendon API Fehler: ${vendonError}`);
@@ -635,10 +674,73 @@ router.get('/:id/stock', async (req, res) => {
       localBatchData = [];
     }
     
-    // 3. THIRD: Merge Vendon real-time data with local batch/MHD information
+    // 3. THIRD: PRIMARY STRATEGY - Use refill_details for current stock (Vendon API has 400 errors)
     let formattedStock: any[] = [];
     
-    if (vendonStock.length > 0) {
+    // PRIMARY: Try refill_details first since Vendon API is unreliable
+    console.log(`[MACHINES API] 🎯 PRIMARY: Verwende Refill-Daten für aktuelle Bestände`);
+    try {
+      const refillStockResult = await rawDb.query(
+        `WITH latest_refills AS (
+          SELECT 
+            rd.product_name,
+            rd.current_stock,
+            rd.added,
+            rd.removed,
+            r.datetime as refill_date,
+            p.id as product_id,
+            p.vendon_id as product_vendon_id,
+            ROW_NUMBER() OVER (PARTITION BY rd.product_name ORDER BY r.datetime DESC) as rn
+          FROM refill_details rd
+          JOIN refills r ON rd.refill_id = r.id
+          LEFT JOIN products p ON p.product_name = rd.product_name
+          WHERE r.machine_id = $1
+          AND rd.current_stock IS NOT NULL
+        )
+        SELECT 
+          product_name as "productName",
+          current_stock as "currentQuantity", 
+          COALESCE(added + current_stock, current_stock * 2, 20) as "maxQuantity",
+          refill_date as "lastRefill",
+          product_id,
+          product_vendon_id as "vendonId",
+          CASE 
+            WHEN current_stock = 0 THEN 'critical'
+            WHEN current_stock <= 2 THEN 'warning'
+            ELSE 'good'
+          END as status
+        FROM latest_refills 
+        WHERE rn = 1 
+        AND product_name IS NOT NULL
+        ORDER BY product_name`,
+        [machineInternalId!]
+      );
+      
+      if (refillStockResult.rows.length > 0) {
+        formattedStock = refillStockResult.rows.map((row, index) => ({
+          id: index + 1,
+          productName: row.productName,
+          currentQuantity: parseInt(row.currentQuantity || 0),
+          maxQuantity: parseInt(row.maxQuantity || 0),
+          lastRefill: row.lastRefill,
+          status: row.status,
+          expiryDate: null, // Will be enriched from batch data if available
+          batchId: null,
+          batchNumber: null,
+          mhdStatus: 'ok',
+          vendonId: row.vendonId,
+          selectionNumber: null
+        }));
+        
+        console.log(`[MACHINES API] ✅ ERFOLG: ${formattedStock.length} Produkte mit aktuellen Beständen aus Refill-Daten`);
+      }
+    } catch (refillError) {
+      console.log('[MACHINES API] ❌ Refill-Daten nicht verfügbar');
+    }
+    
+    // SECONDARY: Only try Vendon if refill data failed AND we have Vendon data
+    if (formattedStock.length === 0 && vendonStock.length > 0) {
+      console.log(`[MACHINES API] 🔄 SECONDARY: Verwende Vendon API Daten`);
       // Use Vendon API data as primary source and enrich with local batch data
       formattedStock = vendonStock.map((vendonProduct: any, index: number) => {
         // Find matching local batch data by product name or vendon_id
@@ -696,57 +798,115 @@ router.get('/:id/stock', async (req, res) => {
       
       console.log(`[MACHINES API] ✅ Merged Data: ${formattedStock.length} Produkte mit Vendon + Batch-Daten`);
     } else {
-      // FALLBACK: Use local data if Vendon API unavailable
-      console.log(`[MACHINES API] 🔄 Fallback: Verwende lokale Daten da Vendon API nicht verfügbar`);
+      // ENHANCED FALLBACK: Use refill_details for current stock levels
+      console.log(`[MACHINES API] 🔄 Fallback: Verwende Refill-Daten für aktuelle Bestände`);
       
       try {
-        const localStockResult = await rawDb.query(
-          `SELECT 
-            ms.id,
-            COALESCE(p.product_name, 'Unbekanntes Produkt') as "productName",
-            ms.quantity as "currentQuantity",
-            ms.max_quantity as "maxQuantity",
-            ms.last_filled as "lastRefill",
-            ms.expiry_date as "expiryDate",
-            ms.batch_id as "batchId",
-            ib.batch_number as "batchNumber",
-            ib.expiry_date as "batchExpiryDate",
-            ms.product_vendon_id as "vendonId",
-            ms.selection_number as "selectionNumber",
+        // Get latest stock levels from refill_details (current_stock column)
+        const refillStockResult = await rawDb.query(
+          `WITH latest_refills AS (
+            SELECT 
+              rd.product_name,
+              rd.current_stock,
+              rd.added,
+              rd.removed,
+              r.datetime as refill_date,
+              p.id as product_id,
+              p.vendon_id as product_vendon_id,
+              ROW_NUMBER() OVER (PARTITION BY rd.product_name ORDER BY r.datetime DESC) as rn
+            FROM refill_details rd
+            JOIN refills r ON rd.refill_id = r.id
+            LEFT JOIN products p ON p.product_name = rd.product_name
+            WHERE r.machine_id = $1
+            AND rd.current_stock IS NOT NULL
+          )
+          SELECT 
+            product_name as "productName",
+            current_stock as "currentQuantity", 
+            COALESCE(added + current_stock, current_stock * 2, 20) as "maxQuantity",
+            refill_date as "lastRefill",
+            product_id,
+            product_vendon_id as "vendonId",
             CASE 
-              WHEN ms.quantity = 0 THEN 'critical'
-              WHEN ms.max_quantity > 0 AND (ms.quantity::float / ms.max_quantity) < 0.2 THEN 'warning'
+              WHEN current_stock = 0 THEN 'critical'
+              WHEN current_stock <= 2 THEN 'warning'
               ELSE 'good'
-            END as status,
-            CASE 
-              WHEN COALESCE(ms.expiry_date, ib.expiry_date) < CURRENT_DATE THEN 'expired'
-              WHEN COALESCE(ms.expiry_date, ib.expiry_date) <= CURRENT_DATE + INTERVAL '7 days' THEN 'warning'
-              ELSE 'ok'
-            END as mhd_status
-          FROM machine_stocks ms
-          LEFT JOIN products p ON p.vendon_id = ms.product_vendon_id
-          LEFT JOIN inventory_batches ib ON ms.batch_id = ib.id
-          WHERE ms.machine_id = $1
-          ORDER BY ms.selection_number`,
+            END as status
+          FROM latest_refills 
+          WHERE rn = 1 
+          AND product_name IS NOT NULL
+          ORDER BY product_name`,
           [machineInternalId!]
         );
         
-        formattedStock = localStockResult.rows.map(row => ({
-          id: row.id,
-          productName: row.productName,
-          currentQuantity: parseInt(row.currentQuantity || 0),
-          maxQuantity: parseInt(row.maxQuantity || 0),
-          lastRefill: row.lastRefill,
-          status: row.status,
-          expiryDate: row.expiryDate || row.batchExpiryDate,
-          batchId: row.batchId,
-          batchNumber: row.batchNumber,
-          mhdStatus: row.mhd_status,
-          vendonId: row.vendonId,
-          selectionNumber: row.selectionNumber
-        }));
+        if (refillStockResult.rows.length > 0) {
+          formattedStock = refillStockResult.rows.map((row, index) => ({
+            id: index + 1,
+            productName: row.productName,
+            currentQuantity: parseInt(row.currentQuantity || 0),
+            maxQuantity: parseInt(row.maxQuantity || 0),
+            lastRefill: row.lastRefill,
+            status: row.status,
+            expiryDate: null, // Will be enriched from batch data if available
+            batchId: null,
+            batchNumber: null,
+            mhdStatus: 'ok',
+            vendonId: row.vendonId,
+            selectionNumber: null
+          }));
+          
+          console.log(`[MACHINES API] ✅ Refill-Daten: ${formattedStock.length} Produkte mit aktuellen Beständen gefunden`);
+        } else {
+          // Final fallback to machine_stocks
+          console.log(`[MACHINES API] 🔄 Finale Fallback: machine_stocks Tabelle`);
+          const localStockResult = await rawDb.query(
+            `SELECT 
+              ms.id,
+              COALESCE(p.product_name, 'Unbekanntes Produkt') as "productName",
+              ms.quantity as "currentQuantity",
+              ms.max_quantity as "maxQuantity",
+              ms.last_filled as "lastRefill",
+              ms.expiry_date as "expiryDate",
+              ms.batch_id as "batchId",
+              ib.batch_number as "batchNumber",
+              ib.expiry_date as "batchExpiryDate",
+              ms.product_vendon_id as "vendonId",
+              ms.selection_number as "selectionNumber",
+              CASE 
+                WHEN ms.quantity = 0 THEN 'critical'
+                WHEN ms.max_quantity > 0 AND (ms.quantity::float / ms.max_quantity) < 0.2 THEN 'warning'
+                ELSE 'good'
+              END as status,
+              CASE 
+                WHEN COALESCE(ms.expiry_date, ib.expiry_date) < CURRENT_DATE THEN 'expired'
+                WHEN COALESCE(ms.expiry_date, ib.expiry_date) <= CURRENT_DATE + INTERVAL '7 days' THEN 'warning'
+                ELSE 'ok'
+              END as mhd_status
+            FROM machine_stocks ms
+            LEFT JOIN products p ON p.vendon_id = ms.product_vendon_id
+            LEFT JOIN inventory_batches ib ON ms.batch_id = ib.id
+            WHERE ms.machine_id = $1
+            ORDER BY ms.selection_number`,
+            [machineInternalId!]
+          );
+          
+          formattedStock = localStockResult.rows.map(row => ({
+            id: row.id,
+            productName: row.productName,
+            currentQuantity: parseInt(row.currentQuantity || 0),
+            maxQuantity: parseInt(row.maxQuantity || 0),
+            lastRefill: row.lastRefill,
+            status: row.status,
+            expiryDate: row.expiryDate || row.batchExpiryDate,
+            batchId: row.batchId,
+            batchNumber: row.batchNumber,
+            mhdStatus: row.mhd_status,
+            vendonId: row.vendonId,
+            selectionNumber: row.selectionNumber
+          }));
+        }
         
-        console.log(`[MACHINES API] 📦 Local Fallback: ${formattedStock.length} Produkte aus lokalen Daten`);
+        console.log(`[MACHINES API] 📦 Gesamt Fallback: ${formattedStock.length} Produkte aus lokalen Daten`);
       } catch (localError) {
         console.log('[MACHINES API] ❌ Auch lokale Daten nicht verfügbar');
         formattedStock = [];
