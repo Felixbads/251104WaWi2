@@ -29,7 +29,7 @@ router.use(replitAuthMiddleware);
  * GET /api/machines/:machineId/refill-templates
  * Get all refill templates for a specific machine
  */
-router.get('/:machineId/refill-templates', async (req: AuthenticatedRequest, res) => {
+router.get('/:machineId/refilltemplates', async (req: AuthenticatedRequest, res) => {
   try {
     const { machineId } = req.params;
     console.log(`[REFILL-TEMPLATES API] Fetching templates for machine: ${machineId}`);
@@ -125,7 +125,7 @@ router.get('/:machineId/refill-templates', async (req: AuthenticatedRequest, res
  * POST /api/machines/:machineId/refill-templates
  * Create a new refill template
  */
-router.post('/:machineId/refill-templates', async (req: AuthenticatedRequest, res) => {
+router.post('/:machineId/refilltemplates', async (req: AuthenticatedRequest, res) => {
   try {
     const { machineId } = req.params;
     const userId = req.user?.id;
@@ -211,7 +211,7 @@ router.post('/:machineId/refill-templates', async (req: AuthenticatedRequest, re
  * PUT /api/machines/:machineId/refill-templates/:templateId
  * Update a refill template
  */
-router.put('/:machineId/refill-templates/:templateId', async (req: AuthenticatedRequest, res) => {
+router.put('/:machineId/refilltemplates/:templateId', async (req: AuthenticatedRequest, res) => {
   try {
     const { machineId, templateId } = req.params;
     const userId = req.user?.id;
@@ -274,7 +274,7 @@ router.put('/:machineId/refill-templates/:templateId', async (req: Authenticated
  * DELETE /api/machines/:machineId/refill-templates/:templateId
  * Delete a refill template
  */
-router.delete('/:machineId/refill-templates/:templateId', async (req: AuthenticatedRequest, res) => {
+router.delete('/:machineId/refilltemplates/:templateId', async (req: AuthenticatedRequest, res) => {
   try {
     const { machineId, templateId } = req.params;
     const userId = req.user?.id;
@@ -312,7 +312,7 @@ router.delete('/:machineId/refill-templates/:templateId', async (req: Authentica
  * POST /api/machines/:machineId/refill-templates/:templateId/default
  * Set template as default
  */
-router.post('/:machineId/refill-templates/:templateId/default', async (req: AuthenticatedRequest, res) => {
+router.post('/:machineId/refilltemplates/:templateId/default', async (req: AuthenticatedRequest, res) => {
   try {
     const { machineId, templateId } = req.params;
     const userId = req.user?.id;
@@ -389,7 +389,7 @@ router.post('/:machineId/refill-templates/:templateId/default', async (req: Auth
  * DELETE /api/machines/:machineId/refill-templates/:templateId/default
  * Remove default status from template
  */
-router.delete('/:machineId/refill-templates/:templateId/default', async (req: AuthenticatedRequest, res) => {
+router.delete('/:machineId/refilltemplates/:templateId/default', async (req: AuthenticatedRequest, res) => {
   try {
     const { machineId, templateId } = req.params;
     const userId = req.user?.id;
@@ -708,7 +708,7 @@ router.post('/:machineId/refill-templates/import-from-vendon', async (req: Authe
  * POST /api/machines/:machineId/refill-templates/create-from-vendon-stock
  * Create refill template from current Vendon stock levels
  */
-router.post('/:machineId/refill-templates/create-from-vendon-stock', async (req: AuthenticatedRequest, res) => {
+router.post('/:machineId/refilltemplates/create-from-vendon-stock', async (req: AuthenticatedRequest, res) => {
   try {
     const { machineId } = req.params;
     const { templateName } = req.body;

@@ -330,7 +330,7 @@ export default function AutomatDetail() {
 
   // Fetch refill templates
   const { data: refillTemplates, isLoading: refillTemplatesLoading, refetch: refetchRefillTemplates } = useQuery<RefillTemplate[]>({
-    queryKey: [`/api/machines/${machineId}/refill-templates`],
+    queryKey: [`/api/machines/${machineId}/refilltemplates`],
     enabled: !!machineId && activeTab === 'refill-vorlagen',
     staleTime: 5 * 60 * 1000,
   });
@@ -504,7 +504,7 @@ export default function AutomatDetail() {
   // Mutations for refill templates
   const addRefillTemplateMutation = useMutation({
     mutationFn: async (template: { name: string; description?: string }) => {
-      const response = await fetch(`/api/machines/${machineId}/refill-templates`, {
+      const response = await fetch(`/api/machines/${machineId}/refilltemplates`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(template),
@@ -521,7 +521,7 @@ export default function AutomatDetail() {
 
   const deleteRefillTemplateMutation = useMutation({
     mutationFn: async (templateId: number) => {
-      const response = await fetch(`/api/machines/${machineId}/refill-templates/${templateId}`, {
+      const response = await fetch(`/api/machines/${machineId}/refilltemplates/${templateId}`, {
         method: 'DELETE',
       });
       if (!response.ok) throw new Error('Fehler beim Löschen der Refill-Vorlage');
@@ -534,7 +534,7 @@ export default function AutomatDetail() {
 
   const setDefaultTemplateMutation = useMutation({
     mutationFn: async ({ templateId, isDefault }: { templateId: number; isDefault: boolean }) => {
-      const response = await fetch(`/api/machines/${machineId}/refill-templates/${templateId}/default`, {
+      const response = await fetch(`/api/machines/${machineId}/refilltemplates/${templateId}/default`, {
         method: isDefault ? 'POST' : 'DELETE',
       });
       if (!response.ok) throw new Error('Fehler beim Setzen der Standard-Vorlage');
