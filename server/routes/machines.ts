@@ -1119,11 +1119,11 @@ router.get('/:id/profitability', async (req, res) => {
         SELECT 
           COALESCE(SUM(
             CASE 
-              WHEN lc.frequency = 'monthly' THEN lc.amount
-              WHEN lc.frequency = 'yearly' THEN lc.amount / 12
-              WHEN lc.frequency = 'quarterly' THEN lc.amount / 3
-              WHEN lc.frequency = 'weekly' THEN lc.amount * 4.33
-              ELSE lc.amount
+              WHEN lc.billing_cycle = 'monthly' THEN lc.amount_net
+              WHEN lc.billing_cycle = 'yearly' THEN lc.amount_net / 12
+              WHEN lc.billing_cycle = 'quarterly' THEN lc.amount_net / 3
+              WHEN lc.billing_cycle = 'weekly' THEN lc.amount_net * 4.33
+              ELSE lc.amount_net
             END
           ), 0) as monthly_costs
         FROM location_costs lc
