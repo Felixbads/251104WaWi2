@@ -1,0 +1,93 @@
+Basierend auf der Vendon API-Dokumentation und dem Code in der Codebase analysiere ich das Refill-Vorlagen-Konzept und erstelle einen Prompt für die Implementierung eines neuen Tabs auf der Standort-Seite.
+
+Analyse des Refill-Vorlagen-Konzepts
+Aus der Vendon API-Dokumentation und dem bestehenden Code erkenne ich folgende Struktur für Refill-Vorlagen:
+
+Vendon API Endpoints für Refill-Vorlagen:
+
+GET /rest/v1.9.0/machine/{id}/refilltemplate - Abrufen der Standard-Refill-Vorlage
+PUT /rest/v1.9.0/machine/{id}/refilltemplate - Erstellen einer neuen Refill-Vorlage
+POST /rest/v1.9.0/machine/{id}/refilltemplate - Bearbeiten einer Refill-Vorlage
+DELETE /rest/v1.9.0/machine/{id}/refilltemplate - Löschen einer Refill-Vorlage
+POST /rest/v1.9.0/machine/{id}/refillTemplateDefault - Standard-Vorlage setzen
+DELETE /rest/v1.9.0/machine/{id}/refillTemplateDefault - Standard-Vorlage entfernen
+Bestehende Refill-Implementierung:
+In sehe ich bereits eine Refill-Verwaltung, die Refills anzeigt und verwaltet.
+
+Prompt für Agent
+Implementiere ein neues "Refill-Vorlagen" Tab auf der Standort-Detail-Seite (LocationDetail.tsx), das folgende Funktionen bereitstellt:
+**Anforderungen:**
+1. **Neues Tab "Refill-Vorlagen"** in der bestehenden Tab-Navigation der LocationDetail-Seite hinzufügen
+2. **API-Integration für Refill-Vorlagen:**
+   - Erstelle neue API-Endpoints in `server/routes/` für Refill-Vorlagen-Management
+   - Integriere die Vendon API-Calls für Refill-Vorlagen (basierend auf den vorhandenen Vendon-Services)
+   - Endpoints: GET, POST, PUT, DELETE für `/api/locations/{locationId}/refill-templates`
+3. **Frontend-Komponente "LocationRefillTemplatesTab":**
+   - Zeige alle Refill-Vorlagen für alle Automaten am Standort an
+   - Gruppierung nach Automat mit Automat-Name und Vendon-ID
+   - Tabellen-Ansicht mit Spalten: Vorlagen-Name, Automat, Standard-Vorlage (Ja/Nein), Erstellt am, Aktionen
+   - Filter-Möglichkeiten: Nach Automat, Standard-Vorlagen only
+   - Such-Funktion nach Vorlagen-Name
+4. **CRUD-Funktionaliten:**
+   - **Anzeigen:** Liste aller Refill-Vorlagen des Standorts
+   - **Erstellen:** Dialog zum Erstellen neuer Refill-Vorlagen für ausgewählten Automaten
+   - **Bearbeiten:** Inline-Bearbeitung oder Dialog für Vorlagen-Parameter
+   - **Löschen:** Bestätigung-Dialog mit Sicherheitsabfrage
+   - **Standard setzen:** Toggle-Button zum Setzen/Entfernen der Standard-Vorlage
+5. **Refill-Vorlagen-Details anzeigen:**
+   - Produkt-Liste mit konfigurierten Mengen
+   - Min/Max-Refill-Werte pro Produkt
+   - Vorlage-Metadaten (Name, Beschreibung, etc.)
+   - Standard-Vorlage Kennzeichnung
+6. **Integration mit bestehender Architektur:**
+   - Nutze die vorhandenen Vendon-Services (`server/services/vendonAPI.ts`)
+   - Verwende bestehende UI-Komponenten (Tables, Dialogs, Buttons aus `/components/ui/`)
+   - Implementiere Error-Handling und Loading-States wie in anderen Tabs
+   - Folge dem bestehenden Query-Pattern mit React-Query
+7. **Datenstruktur für Refill-Vorlagen:**
+   ```typescript
+   interface RefillTemplate {
+     id: number;
+     name: string;
+     machineId: number;
+     machineName: string;
+     vendonId: string;
+     isDefault: boolean;
+     createdAt: string;
+     updatedAt: string;
+     products: RefillTemplateProduct[];
+   }
+   interface RefillTemplateProduct {
+     productId: number;
+     productName: string;
+     quantity: number;
+     minRefill: number;
+     maxCapacity: number;
+   }
+Responsive Design:
+Mobile-optimierte Darstellung
+Collapsible Sections für Produkt-Details
+Touch-friendly Buttons und Aktionen
+Benutzerführung:
+Hilfetexte und Tooltips für Refill-Parameter
+Validierung der Eingaben (Min <= Quantity <= Max)
+Bestätigungen für kritische Aktionen
+Success/Error-Nachrichten mit Toast-Notifications
+Performance-Optimierungen:
+Lazy Loading der Refill-Details
+Caching der Vorlagen-Daten
+Batch-Updates für Massenoperationen
+Technische Details:
+
+Füge das neue Tab in die bestehende Tabs-Struktur der LocationDetail.tsx ein
+Verwende die bestehenden Styling-Patterns und Komponenten-Architektur
+Implementiere proper Error-Boundaries und Fallback-UI
+Stelle sicher, dass die Vendon API-Rate-Limits respektiert werden
+Teste die Integration mit verschiedenen Automaten-Typen am Standort
+Dateien die erstellt/modifiziert werden sollen:
+
+ (neues Tab hinzufügen)
+(neue Komponente)
+(neue API-Routes)
+(Service für Vendon-Integration)
+Stelle sicher, dass die Implementierung konsistent mit der bestehenden Codebase ist und die gleichen Patterns für State-Management, Error-Handling und UI-Design verwendet.
