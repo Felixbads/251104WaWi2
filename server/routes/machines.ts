@@ -584,8 +584,8 @@ router.get('/:id/stock', async (req, res) => {
       stockResult = { rows: [] };
     }
 
-    // If no stock data available, return empty array
-    const formattedStock = stockResult.rows.map(row => ({
+    // If no local stock data available, try to get from Vendon API
+    let formattedStock = stockResult.rows.map(row => ({
       id: row.id,
       productName: row.productName,
       currentQuantity: parseInt(row.currentQuantity || 0),
@@ -597,6 +597,39 @@ router.get('/:id/stock', async (req, res) => {
       batchNumber: row.batchNumber,
       mhdStatus: row.mhd_status
     }));
+
+    // If no local stock data, try Vendon API
+    if (formattedStock.length === 0) {
+      try {
+        console.log(`[MACHINES API] No local stock data, fetching from Vendon API for machine ${inputId}`);
+        const { getVendonApiClient } = await import('../services/enhancedVendonApiClient');
+        const vendonClient = getVendonApiClient();
+        
+        // Try to get machine data from Vendon API
+        const vendonMachine = await vendonClient.get(`/machines/${inputId}`);
+        
+        if (vendonMachine && vendonMachine.products) {
+          formattedStock = vendonMachine.products.map((product: any, index: number) => ({
+            id: index + 1,
+            productName: product.name || product.product_name || 'Unbekanntes Produkt',
+            currentQuantity: parseInt(product.current_stock || product.quantity || 0),
+            maxQuantity: parseInt(product.max_stock || product.capacity || 0),
+            lastRefill: product.last_refill || null,
+            status: product.current_stock === 0 ? 'critical' : 
+                   (product.max_stock > 0 && (product.current_stock / product.max_stock) < 0.2) ? 'warning' : 'good',
+            expiryDate: product.expiry_date || null,
+            batchId: null,
+            batchNumber: product.batch || null,
+            mhdStatus: product.expiry_date ? 
+              (new Date(product.expiry_date) < new Date() ? 'expired' : 
+               new Date(product.expiry_date) <= new Date(Date.now() + 7*24*60*60*1000) ? 'warning' : 'ok') : 'ok'
+          }));
+          console.log(`[MACHINES API] Fetched ${formattedStock.length} products from Vendon API for machine ${inputId}`);
+        }
+      } catch (vendonError) {
+        console.log(`[MACHINES API] Vendon API not available or no data: ${vendonError}`);
+      }
+    }
 
     console.log(`[MACHINES API] Found ${formattedStock.length} stock entries for machine ${machineInternalId}`);
     res.json(formattedStock);
