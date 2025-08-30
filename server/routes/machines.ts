@@ -802,40 +802,41 @@ router.get('/:id/stock', async (req, res) => {
       console.log(`[MACHINES API] 🔄 Fallback: Verwende Refill-Daten für aktuelle Bestände`);
       
       try {
-        // Get latest stock levels from refill_details (current_stock column)
+        // CORRECT APPROACH: Calculate current stock from all refill movements
         const refillStockResult = await rawDb.query(
-          `WITH latest_refills AS (
+          `WITH stock_movements AS (
             SELECT 
               rd.product_name,
-              rd.current_stock,
-              rd.added,
-              rd.removed,
-              r.datetime as refill_date,
+              SUM(rd.added) as total_added,
+              SUM(rd.removed) as total_removed,
+              (SUM(rd.added) - SUM(rd.removed)) as calculated_stock,
+              MAX(r.datetime) as last_refill,
               p.id as product_id,
               p.vendon_id as product_vendon_id,
-              ROW_NUMBER() OVER (PARTITION BY rd.product_name ORDER BY r.datetime DESC) as rn
+              MAX(CASE WHEN rd.added > 0 THEN rd.added ELSE 10 END) as estimated_capacity
             FROM refill_details rd
             JOIN refills r ON rd.refill_id = r.id
             LEFT JOIN products p ON p.product_name = rd.product_name
             WHERE r.machine_id = $1
-            AND rd.current_stock IS NOT NULL
+            GROUP BY rd.product_name, p.id, p.vendon_id
+            HAVING SUM(rd.added) > 0 OR SUM(rd.removed) > 0
           )
           SELECT 
             product_name as "productName",
-            current_stock as "currentQuantity", 
-            COALESCE(added + current_stock, current_stock * 2, 20) as "maxQuantity",
-            refill_date as "lastRefill",
+            GREATEST(calculated_stock, 0) as "currentQuantity", 
+            GREATEST(total_added, estimated_capacity, 10) as "maxQuantity",
+            last_refill as "lastRefill",
             product_id,
             product_vendon_id as "vendonId",
+            total_added,
+            total_removed,
             CASE 
-              WHEN current_stock = 0 THEN 'critical'
-              WHEN current_stock <= 2 THEN 'warning'
+              WHEN GREATEST(calculated_stock, 0) = 0 THEN 'critical'
+              WHEN GREATEST(calculated_stock, 0) <= 2 THEN 'warning'
               ELSE 'good'
             END as status
-          FROM latest_refills 
-          WHERE rn = 1 
-          AND product_name IS NOT NULL
-          ORDER BY product_name`,
+          FROM stock_movements 
+          ORDER BY calculated_stock DESC`,
           [machineInternalId!]
         );
         

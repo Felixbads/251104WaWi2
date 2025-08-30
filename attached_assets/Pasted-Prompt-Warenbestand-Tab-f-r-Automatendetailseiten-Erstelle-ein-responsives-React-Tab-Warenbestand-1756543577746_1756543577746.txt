@@ -1,0 +1,86 @@
+Prompt: Warenbestand-Tab für Automatendetailseiten
+
+Erstelle ein responsives React-Tab "Warenbestand" für die Automatendetailseite, das den aktuellen Bestand einzelner Automaten anzeigt. Nutze die bestehende API-Struktur:
+
+Endpoint: GET /api/machines/{id}/stock
+Zweck: Liefert pro Automat und pro Slot aktuelle Menge (currentQuantity) und maximale Kapazität (maxQuantity) für Prozentberechnungen.
+Zielbild (Funktional)
+
+Bestandsübersicht-Karte (oberer Bereich):
+Automat-Name aus machine.machineName
+Gesamtbestand aktuell (Summe aller currentQuantity)
+Gesamtkapazität (Summe aller maxQuantity)
+Füllstand in % = round((sum(currentQuantity) / sum(maxQuantity)) * 100)
+Progress-Bar mit Prozentwert und Farbkodierung
+Letzte Auffüllung (jüngster lastRefill aus den Slots)
+Produktbestand-Tabelle (unterer Bereich):
+Spalten: Produkt, Bestand, Max. Kapazität, Füllstand %, Status, Letzte Auffüllung
+Sortierung nach niedrigster Füllung standardmäßig
+Filteroptionen für kritische Bestände
+Status-Behandlung:
+Wenn maxQuantity = 0 oder fehlt → Zeile ignorieren, in separater Warnliste anzeigen
+Unbekannte Felder als "–" darstellen
+Status-Badges: "good" (grün), "warning" (gelb), "critical" (rot)
+Fehlerhandling:
+Loading-Zustand mit Skeleton-Komponenten
+Fehlermeldung bei API-Problemen mit Retry-Button
+Fallback für leere Daten: "Keine Bestandsdaten verfügbar"
+Datenbeschaffung
+
+Verwendung der bestehenden useQuery-Struktur aus AutomatDetail.tsx
+Query-Key: [/api/machines/${machineId}/stock]
+Erwartete Felder pro Slot:
+id, productName, currentQuantity, maxQuantity, status, lastRefill
+Aggregation:
+totalQuantity = Σ currentQuantity (alle Slots)
+totalCapacity = Σ maxQuantity (alle Slots)
+fillLevel = (totalQuantity / totalCapacity) * 100
+Null-Division-Schutz: wenn totalCapacity=0, Prozent als "n/a"
+UI/UX-Anforderungen
+
+Design: Konsistent mit bestehender shadcn/ui-Komponenten
+Card + Table Layout wie andere Tabs
+Farbkodierung:
+≥ 70%: grün (good)
+40-69%: gelb (warning)
+< 40%: rot (critical)
+Mobile-optimiert: Tabelle horizontal scrollbar
+Accessibility: ARIA-Labels für Progress-Bars
+Technische Integration
+
+React + TypeScript + shadcn/ui Komponenten
+Integration in bestehendes TabsContent "warenbestand"
+Wiederverwendung von:
+Card, CardContent, CardHeader, CardTitle
+Table, TableBody, TableCell, TableHead, TableHeader, TableRow
+Badge, Progress, Skeleton
+formatDate(), formatCurrency() Hilfsfunktionen
+Query-Invalidierung bei Refresh-Button
+Code-Struktur
+
+// Aggregation
+const stockSummary = useMemo(() => {
+  if (!machineStock) return null;
+  const validSlots = machineStock.filter(s => s.maxQuantity > 0);
+  const totalQuantity = validSlots.reduce((sum, slot) => sum + slot.currentQuantity, 0);
+  const totalCapacity = validSlots.reduce((sum, slot) => sum + slot.maxQuantity, 0);
+  const fillLevel = totalCapacity > 0 ? Math.round((totalQuantity / totalCapacity) * 100) : null;
+  return { totalQuantity, totalCapacity, fillLevel };
+}, [machineStock]);
+// Status-Bestimmung
+const getStatusColor = (status: string) => {
+  switch (status) {
+    case 'critical': return 'destructive';
+    case 'warning': return 'secondary'; 
+    case 'good': return 'default';
+    default: return 'outline';
+  }
+};
+Akzeptanzkriterien
+
+Korrekte Berechnung von Summen und Prozentsätzen
+Status-Badges entsprechend der Füllstände
+Slots ohne Kapazität verfälschen Berechnungen nicht
+Loading- und Error-States funktional
+Mobile-responsive Darstellung
+Konsistenz mit bestehender AutomatDetail.tsx-Struktur
