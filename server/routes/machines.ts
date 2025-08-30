@@ -562,11 +562,45 @@ router.get('/:id/stock', async (req, res) => {
       // Get current stock data from Vendon API
       const vendonMachine = await vendonClient.get(`/machines/${vendonId}`);
       
-      if (vendonMachine && vendonMachine.products) {
-        vendonStock = vendonMachine.products;
+      // DEBUG: Log the complete Vendon API response structure
+      console.log(`[MACHINES API] 🔍 DEBUG: Vendon API Response Type:`, typeof vendonMachine);
+      console.log(`[MACHINES API] 🔍 DEBUG: Vendon API Response Keys:`, Object.keys(vendonMachine || {}));
+      console.log(`[MACHINES API] 🔍 DEBUG: Vendon API Response:`, JSON.stringify(vendonMachine, null, 2));
+      
+      // Check different possible data structures
+      let products = null;
+      if (vendonMachine) {
+        if (vendonMachine.products) {
+          products = vendonMachine.products;
+          console.log(`[MACHINES API] 📦 Found products in .products:`, products.length);
+        } else if (vendonMachine.result?.products) {
+          products = vendonMachine.result.products;
+          console.log(`[MACHINES API] 📦 Found products in .result.products:`, products.length);
+        } else if (vendonMachine.result && Array.isArray(vendonMachine.result)) {
+          products = vendonMachine.result;
+          console.log(`[MACHINES API] 📦 Found products as result array:`, products.length);
+        } else if (Array.isArray(vendonMachine)) {
+          products = vendonMachine;
+          console.log(`[MACHINES API] 📦 Found products as direct array:`, products.length);
+        } else if (vendonMachine.machine?.products) {
+          products = vendonMachine.machine.products;
+          console.log(`[MACHINES API] 📦 Found products in .machine.products:`, products.length);
+        } else if (vendonMachine.inventory) {
+          products = vendonMachine.inventory;
+          console.log(`[MACHINES API] 📦 Found products in .inventory:`, products.length);
+        } else if (vendonMachine.stock) {
+          products = vendonMachine.stock;
+          console.log(`[MACHINES API] 📦 Found products in .stock:`, products.length);
+        }
+      }
+      
+      if (products && Array.isArray(products) && products.length > 0) {
+        vendonStock = products;
         console.log(`[MACHINES API] ✅ Vendon API: ${vendonStock.length} Produkte von Vendon API erhalten`);
+        console.log(`[MACHINES API] 🔍 Sample Product:`, JSON.stringify(vendonStock[0], null, 2));
       } else {
         console.log(`[MACHINES API] ⚠️ Vendon API: Keine Produktdaten erhalten für Maschine ${vendonId}`);
+        console.log(`[MACHINES API] 🔍 Available properties:`, vendonMachine ? Object.keys(vendonMachine) : 'none');
       }
     } catch (vendonError) {
       console.log(`[MACHINES API] ❌ Vendon API Fehler: ${vendonError}`);
