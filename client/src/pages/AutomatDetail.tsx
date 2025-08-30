@@ -32,6 +32,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Progress } from "@/components/ui/progress";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { format, parseISO, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear, subDays, subWeeks, subMonths, subYears } from "date-fns";
@@ -215,6 +216,9 @@ export default function AutomatDetail() {
     description: ''
   });
   const [profitabilityPeriod, setProfitabilityPeriod] = useState('dieser-monat');
+  const [stockFilter, setStockFilter] = useState('all'); // all, critical, warning, good
+  const [stockSortBy, setStockSortBy] = useState('fillLevel'); // fillLevel, productName, currentQuantity
+  const [stockSortOrder, setStockSortOrder] = useState('asc'); // asc, desc
   const { toast } = useToast();
 
   const machineId = params?.id;
@@ -278,11 +282,13 @@ export default function AutomatDetail() {
     staleTime: 5 * 60 * 1000,
   });
 
-  // Fetch current stock (Warenbestand)
-  const { data: machineStock, isLoading: stockLoading } = useQuery<MachineStock[]>({
+  // Fetch current stock (Warenbestand) with enhanced error handling
+  const { data: machineStock, isLoading: stockLoading, error: stockError, refetch: refetchStock } = useQuery<MachineStock[]>({
     queryKey: [`/api/machines/${machineId}/stock`],
     enabled: !!machineId && activeTab === 'warenbestand',
     staleTime: 2 * 60 * 1000,
+    retry: 3,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
   });
 
   // Fetch MHD entries
@@ -291,6 +297,89 @@ export default function AutomatDetail() {
     enabled: !!machineId && activeTab === 'mhd',
     staleTime: 5 * 60 * 1000,
   });
+
+  // Stock summary calculation with aggregation
+  const stockSummary = useMemo(() => {
+    if (!machineStock) return null;
+    const validSlots = machineStock.filter(s => s.maxQuantity > 0);
+    const totalQuantity = validSlots.reduce((sum, slot) => sum + slot.currentQuantity, 0);
+    const totalCapacity = validSlots.reduce((sum, slot) => sum + slot.maxQuantity, 0);
+    const fillLevel = totalCapacity > 0 ? Math.round((totalQuantity / totalCapacity) * 100) : null;
+    
+    // Find latest refill date
+    const latestRefill = validSlots
+      .filter(s => s.lastRefill)
+      .map(s => new Date(s.lastRefill!))
+      .sort((a, b) => b.getTime() - a.getTime())[0];
+      
+    return {
+      totalQuantity,
+      totalCapacity,
+      fillLevel,
+      latestRefill: latestRefill?.toISOString(),
+      validSlots: validSlots.length,
+      totalSlots: machineStock.length,
+      invalidSlots: machineStock.filter(s => s.maxQuantity === 0 || !s.maxQuantity)
+    };
+  }, [machineStock]);
+
+  // Helper function for status determination based on fill levels
+  const getStatusFromFillLevel = (currentQuantity: number, maxQuantity: number): 'good' | 'warning' | 'critical' => {
+    if (maxQuantity === 0 || currentQuantity === 0) return 'critical';
+    const fillPercentage = (currentQuantity / maxQuantity) * 100;
+    if (fillPercentage >= 70) return 'good';
+    if (fillPercentage >= 40) return 'warning';
+    return 'critical';
+  };
+
+  // Helper function for status badge colors
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'critical': return 'destructive';
+      case 'warning': return 'secondary'; 
+      case 'good': return 'default';
+      default: return 'outline';
+    }
+  };
+
+  // Filtered and sorted stock data
+  const filteredAndSortedStock = useMemo(() => {
+    if (!machineStock) return [];
+    
+    // Filter out slots with zero capacity and apply status filter
+    let filtered = machineStock.filter(stock => stock.maxQuantity > 0);
+    
+    if (stockFilter !== 'all') {
+      filtered = filtered.filter(stock => {
+        const status = getStatusFromFillLevel(stock.currentQuantity, stock.maxQuantity);
+        return status === stockFilter;
+      });
+    }
+    
+    // Sort data
+    return filtered.sort((a, b) => {
+      const aFillLevel = a.maxQuantity > 0 ? (a.currentQuantity / a.maxQuantity) * 100 : 0;
+      const bFillLevel = b.maxQuantity > 0 ? (b.currentQuantity / b.maxQuantity) * 100 : 0;
+      
+      let comparison = 0;
+      
+      switch (stockSortBy) {
+        case 'fillLevel':
+          comparison = aFillLevel - bFillLevel;
+          break;
+        case 'productName':
+          comparison = (a.productName || '').localeCompare(b.productName || '');
+          break;
+        case 'currentQuantity':
+          comparison = a.currentQuantity - b.currentQuantity;
+          break;
+        default:
+          comparison = aFillLevel - bFillLevel;
+      }
+      
+      return stockSortOrder === 'desc' ? -comparison : comparison;
+    });
+  }, [machineStock, stockFilter, stockSortBy, stockSortOrder]);
 
   // Calculate date range for profitability analysis
   const dateRange = useMemo(() => getDateRange(profitabilityPeriod), [profitabilityPeriod]);
@@ -1504,84 +1593,251 @@ export default function AutomatDetail() {
           )}
         </TabsContent>
 
-        {/* Warenbestand Tab */}
-        <TabsContent value="warenbestand" className="space-y-4">
-          <div className="flex justify-between items-center">
+        {/* Enhanced Warenbestand Tab */}
+        <TabsContent value="warenbestand" className="space-y-6">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <h2 className="text-xl font-semibold">Aktueller Warenbestand</h2>
-            <Button variant="outline" size="sm">
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Bestand synchronisieren
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => refetchStock()}
+                disabled={stockLoading}
+              >
+                <RefreshCw className={`h-4 w-4 mr-2 ${stockLoading ? 'animate-spin' : ''}`} />
+                Bestand synchronisieren
+              </Button>
+            </div>
           </div>
 
-          {stockLoading ? (
-            <div className="space-y-2">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <Skeleton key={i} className="h-12 w-full" />
-              ))}
-            </div>
-          ) : (
-            <Card>
-              <CardContent className="p-0">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Produkt</TableHead>
-                      <TableHead>Bestand</TableHead>
-                      <TableHead>Max. Kapazität</TableHead>
-                      <TableHead>Füllstand</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Letzte Auffüllung</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {machineStock?.map((stock) => (
-                      <TableRow key={stock.id}>
-                        <TableCell>{stock.productName}</TableCell>
-                        <TableCell>{stock.currentQuantity}</TableCell>
-                        <TableCell>{stock.maxQuantity}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center space-x-2">
-                            <div className="w-16 bg-gray-200 rounded-full h-2">
-                              <div 
-                                className={`h-2 rounded-full ${
-                                  stock.status === 'good' ? 'bg-green-500' :
-                                  stock.status === 'warning' ? 'bg-yellow-500' : 'bg-red-500'
-                                }`}
-                                style={{ width: `${(stock.currentQuantity / stock.maxQuantity) * 100}%` }}
-                              />
-                            </div>
-                            <span className="text-sm">
-                              {Math.round((stock.currentQuantity / stock.maxQuantity) * 100)}%
-                            </span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge 
-                            variant={
-                              stock.status === 'critical' ? 'destructive' :
-                              stock.status === 'warning' ? 'secondary' : 'default'
-                            }
-                          >
-                            {stock.status === 'critical' ? 'Kritisch' :
-                             stock.status === 'warning' ? 'Niedrig' : 'Gut'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          {stock.lastRefill ? formatDate(stock.lastRefill) : '-'}
-                        </TableCell>
-                      </TableRow>
-                    )) || (
-                      <TableRow>
-                        <TableCell colSpan={6} className="text-center text-muted-foreground">
-                          Keine Bestandsdaten verfügbar
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
+          {/* Error State */}
+          {stockError && (
+            <Card className="border-red-200">
+              <CardContent className="p-6">
+                <div className="flex items-center gap-3 text-red-600">
+                  <XCircle className="h-5 w-5" />
+                  <div>
+                    <p className="font-medium">Fehler beim Laden der Bestandsdaten</p>
+                    <p className="text-sm text-red-500 mt-1">
+                      {stockError instanceof Error ? stockError.message : 'Unbekannter Fehler'}
+                    </p>
+                  </div>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => refetchStock()}
+                    className="ml-auto"
+                  >
+                    <RefreshCw className="h-4 w-4 mr-1" />
+                    Wiederholen
+                  </Button>
+                </div>
               </CardContent>
             </Card>
+          )}
+
+          {/* Loading State */}
+          {stockLoading ? (
+            <div className="space-y-4">
+              <Skeleton className="h-32 w-full" /> {/* Summary card skeleton */}
+              <div className="space-y-2">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <Skeleton key={i} className="h-12 w-full" />
+                ))}
+              </div>
+            </div>
+          ) : stockSummary && (
+            <>
+              {/* Stock Overview Card */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Package className="h-5 w-5" />
+                    Bestandsübersicht - {machine?.machineName || 'Unbekannter Automat'}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium text-muted-foreground">Gesamtbestand</p>
+                      <p className="text-2xl font-bold">{stockSummary.totalQuantity}</p>
+                      <p className="text-xs text-muted-foreground">Stück</p>
+                    </div>
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium text-muted-foreground">Gesamtkapazität</p>
+                      <p className="text-2xl font-bold">{stockSummary.totalCapacity}</p>
+                      <p className="text-xs text-muted-foreground">Stück</p>
+                    </div>
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium text-muted-foreground">Füllstand</p>
+                      <div className="flex items-center gap-3">
+                        <p className="text-2xl font-bold">
+                          {stockSummary.fillLevel !== null ? `${stockSummary.fillLevel}%` : 'n/a'}
+                        </p>
+                        {stockSummary.fillLevel !== null && (
+                          <div 
+                            className={`h-3 w-3 rounded-full ${
+                              stockSummary.fillLevel >= 70 ? 'bg-green-500' :
+                              stockSummary.fillLevel >= 40 ? 'bg-yellow-500' : 'bg-red-500'
+                            }`} 
+                          />
+                        )}
+                      </div>
+                      {stockSummary.fillLevel !== null && (
+                        <Progress 
+                          value={stockSummary.fillLevel} 
+                          className="h-2" 
+                          aria-label={`Füllstand ${stockSummary.fillLevel}%`}
+                        />
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium text-muted-foreground">Letzte Auffüllung</p>
+                      <p className="text-lg font-semibold">
+                        {stockSummary.latestRefill ? formatDate(stockSummary.latestRefill) : '-'}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {stockSummary.validSlots} von {stockSummary.totalSlots} Slots aktiv
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Warning for invalid slots */}
+                  {stockSummary.invalidSlots.length > 0 && (
+                    <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+                      <div className="flex items-center gap-2 text-yellow-800">
+                        <AlertTriangle className="h-4 w-4" />
+                        <span className="text-sm font-medium">
+                          {stockSummary.invalidSlots.length} Slots ohne Kapazitätsinformation werden nicht angezeigt
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Controls and Filters */}
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div className="flex flex-wrap gap-2">
+                  <Select value={stockFilter} onValueChange={setStockFilter}>
+                    <SelectTrigger className="w-40">
+                      <SelectValue placeholder="Status filtern" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Alle anzeigen</SelectItem>
+                      <SelectItem value="critical">Kritisch</SelectItem>
+                      <SelectItem value="warning">Niedrig</SelectItem>
+                      <SelectItem value="good">Gut</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Select value={stockSortBy} onValueChange={setStockSortBy}>
+                    <SelectTrigger className="w-40">
+                      <SelectValue placeholder="Sortieren nach" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="fillLevel">Füllstand</SelectItem>
+                      <SelectItem value="productName">Produktname</SelectItem>
+                      <SelectItem value="currentQuantity">Bestand</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setStockSortOrder(stockSortOrder === 'asc' ? 'desc' : 'asc')}
+                  >
+                    {stockSortOrder === 'asc' ? '↑' : '↓'}
+                  </Button>
+                </div>
+              </div>
+
+              {/* Enhanced Stock Table */}
+              <Card>
+                <CardContent className="p-0">
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Produkt</TableHead>
+                          <TableHead className="text-right">Bestand</TableHead>
+                          <TableHead className="text-right">Max. Kapazität</TableHead>
+                          <TableHead>Füllstand</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Letzte Auffüllung</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {filteredAndSortedStock.length > 0 ? (
+                          filteredAndSortedStock.map((stock) => {
+                            const fillPercentage = stock.maxQuantity > 0 
+                              ? Math.round((stock.currentQuantity / stock.maxQuantity) * 100) 
+                              : 0;
+                            const status = getStatusFromFillLevel(stock.currentQuantity, stock.maxQuantity);
+                            
+                            return (
+                              <TableRow key={stock.id}>
+                                <TableCell className="font-medium">
+                                  {stock.productName || 'Unbekanntes Produkt'}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  <span className={fillPercentage < 20 ? 'font-semibold text-red-600' : ''}>
+                                    {stock.currentQuantity}
+                                  </span>
+                                </TableCell>
+                                <TableCell className="text-right">{stock.maxQuantity}</TableCell>
+                                <TableCell>
+                                  <div className="flex items-center gap-3">
+                                    <div className="w-16 bg-gray-200 rounded-full h-2">
+                                      <div 
+                                        className={`h-2 rounded-full transition-all ${
+                                          status === 'good' ? 'bg-green-500' :
+                                          status === 'warning' ? 'bg-yellow-500' : 'bg-red-500'
+                                        }`}
+                                        style={{ width: `${Math.min(fillPercentage, 100)}%` }}
+                                      />
+                                    </div>
+                                    <span className={`text-sm font-medium ${
+                                      status === 'critical' ? 'text-red-600' : 
+                                      status === 'warning' ? 'text-yellow-600' : 'text-green-600'
+                                    }`}>
+                                      {fillPercentage}%
+                                    </span>
+                                  </div>
+                                </TableCell>
+                                <TableCell>
+                                  <Badge variant={getStatusColor(status) as any}>
+                                    {status === 'critical' ? 'Kritisch' :
+                                     status === 'warning' ? 'Niedrig' : 'Gut'}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell>
+                                  {stock.lastRefill ? formatDate(stock.lastRefill) : '–'}
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })
+                        ) : (
+                          <TableRow>
+                            <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                              <div className="flex flex-col items-center gap-2">
+                                <Package className="h-8 w-8 opacity-50" />
+                                <p>Keine Bestandsdaten verfügbar</p>
+                                <p className="text-sm">
+                                  {stockFilter === 'all' 
+                                    ? 'Überprüfen Sie die Datenverfügbarkeit oder synchronisieren Sie den Bestand.' 
+                                    : `Keine Produkte mit Status "${stockFilter}" gefunden.`}
+                                </p>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </CardContent>
+              </Card>
+            </>
           )}
         </TabsContent>
         

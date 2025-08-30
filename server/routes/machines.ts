@@ -887,6 +887,7 @@ router.post('/:id/costs', async (req, res) => {
       category: costType,
       description: description || '',
       isActive: true,
+      // @ts-ignore - User added by authenticate middleware
       createdBy: req.user?.id || null
     };
 
