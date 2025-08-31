@@ -850,15 +850,12 @@ export default function Orders() {
                     orders.map((order) => {
                       // Navigation basierend auf dem Status der Bestellung
                       const handleRowClick = () => {
-                        if (order.status === 'draft') {
-                          // Bei Entwurf direkt zur Bestellübersicht
-                          setLocation(`/bestellungen/${order.id}`);
-                        } else if (order.status === 'sent' || order.status === 'partially_received') {
+                        if (order.status === 'sent' || order.status === 'partially_received') {
                           // Bei "gesendet" direkt zum Wareneingang
                           setLocation(`/bestellungen/${order.id}/wareneingang`);
                         } else {
-                          // Für alle anderen Zustände zur normalen Detailseite
-                          setLocation(`/bestellungen/${order.id}`);
+                          // Für alle anderen Zustände zur Bestellübersicht (viewOrder)
+                          setLocation(`/bestellungen/workflow?step=viewOrder&orderId=${order.id}`);
                         }
                       };
                       

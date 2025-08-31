@@ -80,6 +80,7 @@ import OrderDetail from '@/components/orderv2/OrderDetail';
 import ForecastOrderMode from '@/components/orderv2/ForecastOrderMode';
 import OrderCopySelector from '@/components/orderv2/OrderCopySelector';
 import BulkOrderMode from '@/components/orderv2/BulkOrderMode';
+import OrderOverview from '@/components/orderv2/OrderOverview';
 import { Badge } from '@/components/ui/badge';
 
 // Define the order steps
@@ -1632,136 +1633,51 @@ const BestellungV2: React.FC = () => {
               <AlertTitle>Fehler beim Laden</AlertTitle>
               <AlertDescription>
                 Die Bestelldaten konnten nicht geladen werden.
+                <div className="mt-2">
+                  <Button 
+                    variant="outline" 
+                    onClick={() => navigate("/bestellungen")}
+                    size="sm"
+                  >
+                    Zurück zur Übersicht
+                  </Button>
+                </div>
               </AlertDescription>
             </Alert>
           );
         }
         
         return (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-semibold">Bestellübersicht</h2>
-              <div className="flex gap-2">
-                <Button 
-                  variant="outline" 
-                  onClick={() => navigate("/bestellungen")}
-                  className="flex items-center gap-2"
-                >
-                  <ArrowRight className="h-4 w-4 rotate-180" />
-                  Zur Übersicht
-                </Button>
-              </div>
-            </div>
-            
-            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-              <div className="flex items-center gap-2 text-green-800">
-                <Check className="h-5 w-5" />
-                <span className="font-medium">Bestellung erfolgreich erstellt!</span>
-              </div>
-              <p className="text-green-700 mt-1">
-                Bestellung {orderNumber || `#${orderId}`} wurde erstellt und kann nun weiter bearbeitet werden.
-              </p>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <FileText className="h-5 w-5" />
-                    Details
-                  </CardTitle>
-                  <CardDescription>
-                    Bestelldetails anzeigen und bearbeiten
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Button 
-                    variant="outline"
-                    onClick={() => setStep('orderDetail')}
-                    className="w-full"
-                  >
-                    Details anzeigen
-                  </Button>
-                </CardContent>
-              </Card>
-              
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Send className="h-5 w-5" />
-                    Versand
-                  </CardTitle>
-                  <CardDescription>
-                    Bestellung an Lieferanten senden
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Button 
-                    onClick={() => setStep('sendOrder')}
-                    className="w-full"
-                  >
-                    Bestellung versenden
-                  </Button>
-                </CardContent>
-              </Card>
-              
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <PackageCheck className="h-5 w-5" />
-                    Wareneingang
-                  </CardTitle>
-                  <CardDescription>
-                    Wareneingang erfassen
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Button 
-                    variant="outline"
-                    onClick={() => setStep('goodsReceipt')}
-                    className="w-full"
-                  >
-                    Wareneingang erfassen
-                  </Button>
-                </CardContent>
-              </Card>
-            </div>
-            
-            {/* Schnellübersicht der Bestellung */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Bestellübersicht</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <span className="font-medium">Lieferant:</span>
-                    <p>{existingOrderData.supplierName || 'Nicht angegeben'}</p>
-                  </div>
-                  <div>
-                    <span className="font-medium">Lager:</span>
-                    <p>{existingOrderData.warehouseName || 'Nicht angegeben'}</p>
-                  </div>
-                  <div>
-                    <span className="font-medium">Status:</span>
-                    <p>
-                      <Badge variant={existingOrderData.status === 'delivered' ? 'default' : 
-                                (existingOrderData.status === 'draft' ? 'secondary' : 'default')}>
-                        {existingOrderData.status === 'draft' ? 'Entwurf' : 
-                         existingOrderData.status === 'ordered' ? 'Bestellt' : 
-                         existingOrderData.status === 'delivered' ? 'Geliefert' : 
-                         existingOrderData.status}
-                      </Badge>
-                    </p>
-                  </div>
-                  <div>
-                    <span className="font-medium">Bestelldatum:</span>
-                    <p>{existingOrderData.orderDate ? new Date(existingOrderData.orderDate).toLocaleDateString('de-DE') : 'Heute'}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+          <OrderOverview 
+            order={existingOrderData}
+            onNavigateToStep={(stepName) => {
+              if (stepName === 'sendOrder') {
+                setStep('sendOrder');
+              } else if (stepName === 'goodsReceipt') {
+                setStep('goodsReceipt');
+              } else if (stepName === 'orderDetail') {
+                setStep('orderDetail');
+              }
+            }}
+            onEditOrder={() => {
+              // Navigate to edit mode
+              setStep('summary');
+            }}
+            onSendEmail={() => {
+              setStep('sendOrder');
+            }}
+            onDownloadPdf={() => {
+              // Implement PDF download
+              toast({
+                title: 'PDF wird erstellt',
+                description: 'Die PDF-Datei wird in Kürze heruntergeladen.',
+              });
+            }}
+            onPrint={() => {
+              // Implement print functionality
+              window.print();
+            }}
+          />
         );
         
       case 'orderDetail':
