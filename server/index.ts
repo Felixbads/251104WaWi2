@@ -926,7 +926,7 @@ app.get('/orders-data', (req, res) => {
       console.log(`E-Mail-Template für Bestellung ${orderId}: showPricesInEmail = ${showPrices}`);
       
       // Hilfsfunktion für professionelle HTML-Template-Generierung (11-Punkte-Struktur)
-      const generateComprehensiveHtmlTemplate = (order: any, items: any[], showPrices: boolean, orderNumber: string, orderDate: string, deliveryDate: string, isPickup: boolean, paymentTerms: string, isUrgent: boolean = false, orderType: string = 'Standard') => {
+      const generateComprehensiveHtmlTemplate = (order: any, items: any[], showPrices: boolean, orderNumber: string, orderDate: string, deliveryDate: string, isPickup: boolean, paymentTerms: string, isUrgent: boolean = false, orderType: string = 'Standard', portalLink: string = '') => {
         let totalAmount = 0;
         
         // Bestellpositionen-Tabelle erstellen
@@ -1023,6 +1023,22 @@ app.get('/orders-data', (req, res) => {
         return `
           <div style="font-family: 'Skog', Arial, sans-serif; font-size: 10pt; line-height: 1.3; color: #000; max-width: 800px; padding: 20px;">
             
+            <!-- PORTAL-LINK SECTION -->
+            ${portalLink ? `
+            <div style="margin-bottom: 20px; padding: 20px; background-color: #f0f9ff; border: 2px solid #0891b2; border-radius: 8px; text-align: center;">
+              <h3 style="color: #0891b2; margin: 0 0 10px 0; font-size: 16px;">🚚 Bestelleingang und Liefertermin hier bestätigen:</h3>
+              <p style="margin: 0 0 15px 0; color: #374151; line-height: 1.4;">Nutzen Sie unser sicheres Lieferantenportal zur Bestätigung und Terminabsprache</p>
+              <p style="margin: 0;">
+                <a href="${portalLink}" target="_blank" rel="noopener noreferrer" style="background-color: #0891b2; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">🔗 Zum Lieferantenportal</a>
+              </p>
+              <p style="margin: 10px 0 0 0; font-size: 12px; color: #6b7280; text-align: center;">Dieser sichere Link ist nur für Sie bestimmt und 30 Tage gültig.</p>
+            </div>
+            ` : `
+            <div style="margin-bottom: 20px; padding: 15px; background-color: #f8f9fa; border: 1px solid #dee2e6; border-radius: 5px; text-align: center;">
+              <p style="margin: 0; font-weight: bold; color: #495057;">Bestelleingang und Liefertermin hier bestätigen: Link</p>
+            </div>
+            `}
+            
             <!-- HEADER wie im PDF -->
             <table style="width: 100%; margin-bottom: 30px; border-collapse: collapse;">
               <tr>
@@ -1117,23 +1133,51 @@ app.get('/orders-data', (req, res) => {
       const isPickup = order.delivery_type === 'pickup';
       const paymentTerms = order.supplier_payment_terms || '14 Tage netto';
       
+      // Portal-Link für Lieferanten generieren (wenn verfügbar)
+      let portalLink = '';
+      if (order.supplier_id) {
+        try {
+          console.log(`[EmailTemplate] Generiere Portal-Link für Lieferant ${order.supplier_id}...`);
+          
+          // Portal-Link aus supplier_access_pins abrufen
+          const pinResult = await pool.query(
+            'SELECT access_token FROM supplier_access_pins WHERE supplier_id = $1 AND is_active = true ORDER BY created_at DESC LIMIT 1',
+            [order.supplier_id]
+          );
+          
+          if (pinResult.rows.length > 0) {
+            const accessToken = pinResult.rows[0].access_token;
+            const baseUrl = process.env.PRODUCTION_DOMAIN ? 
+              `https://${process.env.PRODUCTION_DOMAIN}` : 
+              (process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : 'https://www.proviantomat.de');
+              
+            portalLink = `${baseUrl}/lieferant/${accessToken}`;
+            console.log(`[EmailTemplate] Portal-Link erfolgreich generiert: ${portalLink.substring(0, 50)}...`);
+          } else {
+            console.log(`[EmailTemplate] Kein aktiver Access-Token für Lieferant ${order.supplier_id} gefunden`);
+          }
+        } catch (error) {
+          console.error('[EmailTemplate] Fehler beim Generieren des Portal-Links:', error);
+        }
+      }
+      
       // Template-spezifische Generierung
       switch (templateType) {
         case 'urgent':
         case 'dringend':
           subject = `DRINGEND: Bestellung ${orderNumber} - Elbsandstein Proviant & Quartier GmbH`;
-          content = generateComprehensiveHtmlTemplate(order, itemsResult.rows, showPrices, orderNumber, orderDate, deliveryDate, isPickup, paymentTerms, true);
+          content = generateComprehensiveHtmlTemplate(order, itemsResult.rows, showPrices, orderNumber, orderDate, deliveryDate, isPickup, paymentTerms, true, 'Standard', portalLink);
           break;
           
         case 'reorder':
         case 'nachbestellung':
           subject = `Nachbestellung ${orderNumber} - Elbsandstein Proviant & Quartier GmbH`;
-          content = generateComprehensiveHtmlTemplate(order, itemsResult.rows, showPrices, orderNumber, orderDate, deliveryDate, isPickup, paymentTerms, false, 'Nachbestellung');
+          content = generateComprehensiveHtmlTemplate(order, itemsResult.rows, showPrices, orderNumber, orderDate, deliveryDate, isPickup, paymentTerms, false, 'Nachbestellung', portalLink);
           break;
           
         default: // standard
           subject = `Bestellung ${orderNumber} - Elbsandstein Proviant & Quartier GmbH`;
-          content = generateComprehensiveHtmlTemplate(order, itemsResult.rows, showPrices, orderNumber, orderDate, deliveryDate, isPickup, paymentTerms, false);
+          content = generateComprehensiveHtmlTemplate(order, itemsResult.rows, showPrices, orderNumber, orderDate, deliveryDate, isPickup, paymentTerms, false, 'Standard', portalLink);
       }
       
       return res.json({
