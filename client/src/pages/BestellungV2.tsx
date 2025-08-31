@@ -1813,8 +1813,9 @@ const BestellungV2: React.FC = () => {
             </div>
             
             <EmailDialog
-              open={true}
+              open={showEmailDialog}
               onOpenChange={(open) => {
+                setShowEmailDialog(open);
                 if (!open) {
                   // When dialog is closed, navigate back
                   if (existingOrderData) {
