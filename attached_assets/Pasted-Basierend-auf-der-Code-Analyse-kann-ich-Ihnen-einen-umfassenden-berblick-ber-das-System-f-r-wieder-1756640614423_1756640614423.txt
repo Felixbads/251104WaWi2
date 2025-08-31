@@ -1,0 +1,118 @@
+Basierend auf der Code-Analyse kann ich Ihnen einen umfassenden Überblick über das System für wiederkehrende Bestellungen geben:
+
+Wiederkehrende Bestellungen - Konzept und Implementierung
+Das System verfügt über ein vollständig implementiertes System für wiederkehrende Bestellungen mit folgenden Kernkomponenten:
+
+1. Datenbankstruktur (schema.ts)
+Das System basiert auf drei Haupttabellen:
+
+recurringOrders - Konfiguration der wiederkehrenden Bestellungen
+recurringOrderItems - Produktpositionen für jede wiederkehrende Bestellung
+recurringOrderExecutions - Protokoll aller Ausführungen
+2. Bestelltypen und Intervalle
+Bestelltypen:
+
+shipping - Versandbestellungen an Lieferanten
+goods_receipt - Wareneingänge für Lager
+Intervalle:
+
+weekly - Wöchentlich
+biweekly - Alle 2 Wochen
+triweekly - Alle 3 Wochen
+monthly - Monatlich
+3. Intelligente Prognose-Integration
+Das System unterstützt zwei Modi:
+
+Shopping Cart Modus (Standard):
+
+Prognose wird nur auf ausgewählte Produkte angewendet
+Mengen werden basierend auf historischen Verkaufsdaten angepasst
+Konfidenz-Level bestimmt, ob Prognose verwendet wird (>60%)
+All-Produkte Modus (Legacy):
+
+Automatische Prognose für alle Lieferanten-Produkte
+Erstellt Bestellpositionen basierend auf Verkaufsprognosen
+4. Automatischer Scheduler (recurringOrderScheduler.ts)
+Zeitsteuerung:
+
+// Tägliche Prüfung um 6:00 Uhr
+const dailyTask = cron.schedule('0 6 * * *', async () => {
+  await this.checkAndExecuteRecurringOrders();
+});
+// Stündliche Prüfung zwischen 6-8 Uhr für verpasste Ausführungen  
+const hourlyTask = cron.schedule('0 6-8 * * *', async () => {
+  await this.checkMissedExecutions();
+});
+5. Bestellerstellung-Workflow
+Auslösung: Scheduler prüft fällige Bestellungen
+Prognose: Mengenanpassung basierend auf historischen Daten
+Bestellerstellung: Automatische Erstellung als reguläre Bestellung
+Status-Unterscheidung:
+Versandbestellungen → Status: draft
+Wareneingänge → Status: goods_receipt
+6. E-Mail-Benachrichtigungen
+Automatische Benachrichtigungen mit:
+
+Bestelldetails und Produktliste
+Unterschiedliche Templates je nach Bestelltyp
+HTML-formatierte E-Mails mit Tabellen
+Nächste Schritte je nach Workflow
+7. Frontend-Integration (RecurringOrdersTab.tsx)
+Funktionen:
+
+Übersicht aller wiederkehrenden Bestellungen
+Erstellen/Bearbeiten von Konfigurationen
+Test-Funktionen für E-Mail und Ausführung
+Scheduler-Steuerung (Start/Stop)
+Ausführungshistorie
+8. API-Endpunkte (recurring-orders.ts)
+CRUD-Operationen:
+
+GET /api/recurring-orders - Alle Bestellungen
+POST /api/recurring-orders - Neue Bestellung erstellen
+PUT /api/recurring-orders/:id - Bestellung aktualisieren
+DELETE /api/recurring-orders/:id - Bestellung löschen
+Test-Funktionen:
+
+POST /api/recurring-orders/test-email - Test-E-Mail senden
+POST /api/recurring-orders/test-execution - Test-Ausführung
+POST /api/recurring-orders/test-forecast - Prognose-Test
+Scheduler-Steuerung:
+
+GET /api/recurring-orders/scheduler/status - Status abrufen
+POST /api/recurring-orders/scheduler/start - Scheduler starten
+POST /api/recurring-orders/scheduler/stop - Scheduler stoppen
+9. Prognose-Algorithmus
+private async getForecastForProducts(productIds: number[], periodDays: number) {
+  // Historische Verkaufsdaten der letzten 30 Tage
+  const historicalData = await this.db.execute(sql`
+    SELECT DATE(datetime) as sale_date, SUM(quantity) as daily_quantity
+    FROM transactions 
+    WHERE product_id = ${productId}
+      AND datetime >= CURRENT_DATE - INTERVAL '30 days'
+    GROUP BY DATE(datetime)
+  `);
+  
+  // Berechnung: Durchschnittlicher Tagesbedarf * Prognosezeitraum
+  const avgDaily = totalQuantity / historicalData.rows.length;
+  const predictedQuantity = avgDaily * periodDays;
+  
+  // Konfidenz basierend auf Datenlage
+  const confidence = historicalData.rows.length >= 7 ? 0.8 : 0.5;
+}
+10. Fehlerbehandlung und Monitoring
+Detailliertes Logging aller Ausführungen
+Retry-Mechanismus für fehlgeschlagene Ausführungen
+Status-Tracking mit Fehlermeldungen
+Dashboard für Überwachung
+Fazit
+Das System für wiederkehrende Bestellungen ist vollständig implementiert und bietet:
+
+✅ Automatisierte Bestellerstellung basierend auf konfigurierbaren Intervallen
+✅ Intelligente Prognose-Integration für optimierte Mengen
+✅ Flexible Bestelltypen (Versand/Wareneingang)
+✅ E-Mail-Benachrichtigungen mit detaillierten Templates
+✅ Umfassendes Monitoring und Test-Funktionen
+✅ Robuste Fehlerbehandlung mit Retry-Mechanismen
+
+Das Konzept ermöglicht es, wiederkehrende Beschaffungsprozesse vollständig zu automatisieren und dabei durch Prognosen die Bestellmengen zu optimieren.
