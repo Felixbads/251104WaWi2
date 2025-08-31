@@ -229,9 +229,9 @@ export default function SupplierPortal({ params: routeParams }: { params?: { acc
   const authenticateWithToken = async (token: string) => {
     try {
       setIsLoading(true);
-      console.log('Sending authentication request with token:', token);
+      console.log('[SupplierPortal] Sende Authentifizierungsanfrage mit Token:', token.substring(0, 10) + '...');
       
-      // Direct fetch instead of apiRequest to bypass potential issues
+      // Direct fetch mit erweiterten Debug-Informationen
       const response = await fetch('/api/supplier-portal/authenticate', {
         method: 'POST',
         headers: {
@@ -240,38 +240,46 @@ export default function SupplierPortal({ params: routeParams }: { params?: { acc
         body: JSON.stringify({ accessToken: token })
       });
 
-      console.log('Response status:', response.status);
+      console.log('[SupplierPortal] Response Status:', response.status);
+      console.log('[SupplierPortal] Response Headers:', Object.fromEntries(response.headers.entries()));
+
       const data = await response.json();
-      console.log('Response data:', data);
+      console.log('[SupplierPortal] Response Data:', data);
 
       if (data.success) {
         const sessionToken = data.data.sessionToken;
+        const accessCount = data.data.accessCount;
+        
+        console.log('[SupplierPortal] Authentifizierung erfolgreich - Session Token erhalten');
         setSessionToken(sessionToken);
         setIsAuthenticated(true);
         localStorage.setItem('supplier_session_token', sessionToken);
+        
+        // Load supplier data with detailed logging
+        console.log('[SupplierPortal] Lade Lieferantendaten...');
         await loadSupplierData(sessionToken);
         
         toast({
-          title: "Erfolgreich angemeldet",
-          description: "Willkommen in Ihrem Lieferantenportal!"
+          title: "Portal-Zugang erfolgreich",
+          description: `Willkommen im Lieferantenportal! Zugriff #${accessCount}`
         });
       } else {
-        console.error('Authentifizierung fehlgeschlagen:', data.error);
+        console.error('[SupplierPortal] Authentifizierung fehlgeschlagen:', data.error);
         setIsAuthenticated(false);
         
         toast({
-          title: "Authentifizierung fehlgeschlagen",
-          description: data.error || "Unbekannter Fehler",
+          title: "Zugang verweigert",
+          description: data.error || "Ungültiger oder abgelaufener Access-Token",
           variant: "destructive"
         });
       }
     } catch (error) {
-      console.error('Authentifizierung fehlgeschlagen:', error);
+      console.error('[SupplierPortal] Netzwerkfehler bei der Authentifizierung:', error);
       setIsAuthenticated(false);
       
       toast({
         title: "Verbindungsfehler",
-        description: "Verbindung zum Portal fehlgeschlagen.",
+        description: "Es konnte keine Verbindung zum Server hergestellt werden. Bitte versuchen Sie es später erneut.",
         variant: "destructive"
       });
     } finally {

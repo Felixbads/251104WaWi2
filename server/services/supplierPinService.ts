@@ -40,15 +40,8 @@ export async function createSupplierPin(supplierId: number, orderId?: number, or
     const accessToken = generateAccessToken();
     const sessionToken = crypto.randomBytes(32).toString('hex');
     
-    // PIN-Gültigkeit: für Portal-System dauerhaft bis 2030, sonst 24 Stunden
-    let validUntil = new Date();
-    if (permanent) {
-      // Portal-System: Dauerhaft gültig bis 2030
-      validUntil = new Date('2030-12-31T23:59:59Z');
-    } else {
-      // Normale PINs: 24 Stunden
-      validUntil.setHours(validUntil.getHours() + 24);
-    }
+    // PIN-Gültigkeit: Immer dauerhaft bis 2030 für Portal-System
+    let validUntil = new Date('2030-12-31T23:59:59Z');
     
     // Session läuft nach 8 Stunden ab
     const sessionExpiresAt = new Date();
@@ -67,11 +60,11 @@ export async function createSupplierPin(supplierId: number, orderId?: number, or
       };
     }
 
-    // Deaktiviere alte PINs für diesen Lieferanten
-    await rawDb.query(
-      'UPDATE supplier_access_pins SET is_active = false WHERE supplier_id = $1',
-      [supplierId]
-    );
+    // WICHTIG: Alte PINs NICHT deaktivieren - Behalte bestehende Portal-Zugänge aktiv
+    // await rawDb.query(
+    //   'UPDATE supplier_access_pins SET is_active = false WHERE supplier_id = $1',
+    //   [supplierId]
+    // );
 
     // Erstelle neuen PIN-Eintrag
     const pinData = {

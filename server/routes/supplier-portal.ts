@@ -61,24 +61,33 @@ router.post('/authenticate', async (req: Request, res: Response) => {
     const result = await rawDb.query(tokenQuery, [accessToken]);
 
     if (result.rows.length === 0) {
+      console.log('[SUPPLIER-PORTAL] Token nicht gefunden in der Datenbank:', accessToken.substring(0, 10) + '...');
       return res.status(401).json({
         success: false,
-        error: 'Ungültiger oder abgelaufener Access Token'
+        error: 'Zugriff verweigert: Ungültiger oder abgelaufener Zugangs-Token. Bitte wenden Sie sich an unser Team für einen neuen Portal-Zugang.'
       });
     }
 
     const tokenData = result.rows[0];
 
-    // Prüfe Gültigkeit - PINs sind jetzt dauerhaft gültig (großzügiges Ablaufdatum)
+    // Prüfe Gültigkeit - Erweiterte Logging
     const now = new Date();
     const validUntil = new Date(tokenData.valid_until);
     
+    console.log('[SUPPLIER-PORTAL] Token-Gültigkeit prüfen:');
+    console.log('[SUPPLIER-PORTAL] - Aktuell:', now.toISOString());
+    console.log('[SUPPLIER-PORTAL] - Gültig bis:', validUntil.toISOString());
+    console.log('[SUPPLIER-PORTAL] - Is Active:', tokenData.is_active);
+    
     if (validUntil < now) {
+      console.log('[SUPPLIER-PORTAL] Token ist abgelaufen');
       return res.status(401).json({
         success: false,
-        error: 'Der Portal-Link ist abgelaufen. Bitte wenden Sie sich an unser Team für einen neuen Zugang.'
+        error: 'Zugriff verweigert: Der Portal-Link ist abgelaufen. Bitte wenden Sie sich an unser Team für einen neuen Zugang.'
       });
     }
+    
+    console.log('[SUPPLIER-PORTAL] Token ist gültig, führe Authentifizierung durch');
 
     // Update access count and last access time
     await rawDb.query(
