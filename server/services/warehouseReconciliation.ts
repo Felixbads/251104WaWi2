@@ -188,7 +188,10 @@ export async function reconcileWarehouseProducts(
                   // Normalisiere den Produktnamen für die Suche
                   const productName = normalizeProductName(rawProductName);
                   console.log(`Suche Produkt mit normalisiertem Namen: "${productName}" (Original: "${rawProductName}")`);
-                  const product = await storage.getProductByNormalizedName(productName);
+                  // Verwende direkte SQL-Abfrage da getProductByNormalizedName nicht existiert
+                  const productQuery = 'SELECT * FROM products WHERE LOWER(product_name) LIKE LOWER($1) LIMIT 1';
+                  const productResult = await rawDb.query(productQuery, [`%${productName}%`]);
+                  const product = productResult.rows[0];
 
                   if (product && product.id) {
                     const productId = product.id;
@@ -385,7 +388,7 @@ export async function reconcileWarehouseProducts(
           }
 
           // Prüfe, ob das Produkt in der Datenbank existiert
-          const product = await storage.getProduct(productId);
+          const product = await storage.getProductById(productId);
 
           if (product) {
             try {
