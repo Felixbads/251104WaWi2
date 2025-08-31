@@ -309,6 +309,11 @@ const BestellungV2: React.FC = () => {
           pickupLocation: orderData.pickup_location || ''
         });
         
+        // Für viewOrder: E-Mail-Dialog explizit schließen
+        if (step === 'viewOrder') {
+          setShowEmailDialog(false);
+        }
+        
         // Lade auch die Bestellpositionen
         await loadOrderItems(orderIdToLoad);
       }
@@ -1107,6 +1112,9 @@ const BestellungV2: React.FC = () => {
       // NICHT bei viewOrder - das war der Fehler!
       if (step === 'sendOrder') {
         setShowEmailDialog(true);
+      } else {
+        // Für alle anderen Steps (besonders viewOrder) explizit Dialog schließen
+        setShowEmailDialog(false);
       }
       
       // E-Mail-Vorbereitung ist abgeschlossen
@@ -1228,6 +1236,11 @@ const BestellungV2: React.FC = () => {
   
   // useEffect für das Laden von Bestellpositionen
   useEffect(() => {
+    // Für viewOrder NIEMALS E-Mail-Dialog öffnen!
+    if (step === 'viewOrder') {
+      setShowEmailDialog(false);
+    }
+    
     // Nur ausführen wenn wir im richtigen Schritt sind UND existingOrderData vorhanden ist
     if ((step === 'sendOrder' || step === 'viewOrder' || step === 'warehouseReceiptOfExistingOrder') && existingOrderData && orderId) {
       console.log("Prüfe Bestellungsdetails:", existingOrderData);
@@ -1748,9 +1761,9 @@ const BestellungV2: React.FC = () => {
             orderId={orderId!}
             onBack={() => setStep('overview')}
             onEmailPrepare={() => {
-              console.log('E-Mail-Button geklickt - starte E-Mail-Vorbereitung');
+              console.log('E-Mail-Button geklickt - navigiere zu sendOrder');
               setStep('sendOrder');
-              prepareOrderEmail(existingOrderData, true);
+              // prepareOrderEmail wird automatisch durch step-change ausgelöst
             }}
           />
         );
@@ -2159,9 +2172,8 @@ const BestellungV2: React.FC = () => {
                     
                     // Kurze Verzögerung, um sicherzustellen, dass der Komponentenzustand aktualisiert wurde
                     setTimeout(() => {
-                      // E-Mail-Vorbereitung explizit starten - MIT Toast, da explizite Benutzeraktion
-                      prepareOrderEmail(existingOrderData, true);
-                      console.log('E-Mail-Vorbereitung nach Step-Änderung gestartet (von Details-View)');
+                        // E-Mail wird automatisch durch step-change vorbereitet
+                      console.log('Navigiere zu sendOrder (von Details-View)');
                     }, 50);
                   }}
                 >
