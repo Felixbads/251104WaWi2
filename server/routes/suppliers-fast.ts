@@ -13,10 +13,10 @@ router.get('/fast-overview', async (req, res) => {
         s.id,
         s.name,
         COUNT(DISTINCT p.id) as "currentProducts",
-        COUNT(DISTINCT CASE WHEN o.status IN ('pending', 'processing', 'ordered') THEN o.id END) as "openDeliveries"
+        COUNT(DISTINCT CASE WHEN o.status IN ('sent', 'open') THEN o.id END) as "openDeliveries"
       FROM suppliers s
       LEFT JOIN products p ON s.id = p.supplier_id AND p.status = 'active'
-      LEFT JOIN orders o ON s.id = o.supplier_id AND o.status IN ('pending', 'processing', 'ordered')
+      LEFT JOIN orders o ON s.id = o.supplier_id
       WHERE s.status = 'active'
       GROUP BY s.id, s.name
       ORDER BY s.name ASC

@@ -1,12 +1,13 @@
 import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useLocation } from 'wouter';
-import { Search, Package, Truck, Building2, Plus, ChevronRight } from 'lucide-react';
+import { Search, Package, Truck, Building2, Plus, ChevronRight, ArrowUpDown } from 'lucide-react';
 
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface FastSupplier {
   id: number;
@@ -17,6 +18,7 @@ interface FastSupplier {
 
 export default function SuppliersFast() {
   const [searchQuery, setSearchQuery] = useState('');
+  const [sortBy, setSortBy] = useState<'name' | 'deliveries' | 'products'>('name');
   const [_, setLocation] = useLocation();
 
   // Fast suppliers query - only essential data
@@ -27,15 +29,34 @@ export default function SuppliersFast() {
 
   const suppliers = (suppliersData as any)?.data || [];
 
-  // Filter suppliers based on search
+  // Filter and sort suppliers
   const filteredSuppliers = useMemo(() => {
-    if (!searchQuery.trim()) return suppliers;
+    let filtered = suppliers;
     
-    const query = searchQuery.toLowerCase();
-    return suppliers.filter((supplier: FastSupplier) =>
-      supplier.name.toLowerCase().includes(query)
-    );
-  }, [suppliers, searchQuery]);
+    // Apply search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter((supplier: FastSupplier) =>
+        supplier.name.toLowerCase().includes(query)
+      );
+    }
+    
+    // Apply sorting
+    const sorted = [...filtered].sort((a: FastSupplier, b: FastSupplier) => {
+      switch (sortBy) {
+        case 'name':
+          return a.name.localeCompare(b.name);
+        case 'deliveries':
+          return b.openDeliveries - a.openDeliveries; // Descending order (highest first)
+        case 'products':
+          return b.currentProducts - a.currentProducts; // Descending order (highest first)
+        default:
+          return 0;
+      }
+    });
+    
+    return sorted;
+  }, [suppliers, searchQuery, sortBy]);
 
   const handleSupplierClick = (supplierId: number) => {
     setLocation(`/lieferanten/${supplierId}`);
@@ -81,15 +102,32 @@ export default function SuppliersFast() {
             </Button>
           </div>
 
-          {/* Search */}
-          <div className="relative">
-            <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-            <Input
-              placeholder="Lieferant suchen..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 h-10"
-            />
+          {/* Search and Sort */}
+          <div className="space-y-3">
+            <div className="relative">
+              <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+              <Input
+                placeholder="Lieferant suchen..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10 h-10"
+              />
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <ArrowUpDown className="h-4 w-4 text-gray-500" />
+              <span className="text-sm text-gray-600">Sortieren:</span>
+              <Select value={sortBy} onValueChange={(value: 'name' | 'deliveries' | 'products') => setSortBy(value)}>
+                <SelectTrigger className="w-48 h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="name">Alphabetisch (A-Z)</SelectItem>
+                  <SelectItem value="deliveries">Lieferungen (meiste zuerst)</SelectItem>
+                  <SelectItem value="products">Produkte (meiste zuerst)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </div>
       </div>
