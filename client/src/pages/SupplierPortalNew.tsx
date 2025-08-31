@@ -193,10 +193,10 @@ export default function SupplierPortalNew({ orderId, accessToken: propsAccessTok
       console.log('Authentifizierungs-Response:', data);
 
       if (data.success) {
-        const sessionToken = data.data.sessionToken;
-        setSessionToken(sessionToken);
+        const newSessionToken = data.data.sessionToken;
+        setSessionToken(newSessionToken);
         setIsAuthenticated(true);
-        await loadAllData(sessionToken);
+        await loadAllData(newSessionToken);
         
         // If orderId is provided, navigate to orders tab
         if (orderId) {
@@ -231,11 +231,11 @@ export default function SupplierPortalNew({ orderId, accessToken: propsAccessTok
     }
   };
 
-  const loadAllData = async (token: string) => {
+  const loadAllData = async (sessionToken: string) => {
     try {
-      console.log('Lade alle Portal-Daten...');
+      console.log('Lade alle Portal-Daten mit Session Token:', sessionToken);
       
-      const headers = { 'Authorization': `Bearer ${token}` };
+      const headers = { 'Authorization': `Bearer ${sessionToken}` };
       
       // Erst Lieferantendaten laden
       const supplierResponse = await fetch('/api/supplier-portal/supplier-data', { headers }).then(res => res.json());
@@ -245,18 +245,22 @@ export default function SupplierPortalNew({ orderId, accessToken: propsAccessTok
         setSupplierData(supplierResponse.data);
       }
       
-      // Dann die restlichen Daten parallel laden
-      const [
-        productsResponse, 
-        ordersResponse,
-        purchaseConditionsResponse,
-        orderItemsResponse
-      ] = await Promise.all([
-        fetch('/api/supplier-portal/products', { headers }).then(res => res.json()),
-        fetch('/api/supplier-portal/orders', { headers }).then(res => res.json()),
-        fetch('/api/supplier-portal/purchase-conditions', { headers }).then(res => res.json()),
-        fetch('/api/supplier-portal/order-items', { headers }).then(res => res.json())
-      ]);
+      // Dann die restlichen Daten sequenziell laden für bessere Fehlerbehandlung
+      const productsResponse = await fetch('/api/supplier-portal/products', { headers })
+        .then(res => res.json())
+        .catch(err => { console.error('Products fetch error:', err); return { success: false }; });
+      
+      const ordersResponse = await fetch('/api/supplier-portal/orders', { headers })
+        .then(res => res.json())
+        .catch(err => { console.error('Orders fetch error:', err); return { success: false }; });
+      
+      const purchaseConditionsResponse = await fetch('/api/supplier-portal/purchase-conditions', { headers })
+        .then(res => res.json())
+        .catch(err => { console.error('Purchase conditions fetch error:', err); return { success: false }; });
+      
+      const orderItemsResponse = await fetch('/api/supplier-portal/order-items', { headers })
+        .then(res => res.json())
+        .catch(err => { console.error('Order items fetch error:', err); return { success: false }; });
 
       console.log('Products Response:', productsResponse);
       console.log('Orders Response:', ordersResponse);
