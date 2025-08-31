@@ -271,6 +271,12 @@ const BestellungV2: React.FC = () => {
       
       const orderData = await response.json();
       console.log("Bestellungsdaten geladen:", orderData);
+      console.log("API Fields:", {
+        supplier_name: orderData.supplier_name,
+        warehouse_name: orderData.warehouse_name, 
+        location_name: orderData.location_name,
+        total_amount: orderData.total_amount
+      });
       
       if (orderData) {
         setOrderNumber(orderData.order_number || '');
@@ -1648,6 +1654,7 @@ const BestellungV2: React.FC = () => {
           );
         }
         
+        console.log("Rendering OrderOverview with data:", existingOrderData);
         return (
           <OrderOverview 
             order={existingOrderData}
@@ -1665,6 +1672,7 @@ const BestellungV2: React.FC = () => {
               setStep('summary');
             }}
             onSendEmail={() => {
+              console.log("onSendEmail called - opening email dialog");
               // Direkt E-Mail Dialog öffnen, nicht Step wechseln
               setShowEmailDialog(true);
             }}

@@ -92,12 +92,21 @@ const OrderOverview: React.FC<OrderOverviewProps> = ({
   onDownloadPdf,
   onPrint
 }) => {
+  console.log("OrderOverview received data:", order);
+  console.log("Field values:", {
+    supplier_name: order?.supplier_name,
+    warehouse_name: order?.warehouse_name,
+    location_name: order?.location_name,
+    total_amount: order?.total_amount
+  });
   // Calculate order totals
   const items = order.items || order.orderItems || [];
   const subtotal = items.reduce((sum: number, item: any) => 
-    sum + (item.quantity * item.unitPrice), 0);
-  const vatAmount = order.vatAmount || (subtotal * 0.19); // 19% MwSt
-  const total = order.totalAmount || (subtotal + vatAmount);
+    sum + (item.quantity * (item.unit_price || item.unitPrice || 0)), 0);
+  const vatAmount = order.vat_amount || order.vatAmount || (subtotal * 0.19); // 19% MwSt
+  const total = order.total_amount || order.totalAmount || (subtotal + vatAmount);
+  
+  console.log("Calculated total:", total, "from order.total_amount:", order.total_amount);
 
   return (
     <div className="space-y-6">
