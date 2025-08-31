@@ -1,0 +1,62 @@
+Gesamtkonzept: Dynamische Automatenbefüllung
+1. Zielsetzung
+Reduzierung von Abschriften: Frischeprodukte mit kurzem MHD sollen in optimaler Menge eingelegt werden.
+Vermeidung von Ausverkäufen: Bestseller-Produkte sollen ausreichend vorhanden sein.
+Automatisierte Planung: Je Automat eine Absatzprognose für die kommende Woche → daraus Bestelllisten für Lieferanten und Befülllisten für Fahrer generieren.
+2. Datengrundlage
+Die bestehende Datenbank bietet alle relevanten Datenpunkte:
+Verkaufsdaten (transactions)
+machine_id, product_name, datetime, quantity, Preis, Kontext (Wetter, Saison, Events).
+Nachfüllungen (refills, refill_details)
+hinzugefügt, entfernt, Bestandsverlauf.
+Produkteigenschaften (products)
+MHD in Tagen, Lieferant, Kategorie, Mindestbestellmengen.
+Inventar-Chargen (inventory_batches)
+FIFO-Verwaltung, expiry_date, current_quantity.
+Maschinen-Performance (machine_daily_stats)
+Umsatz, Absatz, letzte Verkäufe, Trends.
+3. Analyse- und Prognoselogik
+a) Kritische Produkte
+Produkte mit kurzem MHD (< 7 Tage).
+Produkte mit hoher Verderbquote (regelmäßig aus Automaten entfernt).
+b) Nachfrageanalyse pro Automat
+Absatzmengen pro Tag/Woche.
+Ausverkaufsmuster (wann leer, obwohl Nachfrage da war).
+Saisonale/Wetterfaktoren (z. B. Eis im Sommer, Suppen im Winter).
+Event-/Ferieneffekte.
+c) Kennzahlen (KPIs)
+Verderbrisiko-Score = (shelf_life_days – days_since_refill) / avg_daily_sales.
+Ausverkaufswahrscheinlichkeit = current_stock / (avg_daily_sales * Faktoren).
+Optimale Befüllmenge = predicted_daily_sales * Tage bis nächste Befüllung * Sicherheitsfaktor.
+4. Prognosemodell
+70 % Historische Verkaufsdaten.
+15 % Wetterprognose.
+10 % Saisonale Muster.
+5 % Events/Feiertage.
+Das Modell berechnet empfohlene Mengen pro Produkt und Automat.
+5. Ergebnis-Output
+Neue Tabelle: refill_recommendations
+| machine_id | product_id | week_number | recommended_quantity | forecast_basis | created_at |
+→ Enthält pro Automat und Produkt die vorgeschlagene Befüllmenge.
+Operative Ergebnisse
+Gesamtbestellliste je Lieferant
+Bündelt Mengen über alle Automaten (z. B. Milchhof Fiedler, Landschlachthof Struppen).
+Befülllisten je Automat
+Stückzahl pro Produkt → klare Handlungsanweisung für Fahrer.
+Dashboard/Reports
+KPIs (Verderb, Ausverkauf, Trends).
+Warnungen (z. B. Wetter > 30 °C → weniger Fleischsalat).
+6. Prozessablauf (End-to-End)
+Datensammlung
+Transaktionen, Nachfüllungen, MHD-Chargen, Wetter-/Eventdaten.
+Analyse & Prognose
+Berechnung Absatztrends + Einflussfaktoren.
+Erstellung Befüll-Empfehlungen (refill_recommendations).
+Bestellliste generieren
+Konsolidierte Mengen pro Lieferant.
+Befülllisten erstellen
+Automatenspezifische Stücklisten.
+Durchführung Befüllung
+Fahrer erhält klare Vorgaben.
+Monitoring
+Dashboard zeigt Verderb, Ausverkauf, Abweichungen → Rückkopplung ins Modell.
