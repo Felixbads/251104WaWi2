@@ -1,0 +1,76 @@
+Verstanden 👍 – du willst also ein Konzept für die dynamische Befüllung deiner Automaten entwickeln, das sich an Verkaufsdaten und MHD-Risiken orientiert. Ich würde das inhaltlich so strukturieren, dass es später auch in ein technisches Modell (Datenbank, API, Prognosealgorithmus) übersetzt werden kann.
+
+Hier mal ein Vorschlag, wie man das Konzept gliedert:
+
+⸻
+
+1. Zielsetzung
+	•	Reduzierung von Abschriften (Produkte mit kurzem MHD, die nicht verkauft werden).
+	•	Absatzsteigerung durch bessere Nachbestückung (v. a. Produkte, die regelmäßig ausverkauft sind).
+	•	Automatisierte Prognose zur optimalen Befüllung je Automat.
+
+⸻
+
+2. Datengrundlage
+	•	Transaktionsdaten pro Automat (verkaufte Produkte, Zeitpunkte).
+	•	Bestandsdaten (wann und wie viel nachgefüllt wurde).
+	•	Abschriften-Daten (Produkte, die aus dem Automaten genommen und entsorgt wurden).
+	•	Produktdaten (MHD, Lieferant, Kategorie).
+	•	Externe Faktoren: Wetter, Wochentag, Ferienzeiten, Events.
+
+⸻
+
+3. Analyse-Schritte
+
+a) Identifikation kritischer Produkte
+	•	Produkte mit kurzem MHD (z. B. Milchprodukte, frisches Fleisch/Wurst).
+	•	Produkte mit hoher Verderbquote (regelmäßig Entnahmen wegen Ablauf).
+
+b) Nachfrageanalyse
+	•	Ausverkaufsquote: Wie oft ist ein Produkt nicht verfügbar, obwohl Nachfrage da wäre?
+	•	Verkaufsrate pro Tag: Durchschnittsabsatz, Schwankungen (z. B. WE vs. Wochentage).
+	•	Saisonales Verhalten: Sommer/Winter (Milchshakes vs. Suppen).
+
+c) Ursachenanalyse
+	•	Warum bleiben Produkte liegen?
+	•	Zu hohe Befüllung?
+	•	Wettereinfluss (z. B. Fleischsalat bei 30 °C weniger beliebt)?
+	•	Warum sind Produkte ausverkauft?
+	•	Zu geringe Befüllung?
+	•	Lieferengpässe?
+
+⸻
+
+4. Steuerungslogik
+
+Regelset für Befüllung
+	•	MHD-kritische Produkte: nur in Mengen X, orientiert an Absatz + Sicherheitsreserve.
+	•	Bestseller-Produkte: Nachfüllmenge hochfahren, wenn regelmäßig ausverkauft.
+	•	Langsamdreher: ggf. weniger oder gar nicht mehr in Automaten nehmen.
+
+Prognosemodell (optional KI-gestützt)
+	•	Nimmt historische Verkaufsdaten + externe Faktoren (Wetter, Wochentag) → Prognose für nächsten Befüllzyklus.
+	•	Ausgabe: Empfohlene Stückzahl pro Produkt pro Automat.
+
+⸻
+
+5. Lieferanten-Integration
+	•	Milchhof Fiedler, Landschlachthof Struppen → Priorität, da Nachfrage hoch.
+	•	Abstimmung: kürzere Lieferzyklen oder flexible Mengenbestellung.
+
+⸻
+
+6. Umsetzung / Technische Basis
+	•	Daten sammeln → API/CSV von Automaten-Anbieter (Vendon etc.).
+	•	Zentrale Datenbank: Produkte, MHD, Verkaufszahlen, Abschriften.
+	•	Dashboard: pro Automat Auswertung (zu viel / zu wenig / optimal).
+	•	Option: automatisierte Bestellvorschläge für Lieferanten.
+
+⸻
+
+Damit hast du erstmal ein inhaltliches Grundgerüst.
+Als nächstes könnten wir zwei Richtungen einschlagen:
+	1.	Detailkonzept für die Analyse: Welche KPIs genau erfasst und berechnet werden sollen.
+	2.	Prozessskizze: Wie der Kreislauf “Befüllen → Verkaufen → Auswerten → Prognose → Befüllen” genau aussieht.
+
+👉 Soll ich dir als nächsten Schritt die KPIs / Kennzahlen für das Monitoring und die Prognosen auflisten?

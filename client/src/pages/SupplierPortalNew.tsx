@@ -596,26 +596,34 @@ export default function SupplierPortalNew({ orderId, accessToken: propsAccessTok
                     </TableHeader>
                     <TableBody>
                       {products.length > 0 ? (
-                        products.map((product) => (
-                          <TableRow key={product.id}>
-                            <TableCell className="font-medium">
-                              <div>
-                                <p className="font-semibold">{product.productName}</p>
-                                {product.shortDescription && (
-                                  <p className="text-sm text-gray-500">{product.shortDescription}</p>
-                                )}
-                              </div>
-                            </TableCell>
-                            <TableCell>{product.category || 'Unbekannt'}</TableCell>
-                            <TableCell>{formatCurrency(product.price)}</TableCell>
-                            <TableCell>{formatCurrency(product.costPrice)}</TableCell>
-                            <TableCell>{product.shelfLifeDays || 'Nicht angegeben'}</TableCell>
-                            <TableCell>
-                              {product.packageQuantity ? `${product.packageQuantity} ${product.baseUnitName || 'Stück'}` : 'Nicht angegeben'}
-                            </TableCell>
-                            <TableCell>{getStatusBadge(product.status || 'active')}</TableCell>
-                          </TableRow>
-                        ))
+                        products.map((product) => {
+                          // Finde die zugehörigen Einkaufsbedingungen für dieses Produkt
+                          const productConditions = purchaseConditions.filter(pc => pc.productId === product.id);
+                          const primaryCondition = productConditions.find(pc => pc.isPreferred) || productConditions[0];
+                          
+                          return (
+                            <TableRow key={product.id}>
+                              <TableCell className="font-medium">
+                                <div>
+                                  <p className="font-semibold">{product.productName}</p>
+                                  {product.shortDescription && (
+                                    <p className="text-sm text-gray-500">{product.shortDescription}</p>
+                                  )}
+                                </div>
+                              </TableCell>
+                              <TableCell>{product.category || 'Unbekannt'}</TableCell>
+                              <TableCell>{'Nicht verfügbar'}</TableCell>
+                              <TableCell>
+                                {primaryCondition ? formatCurrency(primaryCondition.unitPrice) : 'Nicht verfügbar'}
+                              </TableCell>
+                              <TableCell>{product.shelfLifeDays || 'Nicht angegeben'}</TableCell>
+                              <TableCell>
+                                {product.packageSize ? product.packageSize : (product.packageQuantity ? `${product.packageQuantity} Stück` : 'Nicht angegeben')}
+                              </TableCell>
+                              <TableCell>{getStatusBadge(product.status || 'active')}</TableCell>
+                            </TableRow>
+                          );
+                        })
                       ) : (
                         <TableRow>
                           <TableCell colSpan={7} className="text-center py-8 text-gray-500">
@@ -647,12 +655,12 @@ export default function SupplierPortalNew({ orderId, accessToken: propsAccessTok
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Rabatttyp</TableHead>
-                        <TableHead>Rabatt</TableHead>
-                        <TableHead>Schwellenwert</TableHead>
-                        <TableHead>Skonto</TableHead>
-                        <TableHead>Gültig bis</TableHead>
-                        <TableHead>Status</TableHead>
+                        <TableHead>Produkt</TableHead>
+                        <TableHead>Nettopreis</TableHead>
+                        <TableHead>Bruttopreis</TableHead>
+                        <TableHead>Min. Menge</TableHead>
+                        <TableHead>Verpackung</TableHead>
+                        <TableHead>Bevorzugt</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -660,8 +668,7 @@ export default function SupplierPortalNew({ orderId, accessToken: propsAccessTok
                         purchaseConditions.map((condition) => (
                           <TableRow key={condition.id}>
                             <TableCell className="font-medium">
-                              {condition.discountType === 'volume_discount' && 'Mengenrabatt'}
-                              {condition.discountType === 'cash_discount' && 'Skonto'}
+                              {condition.productName || 'Produkt'}
                               {condition.discountType === 'quantity_scale' && 'Staffelrabatt'}
                               {condition.discountType === 'order_value' && 'Bestellwertrabatt'}
                               {!['volume_discount', 'cash_discount', 'quantity_scale', 'order_value'].includes(condition.discountType) && condition.discountType}

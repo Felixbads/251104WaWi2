@@ -1021,19 +1021,30 @@ router.get('/purchase-conditions', async (req, res) => {
       });
     }
     
-    // Hole alle Einkaufsbedingungen für diesen Lieferanten
+    // Hole alle Einkaufsbedingungen (Preise) für diesen Lieferanten
     const result = await rawDb.query(`
         SELECT 
-          id, supplier_id as "supplierId", product_id as "productId", 
-          discount_type as "discountType", discount_percentage as "discountPercentage",
-          discount_amount as "discountAmount", threshold_quantity as "thresholdQuantity", 
-          threshold_amount as "thresholdAmount", max_quantity as "maxQuantity", 
-          max_amount as "maxAmount", payment_terms_days as "paymentTermsDays", 
-          skonto_percentage as "skontoPercentage", valid_from as "validFrom", 
-          valid_until as "validUntil", description, status, created_at, updated_at
-        FROM supplier_discount_conditions 
-        WHERE supplier_id = $1
-        ORDER BY created_at DESC
+          pc.id,
+          pc.supplier_id as "supplierId",
+          pc.product_id as "productId",
+          p.product_name as "productName",
+          pc.unit_price as "unitPrice",
+          pc.tax_rate as "taxRate",
+          pc.gross_price as "grossPrice",
+          pc.min_quantity as "minQuantity",
+          pc.packaging_unit as "packagingUnit",
+          pc.packaging_quantity as "packagingQuantity",
+          pc.delivery_time as "deliveryTime",
+          pc.valid_from as "validFrom",
+          pc.valid_to as "validTo",
+          pc.is_preferred as "isPreferred",
+          pc.notes,
+          pc.lead_time as "leadTime",
+          pc.deposit_per_unit as "depositPerUnit"
+        FROM purchase_conditions pc
+        LEFT JOIN products p ON pc.product_id = p.id
+        WHERE pc.supplier_id = $1
+        ORDER BY p.product_name, pc.is_preferred DESC
       `, [supplierId]);
 
     return jsonResponse(res, 200, {
