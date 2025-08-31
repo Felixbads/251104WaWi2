@@ -137,25 +137,9 @@ export async function replitAuthMiddleware(req: Request & { user?: ReplitUser },
   try {
     const { username, owner, isOwner } = getReplitUserInfo();
     
-    // In development/local environment, allow bypass if no Replit user is set
+    // SECURITY: Require Replit authentication - no bypass allowed
     if (!username) {
-      console.log('[REPLIT-AUTH] No REPLIT_USER found, checking if development mode is enabled');
-      
-      // Allow development mode with demo user if explicitly enabled
-      if (process.env.DEVELOPMENT_MODE === 'true' || process.env.NODE_ENV === 'development') {
-        console.log('[REPLIT-AUTH] Development mode enabled, using demo admin user');
-        req.user = {
-          id: 1,
-          username: 'Demo Admin',
-          email: 'admin@demo.local',
-          role: 'admin',
-          approved: true,
-          replitUsername: 'demo',
-          isOwner: true
-        };
-        return next();
-      }
-      
+      console.log('[REPLIT-AUTH] SECURITY: No REPLIT_USER found - authentication required');
       return res.status(401).json({ 
         error: 'Authentication required',
         message: 'No Replit user found. Please ensure you are running this on Replit.'
@@ -198,18 +182,8 @@ export async function getCurrentReplitUser(): Promise<ReplitUser | null> {
   const { username, owner, isOwner } = getReplitUserInfo();
   
   if (!username) {
-    // Development mode fallback
-    if (process.env.DEVELOPMENT_MODE === 'true' || process.env.NODE_ENV === 'development') {
-      return {
-        id: 1,
-        username: 'Demo Admin',
-        email: 'admin@demo.local',
-        role: 'admin',
-        approved: true,
-        replitUsername: 'demo',
-        isOwner: true
-      };
-    }
+    // SECURITY: No fallback allowed - require Replit authentication
+    console.log('[REPLIT-AUTH] SECURITY: No REPLIT_USER found - no fallback');
     return null;
   }
   

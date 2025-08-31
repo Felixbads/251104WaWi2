@@ -89,7 +89,7 @@ export default function RemovedProductsTab({ buildQueryUrl }: RemovedProductsTab
     if (data.topMachine) {
       doc.text(`${data.topMachine.machineName} (ID: ${data.topMachine.machineId})`, 14, 55);
       doc.text(`Gesamtzahl entfernter Produkte: ${data.topMachine.totalRemovedProducts}`, 14, 60);
-      doc.text(`Durchschnitt pro Auffüllung: ${data.topMachine.avgRemovedPerRefill.toFixed(2)}`, 14, 65);
+      doc.text(`Durchschnitt pro Auffüllung: ${(data.topMachine.avgRemovedPerRefill || 0).toFixed(2)}`, 14, 65);
     } else {
       doc.text("Keine Daten verfügbar", 14, 55);
     }
@@ -186,7 +186,7 @@ export default function RemovedProductsTab({ buildQueryUrl }: RemovedProductsTab
               </div>
               <div>
                 <div className="text-sm font-medium text-muted-foreground">Ø pro Auffüllung</div>
-                <div className="text-2xl font-bold">{topMachine.avgRemovedPerRefill.toFixed(2)}</div>
+                <div className="text-2xl font-bold">{(topMachine.avgRemovedPerRefill || 0).toFixed(2)}</div>
               </div>
             </div>
           </CardContent>
@@ -229,7 +229,7 @@ export default function RemovedProductsTab({ buildQueryUrl }: RemovedProductsTab
                   </div>
                   <div className="flex justify-between text-sm text-muted-foreground">
                     <span>Auffüllungen: {machine.totalRefills}</span>
-                    <span>Ø {machine.avgRemovedPerRefill.toFixed(2)} pro Auffüllung</span>
+                    <span>Ø {(machine.avgRemovedPerRefill || 0).toFixed(2)} pro Auffüllung</span>
                   </div>
                   <Progress 
                     value={machine.totalRemovedProducts / (data.machines[0]?.totalRemovedProducts || 1) * 100}
@@ -266,7 +266,7 @@ export default function RemovedProductsTab({ buildQueryUrl }: RemovedProductsTab
                     <td className="text-right py-2 px-4">{machine.machineId}</td>
                     <td className="text-right py-2 px-4">{machine.totalRefills}</td>
                     <td className="text-right py-2 px-4">{machine.totalRemovedProducts}</td>
-                    <td className="text-right py-2 px-4">{machine.avgRemovedPerRefill.toFixed(2)}</td>
+                    <td className="text-right py-2 px-4">{(machine.avgRemovedPerRefill || 0).toFixed(2)}</td>
                   </tr>
                 ))}
               </tbody>

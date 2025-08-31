@@ -25,10 +25,8 @@ export function authenticateAndAuthorize(allowedRoles: string[] = []) {
         }
       }
 
-      // Für Entwicklung: Immer zulassen, wenn keine Authentifizierung konfiguriert ist
-      if (process.env.NODE_ENV === 'development' && (!process.env.REQUIRE_AUTH || process.env.REQUIRE_AUTH === 'false')) {
-        return next();
-      }
+      // SECURITY: Authentication always required - no development bypass
+      // Authentifizierung ist immer erforderlich
 
       // Token verifizieren (hier vereinfachte Version)
       if (token) {

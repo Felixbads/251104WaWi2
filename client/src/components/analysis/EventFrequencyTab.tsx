@@ -101,7 +101,7 @@ export default function EventFrequencyTab({ buildQueryUrl }: EventFrequencyTabPr
     let yPos = 75;
     data.eventTypeDistribution.forEach((eventType, index) => {
       doc.text(`${index + 1}. ${eventType.eventType}${eventType.description ? ` (${eventType.description})` : ''}`, 14, yPos);
-      doc.text(`${eventType.count} (${eventType.percentage.toFixed(2)}%)`, 100, yPos);
+      doc.text(`${eventType.count} (${(eventType.percentage || 0).toFixed(2)}%)`, 100, yPos);
       yPos += 5;
     });
     
@@ -212,7 +212,7 @@ export default function EventFrequencyTab({ buildQueryUrl }: EventFrequencyTabPr
                         )}
                       </div>
                       <div className="text-sm font-semibold">
-                        {eventType.count} ({eventType.percentage.toFixed(2)}%)
+                        {eventType.count} ({(eventType.percentage || 0).toFixed(2)}%)
                       </div>
                     </div>
                     <Progress value={eventType.percentage} className="h-1" />
@@ -244,7 +244,7 @@ export default function EventFrequencyTab({ buildQueryUrl }: EventFrequencyTabPr
                       )}
                     </div>
                     <div className="text-sm font-bold">
-                      {eventType.count} ({eventType.percentage.toFixed(2)}%)
+                      {eventType.count} ({(eventType.percentage || 0).toFixed(2)}%)
                     </div>
                   </div>
                   <Progress value={eventType.percentage} className="h-2" />

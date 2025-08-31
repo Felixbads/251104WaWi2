@@ -59,16 +59,20 @@ export function RevenueExpectationsDashboard() {
     );
   }
 
-  // Calculate summary statistics
+  // Calculate summary statistics - with safe division by zero protection
   const totalRevenue = revenueData.reduce((sum, day) => sum + parseFloat(day.expected_revenue), 0);
   const totalUnits = revenueData.reduce((sum, day) => sum + day.expected_units, 0);
-  const avgDailyRevenue = totalRevenue / revenueData.length;
-  const avgConfidence = revenueData.reduce((sum, day) => sum + parseFloat(day.avg_confidence), 0) / revenueData.length;
+  const avgDailyRevenue = revenueData.length > 0 ? totalRevenue / revenueData.length : 0;
+  const avgConfidence = revenueData.length > 0 
+    ? revenueData.reduce((sum, day) => sum + parseFloat(day.avg_confidence), 0) / revenueData.length 
+    : 0;
 
-  // Find peak days
-  const peakRevenueDay = revenueData.reduce((max, day) => 
-    parseFloat(day.expected_revenue) > parseFloat(max.expected_revenue) ? day : max
-  );
+  // Find peak days - with safe fallback for empty arrays
+  const peakRevenueDay = revenueData.length > 0 
+    ? revenueData.reduce((max, day) => 
+        parseFloat(day.expected_revenue) > parseFloat(max.expected_revenue) ? day : max
+      )
+    : { expected_revenue: "0", forecast_date: new Date().toISOString().split('T')[0] };
   
   const weekendDays = revenueData.filter(day => isWeekend(parseISO(day.forecast_date)));
   const weekdays = revenueData.filter(day => !isWeekend(parseISO(day.forecast_date)));
@@ -184,7 +188,7 @@ export function RevenueExpectationsDashboard() {
                   name === 'revenue' ? formatCurrency(value) : value,
                   name === 'revenue' ? 'Umsatzerwartung' : 'Verkaufsmenge'
                 ]}
-                labelFormatter={(label, payload) => {
+                labelFormatter={(label: string, payload: any) => {
                   if (payload && payload[0]) {
                     const data = payload[0].payload;
                     return `${data.dayName}, ${format(parseISO(data.fullDate), 'dd.MM.yyyy', { locale: de })}`;

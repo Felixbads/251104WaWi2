@@ -90,7 +90,7 @@ export default function ProductPerformanceTab({ buildQueryUrl }: ProductPerforma
     doc.setFontSize(10);
     doc.text(`Gesamtumsatz: ${formatCurrency(data.totalRevenue)}`, 14, 55);
     doc.text(`Gesamtmarge: ${formatCurrency(data.totalMargin)}`, 14, 60);
-    doc.text(`Durchschnittliche Marge: ${data.averageMarginPercent.toFixed(2)}%`, 14, 65);
+    doc.text(`Durchschnittliche Marge: ${(data.averageMarginPercent || 0).toFixed(2)}%`, 14, 65);
     
     // Top-Produkte nach Marge
     doc.setFontSize(12);
@@ -100,7 +100,7 @@ export default function ProductPerformanceTab({ buildQueryUrl }: ProductPerforma
     let yPos = 80;
     data.topMarginProducts.forEach((product, index) => {
       doc.text(`${index + 1}. ${product.productName}`, 14, yPos);
-      doc.text(`Marge: ${formatCurrency(product.margin)} (${product.marginPercent.toFixed(2)}%)`, 100, yPos);
+      doc.text(`Marge: ${formatCurrency(product.margin)} (${(product.marginPercent || 0).toFixed(2)}%)`, 100, yPos);
       yPos += 5;
     });
     
@@ -113,7 +113,7 @@ export default function ProductPerformanceTab({ buildQueryUrl }: ProductPerforma
     yPos += 5;
     data.lowMarginProducts.forEach((product, index) => {
       doc.text(`${index + 1}. ${product.productName}`, 14, yPos);
-      doc.text(`Marge: ${formatCurrency(product.margin)} (${product.marginPercent.toFixed(2)}%)`, 100, yPos);
+      doc.text(`Marge: ${formatCurrency(product.margin)} (${(product.marginPercent || 0).toFixed(2)}%)`, 100, yPos);
       yPos += 5;
     });
     
@@ -211,9 +211,9 @@ export default function ProductPerformanceTab({ buildQueryUrl }: ProductPerforma
             <CardDescription>aller Produkte</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{data.averageMarginPercent.toFixed(2)}%</div>
+            <div className="text-2xl font-bold">{(data.averageMarginPercent || 0).toFixed(2)}%</div>
             <Progress
-              value={data.averageMarginPercent}
+              value={data.averageMarginPercent || 0}
               className="mt-2"
             />
           </CardContent>
@@ -238,7 +238,7 @@ export default function ProductPerformanceTab({ buildQueryUrl }: ProductPerforma
                   </div>
                   <div className="text-right">
                     <div className="font-bold text-green-600">{formatCurrency(product.margin)}</div>
-                    <div className="text-sm">{product.marginPercent.toFixed(2)}%</div>
+                    <div className="text-sm">{(product.marginPercent || 0).toFixed(2)}%</div>
                   </div>
                 </div>
               ))}
@@ -263,7 +263,7 @@ export default function ProductPerformanceTab({ buildQueryUrl }: ProductPerforma
                   </div>
                   <div className="text-right">
                     <div className="font-bold text-red-600">{formatCurrency(product.margin)}</div>
-                    <div className="text-sm">{product.marginPercent.toFixed(2)}%</div>
+                    <div className="text-sm">{(product.marginPercent || 0).toFixed(2)}%</div>
                   </div>
                 </div>
               ))}
@@ -305,7 +305,7 @@ export default function ProductPerformanceTab({ buildQueryUrl }: ProductPerforma
                       {formatCurrency(product.margin)}
                     </td>
                     <td className={`text-right py-2 px-4 ${product.marginPercent >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      {product.marginPercent.toFixed(2)}%
+                      {(product.marginPercent || 0).toFixed(2)}%
                     </td>
                   </tr>
                 ))}

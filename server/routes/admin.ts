@@ -4,39 +4,16 @@ import { User } from '../../shared/schema';
 import bcrypt from 'bcryptjs';
 import { notifyAdminsOfNewUser, notifyUserOfApprovalStatus } from '../services/emailService';
 import { validateToken } from '../auth';
-import { authenticateAndAuthorize } from '../auth/auth-middleware';
+import { replitAuthMiddleware, ReplitUser } from '../auth/replit-auth';
 
 const router = express.Router();
 
 interface AuthRequest extends Request {
-  user?: User;
+  user?: ReplitUser;
 }
 
-// Sichere Authentifizierung mit Token-Validierung
-const authenticate = async (req: AuthRequest, res: Response, next: NextFunction) => {
-  try {
-    // Token aus Authorization-Header extrahieren
-    const authHeader = req.headers.authorization;
-    const token = authHeader && authHeader.split(' ')[1];
-    
-    if (!token) {
-      return res.status(401).json({ error: "Access token is required" });
-    }
-    
-    // Token validieren
-    const user = await validateToken(token);
-    
-    if (!user) {
-      return res.status(401).json({ error: "Invalid or expired token" });
-    }
-    
-    req.user = user;
-    next();
-  } catch (error) {
-    console.error("Authentication error:", error);
-    res.status(401).json({ error: "Authentication failed" });
-  }
-};
+// Use Replit authentication for all admin routes
+router.use(replitAuthMiddleware);
 
 const requireAdmin = async (req: AuthRequest, res: Response, next: NextFunction) => {
   if (!req.user || req.user.role !== 'admin') {
@@ -45,11 +22,8 @@ const requireAdmin = async (req: AuthRequest, res: Response, next: NextFunction)
   next();
 };
 
-// Alternative: Verwende die zentrale Middleware für Admin-Authentifizierung
-const authenticateAdmin = authenticateAndAuthorize(['admin']);
-
 // Alle Benutzer abrufen
-router.get('/users', authenticate, requireAdmin, async (req: AuthRequest, res: Response) => {
+router.get('/users', requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const users = await storage.getUsers();
     res.json({
@@ -68,7 +42,7 @@ router.get('/users', authenticate, requireAdmin, async (req: AuthRequest, res: R
 });
 
 // Wartende Benutzer abrufen
-router.get('/users/pending', authenticate, requireAdmin, async (req: AuthRequest, res: Response) => {
+router.get('/users/pending', requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const users = await storage.getUsers();
     const pendingUsers = users.filter(user => !user.approved);
@@ -88,7 +62,7 @@ router.get('/users/pending', authenticate, requireAdmin, async (req: AuthRequest
 });
 
 // Neuen Benutzer erstellen
-router.post('/users', authenticate, requireAdmin, async (req: AuthRequest, res: Response) => {
+router.post('/users', requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const { username, email, password, role } = req.body;
     
@@ -144,7 +118,7 @@ router.post('/users', authenticate, requireAdmin, async (req: AuthRequest, res: 
 });
 
 // Einzelnen Benutzer abrufen
-router.get('/users/:id', authenticate, requireAdmin, async (req: AuthRequest, res: Response) => {
+router.get('/users/:id', requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const userId = parseInt(req.params.id);
     
@@ -169,7 +143,7 @@ router.get('/users/:id', authenticate, requireAdmin, async (req: AuthRequest, re
 });
 
 // Benutzer genehmigen
-router.post('/users/:id/approve', authenticate, requireAdmin, async (req: AuthRequest, res: Response) => {
+router.post('/users/:id/approve', requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const userId = parseInt(req.params.id);
     
@@ -226,7 +200,7 @@ router.post('/users/:id/approve', authenticate, requireAdmin, async (req: AuthRe
 });
 
 // Benutzerrolle ändern
-router.post('/users/:id/role', authenticate, requireAdmin, async (req: AuthRequest, res: Response) => {
+router.post('/users/:id/role', requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const userId = parseInt(req.params.id);
     const { role } = req.body;
@@ -265,7 +239,7 @@ router.post('/users/:id/role', authenticate, requireAdmin, async (req: AuthReque
 });
 
 // Benutzer löschen
-router.delete('/users/:id', authenticate, requireAdmin, async (req: AuthRequest, res: Response) => {
+router.delete('/users/:id', requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const userId = parseInt(req.params.id);
     
