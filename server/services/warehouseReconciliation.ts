@@ -188,10 +188,23 @@ export async function reconcileWarehouseProducts(
                   // Normalisiere den Produktnamen für die Suche
                   const productName = normalizeProductName(rawProductName);
                   console.log(`Suche Produkt mit normalisiertem Namen: "${productName}" (Original: "${rawProductName}")`);
-                  // Verwende direkte SQL-Abfrage da getProductByNormalizedName nicht existiert
+                  // Debug: Produktsuche
+                  console.log(`🔍 Suche Produkt in DB: "${productName}"`);
                   const productQuery = 'SELECT * FROM products WHERE LOWER(product_name) LIKE LOWER($1) LIMIT 1';
                   const productResult = await rawDb.query(productQuery, [`%${productName}%`]);
+                  console.log(`📊 SQL-Ergebnis für "${productName}":`, productResult.rows.length, 'gefunden');
                   const product = productResult.rows[0];
+                  
+                  if (!product) {
+                    // Fallback: Versuche exakte Suche
+                    const exactQuery = 'SELECT * FROM products WHERE product_name = $1 LIMIT 1';
+                    const exactResult = await rawDb.query(exactQuery, [rawProductName]);
+                    console.log(`📊 Exakte Suche für "${rawProductName}":`, exactResult.rows.length, 'gefunden');
+                    const exactProduct = exactResult.rows[0];
+                    if (exactProduct) {
+                      console.log(`✅ Exakte Übereinstimmung gefunden: ${exactProduct.product_name}`);
+                    }
+                  }
 
                   if (product && product.id) {
                     const productId = product.id;
@@ -389,6 +402,11 @@ export async function reconcileWarehouseProducts(
 
           // Prüfe, ob das Produkt in der Datenbank existiert
           const product = await storage.getProductById(productId);
+
+          if (!product) {
+            console.warn(`⚠️ Produkt mit ID ${productId} existiert nicht in der Datenbank - überspringe`);
+            continue;
+          }
 
           if (product) {
             try {

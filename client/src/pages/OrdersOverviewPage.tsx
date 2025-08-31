@@ -218,6 +218,8 @@ const OrdersOverviewPage: React.FC = () => {
   const filteredOrders = React.useMemo(() => {
     console.log("🔍 filteredOrders Debug:", {
       apiResponse: apiResponse?.length,
+      apiResponseType: typeof apiResponse,
+      apiResponseSample: apiResponse?.slice(0, 2),
       statusFilter,
       debouncedSearchTerm,
       sortBy
@@ -229,7 +231,7 @@ const OrdersOverviewPage: React.FC = () => {
     }
     
     let filtered = [...apiResponse];
-    console.log("✅ Initial filtered array:", filtered.length);
+    console.log("✅ Initial filtered array:", filtered.length, "Beispiel:", filtered[0]);
     
     // Nach Status filtern
     if (statusFilter) {
