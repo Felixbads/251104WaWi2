@@ -13368,3 +13368,77 @@ DATA: {
 
 [2025-08-31T15:39:24.195Z] [MovementsAPI] Warenbewegungen für Lager 11 geladen: 0 Einträge gefunden
 
+[2025-08-31T18:38:52.936Z] [MovementsAPI] Warenbewegungen für Lager ID 11 abrufen mit neuem Service, Limit: 1000, Offset: 0
+
+[2025-08-31T18:38:52.937Z] [WarehouseMovements] Fetching movements for warehouse ID: 11, limit: 1000, offset: 0
+
+[2025-08-31T18:38:52.937Z] [SQL] Query: getWarehouseMovements
+DATA: {
+  "sql": "\n      SELECT \n        im.id,\n        im.product_id,\n        p.product_name,\n        im.quantity,\n        im.movement_type,\n        im.source_warehouse_id,\n        im.destination_warehouse_id,\n        im.machine_id,\n        im.reference_type,\n        im.reference_id,\n        im.notes,\n        im.performed_at,\n        im.performed_by,\n        im.previous_stock,\n        im.current_stock,\n        m.machine_name\n      FROM \n        inventory_movements im\n      JOIN \n        products p ON im.product_id = p.id\n      LEFT JOIN \n        machines m ON im.machine_id = m.id\n      WHERE \n        (im.source_warehouse_id = $1) OR\n        (im.destination_warehouse_id = $1)\n      ORDER BY \n        im.performed_at DESC\n      LIMIT $2 OFFSET $3\n    ",
+  "params": [
+    11,
+    1000,
+    0
+  ]
+}
+
+[2025-08-31T18:38:53.174Z] [WarehouseMovements] Found 0 movements for warehouse 11
+
+[2025-08-31T18:38:53.174Z] [MovementsAPI] Warenbewegungen für Lager 11 geladen: 0 Einträge gefunden
+
+[2025-08-31T18:39:01.574Z] [MovementsAPI] Warenbewegungen für Lager ID 11 abrufen mit neuem Service, Limit: 50, Offset: 0
+
+[2025-08-31T18:39:01.574Z] [WarehouseMovements] Fetching movements for warehouse ID: 11, limit: 50, offset: 0
+
+[2025-08-31T18:39:01.574Z] [SQL] Query: getWarehouseMovements
+DATA: {
+  "sql": "\n      SELECT \n        im.id,\n        im.product_id,\n        p.product_name,\n        im.quantity,\n        im.movement_type,\n        im.source_warehouse_id,\n        im.destination_warehouse_id,\n        im.machine_id,\n        im.reference_type,\n        im.reference_id,\n        im.notes,\n        im.performed_at,\n        im.performed_by,\n        im.previous_stock,\n        im.current_stock,\n        m.machine_name\n      FROM \n        inventory_movements im\n      JOIN \n        products p ON im.product_id = p.id\n      LEFT JOIN \n        machines m ON im.machine_id = m.id\n      WHERE \n        (im.source_warehouse_id = $1) OR\n        (im.destination_warehouse_id = $1)\n      ORDER BY \n        im.performed_at DESC\n      LIMIT $2 OFFSET $3\n    ",
+  "params": [
+    11,
+    50,
+    0
+  ]
+}
+
+[2025-08-31T18:39:01.793Z] [WarehouseMovements] Found 0 movements for warehouse 11
+
+[2025-08-31T18:39:01.793Z] [MovementsAPI] Warenbewegungen für Lager 11 geladen: 0 Einträge gefunden
+
+[2025-08-31T18:42:13.422Z] [MovementsAPI] Warenbewegungen für Lager ID 11 abrufen mit neuem Service, Limit: 1000, Offset: 0
+
+[2025-08-31T18:42:13.423Z] [WarehouseMovements] Fetching movements for warehouse ID: 11, limit: 1000, offset: 0
+
+[2025-08-31T18:42:13.423Z] [SQL] Query: getWarehouseMovements
+DATA: {
+  "sql": "\n      SELECT \n        im.id,\n        im.product_id,\n        p.product_name,\n        im.quantity,\n        im.movement_type,\n        im.source_warehouse_id,\n        im.destination_warehouse_id,\n        im.machine_id,\n        im.reference_type,\n        im.reference_id,\n        im.notes,\n        im.performed_at,\n        im.performed_by,\n        im.previous_stock,\n        im.current_stock,\n        m.machine_name\n      FROM \n        inventory_movements im\n      JOIN \n        products p ON im.product_id = p.id\n      LEFT JOIN \n        machines m ON im.machine_id = m.id\n      WHERE \n        (im.source_warehouse_id = $1) OR\n        (im.destination_warehouse_id = $1)\n      ORDER BY \n        im.performed_at DESC\n      LIMIT $2 OFFSET $3\n    ",
+  "params": [
+    11,
+    1000,
+    0
+  ]
+}
+
+[2025-08-31T18:42:14.331Z] [WarehouseMovements] Found 1 movements for warehouse 11
+
+[2025-08-31T18:42:14.331Z] [MovementsAPI] Warenbewegungen für Lager 11 geladen: 1 Einträge gefunden
+
+[2025-08-31T18:42:14.331Z] [MovementsAPI] Beispiel-Eintrag:
+DATA: {
+  "id": 1077,
+  "productId": 14,
+  "productName": "Russisch Brot (Dr. Quendt Dresden)",
+  "quantity": 1,
+  "movementType": "refill",
+  "sourceWarehouseId": null,
+  "destinationWarehouseId": 11,
+  "machineId": null,
+  "referenceType": "vendon_refill",
+  "referenceId": "7682",
+  "notes": "Vendon Refill Sync: 1 entnommen, 2 hinzugefügt (Netto: +1 Russisch Brot)",
+  "performedAt": "2025-08-31T13:30:42.000Z",
+  "performedBy": 1,
+  "previousStock": null,
+  "currentStock": null,
+  "machineName": null
+}
+
