@@ -216,9 +216,20 @@ const OrdersOverviewPage: React.FC = () => {
   
   // Filtern und Sortieren der Bestellungen
   const filteredOrders = React.useMemo(() => {
-    if (!apiResponse) return [];
+    console.log("🔍 filteredOrders Debug:", {
+      apiResponse: apiResponse?.length,
+      statusFilter,
+      debouncedSearchTerm,
+      sortBy
+    });
+    
+    if (!apiResponse) {
+      console.log("❌ Keine apiResponse vorhanden");
+      return [];
+    }
     
     let filtered = [...apiResponse];
+    console.log("✅ Initial filtered array:", filtered.length);
     
     // Nach Status filtern
     if (statusFilter) {
