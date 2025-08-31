@@ -363,7 +363,7 @@ export default function RecurringOrdersTab() {
           <AlertTriangle className="h-4 w-4 text-red-600" />
           <AlertDescription className="text-red-800">
             <strong>⚠️ {failedExecutions.length} fehlgeschlagene Ausführung(en)</strong> in den letzten 7 Tagen gefunden.
-            Letzte Fehler: {failedExecutions.slice(0, 2).map(f => f.recurringOrderName).join(', ')}
+            Letzte Fehler: {failedExecutions.slice(0, 2).map((f: any) => f.recurringOrderName).join(', ')}
             {failedExecutions.length > 2 && ` und ${failedExecutions.length - 2} weitere`}
           </AlertDescription>
         </Alert>
@@ -472,7 +472,7 @@ export default function RecurringOrdersTab() {
                       <div className="flex items-center gap-2">
                         <Badge variant="outline">{order.interval}</Badge>
                         {order.forecastEnabled && (
-                          <TrendingUp className="w-4 h-4 text-blue-500" title="Prognose aktiviert" />
+                          <TrendingUp className="w-4 h-4 text-blue-500" />
                         )}
                       </div>
                     </TableCell>

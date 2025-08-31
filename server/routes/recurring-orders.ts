@@ -25,7 +25,7 @@ import GoodsReceiptService from '../services/goodsReceiptService';
 
 // Services initialisieren
 const scheduler = new RecurringOrderScheduler();
-const goodsReceiptService = new GoodsReceiptService();
+// const goodsReceiptService = new GoodsReceiptService();
 
 // Export scheduler instance für Server-Initialisierung
 export function getRecurringOrderSchedulerInstance() {
@@ -131,13 +131,13 @@ router.post('/test-email', async (req: Request, res: Response) => {
         response: result.response
       });
       
-    } catch (emailError) {
+    } catch (emailError: any) {
       console.error('❌ E-Mail-Fehler:', emailError);
       console.error('❌ Fehler-Details:', {
-        message: emailError.message,
-        code: emailError.code,
-        command: emailError.command,
-        response: emailError.response
+        message: emailError?.message,
+        code: emailError?.code,
+        command: emailError?.command,
+        response: emailError?.response
       });
       // Fallback auf Console-Log wenn E-Mail fehlschlägt
       console.log(`📧 E-Mail-Fallback - würde an ${recipientEmail} gesendet werden`);
@@ -261,10 +261,10 @@ router.post('/test-execution', async (req: Request, res: Response) => {
         createdOrder = newOrder[0];
         console.log(`✅ Bestellung erstellt: ID ${createdOrder.id}, Status: ${orderStatus}`);
         
-      } catch (orderError) {
+      } catch (orderError: any) {
         console.error('❌ Fehler beim Erstellen der Bestellung:', orderError);
         console.error('❌ Order-Daten:', orderData);
-        throw new Error(`Bestellung konnte nicht erstellt werden: ${orderError.message}`);
+        throw new Error(`Bestellung konnte nicht erstellt werden: ${orderError?.message || 'Unbekannter Fehler'}`);
       }
 
       // Bestellpositionen erstellen

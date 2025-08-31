@@ -55,7 +55,6 @@ class RecurringOrderScheduler {
     const dailyTask = cron.schedule('0 6 * * *', async () => {
       await this.checkAndExecuteRecurringOrders();
     }, {
-      scheduled: false,
       timezone: "Europe/Berlin"
     });
 
@@ -63,12 +62,9 @@ class RecurringOrderScheduler {
     const hourlyTask = cron.schedule('0 6-8 * * *', async () => {
       await this.checkMissedExecutions();
     }, {
-      scheduled: false,
       timezone: "Europe/Berlin"
     });
 
-    dailyTask.start();
-    hourlyTask.start();
 
     this.scheduledTasks.set('daily', dailyTask);
     this.scheduledTasks.set('hourly', hourlyTask);
@@ -147,7 +143,7 @@ class RecurringOrderScheduler {
       const yesterdayStr = yesterday.toISOString().split('T')[0];
 
       // Finde verpasste Ausführungen von gestern
-      const missedExecutions = await this.db.drizzle
+      const missedExecutions = await this.db
         .select()
         .from(recurringOrderExecutions)
         .innerJoin(recurringOrders, eq(recurringOrderExecutions.recurringOrderId, recurringOrders.id))
@@ -183,7 +179,7 @@ class RecurringOrderScheduler {
 
     try {
       // Erstelle Ausführungsprotokoll
-      [execution] = await this.db.drizzle
+      [execution] = await this.db
         .insert(recurringOrderExecutions)
         .values({
           recurringOrderId: recurringOrder.id,
@@ -196,7 +192,7 @@ class RecurringOrderScheduler {
         .returning();
 
       // Hole Bestellpositionen
-      const items = await this.db.drizzle
+      const items = await this.db
         .select()
         .from(recurringOrderItems)
         .where(
@@ -221,7 +217,7 @@ class RecurringOrderScheduler {
 
       // Update Ausführungsprotokoll
       const processingDuration = Date.now() - startTime;
-      await this.db.drizzle
+      await this.db
         .update(recurringOrderExecutions)
         .set({
           orderId: order.id,
@@ -246,7 +242,7 @@ class RecurringOrderScheduler {
       console.error(`❌ Fehler bei der Ausführung der wiederkehrenden Bestellung:`, error);
       
       if (execution) {
-        await this.db.drizzle
+        await this.db
           .update(recurringOrderExecutions)
           .set({
             status: 'failed',
@@ -295,7 +291,7 @@ class RecurringOrderScheduler {
       console.log(`🏪 All-Produkte Modus: Prognose für alle Lieferanten-Produkte`);
       
       // Hole alle verfügbaren Produkte des Lieferanten
-      const supplierProducts = await this.db.drizzle.execute(sql`
+      const supplierProducts = await this.db.execute(sql`
         SELECT DISTINCT 
           p.id as product_id,
           p.name as product_name,
@@ -354,7 +350,7 @@ class RecurringOrderScheduler {
     for (const productId of productIds) {
       try {
         // Hole historische Verkaufsdaten der letzten 30 Tage
-        const historicalData = await this.db.drizzle.execute(sql`
+        const historicalData = await this.db.execute(sql`
           SELECT 
             DATE(datetime) as sale_date,
             SUM(quantity) as daily_quantity
@@ -404,19 +400,19 @@ class RecurringOrderScheduler {
     // Erstelle Bestellung mit entsprechendem Status je nach Bestelltyp
     const orderStatus = recurringOrder.orderType === 'goods_receipt' ? 'goods_receipt' : 'draft';
     
-    const [order] = await this.db.drizzle
+    const [order] = await this.db
       .insert(orders)
       .values({
         orderNumber,
         supplierId: recurringOrder.supplierId,
         supplierName: recurringOrder.supplierName,
-        warehouseId: recurringOrder.warehouseId,
-        warehouseName: recurringOrder.warehouseName,
+        locationId: recurringOrder.warehouseId, // Warehouse ID wird zu Location ID gemappt
+        locationName: recurringOrder.warehouseName,
         status: orderStatus,
         orderDate: new Date(),
         deliveryLocation: recurringOrder.deliveryLocation,
         totalAmount: 0, // wird berechnet
-        orderType: 'recurring',
+        orderMode: 'recurring', // statt orderType wird orderMode verwendet
         priority: recurringOrder.priority,
         notes: `Automatisch generiert aus wiederkehrender Bestellung: ${recurringOrder.name}`
       })
@@ -444,10 +440,10 @@ class RecurringOrderScheduler {
       };
     });
 
-    await this.db.drizzle.insert(orderItems).values(orderItemsData);
+    await this.db.insert(orderItems).values(orderItemsData);
 
     // Update Gesamtbetrag
-    await this.db.drizzle
+    await this.db
       .update(orders)
       .set({ totalAmount })
       .where(eq(orders.id, order.id));
@@ -461,7 +457,7 @@ class RecurringOrderScheduler {
   private async updateNextExecutionDate(recurringOrder: any): Promise<void> {
     const nextDate = this.calculateNextExecutionDate(recurringOrder);
     
-    await this.db.drizzle
+    await this.db
       .update(recurringOrders)
       .set({
         nextExecutionDate: nextDate,
@@ -514,6 +510,7 @@ class RecurringOrderScheduler {
 
       for (const email of recipients) {
         await sendEmail({
+          from: process.env.SMTP_USER || 'noreply@warenwirtschaft.de',
           to: email,
           subject,
           html: emailBody,
