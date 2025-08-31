@@ -1151,8 +1151,8 @@ app.get('/orders-data', (req, res) => {
               `https://${process.env.PRODUCTION_DOMAIN}` : 
               (process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : 'https://www.proviantomat.de');
               
-            portalLink = `${baseUrl}/lieferant/${accessToken}`;
-            console.log(`[EmailTemplate] Portal-Link erfolgreich generiert: ${portalLink.substring(0, 50)}...`);
+            portalLink = `${baseUrl}/lieferant/${accessToken}/bestellung/${orderId}`;
+            console.log(`[EmailTemplate] Portal-Link erfolgreich generiert für Bestellung ${orderId}: ${portalLink.substring(0, 50)}...`);
           } else {
             console.log(`[EmailTemplate] Kein aktiver Access-Token für Lieferant ${order.supplier_id} gefunden`);
           }

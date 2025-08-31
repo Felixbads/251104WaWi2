@@ -833,14 +833,21 @@ function MainRouter() {
   if (location.includes('/lieferant/')) {
     console.log('[MAIN-ROUTER] PORTAL ROUTE DETECTED - Direct rendering');
     console.log('[MAIN-ROUTER] Location:', location);
-    const match = location.match(/\/lieferant\/(.+)/);
-    const accessToken = match ? match[1] : null;
+    
+    // Check if URL contains order ID (e.g., /lieferant/token/bestellung/123)
+    const orderMatch = location.match(/\/lieferant\/([^\/]+)\/bestellung\/(\d+)/);
+    const simpleMatch = location.match(/\/lieferant\/([^\/]+)$/);
+    
+    const accessToken = orderMatch ? orderMatch[1] : (simpleMatch ? simpleMatch[1] : null);
+    const orderId = orderMatch ? orderMatch[2] : null;
+    
     console.log('[MAIN-ROUTER] Access Token extracted:', accessToken);
+    console.log('[MAIN-ROUTER] Order ID extracted:', orderId);
     
     if (accessToken) {
       return (
         <QueryClientProvider client={queryClient}>
-          <SupplierPortalNew />
+          <SupplierPortalNew orderId={orderId} />
           <Toaster />
         </QueryClientProvider>
       );

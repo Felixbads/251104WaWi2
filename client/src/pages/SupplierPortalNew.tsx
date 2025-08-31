@@ -24,7 +24,7 @@ import {
   Shield, Building2, Package, ShoppingCart, FileText, 
   Clock, MapPin, Phone, Mail, Globe, AlertCircle, 
   DollarSign, Truck, Calendar, CheckCircle2, Edit,
-  User, CreditCard, Settings, List, Archive
+  User, CreditCard, Settings, List, Archive, Check
 } from 'lucide-react';
 
 interface SupplierData {
@@ -155,14 +155,14 @@ interface OrderItem {
   deliveryComment?: string;
 }
 
-export default function SupplierPortalNew() {
+export default function SupplierPortalNew({ orderId }: { orderId?: string | null }) {
   const [, params] = useRoute('/lieferant/:accessToken');
   const accessToken = params?.accessToken || '';
 
   const [isLoading, setIsLoading] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [sessionToken, setSessionToken] = useState<string>('');
-  const [activeTab, setActiveTab] = useState('stammdaten');
+  const [activeTab, setActiveTab] = useState(orderId ? 'lieferungen' : 'stammdaten');
   
   // Data states
   const [supplierData, setSupplierData] = useState<SupplierData | null>(null);
@@ -197,10 +197,19 @@ export default function SupplierPortalNew() {
         setIsAuthenticated(true);
         await loadAllData(sessionToken);
         
-        toast({
-          title: "Erfolgreich angemeldet",
-          description: "Willkommen in Ihrem Lieferantenportal!"
-        });
+        // If orderId is provided, navigate to orders tab
+        if (orderId) {
+          setActiveTab('lieferungen');
+          toast({
+            title: "Erfolgreich angemeldet",
+            description: `Bestellung ${orderId} wird angezeigt`
+          });
+        } else {
+          toast({
+            title: "Erfolgreich angemeldet",
+            description: "Willkommen in Ihrem Lieferantenportal!"
+          });
+        }
       } else {
         console.error('Authentifizierung fehlgeschlagen:', data.error);
         toast({
@@ -369,26 +378,26 @@ export default function SupplierPortalNew() {
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5">
-            <TabsTrigger value="stammdaten" className="flex items-center space-x-2">
+          <TabsList className="flex flex-col sm:grid sm:grid-cols-3 lg:grid-cols-5 w-full gap-2 h-auto p-2">
+            <TabsTrigger value="stammdaten" className="flex items-center justify-center space-x-1 sm:space-x-2 w-full">
               <Building2 className="h-4 w-4" />
-              <span>Stammdaten</span>
+              <span className="text-xs sm:text-sm">Stammdaten</span>
             </TabsTrigger>
-            <TabsTrigger value="produkte" className="flex items-center space-x-2">
+            <TabsTrigger value="produkte" className="flex items-center justify-center space-x-1 sm:space-x-2 w-full">
               <Package className="h-4 w-4" />
-              <span>Produkte</span>
+              <span className="text-xs sm:text-sm">Produkte</span>
             </TabsTrigger>
-            <TabsTrigger value="einkaufsbedingungen" className="flex items-center space-x-2">
+            <TabsTrigger value="einkaufsbedingungen" className="flex items-center justify-center space-x-1 sm:space-x-2 w-full">
               <DollarSign className="h-4 w-4" />
-              <span>Einkaufsbedingungen</span>
+              <span className="text-xs sm:text-sm">Einkauf</span>
             </TabsTrigger>
-            <TabsTrigger value="bestellungen" className="flex items-center space-x-2">
+            <TabsTrigger value="bestellungen" className="flex items-center justify-center space-x-1 sm:space-x-2 w-full">
               <ShoppingCart className="h-4 w-4" />
-              <span>Bestellungen</span>
+              <span className="text-xs sm:text-sm">Bestellungen</span>
             </TabsTrigger>
-            <TabsTrigger value="bestellpositionen" className="flex items-center space-x-2">
+            <TabsTrigger value="lieferungen" className="flex items-center justify-center space-x-1 sm:space-x-2 w-full">
               <List className="h-4 w-4" />
-              <span>Bestellpositionen</span>
+              <span className="text-xs sm:text-sm">Lieferungen</span>
             </TabsTrigger>
           </TabsList>
 
@@ -814,6 +823,120 @@ export default function SupplierPortalNew() {
                       )}
                     </TableBody>
                   </Table>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Tab: Lieferungen - Für direkte Bestätigung von Lieferterminen */}
+          <TabsContent value="lieferungen" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                  <span className="flex items-center space-x-2">
+                    <Truck className="h-5 w-5" />
+                    <span>Offene Lieferungen bestätigen</span>
+                  </span>
+                  <Badge variant="secondary">
+                    {orders.filter(o => ['pending', 'confirmed', 'ordered'].includes(o.status)).length} offene Bestellungen
+                  </Badge>
+                </CardTitle>
+                <CardDescription>
+                  Bestätigen Sie hier Liefertermine und melden Sie eventuelle Abweichungen
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {orders.filter(o => ['pending', 'confirmed', 'ordered'].includes(o.status)).map((order) => (
+                    <Card key={order.id} className={orderId && order.id === parseInt(orderId) ? 'border-blue-500 border-2' : ''}>
+                      <CardHeader>
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <h3 className="text-lg font-semibold">Bestellung {order.orderNumber}</h3>
+                            <p className="text-sm text-gray-500">
+                              Bestellt am: {formatDate(order.orderDate)}
+                            </p>
+                            <p className="text-sm text-gray-500">
+                              Gewünschter Liefertermin: {formatDate(order.expectedDeliveryDate || '')}
+                            </p>
+                          </div>
+                          <Badge variant={order.priority === 'high' ? 'destructive' : 'outline'}>
+                            {order.priority === 'high' ? 'Dringend' : 'Normal'}
+                          </Badge>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        {/* Liefertermin-Bestätigung */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <Label htmlFor={`delivery-date-${order.id}`}>
+                              Bestätigter Liefertermin
+                            </Label>
+                            <Input
+                              id={`delivery-date-${order.id}`}
+                              type="date"
+                              defaultValue={order.expectedDeliveryDate?.split('T')[0] || ''}
+                              className="mt-1"
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor={`delivery-time-${order.id}`}>
+                              Voraussichtliche Lieferzeit
+                            </Label>
+                            <Input
+                              id={`delivery-time-${order.id}`}
+                              type="time"
+                              placeholder="z.B. 14:00"
+                              className="mt-1"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Kommentare */}
+                        <div>
+                          <Label htmlFor={`comments-${order.id}`}>
+                            Kommentare / Abweichungen
+                          </Label>
+                          <Textarea
+                            id={`comments-${order.id}`}
+                            placeholder="Bitte teilen Sie uns eventuelle Abweichungen oder wichtige Informationen mit..."
+                            className="mt-1"
+                            rows={3}
+                          />
+                        </div>
+
+                        {/* Aktionen */}
+                        <div className="flex gap-2">
+                          <Button 
+                            variant="default" 
+                            className="flex-1"
+                            onClick={() => {
+                              toast({
+                                title: "Lieferung bestätigt",
+                                description: `Bestellung ${order.orderNumber} wurde erfolgreich bestätigt.`
+                              });
+                            }}
+                          >
+                            <Check className="h-4 w-4 mr-2" />
+                            Lieferung bestätigen
+                          </Button>
+                          <Button 
+                            variant="outline"
+                            onClick={() => setActiveTab('bestellungen')}
+                          >
+                            Details anzeigen
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+
+                  {orders.filter(o => ['pending', 'confirmed', 'ordered'].includes(o.status)).length === 0 && (
+                    <div className="text-center py-8">
+                      <Truck className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                      <p className="text-gray-500">Keine offenen Lieferungen vorhanden</p>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>

@@ -124,7 +124,7 @@ function createOrderItemsTable(items: any[]): string {
 /**
  * Holt den access_token für einen Lieferanten und generiert sicheren Portal-Link
  */
-async function getSupplierPortalLink(supplierId: number): Promise<string> {
+async function getSupplierPortalLink(supplierId: number, orderId?: number): Promise<string> {
   try {
     // Validiere supplierId
     if (!supplierId || supplierId <= 0) {
@@ -164,7 +164,9 @@ async function getSupplierPortalLink(supplierId: number): Promise<string> {
 
     // Sichere URL-Generierung
     const baseUrl = getSecureBaseUrl();
-    const portalUrl = `${baseUrl}/lieferant/${encodeURIComponent(accessToken)}`;
+    const portalUrl = orderId 
+      ? `${baseUrl}/lieferant/${encodeURIComponent(accessToken)}/bestellung/${orderId}`
+      : `${baseUrl}/lieferant/${encodeURIComponent(accessToken)}`;
     
     // Validiere generierte URL
     if (!isValidUrl(portalUrl)) {
@@ -378,7 +380,7 @@ router.post('/:orderId/send-email-working', async (req: Request, res: Response) 
     if (includePortalLink !== false && order.supplierId) {
       console.log(`[WorkingOrderEmail] Portal-Link aktiviert - Generiere für Lieferant ${order.supplierId}...`);
       try {
-        portalLink = await getSupplierPortalLink(order.supplierId);
+        portalLink = await getSupplierPortalLink(order.supplierId, orderId);
         if (portalLink) {
           console.log('[WorkingOrderEmail] Portal-Link erfolgreich generiert');
         } else {
