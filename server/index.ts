@@ -1912,6 +1912,11 @@ app.get('/orders-data', (req, res) => {
   app.use('/api/machines', refillTemplatesRouter);
   console.log('[SERVER] Refill templates router mounted at /api/machines BEFORE registerRoutes');
 
+  // Mount MHD recommendations router BEFORE registerRoutes
+  const { registerMHDRecommendationRoutes } = await import('./routes/mhdRecommendations');
+  registerMHDRecommendationRoutes(app);
+  console.log('[SERVER] MHD recommendations router mounted BEFORE registerRoutes');
+
   // CRITICAL: Register API routes FIRST before any static/wildcard routes
   console.log('[SERVER] Registering API routes BEFORE Vite middleware...');
   const server = await registerRoutes(app);

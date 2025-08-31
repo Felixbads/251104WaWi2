@@ -1305,6 +1305,61 @@ export const insertRefillBatchMovementSchema = createInsertSchema(refillBatchMov
 export type InsertRefillBatchMovement = z.infer<typeof insertRefillBatchMovementSchema>;
 export type RefillBatchMovement = typeof refillBatchMovements.$inferSelect;
 
+// Refill Recommendations table - für MHD-optimierte Befüllungsempfehlungen
+export const refillRecommendations = pgTable("refill_recommendations", {
+  id: serial("id").primaryKey(),
+  machineId: integer("machine_id").references(() => machines.id).notNull(),
+  productId: integer("product_id").references(() => products.id).notNull(),
+  weekNumber: integer("week_number").notNull(), // Kalenderwoche
+  year: integer("year").notNull().default(new Date().getFullYear()),
+  recommendedQuantity: integer("recommended_quantity").notNull(),
+  priorityScore: real("priority_score"), // Verderbrisiko-Score
+  forecastBasis: text("forecast_basis"), // JSON: Gewichtung der Faktoren
+  expiryRiskFactor: real("expiry_risk_factor"), // MHD-Risiko-Faktor (0-1)
+  stockoutProbability: real("stockout_probability"), // Ausverkaufswahrscheinlichkeit (0-1)
+  weatherImpact: real("weather_impact"), // Wetter-Einfluss (-1 bis 1)
+  seasonalFactor: real("seasonal_factor"), // Saisonaler Faktor (0.5-2.0)
+  holidayImpact: real("holiday_impact"), // Feiertags-Einfluss (-1 bis 1)
+  historicalAvgSales: real("historical_avg_sales"), // Durchschnittlicher täglicher Absatz
+  currentStock: integer("current_stock"), // Aktueller Bestand
+  daysUntilExpiry: integer("days_until_expiry"), // Tage bis Ablauf des aktuellen Bestands
+  confidence: real("confidence").default(0.5), // Konfidenz der Prognose (0-1)
+  status: text("status").default("pending"), // pending, approved, executed, rejected
+  notes: text("notes"), // Zusätzliche Notizen
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  approvedBy: integer("approved_by").references(() => users.id),
+  approvedAt: timestamp("approved_at"),
+  executedAt: timestamp("executed_at"),
+});
+
+export const insertRefillRecommendationSchema = createInsertSchema(refillRecommendations).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  approvedAt: true,
+  executedAt: true,
+});
+
+export type InsertRefillRecommendation = z.infer<typeof insertRefillRecommendationSchema>;
+export type RefillRecommendation = typeof refillRecommendations.$inferSelect;
+
+// Relationen für refillRecommendations
+export const refillRecommendationsRelations = relations(refillRecommendations, ({ one }) => ({
+  machine: one(machines, {
+    fields: [refillRecommendations.machineId],
+    references: [machines.id],
+  }),
+  product: one(products, {
+    fields: [refillRecommendations.productId],
+    references: [products.id],
+  }),
+  approver: one(users, {
+    fields: [refillRecommendations.approvedBy],
+    references: [users.id],
+  }),
+}));
+
 export const refillDetailsRelations = relations(refillDetails, ({ one, many }) => ({
   refill: one(refills, {
     fields: [refillDetails.refillId],
@@ -3604,6 +3659,7 @@ export const allRelations = {
   purchaseConditionsRelations,
   refillDetailsRelations,
   refillBatchMovementsRelations,
+  refillRecommendationsRelations,
   productBatchRelations,
   productMovementRelations,
   locationCostRelations,

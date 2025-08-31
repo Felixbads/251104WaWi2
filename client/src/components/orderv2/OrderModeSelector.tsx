@@ -8,7 +8,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Edit, BarChart3, Package, Copy, CheckCircle2, Clock, Package2 } from 'lucide-react';
+import { Edit, BarChart3, Package, Copy, CheckCircle2, Clock, Package2, AlertTriangle } from 'lucide-react';
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/select";
 
 // Export type for OrderMode - Updated to match specification
-export type OrderMode = 'copy' | 'bulk' | 'standard' | 'forecast';
+export type OrderMode = 'copy' | 'bulk' | 'standard' | 'forecast' | 'mhd';
 
 interface OrderModeSelectorProps {
   mode: OrderMode | null;
@@ -44,7 +44,7 @@ const OrderModeSelector: React.FC<OrderModeSelectorProps> = ({
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
 
           {/* Großbestellung */}
           <Card className={`cursor-pointer border-2 transition-all hover:shadow-lg ${mode === 'bulk' ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'}`}>
@@ -83,6 +83,27 @@ const OrderModeSelector: React.FC<OrderModeSelectorProps> = ({
               {mode === 'copy' && (
                 <div className="mt-4 flex justify-center">
                   <CheckCircle2 className="h-5 w-5 text-primary" />
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* MHD-optimierte Bestellung */}
+          <Card className={`cursor-pointer border-2 transition-all hover:shadow-lg ${mode === 'mhd' ? 'border-red-500 bg-red-50' : 'border-border hover:border-red-300'}`}>
+            <CardContent className="pt-6" onClick={() => onSelectMode('mhd')}>
+              <div className="flex items-center justify-center mb-4">
+                <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center">
+                  <AlertTriangle className="h-8 w-8 text-red-600" />
+                </div>
+              </div>
+              <h3 className="text-center font-semibold text-lg mb-2">MHD-Optimiert</h3>
+              <p className="text-center text-sm text-muted-foreground leading-relaxed">
+                Basierend auf Mindesthaltbarkeitsdaten und Verderbrisiko
+              </p>
+              
+              {mode === 'mhd' && (
+                <div className="mt-4 flex justify-center">
+                  <CheckCircle2 className="h-5 w-5 text-red-600" />
                 </div>
               )}
             </CardContent>

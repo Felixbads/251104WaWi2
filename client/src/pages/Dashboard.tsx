@@ -31,6 +31,7 @@ import { useLocation } from "wouter";
 import { useAuth } from "@/lib/auth";
 import Login from "@/pages/Login";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { CriticalMHDTile, MHDRecommendationsStatusTile, MHDQuickActionsTile } from "@/components/MHDRecommendationTiles";
 import { 
   getTransactions, 
   getMachines, 
@@ -535,6 +536,15 @@ export default function Dashboard() {
                 )}
               </CardContent>
             </Card>
+
+            {/* MHD Critical Products Tile */}
+            <CriticalMHDTile />
+
+            {/* MHD Recommendations Status Tile */}
+            <MHDRecommendationsStatusTile />
+
+            {/* MHD Quick Actions Tile */}
+            <MHDQuickActionsTile />
           </div>
 
           {/* Right Column - Sidebar on desktop */}
