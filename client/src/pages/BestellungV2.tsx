@@ -279,8 +279,21 @@ const BestellungV2: React.FC = () => {
       });
       
       if (orderData) {
+        // WICHTIG: Behalte ALLE Felder der API-Response
+        const completeOrderData = {
+          ...orderData,
+          // Stelle sicher, dass alle API-Felder erhalten bleiben
+          supplier_name: orderData.supplier_name,
+          warehouse_name: orderData.warehouse_name,
+          location_name: orderData.location_name,
+          total_amount: orderData.total_amount,
+          order_number: orderData.order_number,
+          items: orderData.items || [],
+          orderItems: orderData.items || []
+        };
+        
         setOrderNumber(orderData.order_number || '');
-        setExistingOrderData(orderData);
+        setExistingOrderData(completeOrderData);
         setWarehouseId(orderData.warehouse_id);
         setSupplierId(orderData.supplier_id);
         setSupplierName(orderData.supplier_name || 'Unbekannt');
@@ -344,14 +357,26 @@ const BestellungV2: React.FC = () => {
       if (Array.isArray(items) && items.length > 0) {
         console.log(`${items.length} Bestellpositionen erfolgreich geladen`);
         
-        // Aktualisiere Bestelldaten mit geladenen Items
-        const updatedOrderData = {
-          ...existingOrderData,
-          items: items
-        };
-        
-        // Aktualisiere State
-        setExistingOrderData(updatedOrderData);
+        // WICHTIG: Behalte ALLE existierenden Felder und füge nur die Items hinzu!
+        setExistingOrderData(prevData => {
+          if (!prevData) return { items: items };
+          
+          // Behalte alle Felder von prevData (supplier_name, warehouse_name, etc.)
+          const updatedOrderData = {
+            ...prevData,  // WICHTIG: Alle Felder beibehalten!
+            items: items,
+            orderItems: items  // Für Kompatibilität
+          };
+          
+          console.log("Updated order data with items:", {
+            supplier_name: updatedOrderData.supplier_name,
+            warehouse_name: updatedOrderData.warehouse_name,
+            total_amount: updatedOrderData.total_amount,
+            items_count: items.length
+          });
+          
+          return updatedOrderData;
+        });
         
         // Setze die Produkte für die Anzeige in der Komponente
         setSelectedProducts(items.map((item: any) => ({
@@ -1068,13 +1093,14 @@ const BestellungV2: React.FC = () => {
       
       console.log(`E-Mail-Vorbereitung: Bestellung ${orderData.orderNumber || ""} enthält ${items.length} Positionen`);
       
-      // Bestelldaten für E-Mail aktualisieren
-      if (items.length > 0) {
-        // Sicherstellen, dass existingOrderData ein Array von items hat
-        setExistingOrderData((prev: any) => ({
-          ...prev,
+      // Bestelldaten für E-Mail aktualisieren - OHNE die anderen Felder zu überschreiben!
+      if (items.length > 0 && existingOrderData) {
+        // WICHTIG: Alle existierenden Felder beibehalten!
+        const completeOrderData = {
+          ...existingOrderData,  // Behält supplier_name, warehouse_name, total_amount, etc.
           items: items
-        }));
+        };
+        setExistingOrderData(completeOrderData);
       }
       
       // E-Mail-Dialog nur anzeigen wenn explizit sendOrder angefordert wurde
@@ -1181,12 +1207,22 @@ const BestellungV2: React.FC = () => {
   // Update local state when order data is loaded
   useEffect(() => {
     if (order) {
-      setExistingOrderData(order);
-      setOrderNumber(order.orderNumber);
-      setSupplierName(order.supplierName || '');
-      setSupplierId(order.supplierId);
-      setWarehouseId(order.warehouseId);
-      setWarehouseName(order.warehouseName || '');
+      // WICHTIG: Behalte alle Felder der order bei!
+      const completeOrder = {
+        ...order,
+        // Stelle sicher, dass die API-Felder mit Unterstrichen erhalten bleiben
+        supplier_name: order.supplier_name || order.supplierName,
+        warehouse_name: order.warehouse_name || order.warehouseName,
+        location_name: order.location_name || order.locationName,
+        total_amount: order.total_amount || order.totalAmount,
+        order_number: order.order_number || order.orderNumber
+      };
+      setExistingOrderData(completeOrder);
+      setOrderNumber(order.orderNumber || order.order_number || '');
+      setSupplierName(order.supplierName || order.supplier_name || '');
+      setSupplierId(order.supplierId || order.supplier_id);
+      setWarehouseId(order.warehouseId || order.warehouse_id);
+      setWarehouseName(order.warehouseName || order.warehouse_name || '');
     }
   }, [order]);
   
@@ -1248,16 +1284,25 @@ const BestellungV2: React.FC = () => {
             if (Array.isArray(items) && items.length > 0) {
               console.log(`${items.length} Bestellpositionen erfolgreich geladen`);
               
-              // Aktualisiere Bestelldaten mit geladenen Items
-              const updatedOrderData = {
-                ...existingOrderData,
-                items: items,              // Standard-Eigenschaft
-                orderItems: items,         // Alternative Eigenschaft
-                products: items            // Weitere Alternative
-              };
-              
-              // State aktualisieren
-              setExistingOrderData(updatedOrderData);
+              // WICHTIG: Bestelldaten MIT allen Feldern aktualisieren
+              if (existingOrderData) {
+                const updatedOrderData = {
+                  ...existingOrderData,    // Behält ALLE Felder (supplier_name, warehouse_name, etc.)
+                  items: items,              // Standard-Eigenschaft
+                  orderItems: items,         // Alternative Eigenschaft
+                  products: items            // Weitere Alternative
+                };
+                
+                // State aktualisieren
+                setExistingOrderData(updatedOrderData);
+              } else {
+                // Fallback wenn keine existingOrderData vorhanden
+                setExistingOrderData({
+                  items: items,
+                  orderItems: items,
+                  products: items
+                });
+              }
               
               // Cache invalidieren
               queryClient.invalidateQueries({queryKey: orderKeys.detail(orderId)});
@@ -1275,12 +1320,19 @@ const BestellungV2: React.FC = () => {
               // Fallback: Wenn keine Items geladen werden konnten, selectedProducts verwenden
               console.log("Keine Items geladen nach mehreren Versuchen, verwende selectedProducts als Fallback");
               if (selectedProducts.length > 0) {
-                const fallbackOrderData = {
-                  ...existingOrderData,
-                  items: selectedProducts,
-                  orderItems: selectedProducts
-                };
-                setExistingOrderData(fallbackOrderData);
+                // Behalte alle existierenden Felder beim Fallback
+                setExistingOrderData(prevData => {
+                  if (!prevData) return { 
+                    items: selectedProducts,
+                    orderItems: selectedProducts 
+                  };
+                  
+                  return {
+                    ...prevData,  // Behalte alle Felder!
+                    items: selectedProducts,
+                    orderItems: selectedProducts
+                  };
+                });
                 
                 // Fix 3: prepareOrderEmail NICHT automatisch im useEffect aufrufen
                 // Die E-Mail-Vorbereitung erfolgt nur noch beim Button-Click
