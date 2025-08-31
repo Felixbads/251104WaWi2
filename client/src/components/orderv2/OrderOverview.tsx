@@ -155,7 +155,7 @@ const OrderOverview: React.FC<OrderOverviewProps> = ({
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm font-medium text-gray-600">Bestellnummer</label>
-                  <p className="font-mono text-lg">{order.orderNumber || order.order_number || order.id}</p>
+                  <p className="font-mono text-lg">{order.order_number || order.orderNumber || order.id}</p>
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-600">Status</label>
@@ -165,7 +165,7 @@ const OrderOverview: React.FC<OrderOverviewProps> = ({
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-600">Bestelldatum</label>
-                  <p>{order.orderDate ? format(new Date(order.orderDate), 'dd.MM.yyyy HH:mm', { locale: de }) : '-'}</p>
+                  <p>{(order.order_date || order.orderDate) ? format(new Date(order.order_date || order.orderDate), 'dd.MM.yyyy HH:mm', { locale: de }) : '-'}</p>
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-600">Priorität</label>
@@ -175,12 +175,12 @@ const OrderOverview: React.FC<OrderOverviewProps> = ({
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-600">Erstellt von</label>
-                  <p>{order.createdByName || order.created_by_name || 'System'}</p>
+                  <p>{order.created_by_name || order.createdByName || 'System'}</p>
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-600">Warenwert</label>
                   <p className="text-lg font-semibold text-green-600">
-                    {formatCurrency(total)}
+                    {formatCurrency(order.total_amount || order.totalAmount || total)}
                   </p>
                 </div>
               </div>
@@ -199,7 +199,7 @@ const OrderOverview: React.FC<OrderOverviewProps> = ({
               <div className="space-y-3">
                 <div>
                   <h3 className="font-semibold text-lg">
-                    {order.supplierName || order.supplier_name || 'Unbekannter Lieferant'}
+                    {order.supplier_name || order.supplierName || 'Unbekannter Lieferant'}
                   </h3>
                   {order.supplierCompany && (
                     <p className="text-sm text-gray-600">{order.supplierCompany}</p>
@@ -207,10 +207,10 @@ const OrderOverview: React.FC<OrderOverviewProps> = ({
                 </div>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                  {order.supplierEmail && (
+                  {(order.supplier_email || order.supplierEmail) && (
                     <div className="flex items-center gap-2">
                       <Mail className="h-4 w-4 text-gray-400" />
-                      <span>{order.supplierEmail}</span>
+                      <span>{order.supplier_email || order.supplierEmail}</span>
                     </div>
                   )}
                   {order.supplierPhone && (
@@ -266,7 +266,7 @@ const OrderOverview: React.FC<OrderOverviewProps> = ({
               <div className="space-y-3">
                 <div>
                   <h3 className="font-semibold text-lg">
-                    {order.warehouseName || order.warehouse_name || 'Unbekanntes Lager'}
+                    {order.warehouse_name || order.warehouseName || order.location_name || 'Unbekanntes Lager'}
                   </h3>
                   {order.warehouseLocation && (
                     <p className="text-sm text-gray-600">{order.warehouseLocation}</p>
@@ -296,8 +296,8 @@ const OrderOverview: React.FC<OrderOverviewProps> = ({
                 <div>
                   <label className="text-sm font-medium text-gray-600">Geplanter Liefertermin</label>
                   <p className="text-lg">
-                    {order.expectedDeliveryDate ? 
-                      format(new Date(order.expectedDeliveryDate), 'dd.MM.yyyy', { locale: de }) : 
+                    {(order.expected_delivery_date || order.expectedDeliveryDate) ? 
+                      format(new Date(order.expected_delivery_date || order.expectedDeliveryDate), 'dd.MM.yyyy', { locale: de }) : 
                       'Nicht festgelegt'
                     }
                   </p>
@@ -305,8 +305,8 @@ const OrderOverview: React.FC<OrderOverviewProps> = ({
                 <div>
                   <label className="text-sm font-medium text-gray-600">Tatsächlicher Liefertermin</label>
                   <p className="text-lg">
-                    {order.actualDeliveryDate ? 
-                      format(new Date(order.actualDeliveryDate), 'dd.MM.yyyy', { locale: de }) : 
+                    {(order.actual_delivery_date || order.actualDeliveryDate) ? 
+                      format(new Date(order.actual_delivery_date || order.actualDeliveryDate), 'dd.MM.yyyy', { locale: de }) : 
                       'Noch nicht geliefert'
                     }
                   </p>

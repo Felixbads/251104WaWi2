@@ -1071,7 +1071,8 @@ const BestellungV2: React.FC = () => {
         }));
       }
       
-      // E-Mail-Dialog anzeigen, aber nur, wenn dies explizit angefordert wurde
+      // E-Mail-Dialog nur anzeigen wenn explizit sendOrder angefordert wurde
+      // NICHT bei viewOrder - das war der Fehler!
       if (step === 'sendOrder') {
         setShowEmailDialog(true);
       }
@@ -1664,7 +1665,8 @@ const BestellungV2: React.FC = () => {
               setStep('summary');
             }}
             onSendEmail={() => {
-              setStep('sendOrder');
+              // Direkt E-Mail Dialog öffnen, nicht Step wechseln
+              setShowEmailDialog(true);
             }}
             onDownloadPdf={() => {
               // Implement PDF download
