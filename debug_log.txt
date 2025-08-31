@@ -13224,3 +13224,39 @@ DATA: {
   "machineName": "Berggishübel"
 }
 
+[2025-08-31T13:13:50.250Z] [MovementsAPI] Warenbewegungen für Lager ID 9 abrufen mit neuem Service, Limit: 1000, Offset: 0
+
+[2025-08-31T13:13:50.254Z] [WarehouseMovements] Fetching movements for warehouse ID: 9, limit: 1000, offset: 0
+
+[2025-08-31T13:13:50.255Z] [SQL] Query: getWarehouseMovements
+DATA: {
+  "sql": "\n      SELECT \n        im.id,\n        im.product_id,\n        p.product_name,\n        im.quantity,\n        im.movement_type,\n        im.source_warehouse_id,\n        im.destination_warehouse_id,\n        im.machine_id,\n        im.reference_type,\n        im.reference_id,\n        im.notes,\n        im.performed_at,\n        im.performed_by,\n        im.previous_stock,\n        im.current_stock,\n        m.machine_name\n      FROM \n        inventory_movements im\n      JOIN \n        products p ON im.product_id = p.id\n      LEFT JOIN \n        machines m ON im.machine_id = m.id\n      WHERE \n        (im.source_warehouse_id = $1) OR\n        (im.destination_warehouse_id = $1)\n      ORDER BY \n        im.performed_at DESC\n      LIMIT $2 OFFSET $3\n    ",
+  "params": [
+    9,
+    1000,
+    0
+  ]
+}
+
+[2025-08-31T13:13:51.146Z] [WarehouseMovements] Found 0 movements for warehouse 9
+
+[2025-08-31T13:13:51.147Z] [MovementsAPI] Warenbewegungen für Lager 9 geladen: 0 Einträge gefunden
+
+[2025-08-31T13:13:52.199Z] [MovementsAPI] Warenbewegungen für Lager ID 9 abrufen mit neuem Service, Limit: 50, Offset: 0
+
+[2025-08-31T13:13:52.199Z] [WarehouseMovements] Fetching movements for warehouse ID: 9, limit: 50, offset: 0
+
+[2025-08-31T13:13:52.199Z] [SQL] Query: getWarehouseMovements
+DATA: {
+  "sql": "\n      SELECT \n        im.id,\n        im.product_id,\n        p.product_name,\n        im.quantity,\n        im.movement_type,\n        im.source_warehouse_id,\n        im.destination_warehouse_id,\n        im.machine_id,\n        im.reference_type,\n        im.reference_id,\n        im.notes,\n        im.performed_at,\n        im.performed_by,\n        im.previous_stock,\n        im.current_stock,\n        m.machine_name\n      FROM \n        inventory_movements im\n      JOIN \n        products p ON im.product_id = p.id\n      LEFT JOIN \n        machines m ON im.machine_id = m.id\n      WHERE \n        (im.source_warehouse_id = $1) OR\n        (im.destination_warehouse_id = $1)\n      ORDER BY \n        im.performed_at DESC\n      LIMIT $2 OFFSET $3\n    ",
+  "params": [
+    9,
+    50,
+    0
+  ]
+}
+
+[2025-08-31T13:13:52.418Z] [WarehouseMovements] Found 0 movements for warehouse 9
+
+[2025-08-31T13:13:52.419Z] [MovementsAPI] Warenbewegungen für Lager 9 geladen: 0 Einträge gefunden
+

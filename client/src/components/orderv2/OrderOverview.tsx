@@ -99,11 +99,25 @@ const OrderOverview: React.FC<OrderOverviewProps> = ({
     location_name: order?.location_name,
     total_amount: order?.total_amount
   });
-  // Calculate order totals
+  // Calculate order totals with correct VAT from products
   const items = order.items || order.orderItems || [];
-  const subtotal = items.reduce((sum: number, item: any) => 
-    sum + (item.quantity * (item.unit_price || item.unitPrice || 0)), 0);
-  const vatAmount = order.vat_amount || order.vatAmount || (subtotal * 0.19); // 19% MwSt
+  
+  // Berechne Zwischensumme (Netto) und MwSt aus den Produkten
+  let subtotal = 0;
+  let vatAmount = 0;
+  
+  items.forEach((item: any) => {
+    const unitPrice = item.unit_price || item.unitPrice || 0;
+    const quantity = item.quantity || 0;
+    const itemTotal = unitPrice * quantity; // Netto-Betrag
+    const vatRate = item.vat_rate || item.vatRate || 19; // Standard 19% wenn nicht angegeben
+    const itemVat = itemTotal * (vatRate / 100);
+    
+    subtotal += itemTotal;
+    vatAmount += itemVat;
+  });
+  
+  // Verwende gespeicherten Wert oder berechne neu
   const total = order.total_amount || order.totalAmount || (subtotal + vatAmount);
   
   console.log("Calculated total:", total, "from order.total_amount:", order.total_amount);
@@ -184,7 +198,7 @@ const OrderOverview: React.FC<OrderOverviewProps> = ({
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-600">Erstellt von</label>
-                  <p>{order.created_by_name || order.createdByName || 'System'}</p>
+                  <p>{order.created_by_name || order.createdByName || order.created_by || 'System'}</p>
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-600">Warenwert</label>
@@ -383,7 +397,7 @@ const OrderOverview: React.FC<OrderOverviewProps> = ({
                   <span>{formatCurrency(subtotal)}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>MwSt (19%):</span>
+                  <span>MwSt:</span>
                   <span>{formatCurrency(vatAmount)}</span>
                 </div>
                 <Separator />

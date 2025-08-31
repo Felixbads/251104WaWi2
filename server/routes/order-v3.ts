@@ -18,6 +18,10 @@ router.post('/create-order-v3', async (req, res) => {
       priority = 'normal'
     } = req.body;
     
+    // Benutzerinformationen aus dem Request extrahieren
+    const userId = req.user?.id || 1;
+    const userName = req.user?.username || req.user?.email || 'System';
+    
     if (!warehouseId || !supplierId) {
       return res.status(400).json({ 
         error: 'Fehlende Pflichtfelder', 
@@ -120,8 +124,8 @@ router.post('/create-order-v3', async (req, res) => {
         deliveryDate, 
         notes || '',
         priority || 'normal',
-        1,  // Admin User ID
-        'System',
+        userId,  // Verwende den tatsächlichen User
+        userName,  // Verwende den tatsächlichen Usernamen
         'EUR',
         totalAmount,  // total_amount berechnet
         'pending', // payment_status

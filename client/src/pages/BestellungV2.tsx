@@ -907,6 +907,7 @@ const BestellungV2: React.FC = () => {
           case 'edit':
             // Entwurf bearbeiten - zurück zum Workflow
             setStep('viewOrder');
+            setShowEmailDialog(false); // Dialog explizit schließen
             break;
           case 'sent':
             // Versendete Bestellung - E-Mail-Übersicht anzeigen
@@ -915,10 +916,12 @@ const BestellungV2: React.FC = () => {
           case 'goods-receipt':
             // Wareneingang durchführen
             setStep('goodsReceipt');
+            setShowEmailDialog(false); // Dialog explizit schließen
             break;
           default:
             // Standard: Workflow-Übersicht
             setStep('viewOrder');
+            setShowEmailDialog(false); // Dialog explizit schließen
         }
       }
     } catch (error) {
@@ -1103,12 +1106,10 @@ const BestellungV2: React.FC = () => {
         setExistingOrderData(completeOrderData);
       }
       
-      // E-Mail-Dialog NUR bei sendOrder anzeigen!
-      if (step === 'sendOrder') {
-        setShowEmailDialog(true);
-      } else {
-        // Für alle anderen Steps (besonders viewOrder) explizit Dialog schließen
-        setShowEmailDialog(false);
+      // E-Mail-Dialog NUR explizit öffnen wenn auf "E-Mail senden" geklickt wird
+      // NIEMALS automatisch bei viewOrder oder anderen Steps!
+      if (step === 'viewOrder' || step === 'goodsReceipt' || step === 'overview') {
+        setShowEmailDialog(false); // Dialog explizit schließen bei viewOrder
       }
       
       // E-Mail-Vorbereitung ist abgeschlossen
@@ -1732,10 +1733,9 @@ const BestellungV2: React.FC = () => {
               setStep('summary');
             }}
             onSendEmail={() => {
-              console.log("onSendEmail called - navigiere zu sendOrder statt E-Mail-Dialog zu öffnen");
-              // WICHTIG: Bei viewOrder NIEMALS E-Mail-Dialog öffnen!
-              // Stattdessen zu sendOrder navigieren
-              setStep('sendOrder');
+              console.log("onSendEmail called - öffne E-Mail-Dialog direkt bei Klick auf Button");
+              // NUR hier öffnen wir den E-Mail-Dialog - wenn explizit auf den Button geklickt wird!
+              setShowEmailDialog(true);
             }}
             onDownloadPdf={() => {
               // Implement PDF download
