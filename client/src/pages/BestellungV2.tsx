@@ -309,11 +309,6 @@ const BestellungV2: React.FC = () => {
           pickupLocation: orderData.pickup_location || ''
         });
         
-        // Für viewOrder: E-Mail-Dialog explizit schließen
-        if (step === 'viewOrder') {
-          setShowEmailDialog(false);
-        }
-        
         // Lade auch die Bestellpositionen
         await loadOrderItems(orderIdToLoad);
       }
@@ -1108,8 +1103,7 @@ const BestellungV2: React.FC = () => {
         setExistingOrderData(completeOrderData);
       }
       
-      // E-Mail-Dialog nur anzeigen wenn explizit sendOrder angefordert wurde
-      // NICHT bei viewOrder - das war der Fehler!
+      // E-Mail-Dialog NUR bei sendOrder anzeigen!
       if (step === 'sendOrder') {
         setShowEmailDialog(true);
       } else {
@@ -1239,10 +1233,11 @@ const BestellungV2: React.FC = () => {
     // Für viewOrder NIEMALS E-Mail-Dialog öffnen!
     if (step === 'viewOrder') {
       setShowEmailDialog(false);
+      return; // Früher Exit um weitere Verarbeitung zu verhindern
     }
     
     // Nur ausführen wenn wir im richtigen Schritt sind UND existingOrderData vorhanden ist
-    if ((step === 'sendOrder' || step === 'viewOrder' || step === 'warehouseReceiptOfExistingOrder') && existingOrderData && orderId) {
+    if ((step === 'sendOrder' || step === 'warehouseReceiptOfExistingOrder') && existingOrderData && orderId) {
       console.log("Prüfe Bestellungsdetails:", existingOrderData);
       
       // Prüfen, ob bereits Bestellpositionen in irgendeinem bekannten Format vorhanden sind
@@ -1737,9 +1732,10 @@ const BestellungV2: React.FC = () => {
               setStep('summary');
             }}
             onSendEmail={() => {
-              console.log("onSendEmail called - opening email dialog");
-              // Direkt E-Mail Dialog öffnen, nicht Step wechseln
-              setShowEmailDialog(true);
+              console.log("onSendEmail called - navigiere zu sendOrder statt E-Mail-Dialog zu öffnen");
+              // WICHTIG: Bei viewOrder NIEMALS E-Mail-Dialog öffnen!
+              // Stattdessen zu sendOrder navigieren
+              setStep('sendOrder');
             }}
             onDownloadPdf={() => {
               // Implement PDF download
@@ -1763,7 +1759,7 @@ const BestellungV2: React.FC = () => {
             onEmailPrepare={() => {
               console.log('E-Mail-Button geklickt - navigiere zu sendOrder');
               setStep('sendOrder');
-              // prepareOrderEmail wird automatisch durch step-change ausgelöst
+              // E-Mail-Dialog wird automatisch durch step-change zu sendOrder geöffnet
             }}
           />
         );
