@@ -1,0 +1,175 @@
+Hier ist der strukturierte Bericht, der alle beobachteten Probleme und Verbesserungsvorschläge zusammenfasst:
+Analyse der Seite wawi-proviantomat.replit.app
+1. Erreichbarkeit (Verfügbarkeit der Seiten und Ressourcen)
+Bereich/Link	Fehlerstatus oder Beobachtung	Nachweis
+HTTPS‑Zugriff	Die Seite ist nur per http erreichbar. Ein Aufruf unter https liefert eine leere Seite ohne Inhalt oder lädt nicht richtig.	Eigene Beobachtung während des Tests
+Benutzerverwaltung (/benutzer)	Beim Öffnen erscheint eine Fehlermeldung „Fehler beim Laden der Benutzerdaten: 401: Access token is required“. Dadurch lassen sich Benutzer nicht verwalten und keine neuen Benutzer anlegen
+
+wawi-proviantomat.replit.app
+.	
+
+wawi-proviantomat.replit.app
+Erweiterte Analyse – Produktleistung (/erweiterte-analyse)	Die Registerkarte „Produktleistung“ zeigt einen roten Hinweis „Die Produktleistungsdaten konnten nicht geladen werden“ und lädt keine Inhalte
+
+wawi-proviantomat.replit.app
+.	
+
+wawi-proviantomat.replit.app
+Erweiterte Analyse – Entfernte Produkte	Beim Öffnen der Registerkarte tritt ein JavaScript‑Fehler auf (Fehlermeldung: c.avgRemovedPerRefill.toFixed is not a function), anschließend wird eine Fehlerseite angezeigt
+
+wawi-proviantomat.replit.app
+.	
+
+wawi-proviantomat.replit.app
+Erweiterte Analyse – Ereignisanalyse	Der Aufruf führt ebenfalls zu einer Fehlerseite (Fehlermeldung: u.percentage.toFixed is not a function)
+
+wawi-proviantomat.replit.app
+.	
+
+wawi-proviantomat.replit.app
+Umsatz­erwartungen (/revenue-expectations)	Diese Auswertung erzeugt einen Fehler „Reduce of empty array with no initial value“ und bricht mit einer Fehlerseite ab
+
+wawi-proviantomat.replit.app
+.	
+
+wawi-proviantomat.replit.app
+Analyse‑Tabs in Automaten‑Details	In den Automaten‑Details (z. B. Analysen oder MHD) werden teilweise nur Platzhalterboxen angezeigt oder die Inhalte bleiben leer
+
+wawi-proviantomat.replit.app
+.	
+
+wawi-proviantomat.replit.app
+404‑Seite	Nicht‑existente Pfade werden korrekt mit einer 404‑Fehlerseite abgefangen
+
+wawi-proviantomat.replit.app
+ – diese ist erreichbar.	
+
+wawi-proviantomat.replit.app
+Nicht erkannte gebrochene Links: Die Seite verwendet viele dynamische Routen und Buttons; während des Tests wurden keine toten Links (Page not found) gefunden, abgesehen von den oben genannten Funktionsfehlern. Bilder und Icons werden größtenteils geladen, allerdings fehlen bei einigen Produkten Fotos (Platzhalter)
+
+wawi-proviantomat.replit.app
+.
+2. Inhalt & Darstellung
+Leere Auswertungen / nicht geladene Bereiche: In mehreren Bereichen erscheinen nur Lade‑Platzhalter oder es werden keine Daten angezeigt. Beispiele:
+In den Automaten‑Tabs „Analysen“ und „MHD“ werden nur leere Blöcke angezeigt
+
+wawi-proviantomat.replit.app
+.
+In der Produktanalyse („Verkäufe“) werden bei vielen Produkten NaN‑Werte für Durchschnittspreis und Rendite angezeigt
+
+wawi-proviantomat.replit.app
+.
+Die Margen‑Berechnung in den Produktdetails bleibt im Status „Lade Margen‑Berechnung …“ hängen
+
+wawi-proviantomat.replit.app
+.
+Beim Menüpunkt „Umsatzverwartungen“ werden keine Grafiken angezeigt und es kommt zur Fehlermeldung
+
+wawi-proviantomat.replit.app
+.
+Unrealistische/fehlerhafte Daten:
+Im Refill‑Tracking (Zuteilung Lager → Refill) werden verfügbare Refill‑Termine mit einem fiktiven Datum im Jahr 57635 angezeigt
+
+wawi-proviantomat.replit.app
+. Das deutet auf einen Datumsformat‑Bug.
+Im New‑Order‑Wizard werden teilweise 0 Artikel prognostiziert, obwohl Verkäufe vorhanden sind
+
+wawi-proviantomat.replit.app
+.
+Fehlende oder falsche Bilder:
+Einige Produkte zeigen anstelle eines Produktfotos graue Platzhalter; es gibt keine Meldung, dass ein Bild fehlt
+
+wawi-proviantomat.replit.app
+.
+Layout/Usability‑Probleme:
+Der Button „Details“ in der Produkte‑Liste öffnet zwar die Detailseite, aber innerhalb der Detailseite sind Registerkarten wie „Analysen“ oder „Wirtschaftlichkeit“ leer bzw. fehlerhaft.
+In der Benutzerverwaltung wird keine sinnvolle Fehlermeldung angezeigt, der Benutzer bleibt ohne Hinweis zurück.
+3. Funktionalität & Logik
+Formulare & Prozesse:
+Bestellungen: Beim Versand einer abgeschlossenen Bestellung wird der E‑Mail‑Dialog korrekt mit Empfänger und Betreff vorausgefüllt
+
+wawi-proviantomat.replit.app
+. Bei Entwurfsbestellungen sind To‑ und Subject‑Felder jedoch leer
+
+wawi-proviantomat.replit.app
+ – riskant, da so Mails verloren gehen können oder an die falsche Adresse versendet werden.
+Neuer Bestell‑Wizard: Der mehrstufige Wizard (Lieferant wählen → Lager wählen → Analyse → Forecast) funktioniert grundsätzlich, jedoch werden im Forecast teilweise keine Artikel vorgeschlagen (0 Artikel)
+
+wawi-proviantomat.replit.app
+.
+Inventur: Inventurprozesse lassen sich starten und Zwischenspeichern; Statistiken enthalten aber oft keine Daten oder zeigen nur 0‑Werte
+
+wawi-proviantomat.replit.app
+.
+Benutzerverwaltung: Aufgrund des 401‑Fehlers kann hier weder gelesen noch bearbeitet werden – ein kritischer Funktionsausfall.
+Fehlerhafte Logik / Datenverarbeitung:
+Die Fehlerseiten in der „Erweiterten Analyse“ deuten auf fehlende Prüfung auf undefined oder leere Arrays (toFixed is not a function, reduce of empty array)
+
+wawi-proviantomat.replit.app
+
+wawi-proviantomat.replit.app
+
+wawi-proviantomat.replit.app
+.
+In einigen Auswertungen werden NaN oder 0 angezeigt – Berechnungen sollten fehlende Daten abfangen.
+
+wawi-proviantomat.replit.app
+4. Verbesserungsvorschläge und Maßnahmenplan
+HTTPS aktivieren
+Das System sollte über eine gültige TLS‑Konfiguration verfügen. Momentan liefert https eine leere Seite. Dies verhindert vertrauliche Kommunikation und kann Abbrüche verursachen.
+Robuste Fehlerbehandlung und Validierung
+In den Analysen‐ und Statistikmodulen muss geprüft werden, ob Daten vorhanden sind, bevor Funktionen wie .toFixed() oder .reduce() aufgerufen werden. Leere Arrays sollten zu einer aussagekräftigen Meldung führen, nicht zu einer Fehlerseite
+
+wawi-proviantomat.replit.app
+.
+Formulare müssen Pflichtfelder validieren – insbesondere beim E‑Mail‑Versand sollten Empfänger und Betreff automatisch gefüllt werden oder eine Warnung erscheinen
+
+wawi-proviantomat.replit.app
+.
+Benutzerverwaltung reparieren
+Der 401‑Fehler weist auf ein fehlendes Auth‑Token hin. Eine login‑Überprüfung oder Token‑Erneuerung muss implementiert werden, damit Benutzerlisten und Rollenverwaltung funktionieren
+
+wawi-proviantomat.replit.app
+.
+Datenqualität verbessern
+Unplausible Daten (z. B. Jahr 57635 im Refill‑Tracking
+
+wawi-proviantomat.replit.app
+) sollten durch Plausibilitäts‑Checks abgefangen werden.
+Die Prognose‑Algorithmen im Bestell‑Wizard müssen überprüft werden, damit sinnvolle Bestellvorschläge erscheinen (statt „0 Artikel“).
+Margen‑Berechnung und durchschnittliche Preise sollten korrekt berechnet werden; falls keine Daten vorliegen, sollte eine verständliche Nachricht statt NaN angezeigt werden
+
+wawi-proviantomat.replit.app
+.
+Fehlende Inhalte nachladen oder deaktivieren
+Nicht fertiggestellte Bereiche (z. B. „Analysen“ in den Automaten, „Produktleistung“ in der erweiterten Analyse) sollten entweder mit einem Hinweis „Funktion in Entwicklung“ versehen oder ausgeblendet werden, bis die Daten bereitstehen
+
+wawi-proviantomat.replit.app
+.
+Für Produkte ohne Bild sollte ein „Kein Bild vorhanden“‑Hinweis angezeigt werden; idealerweise könnte ein Standardfoto hinterlegt werden
+
+wawi-proviantomat.replit.app
+.
+Mailversand sicher gestalten
+Die E‑Mail‑Felder sollten mit der Lieferantenadresse und einem aussagekräftigen Betreff vorbefüllt sein. Zusätzlich kann eine Überprüfung stattfinden, ob die Mail erfolgreich versendet wurde, um einen Verlust der Bestellkommunikation zu verhindern
+
+wawi-proviantomat.replit.app
+.
+Benutzerführung verbessern
+Im Bestell‑Wizard und in Inventurprozessen sollte jeweils klar ersichtlich sein, welche Schritte abgeschlossen sind und wie abgebrochen werden kann, ohne Daten zu verlieren.
+Zusammenfassungen der wichtigsten Kennzahlen könnten oberhalb der Tabellen platziert werden, um lange Scrollwege zu vermeiden.
+Logging & Monitoring
+Implementieren Sie ein zentrales Fehler‑Logging und Überwachung, damit bei Laufzeitfehlern (z. B. toFixed‑Fehler) sofort eine Benachrichtigung erfolgt und diese zeitnah behoben werden können.
+5. Fazit
+Die Plattform bietet umfangreiche Funktionen für Warenwirtschaft, Bestellungen, Inventur und Analysen. Viele Kernfunktionen wie Dashboard, Lagerverwaltung, Produktlisten und Standard‑Auswertungen funktionieren stabil. Allerdings gibt es gravierende Schwachstellen:
+Fehlende HTTPS‑Unterstützung, nicht geladene Analysen und 401‑Fehler verhindern den professionellen Einsatz.
+Ungenutzte Felder und fehlende Validierungen lassen Mails an Lieferanten verloren gehen oder führen zu fehlerhaften Bestellprognosen.
+Mehrere Module erzeugen JavaScript‑Fehler, weil Datenstrukturen nicht geprüft werden. Dadurch bricht die Anwendung ab
+
+wawi-proviantomat.replit.app
+
+wawi-proviantomat.replit.app
+
+wawi-proviantomat.replit.app
+.
+Mit den oben genannten Maßnahmen (Fehlerbehandlung, Datenvalidierung, Aktivierung von HTTPS, Plausibilitäts‑Checks und Verbesserungen der Nutzerführung) kann die Zuverlässigkeit deutlich gesteigert und sichergestellt werden, dass keine Kommunikation (insbesondere Bestell‑Mails) verloren geht.
