@@ -34,7 +34,7 @@ router.post('/generate', async (req: Request, res: Response) => {
           pinCode: result.data.pinCode,
           accessUrl: result.data.accessUrl,
           qrCodeDataUrl: result.data.qrCodeDataUrl,
-          validUntil: result.data.validUntil.toISOString(),
+          validUntil: result.data.validUntil?.toISOString(),
           orderNumber: orderNumber || `ORDER-${orderId}`
         }
       });

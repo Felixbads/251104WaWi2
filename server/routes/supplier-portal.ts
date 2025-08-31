@@ -737,7 +737,7 @@ router.get('/admin/analytics/:supplierId', async (req: Request, res: Response) =
       console.log(`[SUPPLIER-PORTAL] Erstelle automatisch dauerhaften PIN für Lieferant ${supplierId}`);
       
       const { createSupplierPin } = await import('../services/supplierPinService');
-      const pinResult = await createSupplierPin(supplierId, null, 'AUTO_GENERATED', true);
+      const pinResult = await createSupplierPin(supplierId, undefined, 'AUTO_GENERATED', true);
       
       if (pinResult.success) {
         // PIN erfolgreich erstellt, lade die Daten erneut
@@ -928,7 +928,7 @@ router.post('/admin/create-all-portals', async (req: Request, res: Response) => 
       if (existingPin.rows.length === 0) {
         console.log(`[SUPPLIER-PORTAL] Erstelle automatischen Portal-Zugang für Lieferant ${supplier.id} (${supplier.name})`);
         
-        const pinResult = await createSupplierPin(supplier.id, null, 'AUTO_SYSTEM', true);
+        const pinResult = await createSupplierPin(supplier.id, undefined, 'AUTO_SYSTEM', true);
         
         if (pinResult.success) {
           results.push({

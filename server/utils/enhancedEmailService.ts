@@ -322,7 +322,7 @@ class EnhancedEmailService {
 
       // Sichere Datenbankabfrage mit Validierung
       const result = await rawDb.query(
-        'SELECT access_token, created_at, expires_at FROM supplier_access_pins WHERE supplier_id = $1 AND is_active = true ORDER BY created_at DESC LIMIT 1',
+        'SELECT access_token, created_at, valid_until FROM supplier_access_pins WHERE supplier_id = $1 AND is_active = true ORDER BY created_at DESC LIMIT 1',
         [supplierId]
       );
       
@@ -340,9 +340,9 @@ class EnhancedEmailService {
         return '';
       }
 
-      // Prüfe Token-Gültigkeit (falls expires_at gesetzt ist)
-      if (tokenData.expires_at) {
-        const expiresAt = new Date(tokenData.expires_at);
+      // Prüfe Token-Gültigkeit (falls valid_until gesetzt ist)
+      if (tokenData.valid_until) {
+        const expiresAt = new Date(tokenData.valid_until);
         const now = new Date();
         if (expiresAt <= now) {
           console.warn(`[EnhancedEmailService] Access-Token für Lieferant ${supplierId} ist abgelaufen:`, expiresAt);
