@@ -155,9 +155,10 @@ interface OrderItem {
   deliveryComment?: string;
 }
 
-export default function SupplierPortalNew({ orderId }: { orderId?: string | null }) {
+export default function SupplierPortalNew({ orderId, accessToken: propsAccessToken }: { orderId?: string | null, accessToken?: string }) {
   const [, params] = useRoute('/lieferant/:accessToken');
-  const accessToken = params?.accessToken || '';
+  const [, paramsWithOrder] = useRoute('/lieferant/:accessToken/bestellung/:orderId');
+  const accessToken = propsAccessToken || params?.accessToken || paramsWithOrder?.accessToken || '';
 
   const [isLoading, setIsLoading] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -236,30 +237,31 @@ export default function SupplierPortalNew({ orderId }: { orderId?: string | null
       
       const headers = { 'Authorization': `Bearer ${token}` };
       
-      // Parallel laden aller Datenquellen
+      // Erst Lieferantendaten laden
+      const supplierResponse = await fetch('/api/supplier-portal/supplier-data', { headers }).then(res => res.json());
+      console.log('Supplier Response:', supplierResponse);
+      
+      if (supplierResponse.success && supplierResponse.data) {
+        setSupplierData(supplierResponse.data);
+      }
+      
+      // Dann die restlichen Daten parallel laden
       const [
-        supplierResponse, 
         productsResponse, 
         ordersResponse,
         purchaseConditionsResponse,
         orderItemsResponse
       ] = await Promise.all([
-        fetch('/api/supplier-portal/supplier-data', { headers }).then(res => res.json()),
         fetch('/api/supplier-portal/products', { headers }).then(res => res.json()),
         fetch('/api/supplier-portal/orders', { headers }).then(res => res.json()),
         fetch('/api/supplier-portal/purchase-conditions', { headers }).then(res => res.json()),
         fetch('/api/supplier-portal/order-items', { headers }).then(res => res.json())
       ]);
 
-      console.log('Supplier Response:', supplierResponse);
       console.log('Products Response:', productsResponse);
       console.log('Orders Response:', ordersResponse);
       console.log('Purchase Conditions Response:', purchaseConditionsResponse);
       console.log('Order Items Response:', orderItemsResponse);
-
-      if (supplierResponse.success) {
-        setSupplierData(supplierResponse.data);
-      }
       
       if (productsResponse.success) {
         setProducts(productsResponse.data || []);

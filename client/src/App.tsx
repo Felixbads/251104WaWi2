@@ -847,7 +847,7 @@ function MainRouter() {
     if (accessToken) {
       return (
         <QueryClientProvider client={queryClient}>
-          <SupplierPortalNew orderId={orderId} />
+          <SupplierPortalNew orderId={orderId} accessToken={accessToken} />
           <Toaster />
         </QueryClientProvider>
       );
