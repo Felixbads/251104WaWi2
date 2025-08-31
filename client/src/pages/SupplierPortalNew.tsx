@@ -669,28 +669,27 @@ export default function SupplierPortalNew({ orderId, accessToken: propsAccessTok
                           <TableRow key={condition.id}>
                             <TableCell className="font-medium">
                               {condition.productName || 'Produkt'}
-                              {condition.discountType === 'quantity_scale' && 'Staffelrabatt'}
-                              {condition.discountType === 'order_value' && 'Bestellwertrabatt'}
-                              {!['volume_discount', 'cash_discount', 'quantity_scale', 'order_value'].includes(condition.discountType) && condition.discountType}
                             </TableCell>
                             <TableCell>
-                              {condition.discountPercentage && `${condition.discountPercentage}%`}
-                              {condition.discountAmount && formatCurrency(condition.discountAmount)}
-                              {!condition.discountPercentage && !condition.discountAmount && 'Nicht angegeben'}
+                              {condition.unitPrice ? formatCurrency(condition.unitPrice) : 'Nicht angegeben'}
                             </TableCell>
                             <TableCell>
-                              {condition.thresholdQuantity && `Ab ${condition.thresholdQuantity} Stück`}
-                              {condition.thresholdAmount && `Ab ${formatCurrency(condition.thresholdAmount)}`}
-                              {!condition.thresholdQuantity && !condition.thresholdAmount && 'Nicht angegeben'}
+                              {condition.grossPrice ? formatCurrency(condition.grossPrice) : 'Nicht angegeben'}
                             </TableCell>
                             <TableCell>
-                              {condition.skontoPercentage && condition.paymentTermsDays 
-                                ? `${condition.skontoPercentage}% bei ${condition.paymentTermsDays} Tagen`
-                                : 'Nicht verfügbar'
+                              {condition.minQuantity || 'Keine'}
+                            </TableCell>
+                            <TableCell>
+                              {condition.packagingQuantity && condition.packagingUnit 
+                                ? `${condition.packagingQuantity} ${condition.packagingUnit}` 
+                                : 'Nicht angegeben'
                               }
                             </TableCell>
-                            <TableCell>{formatDate(condition.validUntil || '')}</TableCell>
-                            <TableCell>{getStatusBadge(condition.status || 'active')}</TableCell>
+                            <TableCell>
+                              <Badge variant={condition.isPreferred ? 'default' : 'secondary'}>
+                                {condition.isPreferred ? 'Ja' : 'Nein'}
+                              </Badge>
+                            </TableCell>
                           </TableRow>
                         ))
                       ) : (
