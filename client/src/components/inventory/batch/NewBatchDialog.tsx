@@ -83,7 +83,11 @@ export default function NewBatchDialog({
         products,
         initialQuantity,
         warehouseCount: warehouses?.length,
-        productCount: products?.length
+        productCount: products?.length,
+        warehouseId: warehouses[0]?.id,
+        productId: products[0]?.id,
+        warehouseIdType: typeof warehouses[0]?.id,
+        productIdType: typeof products[0]?.id
       });
     }
   }, [open, warehouses, products]);
@@ -100,9 +104,9 @@ export default function NewBatchDialog({
   const form = useForm<BatchFormData>({
     resolver: zodResolver(batchSchema),
     defaultValues: {
-      warehouseId: warehouses.length >= 1 ? warehouses[0]?.id?.toString() : '',
-      productId: products.length >= 1 ? products[0]?.id?.toString() : '',
-      quantity: initialQuantity ? initialQuantity.toString() : '1',
+      warehouseId: warehouses.length >= 1 ? String(warehouses[0]?.id || '') : '',
+      productId: products.length >= 1 ? String(products[0]?.id || '') : '',
+      quantity: initialQuantity ? String(initialQuantity) : '1',
       batchNumber: generateBatchNumber(), // Auto-generierte Chargennummer
       expiryDate: new Date(new Date().setMonth(new Date().getMonth() + 3)), // 3 Monate in der Zukunft als Standard-MHD
       incomingDate: new Date(), // Standardmäßig das heutige Datum
@@ -256,7 +260,7 @@ export default function NewBatchDialog({
                         </FormControl>
                         <SelectContent>
                           {warehouses.map((warehouse) => (
-                            <SelectItem key={warehouse.id} value={warehouse.id.toString()}>
+                            <SelectItem key={warehouse.id} value={String(warehouse.id)}>
                               {warehouse.name}
                             </SelectItem>
                           ))}
@@ -282,8 +286,8 @@ export default function NewBatchDialog({
                         </FormControl>
                         <SelectContent>
                           {products.map((product) => (
-                            <SelectItem key={product.id} value={product.id.toString()}>
-                              {product.productName}
+                            <SelectItem key={product.id} value={String(product.id)}>
+                              {product.productName || product.product_name}
                             </SelectItem>
                           ))}
                         </SelectContent>
