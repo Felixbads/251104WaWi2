@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { z } from 'zod';
 import { format } from 'date-fns';
@@ -73,6 +73,15 @@ export default function NewBatchDialog({
 }: NewBatchDialogProps) {
   const { toast } = useToast();
   const [showSuccessState, setShowSuccessState] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  
+  // Responsive Erkennung
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth <= 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // Form-Handler initialisieren mit vorausgefüllten Werten
   const form = useForm<BatchFormData>({
@@ -274,8 +283,8 @@ export default function NewBatchDialog({
                       <FormLabel>Mindesthaltbarkeitsdatum (MHD)</FormLabel>
                       <FormControl>
                         <Input 
-                          type={typeof window !== 'undefined' && window.innerWidth <= 768 ? "date" : "text"}
-                          placeholder={typeof window !== 'undefined' && window.innerWidth > 768 ? "YYYY-MM-DD" : undefined}
+                          type={isMobile ? "date" : "text"}
+                          placeholder={!isMobile ? "YYYY-MM-DD" : undefined}
                           value={field.value ? format(field.value, "yyyy-MM-dd") : ''}
                           onChange={(e) => {
                             const value = e.target.value;
@@ -294,7 +303,7 @@ export default function NewBatchDialog({
                             console.log("MHD Input changed:", value, "Parsed date:", date);
                             field.onChange(date);
                           }}
-                          min={typeof window !== 'undefined' && window.innerWidth <= 768 ? format(new Date(), "yyyy-MM-dd") : undefined}
+                          min={isMobile ? format(new Date(), "yyyy-MM-dd") : undefined}
                         />
                       </FormControl>
                       <FormMessage />
@@ -311,8 +320,8 @@ export default function NewBatchDialog({
                       <FormLabel>Eingangsdatum</FormLabel>
                       <FormControl>
                         <Input 
-                          type={typeof window !== 'undefined' && window.innerWidth <= 768 ? "date" : "text"}
-                          placeholder={typeof window !== 'undefined' && window.innerWidth > 768 ? "YYYY-MM-DD" : undefined}
+                          type={isMobile ? "date" : "text"}
+                          placeholder={!isMobile ? "YYYY-MM-DD" : undefined}
                           value={field.value ? format(field.value, "yyyy-MM-dd") : ''}
                           onChange={(e) => {
                             const value = e.target.value;
@@ -331,7 +340,7 @@ export default function NewBatchDialog({
                             console.log("Eingangsdatum Input changed:", value, "Parsed date:", date);
                             field.onChange(date);
                           }}
-                          max={typeof window !== 'undefined' && window.innerWidth <= 768 ? format(new Date(), "yyyy-MM-dd") : undefined}
+                          max={isMobile ? format(new Date(), "yyyy-MM-dd") : undefined}
                         />
                       </FormControl>
                       <FormMessage />

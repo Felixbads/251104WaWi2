@@ -69,6 +69,15 @@ export default function EditBatchDialog({
 }: EditBatchDialogProps) {
   const { toast } = useToast();
   const [showSuccessState, setShowSuccessState] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  
+  // Responsive Erkennung
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth <= 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // Form-Handler initialisieren mit vorausgefüllten Werten aus dem bestehenden Batch
   const form = useForm<EditBatchFormData>({
@@ -267,8 +276,8 @@ export default function EditBatchDialog({
                       <FormLabel>Mindesthaltbarkeitsdatum (MHD)</FormLabel>
                       <FormControl>
                         <Input 
-                          type={typeof window !== 'undefined' && window.innerWidth <= 768 ? "date" : "text"}
-                          placeholder={typeof window !== 'undefined' && window.innerWidth > 768 ? "YYYY-MM-DD" : undefined}
+                          type={isMobile ? "date" : "text"}
+                          placeholder={!isMobile ? "YYYY-MM-DD" : undefined}
                           value={field.value ? format(field.value, "yyyy-MM-dd") : ''}
                           onChange={(e) => {
                             const value = e.target.value;
@@ -302,8 +311,8 @@ export default function EditBatchDialog({
                       <FormLabel>Eingangsdatum</FormLabel>
                       <FormControl>
                         <Input 
-                          type={typeof window !== 'undefined' && window.innerWidth <= 768 ? "date" : "text"}
-                          placeholder={typeof window !== 'undefined' && window.innerWidth > 768 ? "YYYY-MM-DD" : undefined}
+                          type={isMobile ? "date" : "text"}
+                          placeholder={!isMobile ? "YYYY-MM-DD" : undefined}
                           value={field.value ? format(field.value, "yyyy-MM-dd") : ''}
                           onChange={(e) => {
                             const value = e.target.value;
@@ -321,7 +330,7 @@ export default function EditBatchDialog({
                             
                             field.onChange(date);
                           }}
-                          max={format(new Date(), "yyyy-MM-dd")}
+                          max={isMobile ? format(new Date(), "yyyy-MM-dd") : undefined}
                         />
                       </FormControl>
                       <FormMessage />
