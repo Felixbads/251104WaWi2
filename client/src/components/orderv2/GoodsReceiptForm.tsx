@@ -46,8 +46,8 @@ import {
   formatPackageDisplayFromString,
   formatPackageDisplay,
   formatTotalQuantity,
-  calculatePackageCount,
-  calculateTotalQuantity
+  calculateDualFieldTotal,
+  splitTotalToPackageFields
 } from '../../../../shared/package-utils';
 
 interface OrderItem {
@@ -128,7 +128,7 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
   }
   
   const [receivedItems, setReceivedItems] = useState<OrderItem[]>(
-    orderItems.map(item => {
+    orderItems.map((item: any) => {
       const orderedQuantity = item.orderQuantity || item.orderedQuantity || item.quantity || 0;
       
       return {
@@ -151,7 +151,7 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
         expiryDate: '', // Leeres Feld für MHD hinzufügen
         packageSize: item.package_size, // Gebindegröße aus der Datenbank
         // Package-spezifische Initialisierung - erhaltene Menge entspricht zunächst der bestellten
-        receivedPackageCount: orderedQuantity > 0 ? calculatePackageCount(orderedQuantity, parsePackageSizeToQuantity(item.package_size)) : 0,
+        receivedPackageCount: orderedQuantity > 0 ? splitTotalToPackageFields(orderedQuantity, parsePackageSizeToQuantity(item.package_size || '1x')).packageCount : 0,
         receivedTotalQuantity: orderedQuantity
       };
     })
@@ -165,8 +165,8 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
   // const [receivedTotalQuantities, setReceivedTotalQuantities] = useState<Record<number, number>>({});
   
   // Calculate total received vs ordered
-  const totalOrdered = orderItems.reduce((sum, item) => sum + item.orderedQuantity, 0);
-  const totalReceived = receivedItems.reduce((sum, item) => sum + (item.receivedQuantity || 0), 0);
+  const totalOrdered = orderItems.reduce((sum: number, item: any) => sum + (item.orderedQuantity || item.orderQuantity || item.quantity || 0), 0);
+  const totalReceived = receivedItems.reduce((sum: number, item) => sum + (item.receivedQuantity || 0), 0);
   const isComplete = totalReceived === totalOrdered;
   const hasDiscrepancies = receivedItems.some(item => 
     item.receivedQuantity !== item.orderedQuantity || item.damaged
@@ -216,7 +216,9 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
     
     // Parse package size to get package quantity
     const packageQuantity = parsePackageSizeToQuantity(item.packageSize);
-    const totalQuantity = calculateTotalQuantity(packageCount, packageQuantity);
+    const individualCount = item.receivedTotalQuantity ? 
+      splitTotalToPackageFields(item.receivedTotalQuantity, packageQuantity).individualCount : 0;
+    const totalQuantity = calculateDualFieldTotal(packageCount, individualCount, packageQuantity);
     
     // Update receivedItems
     setReceivedItems(items =>
@@ -239,7 +241,7 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
     
     // Parse package size to get package quantity
     const packageQuantity = parsePackageSizeToQuantity(item.packageSize);
-    const packageCount = calculatePackageCount(totalQuantity, packageQuantity);
+    const { packageCount, individualCount } = splitTotalToPackageFields(totalQuantity, packageQuantity);
     
     // Update receivedItems
     setReceivedItems(items =>
@@ -431,13 +433,13 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
                 const isDifferent = item.receivedQuantity !== item.orderedQuantity;
                 
                 // Calculate package info for this item - wie im Bestellportal
-                const packageSize = item.package_size || '1x';
+                const packageSize = item.packageSize || '1x';
                 const packageQuantity = parsePackageSizeToQuantity(packageSize);
                 
                 // Bestellte Package-Info (ursprünglich bestellte Gebinde)
                 const orderedPackageInfo = calculatePackageInfo({
-                  id: item.productId,
-                  name: item.name,
+                  id: item.productId || 0,
+                  name: item.name || '',
                   packageQuantity: packageQuantity,
                   packageTypeName: getPackageTypeName(packageSize),
                   baseUnitName: "Stück",
@@ -446,8 +448,8 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
                 
                 // Erhaltene Package-Info (tatsächlich erhaltene Gebinde)
                 const receivedPackageInfo = calculatePackageInfo({
-                  id: item.productId,
-                  name: item.name,
+                  id: item.productId || 0,
+                  name: item.name || '',
                   packageQuantity: packageQuantity,
                   packageTypeName: getPackageTypeName(packageSize),
                   baseUnitName: "Stück",
@@ -456,7 +458,7 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
                 
                 const packageDisplay = formatPackageDisplay(orderedPackageInfo);
                 const currentPackageCount = item.receivedPackageCount ?? receivedPackageInfo.packageCount;
-                const currentTotalQuantity = item.receivedTotalQuantity ?? item.receivedQuantity;
+                const currentTotalQuantity = item.receivedTotalQuantity ?? item.receivedQuantity ?? 0;
                 
                 return (
                   <TableRow key={item.id} className={item.damaged ? 'bg-destructive/10' : isDifferent ? 'bg-amber-50' : ''}>
@@ -532,18 +534,18 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
                           variant="outline"
                           size="sm"
                           className="h-6 w-6 p-0"
-                          onClick={() => handleReceivedTotalQuantityChange(item.id, String(Math.max(0, currentTotalQuantity - 1)))}
-                          disabled={currentTotalQuantity <= 0}
+                          onClick={() => handleReceivedTotalQuantityChange(item.id, String(Math.max(0, (currentTotalQuantity || 0) - 1)))}
+                          disabled={(currentTotalQuantity || 0) <= 0}
                         >
                           <Minus className="h-3 w-3" />
                         </Button>
                         <Input
                           type="number"
                           min="0"
-                          value={currentTotalQuantity}
+                          value={currentTotalQuantity || 0}
                           onChange={(e) => handleReceivedTotalQuantityChange(item.id, e.target.value)}
                           className={`w-14 h-6 text-center px-1 text-xs ${
-                            currentTotalQuantity !== item.orderedQuantity ? "border-amber-500" : ""
+                            (currentTotalQuantity || 0) !== item.orderedQuantity ? "border-amber-500" : ""
                           }`}
                         />
                         <Button
@@ -551,7 +553,7 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
                           variant="outline"
                           size="sm"
                           className="h-6 w-6 p-0"
-                          onClick={() => handleReceivedTotalQuantityChange(item.id, String(currentTotalQuantity + 1))}
+                          onClick={() => handleReceivedTotalQuantityChange(item.id, String((currentTotalQuantity || 0) + 1))}
                         >
                           <Plus className="h-3 w-3" />
                         </Button>

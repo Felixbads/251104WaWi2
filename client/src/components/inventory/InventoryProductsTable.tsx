@@ -25,11 +25,12 @@ import {
   calculatePackageInfo,
   formatPackageDisplay,
   formatTotalQuantity,
-  calculatePackageCount,
-  calculateTotalQuantity,
   parsePackageSizeToQuantity,
   getPackageTypeName,
   createProductWithPackageInfo,
+  calculateDualFieldTotal,
+  splitTotalToPackageFields,
+  formatPackageInfoForUI,
   Product
 } from '../../../../shared/package-utils';
 
@@ -145,9 +146,11 @@ export default function InventoryProductsTable({
     const product = products.find(p => p.id === productId);
     if (!product) return;
     
-    // Erstelle Package-Info für Berechnungen
-    const productWithPackageInfo = createProductWithPackageInfo(product);
-    const totalQuantity = calculateTotalQuantity(packageCount, productWithPackageInfo.packageQuantity || 1);
+    // Verwende package_size aus der Datenbank für einheitliche Logik
+    const packageQuantity = parsePackageSizeToQuantity(product.packageSize);
+    const currentIndividualCount = totalQuantities[productId] ? 
+      splitTotalToPackageFields(totalQuantities[productId], packageQuantity).individualCount : 0;
+    const totalQuantity = calculateDualFieldTotal(packageCount, currentIndividualCount, packageQuantity);
     
     setPackageCounts(prev => ({ ...prev, [productId]: packageCount }));
     setTotalQuantities(prev => ({ ...prev, [productId]: totalQuantity }));
@@ -159,9 +162,9 @@ export default function InventoryProductsTable({
     const product = products.find(p => p.id === productId);
     if (!product) return;
     
-    // Erstelle Package-Info für Berechnungen
-    const productWithPackageInfo = createProductWithPackageInfo(product);
-    const packageCount = calculatePackageCount(totalQuantity, productWithPackageInfo.packageQuantity || 1);
+    // Verwende package_size aus der Datenbank für einheitliche Logik
+    const packageQuantity = parsePackageSizeToQuantity(product.packageSize);
+    const { packageCount, individualCount } = splitTotalToPackageFields(totalQuantity, packageQuantity);
     
     setTotalQuantities(prev => ({ ...prev, [productId]: totalQuantity }));
     setPackageCounts(prev => ({ ...prev, [productId]: packageCount }));
@@ -186,8 +189,7 @@ export default function InventoryProductsTable({
     const product = products.find(p => p.id === productId);
     if (!product) return;
     
-    const productWithPackageInfo = createProductWithPackageInfo(product);
-    const packageQuantity = productWithPackageInfo.packageQuantity || 1;
+    const packageQuantity = parsePackageSizeToQuantity(product.packageSize);
     const currentTotal = totalQuantities[productId] || 0;
     
     // If no current quantity, add one package, otherwise add package quantity
@@ -200,8 +202,7 @@ export default function InventoryProductsTable({
     const product = products.find(p => p.id === productId);
     if (!product) return;
     
-    const productWithPackageInfo = createProductWithPackageInfo(product);
-    const packageQuantity = productWithPackageInfo.packageQuantity || 1;
+    const packageQuantity = parsePackageSizeToQuantity(product.packageSize);
     const currentTotal = totalQuantities[productId] || 0;
     
     if (currentTotal > 0) {

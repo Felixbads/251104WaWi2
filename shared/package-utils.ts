@@ -369,3 +369,105 @@ export function createProductWithPackageInfo(warehouseProduct: {
     inStock: warehouseProduct.quantity
   };
 }
+
+/**
+ * Zwei-Feld-Eingabe-System: Berechnet Gesamtmenge aus Gebinde-Anzahl + Einzelmenge
+ * @param packageCount Anzahl der ganzen Gebinde
+ * @param individualCount Zusätzliche Einzelmengen  
+ * @param packageSize Anzahl Stück pro Gebinde (aus package_size)
+ * @returns Berechnete Gesamtmenge
+ */
+export function calculateDualFieldTotal(
+  packageCount: number, 
+  individualCount: number, 
+  packageSize: number
+): number {
+  const totalFromPackages = Math.max(0, packageCount) * Math.max(1, packageSize);
+  const totalFromIndividual = Math.max(0, individualCount);
+  return totalFromPackages + totalFromIndividual;
+}
+
+/**
+ * Zwei-Feld-Eingabe-System: Zerlegt Gesamtmenge in Gebinde + Einzelmenge
+ * @param totalQuantity Gesamtmenge die aufgeteilt werden soll
+ * @param packageSize Anzahl Stück pro Gebinde
+ * @returns Aufgeteilte Mengen: {packageCount, individualCount, calculatedTotal}
+ */
+export function splitTotalToPackageFields(
+  totalQuantity: number,
+  packageSize: number
+): {
+  packageCount: number;
+  individualCount: number;
+  calculatedTotal: number;
+} {
+  if (packageSize <= 1) {
+    return {
+      packageCount: 0,
+      individualCount: totalQuantity,
+      calculatedTotal: totalQuantity
+    };
+  }
+  
+  const packageCount = Math.floor(totalQuantity / packageSize);
+  const individualCount = totalQuantity % packageSize;
+  
+  return {
+    packageCount,
+    individualCount,
+    calculatedTotal: calculateDualFieldTotal(packageCount, individualCount, packageSize)
+  };
+}
+
+/**
+ * Formatiert Gebinde-Information für UI-Anzeige
+ * @param packageSize package_size string aus Datenbank
+ * @returns Formatierter Text für UI (z.B. "Kasten (24 Stk./Gebinde)")
+ */
+export function formatPackageInfoForUI(packageSize: string | null | undefined): string {
+  if (!packageSize || packageSize === '0' || packageSize === '') {
+    return "Einzelartikel";
+  }
+  
+  const packageQuantity = parsePackageSizeToQuantity(packageSize);
+  const packageTypeName = getPackageTypeName(packageSize);
+  
+  if (packageQuantity > 1) {
+    return `${packageTypeName} (${packageQuantity} Stk./Gebinde)`;
+  }
+  
+  return "Einzelartikel";
+}
+
+/**
+ * Validiert Zwei-Feld-Eingabe für Gebinde-System
+ * @param packageCount Anzahl Gebinde
+ * @param individualCount Anzahl Einzelmengen
+ * @param packageSize Gebinde-Größe
+ * @returns Validierungsresultat mit Fehlermeldung falls ungültig
+ */
+export function validateDualFieldInput(
+  packageCount: number,
+  individualCount: number,
+  packageSize: number
+): {
+  isValid: boolean;
+  errorMessage?: string;
+  warningMessage?: string;
+} {
+  if (packageCount < 0 || individualCount < 0) {
+    return {
+      isValid: false,
+      errorMessage: 'Mengen dürfen nicht negativ sein'
+    };
+  }
+  
+  if (individualCount >= packageSize && packageSize > 1) {
+    return {
+      isValid: true,
+      warningMessage: `Sie haben ${individualCount} Einzelmengen eingegeben. Das entspricht ${Math.floor(individualCount / packageSize)} zusätzlichen Gebinden.`
+    };
+  }
+  
+  return { isValid: true };
+}

@@ -40,6 +40,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader,
   AlertDialogTitle, AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import { parsePackageSizeToQuantity, getPackageTypeName } from '../../../shared/package-utils';
 
 // Typ-Definitionen
 interface InventoryCount {
@@ -187,26 +188,16 @@ const formatDate = (date?: Date | string) => {
   }).format(new Date(date));
 };
 
-// Hilfsfunktion zur Verwendung der Gebindegröße aus Einkaufsbedingungen
-const parsePackageSize = (product: any): number => {
+// Hilfsfunktion: Package-Information aus product.package_size extrahieren
+const getProductPackageQuantity = (product: any): number => {
   if (!product) return 1;
-  
-  // Priorität 1: Gebindegröße aus Einkaufsbedingungen (packageQuantity)
-  if (product.packageQuantity && typeof product.packageQuantity === 'number' && product.packageQuantity > 0) {
-    return product.packageQuantity;
-  }
-  
-  // Priorität 2: Legacy packageSize Feld parsen (z.B. "6x0,5L", "24x330ml")
-  if (product.packageSize && typeof product.packageSize === 'string') {
-    const match = product.packageSize.match(/^(\d+)x/i);
-    if (match) {
-      const size = parseInt(match[1]);
-      if (size > 0) return size;
-    }
-  }
-  
-  // Fallback: Direkt auf 1 setzen (Einzelstück)
-  return 1;
+  return parsePackageSizeToQuantity(product.package_size);
+};
+
+// Hilfsfunktion: Package-Type aus product.package_size extrahieren  
+const getProductPackageType = (product: any): string => {
+  if (!product) return "Stück";
+  return getPackageTypeName(product.package_size);
 };
 
 // Funktion zum Formatieren von Batch-Daten (MHD)
@@ -277,7 +268,7 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
   const calculateTotalQuantity = (itemId: number, product?: Product) => {
     const packageCount = packageCounts[itemId] || 0;
     const individualCount = individualCounts[itemId] || 0;
-    const packageSize = parsePackageSize(product); // Verwende die neue parsePackageSize Funktion
+    const packageSize = getProductPackageQuantity(product); // Verwende package_size aus DB
     
     const totalFromPackages = packageCount * packageSize;
     const total = totalFromPackages + individualCount;
@@ -2794,7 +2785,7 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
                                   {/* Gebinde-Eingabe - zeigt echte packageQuantity */}
                                   <div className="space-y-1 p-2 bg-blue-50 rounded border">
                                     <div className="text-xs font-medium text-blue-800">
-                                      Gebinde ({parsePackageSize(item.product)} Stk. pro Gebinde)
+                                      Gebinde ({getProductPackageQuantity(item.product)} Stk./Gebinde)
                                     </div>
                                     <div className="flex items-center space-x-1">
                                       <Input
@@ -2807,7 +2798,7 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
                                           setPackageCounts({ ...packageCounts, [item.id]: count });
                                           
                                           // Automatische Berechnung der Gesamtmenge
-                                          const packageQuantity = parsePackageSize(item.product);
+                                          const packageQuantity = getProductPackageQuantity(item.product);
                                           const calculation = calculateTotalQuantity(item.id, item.product);
                                           calculation.total = (count || 0) * packageQuantity + (individualCounts[item.id] || 0);
                                           setEditedCounts({ ...editedCounts, [item.id]: calculation.total });
@@ -2815,7 +2806,7 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
                                         className="w-16 text-center text-sm"
                                       />
                                       <span className="text-xs text-muted-foreground">
-                                        = {(packageCounts[item.id] || 0) * parsePackageSize(item.product)} Stk.
+                                        = {(packageCounts[item.id] || 0) * getProductPackageQuantity(item.product)} Stk.
                                       </span>
                                     </div>
                                   </div>
@@ -2836,7 +2827,7 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
                                           setIndividualCounts({ ...individualCounts, [item.id]: count });
                                           
                                           // Automatische Berechnung der Gesamtmenge
-                                          const packageQuantity = parsePackageSize(item.product);
+                                          const packageQuantity = getProductPackageQuantity(item.product);
                                           const calculation = calculateTotalQuantity(item.id, item.product);
                                           calculation.total = (packageCounts[item.id] || 0) * packageQuantity + (count || 0);
                                           setEditedCounts({ ...editedCounts, [item.id]: calculation.total });
