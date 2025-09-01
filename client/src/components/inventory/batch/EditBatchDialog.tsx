@@ -122,28 +122,27 @@ export default function EditBatchDialog({
     onSuccess: (data) => {
       console.log("Charge erfolgreich aktualisiert:", data);
       
-      // KRITISCH: Kompletter Cache-Reset für sofortige Anzeige
-      queryClient.clear();
-      
-      // Zusätzlich spezifische Invalidierung
+      // Spezifische Cache-Invalidierung für Batch-Listen
       queryClient.invalidateQueries({ 
         predicate: (query) => {
           const queryKey = query.queryKey[0];
           return typeof queryKey === 'string' && 
                  (queryKey.includes('/api/inventory-count-batches/') || 
-                  queryKey.includes('/api/inventory-counts/'));
+                  queryKey.includes('/api/inventory-counts/') ||
+                  queryKey.includes('/api/product-batches'));
         }
       });
+      
+      // Direkter Callback für sofortige UI-Aktualisierung
+      if (onSuccess) {
+        onSuccess();
+      }
       
       setShowSuccessState(true);
       setTimeout(() => {
         setShowSuccessState(false);
         onOpenChange(false);
-        if (onSuccess) onSuccess();
         form.reset();
-        
-        // Force page reload als letztes Mittel
-        window.location.reload();
       }, 1500);
     },
     onError: (error: any) => {

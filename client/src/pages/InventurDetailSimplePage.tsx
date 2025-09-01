@@ -179,11 +179,17 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
   const handleBatchCreated = (batch: ProductBatch) => {
     console.log('[BATCH-CREATED] Neue Batch erstellt:', batch);
     
+    // Speichere selectedItem BEVOR es auf null gesetzt wird
+    const currentSelectedItem = selectedItem;
+    
     // Auto-expand das Item nach Batch-Erstellung für sofortige Sichtbarkeit
-    if (selectedItem) {
-      setExpandedItems(prev => new Set(prev).add(selectedItem.id));
-      console.log('[BATCH-CREATED] Item expandiert:', selectedItem.id);
+    if (currentSelectedItem) {
+      setExpandedItems(prev => new Set(prev).add(currentSelectedItem.id));
+      console.log('[BATCH-CREATED] Item expandiert:', currentSelectedItem.id);
     }
+    
+    // KRITISCH: Kompletter Cache-Reset für sofortige Anzeige
+    queryClient.clear();
     
     // Query invalidieren für Live-Update der availableBatches
     queryClient.invalidateQueries({ 
@@ -200,9 +206,10 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
       description: `Neue Charge ${batch.batchNumber} wurde erfolgreich angelegt`,
     });
     
-    // Dialog schließen
+    // Dialog schließen aber selectedItem NICHT auf null setzen
     setShowBatchDialog(false);
-    setSelectedItem(null);
+    // WICHTIG: selectedItem NICHT auf null setzen, damit Batches weiterhin geladen werden
+    // setSelectedItem(null); <- ENTFERNT
   };
 
   // Handle inventory actions
