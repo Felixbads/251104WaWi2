@@ -26,6 +26,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { CalendarIcon, CheckCircle2, CircleAlert, Package, PlusCircle, Pencil } from 'lucide-react';
+import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
@@ -469,34 +470,6 @@ export default function InventoryCountBatchDialog({
     }
   });
   
-  // Handler zum Bearbeiten einer bestehenden Charge
-  const handleEditBatch = async () => {
-    if (!editBatch || !newBatchNumber) {
-      toast({
-        title: 'Fehler',
-        description: 'Chargennummer ist erforderlich.',
-        variant: 'destructive',
-      });
-      return;
-    }
-    
-    setIsSubmitting(true);
-    
-    try {
-      await updateBatchMutation.mutateAsync({
-        batchId: editBatch.id,
-        batchNumber: newBatchNumber,
-        expiryDate: expiryDate ? format(expiryDate, 'yyyy-MM-dd') : null,
-        currentQuantity: batchQuantity,
-        notes: editNotes,
-        locationInWarehouse: editLocationInWarehouse,
-      });
-    } catch (error) {
-      console.error('Fehler beim Bearbeiten der Charge:', error);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
 
   // Kombinierter Handler zum Erstellen und Verknüpfen einer Charge in einem Durchgang
   const handleCreateAndLink = async () => {
@@ -543,7 +516,6 @@ export default function InventoryCountBatchDialog({
         batchNumber: newBatchNumber,
         expiryDate: expiryDate ? format(expiryDate, 'yyyy-MM-dd') : null,
         quantity: batchQuantity,
-        currentQuantity: batchQuantity,
         notes: `Erstellt bei Inventur #${inventoryId}`,
         queryClient,
         onSuccess: (newBatch) => {
@@ -900,7 +872,7 @@ export default function InventoryCountBatchDialog({
                                       e.preventDefault();
                                       e.stopPropagation();
                                       // Switch to edit mode for this batch
-                                      if (onBatchSelect && selectedItem) {
+                                      if (selectedItem) {
                                         // Create edit batch object
                                         const editBatchData = {
                                           id: batch.id,
