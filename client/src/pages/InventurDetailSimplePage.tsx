@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useLocation } from 'wouter';
 import { useToast } from '@/hooks/use-toast';
@@ -28,6 +28,11 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter,
   DialogHeader, DialogTitle, DialogTrigger,
 } from '@/components/ui/dialog';
+import { 
+  PurchaseCondition,
+  formatPackageInfoFromPurchaseConditions,
+  getPackageSizeFromPurchaseConditions
+} from '../../../shared/package-utils';
 
 // Erweiterte Typ-Definitionen mit MHD und Gebinde-Support
 interface SimpleInventoryCount {
@@ -131,6 +136,42 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
     enabled: !!inventurData?.warehouseId,
   });
 
+  // Lade Einkaufsbedingungen für alle Produkte (für korrekte Gebinde-Informationen)
+  const productIds = useMemo(() => {
+    if (!inventurItems) return [];
+    return Array.from(new Set(inventurItems.map(item => item.productId)));
+  }, [inventurItems]);
+
+  const { data: purchaseConditionsData = {} } = useQuery<Record<number, PurchaseCondition[]>>({
+    queryKey: [`/api/purchase-conditions/products`, productIds],
+    queryFn: async () => {
+      if (productIds.length === 0) return {};
+      
+      const conditions: Record<number, PurchaseCondition[]> = {};
+      
+      // Lade purchase_conditions für alle Produkte parallel
+      const promises = productIds.map(async (productId: number) => {
+        try {
+          const response = await fetch(`/api/products/${productId}/purchase-conditions`);
+          if (response.ok) {
+            const data = await response.json();
+            conditions[productId] = data;
+          } else {
+            conditions[productId] = [];
+          }
+        } catch (error) {
+          console.warn(`Fehler beim Laden der Einkaufsbedingungen für Produkt ${productId}:`, error);
+          conditions[productId] = [];
+        }
+      });
+      
+      await Promise.all(promises);
+      return conditions;
+    },
+    staleTime: 0, // Force refetch to get latest purchase conditions
+    enabled: productIds.length > 0
+  });
+
   // Handler für Batch-Erstellung mit sofortigen UI-Updates
   const handleBatchCreated = (batch: ProductBatch) => {
     console.log('[BATCH-CREATED] Neue Batch erstellt:', batch);
@@ -183,9 +224,22 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
     }, 500);
   };
 
-  // Prüft, ob ein Produkt Gebinde-Informationen hat
+  // Lokale Hilfsfunktionen - verwenden geladene purchase_conditions
+  const getProductPackageQuantity = (product: any): number => {
+    if (!product?.id) return 1;
+    const conditions = purchaseConditionsData[product.id] || [];
+    return getPackageSizeFromPurchaseConditions(conditions);
+  };
+
+  const getProductPackageType = (product: any): string => {
+    if (!product?.id) return "Einzelartikel";
+    const conditions = purchaseConditionsData[product.id] || [];
+    return formatPackageInfoFromPurchaseConditions(conditions);
+  };
+
+  // Prüft, ob ein Produkt Gebinde-Informationen hat (aus Purchase Conditions)
   const hasPackageInfo = (product: SimpleInventoryItem['product']): boolean => {
-    if (!product) return false;
+    if (!product?.id) return false;
     
     // WICHTIG: Wenn der Produktname bereits Gebindeinformationen enthält,
     // brauchen wir KEIN zusätzliches Eingabefeld
@@ -199,53 +253,16 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
       }
     }
     
-    // Nur wenn EXPLIZIT Gebinde-Informationen vorhanden sind
-    // UND diese sinnvoll sind (größer als 1)
-    if (product.packageQuantity && typeof product.packageQuantity === 'number' && product.packageQuantity > 1) {
-      return true;
-    }
-    
-    if (product.packagingQuantity && typeof product.packagingQuantity === 'number' && product.packagingQuantity > 1) {
-      return true;
-    }
-    
-    // Nur bei explizitem packageSize String mit Format "NxY"
-    if (product.packageSize && typeof product.packageSize === 'string' && product.packageSize.trim() !== '') {
-      const match = product.packageSize.match(/^(\d+)x/i);
-      if (match) {
-        const size = parseInt(match[1]);
-        if (size > 1) return true;
-      }
-    }
-    
-    return false;
+    // Verwende Purchase Conditions anstatt der alten Produkt-Felder
+    const packageQuantity = getProductPackageQuantity(product);
+    return packageQuantity > 1;
   };
 
-  // Hilfsfunktionen für Gebinde und MHD
+  // Hilfsfunktionen für Gebinde und MHD (verwendet Purchase Conditions)
   const parsePackageSize = (product: SimpleInventoryItem['product']): number => {
-    if (!product || !hasPackageInfo(product)) return 1;
-    
-    // Priorität 1: Gebindegröße aus Einkaufsbedingungen (packageQuantity)
-    if (product.packageQuantity && typeof product.packageQuantity === 'number' && product.packageQuantity > 1) {
-      return product.packageQuantity;
-    }
-    
-    // Priorität 2: Gebindegröße aus Einkaufsbedingungen (packagingQuantity - Legacy)
-    if (product.packagingQuantity && typeof product.packagingQuantity === 'number' && product.packagingQuantity > 1) {
-      return product.packagingQuantity;
-    }
-    
-    // Priorität 3: Legacy packageSize Feld parsen (z.B. "6x0,5L", "24x330ml")
-    if (product.packageSize && typeof product.packageSize === 'string') {
-      const match = product.packageSize.match(/^(\d+)x/i);
-      if (match) {
-        const size = parseInt(match[1]);
-        if (size > 1) return size;
-      }
-    }
-    
-    // Fallback: Einzelstück
-    return 1;
+    if (!product?.id) return 1;
+    // Verwende Purchase Conditions anstatt alter Produkt-Felder
+    return getProductPackageQuantity(product);
   };
 
   // Funktion zur Berechnung der Gesamtmenge basierend auf Gebinden und Einzelartikeln
