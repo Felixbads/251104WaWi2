@@ -269,3 +269,86 @@ export const COMMON_PACKAGE_TYPES = [
 ] as const;
 
 export type PackageType = typeof COMMON_PACKAGE_TYPES[number];
+
+/**
+ * Parses package_size string from database to numeric package quantity
+ * Examples: "6x0,5L" -> 6, "24x330ml" -> 24, "20 Stück" -> 20, "2" -> 2
+ */
+export function parsePackageSizeToQuantity(packageSize: string | null | undefined): number {
+  if (!packageSize || packageSize === '0' || packageSize === '') return 1;
+  
+  // Regex patterns to extract the package count
+  const patterns = [
+    /^(\d+)x/,          // "24x330ml" -> 24, "6x0,5L" -> 6
+    /^(\d+)\s*Stück/i,  // "20 Stück" -> 20, "12 stück" -> 12
+    /^(\d+)\s*Fl/i,     // "6 Flaschen" -> 6
+    /^(\d+)\s*St\b/i,   // "20 St" -> 20
+    /^(\d+)[^0-9]/,     // "20..." -> 20 (any non-digit after number)
+    /^(\d+)$/           // "2" -> 2 (pure number)
+  ];
+  
+  for (const pattern of patterns) {
+    const match = packageSize.match(pattern);
+    if (match) {
+      const num = parseInt(match[1]);
+      if (num > 0) return num;
+    }
+  }
+  
+  return 1; // Fallback for individual pieces
+}
+
+/**
+ * Determines package type name from package_size string
+ * Examples: "6x0,5L" -> "Karton", "24x330ml" -> "Kasten", "20 Stück" -> "Gebinde"
+ */
+export function getPackageTypeName(packageSize: string | null | undefined): string {
+  if (!packageSize) return "Stück";
+  
+  const packageQuantity = parsePackageSizeToQuantity(packageSize);
+  
+  // Guess package type based on quantity and content
+  if (packageSize.includes('x') && packageSize.toLowerCase().includes('l')) {
+    // Liquid products
+    if (packageQuantity >= 20) return "Kasten";
+    if (packageQuantity >= 6) return "Karton";
+  }
+  
+  if (packageSize.toLowerCase().includes('stück')) {
+    if (packageQuantity >= 10) return "Gebinde";
+    return "Pack";
+  }
+  
+  // Default based on quantity
+  if (packageQuantity >= 20) return "Kasten";
+  if (packageQuantity >= 6) return "Karton";
+  if (packageQuantity > 1) return "Gebinde";
+  
+  return "Stück";
+}
+
+/**
+ * Creates a Product object with package information from warehouse product data
+ * This allows using existing package-utils functions with warehouse product data
+ */
+export function createProductWithPackageInfo(warehouseProduct: {
+  productId: number;
+  productName: string;
+  packageSize?: string | null;
+  quantity: number;
+  [key: string]: any;
+}): Product {
+  const packageQuantity = parsePackageSizeToQuantity(warehouseProduct.packageSize);
+  const packageTypeName = getPackageTypeName(warehouseProduct.packageSize);
+  
+  return {
+    id: warehouseProduct.productId,
+    name: warehouseProduct.productName,
+    packageSize: packageQuantity,
+    packageQuantity: packageQuantity,
+    packageTypeName: packageTypeName,
+    baseUnitName: "Stück",
+    orderQuantity: 0,
+    inStock: warehouseProduct.quantity
+  };
+}

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, Search, Calendar, Package } from "lucide-react";
+import { PlusCircle, Search, Calendar, Package, Minus, Plus } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { 
   Table, 
@@ -12,7 +12,6 @@ import {
 } from "@/components/ui/table";
 import { CartItem, useInventoryCart } from "./InventoryCartContext";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useQuery } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import { Badge } from "@/components/ui/badge";
@@ -22,6 +21,17 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { ChevronDown, ChevronRight } from "lucide-react";
+import {
+  calculatePackageInfo,
+  formatPackageDisplay,
+  formatTotalQuantity,
+  calculatePackageCount,
+  calculateTotalQuantity,
+  parsePackageSizeToQuantity,
+  getPackageTypeName,
+  createProductWithPackageInfo,
+  Product
+} from '../../../../shared/package-utils';
 
 export interface InventoryProduct {
   id: number;
@@ -53,85 +63,16 @@ export interface ProductBatch {
   warehouseName?: string;
 }
 
-export interface PackageType {
-  id: number;
-  name: string;
-  description?: string;
-  unitsPerPackage: number;
-  isActive: boolean;
-  sortOrder: number;
-}
-
 interface InventoryProductsTableProps {
   products: InventoryProduct[];
   onAddToCart: (product: InventoryProduct, quantity: number, batchIds?: number[]) => void;
   warehouseId: number;
-  packageTypes?: PackageType[];
-}
-
-type UnitType = 'pieces' | 'packages';
-
-// Hilfsfunktion zum Parsen der Gebindegröße
-function parsePackageSize(packageSize: string | null | undefined): number {
-  if (!packageSize) return 1;
-  
-  // Regex für verschiedene Formate: "24x330ml", "6x0,5L", "12 Flaschen", etc.
-  const patterns = [
-    /^(\d+)x/,          // "24x330ml" -> 24
-    /^(\d+)\s*Stück/i,  // "12 Stück" -> 12
-    /^(\d+)\s*Fl/i,     // "6 Flaschen" -> 6
-    /^(\d+)[^0-9]/,     // "20..." -> 20
-    /(\d+)/             // Fallback für erste Zahl
-  ];
-  
-  for (const pattern of patterns) {
-    const match = packageSize.match(pattern);
-    if (match) {
-      const num = parseInt(match[1]);
-      if (num > 1) return num;
-    }
-  }
-  
-  return 1; // Fallback für einzelne Stücke
-}
-
-// Gebinde-Informationen für ein Produkt (erweitert für Package Types)
-function getPackageInfo(product: InventoryProduct) {
-  // Bevorzuge Package Type Data, fallback auf packageSize parsing
-  let packageCount = 1;
-  let packageLabel = 'Gebinde';
-  let hasPackaging = false;
-  
-  if (product.unitsPerPackage && product.unitsPerPackage > 1) {
-    // Package Type verfügbar
-    packageCount = product.unitsPerPackage;
-    hasPackaging = true;
-    packageLabel = product.packageTypeName 
-      ? `${product.packageTypeName} (${packageCount} Stück)` 
-      : `Gebinde (${packageCount} Stück)`;
-  } else if (product.packageSize) {
-    // Fallback auf packageSize parsing
-    packageCount = parsePackageSize(product.packageSize);
-    hasPackaging = packageCount > 1;
-    packageLabel = `Gebinde (${product.packageSize})`;
-  }
-  
-  return {
-    packageCount,
-    hasPackaging,
-    piecesInStock: product.quantity,
-    packagesInStock: hasPackaging ? Math.floor(product.quantity / packageCount) : 0,
-    packageLabel,
-    packageTypeName: product.packageTypeName,
-    packageTypeId: product.packageTypeId
-  };
 }
 
 export default function InventoryProductsTable({
   products,
   onAddToCart,
-  warehouseId,
-  packageTypes = []
+  warehouseId
 }: InventoryProductsTableProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
@@ -139,32 +80,10 @@ export default function InventoryProductsTable({
   const [selectedBatches, setSelectedBatches] = useState<Record<number, number[]>>({});
   const { cartItems } = useInventoryCart();
 
-  // Hilfsfunktion: Verfügbare Menge berechnen (Lagerbestand - Warenkorb-Menge)
-  const getAvailableQuantity = (product: InventoryProduct) => {
-    const cartItem = cartItems.find(item => item.productId === product.productId);
-    const cartQuantity = cartItem ? cartItem.quantity : 0;
-    const batchQuantity = getAvailableQuantityFromBatches(product);
-    return Math.max(0, batchQuantity - cartQuantity);
-  };
+  // Package-based quantity states
+  const [packageCounts, setPackageCounts] = useState<Record<number, number>>({});
+  const [totalQuantities, setTotalQuantities] = useState<Record<number, number>>({});
 
-  // Hilfsfunktion: Erweiterte Produktinformationen mit verfügbaren Mengen
-  const getEnhancedProductInfo = (product: InventoryProduct) => {
-    const availableQuantity = getAvailableQuantity(product);
-    const packageInfo = getPackageInfo({ ...product, quantity: availableQuantity });
-    return {
-      ...product,
-      availableQuantity,
-      packageInfo
-    };
-  };
-  const [quantityInputs, setQuantityInputs] = useState<Record<number, number>>({});
-  const [unitTypes, setUnitTypes] = useState<Record<number, UnitType>>({});
-  
-  // Neue States für Gebinde-Eingabe
-  const [packageQuantities, setPackageQuantities] = useState<Record<number, number>>({});
-  const [individualQuantities, setIndividualQuantities] = useState<Record<number, number>>({});
-  const [selectedPackageTypes, setSelectedPackageTypes] = useState<Record<number, number>>({});
-  
   // Get batches for products
   const { data: productBatches } = useQuery({
     queryKey: ['/api/product-batches', { warehouseId }],
@@ -194,41 +113,122 @@ export default function InventoryProductsTable({
     );
   });
 
-  // Berechnet die tatsächliche Stückzahl basierend auf der Einheit
-  const calculateActualQuantity = (product: InventoryProduct, inputQuantity: number, unitType: UnitType): number => {
-    if (unitType === 'pieces') {
-      return inputQuantity;
-    } else {
-      const packageInfo = getPackageInfo(product);
-      return inputQuantity * packageInfo.packageCount;
+  // Hilfsfunktion: Verfügbare Menge berechnen (Lagerbestand - Warenkorb-Menge)
+  const getAvailableQuantity = (product: InventoryProduct) => {
+    const cartItem = cartItems.find(item => item.productId === product.productId);
+    const cartQuantity = cartItem ? cartItem.quantity : 0;
+    const batchQuantity = getAvailableQuantityFromBatches(product);
+    return Math.max(0, batchQuantity - cartQuantity);
+  };
+
+  // Hilfsfunktion: Verfügbare Menge aus ausgewählten Chargen berechnen
+  const getAvailableQuantityFromBatches = (product: InventoryProduct): number => {
+    if (!productBatches) return product.quantity;
+    
+    const batches = productBatches[product.productId] || [];
+    const selectedBatchIds = selectedBatches[product.productId] || [];
+    
+    if (selectedBatchIds.length === 0) {
+      // Keine Chargen ausgewählt - verwende Gesamtbestand
+      return product.quantity;
+    }
+    
+    // Nur aus ausgewählten Chargen
+    return batches
+      .filter(batch => selectedBatchIds.includes(batch.id))
+      .reduce((total, batch) => total + batch.currentQuantity, 0);
+  };
+
+  // Handler: Anzahl Gebinde ändern (automatisch Gesamtanzahl berechnen)
+  const handlePackageCountChange = (productId: number, value: string) => {
+    const packageCount = Math.max(0, parseInt(value) || 0);
+    const product = products.find(p => p.id === productId);
+    if (!product) return;
+    
+    // Erstelle Package-Info für Berechnungen
+    const productWithPackageInfo = createProductWithPackageInfo(product);
+    const totalQuantity = calculateTotalQuantity(packageCount, productWithPackageInfo.packageQuantity || 1);
+    
+    setPackageCounts(prev => ({ ...prev, [productId]: packageCount }));
+    setTotalQuantities(prev => ({ ...prev, [productId]: totalQuantity }));
+  };
+
+  // Handler: Gesamtanzahl ändern (automatisch Gebinde-Anzahl berechnen)
+  const handleTotalQuantityChange = (productId: number, value: string) => {
+    const totalQuantity = Math.max(0, parseInt(value) || 0);
+    const product = products.find(p => p.id === productId);
+    if (!product) return;
+    
+    // Erstelle Package-Info für Berechnungen
+    const productWithPackageInfo = createProductWithPackageInfo(product);
+    const packageCount = calculatePackageCount(totalQuantity, productWithPackageInfo.packageQuantity || 1);
+    
+    setTotalQuantities(prev => ({ ...prev, [productId]: totalQuantity }));
+    setPackageCounts(prev => ({ ...prev, [productId]: packageCount }));
+  };
+
+  // Increment package count
+  const incrementPackageCount = (productId: number) => {
+    const currentCount = packageCounts[productId] || 0;
+    handlePackageCountChange(productId, (currentCount + 1).toString());
+  };
+
+  // Decrement package count
+  const decrementPackageCount = (productId: number) => {
+    const currentCount = packageCounts[productId] || 0;
+    if (currentCount > 0) {
+      handlePackageCountChange(productId, (currentCount - 1).toString());
+    }
+  };
+
+  // Increment total quantity based on package size
+  const incrementTotalQuantity = (productId: number) => {
+    const product = products.find(p => p.id === productId);
+    if (!product) return;
+    
+    const productWithPackageInfo = createProductWithPackageInfo(product);
+    const packageQuantity = productWithPackageInfo.packageQuantity || 1;
+    const currentTotal = totalQuantities[productId] || 0;
+    
+    // If no current quantity, add one package, otherwise add package quantity
+    const newTotal = currentTotal === 0 ? packageQuantity : currentTotal + packageQuantity;
+    handleTotalQuantityChange(productId, newTotal.toString());
+  };
+
+  // Decrement total quantity based on package size
+  const decrementTotalQuantity = (productId: number) => {
+    const product = products.find(p => p.id === productId);
+    if (!product) return;
+    
+    const productWithPackageInfo = createProductWithPackageInfo(product);
+    const packageQuantity = productWithPackageInfo.packageQuantity || 1;
+    const currentTotal = totalQuantities[productId] || 0;
+    
+    if (currentTotal > 0) {
+      const newTotal = Math.max(0, currentTotal - packageQuantity);
+      handleTotalQuantityChange(productId, newTotal.toString());
     }
   };
 
   // Fügt ein Produkt zum Warenkorb hinzu
   const handleAddToCart = (product: InventoryProduct) => {
-    const inputQuantity = quantityInputs[product.id] || 1;
-    const unitType = unitTypes[product.id] || 'pieces';
-    const actualQuantity = calculateActualQuantity(product, inputQuantity, unitType);
+    const totalQuantity = totalQuantities[product.id] || 0;
     const selectedBatchIds = selectedBatches[product.productId] || [];
     
     const availableQuantity = getAvailableQuantity(product);
-    if (actualQuantity > 0 && actualQuantity <= availableQuantity) {
+    if (totalQuantity > 0 && totalQuantity <= availableQuantity) {
       // Nur Chargen-IDs übertragen, wenn welche ausgewählt sind
       const batchIdsToTransfer = selectedBatchIds.length > 0 ? selectedBatchIds : undefined;
-      onAddToCart(product, actualQuantity, batchIdsToTransfer);
+      onAddToCart(product, totalQuantity, batchIdsToTransfer);
       
       // Zurücksetzen der Auswahl und Menge nach dem Hinzufügen
       const newSelected = new Set(selectedRows);
       newSelected.delete(product.id);
       setSelectedRows(newSelected);
       
-      const newQuantities = { ...quantityInputs };
-      delete newQuantities[product.id];
-      setQuantityInputs(newQuantities);
-      
-      const newUnitTypes = { ...unitTypes };
-      delete newUnitTypes[product.id];
-      setUnitTypes(newUnitTypes);
+      // Reset quantities
+      setPackageCounts(prev => ({ ...prev, [product.id]: 0 }));
+      setTotalQuantities(prev => ({ ...prev, [product.id]: 0 }));
       
       // Chargen-Auswahl zurücksetzen
       const newSelectedBatches = { ...selectedBatches };
@@ -251,56 +251,6 @@ export default function InventoryProductsTable({
       newSelected.delete(productId);
     }
     setSelectedRows(newSelected);
-  };
-
-  // Behandelt Mengenänderungen
-  const handleQuantityChange = (productId: number, value: string) => {
-    const quantity = parseInt(value) || 0;
-    setQuantityInputs(prev => ({
-      ...prev,
-      [productId]: quantity
-    }));
-  };
-
-  // Behandelt Einheitenwechsel
-  const handleUnitTypeChange = (productId: number, unitType: UnitType) => {
-    setUnitTypes(prev => ({
-      ...prev,
-      [productId]: unitType
-    }));
-  };
-
-  // Handler: Gebinde-Menge ändern
-  const handlePackageQuantityChange = (productId: number, value: string) => {
-    const quantity = Math.max(0, parseInt(value) || 0);
-    setPackageQuantities(prev => ({ ...prev, [productId]: quantity }));
-  };
-
-  // Handler: Einzelstück-Menge ändern  
-  const handleIndividualQuantityChange = (productId: number, value: string) => {
-    const quantity = Math.max(0, parseInt(value) || 0);
-    setIndividualQuantities(prev => ({ ...prev, [productId]: quantity }));
-  };
-
-  // Handler: Package-Type auswählen
-  const handlePackageTypeSelection = (productId: number, packageTypeId: number) => {
-    setSelectedPackageTypes(prev => ({ ...prev, [productId]: packageTypeId }));
-  };
-
-  // Berechnet Gesamtmenge aus Gebinde + Einzelstück
-  const calculateTotalFromPackages = (productId: number): number => {
-    const packageQty = packageQuantities[productId] || 0;
-    const individualQty = individualQuantities[productId] || 0;
-    const selectedPackageTypeId = selectedPackageTypes[productId];
-    
-    if (selectedPackageTypeId) {
-      const packageType = packageTypes.find(pt => pt.id === selectedPackageTypeId);
-      if (packageType) {
-        return (packageQty * packageType.unitsPerPackage) + individualQty;
-      }
-    }
-    
-    return packageQty + individualQty;
   };
 
   // Behandelt Produkterweiterung (Chargen anzeigen/verbergen)
@@ -334,24 +284,6 @@ export default function InventoryProductsTable({
     });
   };
 
-  // Hilfsfunktion: Verfügbare Menge aus ausgewählten Chargen berechnen
-  const getAvailableQuantityFromBatches = (product: InventoryProduct): number => {
-    if (!productBatches) return product.quantity;
-    
-    const batches = productBatches[product.productId] || [];
-    const selectedBatchIds = selectedBatches[product.productId] || [];
-    
-    if (selectedBatchIds.length === 0) {
-      // Keine Chargen ausgewählt - verwende Gesamtbestand
-      return product.quantity;
-    }
-    
-    // Nur aus ausgewählten Chargen
-    return batches
-      .filter(batch => selectedBatchIds.includes(batch.id))
-      .reduce((total, batch) => total + batch.currentQuantity, 0);
-  };
-
   // Fügt alle ausgewählten Produkte zum Warenkorb hinzu
   const handleAddSelectedToCart = () => {
     selectedRows.forEach(productId => {
@@ -360,19 +292,6 @@ export default function InventoryProductsTable({
         handleAddToCart(product);
       }
     });
-  };
-
-  // Berechnet verfügbare Menge für Anzeige (berücksichtigt Warenkorb)
-  const getAvailableQuantityDisplay = (enhancedProduct: any, unitType: UnitType): string => {
-    const packageInfo = enhancedProduct.packageInfo;
-    
-    if (unitType === 'pieces') {
-      return `${enhancedProduct.availableQuantity} Stück verfügbar`;
-    } else if (packageInfo.hasPackaging) {
-      return `${packageInfo.packagesInStock} Gebinde verfügbar (${packageInfo.packagesInStock * packageInfo.packageCount} Stück)`;
-    } else {
-      return `${enhancedProduct.availableQuantity} Stück verfügbar`;
-    }
   };
 
   return (
@@ -414,22 +333,27 @@ export default function InventoryProductsTable({
                 />
               </TableHead>
               <TableHead>Produktname</TableHead>
-              <TableHead>Gebindegröße</TableHead>
-              <TableHead>Bestand</TableHead>
+              <TableHead>Gebinde</TableHead>
+              <TableHead>Lagerbestand</TableHead>
               <TableHead>Chargen</TableHead>
-              <TableHead>Einheit</TableHead>
-              <TableHead>Menge</TableHead>
+              <TableHead className="text-center">Anzahl Gebinde</TableHead>
+              <TableHead className="text-center">Gesamtanzahl</TableHead>
               <TableHead>Aktionen</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {filteredProducts.map((product) => {
-              const enhancedProduct = getEnhancedProductInfo(product);
-              const packageInfo = enhancedProduct.packageInfo;
-              const unitType = unitTypes[product.id] || 'pieces';
-              const inputQuantity = quantityInputs[product.id] || 1;
-              const actualQuantity = calculateActualQuantity(product, inputQuantity, unitType);
-              const isValidQuantity = actualQuantity > 0 && actualQuantity <= enhancedProduct.availableQuantity;
+              const availableQuantity = getAvailableQuantity(product);
+              const productWithPackageInfo = createProductWithPackageInfo(product);
+              const packageInfo = calculatePackageInfo({
+                ...productWithPackageInfo,
+                orderQuantity: totalQuantities[product.id] || 0
+              });
+              
+              const packageDisplayText = formatPackageDisplay(packageInfo);
+              const packageCount = packageCounts[product.id] || 0;
+              const totalQuantity = totalQuantities[product.id] || 0;
+              const hasPackaging = packageInfo.packageQuantity > 1;
 
               return (
                 <TableRow key={product.id} className={selectedRows.has(product.id) ? "bg-muted/50" : ""}>
@@ -445,22 +369,29 @@ export default function InventoryProductsTable({
                   </TableCell>
                   
                   <TableCell>
-                    <span className="text-sm text-muted-foreground">
-                      {product.packageSize || "Einzelstück"}
-                    </span>
+                    <div className="text-sm">
+                      <span className="text-muted-foreground">
+                        {hasPackaging ? packageDisplayText : 'Einzelstück'}
+                      </span>
+                      {product.packageSize && (
+                        <div className="text-xs text-muted-foreground">
+                          {product.packageSize}
+                        </div>
+                      )}
+                    </div>
                   </TableCell>
                   
                   <TableCell>
                     <div className="text-sm">
-                      <div className="font-medium">{enhancedProduct.availableQuantity} Stück verfügbar</div>
-                      {enhancedProduct.packageInfo.hasPackaging && (
+                      <div className="font-medium">{availableQuantity} Stück verfügbar</div>
+                      {hasPackaging && (
                         <div className="text-muted-foreground">
-                          {enhancedProduct.packageInfo.packagesInStock} Gebinde verfügbar
+                          {Math.floor(availableQuantity / packageInfo.packageQuantity)} Gebinde verfügbar
                         </div>
                       )}
-                      {enhancedProduct.availableQuantity < product.quantity && (
+                      {availableQuantity < product.quantity && (
                         <div className="text-xs text-orange-600">
-                          ({product.quantity - enhancedProduct.availableQuantity} im Warenkorb)
+                          ({product.quantity - availableQuantity} im Warenkorb)
                         </div>
                       )}
                     </div>
@@ -564,171 +495,108 @@ export default function InventoryProductsTable({
                     })()} 
                   </TableCell>
                   
+                  {/* Anzahl Gebinde Input */}
                   <TableCell>
-                    {packageInfo.hasPackaging ? (
-                      <Select
-                        value={unitType}
-                        onValueChange={(value: UnitType) => handleUnitTypeChange(product.id, value)}
-                      >
-                        <SelectTrigger className="w-32">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="pieces">Stück</SelectItem>
-                          <SelectItem value="packages">{packageInfo.packageLabel}</SelectItem>
-                        </SelectContent>
-                      </Select>
+                    {hasPackaging ? (
+                      <div className="flex items-center gap-1 w-32">
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => decrementPackageCount(product.id)}
+                          disabled={packageCount <= 0}
+                        >
+                          <Minus className="h-3 w-3" />
+                        </Button>
+                        
+                        <Input
+                          type="number"
+                          min="0"
+                          value={packageCount || ''}
+                          onChange={(e) => handlePackageCountChange(product.id, e.target.value)}
+                          className="h-8 text-center [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          placeholder="0"
+                        />
+                        
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => incrementPackageCount(product.id)}
+                        >
+                          <Plus className="h-3 w-3" />
+                        </Button>
+                      </div>
                     ) : (
-                      <span className="text-sm text-muted-foreground">Stück</span>
+                      <span className="text-sm text-muted-foreground text-center block">-</span>
+                    )}
+                  </TableCell>
+
+                  {/* Gesamtanzahl Input */}
+                  <TableCell>
+                    <div className="flex items-center gap-1 w-32">
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => decrementTotalQuantity(product.id)}
+                        disabled={totalQuantity <= 0}
+                      >
+                        <Minus className="h-3 w-3" />
+                      </Button>
+                      
+                      <Input
+                        type="number"
+                        min="0"
+                        max={availableQuantity}
+                        value={totalQuantity || ''}
+                        onChange={(e) => handleTotalQuantityChange(product.id, e.target.value)}
+                        className={`h-8 text-center [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
+                          totalQuantity > 0 && totalQuantity > availableQuantity ? 'border-red-500' : ''
+                        }`}
+                        placeholder="0"
+                      />
+                      
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => incrementTotalQuantity(product.id)}
+                      >
+                        <Plus className="h-3 w-3" />
+                      </Button>
+                    </div>
+                    
+                    {totalQuantity > 0 && totalQuantity > availableQuantity && (
+                      <div className="text-xs text-red-600 mt-1">
+                        Max. {availableQuantity} verfügbar
+                      </div>
                     )}
                   </TableCell>
                   
                   <TableCell>
-                    {(() => {
-                      const totalFromPackages = calculateTotalFromPackages(product.id);
-                      const packageQty = packageQuantities[product.id] || 0;
-                      const individualQty = individualQuantities[product.id] || 0;
-                      const selectedPackageTypeId = selectedPackageTypes[product.id];
-                      const selectedPackageType = packageTypes.find(pt => pt.id === selectedPackageTypeId);
-                      
-                      return (
-                        <div className="space-y-2 min-w-[200px]">
-                          {/* Package Type Auswahl */}
-                          <div>
-                            <Select
-                              value={selectedPackageTypeId ? selectedPackageTypeId.toString() : ""}
-                              onValueChange={(value) => handlePackageTypeSelection(product.id, parseInt(value))}
-                            >
-                              <SelectTrigger className="w-full">
-                                <SelectValue placeholder="Gebindeart wählen..." />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {packageTypes.map(pt => (
-                                  <SelectItem key={pt.id} value={pt.id.toString()}>
-                                    {pt.name} ({pt.unitsPerPackage} Stück)
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          
-                          {/* Gebinde + Einzelstück Eingabe */}
-                          {selectedPackageType && (
-                            <div className="grid grid-cols-2 gap-2">
-                              <div>
-                                <Input
-                                  type="number"
-                                  min="0"
-                                  placeholder="Gebinde"
-                                  value={packageQty || ""}
-                                  onChange={(e) => handlePackageQuantityChange(product.id, e.target.value)}
-                                  className="w-full"
-                                />
-                                <div className="text-xs text-muted-foreground mt-1">
-                                  {selectedPackageType.name}
-                                </div>
-                              </div>
-                              <div>
-                                <Input
-                                  type="number"
-                                  min="0"
-                                  placeholder="Einzelstück"
-                                  value={individualQty || ""}
-                                  onChange={(e) => handleIndividualQuantityChange(product.id, e.target.value)}
-                                  className="w-full"
-                                />
-                                <div className="text-xs text-muted-foreground mt-1">
-                                  Stück
-                                </div>
-                              </div>
-                            </div>
-                          )}
-                          
-                          {/* Berechnung anzeigen */}
-                          {selectedPackageType && (packageQty > 0 || individualQty > 0) && (
-                            <div className="text-sm font-medium text-blue-600 bg-blue-50 p-2 rounded">
-                              {packageQty > 0 && (
-                                <span>{packageQty} × {selectedPackageType.unitsPerPackage}</span>
-                              )}
-                              {packageQty > 0 && individualQty > 0 && <span> + </span>}
-                              {individualQty > 0 && (
-                                <span>{individualQty} Stück</span>
-                              )}
-                              <span className="ml-2">= {totalFromPackages} Stück</span>
-                            </div>
-                          )}
-                          
-                          {/* Verfügbarkeit anzeigen */}
-                          <div className="text-xs text-muted-foreground">
-                            {enhancedProduct.availableQuantity} Stück verfügbar
-                          </div>
-                          
-                          {/* Validation */}
-                          {totalFromPackages > enhancedProduct.availableQuantity && (
-                            <div className="text-xs text-red-600">
-                              ⚠️ Nicht genügend Bestand
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })()}
-                  </TableCell>
-                  
-                  <TableCell>
-                    {(() => {
-                      const totalFromPackages = calculateTotalFromPackages(product.id);
-                      const hasPackageInput = totalFromPackages > 0;
-                      const isPackageValid = hasPackageInput ? totalFromPackages <= enhancedProduct.availableQuantity : true;
-                      const finalQuantity = hasPackageInput ? totalFromPackages : (inputQuantity || 1);
-                      const isFinalValid = finalQuantity > 0 && finalQuantity <= enhancedProduct.availableQuantity;
-                      
-                      const handleAddWithPackages = () => {
-                        const quantityToAdd = hasPackageInput ? totalFromPackages : actualQuantity;
-                        
-                        // Erstelle CartItem mit Package-Informationen
-                        const cartItem: CartItem = {
-                          id: Date.now(),
-                          productId: product.productId,
-                          warehouseId: product.warehouseId,
-                          quantity: quantityToAdd,
-                          productName: product.productName,
-                          packageTypeId: selectedPackageTypes[product.id],
-                          packageTypeName: selectedPackageTypes[product.id] 
-                            ? packageTypes.find(pt => pt.id === selectedPackageTypes[product.id])?.name 
-                            : undefined,
-                          packageQuantity: packageQuantities[product.id] || 0,
-                          individualQuantity: individualQuantities[product.id] || 0,
-                          selectedBatchIds: selectedBatches[product.productId] || []
-                        };
-                        
-                        onAddToCart(cartItem);
-                      };
-                      
-                      return (
-                        <Button
-                          size="sm"
-                          onClick={handleAddWithPackages}
-                          disabled={!isFinalValid}
-                          className="flex items-center gap-1"
-                        >
-                          <PlusCircle className="h-3 w-3" />
-                          Hinzufügen
-                        </Button>
-                      );
-                    })()}
+                    <Button
+                      onClick={() => handleAddToCart(product)}
+                      disabled={totalQuantity <= 0 || totalQuantity > availableQuantity}
+                      size="sm"
+                      className="h-8"
+                    >
+                      <PlusCircle className="h-3 w-3 mr-1" />
+                      Hinzufügen
+                    </Button>
                   </TableCell>
                 </TableRow>
               );
             })}
           </TableBody>
         </Table>
+        
+        {filteredProducts.length === 0 && (
+          <div className="text-center py-12 text-muted-foreground">
+            {searchTerm ? "Keine Produkte gefunden" : "Keine Produkte verfügbar"}
+          </div>
+        )}
       </div>
-
-      {filteredProducts.length === 0 && (
-        <div className="text-center py-8 text-muted-foreground">
-          {searchTerm ? "Keine Produkte gefunden." : "Keine Produkte im Lager verfügbar."}
-        </div>
-      )}
     </div>
   );
 }
