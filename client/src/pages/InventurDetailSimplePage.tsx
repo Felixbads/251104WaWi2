@@ -807,6 +807,8 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
                               batch.productId === item.productId
                             ) || [];
                             
+                            console.log(`[DEBUG] Item ${item.id} productId: ${item.productId}, found batches:`, productBatches.length);
+                            
                             return (
                               <TableRow key={`expanded-item-${item.id}`} className="bg-muted/25">
                                 <TableCell className="pl-8">
@@ -899,6 +901,8 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
                     const productBatches = availableBatches?.filter(batch => 
                       batch.productId === item.productId
                     ) || [];
+                    
+                    console.log(`[DEBUG] Main Item ${item.id} productId: ${item.productId}, found batches:`, productBatches.length);
                     
                     return (
                       <React.Fragment key={`fragment-${item.id}-${item.productId}`}>

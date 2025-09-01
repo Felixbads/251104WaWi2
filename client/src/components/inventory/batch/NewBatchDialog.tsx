@@ -288,20 +288,17 @@ export default function NewBatchDialog({
                           value={field.value ? format(field.value, "yyyy-MM-dd") : ''}
                           onChange={(e) => {
                             const value = e.target.value;
-                            let date: Date | undefined;
-                            
-                            if (value) {
-                              // Versuche verschiedene Datumsformate zu parsen
-                              if (value.match(/^\d{4}-\d{2}-\d{2}$/)) {
-                                date = new Date(value);
-                              } else if (value.match(/^\d{2}\.\d{2}\.\d{4}$/)) {
-                                const [day, month, year] = value.split('.');
-                                date = new Date(`${year}-${month}-${day}`);
+                            if (isMobile) {
+                              // Mobile: Direkte Date-Verarbeitung
+                              field.onChange(value ? new Date(value) : undefined);
+                            } else {
+                              // Desktop: Einfache String-zu-Date Konvertierung
+                              if (value && value.length === 10 && value.includes('-')) {
+                                field.onChange(new Date(value));
+                              } else if (!value) {
+                                field.onChange(undefined);
                               }
                             }
-                            
-                            console.log("MHD Input changed:", value, "Parsed date:", date);
-                            field.onChange(date);
                           }}
                           min={isMobile ? format(new Date(), "yyyy-MM-dd") : undefined}
                         />
@@ -325,20 +322,17 @@ export default function NewBatchDialog({
                           value={field.value ? format(field.value, "yyyy-MM-dd") : ''}
                           onChange={(e) => {
                             const value = e.target.value;
-                            let date: Date | undefined;
-                            
-                            if (value) {
-                              // Versuche verschiedene Datumsformate zu parsen
-                              if (value.match(/^\d{4}-\d{2}-\d{2}$/)) {
-                                date = new Date(value);
-                              } else if (value.match(/^\d{2}\.\d{2}\.\d{4}$/)) {
-                                const [day, month, year] = value.split('.');
-                                date = new Date(`${year}-${month}-${day}`);
+                            if (isMobile) {
+                              // Mobile: Direkte Date-Verarbeitung
+                              field.onChange(value ? new Date(value) : undefined);
+                            } else {
+                              // Desktop: Einfache String-zu-Date Konvertierung
+                              if (value && value.length === 10 && value.includes('-')) {
+                                field.onChange(new Date(value));
+                              } else if (!value) {
+                                field.onChange(undefined);
                               }
                             }
-                            
-                            console.log("Eingangsdatum Input changed:", value, "Parsed date:", date);
-                            field.onChange(date);
                           }}
                           max={isMobile ? format(new Date(), "yyyy-MM-dd") : undefined}
                         />
