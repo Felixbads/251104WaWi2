@@ -132,8 +132,13 @@ export default function EditBatchDialog({
         }
       });
       
-      // Zusätzlich explizit die Batch-Listen invalidieren
-      queryClient.invalidateQueries({ queryKey: ['/api/inventory-count-batches/warehouse'] });
+      // Force-Refresh der spezifischen Batch-Listen für alle Warehouses
+      queryClient.removeQueries({ 
+        predicate: (query) => {
+          const queryKey = query.queryKey[0];
+          return typeof queryKey === 'string' && queryKey.includes('/api/inventory-count-batches/warehouse/');
+        }
+      });
       
       setShowSuccessState(true);
       setTimeout(() => {
