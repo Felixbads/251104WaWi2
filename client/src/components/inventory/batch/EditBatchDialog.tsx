@@ -138,6 +138,7 @@ export default function EditBatchDialog({
           return typeof queryKey === 'string' && 
                  (queryKey.includes('/api/inventory-count-batches/') || 
                   queryKey.includes('/api/inventory-counts/') ||
+                  queryKey.includes('/api/inventory-batches/product/') ||
                   queryKey.includes('/api/product-batches'));
         }
       });
@@ -180,7 +181,8 @@ export default function EditBatchDialog({
           const queryKey = query.queryKey[0];
           return typeof queryKey === 'string' && 
                  (queryKey.includes('/api/inventory-count-batches/') || 
-                  queryKey.includes('/api/inventory-counts/'));
+                  queryKey.includes('/api/inventory-counts/') ||
+                  queryKey.includes('/api/inventory-batches/product/'));
         }
       });
       

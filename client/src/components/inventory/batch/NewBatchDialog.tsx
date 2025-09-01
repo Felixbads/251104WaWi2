@@ -140,6 +140,7 @@ export default function NewBatchDialog({
           return typeof queryKey === 'string' && 
                  (queryKey.includes('/api/inventory-count-batches/') || 
                   queryKey.includes('/api/inventory-counts/') ||
+                  queryKey.includes('/api/inventory-batches/product/') ||
                   queryKey.includes('/api/product-batches'));
         }
       });

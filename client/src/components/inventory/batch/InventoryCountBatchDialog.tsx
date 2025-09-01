@@ -450,6 +450,10 @@ export default function InventoryCountBatchDialog({
       // Cache invalidieren
       queryClient.invalidateQueries({ queryKey: [`/api/inventory-counts/${inventoryId}`] });
       queryClient.invalidateQueries({ queryKey: [`/api/inventory-counts/${inventoryId}/product-batches`] });
+      // Wichtig: Auch den tatsächlich genutzten Endpunkt invalidieren
+      if (selectedItem?.productId && warehouseId) {
+        queryClient.invalidateQueries({ queryKey: [`/api/inventory-batches/product/${selectedItem.productId}/warehouse/${warehouseId}`] });
+      }
       
       // Dialog schließen
       onOpenChange(false);
@@ -596,6 +600,13 @@ export default function InventoryCountBatchDialog({
       // Cache invalidieren
       await queryClient.invalidateQueries({ queryKey: ['batches'] });
       await queryClient.invalidateQueries({ queryKey: ['inventory-batches'] });
+      // Invalidiere alle Batch-Queries mit dem korrekten Muster
+      await queryClient.invalidateQueries({ 
+        predicate: (query) => {
+          const queryKey = query.queryKey[0];
+          return typeof queryKey === 'string' && queryKey.includes('/api/inventory-batches/product/');
+        }
+      });
 
       onOpenChange(false);
     } catch (error: any) {
