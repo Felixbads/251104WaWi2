@@ -62,6 +62,9 @@ interface PackageType {
   name: string;
   description?: string;
   is_active?: boolean;
+  unitsPerPackage: number;
+  isActive: boolean;
+  sortOrder: number;
 }
 
 interface InventoryProduct {
@@ -477,7 +480,7 @@ export default function WarenbewegungNewPage() {
                         <SelectContent>
                           <SelectGroup>
                             <SelectLabel>Verfügbare Lager</SelectLabel>
-                            {!warehousesLoading && warehouses && warehouses.map(warehouse => (
+                            {!warehousesLoading && warehouses && warehouses.map((warehouse: Warehouse) => (
                               <SelectItem 
                                 key={warehouse.id} 
                                 value={warehouse.id.toString()}
@@ -506,7 +509,7 @@ export default function WarenbewegungNewPage() {
                         <SelectContent>
                           <SelectGroup>
                             <SelectLabel>Verfügbare Lager</SelectLabel>
-                            {!warehousesLoading && warehouses && warehouses.map(warehouse => (
+                            {!warehousesLoading && warehouses && warehouses.map((warehouse: Warehouse) => (
                               <SelectItem 
                                 key={warehouse.id} 
                                 value={warehouse.id.toString()}
@@ -537,7 +540,7 @@ export default function WarenbewegungNewPage() {
                   ) : sourceProducts && sourceProducts.length > 0 ? (
                     <InventoryProductsTable 
                       products={sourceProducts}
-                      onAddToCart={(product, quantity) => {
+                      onAddToCart={(product, quantity, batchIds) => {
                         // Convert the InventoryProduct to a CartItem
                         addToCart({
                           id: product.id,
@@ -545,7 +548,8 @@ export default function WarenbewegungNewPage() {
                           productName: product.productName,
                           quantity: quantity,
                           maxQuantity: product.quantity,
-                          warehouseId: product.warehouseId
+                          warehouseId: product.warehouseId,
+                          selectedBatchIds: batchIds
                         });
                       }}
                       warehouseId={parseInt(sourceWarehouseId)}
@@ -650,7 +654,7 @@ export default function WarenbewegungNewPage() {
                                 </SelectTrigger>
                               </FormControl>
                               <SelectContent>
-                                {warehouses?.map(warehouse => (
+                                {warehouses?.map((warehouse: Warehouse) => (
                                   <SelectItem
                                     key={warehouse.id}
                                     value={warehouse.id.toString()}
@@ -728,7 +732,7 @@ export default function WarenbewegungNewPage() {
                       ) : disposalProducts && disposalProducts.length > 0 ? (
                         <InventoryProductsTable 
                           products={disposalProducts}
-                          onAddToCart={(product, quantity) => {
+                          onAddToCart={(product, quantity, batchIds) => {
                             // Convert the InventoryProduct to a CartItem
                             addToCart({
                               id: product.id,
@@ -736,7 +740,8 @@ export default function WarenbewegungNewPage() {
                               productName: product.productName,
                               quantity: quantity,
                               maxQuantity: product.quantity,
-                              warehouseId: product.warehouseId
+                              warehouseId: product.warehouseId,
+                              selectedBatchIds: batchIds
                             });
                           }}
                           warehouseId={parseInt(disposalWarehouseId)}

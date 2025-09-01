@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, Search } from "lucide-react";
+import { PlusCircle, Search, Calendar, Package } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { 
   Table, 
@@ -13,6 +13,15 @@ import {
 import { CartItem, useInventoryCart } from "./InventoryCartContext";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useQuery } from '@tanstack/react-query';
+import { apiRequest } from '@/lib/queryClient';
+import { Badge } from "@/components/ui/badge";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import { ChevronDown, ChevronRight } from "lucide-react";
 
 export interface InventoryProduct {
   id: number;
@@ -28,6 +37,22 @@ export interface InventoryProduct {
   unitsPerPackage?: number;
 }
 
+export interface ProductBatch {
+  id: number;
+  batchNumber: string;
+  productId: number;
+  warehouseId: number;
+  initialQuantity: number;
+  currentQuantity: number;
+  expiryDate: string | null;
+  manufacturingDate?: string | null;
+  locationInWarehouse?: string | null;
+  status: string;
+  notes?: string | null;
+  productName?: string;
+  warehouseName?: string;
+}
+
 export interface PackageType {
   id: number;
   name: string;
@@ -39,7 +64,7 @@ export interface PackageType {
 
 interface InventoryProductsTableProps {
   products: InventoryProduct[];
-  onAddToCart: (product: InventoryProduct, quantity: number) => void;
+  onAddToCart: (product: InventoryProduct, quantity: number, batchIds?: number[]) => void;
   warehouseId: number;
   packageTypes?: PackageType[];
 }
@@ -110,13 +135,16 @@ export default function InventoryProductsTable({
 }: InventoryProductsTableProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
+  const [expandedProducts, setExpandedProducts] = useState<Set<number>>(new Set());
+  const [selectedBatches, setSelectedBatches] = useState<Record<number, number[]>>({});
   const { cartItems } = useInventoryCart();
 
   // Hilfsfunktion: Verfügbare Menge berechnen (Lagerbestand - Warenkorb-Menge)
   const getAvailableQuantity = (product: InventoryProduct) => {
     const cartItem = cartItems.find(item => item.productId === product.productId);
     const cartQuantity = cartItem ? cartItem.quantity : 0;
-    return Math.max(0, product.quantity - cartQuantity);
+    const batchQuantity = getAvailableQuantityFromBatches(product);
+    return Math.max(0, batchQuantity - cartQuantity);
   };
 
   // Hilfsfunktion: Erweiterte Produktinformationen mit verfügbaren Mengen
@@ -131,6 +159,24 @@ export default function InventoryProductsTable({
   };
   const [quantityInputs, setQuantityInputs] = useState<Record<number, number>>({});
   const [unitTypes, setUnitTypes] = useState<Record<number, UnitType>>({});
+  
+  // Get batches for products
+  const { data: productBatches } = useQuery({
+    queryKey: ['/api/product-batches', { warehouseId }],
+    queryFn: () => apiRequest(`/api/product-batches?warehouseId=${warehouseId}`, {}, "GET"),
+    enabled: !!warehouseId,
+    select: (data: ProductBatch[]) => {
+      // Group batches by product ID
+      const batchesByProduct: Record<number, ProductBatch[]> = {};
+      data.forEach(batch => {
+        if (!batchesByProduct[batch.productId]) {
+          batchesByProduct[batch.productId] = [];
+        }
+        batchesByProduct[batch.productId].push(batch);
+      });
+      return batchesByProduct;
+    }
+  });
   
   // Filtert Produkte basierend auf dem Suchbegriff
   const filteredProducts = products.filter((product) => {
@@ -158,10 +204,13 @@ export default function InventoryProductsTable({
     const inputQuantity = quantityInputs[product.id] || 1;
     const unitType = unitTypes[product.id] || 'pieces';
     const actualQuantity = calculateActualQuantity(product, inputQuantity, unitType);
+    const selectedBatchIds = selectedBatches[product.productId] || [];
     
     const availableQuantity = getAvailableQuantity(product);
     if (actualQuantity > 0 && actualQuantity <= availableQuantity) {
-      onAddToCart(product, actualQuantity);
+      // Nur Chargen-IDs übertragen, wenn welche ausgewählt sind
+      const batchIdsToTransfer = selectedBatchIds.length > 0 ? selectedBatchIds : undefined;
+      onAddToCart(product, actualQuantity, batchIdsToTransfer);
       
       // Zurücksetzen der Auswahl und Menge nach dem Hinzufügen
       const newSelected = new Set(selectedRows);
@@ -175,6 +224,16 @@ export default function InventoryProductsTable({
       const newUnitTypes = { ...unitTypes };
       delete newUnitTypes[product.id];
       setUnitTypes(newUnitTypes);
+      
+      // Chargen-Auswahl zurücksetzen
+      const newSelectedBatches = { ...selectedBatches };
+      delete newSelectedBatches[product.productId];
+      setSelectedBatches(newSelectedBatches);
+      
+      // Produkterweiterung zurücksetzen
+      const newExpanded = new Set(expandedProducts);
+      newExpanded.delete(product.productId);
+      setExpandedProducts(newExpanded);
     }
   };
 
@@ -204,6 +263,55 @@ export default function InventoryProductsTable({
       ...prev,
       [productId]: unitType
     }));
+  };
+
+  // Behandelt Produkterweiterung (Chargen anzeigen/verbergen)
+  const toggleProductExpansion = (productId: number) => {
+    setExpandedProducts(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(productId)) {
+        newSet.delete(productId);
+      } else {
+        newSet.add(productId);
+      }
+      return newSet;
+    });
+  };
+
+  // Behandelt Chargen-Auswahl
+  const handleBatchSelection = (productId: number, batchId: number, selected: boolean) => {
+    setSelectedBatches(prev => {
+      const productBatches = prev[productId] || [];
+      if (selected) {
+        return {
+          ...prev,
+          [productId]: [...productBatches, batchId]
+        };
+      } else {
+        return {
+          ...prev,
+          [productId]: productBatches.filter(id => id !== batchId)
+        };
+      }
+    });
+  };
+
+  // Hilfsfunktion: Verfügbare Menge aus ausgewählten Chargen berechnen
+  const getAvailableQuantityFromBatches = (product: InventoryProduct): number => {
+    if (!productBatches) return product.quantity;
+    
+    const batches = productBatches[product.productId] || [];
+    const selectedBatchIds = selectedBatches[product.productId] || [];
+    
+    if (selectedBatchIds.length === 0) {
+      // Keine Chargen ausgewählt - verwende Gesamtbestand
+      return product.quantity;
+    }
+    
+    // Nur aus ausgewählten Chargen
+    return batches
+      .filter(batch => selectedBatchIds.includes(batch.id))
+      .reduce((total, batch) => total + batch.currentQuantity, 0);
   };
 
   // Fügt alle ausgewählten Produkte zum Warenkorb hinzu
@@ -270,6 +378,7 @@ export default function InventoryProductsTable({
               <TableHead>Produktname</TableHead>
               <TableHead>Gebindegröße</TableHead>
               <TableHead>Bestand</TableHead>
+              <TableHead>Chargen</TableHead>
               <TableHead>Einheit</TableHead>
               <TableHead>Menge</TableHead>
               <TableHead>Aktionen</TableHead>
@@ -317,6 +426,104 @@ export default function InventoryProductsTable({
                         </div>
                       )}
                     </div>
+                  </TableCell>
+                  
+                  <TableCell>
+                    {(() => {
+                      const batches = productBatches?.[product.productId] || [];
+                      const validBatches = batches.filter(batch => batch.currentQuantity > 0);
+                      
+                      if (validBatches.length === 0) {
+                        return (
+                          <span className="text-sm text-muted-foreground">Keine Chargen</span>
+                        );
+                      }
+                      
+                      if (validBatches.length === 1) {
+                        const batch = validBatches[0];
+                        return (
+                          <div className="text-sm">
+                            <div className="font-medium">{batch.batchNumber}</div>
+                            <div className="text-xs text-muted-foreground">
+                              {batch.currentQuantity} Stück
+                              {batch.expiryDate && (
+                                <span className="ml-2">
+                                  MHD: {new Date(batch.expiryDate).toLocaleDateString('de-DE')}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      }
+                      
+                      return (
+                        <Collapsible
+                          open={expandedProducts.has(product.productId)}
+                          onOpenChange={() => toggleProductExpansion(product.productId)}
+                        >
+                          <CollapsibleTrigger asChild>
+                            <Button variant="ghost" size="sm" className="h-8 p-1">
+                              {expandedProducts.has(product.productId) ? (
+                                <ChevronDown className="h-3 w-3" />
+                              ) : (
+                                <ChevronRight className="h-3 w-3" />
+                              )}
+                              <span className="ml-1 text-xs">
+                                {validBatches.length} Chargen
+                              </span>
+                            </Button>
+                          </CollapsibleTrigger>
+                          <CollapsibleContent className="mt-2">
+                            <div className="space-y-1">
+                              {validBatches.map(batch => {
+                                const isSelected = selectedBatches[product.productId]?.includes(batch.id) || false;
+                                const expiryDays = batch.expiryDate 
+                                  ? Math.ceil((new Date(batch.expiryDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+                                  : null;
+                                
+                                return (
+                                  <div key={batch.id} className="flex items-center gap-2 p-2 border rounded-md">
+                                    <Checkbox
+                                      checked={isSelected}
+                                      onCheckedChange={(checked) => 
+                                        handleBatchSelection(product.productId, batch.id, !!checked)
+                                      }
+                                    />
+                                    <div className="flex-1 text-xs">
+                                      <div className="font-medium">{batch.batchNumber}</div>
+                                      <div className="text-muted-foreground">
+                                        {batch.currentQuantity} Stück
+                                        {batch.expiryDate && (
+                                          <span className={`ml-2 ${
+                                            expiryDays !== null && expiryDays < 7 
+                                              ? 'text-red-600 font-medium' 
+                                              : expiryDays !== null && expiryDays < 30 
+                                                ? 'text-orange-600' 
+                                                : ''
+                                          }`}>
+                                            MHD: {new Date(batch.expiryDate).toLocaleDateString('de-DE')}
+                                            {expiryDays !== null && (
+                                              <span className="ml-1">
+                                                ({expiryDays > 0 ? `${expiryDays}d` : 'abgelaufen'})
+                                              </span>
+                                            )}
+                                          </span>
+                                        )}
+                                      </div>
+                                      {batch.locationInWarehouse && (
+                                        <div className="text-muted-foreground">
+                                          📍 {batch.locationInWarehouse}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </CollapsibleContent>
+                        </Collapsible>
+                      );
+                    })()} 
                   </TableCell>
                   
                   <TableCell>

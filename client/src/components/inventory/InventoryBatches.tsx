@@ -118,11 +118,11 @@ export default function InventoryBatches() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Alle Lager</SelectItem>
-              {warehouses.map((warehouse: any) => (
+              {Array.isArray(warehouses) ? warehouses.map((warehouse: any) => (
                 <SelectItem key={warehouse.id} value={warehouse.id.toString()}>
                   {warehouse.name}
                 </SelectItem>
-              ))}
+              )) : []}
             </SelectContent>
           </Select>
         </div>

@@ -7,6 +7,13 @@ export interface CartItem {
   quantity: number;
   maxQuantity: number;
   warehouseId: number;
+  selectedBatchIds?: number[];
+  batchInfo?: {
+    batchId: number;
+    batchNumber: string;
+    quantity: number;
+    expiryDate?: string;
+  }[];
 }
 
 interface InventoryCartContextType {
