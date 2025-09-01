@@ -889,5 +889,75 @@ router.get('/warehouse/:warehouseId/products', async (req: Request, res: Respons
   }
 });
 
+// DELETE /api/inventory-counts/product-batches/:batchId - Bestehende Charge löschen
+router.delete('/product-batches/:batchId', async (req: Request, res: Response) => {
+  try {
+    const batchId = parseInt(req.params.batchId);
+    
+    console.log(`DELETE /api/inventory-counts/product-batches/${batchId} request`);
+    
+    if (!batchId) {
+      return res.status(400).json({ error: "Batch ID is required" });
+    }
+    
+    // Überprüfe, ob die Charge existiert
+    const existingBatchResult = await rawDb.query(
+      `SELECT * FROM product_batches WHERE id = $1`,
+      [batchId]
+    );
+    
+    if (existingBatchResult.rows.length === 0) {
+      return res.status(404).json({ error: "Batch not found" });
+    }
+    
+    const existingBatch = existingBatchResult.rows[0];
+    
+    // Lösche die Charge
+    const deleteResult = await rawDb.query(
+      `DELETE FROM product_batches WHERE id = $1 RETURNING *`,
+      [batchId]
+    );
+    
+    if (deleteResult.rows.length === 0) {
+      return res.status(404).json({ error: "Batch not found or could not be deleted" });
+    }
+    
+    // Aktualisiere den Gesamtbestand in inventory_items nach dem Löschen
+    try {
+      const totalQuantityResult = await rawDb.query(
+        `SELECT SUM(current_quantity) as total_quantity 
+         FROM product_batches 
+         WHERE product_id = $1 AND warehouse_id = $2 AND status = 'active'`,
+        [existingBatch.product_id, existingBatch.warehouse_id]
+      );
+      
+      const totalQuantity = totalQuantityResult.rows[0].total_quantity || 0;
+      
+      await rawDb.query(
+        `UPDATE inventory_items 
+         SET quantity = $1, updated_at = NOW() 
+         WHERE product_id = $2 AND warehouse_id = $3`,
+        [totalQuantity, existingBatch.product_id, existingBatch.warehouse_id]
+      );
+      
+      console.log(`Lagerbestand für Produkt ${existingBatch.product_id} auf ${totalQuantity} aktualisiert nach Batch-Löschung`);
+    } catch (inventoryError) {
+      console.error("Fehler bei der Lagerbestand-Aktualisierung nach Batch-Löschung:", inventoryError);
+    }
+    
+    console.log("Charge erfolgreich gelöscht:", batchId);
+    res.status(200).json({ 
+      message: "Batch successfully deleted", 
+      deletedBatchId: batchId 
+    });
+  } catch (error) {
+    console.error("Error deleting product batch:", error);
+    res.status(500).json({ 
+      error: "Failed to delete product batch", 
+      details: error instanceof Error ? error.message : String(error) 
+    });
+  }
+});
+
 export default router;
 export const inventoryCountBatchesRouter = router;

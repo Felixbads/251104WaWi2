@@ -6,9 +6,10 @@ import { useSimpleInventory } from '@/hooks/useSimpleInventory';
 import { SimpleInventoryActions } from '@/components/inventory/SimpleInventoryActions';
 import InventoryCountBatchDialog from '@/components/inventory/batch/InventoryCountBatchDialog';
 import NewBatchDialog from '@/components/inventory/batch/NewBatchDialog';
+import EditBatchDialog from '@/components/inventory/batch/EditBatchDialog';
 import { generateBatchNumber, getDefaultExpiryDate, createAndLinkBatch } from '@/components/inventory/batch/CreateAndLinkBatchHandler';
 import {
-  ArrowLeft, Search, TrendingUp, TrendingDown, Equal, Plus, Package, Calendar, ChevronDown, ChevronUp
+  ArrowLeft, Search, TrendingUp, TrendingDown, Equal, Plus, Package, Calendar, ChevronDown, ChevronUp, Edit, Save
 } from 'lucide-react';
 
 // UI-Komponenten
@@ -108,7 +109,9 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
   const [expandedItems, setExpandedItems] = useState<Set<number>>(new Set());
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [showBatchDialog, setShowBatchDialog] = useState(false);
+  const [showEditBatchDialog, setShowEditBatchDialog] = useState(false);
   const [selectedItem, setSelectedItem] = useState<SimpleInventoryItem | null>(null);
+  const [selectedBatch, setSelectedBatch] = useState<ProductBatch | null>(null);
   const [groupView, setGroupView] = useState(true); // Toggle für gruppierte Ansicht
   
   // Neue State-Variablen für Gebinde-Eingabe
@@ -330,10 +333,29 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
     });
   };
 
+  // Auto-expand all groups when data loads (gruppierte Ansicht standardmäßig aufgeklappt)
+  useEffect(() => {
+    if (inventurItems && groupView) {
+      const productNames = new Set<string>();
+      inventurItems.forEach((item: SimpleInventoryItem) => {
+        const productName = item.product?.productName || 'Unbekanntes Produkt';
+        productNames.add(productName);
+      });
+      setExpandedGroups(productNames);
+    }
+  }, [inventurItems, groupView]);
+
   // MHD-Batch Dialog Handler
   const handleCreateBatch = (item: SimpleInventoryItem) => {
     setSelectedItem(item);
     setShowBatchDialog(true);
+  };
+
+  // Handler für Batch-Bearbeitung
+  const handleEditBatch = (batch: ProductBatch, item: SimpleInventoryItem) => {
+    setSelectedBatch(batch);
+    setSelectedItem(item);
+    setShowEditBatchDialog(true);
   };
 
 
@@ -1035,10 +1057,10 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
                                 variant="outline"
                                 size="sm"
                                 onClick={() => handleCreateBatch(item)}
-                                className="h-6 text-xs"
+                                className="h-6 text-xs bg-blue-50 hover:bg-blue-100 border-blue-200 text-blue-700"
                               >
                                 <Plus className="h-3 w-3 mr-1" />
-                                MHD
+                                Neue Charge
                               </Button>
                             </div>
                           </TableCell>
@@ -1073,11 +1095,12 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
                                       return (
                                         <div 
                                           key={batch.id} 
-                                          className={`border rounded-lg p-3 transition-opacity ${
+                                          className={`relative border rounded-lg p-3 transition-all cursor-pointer hover:shadow-md hover:border-blue-300 group ${
                                             isExpired 
                                               ? 'bg-gray-50 opacity-50 border-gray-200' 
                                               : 'bg-white border-gray-300'
                                           }`}
+                                          onClick={() => handleEditBatch(batch, item)}
                                         >
                                           <div className="flex justify-between items-start mb-2">
                                             <span className={`font-mono text-sm font-medium ${
@@ -1100,6 +1123,9 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
                                             {batch.notes && (
                                               <div className="mt-1 text-xs">{batch.notes}</div>
                                             )}
+                                          </div>
+                                          <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <Edit className="h-4 w-4 text-blue-500" />
                                           </div>
                                         </div>
                                       );
@@ -1126,7 +1152,7 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
         </CardContent>
       </Card>
 
-      {/* Batch Create/Edit Modal */}
+      {/* Batch Create Modal */}
       {showBatchDialog && selectedItem && inventurData && (
         <NewBatchDialog
           open={showBatchDialog}
@@ -1160,6 +1186,57 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
             
             // Dialog schließen
             setShowBatchDialog(false);
+            setSelectedItem(null);
+          }}
+        />
+      )}
+
+      {/* Batch Edit Modal */}
+      {showEditBatchDialog && selectedBatch && selectedItem && (
+        <EditBatchDialog
+          open={showEditBatchDialog}
+          onOpenChange={(open) => {
+            setShowEditBatchDialog(open);
+            if (!open) {
+              setSelectedBatch(null);
+              setSelectedItem(null);
+            }
+          }}
+          batch={selectedBatch}
+          onSuccess={() => {
+            // Query invalidieren für Live-Update der availableBatches
+            queryClient.invalidateQueries({ 
+              queryKey: [`/api/inventory-count-batches/warehouse/${inventurData?.warehouseId}/products`]
+            });
+            
+            // Optional: Auch die Inventur-Items-Query invalidieren für vollständige Konsistenz
+            queryClient.invalidateQueries({ 
+              queryKey: [`/api/inventory-counts/${inventoryId}/items`]
+            });
+            
+            toast({
+              title: "MHD-Batch aktualisiert",
+              description: `Charge ${selectedBatch.batchNumber} wurde erfolgreich bearbeitet`,
+            });
+            
+            // Dialog schließen
+            setShowEditBatchDialog(false);
+            setSelectedBatch(null);
+            setSelectedItem(null);
+          }}
+          onDelete={() => {
+            // Query invalidieren nach Löschung
+            queryClient.invalidateQueries({ 
+              queryKey: [`/api/inventory-count-batches/warehouse/${inventurData?.warehouseId}/products`]
+            });
+            
+            queryClient.invalidateQueries({ 
+              queryKey: [`/api/inventory-counts/${inventoryId}/items`]
+            });
+            
+            // Dialog schließen
+            setShowEditBatchDialog(false);
+            setSelectedBatch(null);
             setSelectedItem(null);
           }}
         />
