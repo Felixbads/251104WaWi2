@@ -25,7 +25,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { CalendarIcon, CheckCircle2, CircleAlert, Package, PlusCircle } from 'lucide-react';
+import { CalendarIcon, CheckCircle2, CircleAlert, Package, PlusCircle, Pencil } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
@@ -61,6 +61,7 @@ interface InventoryCountBatchDialogProps {
   inventoryId: string;
   warehouseId: number; // Lagernummer ist wichtig für die korrekte Batch-Erstellung
   onBatchCreated?: (newBatch: ProductBatch) => void; // Callback mit der erstellten Batch
+  onBatchUpdated?: (updatedBatch: ProductBatch) => void; // Callback für bearbeitete Batch
   editBatch?: {
     id: number;
     batchNumber: string;
@@ -82,6 +83,7 @@ export default function InventoryCountBatchDialog({
   inventoryId,
   warehouseId,
   onBatchCreated,
+  onBatchUpdated,
   editBatch = null,
   isEditMode = false
 }: InventoryCountBatchDialogProps) {
@@ -114,7 +116,8 @@ export default function InventoryCountBatchDialog({
 
   // Initialize edit mode states when editBatch is provided
   useEffect(() => {
-    if (isEditMode && editBatch) {
+    if (editBatch) {
+      setActiveTab('edit');
       setNewBatchNumber(editBatch.batchNumber);
       setBatchQuantity(editBatch.currentQuantity);
       setExpiryDate(editBatch.expiryDate ? new Date(editBatch.expiryDate) : null);
@@ -540,7 +543,6 @@ export default function InventoryCountBatchDialog({
         batchNumber: newBatchNumber,
         expiryDate: expiryDate ? format(expiryDate, 'yyyy-MM-dd') : null,
         quantity: batchQuantity,
-        initialQuantity: batchQuantity,
         currentQuantity: batchQuantity,
         notes: `Erstellt bei Inventur #${inventoryId}`,
         queryClient,
@@ -570,6 +572,68 @@ export default function InventoryCountBatchDialog({
       
     } catch (error: any) {
       console.error('Fehler bei der kombinierten Aktion:', error);
+      setIsSubmitting(false);
+    }
+  };
+
+  // Handler für das Bearbeiten einer bestehenden Batch
+  const handleEditBatch = async () => {
+    if (!editBatch || !selectedItem) {
+      toast({
+        title: 'Fehler',
+        description: 'Keine Charge zum Bearbeiten ausgewählt.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const updateData = {
+        batchNumber: newBatchNumber,
+        expiryDate: expiryDate ? format(expiryDate, 'yyyy-MM-dd') : null,
+        currentQuantity: batchQuantity,
+        notes: editNotes,
+        locationInWarehouse: editLocationInWarehouse
+      };
+
+      const response = await fetch(`/api/batches/${editBatch.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updateData),
+      });
+
+      if (!response.ok) {
+        throw new Error('Fehler beim Aktualisieren der Charge');
+      }
+
+      const updatedBatch = await response.json();
+
+      toast({
+        title: 'Charge aktualisiert',
+        description: `Charge ${newBatchNumber} wurde erfolgreich aktualisiert.`,
+      });
+
+      // Callback für Batch-Update
+      if (onBatchUpdated) {
+        onBatchUpdated(updatedBatch);
+      }
+
+      // Cache invalidieren
+      await queryClient.invalidateQueries({ queryKey: ['batches'] });
+      await queryClient.invalidateQueries({ queryKey: ['inventory-batches'] });
+
+      onOpenChange(false);
+    } catch (error: any) {
+      console.error('Fehler beim Aktualisieren der Charge:', error);
+      toast({
+        title: 'Fehler',
+        description: error.message || 'Die Charge konnte nicht aktualisiert werden.',
+        variant: 'destructive',
+      });
+    } finally {
       setIsSubmitting(false);
     }
   };
@@ -824,7 +888,43 @@ export default function InventoryCountBatchDialog({
                                 key={batch.id} 
                                 value={batch.id.toString()}
                               >
-                                {batch.batchNumber} - MHD: {formatBatchDate(batch.expiryDate)} ({batch.currentQuantity} Stk.)
+                                <div className="flex items-center justify-between w-full">
+                                  <span>
+                                    {batch.batchNumber} - MHD: {formatBatchDate(batch.expiryDate)} ({batch.currentQuantity} Stk.)
+                                  </span>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-6 w-6 p-0 ml-2"
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      // Switch to edit mode for this batch
+                                      if (onBatchSelect && selectedItem) {
+                                        // Create edit batch object
+                                        const editBatchData = {
+                                          id: batch.id,
+                                          batchNumber: batch.batchNumber,
+                                          expiryDate: batch.expiryDate,
+                                          currentQuantity: batch.currentQuantity,
+                                          initialQuantity: batch.currentQuantity, // Fallback
+                                          notes: '',
+                                          locationInWarehouse: ''
+                                        };
+                                        
+                                        // Close current dialog and open in edit mode
+                                        onOpenChange(false);
+                                        setTimeout(() => {
+                                          // This would need to be handled by the parent component
+                                          // For now, just switch to edit tab
+                                          setActiveTab('edit');
+                                        }, 100);
+                                      }
+                                    }}
+                                  >
+                                    <Pencil className="h-3 w-3" />
+                                  </Button>
+                                </div>
                               </SelectItem>
                             ))}
                           </SelectGroup>
@@ -875,10 +975,137 @@ export default function InventoryCountBatchDialog({
                               {filteredBatches.find(b => b.id.toString() === selectedBatchId)?.currentQuantity || 0}
                             </span>
                           </div>
+                          
+                          {/* Edit Button for Selected Batch */}
+                          <div className="flex justify-center mt-3 pt-2 border-t">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                const selectedBatch = filteredBatches.find(b => b.id.toString() === selectedBatchId);
+                                if (selectedBatch) {
+                                  // Initialize edit state
+                                  setNewBatchNumber(selectedBatch.batchNumber);
+                                  setBatchQuantity(selectedBatch.currentQuantity);
+                                  setExpiryDate(selectedBatch.expiryDate ? new Date(selectedBatch.expiryDate) : null);
+                                  setEditNotes('');
+                                  setEditLocationInWarehouse('');
+                                  
+                                  // Switch to edit tab
+                                  setActiveTab('edit');
+                                }
+                              }}
+                              className="flex items-center gap-2"
+                            >
+                              <Pencil className="h-4 w-4" />
+                              Charge bearbeiten
+                            </Button>
+                          </div>
                         </div>
                       </div>
                     )}
                   </>
+                )}
+              </TabsContent>
+              
+              {/* Edit Tab Content */}
+              <TabsContent value="edit">
+                {editBatch && (
+                  <div className="space-y-4">
+                    <div className="p-4 border rounded-lg bg-blue-50 dark:bg-blue-950">
+                      <h3 className="font-semibold text-blue-900 dark:text-blue-100 mb-2 flex items-center">
+                        <Pencil className="h-4 w-4 mr-2" />
+                        Charge bearbeiten
+                      </h3>
+                      <p className="text-sm text-blue-700 dark:text-blue-300">
+                        Bearbeiten Sie die Details der ausgewählten Charge
+                      </p>
+                    </div>
+                    
+                    {/* Batch Number */}
+                    <div>
+                      <Label htmlFor="edit-batch-number">Chargennummer</Label>
+                      <Input
+                        id="edit-batch-number"
+                        type="text"
+                        value={newBatchNumber}
+                        onChange={(e) => setNewBatchNumber(e.target.value)}
+                        placeholder="z.B. CHG-20240901-123456"
+                      />
+                    </div>
+                    
+                    {/* Current Quantity */}
+                    <div>
+                      <Label htmlFor="edit-quantity">Aktuelle Menge</Label>
+                      <Input
+                        id="edit-quantity"
+                        type="number"
+                        min="0"
+                        value={batchQuantity}
+                        onChange={(e) => setBatchQuantity(Math.max(0, parseInt(e.target.value) || 0))}
+                        placeholder="Anzahl Stück"
+                      />
+                    </div>
+                    
+                    {/* Expiry Date with Manual Input */}
+                    <div>
+                      <Label htmlFor="edit-expiry-date">Mindesthaltbarkeitsdatum (MHD)</Label>
+                      <div className="flex gap-2">
+                        <Input
+                          id="edit-expiry-date"
+                          type="date"
+                          value={expiryDate ? format(expiryDate, 'yyyy-MM-dd') : ''}
+                          onChange={(e) => {
+                            if (e.target.value) {
+                              setExpiryDate(new Date(e.target.value));
+                            } else {
+                              setExpiryDate(null);
+                            }
+                          }}
+                          className="flex-1"
+                        />
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button variant="outline" className="w-auto px-3">
+                              <CalendarIcon className="h-4 w-4" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar
+                              mode="single"
+                              selected={expiryDate || undefined}
+                              onSelect={(date) => setExpiryDate(date || null)}
+                              initialFocus
+                            />
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+                    </div>
+                    
+                    {/* Notes */}
+                    <div>
+                      <Label htmlFor="edit-notes">Notizen (optional)</Label>
+                      <Input
+                        id="edit-notes"
+                        type="text"
+                        value={editNotes}
+                        onChange={(e) => setEditNotes(e.target.value)}
+                        placeholder="Zusätzliche Informationen zur Charge"
+                      />
+                    </div>
+                    
+                    {/* Location */}
+                    <div>
+                      <Label htmlFor="edit-location">Lagerort (optional)</Label>
+                      <Input
+                        id="edit-location"
+                        type="text"
+                        value={editLocationInWarehouse}
+                        onChange={(e) => setEditLocationInWarehouse(e.target.value)}
+                        placeholder="z.B. Regal A, Fach 3"
+                      />
+                    </div>
+                  </div>
                 )}
               </TabsContent>
               
@@ -949,81 +1176,26 @@ export default function InventoryCountBatchDialog({
                     <label className="block text-sm font-medium mb-1">
                       Mindesthaltbarkeitsdatum
                     </label>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          className="w-full justify-start text-left font-normal"
-                        >
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {expiryDate ? format(expiryDate, 'dd.MM.yyyy') : <span>Datum auswählen</span>}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0">
-                        <Calendar
-                          mode="single"
-                          selected={expiryDate || undefined}
-                          onSelect={(date) => setExpiryDate(date || null)}
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Datum, an dem die Charge abläuft
-                    </p>
-                  </div>
-                </div>
-              </TabsContent>
-
-              {/* Edit Tab Content */}
-              <TabsContent value="edit">
-                {isEditMode && editBatch ? (
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium mb-1">
-                        Chargennummer
-                      </label>
+                    <div className="flex gap-2">
                       <Input
-                        value={newBatchNumber}
-                        onChange={(e) => setNewBatchNumber(e.target.value)}
-                        placeholder="Chargennummer eingeben"
+                        type="date"
+                        value={expiryDate ? format(expiryDate, 'yyyy-MM-dd') : ''}
+                        onChange={(e) => {
+                          if (e.target.value) {
+                            setExpiryDate(new Date(e.target.value));
+                          } else {
+                            setExpiryDate(null);
+                          }
+                        }}
+                        className="flex-1"
                       />
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Eindeutige Kennzeichnung der Charge
-                      </p>
-                    </div>
-                    
-                    <div>
-                      <label className="block text-sm font-medium mb-1">
-                        Menge
-                      </label>
-                      <Input
-                        type="number"
-                        min="0"
-                        value={batchQuantity}
-                        onChange={(e) => setBatchQuantity(parseInt(e.target.value) || 0)}
-                        placeholder="Anzahl eingeben"
-                      />
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Anzahl der Produkte in dieser Charge
-                      </p>
-                    </div>
-                    
-                    <div>
-                      <label className="block text-sm font-medium mb-1">
-                        Mindesthaltbarkeitsdatum
-                      </label>
                       <Popover>
                         <PopoverTrigger asChild>
-                          <Button
-                            variant="outline"
-                            className="w-full justify-start text-left font-normal"
-                          >
-                            <CalendarIcon className="mr-2 h-4 w-4" />
-                            {expiryDate ? format(expiryDate, 'dd.MM.yyyy') : <span>Datum auswählen</span>}
+                          <Button variant="outline" className="w-auto px-3">
+                            <CalendarIcon className="h-4 w-4" />
                           </Button>
                         </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0">
+                        <PopoverContent className="w-auto p-0" align="start">
                           <Calendar
                             mode="single"
                             selected={expiryDate || undefined}
@@ -1032,44 +1204,12 @@ export default function InventoryCountBatchDialog({
                           />
                         </PopoverContent>
                       </Popover>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Datum, an dem die Charge abläuft
-                      </p>
                     </div>
-                    
-                    <div>
-                      <label className="block text-sm font-medium mb-1">
-                        Lagerort (optional)
-                      </label>
-                      <Input
-                        value={editLocationInWarehouse}
-                        onChange={(e) => setEditLocationInWarehouse(e.target.value)}
-                        placeholder="z.B. Regal A-3"
-                      />
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Standort der Charge im Lager
-                      </p>
-                    </div>
-                    
-                    <div>
-                      <label className="block text-sm font-medium mb-1">
-                        Notizen (optional)
-                      </label>
-                      <Input
-                        value={editNotes}
-                        onChange={(e) => setEditNotes(e.target.value)}
-                        placeholder="Zusätzliche Informationen"
-                      />
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Weitere Informationen zur Charge
-                      </p>
-                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Manuelle Eingabe oder Kalender verwenden
+                    </p>
                   </div>
-                ) : (
-                  <div className="text-center py-4">
-                    <p className="text-muted-foreground">Keine Charge zum Bearbeiten ausgewählt.</p>
-                  </div>
-                )}
+                </div>
               </TabsContent>
             </Tabs>
         </div>

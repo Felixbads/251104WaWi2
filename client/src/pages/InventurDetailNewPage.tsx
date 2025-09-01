@@ -280,10 +280,8 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
     return 0;
   };
 
-  // Funktion zum Laden aller Chargen für ein Produkt
+  // Funktion zum Laden aller Chargen für ein Produkt  
   const loadProductBatches = async (productId: number) => {
-    if (!inventoryData?.warehouse_id) return [];
-    
     try {
       const response = await fetch(`/api/inventory-counts/${id}/product-batches/${productId}`);
       if (response.ok) {
@@ -339,10 +337,12 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
   
   // Load product batches when items are expanded
   useEffect(() => {
+    if (!inventurData?.items) return;
+    
     const expandedProductIds = Object.keys(expandedItems)
       .filter(key => expandedItems[parseInt(key)])
       .map(key => {
-        const item = inventurData?.items?.find(item => item.id === parseInt(key));
+        const item = inventurData.items?.find(item => item.id === parseInt(key));
         return item?.productId;
       })
       .filter(Boolean) as number[];
@@ -352,7 +352,7 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
         loadProductBatches(productId);
       }
     });
-  }, [expandedItems, inventurData?.items]);
+  }, [expandedItems, inventurData?.items, productBatches]);
 
   // Lade Inventurdaten
   const { 
@@ -2316,7 +2316,7 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
     : (inventurStatusTypes[currentStatus]?.color || 'bg-gray-100 text-gray-800');
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 min-h-screen overflow-y-auto p-4 pb-20">
       {/* Hauptkopfzeile mit Zurück-Button und Titel */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center">
@@ -3236,7 +3236,7 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
       
       {/* Dialog: Produkte hinzufügen */}
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto flex flex-col">
           <DialogHeader>
             <DialogTitle>Produkte hinzufügen</DialogTitle>
             <DialogDescription>
@@ -3349,7 +3349,7 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
           batchNumber: selectedItem.batch?.batchNumber || '',
           expiryDate: selectedItem.batch?.expiryDate || null
         } : null}
-        editingBatch={editingBatch}
+        editBatch={editingBatch}
         availableBatches={availableBatches}
         onBatchSelect={handleBatchUpdate}
         inventoryId={inventurData?.id.toString() || '0'}
@@ -3459,7 +3459,7 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
             });
           }
         }}
-        onBatchUpdated={(updatedBatch) => {
+        onBatchUpdated={(updatedBatch: ProductBatch) => {
           console.log('Batch aktualisiert:', updatedBatch);
           
           // Update productBatches state with the updated batch
