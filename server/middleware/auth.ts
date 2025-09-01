@@ -1,10 +1,10 @@
 import { Request, Response, NextFunction } from 'express';
+import { replitAuthMiddleware } from '../auth/replit-auth';
 
-// Authentifizierungsmiddleware
-export const authenticateUser = (req: Request, res: Response, next: NextFunction) => {
-  // In diesem Kontext prüfen wir nicht die Authentifizierung,
-  // da wir davon ausgehen, dass die Session bereits durch Express-Session verwaltet wird
-  // In einer Produktionsumgebung würde hier eine robustere Authentifizierungsprüfung stattfinden
-  
+// Authentifizierungsmiddleware - verwendet echte Replit-Authentifizierung
+export const authenticateUser = replitAuthMiddleware;
+
+// Alternative für spezielle Fälle ohne Authentifizierung
+export const skipAuth = (req: Request, res: Response, next: NextFunction) => {
   next();
 };

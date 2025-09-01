@@ -162,6 +162,32 @@ app.get('/api/inter-app/health', async (req, res) => {
   }
 });
 
+// SECURITY: Add global authentication for all API routes except public ones
+import { replitAuthMiddleware } from './auth/replit-auth';
+
+// Public routes that don't need authentication
+const publicRoutes = [
+  '/api/inter-app/',
+  '/api/supplier-portal/',
+  '/api/auth/',
+  '/api/test-email'
+];
+
+app.use('/api', (req, res, next) => {
+  // Check if this is a public route
+  const isPublicRoute = publicRoutes.some(route => req.path.startsWith(route));
+  
+  if (isPublicRoute) {
+    console.log(`[AUTH] Public route accessed: ${req.path}`);
+    return next();
+  }
+  
+  // Apply authentication for all other API routes
+  console.log(`[AUTH] Protected route accessed: ${req.path}`);
+  return replitAuthMiddleware(req, res, next);
+});
+console.log('[SERVER] Global API authentication middleware applied');
+
 // Mount enhanced inter-app API routes (MIT Authentifizierung)
 app.use('/api/inter-app', interAppApiRouter);
 
@@ -1916,6 +1942,7 @@ app.get('/orders-data', (req, res) => {
   const { registerMHDRecommendationRoutes } = await import('./routes/mhdRecommendations');
   registerMHDRecommendationRoutes(app);
   console.log('[SERVER] MHD recommendations router mounted BEFORE registerRoutes');
+
 
   // CRITICAL: Register API routes FIRST before any static/wildcard routes
   console.log('[SERVER] Registering API routes BEFORE Vite middleware...');
