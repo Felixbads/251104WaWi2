@@ -113,7 +113,9 @@ export default function NewBatchDialog({
         currentQuantity: quantity,
         // WICHTIG: Explizit das quantity-Feld setzen, da es in der Datenbank als NOT NULL definiert ist
         quantity: quantity,
-        notes: data.notes || null
+        notes: data.notes || null,
+        // WICHTIG: Status muss 'active' sein, damit Batches angezeigt werden
+        status: 'active'
       };
 
       console.log("Sending payload to API:", payload);

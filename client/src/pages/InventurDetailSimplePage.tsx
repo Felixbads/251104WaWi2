@@ -134,10 +134,20 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
   });
 
   // Lade verfügbare Batches für jedes Produkt
-  const { data: availableBatches, refetch: refetchAvailableBatches } = useQuery<ProductBatch[]>({
+  const { data: availableBatches, refetch: refetchAvailableBatches, isLoading: batchesLoading, error: batchesError } = useQuery<ProductBatch[]>({
     queryKey: [`/api/inventory-count-batches/warehouse/${inventurData?.warehouseId}/products`],
     enabled: !!inventurData?.warehouseId,
   });
+  
+  // Debug-Logging für Batches
+  useEffect(() => {
+    if (availableBatches) {
+      console.log('[INVENTORY-PAGE] Available batches loaded:', availableBatches);
+    }
+    if (batchesError) {
+      console.error('[INVENTORY-PAGE] Error loading batches:', batchesError);
+    }
+  }, [availableBatches, batchesError]);
 
   // Lade Einkaufsbedingungen für alle Produkte (für korrekte Gebinde-Informationen)
   const productIds = useMemo(() => {
