@@ -263,7 +263,7 @@ export default function NewBatchDialog({
                   )}
                 />
 
-                {/* Mindesthaltbarkeitsdatum (MHD) - vereinfachte Version mit Input-Feld */}
+                {/* Mindesthaltbarkeitsdatum (MHD) - responsive Datumseingabe */}
                 <FormField
                   control={form.control}
                   name="expiryDate"
@@ -272,14 +272,27 @@ export default function NewBatchDialog({
                       <FormLabel>Mindesthaltbarkeitsdatum (MHD)</FormLabel>
                       <FormControl>
                         <Input 
-                          type="date" 
+                          type={typeof window !== 'undefined' && window.innerWidth <= 768 ? "date" : "text"}
+                          placeholder={typeof window !== 'undefined' && window.innerWidth > 768 ? "YYYY-MM-DD" : undefined}
                           value={field.value ? format(field.value, "yyyy-MM-dd") : ''}
                           onChange={(e) => {
-                            const date = e.target.value ? new Date(e.target.value) : undefined;
-                            console.log("MHD Input changed:", e.target.value, "Parsed date:", date);
+                            const value = e.target.value;
+                            let date: Date | undefined;
+                            
+                            if (value) {
+                              // Versuche verschiedene Datumsformate zu parsen
+                              if (value.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                                date = new Date(value);
+                              } else if (value.match(/^\d{2}\.\d{2}\.\d{4}$/)) {
+                                const [day, month, year] = value.split('.');
+                                date = new Date(`${year}-${month}-${day}`);
+                              }
+                            }
+                            
+                            console.log("MHD Input changed:", value, "Parsed date:", date);
                             field.onChange(date);
                           }}
-                          min={format(new Date(), "yyyy-MM-dd")} // Minimum heute
+                          min={typeof window !== 'undefined' && window.innerWidth <= 768 ? format(new Date(), "yyyy-MM-dd") : undefined}
                         />
                       </FormControl>
                       <FormMessage />
@@ -287,7 +300,7 @@ export default function NewBatchDialog({
                   )}
                 />
 
-                {/* Eingangsdatum - vereinfachte Version mit Input-Feld */}
+                {/* Eingangsdatum - responsive Datumseingabe */}
                 <FormField
                   control={form.control}
                   name="incomingDate"
@@ -296,14 +309,27 @@ export default function NewBatchDialog({
                       <FormLabel>Eingangsdatum</FormLabel>
                       <FormControl>
                         <Input 
-                          type="date" 
+                          type={typeof window !== 'undefined' && window.innerWidth <= 768 ? "date" : "text"}
+                          placeholder={typeof window !== 'undefined' && window.innerWidth > 768 ? "YYYY-MM-DD" : undefined}
                           value={field.value ? format(field.value, "yyyy-MM-dd") : ''}
                           onChange={(e) => {
-                            const date = e.target.value ? new Date(e.target.value) : undefined;
-                            console.log("Eingangsdatum Input changed:", e.target.value, "Parsed date:", date);
+                            const value = e.target.value;
+                            let date: Date | undefined;
+                            
+                            if (value) {
+                              // Versuche verschiedene Datumsformate zu parsen
+                              if (value.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                                date = new Date(value);
+                              } else if (value.match(/^\d{2}\.\d{2}\.\d{4}$/)) {
+                                const [day, month, year] = value.split('.');
+                                date = new Date(`${year}-${month}-${day}`);
+                              }
+                            }
+                            
+                            console.log("Eingangsdatum Input changed:", value, "Parsed date:", date);
                             field.onChange(date);
                           }}
-                          max={format(new Date(), "yyyy-MM-dd")} // Maximum heute
+                          max={typeof window !== 'undefined' && window.innerWidth <= 768 ? format(new Date(), "yyyy-MM-dd") : undefined}
                         />
                       </FormControl>
                       <FormMessage />

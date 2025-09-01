@@ -499,7 +499,7 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
   }
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
+    <div className="container mx-auto p-6 space-y-6 min-h-screen overflow-y-auto">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
@@ -606,7 +606,7 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
                   groupedItems.map((group) => {
                     const isGroupExpanded = expandedGroups.has(group.productName);
                     return (
-                      <React.Fragment key={`group-${group.productName}`}>
+                      <div key={`group-${group.productName}`}>
                         {/* Hauptgruppe */}
                         <TableRow 
                           className={`cursor-pointer hover:bg-muted/50 ${group.hasMultipleEntries ? 'bg-blue-50/50' : ''}`}
@@ -871,7 +871,7 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
                             );
                           })
                         )}
-                      </React.Fragment>
+                      </div>
                     );
                   })
                 ) : (
@@ -891,7 +891,7 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
                     ) || [];
                     
                     return (
-                      <React.Fragment key={`fragment-${item.id}-${item.productId}`}>
+                      <div key={`fragment-${item.id}-${item.productId}`}>
                         <TableRow key={`row-${item.id}`}>
                           <TableCell>
                             <div className="flex items-center space-x-2">
@@ -1149,7 +1149,7 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
                             </TableCell>
                           </TableRow>
                         )}
-                      </React.Fragment>
+                      </div>
                     );
                   })
                 )}

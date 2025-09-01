@@ -267,10 +267,23 @@ export default function EditBatchDialog({
                       <FormLabel>Mindesthaltbarkeitsdatum (MHD)</FormLabel>
                       <FormControl>
                         <Input 
-                          type="date" 
+                          type={typeof window !== 'undefined' && window.innerWidth <= 768 ? "date" : "text"}
+                          placeholder={typeof window !== 'undefined' && window.innerWidth > 768 ? "YYYY-MM-DD" : undefined}
                           value={field.value ? format(field.value, "yyyy-MM-dd") : ''}
                           onChange={(e) => {
-                            const date = e.target.value ? new Date(e.target.value) : undefined;
+                            const value = e.target.value;
+                            let date: Date | undefined;
+                            
+                            if (value) {
+                              // Versuche verschiedene Datumsformate zu parsen
+                              if (value.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                                date = new Date(value);
+                              } else if (value.match(/^\d{2}\.\d{2}\.\d{4}$/)) {
+                                const [day, month, year] = value.split('.');
+                                date = new Date(`${year}-${month}-${day}`);
+                              }
+                            }
+                            
                             field.onChange(date);
                           }}
                         />
@@ -289,10 +302,23 @@ export default function EditBatchDialog({
                       <FormLabel>Eingangsdatum</FormLabel>
                       <FormControl>
                         <Input 
-                          type="date" 
+                          type={typeof window !== 'undefined' && window.innerWidth <= 768 ? "date" : "text"}
+                          placeholder={typeof window !== 'undefined' && window.innerWidth > 768 ? "YYYY-MM-DD" : undefined}
                           value={field.value ? format(field.value, "yyyy-MM-dd") : ''}
                           onChange={(e) => {
-                            const date = e.target.value ? new Date(e.target.value) : undefined;
+                            const value = e.target.value;
+                            let date: Date | undefined;
+                            
+                            if (value) {
+                              // Versuche verschiedene Datumsformate zu parsen
+                              if (value.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                                date = new Date(value);
+                              } else if (value.match(/^\d{2}\.\d{2}\.\d{4}$/)) {
+                                const [day, month, year] = value.split('.');
+                                date = new Date(`${year}-${month}-${day}`);
+                              }
+                            }
+                            
                             field.onChange(date);
                           }}
                           max={format(new Date(), "yyyy-MM-dd")}
