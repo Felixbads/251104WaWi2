@@ -487,7 +487,7 @@ app.get('/orders-data', (req, res) => {
           w.name as warehouse_name,
           w.name as warehouseName,
           w.address as warehouse_address,
-          w.location as warehouse_location
+          w.name as warehouse_location
         FROM orders o
         LEFT JOIN suppliers s ON o.supplier_id = s.id
         LEFT JOIN warehouses w ON o.warehouse_id = w.id OR o.location_id = w.id
@@ -2462,7 +2462,12 @@ app.get('/orders-data', (req, res) => {
       }
 
       const result = await pool.query(`
-        SELECT oi.*, p.product_name, p.sku, p.category
+        SELECT 
+          oi.*, 
+          p.product_name, 
+          p.sku, 
+          p.category,
+          p.package_size
         FROM order_items oi
         LEFT JOIN products p ON oi.product_id = p.id
         WHERE oi.order_id = $1

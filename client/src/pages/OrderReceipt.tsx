@@ -203,6 +203,13 @@ export default function OrderReceipt() {
     staleTime: 1000 * 60 * 5 // 5 Minuten
   });
   
+  // Sichere Produktdaten mit Fallback - handle beide API response Strukturen
+  const products = (() => {
+    if (Array.isArray(productsData)) return productsData;
+    if (productsData && Array.isArray(productsData.data)) return productsData.data;
+    return [];
+  })();
+  
   // Initialize orderItems when order data is loaded
   useEffect(() => {
     if (order && order.orderItems && order.orderItems.length > 0) {
@@ -871,7 +878,7 @@ export default function OrderReceipt() {
                   value={selectedItem?.productId}
                   onChange={(e) => {
                     const newProductId = parseInt(e.target.value);
-                    const product = productsData?.data.find(p => p.id === newProductId);
+                    const product = products.find((p: any) => p.id === newProductId);
                     if (product && selectedItem) {
                       setOrderItems(items => 
                         items.map(item => 
@@ -888,9 +895,9 @@ export default function OrderReceipt() {
                   }}
                 >
                   <option value={selectedItem?.productId}>{selectedItem?.productName}</option>
-                  {productsData?.data
-                    .filter(p => p.id !== selectedItem?.productId)
-                    .map(product => (
+                  {products
+                    .filter((p: any) => p.id !== selectedItem?.productId)
+                    .map((product: any) => (
                       <option key={product.id} value={product.id}>
                         {product.productName || product.name}
                       </option>

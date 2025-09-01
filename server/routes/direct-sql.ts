@@ -176,9 +176,17 @@ router.get('/orders-direct/:id', async (req, res) => {
       warehouseData = warehouseQuery.rows.length > 0 ? warehouseQuery.rows[0] : null;
     }
     
-    // Bestellpositionen abfragen ohne JOIN, um keinen Fehler zu bekommen
+    // Bestellpositionen abfragen MIT JOIN für package_size Information
     const itemsResult = await pool.query(`
-      SELECT * FROM order_items WHERE order_id = $1
+      SELECT 
+        oi.*,
+        p.package_size,
+        p.product_name as product_name_from_products,
+        p.sku as product_sku
+      FROM order_items oi
+      LEFT JOIN products p ON oi.product_id = p.id
+      WHERE oi.order_id = $1
+      ORDER BY oi.id
     `, [orderId]);
     
     // Daten für Frontend aufbereiten

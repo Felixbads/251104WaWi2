@@ -44,6 +44,8 @@ import {
   createProductWithPackageInfo,
   calculatePackageInfo,
   formatPackageDisplayFromString,
+  formatPackageDisplay,
+  formatTotalQuantity,
   calculatePackageCount,
   calculateTotalQuantity
 } from '../../../../shared/package-utils';
@@ -126,37 +128,41 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
   }
   
   const [receivedItems, setReceivedItems] = useState<OrderItem[]>(
-    orderItems.map(item => ({
-      ...item,
-      // Wichtig: orderItemId für die API-Übertragung (aus der Datenbank-ID)
-      id: item.id || item.orderItemId || item.productId,
-      orderItemId: item.id || item.orderItemId,
-      productId: item.product_id || item.productId,
-      // Stellen sicher, dass der Name vorhanden ist (entweder name oder productName)
-      name: item.name || item.product_name || item.productName || 'Artikel ohne Namen',
-      productName: item.name || item.product_name || item.productName || 'Artikel ohne Namen',
-      // Stellen sicher, dass die orderedQuantity korrekt ist (kann orderQuantity, orderedQuantity oder quantity sein)
-      orderedQuantity: item.orderQuantity || item.orderedQuantity || item.quantity || 0,
-      receivedQuantity: item.orderQuantity || item.orderedQuantity || item.quantity || 0,
-      price: item.price || item.unit_price || item.unitPrice || 0,
-      unitPrice: item.price || item.unit_price || item.unitPrice || 0,
-      unit: item.unit || 'Stk.',
-      damaged: false,
-      comment: '',
-      expiryDate: '', // Leeres Feld für MHD hinzufügen
-      packageSize: item.package_size, // Gebindegröße aus der Datenbank
-      // Package-spezifische Initialisierung
-      receivedPackageCount: 0,
-      receivedTotalQuantity: item.orderQuantity || item.orderedQuantity || item.quantity || 0
-    }))
+    orderItems.map(item => {
+      const orderedQuantity = item.orderQuantity || item.orderedQuantity || item.quantity || 0;
+      
+      return {
+        ...item,
+        // Wichtig: orderItemId für die API-Übertragung (aus der Datenbank-ID)
+        id: item.id || item.orderItemId || item.productId,
+        orderItemId: item.id || item.orderItemId,
+        productId: item.product_id || item.productId,
+        // Stellen sicher, dass der Name vorhanden ist (entweder name oder productName)
+        name: item.name || item.product_name || item.productName || 'Artikel ohne Namen',
+        productName: item.name || item.product_name || item.productName || 'Artikel ohne Namen',
+        // Bestellte Menge
+        orderedQuantity,
+        receivedQuantity: orderedQuantity, // Standardmäßig die volle bestellte Menge
+        price: item.price || item.unit_price || item.unitPrice || 0,
+        unitPrice: item.price || item.unit_price || item.unitPrice || 0,
+        unit: item.unit || 'Stk.',
+        damaged: false,
+        comment: '',
+        expiryDate: '', // Leeres Feld für MHD hinzufügen
+        packageSize: item.package_size, // Gebindegröße aus der Datenbank
+        // Package-spezifische Initialisierung - erhaltene Menge entspricht zunächst der bestellten
+        receivedPackageCount: orderedQuantity > 0 ? calculatePackageCount(orderedQuantity, parsePackageSizeToQuantity(item.package_size)) : 0,
+        receivedTotalQuantity: orderedQuantity
+      };
+    })
   );
   
   const [receiptNote, setReceiptNote] = useState('');
   const [documents, setDocuments] = useState<File[]>([]);
   
-  // Package-based quantity states for goods receipt
-  const [receivedPackageCounts, setReceivedPackageCounts] = useState<Record<number, number>>({});
-  const [receivedTotalQuantities, setReceivedTotalQuantities] = useState<Record<number, number>>({});
+  // Package-based quantity states for goods receipt - no longer needed as we store directly in receivedItems
+  // const [receivedPackageCounts, setReceivedPackageCounts] = useState<Record<number, number>>({});
+  // const [receivedTotalQuantities, setReceivedTotalQuantities] = useState<Record<number, number>>({});
   
   // Calculate total received vs ordered
   const totalOrdered = orderItems.reduce((sum, item) => sum + item.orderedQuantity, 0);
@@ -212,9 +218,6 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
     const packageQuantity = parsePackageSizeToQuantity(item.packageSize);
     const totalQuantity = calculateTotalQuantity(packageCount, packageQuantity);
     
-    setReceivedPackageCounts(prev => ({ ...prev, [itemId]: packageCount }));
-    setReceivedTotalQuantities(prev => ({ ...prev, [itemId]: totalQuantity }));
-    
     // Update receivedItems
     setReceivedItems(items =>
       items.map(item =>
@@ -237,9 +240,6 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
     // Parse package size to get package quantity
     const packageQuantity = parsePackageSizeToQuantity(item.packageSize);
     const packageCount = calculatePackageCount(totalQuantity, packageQuantity);
-    
-    setReceivedTotalQuantities(prev => ({ ...prev, [itemId]: totalQuantity }));
-    setReceivedPackageCounts(prev => ({ ...prev, [itemId]: packageCount }));
     
     // Update receivedItems
     setReceivedItems(items =>
@@ -417,9 +417,10 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
                 <TableHead className="w-12"></TableHead>
                 <TableHead>Artikel</TableHead>
                 <TableHead className="text-center">Gebinde</TableHead>
-                <TableHead className="text-right">Bestellt</TableHead>
-                <TableHead className="text-center">Anzahl Gebinde</TableHead>
-                <TableHead className="text-center">Gesamtanzahl</TableHead>
+                <TableHead className="text-center">Bestellt (Gebinde)</TableHead>
+                <TableHead className="text-center">Bestellt (Gesamt)</TableHead>
+                <TableHead className="text-center">Erhalten (Gebinde)</TableHead>
+                <TableHead className="text-center">Erhalten (Gesamt)</TableHead>
                 <TableHead className="text-right hidden md:table-cell">Preis</TableHead>
                 <TableHead className="text-center">MHD</TableHead>
                 <TableHead className="hidden md:table-cell">Anmerkung</TableHead>
@@ -429,16 +430,33 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
               {receivedItems.map((item) => {
                 const isDifferent = item.receivedQuantity !== item.orderedQuantity;
                 
-                // Calculate package info for this item
-                const packageQuantity = parsePackageSizeToQuantity(item.packageSize);
-                const packageDisplay = formatPackageDisplayFromString(item.packageSize);
+                // Calculate package info for this item - wie im Bestellportal
+                const packageSize = item.package_size || '1x';
+                const packageQuantity = parsePackageSizeToQuantity(packageSize);
                 
-                // Calculate ordered package count
-                const orderedPackageCount = calculatePackageCount(item.orderedQuantity, packageQuantity);
+                // Bestellte Package-Info (ursprünglich bestellte Gebinde)
+                const orderedPackageInfo = calculatePackageInfo({
+                  id: item.productId,
+                  name: item.name,
+                  packageQuantity: packageQuantity,
+                  packageTypeName: getPackageTypeName(packageSize),
+                  baseUnitName: "Stück",
+                  orderQuantity: item.orderedQuantity
+                });
                 
-                // Get current package count and total quantity (from state or calculated)
-                const currentPackageCount = receivedPackageCounts[item.id] ?? orderedPackageCount;
-                const currentTotalQuantity = receivedTotalQuantities[item.id] ?? item.receivedQuantity;
+                // Erhaltene Package-Info (tatsächlich erhaltene Gebinde)
+                const receivedPackageInfo = calculatePackageInfo({
+                  id: item.productId,
+                  name: item.name,
+                  packageQuantity: packageQuantity,
+                  packageTypeName: getPackageTypeName(packageSize),
+                  baseUnitName: "Stück",
+                  orderQuantity: item.receivedTotalQuantity || item.receivedQuantity || 0
+                });
+                
+                const packageDisplay = formatPackageDisplay(orderedPackageInfo);
+                const currentPackageCount = item.receivedPackageCount ?? receivedPackageInfo.packageCount;
+                const currentTotalQuantity = item.receivedTotalQuantity ?? item.receivedQuantity;
                 
                 return (
                   <TableRow key={item.id} className={item.damaged ? 'bg-destructive/10' : isDifferent ? 'bg-amber-50' : ''}>
@@ -464,9 +482,17 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
                       {packageDisplay}
                     </TableCell>
                     
-                    <TableCell className="text-right">{item.orderedQuantity}</TableCell>
+                    {/* Bestellt (Gebinde) */}
+                    <TableCell className="text-center text-sm font-medium">
+                      {orderedPackageInfo.packageCount}
+                    </TableCell>
                     
-                    {/* Anzahl Gebinde mit +/- Buttons */}
+                    {/* Bestellt (Gesamt) */}
+                    <TableCell className="text-center text-sm">
+                      {item.orderedQuantity}
+                    </TableCell>
+                    
+                    {/* Erhalten (Gebinde) - mit +/- Buttons */}
                     <TableCell className="text-center">
                       <div className="flex items-center justify-center gap-1">
                         <Button
@@ -498,7 +524,7 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
                       </div>
                     </TableCell>
                     
-                    {/* Gesamtanzahl mit +/- Buttons */}
+                    {/* Erhalten (Gesamt) - mit +/- Buttons */}
                     <TableCell className="text-center">
                       <div className="flex items-center justify-center gap-1">
                         <Button
