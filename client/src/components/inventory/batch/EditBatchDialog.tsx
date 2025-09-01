@@ -143,6 +143,13 @@ export default function EditBatchDialog({
         }
       });
       
+      // WICHTIG: Auch den spezifischen Warehouse-Query invalidieren
+      if (batch?.warehouseId) {
+        queryClient.invalidateQueries({ 
+          queryKey: [`/api/inventory-count-batches/warehouse/${batch.warehouseId}/products`]
+        });
+      }
+      
       // Direkter Callback für sofortige UI-Aktualisierung
       if (onSuccess) {
         onSuccess();
@@ -185,6 +192,13 @@ export default function EditBatchDialog({
                   queryKey.includes('/api/inventory-batches/product/'));
         }
       });
+      
+      // WICHTIG: Auch den spezifischen Warehouse-Query invalidieren
+      if (batch?.warehouseId) {
+        queryClient.invalidateQueries({ 
+          queryKey: [`/api/inventory-count-batches/warehouse/${batch.warehouseId}/products`]
+        });
+      }
       
       toast({
         title: 'Charge gelöscht',

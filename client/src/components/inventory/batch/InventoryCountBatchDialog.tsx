@@ -454,6 +454,10 @@ export default function InventoryCountBatchDialog({
       if (selectedItem?.productId && warehouseId) {
         queryClient.invalidateQueries({ queryKey: [`/api/inventory-batches/product/${selectedItem.productId}/warehouse/${warehouseId}`] });
       }
+      // KRITISCH: Invalidiere den Warehouse-Products Query für die Inventur-Detail-Seite!
+      if (warehouseId) {
+        queryClient.invalidateQueries({ queryKey: [`/api/inventory-count-batches/warehouse/${warehouseId}/products`] });
+      }
       
       // Dialog schließen
       onOpenChange(false);
@@ -607,6 +611,10 @@ export default function InventoryCountBatchDialog({
           return typeof queryKey === 'string' && queryKey.includes('/api/inventory-batches/product/');
         }
       });
+      // KRITISCH: Invalidiere den Warehouse-Products Query für die Inventur-Detail-Seite!
+      if (warehouseId) {
+        await queryClient.invalidateQueries({ queryKey: [`/api/inventory-count-batches/warehouse/${warehouseId}/products`] });
+      }
 
       onOpenChange(false);
     } catch (error: any) {

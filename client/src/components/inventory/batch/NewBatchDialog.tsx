@@ -145,6 +145,13 @@ export default function NewBatchDialog({
         }
       });
       
+      // WICHTIG: Auch den spezifischen Warehouse-Query invalidieren
+      if (data.warehouseId) {
+        queryClient.invalidateQueries({ 
+          queryKey: [`/api/inventory-count-batches/warehouse/${data.warehouseId}/products`]
+        });
+      }
+      
       // Direkter Callback für sofortige UI-Aktualisierung
       if (onSuccess) {
         onSuccess();
