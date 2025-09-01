@@ -471,3 +471,101 @@ export function validateDualFieldInput(
   
   return { isValid: true };
 }
+
+/**
+ * Purchase Condition Interface für Gebinde-Informationen aus Einkaufsbedingungen
+ */
+export interface PurchaseCondition {
+  packaging_quantity: number;
+  packaging_unit: string;
+  is_preferred: boolean;
+  valid_to?: string | null;
+}
+
+/**
+ * Extrahiert Gebinde-Informationen aus bevorzugter Einkaufsbedingung
+ * @param purchaseConditions Array der Einkaufsbedingungen für ein Produkt
+ * @returns Gebinde-Informationen oder null wenn keine vorhanden
+ */
+export function extractPackageInfoFromPurchaseConditions(
+  purchaseConditions: PurchaseCondition[]
+): { packageQuantity: number; packageUnit: string } | null {
+  if (!purchaseConditions || purchaseConditions.length === 0) {
+    return null;
+  }
+  
+  // Suche bevorzugte und gültige Einkaufsbedingung
+  const preferred = purchaseConditions.find(pc => 
+    pc.is_preferred && 
+    pc.packaging_quantity > 0 &&
+    pc.packaging_unit &&
+    (!pc.valid_to || new Date(pc.valid_to) > new Date())
+  );
+  
+  if (preferred) {
+    return {
+      packageQuantity: preferred.packaging_quantity,
+      packageUnit: preferred.packaging_unit
+    };
+  }
+  
+  // Fallback: Erste gültige Einkaufsbedingung mit Gebinde-Info
+  const valid = purchaseConditions.find(pc => 
+    pc.packaging_quantity > 0 &&
+    pc.packaging_unit &&
+    (!pc.valid_to || new Date(pc.valid_to) > new Date())
+  );
+  
+  if (valid) {
+    return {
+      packageQuantity: valid.packaging_quantity,
+      packageUnit: valid.packaging_unit
+    };
+  }
+  
+  return null;
+}
+
+/**
+ * Formatiert Gebinde-Informationen aus Purchase Conditions für UI-Anzeige
+ * @param purchaseConditions Array der Einkaufsbedingungen
+ * @returns Formatierter Text (z.B. "Kasten (12 Stk./Gebinde)")
+ */
+export function formatPackageInfoFromPurchaseConditions(
+  purchaseConditions: PurchaseCondition[]
+): string {
+  const packageInfo = extractPackageInfoFromPurchaseConditions(purchaseConditions);
+  
+  if (!packageInfo) {
+    return "Einzelartikel";
+  }
+  
+  const { packageQuantity, packageUnit } = packageInfo;
+  
+  // Deutsche Gebinde-Typen mapping
+  const germanPackageTypes: { [key: string]: string } = {
+    'Kiste': 'Kasten',
+    'Karton': 'Karton',
+    'Box': 'Box',
+    'Stiege': 'Stiege',
+    'Pack': 'Pack',
+    'Tray': 'Tray',
+    'Palette': 'Palette'
+  };
+  
+  const displayType = germanPackageTypes[packageUnit] || packageUnit;
+  
+  return `${displayType} (${packageQuantity} Stk./Gebinde)`;
+}
+
+/**
+ * Berechnet Package-Größe aus Purchase Conditions für Zwei-Feld-Eingabe-System
+ * @param purchaseConditions Array der Einkaufsbedingungen
+ * @returns Package-Größe oder 1 wenn keine Gebinde-Info vorhanden
+ */
+export function getPackageSizeFromPurchaseConditions(
+  purchaseConditions: PurchaseCondition[]
+): number {
+  const packageInfo = extractPackageInfoFromPurchaseConditions(purchaseConditions);
+  return packageInfo ? packageInfo.packageQuantity : 1;
+}

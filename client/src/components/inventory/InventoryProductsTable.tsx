@@ -25,14 +25,15 @@ import {
   calculatePackageInfo,
   formatPackageDisplay,
   formatTotalQuantity,
-  parsePackageSizeToQuantity,
   getPackageTypeName,
-  createProductWithPackageInfo,
   calculateDualFieldTotal,
   splitTotalToPackageFields,
   formatPackageInfoForUI,
-  Product
+  Product,
+  getPackageSizeFromPurchaseConditions,
+  formatPackageInfoFromPurchaseConditions
 } from '../../../../shared/package-utils';
+import type { PurchaseCondition } from '../../../../shared/schema';
 
 export interface InventoryProduct {
   id: number;
@@ -84,6 +85,51 @@ export default function InventoryProductsTable({
   // Package-based quantity states
   const [packageCounts, setPackageCounts] = useState<Record<number, number>>({});
   const [totalQuantities, setTotalQuantities] = useState<Record<number, number>>({});
+
+  // Purchase Conditions für alle Produkte laden
+  const productIds: number[] = Array.from(new Set(products.map(p => p.productId).filter(Boolean))) as number[];
+  
+  const { data: purchaseConditionsData = {} } = useQuery<Record<number, any[]>>({
+    queryKey: [`/api/products/purchase-conditions-batch`, productIds],
+    queryFn: async () => {
+      console.log('[InventoryProductsTable] Lade Purchase Conditions für Products:', productIds);
+      const conditions: Record<number, any[]> = {};
+      
+      const promises = productIds.map(async (productId) => {
+        try {
+          const response = await fetch(`/api/products/${productId}/purchase-conditions`);
+          if (response.ok) {
+            const data = await response.json();
+            conditions[productId] = data;
+          } else {
+            console.warn(`Purchase conditions nicht verfügbar für Produkt ${productId}`);
+            conditions[productId] = [];
+          }
+        } catch (error) {
+          console.warn(`Fehler beim Laden der Einkaufsbedingungen für Produkt ${productId}:`, error);
+          conditions[productId] = [];
+        }
+      });
+      
+      await Promise.all(promises);
+      return conditions;
+    },
+    staleTime: 60 * 1000,
+    enabled: productIds.length > 0
+  });
+
+  // Lokale Hilfsfunktionen - verwenden geladene purchase_conditions
+  const getProductPackageQuantity = (productId: number): number => {
+    if (!productId) return 1;
+    const conditions = purchaseConditionsData[productId] || [];
+    return getPackageSizeFromPurchaseConditions(conditions as any[]);
+  };
+
+  const getProductPackageType = (productId: number): string => {
+    if (!productId) return "Einzelartikel";
+    const conditions = purchaseConditionsData[productId] || [];
+    return formatPackageInfoFromPurchaseConditions(conditions as any[]);
+  };
 
   // Get batches for products
   const { data: productBatches } = useQuery({
@@ -146,8 +192,8 @@ export default function InventoryProductsTable({
     const product = products.find(p => p.id === productId);
     if (!product) return;
     
-    // Verwende package_size aus der Datenbank für einheitliche Logik
-    const packageQuantity = parsePackageSizeToQuantity(product.packageSize);
+    // Verwende purchase_conditions für einheitliche Logik
+    const packageQuantity = getProductPackageQuantity(product.productId);
     const currentIndividualCount = totalQuantities[productId] ? 
       splitTotalToPackageFields(totalQuantities[productId], packageQuantity).individualCount : 0;
     const totalQuantity = calculateDualFieldTotal(packageCount, currentIndividualCount, packageQuantity);
@@ -162,8 +208,8 @@ export default function InventoryProductsTable({
     const product = products.find(p => p.id === productId);
     if (!product) return;
     
-    // Verwende package_size aus der Datenbank für einheitliche Logik
-    const packageQuantity = parsePackageSizeToQuantity(product.packageSize);
+    // Verwende purchase_conditions für einheitliche Logik
+    const packageQuantity = getProductPackageQuantity(product.productId);
     const { packageCount, individualCount } = splitTotalToPackageFields(totalQuantity, packageQuantity);
     
     setTotalQuantities(prev => ({ ...prev, [productId]: totalQuantity }));
@@ -189,7 +235,7 @@ export default function InventoryProductsTable({
     const product = products.find(p => p.id === productId);
     if (!product) return;
     
-    const packageQuantity = parsePackageSizeToQuantity(product.packageSize);
+    const packageQuantity = getProductPackageQuantity(product.productId);
     const currentTotal = totalQuantities[productId] || 0;
     
     // If no current quantity, add one package, otherwise add package quantity
@@ -202,7 +248,7 @@ export default function InventoryProductsTable({
     const product = products.find(p => p.id === productId);
     if (!product) return;
     
-    const packageQuantity = parsePackageSizeToQuantity(product.packageSize);
+    const packageQuantity = getProductPackageQuantity(product.productId);
     const currentTotal = totalQuantities[productId] || 0;
     
     if (currentTotal > 0) {
@@ -345,9 +391,15 @@ export default function InventoryProductsTable({
           <TableBody>
             {filteredProducts.map((product) => {
               const availableQuantity = getAvailableQuantity(product);
-              const productWithPackageInfo = createProductWithPackageInfo(product);
+              // Verwende purchase_conditions für Package-Info  
+              const packageQuantity = getProductPackageQuantity(product.productId);
+              const packageTypeName = getProductPackageType(product.productId);
               const packageInfo = calculatePackageInfo({
-                ...productWithPackageInfo,
+                id: product.productId,
+                name: product.productName,
+                packageQuantity,
+                packageTypeName,
+                baseUnitName: "Stück",
                 orderQuantity: totalQuantities[product.id] || 0
               });
               

@@ -39,16 +39,18 @@ import {
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import {
-  parsePackageSizeToQuantity,
   getPackageTypeName,
-  createProductWithPackageInfo,
   calculatePackageInfo,
   formatPackageDisplayFromString,
   formatPackageDisplay,
   formatTotalQuantity,
   calculateDualFieldTotal,
-  splitTotalToPackageFields
+  splitTotalToPackageFields,
+  getPackageSizeFromPurchaseConditions,
+  formatPackageInfoFromPurchaseConditions
 } from '../../../../shared/package-utils';
+import { useQuery } from '@tanstack/react-query';
+import type { PurchaseCondition } from '../../../../shared/schema';
 
 interface OrderItem {
   id: number;
@@ -127,6 +129,51 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
     );
   }
   
+  // Purchase Conditions für alle Produkte laden
+  const productIds: number[] = Array.from(new Set(orderItems.map((item: any) => item.product_id || item.productId).filter(Boolean))) as number[];
+  
+  const { data: purchaseConditionsData = {} } = useQuery<Record<number, any[]>>({
+    queryKey: [`/api/products/purchase-conditions-batch`, productIds],
+    queryFn: async () => {
+      console.log('[GoodsReceiptForm] Lade Purchase Conditions für Products:', productIds);
+      const conditions: Record<number, PurchaseCondition[]> = {};
+      
+      const promises = productIds.map(async (productId) => {
+        try {
+          const response = await fetch(`/api/products/${productId}/purchase-conditions`);
+          if (response.ok) {
+            const data = await response.json();
+            conditions[productId] = data;
+          } else {
+            console.warn(`Purchase conditions nicht verfügbar für Produkt ${productId}`);
+            conditions[productId] = [];
+          }
+        } catch (error) {
+          console.warn(`Fehler beim Laden der Einkaufsbedingungen für Produkt ${productId}:`, error);
+          conditions[productId] = [];
+        }
+      });
+      
+      await Promise.all(promises);
+      return conditions;
+    },
+    staleTime: 60 * 1000,
+    enabled: productIds.length > 0
+  });
+
+  // Lokale Hilfsfunktionen - verwenden geladene purchase_conditions
+  const getProductPackageQuantity = (productId: number): number => {
+    if (!productId) return 1;
+    const conditions = purchaseConditionsData[productId] || [];
+    return getPackageSizeFromPurchaseConditions(conditions as any[]);
+  };
+
+  const getProductPackageType = (productId: number): string => {
+    if (!productId) return "Einzelartikel";
+    const conditions = purchaseConditionsData[productId] || [];
+    return formatPackageInfoFromPurchaseConditions(conditions as any[]);
+  };
+
   const [receivedItems, setReceivedItems] = useState<OrderItem[]>(
     orderItems.map((item: any) => {
       const orderedQuantity = item.orderQuantity || item.orderedQuantity || item.quantity || 0;
@@ -149,9 +196,9 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
         damaged: false,
         comment: '',
         expiryDate: '', // Leeres Feld für MHD hinzufügen
-        packageSize: item.package_size, // Gebindegröße aus der Datenbank
+        // packageSize ist obsolet - verwende jetzt purchase_conditions über getProductPackageQuantity()
         // Package-spezifische Initialisierung - erhaltene Menge entspricht zunächst der bestellten
-        receivedPackageCount: orderedQuantity > 0 ? splitTotalToPackageFields(orderedQuantity, parsePackageSizeToQuantity(item.package_size || '1x')).packageCount : 0,
+        receivedPackageCount: orderedQuantity > 0 ? splitTotalToPackageFields(orderedQuantity, getProductPackageQuantity(item.product_id || item.productId)).packageCount : 0,
         receivedTotalQuantity: orderedQuantity
       };
     })
@@ -215,7 +262,7 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
     if (!item) return;
     
     // Parse package size to get package quantity
-    const packageQuantity = parsePackageSizeToQuantity(item.packageSize);
+    const packageQuantity = getProductPackageQuantity(item.productId || 0);
     const individualCount = item.receivedTotalQuantity ? 
       splitTotalToPackageFields(item.receivedTotalQuantity, packageQuantity).individualCount : 0;
     const totalQuantity = calculateDualFieldTotal(packageCount, individualCount, packageQuantity);
@@ -240,7 +287,7 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
     if (!item) return;
     
     // Parse package size to get package quantity
-    const packageQuantity = parsePackageSizeToQuantity(item.packageSize);
+    const packageQuantity = getProductPackageQuantity(item.productId || 0);
     const { packageCount, individualCount } = splitTotalToPackageFields(totalQuantity, packageQuantity);
     
     // Update receivedItems
@@ -432,16 +479,16 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
               {receivedItems.map((item) => {
                 const isDifferent = item.receivedQuantity !== item.orderedQuantity;
                 
-                // Calculate package info for this item - wie im Bestellportal
-                const packageSize = item.packageSize || '1x';
-                const packageQuantity = parsePackageSizeToQuantity(packageSize);
+                // Calculate package info for this item - aus purchase_conditions
+                const packageQuantity = getProductPackageQuantity(item.productId || 0);
+                const packageTypeName = getProductPackageType(item.productId || 0);
                 
                 // Bestellte Package-Info (ursprünglich bestellte Gebinde)
                 const orderedPackageInfo = calculatePackageInfo({
                   id: item.productId || 0,
                   name: item.name || '',
                   packageQuantity: packageQuantity,
-                  packageTypeName: getPackageTypeName(packageSize),
+                  packageTypeName: packageTypeName,
                   baseUnitName: "Stück",
                   orderQuantity: item.orderedQuantity
                 });
@@ -451,7 +498,7 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
                   id: item.productId || 0,
                   name: item.name || '',
                   packageQuantity: packageQuantity,
-                  packageTypeName: getPackageTypeName(packageSize),
+                  packageTypeName: packageTypeName,
                   baseUnitName: "Stück",
                   orderQuantity: item.receivedTotalQuantity || item.receivedQuantity || 0
                 });

@@ -53,7 +53,7 @@ export function InventoryCartProvider({ children }: { children: React.ReactNode 
         // Stellen Sie sicher, dass die Menge nicht die maximal verfügbare Menge überschreitet
         updatedItems[existingItemIndex] = {
           ...existingItem,
-          quantity: Math.min(newQuantity, item.maxQuantity)
+          quantity: Math.min(newQuantity, item.maxQuantity ?? Number.MAX_SAFE_INTEGER)
         };
         
         return updatedItems;
@@ -79,7 +79,7 @@ export function InventoryCartProvider({ children }: { children: React.ReactNode 
     setCartItems(prevItems => 
       prevItems.map(item => 
         item.id === id 
-          ? { ...item, quantity: Math.min(quantity, item.maxQuantity) } 
+          ? { ...item, quantity: Math.min(quantity, item.maxQuantity ?? Number.MAX_SAFE_INTEGER) } 
           : item
       )
     );

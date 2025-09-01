@@ -40,7 +40,12 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader,
   AlertDialogTitle, AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { parsePackageSizeToQuantity, getPackageTypeName } from '../../../shared/package-utils';
+import { 
+  getPackageTypeName,
+  PurchaseCondition,
+  formatPackageInfoFromPurchaseConditions,
+  getPackageSizeFromPurchaseConditions
+} from '../../../shared/package-utils';
 
 // Typ-Definitionen
 interface InventoryCount {
@@ -188,17 +193,7 @@ const formatDate = (date?: Date | string) => {
   }).format(new Date(date));
 };
 
-// Hilfsfunktion: Package-Information aus product.package_size extrahieren
-const getProductPackageQuantity = (product: any): number => {
-  if (!product) return 1;
-  return parsePackageSizeToQuantity(product.package_size);
-};
-
-// Hilfsfunktion: Package-Type aus product.package_size extrahieren  
-const getProductPackageType = (product: any): string => {
-  if (!product) return "Stück";
-  return getPackageTypeName(product.package_size);
-};
+// Diese Hilfsfunktionen werden jetzt in der Komponente definiert, um Zugriff auf purchaseConditionsData zu haben
 
 // Funktion zum Formatieren von Batch-Daten (MHD)
 const formatBatchDate = (date?: Date | string) => {
@@ -268,7 +263,7 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
   const calculateTotalQuantity = (itemId: number, product?: Product) => {
     const packageCount = packageCounts[itemId] || 0;
     const individualCount = individualCounts[itemId] || 0;
-    const packageSize = getProductPackageQuantity(product); // Verwende package_size aus DB
+    const packageSize = getProductPackageQuantity(product); // Verwende lokale Funktion
     
     const totalFromPackages = packageCount * packageSize;
     const total = totalFromPackages + individualCount;
@@ -410,6 +405,58 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
     staleTime: 30 * 1000,
     enabled: !!id && showAddDialog
   });
+
+  // Lade Einkaufsbedingungen für alle Produkte in der Inventur (für korrekte Gebinde-Informationen)
+  const productIds = useMemo(() => {
+    if (!inventurItems || inventurItems.length === 0) return [];
+    return Array.from(new Set(inventurItems.map(item => item.product?.id).filter(id => id !== undefined)));
+  }, [inventurItems]);
+
+  const {
+    data: purchaseConditionsData = {},
+    isLoading: isLoadingPurchaseConditions
+  } = useQuery<Record<number, PurchaseCondition[]>>({
+    queryKey: [`/api/purchase-conditions-batch`, productIds],
+    queryFn: async () => {
+      if (productIds.length === 0) return {};
+      
+      const conditions: Record<number, PurchaseCondition[]> = {};
+      
+      // Lade purchase_conditions für alle Produkte parallel
+      const promises = productIds.map(async (productId) => {
+        try {
+          const response = await fetch(`/api/products/${productId}/purchase-conditions`);
+          if (response.ok) {
+            const data = await response.json();
+            conditions[productId] = data;
+          } else {
+            conditions[productId] = [];
+          }
+        } catch (error) {
+          console.warn(`Fehler beim Laden der Einkaufsbedingungen für Produkt ${productId}:`, error);
+          conditions[productId] = [];
+        }
+      });
+      
+      await Promise.all(promises);
+      return conditions;
+    },
+    staleTime: 60 * 1000,
+    enabled: productIds.length > 0
+  });
+
+  // Lokale Hilfsfunktionen - verwenden geladene purchase_conditions
+  const getProductPackageQuantity = (product: any): number => {
+    if (!product?.id) return 1;
+    const conditions = purchaseConditionsData[product.id] || [];
+    return getPackageSizeFromPurchaseConditions(conditions);
+  };
+
+  const getProductPackageType = (product: any): string => {
+    if (!product?.id) return "Einzelartikel";
+    const conditions = purchaseConditionsData[product.id] || [];
+    return formatPackageInfoFromPurchaseConditions(conditions);
+  };
 
   // Auto-Save Mutation für alle Änderungen
   const autoSaveMutation = useMutation({
@@ -790,7 +837,7 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
         setShowStartButton(false);
         // Force refetch to get updated status and items
         refetchInventur();
-        refetchItems();
+        refetchInventurItems();
         
         toast({
           title: "Inventur gestartet",

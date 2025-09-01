@@ -45,14 +45,6 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Calendar } from "lucide-react";
-import {
-  parsePackageSizeToQuantity,
-  getPackageTypeName,
-  formatPackageInfoForUI,
-  calculateDualFieldTotal,
-  splitTotalToPackageFields,
-  validateDualFieldInput
-} from '../../../shared/package-utils';
 
 // Types
 interface Warehouse {
@@ -86,7 +78,6 @@ interface InventoryProduct {
   packageTypeId?: number;
   packageTypeName?: string;
   unitsPerPackage?: number;
-  packageSize?: string; // Gebindegröße aus der Datenbank (z.B. "10x250g")
 }
 
 // Form schema for disposal
