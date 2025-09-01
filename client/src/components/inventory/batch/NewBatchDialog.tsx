@@ -122,7 +122,10 @@ export default function NewBatchDialog({
     onSuccess: (data) => {
       console.log("Charge erfolgreich erstellt:", data);
       
-      // Invalidiere den Cache für alle relevanten Abfragen, damit die neue Charge angezeigt wird
+      // KRITISCH: Kompletter Cache-Reset für sofortige Anzeige
+      queryClient.clear();
+      
+      // Zusätzlich spezifische Invalidierung
       queryClient.invalidateQueries({ 
         predicate: (query) => {
           const queryKey = query.queryKey[0];
@@ -132,20 +135,15 @@ export default function NewBatchDialog({
         }
       });
       
-      // Force-Refresh der spezifischen Batch-Listen für alle Warehouses
-      queryClient.removeQueries({ 
-        predicate: (query) => {
-          const queryKey = query.queryKey[0];
-          return typeof queryKey === 'string' && queryKey.includes('/api/inventory-count-batches/warehouse/');
-        }
-      });
-      
       setShowSuccessState(true);
       setTimeout(() => {
         setShowSuccessState(false);
         onOpenChange(false);
         if (onSuccess) onSuccess();
-        form.reset(); // Formular zurücksetzen
+        form.reset();
+        
+        // Force page reload als letztes Mittel
+        window.location.reload();
       }, 1500);
     },
     onError: (error: any) => {
