@@ -300,7 +300,7 @@ export default function NewBatchDialog({
                               }
                             }
                           }}
-                          min={isMobile ? format(new Date(), "yyyy-MM-dd") : undefined}
+                          // min-Attribut entfernt, um auch vergangene MHD-Daten eingeben zu können
                         />
                       </FormControl>
                       <FormMessage />

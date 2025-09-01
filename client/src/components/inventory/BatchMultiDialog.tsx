@@ -165,10 +165,26 @@ export default function BatchMultiDialog({
     onClose();
   };
 
-  // Formatiert das Datum für die Anzeige
+  // Formatiert das Datum für HTML date input (YYYY-MM-DD Format)
   const formatDate = (date: string | null) => {
     if (!date) return "";
-    return date;
+    // Extrahiere nur das Datum im YYYY-MM-DD Format
+    // Behandle sowohl ISO-Strings mit Zeit als auch einfache Datumsstrings
+    const dateOnly = date.split('T')[0];
+    // Stelle sicher, dass das Format YYYY-MM-DD ist
+    if (dateOnly.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      return dateOnly;
+    }
+    // Falls das Datum in einem anderen Format ist, versuche es zu parsen
+    try {
+      const parsed = new Date(date);
+      if (!isNaN(parsed.getTime())) {
+        return parsed.toISOString().split('T')[0];
+      }
+    } catch (e) {
+      console.error('Fehler beim Parsen des Datums:', e);
+    }
+    return "";
   };
 
   return (

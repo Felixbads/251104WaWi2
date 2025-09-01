@@ -231,9 +231,9 @@ export async function createAndLinkBatch({
       refetchType: 'active'
     });
     
-    // Zusätzlich den Batch-spezifischen Cache invalidieren
+    // WICHTIG: Invalidiere auch den tatsächlich genutzten Endpunkt für Batch-Abruf
     queryClient.invalidateQueries({
-      queryKey: [`/api/products/${item.productId}/batches`]
+      queryKey: [`/api/inventory-batches/product/${item.productId}/warehouse/${warehouseId}`]
     });
     
     // Inventur-Items Cache ebenfalls invalidieren

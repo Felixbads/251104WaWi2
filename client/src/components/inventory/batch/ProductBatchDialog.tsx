@@ -60,10 +60,11 @@ export default function ProductBatchDialog({
 
   // Laden der Batches für das ausgewählte Produkt
   const { data: productBatches = [], isLoading: isBatchesLoading } = useQuery<any[]>({
-    queryKey: ['/api/inventory-batches/product', product?.id || 0, 'warehouse', product?.warehouseId || 0],
-    queryFn: async ({ queryKey }) => {
+    queryKey: [`/api/inventory-batches/product/${product?.id || 0}/warehouse/${product?.warehouseId || 0}`],
+    queryFn: async () => {
       try {
-        const [_, productId, __, warehouseId] = queryKey;
+        const productId = product?.id || 0;
+        const warehouseId = product?.warehouseId || 0;
         if (!productId || productId === 0 || !warehouseId || warehouseId === 0) return [];
         const response = await fetch(`/api/inventory-batches/product/${productId}/warehouse/${warehouseId}`);
         if (!response.ok) return [];

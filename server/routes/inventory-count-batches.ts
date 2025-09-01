@@ -304,6 +304,63 @@ router.post('/product-batches', async (req: Request, res: Response) => {
   }
 });
 
+// GET /api/inventory-batches/product/:productId/warehouse/:warehouseId - Verfügbare Batches für ein Produkt in einem Lager abrufen
+router.get('/product/:productId/warehouse/:warehouseId', async (req: Request, res: Response) => {
+  try {
+    const productId = parseInt(req.params.productId);
+    const warehouseId = parseInt(req.params.warehouseId);
+    
+    if (!productId || isNaN(productId) || !warehouseId || isNaN(warehouseId)) {
+      return res.status(400).json({ error: "Valid Product ID and Warehouse ID are required" });
+    }
+    
+    // Hole alle aktiven Batches für das Produkt im spezifizierten Lager
+    const query = `
+      SELECT 
+        pb.*,
+        p.product_name as product_name
+      FROM 
+        product_batches pb
+      JOIN 
+        products p ON pb.product_id = p.id
+      WHERE 
+        pb.product_id = $1
+        AND pb.warehouse_id = $2
+        AND pb.status = 'active'
+      ORDER BY 
+        pb.expiry_date ASC NULLS LAST
+    `;
+    
+    const batchesResult = await rawDb.query(query, [productId, warehouseId]);
+    
+    // Formatiere das Ergebnis
+    const batches = batchesResult.rows.map((row: any) => ({
+      id: row.id,
+      batchNumber: row.batch_number,
+      productId: row.product_id,
+      warehouseId: row.warehouse_id,
+      initialQuantity: row.initial_quantity,
+      currentQuantity: row.current_quantity,
+      expiryDate: row.expiry_date,
+      manufacturingDate: row.manufacturing_date,
+      notes: row.notes,
+      locationInWarehouse: row.location_in_warehouse,
+      status: row.status,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+      productName: row.product_name || null
+    }));
+    
+    res.status(200).json(batches);
+  } catch (error) {
+    console.error("Error fetching product batches:", error);
+    res.status(500).json({ 
+      error: "Failed to fetch product batches", 
+      details: error instanceof Error ? error.message : String(error) 
+    });
+  }
+});
+
 // GET /api/inventory-counts/:id/product-batches/:productId - Verfügbare Batches für ein Produkt in einer Inventur abrufen
 router.get('/:inventoryCountId/product-batches/:productId', async (req: Request, res: Response) => {
   try {
