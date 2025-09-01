@@ -1165,9 +1165,7 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
           open={showBatchDialog}
           onOpenChange={(open) => {
             setShowBatchDialog(open);
-            if (!open) {
-              setSelectedItem(null);
-            }
+            // selectedItem NICHT auf null setzen, damit Batches sichtbar bleiben
           }}
           warehouses={[{ id: inventurData.warehouseId, name: inventurData.warehouseName || 'Lager' }]}
           products={[{ 
@@ -1209,7 +1207,7 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
             setShowEditBatchDialog(open);
             if (!open) {
               setSelectedBatch(null);
-              setSelectedItem(null);
+              // selectedItem NICHT auf null setzen, damit Batches sichtbar bleiben
             }
           }}
           batch={selectedBatch}
