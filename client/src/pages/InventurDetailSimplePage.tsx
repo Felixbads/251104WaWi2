@@ -134,7 +134,7 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
   });
 
   // Lade verfügbare Batches für jedes Produkt
-  const { data: availableBatches } = useQuery<ProductBatch[]>({
+  const { data: availableBatches, refetch: refetchAvailableBatches } = useQuery<ProductBatch[]>({
     queryKey: [`/api/inventory-count-batches/warehouse/${inventurData?.warehouseId}/products`],
     enabled: !!inventurData?.warehouseId,
   });
@@ -606,7 +606,7 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
                   groupedItems.map((group) => {
                     const isGroupExpanded = expandedGroups.has(group.productName);
                     return (
-                      <div key={`group-${group.productName}`}>
+                      <React.Fragment key={`group-${group.productName}`}>
                         {/* Hauptgruppe */}
                         <TableRow 
                           className={`cursor-pointer hover:bg-muted/50 ${group.hasMultipleEntries ? 'bg-blue-50/50' : ''}`}
@@ -871,7 +871,7 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
                             );
                           })
                         )}
-                      </div>
+                      </React.Fragment>
                     );
                   })
                 ) : (
@@ -891,7 +891,7 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
                     ) || [];
                     
                     return (
-                      <div key={`fragment-${item.id}-${item.productId}`}>
+                      <React.Fragment key={`fragment-${item.id}-${item.productId}`}>
                         <TableRow key={`row-${item.id}`}>
                           <TableCell>
                             <div className="flex items-center space-x-2">
@@ -1149,7 +1149,7 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
                             </TableCell>
                           </TableRow>
                         )}
-                      </div>
+                      </React.Fragment>
                     );
                   })
                 )}
@@ -1175,7 +1175,10 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
             productName: selectedItem.product?.productName || 'Unbekanntes Produkt' 
           }]}
           initialQuantity={selectedItem.countedQuantity || editedCounts[selectedItem.id] || 1}
-          onSuccess={() => {
+          onSuccess={async () => {
+            // Explizit refetch für sofortige Batch-Anzeige
+            await refetchAvailableBatches();
+            
             // Query invalidieren für Live-Update der availableBatches
             queryClient.invalidateQueries({ 
               queryKey: [`/api/inventory-count-batches/warehouse/${inventurData?.warehouseId}/products`]
@@ -1191,9 +1194,9 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
               description: `Neue Charge wurde erfolgreich angelegt`,
             });
             
-            // Dialog schließen
+            // Dialog schließen aber selectedItem BEHALTEN für Batch-Anzeige
             setShowBatchDialog(false);
-            setSelectedItem(null);
+            // selectedItem NICHT auf null setzen für sofortige Batch-Sichtbarkeit
           }}
         />
       )}
@@ -1210,7 +1213,10 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
             }
           }}
           batch={selectedBatch}
-          onSuccess={() => {
+          onSuccess={async () => {
+            // Explizit refetch für sofortige Batch-Anzeige
+            await refetchAvailableBatches();
+            
             // Query invalidieren für Live-Update der availableBatches
             queryClient.invalidateQueries({ 
               queryKey: [`/api/inventory-count-batches/warehouse/${inventurData?.warehouseId}/products`]
