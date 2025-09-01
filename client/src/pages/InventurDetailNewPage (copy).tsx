@@ -801,7 +801,7 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
     
     try {
       // Erstelle neue Charge API-Anfrage
-      const response = await fetch('/api/inventory-counts/product-batches', {
+      const response = await fetch('/api/inventory-count-batches/product-batches', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

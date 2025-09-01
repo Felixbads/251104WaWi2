@@ -1709,7 +1709,7 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
       updateCountedItem(optimisticUpdatedItem);
       
       // Schritt 1: Erstelle neue Charge API-Anfrage mit korrektem Endpunkt
-      const url = `/api/inventory-counts/product-batches`; // Korrigierter API-Endpunkt
+      const url = `/api/inventory-count-batches/product-batches`; // Korrigierter API-Endpunkt
       console.log(`Verwende API-Endpunkt zum Erstellen: ${url}`);
       
       // Verwende die ursprünglichen Batch-Daten ohne Anpassungen

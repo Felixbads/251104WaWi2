@@ -163,7 +163,7 @@ export async function createAndLinkBatch({
     };
     
     // Schritt 1: Batch erstellen
-    const createResponse = await fetch('/api/inventory-counts/product-batches', {
+    const createResponse = await fetch('/api/inventory-count-batches/product-batches', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

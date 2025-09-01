@@ -126,7 +126,7 @@ export default function EditBatchDialog({
       };
 
       console.log("Sending update payload to API:", payload);
-      return apiRequest(`/api/inventory-counts/product-batches/${batch.id}`, payload, 'PATCH');
+      return apiRequest(`/api/inventory-count-batches/product-batches/${batch.id}`, payload, 'PATCH');
     },
     onSuccess: (data) => {
       console.log("Charge erfolgreich aktualisiert:", data);
@@ -177,7 +177,7 @@ export default function EditBatchDialog({
       if (!batch) throw new Error('Keine Charge ausgewählt');
       
       console.log("Deleting batch:", batch.id);
-      return apiRequest(`/api/inventory-counts/product-batches/${batch.id}`, {}, 'DELETE');
+      return apiRequest(`/api/inventory-count-batches/product-batches/${batch.id}`, {}, 'DELETE');
     },
     onSuccess: () => {
       console.log("Charge erfolgreich gelöscht");

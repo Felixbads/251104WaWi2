@@ -147,7 +147,7 @@ export default function NewBatchDialog({
       };
 
       console.log("Sending payload to API:", payload);
-      return apiRequest('/api/inventory-counts/product-batches', payload, 'POST');
+      return apiRequest('/api/inventory-count-batches/product-batches', payload, 'POST');
     },
     onSuccess: (data) => {
       console.log("Charge erfolgreich erstellt:", data);
