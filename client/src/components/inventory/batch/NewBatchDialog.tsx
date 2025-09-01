@@ -122,13 +122,18 @@ export default function NewBatchDialog({
     onSuccess: (data) => {
       console.log("Charge erfolgreich erstellt:", data);
       
-      // Invalidiere den Cache für alle Produkt-Batch-Abfragen, damit die neue Charge angezeigt wird
+      // Invalidiere den Cache für alle relevanten Abfragen, damit die neue Charge angezeigt wird
       queryClient.invalidateQueries({ 
         predicate: (query) => {
           const queryKey = query.queryKey[0];
-          return typeof queryKey === 'string' && queryKey.includes('/api/inventory-counts/') && queryKey.includes('/product-batches/');
+          return typeof queryKey === 'string' && 
+                 (queryKey.includes('/api/inventory-count-batches/') || 
+                  queryKey.includes('/api/inventory-counts/'));
         }
       });
+      
+      // Zusätzlich explizit die Batch-Listen invalidieren
+      queryClient.invalidateQueries({ queryKey: ['/api/inventory-count-batches/warehouse'] });
       
       setShowSuccessState(true);
       setTimeout(() => {

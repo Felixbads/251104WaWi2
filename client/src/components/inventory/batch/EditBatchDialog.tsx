@@ -122,7 +122,7 @@ export default function EditBatchDialog({
     onSuccess: (data) => {
       console.log("Charge erfolgreich aktualisiert:", data);
       
-      // Invalidiere den Cache für alle Produkt-Batch-Abfragen
+      // Invalidiere den Cache für alle relevanten Abfragen
       queryClient.invalidateQueries({ 
         predicate: (query) => {
           const queryKey = query.queryKey[0];
@@ -131,6 +131,9 @@ export default function EditBatchDialog({
                   queryKey.includes('/api/inventory-counts/'));
         }
       });
+      
+      // Zusätzlich explizit die Batch-Listen invalidieren
+      queryClient.invalidateQueries({ queryKey: ['/api/inventory-count-batches/warehouse'] });
       
       setShowSuccessState(true);
       setTimeout(() => {
