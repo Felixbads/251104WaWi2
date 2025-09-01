@@ -146,14 +146,23 @@ export default function WarenbewegungNewPage() {
   // Get all package types
   const { data: packageTypes, isLoading: packageTypesLoading, error: packageTypesError } = useQuery({
     queryKey: ['/api/package-types'],
-    select: (data: PackageType[]) => {
-      // The API returns an array directly, not an object with packageTypes
-      if (!Array.isArray(data)) {
-        console.error('Package types response is not an array:', data);
+    select: (data: {packageTypes: PackageType[]} | PackageType[]) => {
+      // Handle both new wrapper format and legacy array format
+      let packageTypesArray: PackageType[];
+      
+      if (Array.isArray(data)) {
+        // Legacy format: direct array
+        packageTypesArray = data;
+      } else if (data && typeof data === 'object' && 'packageTypes' in data) {
+        // New format: wrapper object
+        packageTypesArray = data.packageTypes;
+      } else {
+        console.error('Package types response format unknown:', data);
         return [];
       }
-      // Filter active package types (using is_active field from API)
-      return data.filter(pt => pt.is_active !== false);
+      
+      // Filter active package types
+      return packageTypesArray.filter(pt => pt.isActive !== false);
     }
   });
 

@@ -5,7 +5,7 @@ export interface CartItem {
   productId: number;
   productName: string;
   quantity: number;
-  maxQuantity: number;
+  maxQuantity?: number;
   warehouseId: number;
   selectedBatchIds?: number[];
   batchInfo?: {
@@ -14,6 +14,11 @@ export interface CartItem {
     quantity: number;
     expiryDate?: string;
   }[];
+  // Erweiterte Package-Informationen
+  packageTypeId?: number;
+  packageTypeName?: string;
+  packageQuantity?: number;  // Anzahl Gebinde
+  individualQuantity?: number;  // Anzahl Einzelstück
 }
 
 interface InventoryCartContextType {

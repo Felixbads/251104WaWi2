@@ -160,6 +160,11 @@ export default function InventoryProductsTable({
   const [quantityInputs, setQuantityInputs] = useState<Record<number, number>>({});
   const [unitTypes, setUnitTypes] = useState<Record<number, UnitType>>({});
   
+  // Neue States für Gebinde-Eingabe
+  const [packageQuantities, setPackageQuantities] = useState<Record<number, number>>({});
+  const [individualQuantities, setIndividualQuantities] = useState<Record<number, number>>({});
+  const [selectedPackageTypes, setSelectedPackageTypes] = useState<Record<number, number>>({});
+  
   // Get batches for products
   const { data: productBatches } = useQuery({
     queryKey: ['/api/product-batches', { warehouseId }],
@@ -263,6 +268,39 @@ export default function InventoryProductsTable({
       ...prev,
       [productId]: unitType
     }));
+  };
+
+  // Handler: Gebinde-Menge ändern
+  const handlePackageQuantityChange = (productId: number, value: string) => {
+    const quantity = Math.max(0, parseInt(value) || 0);
+    setPackageQuantities(prev => ({ ...prev, [productId]: quantity }));
+  };
+
+  // Handler: Einzelstück-Menge ändern  
+  const handleIndividualQuantityChange = (productId: number, value: string) => {
+    const quantity = Math.max(0, parseInt(value) || 0);
+    setIndividualQuantities(prev => ({ ...prev, [productId]: quantity }));
+  };
+
+  // Handler: Package-Type auswählen
+  const handlePackageTypeSelection = (productId: number, packageTypeId: number) => {
+    setSelectedPackageTypes(prev => ({ ...prev, [productId]: packageTypeId }));
+  };
+
+  // Berechnet Gesamtmenge aus Gebinde + Einzelstück
+  const calculateTotalFromPackages = (productId: number): number => {
+    const packageQty = packageQuantities[productId] || 0;
+    const individualQty = individualQuantities[productId] || 0;
+    const selectedPackageTypeId = selectedPackageTypes[productId];
+    
+    if (selectedPackageTypeId) {
+      const packageType = packageTypes.find(pt => pt.id === selectedPackageTypeId);
+      if (packageType) {
+        return (packageQty * packageType.unitsPerPackage) + individualQty;
+      }
+    }
+    
+    return packageQty + individualQty;
   };
 
   // Behandelt Produkterweiterung (Chargen anzeigen/verbergen)
@@ -546,36 +584,138 @@ export default function InventoryProductsTable({
                   </TableCell>
                   
                   <TableCell>
-                    <div className="space-y-1">
-                      <Input
-                        type="number"
-                        min="1"
-                        max={unitType === 'pieces' ? enhancedProduct.availableQuantity : enhancedProduct.packageInfo.packagesInStock}
-                        value={inputQuantity}
-                        onChange={(e) => handleQuantityChange(product.id, e.target.value)}
-                        className={`w-24 ${!isValidQuantity ? 'border-red-500' : ''}`}
-                      />
-                      <div className="text-xs text-muted-foreground">
-                        {getAvailableQuantityDisplay(enhancedProduct, unitType)}
-                      </div>
-                      {actualQuantity !== inputQuantity && (
-                        <div className="text-xs text-blue-600">
-                          = {actualQuantity} Stück
+                    {(() => {
+                      const totalFromPackages = calculateTotalFromPackages(product.id);
+                      const packageQty = packageQuantities[product.id] || 0;
+                      const individualQty = individualQuantities[product.id] || 0;
+                      const selectedPackageTypeId = selectedPackageTypes[product.id];
+                      const selectedPackageType = packageTypes.find(pt => pt.id === selectedPackageTypeId);
+                      
+                      return (
+                        <div className="space-y-2 min-w-[200px]">
+                          {/* Package Type Auswahl */}
+                          <div>
+                            <Select
+                              value={selectedPackageTypeId ? selectedPackageTypeId.toString() : ""}
+                              onValueChange={(value) => handlePackageTypeSelection(product.id, parseInt(value))}
+                            >
+                              <SelectTrigger className="w-full">
+                                <SelectValue placeholder="Gebindeart wählen..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {packageTypes.map(pt => (
+                                  <SelectItem key={pt.id} value={pt.id.toString()}>
+                                    {pt.name} ({pt.unitsPerPackage} Stück)
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          
+                          {/* Gebinde + Einzelstück Eingabe */}
+                          {selectedPackageType && (
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  placeholder="Gebinde"
+                                  value={packageQty || ""}
+                                  onChange={(e) => handlePackageQuantityChange(product.id, e.target.value)}
+                                  className="w-full"
+                                />
+                                <div className="text-xs text-muted-foreground mt-1">
+                                  {selectedPackageType.name}
+                                </div>
+                              </div>
+                              <div>
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  placeholder="Einzelstück"
+                                  value={individualQty || ""}
+                                  onChange={(e) => handleIndividualQuantityChange(product.id, e.target.value)}
+                                  className="w-full"
+                                />
+                                <div className="text-xs text-muted-foreground mt-1">
+                                  Stück
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                          
+                          {/* Berechnung anzeigen */}
+                          {selectedPackageType && (packageQty > 0 || individualQty > 0) && (
+                            <div className="text-sm font-medium text-blue-600 bg-blue-50 p-2 rounded">
+                              {packageQty > 0 && (
+                                <span>{packageQty} × {selectedPackageType.unitsPerPackage}</span>
+                              )}
+                              {packageQty > 0 && individualQty > 0 && <span> + </span>}
+                              {individualQty > 0 && (
+                                <span>{individualQty} Stück</span>
+                              )}
+                              <span className="ml-2">= {totalFromPackages} Stück</span>
+                            </div>
+                          )}
+                          
+                          {/* Verfügbarkeit anzeigen */}
+                          <div className="text-xs text-muted-foreground">
+                            {enhancedProduct.availableQuantity} Stück verfügbar
+                          </div>
+                          
+                          {/* Validation */}
+                          {totalFromPackages > enhancedProduct.availableQuantity && (
+                            <div className="text-xs text-red-600">
+                              ⚠️ Nicht genügend Bestand
+                            </div>
+                          )}
                         </div>
-                      )}
-                    </div>
+                      );
+                    })()}
                   </TableCell>
                   
                   <TableCell>
-                    <Button
-                      size="sm"
-                      onClick={() => handleAddToCart(product)}
-                      disabled={!isValidQuantity}
-                      className="flex items-center gap-1"
-                    >
-                      <PlusCircle className="h-3 w-3" />
-                      Hinzufügen
-                    </Button>
+                    {(() => {
+                      const totalFromPackages = calculateTotalFromPackages(product.id);
+                      const hasPackageInput = totalFromPackages > 0;
+                      const isPackageValid = hasPackageInput ? totalFromPackages <= enhancedProduct.availableQuantity : true;
+                      const finalQuantity = hasPackageInput ? totalFromPackages : (inputQuantity || 1);
+                      const isFinalValid = finalQuantity > 0 && finalQuantity <= enhancedProduct.availableQuantity;
+                      
+                      const handleAddWithPackages = () => {
+                        const quantityToAdd = hasPackageInput ? totalFromPackages : actualQuantity;
+                        
+                        // Erstelle CartItem mit Package-Informationen
+                        const cartItem: CartItem = {
+                          id: Date.now(),
+                          productId: product.productId,
+                          warehouseId: product.warehouseId,
+                          quantity: quantityToAdd,
+                          productName: product.productName,
+                          packageTypeId: selectedPackageTypes[product.id],
+                          packageTypeName: selectedPackageTypes[product.id] 
+                            ? packageTypes.find(pt => pt.id === selectedPackageTypes[product.id])?.name 
+                            : undefined,
+                          packageQuantity: packageQuantities[product.id] || 0,
+                          individualQuantity: individualQuantities[product.id] || 0,
+                          selectedBatchIds: selectedBatches[product.productId] || []
+                        };
+                        
+                        onAddToCart(cartItem);
+                      };
+                      
+                      return (
+                        <Button
+                          size="sm"
+                          onClick={handleAddWithPackages}
+                          disabled={!isFinalValid}
+                          className="flex items-center gap-1"
+                        >
+                          <PlusCircle className="h-3 w-3" />
+                          Hinzufügen
+                        </Button>
+                      );
+                    })()}
                   </TableCell>
                 </TableRow>
               );

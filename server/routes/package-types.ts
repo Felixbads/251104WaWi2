@@ -6,18 +6,29 @@ const router = Router();
 // GET /api/package-types - Alle Package Types
 router.get('/', async (req, res) => {
   try {
-    // Hardcoded package types bis DB-Tabelle existiert
-    const packageTypes = [
-      { id: 1, name: 'Flasche', description: 'Glasflasche', is_active: true },
-      { id: 2, name: 'Dose', description: 'Aluminiumdose', is_active: true },
-      { id: 3, name: 'Tetrapack', description: 'Tetrapack Verpackung', is_active: true },
-      { id: 4, name: 'Plastikflasche', description: 'PET Flasche', is_active: true },
-      { id: 5, name: 'Glas', description: 'Konservenglas', is_active: true },
-      { id: 6, name: 'Tüte', description: 'Folientüte', is_active: true },
-      { id: 7, name: 'Karton', description: 'Pappkarton', is_active: true }
-    ];
+    // Hole aktive Package Types aus der Datenbank
+    const result = await pool.query(`
+      SELECT 
+        id, 
+        name, 
+        description, 
+        units_per_package,
+        is_active 
+      FROM package_types 
+      WHERE is_active = true 
+      ORDER BY sort_order ASC, name ASC
+    `);
     
-    res.json(packageTypes);
+    const packageTypes = result.rows.map(row => ({
+      id: row.id,
+      name: row.name,
+      description: row.description,
+      unitsPerPackage: row.units_per_package,
+      isActive: row.is_active
+    }));
+    
+    // Frontend erwartet das Array in einem packageTypes Wrapper
+    res.json({ packageTypes });
   } catch (error) {
     console.error('Fehler beim Laden der Gebindearten:', error);
     res.status(500).json({ 

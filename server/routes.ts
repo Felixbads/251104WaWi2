@@ -110,7 +110,7 @@ import resilientSyncRouter from './routes/resilientSync';
 import photosRouter from './routes/photos';
 import supplierPortalRouter from './routes/supplier-portal';
 import { getSuppliersSchedules } from './routes/suppliers-schedules';
-import packageTypesRouter from './routes/packageTypes';
+import packageTypesRouter from './routes/package-types';
 import inventoryTransfersRouter from './routes/inventoryTransfers';
 import inventoryMovementsRouter from './routes/inventoryMovements';
 import pagePermissionsRouter from './routes/page-permissions';
