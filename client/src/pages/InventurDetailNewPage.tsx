@@ -8,7 +8,7 @@ import {
   ArrowLeft, PlayCircle, Package, Ban, Trash2,
   Save, CheckCircle2, RefreshCw, Pencil,
   Search, TrendingUp, TrendingDown, Equal, Calendar,
-  ChevronDown, ChevronUp, ChevronRight, Plus,
+  ChevronDown, ChevronUp, ChevronRight, Plus, PlusCircle,
   Split, ClockIcon, MoreHorizontal, FileText,
   CalendarDays, CircleAlert, ArrowUp, ArrowDown, Play
 } from 'lucide-react';
@@ -229,6 +229,8 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
   const [individualCounts, setIndividualCounts] = useState<{[key: number]: number | null}>({});
   const [selectedItem, setSelectedItem] = useState<InventoryCountItem | null>(null);
   const [availableBatches, setAvailableBatches] = useState<ProductBatch[]>([]);
+  const [productBatches, setProductBatches] = useState<{[productId: number]: ProductBatch[]}>({});
+  const [editingBatch, setEditingBatch] = useState<ProductBatch | null>(null);
   const [expandedItems, setExpandedItems] = useState<{[key: number]: boolean}>({});
   const [isSplitMode, setIsSplitMode] = useState(false);
   const [selectedProductIds, setSelectedProductIds] = useState<number[]>([]);
@@ -277,6 +279,26 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
     }
     return 0;
   };
+
+  // Funktion zum Laden aller Chargen für ein Produkt
+  const loadProductBatches = async (productId: number) => {
+    if (!inventoryData?.warehouse_id) return [];
+    
+    try {
+      const response = await fetch(`/api/inventory-counts/${id}/product-batches/${productId}`);
+      if (response.ok) {
+        const batches = await response.json();
+        setProductBatches(prev => ({
+          ...prev,
+          [productId]: batches
+        }));
+        return batches;
+      }
+    } catch (error) {
+      console.error('Error loading product batches:', error);
+    }
+    return [];
+  };
   
   // Load data from localStorage on mount
   useEffect(() => {
@@ -314,6 +336,23 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
       }
     }
   }, [editedCounts, editedNotes, packageCounts, individualCounts, localStorageKey]);
+  
+  // Load product batches when items are expanded
+  useEffect(() => {
+    const expandedProductIds = Object.keys(expandedItems)
+      .filter(key => expandedItems[parseInt(key)])
+      .map(key => {
+        const item = inventurData?.items?.find(item => item.id === parseInt(key));
+        return item?.productId;
+      })
+      .filter(Boolean) as number[];
+    
+    expandedProductIds.forEach(productId => {
+      if (!productBatches[productId]) {
+        loadProductBatches(productId);
+      }
+    });
+  }, [expandedItems, inventurData?.items]);
 
   // Lade Inventurdaten
   const { 
@@ -1188,6 +1227,20 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
     }
   });
 
+  // Funktion zum Öffnen des Batch-Edit-Dialogs
+  const openBatchEditDialog = async (batch: ProductBatch, item: InventoryCountItem) => {
+    console.log("Öffne Batch-Edit-Dialog für Charge:", batch);
+    
+    // Aktuelle Scroll-Position speichern
+    if (typeof window !== 'undefined') {
+      window.sessionStorage.setItem('inventur_scroll_position', window.scrollY.toString());
+    }
+    
+    setEditingBatch(batch);
+    setSelectedItem(item);
+    setShowBatchDialog(true);
+  };
+
   // Funktion zum Öffnen des Batch-Dialogs mit optimiertem Scroll-Verhalten
   const openBatchDialog = (item: InventoryCountItem) => {
     console.log("Öffne Batch-Dialog für Item:", item);
@@ -1233,6 +1286,9 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
     
     // 2. Dialog öffnen BEVOR wir die Daten laden oder UI-Status zurücksetzen
     setShowBatchDialog(true);
+    
+    // Reset edit mode when opening in create/select mode
+    setEditingBatch(null);
     
     // 3. Formular sofort zurücksetzen, anstatt nach dem Laden
     setShowNewBatchForm(false);
@@ -3011,7 +3067,22 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
                           <TableRow key={`batch-${item.id}`}>
                             <TableCell colSpan={7} className="bg-gray-50 p-0">
                               <div className="p-4">
-                                <div className="text-sm font-medium mb-2">Mindesthaltbarkeitsdaten</div>
+                                <div className="flex justify-between items-center mb-2">
+                                  <div className="text-sm font-medium">Mindesthaltbarkeitsdaten</div>
+                                  <Button
+                                    size="sm"
+                                    variant="default"
+                                    onClick={() => {
+                                      // Load product batches when expanding
+                                      loadProductBatches(item.productId);
+                                      openBatchDialog(item);
+                                    }}
+                                    className="text-xs"
+                                  >
+                                    <PlusCircle className="h-3 w-3 mr-1" />
+                                    Neue Charge hinzufügen
+                                  </Button>
+                                </div>
                                 
                                 {/* MHD-Liste */}
                                 <div className="rounded border overflow-hidden">
@@ -3026,30 +3097,38 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
                                       </TableRow>
                                     </TableHeader>
                                     <TableBody>
-                                      {/* MHD-Einträge - dynamisch je nach Vorhandensein einer Batch */}
-                                      {item.batch ? (
-                                        <TableRow>
-                                          <TableCell>{item.batch.batchNumber}</TableCell>
-                                          <TableCell>{formatBatchDate(item.batch.expiryDate || null)}</TableCell>
-                                          <TableCell className="text-center">{item.batch.currentQuantity}</TableCell>
-                                          <TableCell>{formatBatchDate(item.batch.createdAt || null)}</TableCell>
-                                          <TableCell className="text-right">
-                                            <Button
-                                              size="sm"
-                                              variant="ghost"
-                                              onClick={() => openBatchDialog(item)}
-                                            >
-                                              Bearbeiten
-                                            </Button>
-                                          </TableCell>
-                                        </TableRow>
-                                      ) : (
-                                        <TableRow>
-                                          <TableCell colSpan={5} className="h-14 text-center text-muted-foreground">
-                                            Noch keine MHD-Einträge für dieses Produkt.
-                                          </TableCell>
-                                        </TableRow>
-                                      )}
+                                      {/* Zeige ALLE Chargen für dieses Produkt */}
+                                      {(() => {
+                                        const batches = productBatches[item.productId] || [];
+                                        
+                                        if (batches.length === 0) {
+                                          return (
+                                            <TableRow>
+                                              <TableCell colSpan={5} className="h-14 text-center text-muted-foreground">
+                                                Noch keine MHD-Einträge für dieses Produkt.
+                                              </TableCell>
+                                            </TableRow>
+                                          );
+                                        }
+                                        
+                                        return batches.map((batch) => (
+                                          <TableRow key={batch.id}>
+                                            <TableCell>{batch.batchNumber}</TableCell>
+                                            <TableCell>{formatBatchDate(batch.expiryDate || null)}</TableCell>
+                                            <TableCell className="text-center">{batch.currentQuantity}</TableCell>
+                                            <TableCell>{formatBatchDate(batch.createdAt || null)}</TableCell>
+                                            <TableCell className="text-right">
+                                              <Button
+                                                size="sm"
+                                                variant="ghost"
+                                                onClick={() => openBatchEditDialog(batch, item)}
+                                              >
+                                                Bearbeiten
+                                              </Button>
+                                            </TableCell>
+                                          </TableRow>
+                                        ));
+                                      })()}
                                     </TableBody>
                                   </Table>
                                 </div>
@@ -3270,6 +3349,7 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
           batchNumber: selectedItem.batch?.batchNumber || '',
           expiryDate: selectedItem.batch?.expiryDate || null
         } : null}
+        editingBatch={editingBatch}
         availableBatches={availableBatches}
         onBatchSelect={handleBatchUpdate}
         inventoryId={inventurData?.id.toString() || '0'}
@@ -3323,6 +3403,15 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
               return updatedBatches;
             });
             
+            // Also add to productBatches state for the multiple batch display
+            setProductBatches(prev => ({
+              ...prev,
+              [selectedItem.productId]: [
+                ...(prev[selectedItem.productId] || []),
+                newBatch as ProductBatch
+              ]
+            }));
+            
             // Expandiere das Item für sofortige Sichtbarkeit der neuen Batch
             setExpandedItems(prev => ({
               ...prev,
@@ -3369,6 +3458,37 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
               console.error('Fehler beim Server-Batch-Sync:', error);
             });
           }
+        }}
+        onBatchUpdated={(updatedBatch) => {
+          console.log('Batch aktualisiert:', updatedBatch);
+          
+          // Update productBatches state with the updated batch
+          if (selectedItem && updatedBatch) {
+            setProductBatches(prev => ({
+              ...prev,
+              [selectedItem.productId]: (prev[selectedItem.productId] || []).map(batch =>
+                batch.id === updatedBatch.id ? updatedBatch : batch
+              )
+            }));
+            
+            // Update availableBatches as well
+            setAvailableBatches(prevBatches =>
+              prevBatches.map(batch =>
+                batch.id === updatedBatch.id ? updatedBatch : batch
+              )
+            );
+          }
+          
+          // Invalidate caches
+          queryClient.invalidateQueries({ 
+            queryKey: [`/api/products/${selectedItem?.productId}/batches`],
+            exact: false 
+          });
+          
+          queryClient.invalidateQueries({ 
+            queryKey: [`/api/inventory-counts/${id}/items`],
+            exact: false 
+          });
         }}
       />
     </div>

@@ -378,6 +378,158 @@ router.get('/:inventoryCountId/product-batches/:productId', async (req: Request,
   }
 });
 
+// PATCH /api/inventory-counts/product-batches/:batchId - Bestehende Charge bearbeiten
+router.patch('/product-batches/:batchId', async (req: Request, res: Response) => {
+  try {
+    const batchId = parseInt(req.params.batchId);
+    const { 
+      batchNumber, 
+      expiryDate,
+      currentQuantity,
+      initialQuantity, 
+      notes,
+      locationInWarehouse 
+    } = req.body;
+    
+    console.log(`PATCH /api/inventory-counts/product-batches/${batchId} request:`, JSON.stringify(req.body, null, 2));
+    
+    if (!batchId) {
+      return res.status(400).json({ error: "Batch ID is required" });
+    }
+    
+    // Überprüfe, ob die Charge existiert
+    const existingBatchResult = await rawDb.query(
+      `SELECT * FROM product_batches WHERE id = $1`,
+      [batchId]
+    );
+    
+    if (existingBatchResult.rows.length === 0) {
+      return res.status(404).json({ error: "Batch not found" });
+    }
+    
+    const existingBatch = existingBatchResult.rows[0];
+    
+    // Baue die Update-Klauseln dynamisch auf
+    const updateParts = [];
+    const updateValues = [];
+    let valueIndex = 1;
+    
+    if (batchNumber !== undefined) {
+      updateParts.push(`batch_number = $${valueIndex}`);
+      updateValues.push(batchNumber);
+      valueIndex++;
+    }
+    
+    if (expiryDate !== undefined) {
+      updateParts.push(`expiry_date = $${valueIndex}`);
+      updateValues.push(expiryDate);
+      valueIndex++;
+    }
+    
+    if (currentQuantity !== undefined) {
+      updateParts.push(`current_quantity = $${valueIndex}`);
+      updateValues.push(currentQuantity);
+      valueIndex++;
+    }
+    
+    if (initialQuantity !== undefined) {
+      updateParts.push(`initial_quantity = $${valueIndex}`);
+      updateValues.push(initialQuantity);
+      valueIndex++;
+    }
+    
+    if (notes !== undefined) {
+      updateParts.push(`notes = $${valueIndex}`);
+      updateValues.push(notes);
+      valueIndex++;
+    }
+    
+    if (locationInWarehouse !== undefined) {
+      updateParts.push(`location_in_warehouse = $${valueIndex}`);
+      updateValues.push(locationInWarehouse);
+      valueIndex++;
+    }
+    
+    // Immer updated_at aktualisieren
+    updateParts.push('updated_at = NOW()');
+    
+    if (updateParts.length === 1) { // Nur updated_at
+      return res.status(400).json({ error: "No fields to update" });
+    }
+    
+    // Update-Query ausführen
+    updateValues.push(batchId); // Für WHERE-Klausel
+    const updateQuery = `
+      UPDATE product_batches 
+      SET ${updateParts.join(', ')} 
+      WHERE id = $${valueIndex} 
+      RETURNING *
+    `;
+    
+    console.log("Update Query:", updateQuery);
+    console.log("Update Values:", updateValues);
+    
+    const updateResult = await rawDb.query(updateQuery, updateValues);
+    
+    if (updateResult.rows.length === 0) {
+      return res.status(404).json({ error: "Batch not found or could not be updated" });
+    }
+    
+    const updatedBatch = updateResult.rows[0];
+    
+    // Aktualisiere den Gesamtbestand in inventory_items wenn sich die Menge geändert hat
+    if (currentQuantity !== undefined) {
+      try {
+        const totalQuantityResult = await rawDb.query(
+          `SELECT SUM(current_quantity) as total_quantity 
+           FROM product_batches 
+           WHERE product_id = $1 AND warehouse_id = $2 AND status = 'active'`,
+          [existingBatch.product_id, existingBatch.warehouse_id]
+        );
+        
+        const totalQuantity = totalQuantityResult.rows[0].total_quantity || 0;
+        
+        await rawDb.query(
+          `UPDATE inventory_items 
+           SET quantity = $1, updated_at = NOW() 
+           WHERE product_id = $2 AND warehouse_id = $3`,
+          [totalQuantity, existingBatch.product_id, existingBatch.warehouse_id]
+        );
+        
+        console.log(`Lagerbestand für Produkt ${existingBatch.product_id} auf ${totalQuantity} aktualisiert`);
+      } catch (inventoryError) {
+        console.error("Fehler bei der Lagerbestand-Aktualisierung:", inventoryError);
+      }
+    }
+    
+    // Formatiere das Ergebnis
+    const formattedBatch = {
+      id: updatedBatch.id,
+      productId: updatedBatch.product_id,
+      warehouseId: updatedBatch.warehouse_id,
+      batchNumber: updatedBatch.batch_number,
+      expiryDate: updatedBatch.expiry_date,
+      initialQuantity: updatedBatch.initial_quantity,
+      currentQuantity: updatedBatch.current_quantity,
+      receivedDate: updatedBatch.received_date,
+      locationInWarehouse: updatedBatch.location_in_warehouse,
+      notes: updatedBatch.notes,
+      status: updatedBatch.status,
+      createdAt: updatedBatch.created_at,
+      updatedAt: updatedBatch.updated_at
+    };
+    
+    console.log("Charge erfolgreich aktualisiert:", formattedBatch.id);
+    res.status(200).json(formattedBatch);
+  } catch (error) {
+    console.error("Error updating product batch:", error);
+    res.status(500).json({ 
+      error: "Failed to update product batch", 
+      details: error instanceof Error ? error.message : String(error) 
+    });
+  }
+});
+
 // POST /api/inventory-counts/items/:id/split - Bestand zwischen Chargen aufteilen
 router.post('/items/:itemId/split', async (req: Request, res: Response) => {
   try {

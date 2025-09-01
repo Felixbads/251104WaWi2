@@ -61,6 +61,16 @@ interface InventoryCountBatchDialogProps {
   inventoryId: string;
   warehouseId: number; // Lagernummer ist wichtig für die korrekte Batch-Erstellung
   onBatchCreated?: (newBatch: ProductBatch) => void; // Callback mit der erstellten Batch
+  editBatch?: {
+    id: number;
+    batchNumber: string;
+    expiryDate: string | null;
+    currentQuantity: number;
+    initialQuantity: number;
+    notes?: string;
+    locationInWarehouse?: string;
+  } | null;
+  isEditMode?: boolean;
 }
 
 export default function InventoryCountBatchDialog({
@@ -71,7 +81,9 @@ export default function InventoryCountBatchDialog({
   onBatchSelect,
   inventoryId,
   warehouseId,
-  onBatchCreated
+  onBatchCreated,
+  editBatch = null,
+  isEditMode = false
 }: InventoryCountBatchDialogProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -95,6 +107,30 @@ export default function InventoryCountBatchDialog({
   // Neue State für die Menge der Charge
   const [batchQuantity, setBatchQuantity] = useState<number>(1);
   const [isAutoFilling, setIsAutoFilling] = useState(false);
+  
+  // Edit mode state
+  const [editNotes, setEditNotes] = useState<string>('');
+  const [editLocationInWarehouse, setEditLocationInWarehouse] = useState<string>('');
+
+  // Initialize edit mode states when editBatch is provided
+  useEffect(() => {
+    if (isEditMode && editBatch) {
+      setNewBatchNumber(editBatch.batchNumber);
+      setBatchQuantity(editBatch.currentQuantity);
+      setExpiryDate(editBatch.expiryDate ? new Date(editBatch.expiryDate) : null);
+      setEditNotes(editBatch.notes || '');
+      setEditLocationInWarehouse(editBatch.locationInWarehouse || '');
+      setActiveTab('edit');
+    } else {
+      // Reset for create mode
+      setNewBatchNumber(generateBatchNumber());
+      setBatchQuantity(1);
+      setExpiryDate(new Date(new Date().setMonth(new Date().getMonth() + 3)));
+      setEditNotes('');
+      setEditLocationInWarehouse('');
+      setActiveTab(hasValidBatches ? 'existing' : 'new');
+    }
+  }, [isEditMode, editBatch, hasValidBatches]);
   
   // Funktion zum automatischen Ausfüllen der Charge-Menge basierend auf unzugeordneten Produkten
   const autoFillBatchQuantity = async () => {
@@ -374,6 +410,91 @@ export default function InventoryCountBatchDialog({
     },
   });
   
+  // Mutation zum Bearbeiten einer bestehenden Charge
+  const updateBatchMutation = useMutation({
+    mutationFn: async (batchData: {
+      batchId: number;
+      batchNumber: string;
+      expiryDate: string | null;
+      currentQuantity: number;
+      notes?: string;
+      locationInWarehouse?: string;
+    }) => {
+      const response = await fetch(`/api/inventory-counts/product-batches/${batchData.batchId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          batchNumber: batchData.batchNumber,
+          expiryDate: batchData.expiryDate,
+          currentQuantity: batchData.currentQuantity,
+          notes: batchData.notes,
+          locationInWarehouse: batchData.locationInWarehouse,
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Fehler beim Aktualisieren der Charge: ${response.status}`);
+      }
+      
+      return await response.json();
+    },
+    onSuccess: (updatedBatch) => {
+      console.log('Charge erfolgreich aktualisiert:', updatedBatch);
+      
+      // Cache invalidieren
+      queryClient.invalidateQueries({ queryKey: [`/api/inventory-counts/${inventoryId}`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/inventory-counts/${inventoryId}/product-batches`] });
+      
+      // Dialog schließen
+      onOpenChange(false);
+      
+      // Erfolgstoast
+      toast({
+        title: "Charge aktualisiert",
+        description: `Charge ${updatedBatch.batchNumber} wurde erfolgreich bearbeitet.`,
+      });
+    },
+    onError: (error) => {
+      console.error('Fehler beim Aktualisieren der Charge:', error);
+      toast({
+        title: 'Fehler',
+        description: 'Die Charge konnte nicht aktualisiert werden.',
+        variant: 'destructive',
+      });
+    }
+  });
+  
+  // Handler zum Bearbeiten einer bestehenden Charge
+  const handleEditBatch = async () => {
+    if (!editBatch || !newBatchNumber) {
+      toast({
+        title: 'Fehler',
+        description: 'Chargennummer ist erforderlich.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    setIsSubmitting(true);
+    
+    try {
+      await updateBatchMutation.mutateAsync({
+        batchId: editBatch.id,
+        batchNumber: newBatchNumber,
+        expiryDate: expiryDate ? format(expiryDate, 'yyyy-MM-dd') : null,
+        currentQuantity: batchQuantity,
+        notes: editNotes,
+        locationInWarehouse: editLocationInWarehouse,
+      });
+    } catch (error) {
+      console.error('Fehler beim Bearbeiten der Charge:', error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   // Kombinierter Handler zum Erstellen und Verknüpfen einer Charge in einem Durchgang
   const handleCreateAndLink = async () => {
     setIsSubmitting(true);
@@ -649,12 +770,21 @@ export default function InventoryCountBatchDialog({
         <div className="flex-1 overflow-y-auto px-1">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
               <TabsList className="w-full mb-4">
-                <TabsTrigger value="existing" className="flex-1">
-                  Bestehende Chargen {filteredBatches.length > 0 && `(${filteredBatches.length})`}
-                </TabsTrigger>
-                <TabsTrigger value="new" className="flex-1">
-                  Neue Charge erstellen
-                </TabsTrigger>
+                {!isEditMode && (
+                  <TabsTrigger value="existing" className="flex-1">
+                    Bestehende Chargen {filteredBatches.length > 0 && `(${filteredBatches.length})`}
+                  </TabsTrigger>
+                )}
+                {isEditMode && (
+                  <TabsTrigger value="edit" className="flex-1">
+                    Charge bearbeiten
+                  </TabsTrigger>
+                )}
+                {!isEditMode && (
+                  <TabsTrigger value="new" className="flex-1">
+                    Neue Charge erstellen
+                  </TabsTrigger>
+                )}
               </TabsList>
               
               <TabsContent value="existing">
@@ -844,6 +974,103 @@ export default function InventoryCountBatchDialog({
                   </div>
                 </div>
               </TabsContent>
+
+              {/* Edit Tab Content */}
+              <TabsContent value="edit">
+                {isEditMode && editBatch ? (
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium mb-1">
+                        Chargennummer
+                      </label>
+                      <Input
+                        value={newBatchNumber}
+                        onChange={(e) => setNewBatchNumber(e.target.value)}
+                        placeholder="Chargennummer eingeben"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Eindeutige Kennzeichnung der Charge
+                      </p>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium mb-1">
+                        Menge
+                      </label>
+                      <Input
+                        type="number"
+                        min="0"
+                        value={batchQuantity}
+                        onChange={(e) => setBatchQuantity(parseInt(e.target.value) || 0)}
+                        placeholder="Anzahl eingeben"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Anzahl der Produkte in dieser Charge
+                      </p>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium mb-1">
+                        Mindesthaltbarkeitsdatum
+                      </label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            className="w-full justify-start text-left font-normal"
+                          >
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {expiryDate ? format(expiryDate, 'dd.MM.yyyy') : <span>Datum auswählen</span>}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0">
+                          <Calendar
+                            mode="single"
+                            selected={expiryDate || undefined}
+                            onSelect={(date) => setExpiryDate(date || null)}
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Datum, an dem die Charge abläuft
+                      </p>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium mb-1">
+                        Lagerort (optional)
+                      </label>
+                      <Input
+                        value={editLocationInWarehouse}
+                        onChange={(e) => setEditLocationInWarehouse(e.target.value)}
+                        placeholder="z.B. Regal A-3"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Standort der Charge im Lager
+                      </p>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium mb-1">
+                        Notizen (optional)
+                      </label>
+                      <Input
+                        value={editNotes}
+                        onChange={(e) => setEditNotes(e.target.value)}
+                        placeholder="Zusätzliche Informationen"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Weitere Informationen zur Charge
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-4">
+                    <p className="text-muted-foreground">Keine Charge zum Bearbeiten ausgewählt.</p>
+                  </div>
+                )}
+              </TabsContent>
             </Tabs>
         </div>
 
@@ -861,6 +1088,13 @@ export default function InventoryCountBatchDialog({
                   disabled={isSubmitting}
                 >
                   Auswahl speichern
+                </Button>
+              ) : activeTab === 'edit' ? (
+                <Button 
+                  onClick={handleEditBatch}
+                  disabled={isSubmitting || !newBatchNumber}
+                >
+                  {isSubmitting ? 'Wird gespeichert...' : 'Änderungen speichern'}
                 </Button>
               ) : (
                 <Button 
