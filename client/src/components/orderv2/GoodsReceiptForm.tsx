@@ -32,10 +32,21 @@ import {
   Save,
   Mail,
   Camera,
-  X
+  X,
+  Plus,
+  Minus
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
+import {
+  parsePackageSizeToQuantity,
+  getPackageTypeName,
+  createProductWithPackageInfo,
+  calculatePackageInfo,
+  formatPackageDisplayFromString,
+  calculatePackageCount,
+  calculateTotalQuantity
+} from '../../../../shared/package-utils';
 
 interface OrderItem {
   id: number;
@@ -48,6 +59,11 @@ interface OrderItem {
   damaged?: boolean;
   comment?: string;
   expiryDate?: string; // MHD für die Batch-Erstellung
+  packageSize?: string; // Gebindegröße aus der Datenbank
+  productId?: number; // Product ID für Package-Info
+  // Package-spezifische Felder
+  receivedPackageCount?: number; // Anzahl erhaltener Gebinde
+  receivedTotalQuantity?: number; // Gesamtanzahl Einzelstücke
 }
 
 interface GoodsReceiptFormProps {
@@ -127,12 +143,20 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
       unit: item.unit || 'Stk.',
       damaged: false,
       comment: '',
-      expiryDate: '' // Leeres Feld für MHD hinzufügen
+      expiryDate: '', // Leeres Feld für MHD hinzufügen
+      packageSize: item.package_size, // Gebindegröße aus der Datenbank
+      // Package-spezifische Initialisierung
+      receivedPackageCount: 0,
+      receivedTotalQuantity: item.orderQuantity || item.orderedQuantity || item.quantity || 0
     }))
   );
   
   const [receiptNote, setReceiptNote] = useState('');
   const [documents, setDocuments] = useState<File[]>([]);
+  
+  // Package-based quantity states for goods receipt
+  const [receivedPackageCounts, setReceivedPackageCounts] = useState<Record<number, number>>({});
+  const [receivedTotalQuantities, setReceivedTotalQuantities] = useState<Record<number, number>>({});
   
   // Calculate total received vs ordered
   const totalOrdered = orderItems.reduce((sum, item) => sum + item.orderedQuantity, 0);
@@ -174,6 +198,58 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
     setReceivedItems(items =>
       items.map(item =>
         item.id === id ? { ...item, expiryDate } : item
+      )
+    );
+  };
+  
+  // Handler: Anzahl Gebinde ändern (automatisch Gesamtanzahl berechnen)
+  const handleReceivedPackageCountChange = (itemId: number, value: string) => {
+    const packageCount = Math.max(0, parseInt(value) || 0);
+    const item = receivedItems.find(i => i.id === itemId);
+    if (!item) return;
+    
+    // Parse package size to get package quantity
+    const packageQuantity = parsePackageSizeToQuantity(item.packageSize);
+    const totalQuantity = calculateTotalQuantity(packageCount, packageQuantity);
+    
+    setReceivedPackageCounts(prev => ({ ...prev, [itemId]: packageCount }));
+    setReceivedTotalQuantities(prev => ({ ...prev, [itemId]: totalQuantity }));
+    
+    // Update receivedItems
+    setReceivedItems(items =>
+      items.map(item =>
+        item.id === itemId ? { 
+          ...item, 
+          receivedQuantity: totalQuantity,
+          receivedPackageCount: packageCount,
+          receivedTotalQuantity: totalQuantity
+        } : item
+      )
+    );
+  };
+  
+  // Handler: Gesamtanzahl ändern (automatisch Gebinde-Anzahl berechnen)
+  const handleReceivedTotalQuantityChange = (itemId: number, value: string) => {
+    const totalQuantity = Math.max(0, parseInt(value) || 0);
+    const item = receivedItems.find(i => i.id === itemId);
+    if (!item) return;
+    
+    // Parse package size to get package quantity
+    const packageQuantity = parsePackageSizeToQuantity(item.packageSize);
+    const packageCount = calculatePackageCount(totalQuantity, packageQuantity);
+    
+    setReceivedTotalQuantities(prev => ({ ...prev, [itemId]: totalQuantity }));
+    setReceivedPackageCounts(prev => ({ ...prev, [itemId]: packageCount }));
+    
+    // Update receivedItems
+    setReceivedItems(items =>
+      items.map(item =>
+        item.id === itemId ? { 
+          ...item, 
+          receivedQuantity: totalQuantity,
+          receivedPackageCount: packageCount,
+          receivedTotalQuantity: totalQuantity
+        } : item
       )
     );
   };
@@ -340,8 +416,10 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
               <TableRow>
                 <TableHead className="w-12"></TableHead>
                 <TableHead>Artikel</TableHead>
+                <TableHead className="text-center">Gebinde</TableHead>
                 <TableHead className="text-right">Bestellt</TableHead>
-                <TableHead className="text-right">Erhalten</TableHead>
+                <TableHead className="text-center">Anzahl Gebinde</TableHead>
+                <TableHead className="text-center">Gesamtanzahl</TableHead>
                 <TableHead className="text-right hidden md:table-cell">Preis</TableHead>
                 <TableHead className="text-center">MHD</TableHead>
                 <TableHead className="hidden md:table-cell">Anmerkung</TableHead>
@@ -350,6 +428,17 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
             <TableBody>
               {receivedItems.map((item) => {
                 const isDifferent = item.receivedQuantity !== item.orderedQuantity;
+                
+                // Calculate package info for this item
+                const packageQuantity = parsePackageSizeToQuantity(item.packageSize);
+                const packageDisplay = formatPackageDisplayFromString(item.packageSize);
+                
+                // Calculate ordered package count
+                const orderedPackageCount = calculatePackageCount(item.orderedQuantity, packageQuantity);
+                
+                // Get current package count and total quantity (from state or calculated)
+                const currentPackageCount = receivedPackageCounts[item.id] ?? orderedPackageCount;
+                const currentTotalQuantity = receivedTotalQuantities[item.id] ?? item.receivedQuantity;
                 
                 return (
                   <TableRow key={item.id} className={item.damaged ? 'bg-destructive/10' : isDifferent ? 'bg-amber-50' : ''}>
@@ -369,18 +458,80 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
                       </div>
                     </TableCell>
                     <TableCell className="font-medium">{item.name || item.productName || 'Unbekannter Artikel'}</TableCell>
-                    <TableCell className="text-right">{item.orderedQuantity}</TableCell>
-                    <TableCell className="text-right">
-                      <Input
-                        type="number"
-                        min="0"
-                        value={item.receivedQuantity}
-                        onChange={(e) => handleQuantityChange(item.id, parseInt(e.target.value) || 0)}
-                        className={`w-16 h-8 text-center float-right ${
-                          item.receivedQuantity !== item.orderedQuantity ? "border-amber-500" : ""
-                        }`}
-                      />
+                    
+                    {/* Gebinde-Info anzeigen */}
+                    <TableCell className="text-center text-xs text-muted-foreground">
+                      {packageDisplay}
                     </TableCell>
+                    
+                    <TableCell className="text-right">{item.orderedQuantity}</TableCell>
+                    
+                    {/* Anzahl Gebinde mit +/- Buttons */}
+                    <TableCell className="text-center">
+                      <div className="flex items-center justify-center gap-1">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-6 w-6 p-0"
+                          onClick={() => handleReceivedPackageCountChange(item.id, String(Math.max(0, currentPackageCount - 1)))}
+                          disabled={currentPackageCount <= 0}
+                        >
+                          <Minus className="h-3 w-3" />
+                        </Button>
+                        <Input
+                          type="number"
+                          min="0"
+                          value={currentPackageCount}
+                          onChange={(e) => handleReceivedPackageCountChange(item.id, e.target.value)}
+                          className="w-12 h-6 text-center px-1 text-xs"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-6 w-6 p-0"
+                          onClick={() => handleReceivedPackageCountChange(item.id, String(currentPackageCount + 1))}
+                        >
+                          <Plus className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                    
+                    {/* Gesamtanzahl mit +/- Buttons */}
+                    <TableCell className="text-center">
+                      <div className="flex items-center justify-center gap-1">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-6 w-6 p-0"
+                          onClick={() => handleReceivedTotalQuantityChange(item.id, String(Math.max(0, currentTotalQuantity - 1)))}
+                          disabled={currentTotalQuantity <= 0}
+                        >
+                          <Minus className="h-3 w-3" />
+                        </Button>
+                        <Input
+                          type="number"
+                          min="0"
+                          value={currentTotalQuantity}
+                          onChange={(e) => handleReceivedTotalQuantityChange(item.id, e.target.value)}
+                          className={`w-14 h-6 text-center px-1 text-xs ${
+                            currentTotalQuantity !== item.orderedQuantity ? "border-amber-500" : ""
+                          }`}
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-6 w-6 p-0"
+                          onClick={() => handleReceivedTotalQuantityChange(item.id, String(currentTotalQuantity + 1))}
+                        >
+                          <Plus className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                    
                     <TableCell className="text-right hidden md:table-cell">{(item.price || item.unitPrice || 0).toFixed(2)} €</TableCell>
 
                     <TableCell>

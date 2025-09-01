@@ -328,6 +328,23 @@ export function getPackageTypeName(packageSize: string | null | undefined): stri
 }
 
 /**
+ * Formats package size string for display in UI
+ * Examples: "24x330ml" -> "Kasten (24 Stück)", "6x0,5L" -> "Karton (6 Stück)"
+ */
+export function formatPackageDisplayFromString(packageSize: string | null | undefined): string {
+  if (!packageSize) return "Stück";
+  
+  const packageQuantity = parsePackageSizeToQuantity(packageSize);
+  const packageTypeName = getPackageTypeName(packageSize);
+  
+  if (packageQuantity > 1) {
+    return `${packageTypeName} (${packageQuantity} Stück)`;
+  }
+  
+  return "Stück";
+}
+
+/**
  * Creates a Product object with package information from warehouse product data
  * This allows using existing package-utils functions with warehouse product data
  */
