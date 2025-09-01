@@ -1174,27 +1174,40 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
           }]}
           initialQuantity={selectedItem.countedQuantity || editedCounts[selectedItem.id] || 1}
           onSuccess={async () => {
-            // Explizit refetch für sofortige Batch-Anzeige
-            await refetchAvailableBatches();
+            console.log('[INVENTORY-PAGE] onSuccess callback called - refetching batches');
             
-            // Query invalidieren für Live-Update der availableBatches
-            queryClient.invalidateQueries({ 
-              queryKey: [`/api/inventory-count-batches/warehouse/${inventurData?.warehouseId}/products`]
-            });
-            
-            // Optional: Auch die Inventur-Items-Query invalidieren für vollständige Konsistenz
-            queryClient.invalidateQueries({ 
-              queryKey: [`/api/inventory-counts/${inventoryId}/items`]
-            });
-            
-            toast({
-              title: "MHD-Batch erstellt",
-              description: `Neue Charge wurde erfolgreich angelegt`,
-            });
-            
-            // Dialog schließen aber selectedItem BEHALTEN für Batch-Anzeige
-            setShowBatchDialog(false);
-            // selectedItem NICHT auf null setzen für sofortige Batch-Sichtbarkeit
+            try {
+              // Explizit refetch für sofortige Batch-Anzeige
+              const result = await refetchAvailableBatches();
+              console.log('[INVENTORY-PAGE] Refetch result:', result);
+              
+              // Kurze Verzögerung, damit die Datenbank die Änderungen committen kann
+              await new Promise(resolve => setTimeout(resolve, 500));
+              
+              // Query invalidieren für Live-Update der availableBatches
+              await queryClient.invalidateQueries({ 
+                queryKey: [`/api/inventory-count-batches/warehouse/${inventurData?.warehouseId}/products`]
+              });
+              
+              // Nochmal refetch nach Invalidierung
+              await refetchAvailableBatches();
+              
+              // Optional: Auch die Inventur-Items-Query invalidieren für vollständige Konsistenz
+              await queryClient.invalidateQueries({ 
+                queryKey: [`/api/inventory-counts/${inventoryId}/items`]
+              });
+              
+              toast({
+                title: "MHD-Batch erstellt",
+                description: `Neue Charge wurde erfolgreich angelegt`,
+              });
+              
+              // Dialog schließen aber selectedItem BEHALTEN für Batch-Anzeige
+              setShowBatchDialog(false);
+              // selectedItem NICHT auf null setzen für sofortige Batch-Sichtbarkeit
+            } catch (error) {
+              console.error('[INVENTORY-PAGE] Error during refetch:', error);
+            }
           }}
         />
       )}
@@ -1212,28 +1225,41 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
           }}
           batch={selectedBatch}
           onSuccess={async () => {
-            // Explizit refetch für sofortige Batch-Anzeige
-            await refetchAvailableBatches();
+            console.log('[INVENTORY-PAGE-EDIT] onSuccess callback called - refetching batches');
             
-            // Query invalidieren für Live-Update der availableBatches
-            queryClient.invalidateQueries({ 
-              queryKey: [`/api/inventory-count-batches/warehouse/${inventurData?.warehouseId}/products`]
-            });
-            
-            // Optional: Auch die Inventur-Items-Query invalidieren für vollständige Konsistenz
-            queryClient.invalidateQueries({ 
-              queryKey: [`/api/inventory-counts/${inventoryId}/items`]
-            });
-            
-            toast({
-              title: "MHD-Batch aktualisiert",
-              description: `Charge ${selectedBatch.batchNumber} wurde erfolgreich bearbeitet`,
-            });
-            
-            // Dialog schließen
-            setShowEditBatchDialog(false);
-            setSelectedBatch(null);
-            setSelectedItem(null);
+            try {
+              // Explizit refetch für sofortige Batch-Anzeige
+              const result = await refetchAvailableBatches();
+              console.log('[INVENTORY-PAGE-EDIT] Refetch result:', result);
+              
+              // Kurze Verzögerung, damit die Datenbank die Änderungen committen kann
+              await new Promise(resolve => setTimeout(resolve, 500));
+              
+              // Query invalidieren für Live-Update der availableBatches
+              await queryClient.invalidateQueries({ 
+                queryKey: [`/api/inventory-count-batches/warehouse/${inventurData?.warehouseId}/products`]
+              });
+              
+              // Nochmal refetch nach Invalidierung
+              await refetchAvailableBatches();
+              
+              // Optional: Auch die Inventur-Items-Query invalidieren für vollständige Konsistenz
+              await queryClient.invalidateQueries({ 
+                queryKey: [`/api/inventory-counts/${inventoryId}/items`]
+              });
+              
+              toast({
+                title: "MHD-Batch aktualisiert",
+                description: `Charge ${selectedBatch.batchNumber} wurde erfolgreich bearbeitet`,
+              });
+              
+              // Dialog schließen
+              setShowEditBatchDialog(false);
+              setSelectedBatch(null);
+              setSelectedItem(null);
+            } catch (error) {
+              console.error('[INVENTORY-PAGE-EDIT] Error during refetch:', error);
+            }
           }}
           onDelete={() => {
             // Query invalidieren nach Löschung
