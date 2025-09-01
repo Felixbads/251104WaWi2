@@ -292,22 +292,11 @@ export default function EditBatchDialog({
                       <FormLabel>Mindesthaltbarkeitsdatum (MHD)</FormLabel>
                       <FormControl>
                         <Input 
-                          type={isMobile ? "date" : "text"}
-                          placeholder={!isMobile ? "YYYY-MM-DD" : undefined}
+                          type="date"
                           value={field.value ? format(field.value, "yyyy-MM-dd") : ''}
                           onChange={(e) => {
                             const value = e.target.value;
-                            if (isMobile) {
-                              // Mobile: Direkte Date-Verarbeitung
-                              field.onChange(value ? new Date(value) : undefined);
-                            } else {
-                              // Desktop: Einfache String-zu-Date Konvertierung
-                              if (value && value.length === 10 && value.includes('-')) {
-                                field.onChange(new Date(value));
-                              } else if (!value) {
-                                field.onChange(undefined);
-                              }
-                            }
+                            field.onChange(value ? new Date(value + 'T00:00:00') : undefined);
                           }}
                         />
                       </FormControl>
@@ -325,24 +314,12 @@ export default function EditBatchDialog({
                       <FormLabel>Eingangsdatum</FormLabel>
                       <FormControl>
                         <Input 
-                          type={isMobile ? "date" : "text"}
-                          placeholder={!isMobile ? "YYYY-MM-DD" : undefined}
+                          type="date"
                           value={field.value ? format(field.value, "yyyy-MM-dd") : ''}
                           onChange={(e) => {
                             const value = e.target.value;
-                            if (isMobile) {
-                              // Mobile: Direkte Date-Verarbeitung
-                              field.onChange(value ? new Date(value) : undefined);
-                            } else {
-                              // Desktop: Einfache String-zu-Date Konvertierung
-                              if (value && value.length === 10 && value.includes('-')) {
-                                field.onChange(new Date(value));
-                              } else if (!value) {
-                                field.onChange(undefined);
-                              }
-                            }
+                            field.onChange(value ? new Date(value + 'T00:00:00') : undefined);
                           }}
-                          max={isMobile ? format(new Date(), "yyyy-MM-dd") : undefined}
                         />
                       </FormControl>
                       <FormMessage />

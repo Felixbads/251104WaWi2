@@ -104,15 +104,30 @@ export default function NewBatchDialog({
   const form = useForm<BatchFormData>({
     resolver: zodResolver(batchSchema),
     defaultValues: {
-      warehouseId: warehouses.length >= 1 ? String(warehouses[0]?.id || '') : '',
-      productId: products.length >= 1 ? String(products[0]?.id || '') : '',
-      quantity: initialQuantity ? String(initialQuantity) : '1',
+      warehouseId: warehouses && warehouses.length >= 1 ? String(warehouses[0]?.id || '') : '',
+      productId: products && products.length >= 1 ? String(products[0]?.id || '') : '',
+      quantity: initialQuantity !== undefined ? String(initialQuantity) : '1',
       batchNumber: generateBatchNumber(), // Auto-generierte Chargennummer
       expiryDate: new Date(new Date().setMonth(new Date().getMonth() + 3)), // 3 Monate in der Zukunft als Standard-MHD
       incomingDate: new Date(), // Standardmäßig das heutige Datum
       notes: '',
     },
   });
+  
+  // Reset form wenn Dialog geöffnet wird mit neuen Props
+  useEffect(() => {
+    if (open && warehouses && products) {
+      form.reset({
+        warehouseId: warehouses.length >= 1 ? String(warehouses[0]?.id || '') : '',
+        productId: products.length >= 1 ? String(products[0]?.id || '') : '',
+        quantity: initialQuantity !== undefined ? String(initialQuantity) : '1',
+        batchNumber: generateBatchNumber(),
+        expiryDate: new Date(new Date().setMonth(new Date().getMonth() + 3)),
+        incomingDate: new Date(),
+        notes: '',
+      });
+    }
+  }, [open, warehouses, products, initialQuantity, form]);
 
   // Mutation zum Erstellen einer neuen Charge
   const createBatchMutation = useMutation({
@@ -125,9 +140,9 @@ export default function NewBatchDialog({
       const quantity = parseInt(data.quantity);
       
       // Zusätzliche Validierung der Menge vor dem Senden
-      if (isNaN(quantity) || quantity <= 0) {
+      if (isNaN(quantity) || quantity < 0) {
         console.error("Invalid quantity value:", data.quantity);
-        throw new Error("Die Menge muss eine positive Zahl sein");
+        throw new Error("Die Menge darf nicht negativ sein");
       }
       
       const payload = {
@@ -305,7 +320,7 @@ export default function NewBatchDialog({
                     <FormItem>
                       <FormLabel>Menge</FormLabel>
                       <FormControl>
-                        <Input type="number" min="1" placeholder="Artikelmenge" {...field} />
+                        <Input type="number" min="0" placeholder="Artikelmenge" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -336,22 +351,11 @@ export default function NewBatchDialog({
                       <FormLabel>Mindesthaltbarkeitsdatum (MHD)</FormLabel>
                       <FormControl>
                         <Input 
-                          type={isMobile ? "date" : "text"}
-                          placeholder={!isMobile ? "YYYY-MM-DD" : undefined}
+                          type="date"
                           value={field.value ? format(field.value, "yyyy-MM-dd") : ''}
                           onChange={(e) => {
                             const value = e.target.value;
-                            if (isMobile) {
-                              // Mobile: Direkte Date-Verarbeitung
-                              field.onChange(value ? new Date(value) : undefined);
-                            } else {
-                              // Desktop: Einfache String-zu-Date Konvertierung
-                              if (value && value.length === 10 && value.includes('-')) {
-                                field.onChange(new Date(value));
-                              } else if (!value) {
-                                field.onChange(undefined);
-                              }
-                            }
+                            field.onChange(value ? new Date(value + 'T00:00:00') : undefined);
                           }}
                           // min-Attribut entfernt, um auch vergangene MHD-Daten eingeben zu können
                         />
@@ -370,24 +374,12 @@ export default function NewBatchDialog({
                       <FormLabel>Eingangsdatum</FormLabel>
                       <FormControl>
                         <Input 
-                          type={isMobile ? "date" : "text"}
-                          placeholder={!isMobile ? "YYYY-MM-DD" : undefined}
+                          type="date"
                           value={field.value ? format(field.value, "yyyy-MM-dd") : ''}
                           onChange={(e) => {
                             const value = e.target.value;
-                            if (isMobile) {
-                              // Mobile: Direkte Date-Verarbeitung
-                              field.onChange(value ? new Date(value) : undefined);
-                            } else {
-                              // Desktop: Einfache String-zu-Date Konvertierung
-                              if (value && value.length === 10 && value.includes('-')) {
-                                field.onChange(new Date(value));
-                              } else if (!value) {
-                                field.onChange(undefined);
-                              }
-                            }
+                            field.onChange(value ? new Date(value + 'T00:00:00') : undefined);
                           }}
-                          max={isMobile ? format(new Date(), "yyyy-MM-dd") : undefined}
                         />
                       </FormControl>
                       <FormMessage />
