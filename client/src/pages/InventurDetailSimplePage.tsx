@@ -364,6 +364,12 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
 
   // MHD-Batch Dialog Handler
   const handleCreateBatch = (item: SimpleInventoryItem) => {
+    console.log('[InventurDetailPage] handleCreateBatch aufgerufen für:', {
+      productId: item.productId,
+      productName: item.product?.productName,
+      warehouseId: inventurData?.warehouseId,
+      warehouseName: inventurData?.warehouseName
+    });
     setSelectedItem(item);
     setShowBatchDialog(true);
   };

@@ -75,6 +75,19 @@ export default function NewBatchDialog({
   const [showSuccessState, setShowSuccessState] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   
+  // Debug-Ausgabe für übergebene Props
+  useEffect(() => {
+    if (open) {
+      console.log('[NewBatchDialog] Dialog geöffnet mit Props:', {
+        warehouses,
+        products,
+        initialQuantity,
+        warehouseCount: warehouses?.length,
+        productCount: products?.length
+      });
+    }
+  }, [open, warehouses, products]);
+  
   // Responsive Erkennung
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth <= 768);
@@ -100,7 +113,9 @@ export default function NewBatchDialog({
   // Mutation zum Erstellen einer neuen Charge
   const createBatchMutation = useMutation({
     mutationFn: async (data: BatchFormData) => {
-      console.log("Creating new batch with data:", data);
+      console.log("[NewBatchDialog] Creating new batch with data:", data);
+      console.log("[NewBatchDialog] Warehouse ID:", data.warehouseId, "Type:", typeof data.warehouseId);
+      console.log("[NewBatchDialog] Product ID:", data.productId, "Type:", typeof data.productId);
       
       // Konvertiere String-IDs zu Zahlen und bereite die Daten für den API-Endpunkt vor
       const quantity = parseInt(data.quantity);
@@ -165,6 +180,14 @@ export default function NewBatchDialog({
       }, 1500);
     },
     onError: (error: any) => {
+      console.error('[NewBatchDialog] Mutation Error:', error);
+      console.error('[NewBatchDialog] Error Details:', {
+        message: error.message,
+        status: error.status,
+        response: error.response,
+        stack: error.stack
+      });
+      
       toast({
         title: 'Fehler beim Erstellen der Charge',
         description: error.message || 'Bitte versuchen Sie es später erneut.',
@@ -175,6 +198,24 @@ export default function NewBatchDialog({
 
   // Formular absenden
   const onSubmit = (data: BatchFormData) => {
+    console.log('[NewBatchDialog] Form Submit aufgerufen mit Daten:', data);
+    console.log('[NewBatchDialog] Mutation Status:', {
+      isLoading: createBatchMutation.isPending,
+      isError: createBatchMutation.isError,
+      error: createBatchMutation.error
+    });
+    
+    // Zusätzliche Validierung vor dem Senden
+    if (!data.warehouseId || !data.productId) {
+      console.error('[NewBatchDialog] FEHLER: Warehouse oder Product ID fehlt!', data);
+      toast({
+        title: 'Fehler',
+        description: 'Bitte wählen Sie Lager und Produkt aus.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
     createBatchMutation.mutate(data);
   };
 
