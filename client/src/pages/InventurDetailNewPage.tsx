@@ -46,7 +46,6 @@ import {
   formatPackageInfoFromPurchaseConditions,
   getPackageSizeFromPurchaseConditions
 } from '../../../shared/package-utils';
-
 // Typ-Definitionen
 interface InventoryCount {
   id: number;
@@ -137,16 +136,6 @@ interface InventoryItems {
   products: Product[];
 }
 
-interface ProductBatch {
-  id: number;
-  productId: number;
-  batchNumber: string;
-  expiryDate: string | null;
-  createdAt?: string;
-  currentQuantity: number;
-  warehouseId: number;
-  status?: string;
-}
 
 interface ItemStats {
   total: number;
@@ -3310,10 +3299,10 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
                         expiryDate: newBatch.expiryDate,
                         productId: newBatch.productId,
                         warehouseId: newBatch.warehouseId,
-                        currentQuantity: newBatch.currentQuantity || newBatch.quantity || 0,
-                        initialQuantity: newBatch.initialQuantity || newBatch.quantity || 0,
-                        createdAt: newBatch.createdAt || new Date().toISOString(),
-                        updatedAt: newBatch.updatedAt || new Date().toISOString()
+                        currentQuantity: 'currentQuantity' in newBatch ? (newBatch.currentQuantity as number) : 0,
+                        initialQuantity: 'initialQuantity' in newBatch ? (newBatch.initialQuantity as number) : 0,
+                        createdAt: 'createdAt' in newBatch && newBatch.createdAt ? (newBatch.createdAt as string) : new Date().toISOString(),
+                        updatedAt: 'updatedAt' in newBatch && newBatch.updatedAt ? (newBatch.updatedAt as string) : new Date().toISOString()
                       }
                     }
                   : item
@@ -3329,7 +3318,7 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
                 return prevBatches;
               }
               
-              const updatedBatches = [...prevBatches, newBatch];
+              const updatedBatches = [...prevBatches, newBatch as ProductBatch];
               console.log('Neue Batch zu availableBatches hinzugefügt:', updatedBatches.length, 'Batches total');
               return updatedBatches;
             });
