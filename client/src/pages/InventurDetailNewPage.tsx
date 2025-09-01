@@ -441,7 +441,7 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
       await Promise.all(promises);
       return conditions;
     },
-    staleTime: 60 * 1000,
+    staleTime: 0, // Force refetch to get latest purchase conditions
     enabled: productIds.length > 0
   });
 
