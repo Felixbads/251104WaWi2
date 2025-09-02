@@ -1788,7 +1788,15 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {Array.isArray(forecastData) ? (forecastData as ForecastData[]).map((item: ForecastData) => {
+                  {/* Use forecastData if available, otherwise fallback to inventoryData for new suppliers */}
+                  {(Array.isArray(forecastData) && forecastData.length > 0 ? forecastData : 
+                    (inventoryData as any[])?.map(inv => ({
+                      productId: inv.product_id,
+                      productName: inv.product_name,
+                      forecastedDemand: 0,
+                      avgWeeklySales: 0,
+                      confidenceLevel: 'low'
+                    })) || []).map((item: any) => {
                     const quantity = orderQuantities[item.productId] || 0;
                     const product = (inventoryData as any[])?.find((inv: any) => inv.product_id === item.productId);
                     const purchasePrice = product?.purchase_price || product?.price || 0;
@@ -2077,7 +2085,10 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
                     }
                     
                     return rows;
-                  }) : (
+                  })}
+                  {/* Show message if no data available at all */}
+                  {(!Array.isArray(forecastData) || forecastData.length === 0) && 
+                   (!Array.isArray(inventoryData) || inventoryData.length === 0) && (
                     <TableRow>
                       <TableCell colSpan={showPricesInTable ? 6 : 5} className="text-center py-8 text-muted-foreground">
                         Keine Prognosedaten verfügbar

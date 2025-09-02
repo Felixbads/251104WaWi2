@@ -259,7 +259,8 @@ router.get('/forecast/bulk/:supplierId/:weeks', async (req, res) => {
             ELSE 'low'
           END as confidence_level
         FROM historical_sales hs
-        WHERE hs.avg_weekly_sales > 0
+        -- Include products without sales history for new suppliers/products
+        -- WHERE hs.avg_weekly_sales > 0
         ORDER BY hs.avg_weekly_sales DESC
     `;
 
