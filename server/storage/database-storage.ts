@@ -763,7 +763,15 @@ export class DatabaseStorage implements IStorage {
   
   async getSuppliers(): Promise<any[]> { return []; }
   async getSupplierById(id: number): Promise<any | undefined> { return undefined; }
-  async createSupplier(supplier: any): Promise<any> { throw new Error("Not implemented"); }
+  async createSupplier(supplier: InsertSupplier): Promise<Supplier> {
+    try {
+      const [newSupplier] = await db.insert(suppliers).values(supplier).returning();
+      return newSupplier;
+    } catch (error) {
+      console.error("Error creating supplier:", error);
+      throw error;
+    }
+  }
   async updateSupplier(id: number, updates: any): Promise<any> { throw new Error("Not implemented"); }
   async deleteSupplier(id: number): Promise<void> { throw new Error("Not implemented"); }
   
