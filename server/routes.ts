@@ -4514,6 +4514,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         FROM refill_details rd
         INNER JOIN refills r ON rd.refill_id = r.id
         WHERE rd.removed > 0 
+          AND rd.removed <= 10  -- Realistische Einzelentnahmen (1-10 Stück)
           AND r.datetime >= $1 
           AND r.datetime <= $2
         GROUP BY rd.product_name
