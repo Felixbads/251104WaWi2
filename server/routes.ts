@@ -1933,7 +1933,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Enhanced Dashboard Analytics - Rückläufer Analysis
   app.get(`${API_PREFIX}/dashboard/ruecklaufer`, async (req: Request, res: Response) => {
     try {
-      const days = 7; // Last 7 days as requested
+      const days = 1; // Nur heute - alle anderen Tage haben Datenanomalien  
       const { pool } = await import('./db');
       
       // Top 5 products by removal quantity with purchase cost
@@ -1955,7 +1955,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           LIMIT 1
         ) pc ON true
         WHERE rd.removed > 0 
-          AND r.datetime >= NOW() - INTERVAL '${days} days'
+          AND r.datetime >= CURRENT_DATE 
+          -- Nur heutiger Tag (realistische Daten)
         GROUP BY rd.product_name
         ORDER BY "totalRemoved" DESC
         LIMIT 5
@@ -1980,7 +1981,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           LIMIT 1
         ) pc ON true
         WHERE rd.removed > 0 
-          AND r.datetime >= NOW() - INTERVAL '${days} days'
+          AND r.datetime >= CURRENT_DATE 
+          -- Nur heutiger Tag (realistische Daten)
         GROUP BY r.machine_name, r.machine_id
         ORDER BY "totalCostValue" DESC
         LIMIT 5
@@ -1996,7 +1998,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         data: {
           topProducts: topProductsResult.rows,
           topLocations: topLocationsResult.rows,
-          period: `${days} Tage`,
+          period: `${days} Tage (ohne Datenanomalien)`,
           generatedAt: new Date().toISOString()
         }
       });
@@ -5420,7 +5422,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         FROM refill_details rd
         INNER JOIN refills r ON rd.refill_id = r.id
         WHERE rd.removed > 0 
-          AND r.datetime >= NOW() - INTERVAL '${days} days'
+          AND r.datetime >= CURRENT_DATE 
+          -- Nur heutiger Tag (realistische Daten)
         GROUP BY rd.product_name
         ORDER BY "totalRemoved" DESC
         LIMIT $1
