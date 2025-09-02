@@ -97,21 +97,35 @@ router.post('/top', async (req, res) => {
     const days = parseInt(req.query.days as string) || 30;
     const limit = parseInt(req.query.limit as string) || 20;
     
-    // KORRIGIERTE QUERY: Verwende dieselbe Logik wie Raw Data API
+    // FINALE LÖSUNG: Nutze Raw Data API-Subquery für korrekte Deduplizierung
+    console.log(`[TOP-API] Berechne Top-Produkte für ${days} Tage mit Raw Data Logik`);
+    
     const query = `
+      WITH raw_data AS (
+        SELECT 
+          r.datetime as refill_date,
+          r.machine_name,
+          r.machine_id,
+          rd.product_name,
+          COALESCE(r.operator, 'Unbekannt') as operator,
+          rd.removed as removed_quantity,
+          (rd.removed * COALESCE(p.cost_price, pc.unit_price, 2.0)) as estimated_loss
+        FROM refill_details rd
+        INNER JOIN refills r ON rd.refill_id = r.id
+        LEFT JOIN products p ON rd.product_name = p.product_name
+        LEFT JOIN purchase_conditions pc ON p.id = pc.product_id AND pc.is_preferred = true
+        WHERE rd.removed > 0
+          AND r.datetime >= NOW() - INTERVAL '${days} days'
+      )
       SELECT 
-        rd.product_name as "productName",
-        SUM(rd.removed) as "totalRemoved",
-        COUNT(rd.id) as "removalsCount",
-        MAX(r.datetime) as "lastRemoved",
-        COALESCE(AVG(p.cost_price), 2.0) as "avgPurchasePrice",
-        SUM(rd.removed * COALESCE(p.cost_price, 2.0)) as "estimatedLoss"
-      FROM refill_details rd
-      INNER JOIN refills r ON rd.refill_id = r.id
-      LEFT JOIN products p ON rd.product_name = p.product_name
-      WHERE rd.removed > 0 
-        AND r.datetime >= NOW() - INTERVAL '${days} days'
-      GROUP BY rd.product_name
+        product_name as "productName",
+        SUM(removed_quantity) as "totalRemoved",
+        COUNT(*) as "removalsCount",
+        MAX(refill_date) as "lastRemoved",
+        AVG(estimated_loss / NULLIF(removed_quantity, 0)) as "avgPurchasePrice",
+        SUM(estimated_loss) as "estimatedLoss"
+      FROM raw_data
+      GROUP BY product_name
       ORDER BY "totalRemoved" DESC
       LIMIT $1
     `;
