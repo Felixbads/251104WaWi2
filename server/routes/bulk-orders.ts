@@ -374,7 +374,6 @@ router.post('/bulk', async (req, res) => {
       orderNumber,
       supplierId,
       supplierName: supplier[0].name,
-      warehouseId: parseInt(warehouseId),
       locationId: parseInt(warehouseId),
       locationName: warehouseName,
       status: 'draft',
