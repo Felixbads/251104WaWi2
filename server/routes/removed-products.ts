@@ -451,17 +451,17 @@ router.get('/raw-data', async (req, res) => {
     let query = `
       SELECT 
         r.created_at as refill_date,
-        m.name as machine_name,
+        m.machine_name as machine_name,
         r.machine_id,
         rd.product_name,
         r.operator,
         rd.removed as removed_quantity,
-        (rd.removed * COALESCE(p.purchase_price, pc.unit_price, 2.0)) as estimated_loss,
+        (rd.removed * COALESCE(p.cost_price, pc.unit_price, 2.0)) as estimated_loss,
         COUNT(*) OVER() as total_count
       FROM refills r
       JOIN refill_details rd ON r.id = rd.refill_id  
       JOIN machines m ON r.machine_id = m.id
-      LEFT JOIN products p ON rd.product_name = p.name
+      LEFT JOIN products p ON rd.product_name = p.product_name
       LEFT JOIN purchase_conditions pc ON p.id = pc.product_id AND pc.is_preferred = true
       WHERE rd.removed > 0
     `;
@@ -590,15 +590,15 @@ router.get('/raw-data/export', async (req, res) => {
     let query = `
       SELECT 
         r.created_at as refill_date,
-        m.name as machine_name,
+        m.machine_name as machine_name,
         rd.product_name,
         r.operator,
         rd.removed as removed_quantity,
-        (rd.removed * COALESCE(p.purchase_price, pc.unit_price, 2.0)) as estimated_loss
+        (rd.removed * COALESCE(p.cost_price, pc.unit_price, 2.0)) as estimated_loss
       FROM refills r
       JOIN refill_details rd ON r.id = rd.refill_id  
       JOIN machines m ON r.machine_id = m.id
-      LEFT JOIN products p ON rd.product_name = p.name
+      LEFT JOIN products p ON rd.product_name = p.product_name
       LEFT JOIN purchase_conditions pc ON p.id = pc.product_id AND pc.is_preferred = true
       WHERE rd.removed > 0
     `;
