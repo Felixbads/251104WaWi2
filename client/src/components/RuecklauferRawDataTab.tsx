@@ -110,7 +110,18 @@ const RuecklauferRawDataTab: React.FC = () => {
   // Data fetching
   const { data: rawData, isLoading, error, refetch } = useQuery<RawDataResponse>({
     queryKey: ['/api/removed-products/raw-data', queryParams],
-    queryFn: () => apiRequest(`/api/removed-products/raw-data?${queryParams}`),
+    queryFn: async () => {
+      const response = await fetch(`/api/removed-products/raw-data?${queryParams}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      return response.json();
+    },
     refetchOnWindowFocus: false,
   });
 
@@ -119,8 +130,17 @@ const RuecklauferRawDataTab: React.FC = () => {
     queryKey: ['/api/machines'],
     queryFn: async () => {
       try {
-        const response = await apiRequest('/api/machines');
-        return Array.isArray(response) ? response : response?.machines || [];
+        const response = await fetch('/api/machines', {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data = await response.json();
+        return Array.isArray(data) ? data : data?.machines || [];
       } catch (error) {
         console.error('Error fetching machines:', error);
         return [];
@@ -135,7 +155,16 @@ const RuecklauferRawDataTab: React.FC = () => {
     queryFn: async () => {
       try {
         // Da es keinen spezifischen Operators-Endpoint gibt, hole ich das mit einer kleinen Abfrage
-        const result = await apiRequest('/api/removed-products/raw-data?limit=200');
+        const response = await fetch('/api/removed-products/raw-data?limit=200', {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const result = await response.json();
         if (result?.success && Array.isArray(result.data)) {
           const operatorSet = new Set(result.data.map((item: any) => item.operator).filter(Boolean));
           return Array.from(operatorSet);
