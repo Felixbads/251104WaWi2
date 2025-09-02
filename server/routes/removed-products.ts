@@ -15,14 +15,14 @@ router.get('/', async (req, res) => {
         rd.product_name as "productName",
         r.machine_name as "machineName", 
         SUM(rd.removed) as "totalRemoved",
-        AVG(COALESCE(pc.unit_price, t.price, 2.0)) as "productPrice",
+        AVG(COALESCE(p.cost_price, pc.unit_price, 2.0)) as "productPrice",
         COUNT(*) as "removalCount",
         MAX(r.datetime) as "lastRemoved"
       FROM refill_details rd
       INNER JOIN refills r ON rd.refill_id = r.id
       LEFT JOIN products p ON rd.product_name = p.product_name
       LEFT JOIN purchase_conditions pc ON p.id = pc.product_id AND pc.is_preferred = true
-      LEFT JOIN transactions t ON rd.product_name = t.product_name
+
       WHERE rd.removed > 0 
         AND r.datetime >= NOW() - INTERVAL '${days} days'
       GROUP BY rd.product_name, r.machine_name
@@ -81,8 +81,8 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Top entfernte Produkte API mit Kostenanalyse (PROBLEM 4 BEHOBEN: POST zu GET)
-router.get('/top', async (req, res) => {
+// Top entfernte Produkte API mit Kostenanalyse 
+router.post('/top', async (req, res) => {
   try {
     const days = parseInt(req.query.days as string) || 30;
     const limit = parseInt(req.query.limit as string) || 20;
@@ -93,13 +93,13 @@ router.get('/top', async (req, res) => {
         SUM(rd.removed) as "totalRemoved",
         COUNT(*) as "removalsCount",
         MAX(r.datetime) as "lastRemoved",
-        COALESCE(AVG(pc.unit_price), AVG(t.price), 0) as "avgPurchasePrice",
-        SUM(rd.removed * COALESCE(pc.unit_price, t.price, 0)) as "estimatedLoss"
+        COALESCE(AVG(p.cost_price), AVG(pc.unit_price), 2.0) as "avgPurchasePrice",
+        SUM(rd.removed * COALESCE(p.cost_price, pc.unit_price, 2.0)) as "estimatedLoss"
       FROM refill_details rd
       INNER JOIN refills r ON rd.refill_id = r.id
       LEFT JOIN products p ON rd.product_name = p.product_name
       LEFT JOIN purchase_conditions pc ON p.id = pc.product_id AND pc.is_preferred = true
-      LEFT JOIN transactions t ON rd.product_name = t.product_name
+
       WHERE rd.removed > 0 
         AND r.datetime >= NOW() - INTERVAL '${days} days'
       GROUP BY rd.product_name
@@ -148,7 +148,7 @@ router.post('/stats/:productName', async (req, res) => {
         SUM(rd.removed * COALESCE(t.price, 0)) as "estimatedLoss"
       FROM refill_details rd
       INNER JOIN refills r ON rd.refill_id = r.id
-      LEFT JOIN transactions t ON rd.product_name = t.product_name
+
       WHERE rd.removed > 0 
         AND rd.product_name = $1
         AND r.datetime >= NOW() - INTERVAL '${days} days'
@@ -186,7 +186,7 @@ router.post('/stats/:productName', async (req, res) => {
         SUM(rd.removed * COALESCE(t.price, 0)) as "machineLoss"
       FROM refill_details rd
       INNER JOIN refills r ON rd.refill_id = r.id
-      LEFT JOIN transactions t ON rd.product_name = t.product_name AND r.machine_id = t.machine_id
+ AND r.machine_id = t.machine_id
       WHERE rd.removed > 0 
         AND rd.product_name = $1
         AND r.datetime >= NOW() - INTERVAL '${days} days'
@@ -324,8 +324,8 @@ router.post('/location-trends', async (req, res) => {
         SUM(LEAST(rd.removed, 10)) as "totalRemoved",
         COUNT(*) as "removalEvents",
         AVG(LEAST(rd.removed, 10)) as "avgPerEvent",
-        COALESCE(AVG(pc.unit_price), 2.0) as "avgPurchasePrice",
-        SUM(LEAST(rd.removed, 10) * COALESCE(pc.unit_price, 2.0)) as "locationLoss",
+        COALESCE(AVG(p.cost_price), AVG(pc.unit_price), 2.0) as "avgPurchasePrice",
+        SUM(LEAST(rd.removed, 10) * COALESCE(p.cost_price, pc.unit_price, 2.0)) as "locationLoss",
         RANK() OVER (PARTITION BY r.machine_name ORDER BY SUM(LEAST(rd.removed, 10)) DESC) as "rankAtLocation"
       FROM refill_details rd
       INNER JOIN refills r ON rd.refill_id = r.id
@@ -761,7 +761,7 @@ router.get('/raw-data', async (req, res) => {
       INNER JOIN refills r ON rd.refill_id = r.id
       LEFT JOIN products p ON rd.product_name = p.product_name
       LEFT JOIN purchase_conditions pc ON p.id = pc.product_id AND pc.is_preferred = true
-      LEFT JOIN transactions t ON rd.product_name = t.product_name AND t.machine_id = r.machine_id
+ AND t.machine_id = r.machine_id
       WHERE ${whereConditions.join(' AND ')}
       ORDER BY 
         ${orderBy === 'refill_date' ? 'r.datetime' : 
