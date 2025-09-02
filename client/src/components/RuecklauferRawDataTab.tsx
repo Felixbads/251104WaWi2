@@ -69,10 +69,10 @@ interface FilterState {
 const RuecklauferRawDataTab: React.FC = () => {
   // Filter und Sortierung State
   const [filters, setFilters] = useState<FilterState>({
-    machine_id: '',
+    machine_id: 'all',
     from_date: format(subDays(new Date(), 30), 'yyyy-MM-dd'),
     to_date: format(new Date(), 'yyyy-MM-dd'),
-    operator: '',
+    operator: 'all',
     product_name: '',
     sort_by: 'refill_date',
     sort_order: 'DESC',
@@ -94,10 +94,10 @@ const RuecklauferRawDataTab: React.FC = () => {
   const queryParams = useMemo(() => {
     const params = new URLSearchParams();
     
-    if (filters.machine_id) params.append('machine_id', filters.machine_id);
+    if (filters.machine_id && filters.machine_id !== 'all') params.append('machine_id', filters.machine_id);
     if (filters.from_date) params.append('from_date', filters.from_date);
     if (filters.to_date) params.append('to_date', filters.to_date);
-    if (filters.operator) params.append('operator', filters.operator);
+    if (filters.operator && filters.operator !== 'all') params.append('operator', filters.operator);
     if (searchDebounce) params.append('product_name', searchDebounce);
     if (filters.sort_by) params.append('sort_by', filters.sort_by);
     if (filters.sort_order) params.append('sort_order', filters.sort_order);
@@ -127,8 +127,8 @@ const RuecklauferRawDataTab: React.FC = () => {
     queryFn: async () => {
       // Da es keinen spezifischen Operators-Endpoint gibt, simuliere ich das mit einer kleinen Abfrage
       const result = await apiRequest('/api/removed-products/raw-data?limit=1000');
-      const uniqueOperators = [...new Set(result.data?.map((item: any) => item.operator).filter(Boolean))];
-      return uniqueOperators;
+      const operatorSet = new Set(result.data?.map((item: any) => item.operator).filter(Boolean));
+      return Array.from(operatorSet);
     },
     refetchOnWindowFocus: false,
   });
@@ -138,7 +138,7 @@ const RuecklauferRawDataTab: React.FC = () => {
     setFilters(prev => ({
       ...prev,
       [key]: value,
-      page: key !== 'page' ? 1 : value // Reset page when filters change
+      page: key !== 'page' ? 1 : (typeof value === 'number' ? value : parseInt(value as string) || 1) // Reset page when filters change
     }));
   };
 
@@ -153,10 +153,10 @@ const RuecklauferRawDataTab: React.FC = () => {
 
   const resetFilters = () => {
     setFilters({
-      machine_id: '',
+      machine_id: 'all',
       from_date: format(subDays(new Date(), 30), 'yyyy-MM-dd'),
       to_date: format(new Date(), 'yyyy-MM-dd'),
-      operator: '',
+      operator: 'all',
       product_name: '',
       sort_by: 'refill_date',
       sort_order: 'DESC',
@@ -170,10 +170,10 @@ const RuecklauferRawDataTab: React.FC = () => {
       setIsExporting(true);
       
       const exportParams = new URLSearchParams();
-      if (filters.machine_id) exportParams.append('machine_id', filters.machine_id);
+      if (filters.machine_id && filters.machine_id !== 'all') exportParams.append('machine_id', filters.machine_id);
       if (filters.from_date) exportParams.append('from_date', filters.from_date);
       if (filters.to_date) exportParams.append('to_date', filters.to_date);
-      if (filters.operator) exportParams.append('operator', filters.operator);
+      if (filters.operator && filters.operator !== 'all') exportParams.append('operator', filters.operator);
       if (filters.product_name) exportParams.append('product_name', filters.product_name);
 
       const response = await fetch(`/api/removed-products/raw-data/export?${exportParams.toString()}`, {
@@ -267,7 +267,7 @@ const RuecklauferRawDataTab: React.FC = () => {
                   <SelectValue placeholder="Alle Automaten" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Alle Automaten</SelectItem>
+                  <SelectItem value="all">Alle Automaten</SelectItem>
                   {machines?.map((machine: any) => (
                     <SelectItem key={machine.id} value={machine.id.toString()}>
                       {machine.name}
@@ -284,7 +284,7 @@ const RuecklauferRawDataTab: React.FC = () => {
                   <SelectValue placeholder="Alle Mitarbeiter" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Alle Mitarbeiter</SelectItem>
+                  <SelectItem value="all">Alle Mitarbeiter</SelectItem>
                   {operators?.map((operator: string) => (
                     <SelectItem key={operator} value={operator}>
                       {operator}

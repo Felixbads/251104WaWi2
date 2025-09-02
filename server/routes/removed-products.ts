@@ -670,4 +670,154 @@ router.get('/raw-data/export', async (req, res) => {
   }
 });
 
+// Raw Data API für detaillierte Entnahme-Tabelle
+router.get('/raw-data', async (req, res) => {
+  try {
+    const {
+      machine_id,
+      from_date,
+      to_date, 
+      operator,
+      product_name,
+      sort_by = 'refill_date',
+      sort_order = 'DESC',
+      page = '1',
+      limit = '50'
+    } = req.query;
+
+    console.log('[RawData] API called with params:', req.query);
+
+    let whereConditions = ['rd.removed > 0'];
+    let queryParams = [];
+    let paramIndex = 1;
+
+    // Date range filter
+    if (from_date) {
+      whereConditions.push(`r.datetime >= $${paramIndex}::date`);
+      queryParams.push(from_date);
+      paramIndex++;
+    }
+    
+    if (to_date) {
+      whereConditions.push(`r.datetime <= $${paramIndex}::date + INTERVAL '1 day'`);
+      queryParams.push(to_date);
+      paramIndex++;
+    }
+
+    // Machine filter
+    if (machine_id) {
+      whereConditions.push(`r.machine_id = $${paramIndex}::integer`);
+      queryParams.push(parseInt(machine_id as string));
+      paramIndex++;
+    }
+
+    // Operator filter
+    if (operator) {
+      whereConditions.push(`LOWER(r.operator) LIKE LOWER($${paramIndex})`);
+      queryParams.push(`%${operator}%`);
+      paramIndex++;
+    }
+
+    // Product name filter
+    if (product_name) {
+      whereConditions.push(`LOWER(rd.product_name) LIKE LOWER($${paramIndex})`);
+      queryParams.push(`%${product_name}%`);
+      paramIndex++;
+    }
+
+    // Build ORDER BY clause
+    const validSortColumns = ['refill_date', 'machine_name', 'product_name', 'operator', 'removed_quantity', 'estimated_loss'];
+    const orderBy = validSortColumns.includes(sort_by as string) ? sort_by : 'refill_date';
+    const order = sort_order === 'ASC' ? 'ASC' : 'DESC';
+
+    // Count query for pagination
+    const countQuery = `
+      SELECT COUNT(*) as total
+      FROM refill_details rd
+      INNER JOIN refills r ON rd.refill_id = r.id
+      WHERE ${whereConditions.join(' AND ')}
+    `;
+
+    const countResult = await pool.query(countQuery, queryParams);
+    const totalCount = parseInt(countResult.rows[0].total);
+
+    // Calculate pagination
+    const pageNum = Math.max(1, parseInt(page as string));
+    const limitNum = Math.max(1, Math.min(100, parseInt(limit as string)));
+    const offset = (pageNum - 1) * limitNum;
+    const totalPages = Math.ceil(totalCount / limitNum);
+
+    // Main data query
+    const dataQuery = `
+      SELECT 
+        r.datetime as refill_date,
+        r.machine_name,
+        r.machine_id,
+        rd.product_name,
+        COALESCE(r.operator, 'Unbekannt') as operator,
+        rd.removed as removed_quantity,
+        rd.removed * COALESCE(pc.unit_price, t.price, 2.0) as estimated_loss
+      FROM refill_details rd
+      INNER JOIN refills r ON rd.refill_id = r.id
+      LEFT JOIN products p ON rd.product_name = p.product_name
+      LEFT JOIN purchase_conditions pc ON p.id = pc.product_id AND pc.is_preferred = true
+      LEFT JOIN transactions t ON rd.product_name = t.product_name AND t.machine_id = r.machine_id
+      WHERE ${whereConditions.join(' AND ')}
+      ORDER BY 
+        ${orderBy === 'refill_date' ? 'r.datetime' : 
+          orderBy === 'machine_name' ? 'r.machine_name' :
+          orderBy === 'product_name' ? 'rd.product_name' :
+          orderBy === 'operator' ? 'r.operator' :
+          orderBy === 'removed_quantity' ? 'rd.removed' :
+          orderBy === 'estimated_loss' ? 'estimated_loss' : 'r.datetime'} ${order}
+      LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
+    `;
+
+    queryParams.push(limitNum, offset);
+
+    const dataResult = await pool.query(dataQuery, queryParams);
+
+    const response = {
+      success: true,
+      data: dataResult.rows.map(row => ({
+        refill_date: row.refill_date,
+        machine_name: row.machine_name,
+        machine_id: row.machine_id,
+        product_name: row.product_name,
+        operator: row.operator,
+        removed_quantity: parseInt(row.removed_quantity),
+        estimated_loss: parseFloat(row.estimated_loss) || 0
+      })),
+      pagination: {
+        current_page: pageNum,
+        total_pages: totalPages,
+        total_count: totalCount,
+        per_page: limitNum,
+        has_next: pageNum < totalPages,
+        has_prev: pageNum > 1
+      },
+      filters: {
+        machine_id,
+        from_date,
+        to_date,
+        operator,
+        product_name,
+        sort_by: orderBy,
+        sort_order: order
+      }
+    };
+
+    console.log(`[RawData] Response: ${dataResult.rows.length} items, page ${pageNum}/${totalPages}`);
+    res.json(response);
+
+  } catch (error) {
+    console.error('[RawData] API Error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Fehler beim Laden der Raw Data',
+      details: error.message
+    });
+  }
+});
+
 export default router;
