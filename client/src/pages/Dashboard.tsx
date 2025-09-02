@@ -37,7 +37,9 @@ import {
   getTransactions, 
   getMachines, 
   getSyncStatus, 
-  getOpenOrders
+  getOpenOrders,
+  getDashboardRuecklaufer,
+  getDashboardCriticalLocations
 } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -56,6 +58,38 @@ interface DBIProduct {
   dbi_vorperiode: number | null;
   dbi_delta_abs: number | null;
   dbi_delta_rel: number | null;
+}
+
+// Dashboard Analytics Interfaces
+interface RuecklauferProduct {
+  productName: string;
+  totalRemoved: number;
+  removalEvents: number;
+  avgCostPrice: number;
+  totalCostValue: number;
+}
+
+interface RuecklauferLocation {
+  locationName: string;
+  machineId: number;
+  totalRemoved: number;
+  uniqueProducts: number;
+  totalCostValue: number;
+}
+
+interface CriticalLocation {
+  locationName: string;
+  machineId: number;
+  alcoholProductCount?: number;
+  totalSales?: number;
+}
+
+interface ExpiringProduct {
+  productName: string;
+  shelfLifeDays: number;
+  locationName: string;
+  currentStock: number;
+  expiryStatus: string;
 }
 
 interface DBIResponse {
@@ -119,6 +153,20 @@ export default function Dashboard() {
     queryKey: ['/api/orders/dashboard/open'],
     queryFn: () => getOpenOrders(),
     refetchInterval: 60000
+  });
+
+  // Rückläufer-Analyse Daten
+  const { data: ruecklauferData, isLoading: isLoadingRuecklaufer } = useQuery({
+    queryKey: ['/api/dashboard/ruecklaufer'],
+    queryFn: () => getDashboardRuecklaufer(),
+    refetchInterval: 300000 // 5 Minuten
+  });
+
+  // Kritische Standorte Daten
+  const { data: criticalLocationsData, isLoading: isLoadingCriticalLocations } = useQuery({
+    queryKey: ['/api/dashboard/critical-locations'],
+    queryFn: () => getDashboardCriticalLocations(),
+    refetchInterval: 300000 // 5 Minuten
   });
 
   const { data: locationStatus, isLoading: isLoadingLocationStatus } = useQuery({
@@ -217,7 +265,6 @@ export default function Dashboard() {
     };
   }, [transactions]);
 
-  const criticalMachines = locationStatus?.filter((l: any) => l.alerts?.length > 0 || l.warnings?.length > 0).length || 0;
 
   // PROBLEM 4 BEHOBEN: weeklyRemovedData entfernt, da TopRemovedProductsTile eigene Daten holt
 
@@ -317,43 +364,123 @@ export default function Dashboard() {
             </CardContent>
           </Card>
 
-          {/* PROBLEM 4 BEHOBEN: Statische Entnahmen-Karte statt weeklyRemovedData */}
+          {/* Enhanced Rückläufer-Analyse with Real Data */}
           <Card 
             className="bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200 cursor-pointer hover:shadow-md transition-all duration-200"
             onClick={() => setLocation('/ruecklaufer')}
           >
             <CardContent className="p-4">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between mb-3">
                 <div>
                   <p className="text-sm font-medium text-purple-600">Rückläufer-Analyse</p>
-                  <p className="text-2xl font-bold text-purple-900">Details</p>
-                  <p className="text-xs text-purple-600 mt-1">Vollständige Analyse verfügbar</p>
+                  <p className="text-xs text-purple-600 mt-1">Top 5 Entnahmen (7 Tage)</p>
                 </div>
                 <div className="flex items-center">
-                  <Minus className="h-8 w-8 text-purple-500" />
+                  <Minus className="h-6 w-6 text-purple-500" />
                   <ChevronRight className="h-4 w-4 text-purple-400 ml-1" />
                 </div>
               </div>
+              
+              {isLoadingRuecklaufer ? (
+                <div className="flex justify-center py-4">
+                  <RefreshCw className="h-4 w-4 animate-spin text-purple-500" />
+                </div>
+              ) : ruecklauferData?.success && ruecklauferData.data ? (
+                <div className="space-y-2">
+                  {/* Top Product by Cost Value */}
+                  {ruecklauferData.data.topProducts.length > 0 && (
+                    <div className="bg-purple-200/50 rounded-lg p-3">
+                      <p className="text-xs font-medium text-purple-700 mb-1">Höchste Verluste</p>
+                      <p className="text-sm font-bold text-purple-900 truncate">
+                        {ruecklauferData.data.topProducts[0].productName}
+                      </p>
+                      <p className="text-xs text-purple-600">
+                        {formatCurrency(ruecklauferData.data.topProducts[0].totalCostValue)} 
+                        ({ruecklauferData.data.topProducts[0].totalRemoved} entfernt)
+                      </p>
+                    </div>
+                  )}
+                  
+                  {/* Top Location by Cost Value */}
+                  {ruecklauferData.data.topLocations.length > 0 && (
+                    <div className="bg-purple-200/50 rounded-lg p-3">
+                      <p className="text-xs font-medium text-purple-700 mb-1">Kritischster Standort</p>
+                      <p className="text-sm font-bold text-purple-900 truncate">
+                        {ruecklauferData.data.topLocations[0].locationName}
+                      </p>
+                      <p className="text-xs text-purple-600">
+                        {formatCurrency(ruecklauferData.data.topLocations[0].totalCostValue)} Verlust
+                      </p>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="text-center py-4">
+                  <p className="text-sm text-purple-600">Keine Daten verfügbar</p>
+                </div>
+              )}
             </CardContent>
           </Card>
 
-          {/* Critical Issues - ANKLICKBAR */}
+          {/* Enhanced Critical Locations with Real Data */}
           <Card 
             className="bg-gradient-to-br from-red-50 to-red-100 border-red-200 cursor-pointer hover:shadow-md transition-all duration-200"
             onClick={() => setLocation('/standort-status')}
           >
             <CardContent className="p-4">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between mb-3">
                 <div>
                   <p className="text-sm font-medium text-red-600">Kritische Standorte</p>
-                  <p className="text-2xl font-bold text-red-900">{criticalMachines}</p>
-                  <p className="text-xs text-red-600 mt-1">Benötigen Aufmerksamkeit</p>
+                  <p className="text-xs text-red-600 mt-1">Bedürfen Aufmerksamkeit</p>
                 </div>
                 <div className="flex items-center">
-                  <AlertTriangle className="h-8 w-8 text-red-500" />
+                  <AlertTriangle className="h-6 w-6 text-red-500" />
                   <ChevronRight className="h-4 w-4 text-red-400 ml-1" />
                 </div>
               </div>
+              
+              {isLoadingCriticalLocations ? (
+                <div className="flex justify-center py-4">
+                  <RefreshCw className="h-4 w-4 animate-spin text-red-500" />
+                </div>
+              ) : criticalLocationsData?.success && criticalLocationsData.data ? (
+                <div className="space-y-2">
+                  {/* Total Critical Issues Count */}
+                  <div className="text-center mb-2">
+                    <p className="text-2xl font-bold text-red-900">
+                      {(criticalLocationsData.data.locationsWithoutAlcoholSales.length + 
+                        criticalLocationsData.data.locationsWithoutCardPayments.length + 
+                        criticalLocationsData.data.expiringProducts.length)}
+                    </p>
+                  </div>
+                  
+                  {/* Issues Breakdown */}
+                  <div className="grid grid-cols-3 gap-1 text-xs">
+                    <div className="bg-red-200/50 rounded p-2 text-center">
+                      <p className="font-semibold text-red-800">
+                        {criticalLocationsData.data.locationsWithoutAlcoholSales.length}
+                      </p>
+                      <p className="text-red-600">Kein Alkohol</p>
+                    </div>
+                    <div className="bg-red-200/50 rounded p-2 text-center">
+                      <p className="font-semibold text-red-800">
+                        {criticalLocationsData.data.locationsWithoutCardPayments.length}
+                      </p>
+                      <p className="text-red-600">Nur Bar</p>
+                    </div>
+                    <div className="bg-red-200/50 rounded p-2 text-center">
+                      <p className="font-semibold text-red-800">
+                        {criticalLocationsData.data.expiringProducts.length}
+                      </p>
+                      <p className="text-red-600">MHD bald</p>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-4">
+                  <p className="text-sm text-red-600">Keine kritischen Standorte</p>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>

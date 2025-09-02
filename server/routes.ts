@@ -1929,6 +1929,179 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     }
   });
+
+  // Enhanced Dashboard Analytics - Rückläufer Analysis
+  app.get(`${API_PREFIX}/dashboard/ruecklaufer`, async (req: Request, res: Response) => {
+    try {
+      const days = 7; // Last 7 days as requested
+      
+      // Top 5 products by removal quantity with purchase cost
+      const topProductsQuery = `
+        SELECT 
+          rd.product_name as "productName",
+          SUM(rd.removed) as "totalRemoved",
+          COUNT(*) as "removalEvents",
+          COALESCE(AVG(p.cost_price), 0) as "avgCostPrice",
+          SUM(rd.removed * COALESCE(p.cost_price, 0)) as "totalCostValue"
+        FROM refill_details rd
+        INNER JOIN refills r ON rd.refill_id = r.id
+        LEFT JOIN products p ON rd.product_name = p.product_name
+        WHERE rd.removed > 0 
+          AND r.datetime >= NOW() - INTERVAL '${days} days'
+        GROUP BY rd.product_name
+        ORDER BY "totalRemoved" DESC
+        LIMIT 5
+      `;
+      
+      // Top 5 locations by total removal cost value
+      const topLocationsQuery = `
+        SELECT 
+          r.machine_name as "locationName",
+          r.machine_id as "machineId",
+          SUM(rd.removed) as "totalRemoved",
+          COUNT(DISTINCT rd.product_name) as "uniqueProducts",
+          SUM(rd.removed * COALESCE(p.cost_price, 0)) as "totalCostValue"
+        FROM refill_details rd
+        INNER JOIN refills r ON rd.refill_id = r.id
+        LEFT JOIN products p ON rd.product_name = p.product_name
+        WHERE rd.removed > 0 
+          AND r.datetime >= NOW() - INTERVAL '${days} days'
+        GROUP BY r.machine_name, r.machine_id
+        ORDER BY "totalCostValue" DESC
+        LIMIT 5
+      `;
+
+      const [topProductsResult, topLocationsResult] = await Promise.all([
+        pool.query(topProductsQuery),
+        pool.query(topLocationsQuery)
+      ]);
+
+      res.json({
+        success: true,
+        data: {
+          topProducts: topProductsResult.rows,
+          topLocations: topLocationsResult.rows,
+          period: `${days} Tage`,
+          generatedAt: new Date().toISOString()
+        }
+      });
+    } catch (error) {
+      console.error('Dashboard Rückläufer error:', error);
+      res.status(500).json({ 
+        error: 'Failed to fetch Rückläufer data',
+        details: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+
+  // Enhanced Dashboard Analytics - Critical Locations
+  app.get(`${API_PREFIX}/dashboard/critical-locations`, async (req: Request, res: Response) => {
+    try {
+      // 1. Locations without alcohol sales in 24h despite having alcohol products
+      const noAlcoholSalesQuery = `
+        WITH alcohol_machines AS (
+          SELECT DISTINCT m.id, m.machine_name, m.vendon_id
+          FROM machines m
+          INNER JOIN products p ON p.vendon_id = ANY(
+            SELECT DISTINCT product_vendon_id 
+            FROM machine_product_loadings mpl 
+            WHERE mpl.machine_id = m.id AND mpl.current_stock > 0
+          )
+          WHERE p.isAlcoholic = true
+        ),
+        recent_alcohol_sales AS (
+          SELECT DISTINCT t.machine_id
+          FROM transactions t
+          INNER JOIN products p ON t.product_vendon_id = p.vendon_id
+          WHERE p.isAlcoholic = true
+            AND t.datetime >= NOW() - INTERVAL '24 hours'
+        )
+        SELECT 
+          am.machine_name as "locationName",
+          am.id as "machineId",
+          COUNT(DISTINCT p.vendon_id) as "alcoholProductCount"
+        FROM alcohol_machines am
+        LEFT JOIN recent_alcohol_sales ras ON am.id = ras.machine_id
+        LEFT JOIN products p ON p.isAlcoholic = true
+        WHERE ras.machine_id IS NULL
+        GROUP BY am.machine_name, am.id
+        ORDER BY "alcoholProductCount" DESC
+        LIMIT 5
+      `;
+      
+      // 2. Locations without card payments in 24h
+      const noCardPaymentsQuery = `
+        WITH machines_with_recent_sales AS (
+          SELECT DISTINCT t.machine_id, m.machine_name
+          FROM transactions t
+          INNER JOIN machines m ON t.machine_id = m.id
+          WHERE t.datetime >= NOW() - INTERVAL '24 hours'
+        ),
+        machines_with_card_sales AS (
+          SELECT DISTINCT t.machine_id
+          FROM transactions t
+          WHERE t.payment_method = 'CASHLESS'
+            AND t.datetime >= NOW() - INTERVAL '24 hours'
+        )
+        SELECT 
+          mrs.machine_name as "locationName",
+          mrs.machine_id as "machineId",
+          COUNT(DISTINCT t.id) as "totalSales"
+        FROM machines_with_recent_sales mrs
+        LEFT JOIN machines_with_card_sales mcs ON mrs.machine_id = mcs.machine_id
+        LEFT JOIN transactions t ON mrs.machine_id = t.machine_id 
+          AND t.datetime >= NOW() - INTERVAL '24 hours'
+        WHERE mcs.machine_id IS NULL
+        GROUP BY mrs.machine_name, mrs.machine_id
+        ORDER BY "totalSales" DESC
+        LIMIT 5
+      `;
+      
+      // 3. Products expiring in 1-2 days (based on shelf_life_days)
+      const expiringProductsQuery = `
+        SELECT 
+          p.product_name as "productName",
+          p.shelf_life_days as "shelfLifeDays",
+          m.machine_name as "locationName",
+          mpl.current_stock as "currentStock",
+          CASE 
+            WHEN p.shelf_life_days <= 1 THEN 'Morgen'
+            WHEN p.shelf_life_days <= 2 THEN 'Übermorgen'
+            ELSE CONCAT(p.shelf_life_days, ' Tage')
+          END as "expiryStatus"
+        FROM products p
+        INNER JOIN machine_product_loadings mpl ON p.vendon_id = mpl.product_vendon_id
+        INNER JOIN machines m ON mpl.machine_id = m.id
+        WHERE p.shelf_life_days IS NOT NULL 
+          AND p.shelf_life_days <= 2
+          AND mpl.current_stock > 0
+        ORDER BY p.shelf_life_days ASC, mpl.current_stock DESC
+        LIMIT 10
+      `;
+
+      const [noAlcoholResult, noCardResult, expiringResult] = await Promise.all([
+        pool.query(noAlcoholSalesQuery),
+        pool.query(noCardPaymentsQuery), 
+        pool.query(expiringProductsQuery)
+      ]);
+
+      res.json({
+        success: true,
+        data: {
+          locationsWithoutAlcoholSales: noAlcoholResult.rows,
+          locationsWithoutCardPayments: noCardResult.rows,
+          expiringProducts: expiringResult.rows,
+          generatedAt: new Date().toISOString()
+        }
+      });
+    } catch (error) {
+      console.error('Dashboard Critical Locations error:', error);
+      res.status(500).json({ 
+        error: 'Failed to fetch critical locations data',
+        details: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
   
   // Create new supplier
   app.post(`${API_PREFIX}/suppliers`, async (req: Request, res: Response) => {

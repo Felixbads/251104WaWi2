@@ -2287,3 +2287,14 @@ export async function getTopRemovedProducts(days: number = 7): Promise<TopRemove
   return apiRequest<TopRemovedProduct[]>('get', `/removed-products/top?days=${days}`);
 }
 
+// Dashboard Analytics APIs
+export const getDashboardRuecklaufer = async () => {
+  const response = await apiRequest('get', '/dashboard/ruecklaufer');
+  return response;
+};
+
+export const getDashboardCriticalLocations = async () => {
+  const response = await apiRequest('get', '/dashboard/critical-locations');
+  return response;
+};
+
