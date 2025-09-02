@@ -101,36 +101,25 @@ router.post('/top', async (req, res) => {
     console.log(`[TOP-API] Berechne Top-Produkte für ${days} Tage mit Raw Data Logik`);
     
     const query = `
-      WITH raw_data AS (
-        SELECT 
-          r.datetime as refill_date,
-          r.machine_name,
-          r.machine_id,
-          rd.product_name,
-          COALESCE(r.operator, 'Unbekannt') as operator,
-          rd.removed as removed_quantity,
-          (rd.removed * COALESCE(p.cost_price, pc.unit_price, 2.0)) as estimated_loss
-        FROM refill_details rd
-        INNER JOIN refills r ON rd.refill_id = r.id
-        LEFT JOIN products p ON rd.product_name = p.product_name
-        LEFT JOIN purchase_conditions pc ON p.id = pc.product_id AND pc.is_preferred = true
-        WHERE rd.removed > 0
-          AND r.datetime >= NOW() - INTERVAL '${days} days'
-      )
       SELECT 
-        product_name as "productName",
-        SUM(removed_quantity) as "totalRemoved",
+        rd.product_name as "productName",
+        SUM(rd.removed) as "totalRemoved",
         COUNT(*) as "removalsCount",
-        MAX(refill_date) as "lastRemoved",
-        AVG(estimated_loss / NULLIF(removed_quantity, 0)) as "avgPurchasePrice",
-        SUM(estimated_loss) as "estimatedLoss"
-      FROM raw_data
-      GROUP BY product_name
+        MAX(r.datetime) as "lastRemoved",
+        AVG(rd.removed * COALESCE(pc.unit_price, 2.0) / NULLIF(rd.removed, 0)) as "avgPurchasePrice",
+        SUM(rd.removed * COALESCE(pc.unit_price, 2.0)) as "estimatedLoss"
+      FROM refill_details rd
+      INNER JOIN refills r ON rd.refill_id = r.id
+      LEFT JOIN products p ON rd.product_name = p.product_name
+      LEFT JOIN purchase_conditions pc ON p.id = pc.product_id AND pc.is_preferred = true
+      WHERE rd.removed > 0
+        AND r.datetime >= NOW() - make_interval(days => $2)
+      GROUP BY rd.product_name
       ORDER BY "totalRemoved" DESC
       LIMIT $1
     `;
     
-    const result = await pool.query(query, [limit]);
+    const result = await pool.query(query, [limit, days]);
     
     const response = result.rows.map((row, index) => ({
       rank: index + 1,

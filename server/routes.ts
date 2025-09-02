@@ -4495,44 +4495,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get top removed products for login tile
-  app.get(`${API_PREFIX}/removed-products/top`, async (req: Request, res: Response) => {
-    try {
-      const days = parseInt(req.query.days as string) || 7;
-      
-      // Calculate date range
-      const endDate = new Date();
-      const startDate = new Date();
-      startDate.setDate(endDate.getDate() - days);
-      
-      const query = `
-        SELECT 
-          rd.product_name as "productName",
-          SUM(rd.removed) as "totalRemoved",
-          COUNT(*) as "removalsCount",
-          MAX(r.datetime) as "lastRemoved"
-        FROM refill_details rd
-        INNER JOIN refills r ON rd.refill_id = r.id
-        WHERE rd.removed > 0 
-          AND rd.removed <= 5   -- SEHR realistische Einzelentnahmen (1-5 Stück)
-          AND r.datetime >= $1 
-          AND r.datetime <= $2
-        GROUP BY rd.product_name
-        ORDER BY "totalRemoved" DESC
-        LIMIT 10
-      `;
-      
-      const result = await rawDb.query(query, [startDate.toISOString(), endDate.toISOString()]);
-      
-      res.json(result.rows);
-    } catch (error) {
-      console.error("Error fetching top removed products:", error);
-      res.status(500).json({ 
-        error: "Failed to fetch top removed products", 
-        details: error instanceof Error ? error.message : String(error) 
-      });
-    }
-  });
+  // REMOVED: DUPLICATE route - now handled by removedProductsRouter
 
   // Get events
   app.get(`${API_PREFIX}/events`, async (req: Request, res: Response) => {
@@ -5390,49 +5353,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 
   
-  // Top entfernte Produkte API
-  app.post(`${API_PREFIX}/removed-products/top`, async (req, res) => {
-    try {
-      const days = 1; // NUR HEUTE - alle anderen Tage haben Datenanomalien
-      const limit = parseInt(req.query.limit as string) || 20;
-      
-      const { pool } = await import('./db');
-      
-      const query = `
-        SELECT 
-          rd.product_name as "productName",
-          SUM(rd.removed) as "totalRemoved",
-          COUNT(*) as "removalsCount",
-          MAX(r.datetime) as "lastRemoved"
-        FROM refill_details rd
-        INNER JOIN refills r ON rd.refill_id = r.id
-        WHERE rd.removed > 0 
-          AND rd.removed <= 5   -- SEHR realistische Einzelentnahmen (1-5 Stück)
-          AND r.datetime >= NOW() - INTERVAL '${days} days'
-          -- Nur sehr realistische Refill-Operationen (max 5 pro Event)
-        GROUP BY rd.product_name
-        ORDER BY "totalRemoved" DESC
-        LIMIT $1
-      `;
-      
-      const result = await pool.query(query, [limit]);
-      
-      const response = result.rows.map((row, index) => ({
-        rank: index + 1,
-        productName: row.productName,
-        totalRemoved: parseInt(row.totalRemoved),
-        removalsCount: parseInt(row.removalsCount),
-        lastRemoved: row.lastRemoved
-      }));
-      
-      console.log(`Top removed products response: ${response.length} items`);
-      res.json(response);
-      
-    } catch (error) {
-      console.error('Fehler beim Abrufen der Top entfernten Produkte:', error);
-      res.status(500).json({ error: 'Fehler beim Abrufen der Daten', details: error.message });
-    }
-  });
+  // REMOVED: DUPLICATE route - now handled by removedProductsRouter
   
   // Detaillierte Statistiken für ein spezifisches Produkt
   app.get(`${API_PREFIX}/removed-products/stats/:productName`, async (req, res) => {
