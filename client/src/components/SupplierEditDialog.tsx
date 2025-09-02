@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -8,12 +8,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { SupplierPhotoUpload } from '@/components/SupplierPhotoUpload';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Save, X } from 'lucide-react';
 
 import { useToast } from '@/hooks/use-toast';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiRequest } from '@/lib/queryClient';
 import { Supplier } from '@shared/schema';
 
 interface SupplierEditDialogProps {
@@ -51,6 +50,7 @@ export function SupplierEditDialog({ supplier, isOpen, onOpenChange, onSave }: S
       console.log('[SupplierEditDialog] Lieferant erfolgreich gespeichert:', updatedSupplier);
       queryClient.invalidateQueries({ queryKey: ['/api/suppliers'] });
       queryClient.invalidateQueries({ queryKey: ['/api/suppliers', supplier.id] });
+      setIsSubmitting(false);
       onSave(updatedSupplier);
       onOpenChange(false);
       toast({
@@ -60,6 +60,7 @@ export function SupplierEditDialog({ supplier, isOpen, onOpenChange, onSave }: S
     },
     onError: (error) => {
       console.error('[SupplierEditDialog] Fehler beim Speichern:', error);
+      setIsSubmitting(false);
       toast({
         title: "Fehler beim Speichern",
         description: `Fehler: ${error instanceof Error ? error.message : 'Unbekannter Fehler'}`,
@@ -69,7 +70,7 @@ export function SupplierEditDialog({ supplier, isOpen, onOpenChange, onSave }: S
   });
 
   const [formData, setFormData] = useState({
-    // Grundinformationen
+    // Grundinformationen (database fields only)
     name: supplier.name || '',
     contactPerson: supplier.contactPerson || '',
     phone: supplier.phone || '',
@@ -91,7 +92,7 @@ export function SupplierEditDialog({ supplier, isOpen, onOpenChange, onSave }: S
     // Geschäftsbedingungen
     paymentTerms: supplier.paymentTerms || '',
     deliveryTerms: supplier.deliveryTerms || '',
-    minimumOrderValue: supplier.minimumOrderValue || 0,
+    minimumOrderValue: supplier.minimumOrderValue || null,
     deliveryDays: supplier.deliveryDays || '',
     
     // Steuer- und Bankdaten
@@ -99,43 +100,40 @@ export function SupplierEditDialog({ supplier, isOpen, onOpenChange, onSave }: S
     accountNumber: supplier.accountNumber || '',
     bankDetails: supplier.bankDetails || '',
     
-    // Lieferungsmethoden
-    deliveryMethod: supplier.deliveryMethod || 'delivery',
-    preferredDeliveryMethod: supplier.preferredDeliveryMethod || '',
-    
-    // Bestellungseinstellungen
-    orderFrequency: supplier.orderFrequency || '',
-    orderWeekday: supplier.orderWeekday || '',
-    orderPreferences: supplier.orderPreferences || '',
-    
-    // Lieferungseinstellungen
-    deliveryFrequency: supplier.deliveryFrequency || '',
-    deliveryWeekday: supplier.deliveryWeekday || '',
-    deliveryPreferences: supplier.deliveryPreferences || '',
-    
-    // E-Mail-Einstellungen
+    // E-Mail-Templates
+    emailTemplate: supplier.emailTemplate || '',
+    emailSubjectTemplate: supplier.emailSubjectTemplate || '',
     orderEmailRecipient: supplier.orderEmailRecipient || '',
     orderEmailCc: supplier.orderEmailCc || '',
     orderEmailBcc: supplier.orderEmailBcc || '',
-    emailTemplate: supplier.emailTemplate || '',
-    emailSubjectTemplate: supplier.emailSubjectTemplate || '',
     emailSignature: supplier.emailSignature || '',
+    
+    // Foto-Array
+    photos: supplier.photos || [],
     
     // Preisanzeige-Einstellungen
     showPricesInOrders: supplier.showPricesInOrders !== false,
     hideOrderPrices: supplier.hideOrderPrices || false,
     
-    // Medien
-    photos: supplier.photos || []
+    // Lieferungseinstellungen
+    deliveryMethod: supplier.deliveryMethod || 'delivery',
+    orderFrequency: supplier.orderFrequency || '',
+    orderWeekday: supplier.orderWeekday || '',
+    deliveryFrequency: supplier.deliveryFrequency || '',
+    deliveryWeekday: supplier.deliveryWeekday || '',
+    preferredDeliveryMethod: supplier.preferredDeliveryMethod || '',
+    orderPreferences: supplier.orderPreferences || '',
+    deliveryPreferences: supplier.deliveryPreferences || ''
   });
 
   const [activeTab, setActiveTab] = useState("general");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleInputChange = (field: string, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!formData.name.trim()) {
       toast({
         title: "Validierungsfehler",
@@ -145,7 +143,24 @@ export function SupplierEditDialog({ supplier, isOpen, onOpenChange, onSave }: S
       return;
     }
 
-    updateSupplierMutation.mutate(formData);
+    setIsSubmitting(true);
+    
+    // Clean data before sending - remove empty strings and convert numbers
+    const cleanedData = { ...formData };
+    
+    // Handle numeric fields
+    if (cleanedData.minimumOrderValue === '' || cleanedData.minimumOrderValue === null) {
+      cleanedData.minimumOrderValue = null;
+    } else if (typeof cleanedData.minimumOrderValue === 'string') {
+      cleanedData.minimumOrderValue = parseFloat(cleanedData.minimumOrderValue) || null;
+    }
+    
+    // Remove empty arrays for photos if no photos
+    if (cleanedData.photos && cleanedData.photos.length === 0) {
+      cleanedData.photos = null;
+    }
+    
+    updateSupplierMutation.mutate(cleanedData);
   };
 
   return (
@@ -159,11 +174,11 @@ export function SupplierEditDialog({ supplier, isOpen, onOpenChange, onSave }: S
 
         <div className="flex-1 overflow-hidden">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col h-full">
-            {/* Mobile-First Tab Navigation */}
+            {/* Tab Navigation */}
             <div className="px-6 py-2 border-b">
-              <TabsList className="grid w-full grid-cols-3 lg:grid-cols-6 h-auto">
+              <TabsList className="grid w-full grid-cols-2 lg:grid-cols-5 h-auto">
                 <TabsTrigger value="general" className="text-xs lg:text-sm py-2">
-                  Basis
+                  Allgemein
                 </TabsTrigger>
                 <TabsTrigger value="contact" className="text-xs lg:text-sm py-2">
                   Kontakt
@@ -172,13 +187,10 @@ export function SupplierEditDialog({ supplier, isOpen, onOpenChange, onSave }: S
                   Geschäft
                 </TabsTrigger>
                 <TabsTrigger value="ordering" className="text-xs lg:text-sm py-2">
-                  Bestellung
+                  Termine
                 </TabsTrigger>
                 <TabsTrigger value="email" className="text-xs lg:text-sm py-2">
                   E-Mail
-                </TabsTrigger>
-                <TabsTrigger value="media" className="text-xs lg:text-sm py-2">
-                  Medien
                 </TabsTrigger>
               </TabsList>
             </div>
@@ -192,15 +204,16 @@ export function SupplierEditDialog({ supplier, isOpen, onOpenChange, onSave }: S
                     <CardTitle className="text-base">Grundinformationen</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    <div className="space-y-4">
+                    <div className="grid grid-cols-1 gap-4">
                       <div>
-                        <Label htmlFor="name" className="text-sm font-medium">Lieferantenname *</Label>
+                        <Label htmlFor="name" className="text-sm font-medium text-red-600">Lieferantenname *</Label>
                         <Input
                           id="name"
                           value={formData.name}
                           onChange={(e) => handleInputChange('name', e.target.value)}
                           className="mt-1"
                           placeholder="Name des Lieferanten"
+                          required
                         />
                       </div>
                       
@@ -225,7 +238,7 @@ export function SupplierEditDialog({ supplier, isOpen, onOpenChange, onSave }: S
                           onChange={(e) => handleInputChange('shortDescription', e.target.value)}
                           className="mt-1"
                           placeholder="Kurze Beschreibung des Lieferanten..."
-                          rows={3}
+                          rows={2}
                         />
                       </div>
 
@@ -237,12 +250,12 @@ export function SupplierEditDialog({ supplier, isOpen, onOpenChange, onSave }: S
                           onChange={(e) => handleInputChange('description', e.target.value)}
                           className="mt-1"
                           placeholder="Detaillierte Beschreibung des Lieferanten..."
-                          rows={4}
+                          rows={3}
                         />
                       </div>
 
                       <div>
-                        <Label htmlFor="notes" className="text-sm font-medium">Notizen</Label>
+                        <Label htmlFor="notes" className="text-sm font-medium">Interne Notizen</Label>
                         <Textarea
                           id="notes"
                           value={formData.notes}
@@ -400,8 +413,10 @@ export function SupplierEditDialog({ supplier, isOpen, onOpenChange, onSave }: S
                         <Input
                           id="minimumOrderValue"
                           type="number"
-                          value={formData.minimumOrderValue}
-                          onChange={(e) => handleInputChange('minimumOrderValue', parseFloat(e.target.value) || 0)}
+                          step="0.01"
+                          min="0"
+                          value={formData.minimumOrderValue || ''}
+                          onChange={(e) => handleInputChange('minimumOrderValue', e.target.value)}
                           className="mt-1"
                           placeholder="0.00"
                         />
@@ -449,10 +464,17 @@ export function SupplierEditDialog({ supplier, isOpen, onOpenChange, onSave }: S
                         onChange={(e) => handleInputChange('bankDetails', e.target.value)}
                         className="mt-1"
                         placeholder="Bankname, IBAN, BIC..."
-                        rows={3}
+                        rows={2}
                       />
                     </div>
+                  </CardContent>
+                </Card>
 
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">Einstellungen</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
                     <div>
                       <Label htmlFor="deliveryMethod" className="text-sm font-medium">Liefermethode</Label>
                       <Select value={formData.deliveryMethod} onValueChange={(value) => handleInputChange('deliveryMethod', value)}>
@@ -467,24 +489,6 @@ export function SupplierEditDialog({ supplier, isOpen, onOpenChange, onSave }: S
                       </Select>
                     </div>
 
-                    <div>
-                      <Label htmlFor="preferredDeliveryMethod" className="text-sm font-medium">Bevorzugte Liefermethode</Label>
-                      <Input
-                        id="preferredDeliveryMethod"
-                        value={formData.preferredDeliveryMethod}
-                        onChange={(e) => handleInputChange('preferredDeliveryMethod', e.target.value)}
-                        className="mt-1"
-                        placeholder="z.B. Spedition, Paketdienst"
-                      />
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-base">Preisanzeige</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
                     <div className="flex items-center justify-between">
                       <div className="space-y-0.5">
                         <Label className="text-sm font-medium">Preise in Bestellungen anzeigen</Label>
@@ -500,9 +504,9 @@ export function SupplierEditDialog({ supplier, isOpen, onOpenChange, onSave }: S
 
                     <div className="flex items-center justify-between">
                       <div className="space-y-0.5">
-                        <Label className="text-sm font-medium">Preise ausblenden</Label>
+                        <Label className="text-sm font-medium">Preise in E-Mails ausblenden</Label>
                         <p className="text-xs text-muted-foreground">
-                          Blendet Preise komplett aus
+                          E-Mails ohne EUR-Werte senden
                         </p>
                       </div>
                       <Switch
@@ -556,14 +560,25 @@ export function SupplierEditDialog({ supplier, isOpen, onOpenChange, onSave }: S
                     </div>
 
                     <div>
+                      <Label htmlFor="preferredDeliveryMethod" className="text-sm font-medium">Bevorzugte Liefermethode</Label>
+                      <Input
+                        id="preferredDeliveryMethod"
+                        value={formData.preferredDeliveryMethod}
+                        onChange={(e) => handleInputChange('preferredDeliveryMethod', e.target.value)}
+                        className="mt-1"
+                        placeholder="z.B. Spedition, Paketdienst"
+                      />
+                    </div>
+                    
+                    <div>
                       <Label htmlFor="orderPreferences" className="text-sm font-medium">Bestellpräferenzen</Label>
                       <Textarea
                         id="orderPreferences"
                         value={formData.orderPreferences}
                         onChange={(e) => handleInputChange('orderPreferences', e.target.value)}
                         className="mt-1"
-                        placeholder="Spezielle Anforderungen für Bestellungen..."
-                        rows={3}
+                        placeholder="Besondere Bestellwünsche..."
+                        rows={2}
                       />
                     </div>
                   </CardContent>
@@ -686,14 +701,14 @@ export function SupplierEditDialog({ supplier, isOpen, onOpenChange, onSave }: S
                     </div>
 
                     <div>
-                      <Label htmlFor="emailBodyTemplate" className="text-sm font-medium">E-Mail-Text-Vorlage</Label>
+                      <Label htmlFor="emailTemplate" className="text-sm font-medium">E-Mail-Vorlage</Label>
                       <Textarea
-                        id="emailBodyTemplate"
-                        value={formData.emailBodyTemplate}
-                        onChange={(e) => handleInputChange('emailBodyTemplate', e.target.value)}
+                        id="emailTemplate"
+                        value={formData.emailTemplate}
+                        onChange={(e) => handleInputChange('emailTemplate', e.target.value)}
                         className="mt-1"
                         placeholder="Standardtext für E-Mails an diesen Lieferanten..."
-                        rows={5}
+                        rows={4}
                       />
                     </div>
 
@@ -712,43 +727,34 @@ export function SupplierEditDialog({ supplier, isOpen, onOpenChange, onSave }: S
                 </Card>
               </TabsContent>
 
-              {/* Media-Tab */}
-              <TabsContent value="media" className="space-y-4 mt-0">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-base">Fotos und Dokumente</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="p-4 border-2 border-dashed border-gray-300 rounded-lg text-center text-gray-500">
-                      Foto-Upload wird implementiert
-                    </div>
-                  </CardContent>
-                </Card>
-              </TabsContent>
             </ScrollArea>
 
-            {/* Action Buttons - Fixed at Bottom */}
-            <div className="border-t px-6 py-4 bg-background">
-              <div className="flex flex-col sm:flex-row gap-2 sm:justify-end">
-                <Button
-                  variant="outline"
-                  onClick={() => onOpenChange(false)}
-                  className="w-full sm:w-auto"
-                >
-                  Abbrechen
-                </Button>
-                <Button
-                  onClick={handleSave}
-                  disabled={updateSupplierMutation.isPending}
-                  className="w-full sm:w-auto"
-                >
-                  {updateSupplierMutation.isPending ? 'Speichert...' : 'Speichern'}
-                </Button>
-              </div>
-            </div>
-          </Tabs>
+        </Tabs>
+      </div>
+
+      {/* Action Buttons - Fixed at Bottom */}
+      <DialogFooter className="px-6 py-4 border-t bg-background">
+        <div className="flex w-full gap-3 sm:justify-end">
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            className="w-full sm:w-auto"
+            disabled={isSubmitting}
+          >
+            <X className="h-4 w-4 mr-2" />
+            Abbrechen
+          </Button>
+          <Button
+            onClick={handleSave}
+            disabled={updateSupplierMutation.isPending || isSubmitting}
+            className="w-full sm:w-auto"
+          >
+            <Save className="h-4 w-4 mr-2" />
+            {updateSupplierMutation.isPending || isSubmitting ? 'Speichert...' : 'Speichern'}
+          </Button>
         </div>
-      </DialogContent>
+      </DialogFooter>
+    </DialogContent>
     </Dialog>
   );
 }
