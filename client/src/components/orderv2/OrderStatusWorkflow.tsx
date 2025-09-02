@@ -50,7 +50,7 @@ const getWorkflowSteps = (order: any): OrderStatusStep[] => {
       title: 'Bestellung versendet',
       description: 'Bestellung an Lieferant übermittelt',
       icon: <Mail className="h-4 w-4" />,
-      status: getStepStatus(order.status, ['draft'], ['sent', 'confirmed', 'delivered', 'received']),
+      status: getStepStatus(order.status, ['draft'], ['sent', 'confirmed', 'received']),
       date: order.sentDate || order.emailSentDate,
       details: order.supplierEmail ? `An ${order.supplierEmail}` : 'Per E-Mail versendet'
     },
@@ -59,34 +59,16 @@ const getWorkflowSteps = (order: any): OrderStatusStep[] => {
       title: 'Lieferant bestätigt',
       description: 'Bestellung vom Lieferant angenommen',
       icon: <CheckCircle className="h-4 w-4" />,
-      status: getStepStatus(order.status, ['draft', 'sent'], ['confirmed', 'delivered', 'received']),
+      status: getStepStatus(order.status, ['draft', 'sent'], ['confirmed', 'received']),
       date: order.confirmedDate,
       details: order.supplierConfirmation ? 'Bestätigung erhalten' : 'Warten auf Bestätigung'
-    },
-    {
-      id: 'shipped',
-      title: 'Versand erfolgt',
-      description: 'Ware wurde vom Lieferant versendet',
-      icon: <Truck className="h-4 w-4" />,
-      status: getStepStatus(order.status, ['draft', 'sent', 'confirmed'], ['shipped', 'delivered', 'received']),
-      date: order.shippedDate,
-      details: order.trackingNumber ? `Tracking: ${order.trackingNumber}` : 'Versandinformationen folgen'
-    },
-    {
-      id: 'delivered',
-      title: 'Lieferung angekommen',
-      description: 'Ware wurde geliefert',
-      icon: <Package className="h-4 w-4" />,
-      status: getStepStatus(order.status, ['draft', 'sent', 'confirmed', 'shipped'], ['delivered', 'received']),
-      date: order.deliveredDate || order.actualDeliveryDate,
-      details: order.deliveredDate ? 'Lieferung bestätigt' : `Erwartet: ${order.expectedDeliveryDate ? format(new Date(order.expectedDeliveryDate), 'dd.MM.yyyy', { locale: de }) : 'TBD'}`
     },
     {
       id: 'received',
       title: 'Wareneingang geprüft',
       description: 'Ware wurde eingelagert',
-      icon: <CheckCircle className="h-4 w-4" />,
-      status: getStepStatus(order.status, ['draft', 'sent', 'confirmed', 'shipped', 'delivered'], ['received']),
+      icon: <Package className="h-4 w-4" />,
+      status: getStepStatus(order.status, ['draft', 'sent', 'confirmed'], ['received']),
       date: order.receivedDate,
       details: order.receivedDate ? 'Vollständig eingelagert' : 'Wareneingang ausstehend'
     }
@@ -108,9 +90,7 @@ function getStepStatus(orderStatus: string, beforeStates: string[], currentAndAf
   if (orderStatus === 'draft' && beforeStates.length === 0) return 'current';
   if (orderStatus === 'sent' && beforeStates.includes('draft')) return 'current';
   if (orderStatus === 'confirmed' && beforeStates.includes('sent')) return 'current';
-  if (orderStatus === 'shipped' && beforeStates.includes('confirmed')) return 'current';
-  if (orderStatus === 'delivered' && beforeStates.includes('shipped')) return 'current';
-  if (orderStatus === 'received' && beforeStates.includes('delivered')) return 'current';
+  if (orderStatus === 'received' && beforeStates.includes('confirmed')) return 'current';
   
   return 'pending';
 }

@@ -258,7 +258,7 @@ const BestellungV2: React.FC = () => {
     try {
       console.log(`Lade bestehende Bestellungsdaten für Bestellung ${orderIdToLoad}`);
       
-      const response = await fetch(`/api/orders-direct/${orderIdToLoad}`, {
+      const response = await fetch(`/api/orders/${orderIdToLoad}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json'
@@ -327,8 +327,8 @@ const BestellungV2: React.FC = () => {
     try {
       console.log(`Versuche Bestellpositionen zu laden für Bestellung ${orderIdToLoad} (Versuch ${retryCount + 1}/${maxRetries + 1})`);
       
-      // API-Aufruf um alle Bestellpositionen zu laden über direkten SQL-Endpunkt
-      const response = await fetch(`/api/order-items-direct/${orderIdToLoad}`, {
+      // API-Aufruf um alle Bestellpositionen zu laden
+      const response = await fetch(`/api/orders/${orderIdToLoad}/items`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json'
@@ -1748,6 +1748,7 @@ const BestellungV2: React.FC = () => {
               // Implement print functionality
               window.print();
             }}
+            onGoBack={() => navigate('/bestellungen')}
           />
         );
         

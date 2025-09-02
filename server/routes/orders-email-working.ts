@@ -491,6 +491,23 @@ router.post('/:orderId/send-email-working', async (req: Request, res: Response) 
     
     console.log(`[WorkingOrderEmail] Email sent successfully, Message ID: ${result.messageId}`);
     
+    // Update order status to "sent" after successful email delivery
+    try {
+      await db
+        .update(orders)
+        .set({ 
+          status: 'sent',
+          sentDate: new Date(),
+          emailSentDate: new Date()
+        })
+        .where(eq(orders.id, orderId));
+      
+      console.log(`[WorkingOrderEmail] Order status updated to "sent" for order ${orderId}`);
+    } catch (statusError) {
+      console.error('[WorkingOrderEmail] Failed to update order status:', statusError);
+      // Don't fail the entire operation - email was sent successfully
+    }
+    
     return res.json({
       success: true,
       message: usePdf && attachments.length > 0 ? 'E-Mail mit PDF-Anhang erfolgreich gesendet' : 'E-Mail als HTML erfolgreich gesendet',

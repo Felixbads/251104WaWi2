@@ -17,7 +17,8 @@ import {
   Edit,
   Send,
   Download,
-  Printer
+  Printer,
+  ArrowLeft
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -34,6 +35,7 @@ interface OrderOverviewProps {
   onSendEmail?: () => void;
   onDownloadPdf?: () => void;
   onPrint?: () => void;
+  onGoBack?: () => void;
 }
 
 // Helper functions
@@ -90,7 +92,8 @@ const OrderOverview: React.FC<OrderOverviewProps> = ({
   onEditOrder,
   onSendEmail,
   onDownloadPdf,
-  onPrint
+  onPrint,
+  onGoBack
 }) => {
   console.log("OrderOverview received data:", order);
   console.log("Field values:", {
@@ -127,6 +130,12 @@ const OrderOverview: React.FC<OrderOverviewProps> = ({
       {/* Header Section */}
       <div className="flex items-center justify-between">
         <div>
+          {onGoBack && (
+            <Button variant="ghost" onClick={onGoBack} className="mb-2 -ml-4">
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Zurück
+            </Button>
+          )}
           <h1 className="text-3xl font-bold">Bestellübersicht</h1>
           <p className="text-muted-foreground mt-1">
             Bestellung #{order.orderNumber || order.order_number || order.id}
@@ -445,7 +454,7 @@ const OrderOverview: React.FC<OrderOverviewProps> = ({
                 </Button>
               )}
               
-              {(order.status === 'delivered' || order.status === 'shipped') && onNavigateToStep && (
+              {(order.status === 'sent' || order.status === 'confirmed') && onNavigateToStep && (
                 <Button 
                   className="w-full" 
                   onClick={() => onNavigateToStep('goodsReceipt')}
