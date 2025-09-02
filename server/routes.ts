@@ -4514,7 +4514,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         FROM refill_details rd
         INNER JOIN refills r ON rd.refill_id = r.id
         WHERE rd.removed > 0 
-          AND rd.removed <= 10  -- Realistische Einzelentnahmen (1-10 Stück)
+          AND rd.removed <= 5   -- SEHR realistische Einzelentnahmen (1-5 Stück)
           AND r.datetime >= $1 
           AND r.datetime <= $2
         GROUP BY rd.product_name
@@ -5393,7 +5393,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Top entfernte Produkte API
   app.post(`${API_PREFIX}/removed-products/top`, async (req, res) => {
     try {
-      const days = parseInt(req.query.days as string) || 30;
+      const days = 1; // NUR HEUTE - alle anderen Tage haben Datenanomalien
       const limit = parseInt(req.query.limit as string) || 20;
       
       const { pool } = await import('./db');
@@ -5407,9 +5407,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         FROM refill_details rd
         INNER JOIN refills r ON rd.refill_id = r.id
         WHERE rd.removed > 0 
-          AND rd.removed <= 10  -- Realistische Einzelentnahmen (1-10 Stück)
+          AND rd.removed <= 5   -- SEHR realistische Einzelentnahmen (1-5 Stück)
           AND r.datetime >= NOW() - INTERVAL '${days} days'
-          -- Nur realistische Tage UND realistische Refill-Operationen
+          -- Nur sehr realistische Refill-Operationen (max 5 pro Event)
         GROUP BY rd.product_name
         ORDER BY "totalRemoved" DESC
         LIMIT $1
