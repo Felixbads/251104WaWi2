@@ -9,6 +9,7 @@ import { DatabaseClient } from '../storage/database-storage';
 import { orders, orderItems, inventoryBatches, inventoryItems } from '../../shared/schema';
 import { eq, and } from 'drizzle-orm';
 import { v4 as uuidv4 } from 'uuid';
+import DeliveryNoteUploadService, { UploadedFile, DeliveryNoteMetadata } from './deliveryNoteUploadService';
 
 interface GoodsReceiptItem {
   orderItemId: number;
@@ -29,13 +30,23 @@ interface GoodsReceiptResult {
   batchesCreated: number;
   totalValue: number;
   errorMessage?: string;
+  deliveryNotesUploaded?: number;
+  deliveryNoteIds?: number[];
+}
+
+interface GoodsReceiptWithDocuments {
+  items: GoodsReceiptItem[];
+  deliveryNotes: UploadedFile[];
+  metadata: DeliveryNoteMetadata;
 }
 
 class GoodsReceiptService {
   private db: DatabaseClient;
+  private deliveryNoteService: DeliveryNoteUploadService;
 
   constructor(db: DatabaseClient) {
     this.db = db;
+    this.deliveryNoteService = new DeliveryNoteUploadService(db);
   }
 
   /**
@@ -131,6 +142,99 @@ class GoodsReceiptService {
         totalValue: 0,
         errorMessage: error instanceof Error ? error.message : 'Unbekannter Fehler'
       };
+    }
+  }
+
+  /**
+   * Verarbeitet manuellen Wareneingang mit Lieferscheinen
+   */
+  async processGoodsReceiptWithDocuments(
+    orderId: number,
+    data: GoodsReceiptWithDocuments
+  ): Promise<GoodsReceiptResult> {
+    try {
+      console.log(`📦 Verarbeite Wareneingang mit Dokumenten für Bestellung ${orderId}`);
+
+      const [order] = await this.db.drizzle
+        .select()
+        .from(orders)
+        .where(eq(orders.id, orderId));
+
+      if (!order) {
+        throw new Error(`Bestellung ${orderId} nicht gefunden`);
+      }
+
+      let deliveryNoteIds: number[] = [];
+      let deliveryNotesUploaded = 0;
+
+      // 1. Erst Lieferscheine hochladen (falls vorhanden)
+      if (data.deliveryNotes && data.deliveryNotes.length > 0) {
+        console.log(`📄 Lade ${data.deliveryNotes.length} Lieferscheine hoch`);
+        
+        for (const file of data.deliveryNotes) {
+          const uploadResult = await this.deliveryNoteService.uploadDeliveryNote(
+            orderId,
+            file,
+            data.metadata
+          );
+
+          if (uploadResult.success && uploadResult.deliveryNoteId) {
+            deliveryNoteIds.push(uploadResult.deliveryNoteId);
+            deliveryNotesUploaded++;
+            console.log(`✅ Lieferschein hochgeladen: ID ${uploadResult.deliveryNoteId}`);
+          } else {
+            console.error(`❌ Lieferschein-Upload fehlgeschlagen: ${uploadResult.error}`);
+            // Weiter verarbeiten, aber Fehler loggen
+          }
+        }
+      }
+
+      // 2. Dann normalen Wareneingang verarbeiten
+      const goodsReceiptResult = await this.processGoodsReceipt(order, data.items);
+
+      // 3. Resultat erweitern um Lieferschein-Informationen
+      return {
+        ...goodsReceiptResult,
+        deliveryNotesUploaded,
+        deliveryNoteIds
+      };
+
+    } catch (error) {
+      console.error('❌ Fehler beim Wareneingang mit Dokumenten:', error);
+      return {
+        success: false,
+        orderId,
+        orderNumber: '',
+        itemsProcessed: 0,
+        batchesCreated: 0,
+        totalValue: 0,
+        deliveryNotesUploaded: 0,
+        deliveryNoteIds: [],
+        errorMessage: error instanceof Error ? error.message : 'Unbekannter Fehler'
+      };
+    }
+  }
+
+  /**
+   * Holt Wareneingang-Details inklusive Lieferscheine
+   */
+  async getGoodsReceiptWithDocuments(orderId: number): Promise<any> {
+    try {
+      // Normale Wareneingang-Details holen
+      const basicDetails = await this.getGoodsReceiptDetails(orderId);
+      
+      // Lieferscheine hinzufügen
+      const deliveryNotes = await this.deliveryNoteService.getDeliveryNotes(orderId);
+
+      return {
+        ...basicDetails,
+        deliveryNotes,
+        hasDeliveryNotes: deliveryNotes.length > 0,
+        deliveryNoteCount: deliveryNotes.length
+      };
+    } catch (error) {
+      console.error('❌ Fehler beim Laden der Wareneingang-Details mit Dokumenten:', error);
+      throw error;
     }
   }
 

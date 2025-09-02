@@ -1878,7 +1878,7 @@ const BestellungV2: React.FC = () => {
         return (
           <GoodsReceiptForm
             order={orderWithItems}
-            onSubmit={(receiptData) => {
+            onSubmit={async (receiptData, receiptNote, documents) => {
               // Prüfen, ob alle Positionen geprüft wurden
               const allItemsChecked = receiptData.every(item => 
                 item.receivedQuantity !== null && item.receivedQuantity !== undefined
@@ -1892,13 +1892,53 @@ const BestellungV2: React.FC = () => {
                 });
                 return;
               }
-              
-              goodsReceiptMutation.mutate({
-                orderId: orderId!,
-                receivedItems: receiptData
-              });
+
+              try {
+                // Wareneingang mit Dokumenten verarbeiten
+                const formData = new FormData();
+                
+                // Lieferscheine anhängen
+                documents.forEach((file, index) => {
+                  formData.append('deliveryNotes', file);
+                });
+                
+                // Wareneingangs-Daten als JSON anhängen
+                formData.append('goodsReceiptData', JSON.stringify({
+                  items: receiptData,
+                  notes: receiptNote,
+                  receiptDate: new Date().toISOString()
+                }));
+
+                const response = await fetch(`/api/goods-receipt/${orderWithItems.id}/process-with-documents`, {
+                  method: 'POST',
+                  body: formData,
+                });
+
+                if (!response.ok) {
+                  throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const result = await response.json();
+                
+                toast({
+                  title: 'Wareneingang erfolgreich',
+                  description: `Wareneingang wurde verarbeitet. ${documents.length > 0 ? `${documents.length} Lieferschein(e) hochgeladen.` : ''}`,
+                  variant: 'default',
+                });
+
+                // Zurück zur Übersicht
+                setStep('viewOrder');
+                
+              } catch (error) {
+                console.error('Fehler beim Verarbeiten des Wareneingangs:', error);
+                toast({
+                  title: 'Fehler beim Wareneingang',
+                  description: 'Der Wareneingang konnte nicht verarbeitet werden. Bitte versuchen Sie es erneut.',
+                  variant: 'destructive',
+                });
+              }
             }}
-            isSubmitting={goodsReceiptMutation.isPending}
+            isSubmitting={false}
           />
         );
       case 'warehouseReceiptOfExistingOrder':
@@ -1947,7 +1987,7 @@ const BestellungV2: React.FC = () => {
             
             <GoodsReceiptForm
               order={order || existingOrderData}
-              onSubmit={(receiptData) => {
+              onSubmit={async (receiptData, receiptNote, documents) => {
                 // Prüfen, ob alle Positionen geprüft wurden
                 const allItemsChecked = receiptData.every(item => 
                   item.receivedQuantity !== null && item.receivedQuantity !== undefined
@@ -1961,13 +2001,54 @@ const BestellungV2: React.FC = () => {
                   });
                   return;
                 }
-                
-                goodsReceiptMutation.mutate({
-                  orderId: orderId!,
-                  receivedItems: receiptData
-                });
+
+                try {
+                  // Wareneingang mit Dokumenten verarbeiten
+                  const formData = new FormData();
+                  
+                  // Lieferscheine anhängen
+                  documents.forEach((file, index) => {
+                    formData.append('deliveryNotes', file);
+                  });
+                  
+                  // Wareneingangs-Daten als JSON anhängen
+                  formData.append('goodsReceiptData', JSON.stringify({
+                    items: receiptData,
+                    notes: receiptNote,
+                    receiptDate: new Date().toISOString()
+                  }));
+
+                  const currentOrder = order || existingOrderData;
+                  const response = await fetch(`/api/goods-receipt/${currentOrder.id}/process-with-documents`, {
+                    method: 'POST',
+                    body: formData,
+                  });
+
+                  if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                  }
+
+                  const result = await response.json();
+                  
+                  toast({
+                    title: 'Wareneingang erfolgreich',
+                    description: `Wareneingang wurde verarbeitet. ${documents.length > 0 ? `${documents.length} Lieferschein(e) hochgeladen.` : ''}`,
+                    variant: 'default',
+                  });
+
+                  // Zurück zur Übersicht
+                  setStep('overview');
+                  
+                } catch (error) {
+                  console.error('Fehler beim Verarbeiten des Wareneingangs:', error);
+                  toast({
+                    title: 'Fehler beim Wareneingang',
+                    description: 'Der Wareneingang konnte nicht verarbeitet werden. Bitte versuchen Sie es erneut.',
+                    variant: 'destructive',
+                  });
+                }
               }}
-              isSubmitting={goodsReceiptMutation.isPending}
+              isSubmitting={false}
             />
           </>
         );

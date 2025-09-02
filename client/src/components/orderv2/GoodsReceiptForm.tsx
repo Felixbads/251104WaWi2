@@ -34,7 +34,12 @@ import {
   Camera,
   X,
   Plus,
-  Minus
+  Minus,
+  Upload,
+  FileText,
+  Image as ImageIcon,
+  Trash2,
+  Eye
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
@@ -206,6 +211,9 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
   
   const [receiptNote, setReceiptNote] = useState('');
   const [documents, setDocuments] = useState<File[]>([]);
+  const [dragActive, setDragActive] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
+  const [previewUrls, setPreviewUrls] = useState<Record<string, string>>({});
   
   // Package-based quantity states for goods receipt - no longer needed as we store directly in receivedItems
   // const [receivedPackageCounts, setReceivedPackageCounts] = useState<Record<number, number>>({});
@@ -303,11 +311,114 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
     );
   };
   
-  // Handle document upload
+  // Cleanup preview URLs on unmount
+  React.useEffect(() => {
+    return () => {
+      Object.values(previewUrls).forEach(url => {
+        if (url.startsWith('blob:')) {
+          URL.revokeObjectURL(url);
+        }
+      });
+    };
+  }, [previewUrls]);
+
+  // File validation function
+  const validateFile = (file: File): { valid: boolean; error?: string } => {
+    const maxSize = 10 * 1024 * 1024; // 10MB
+    const allowedTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'];
+    
+    if (!allowedTypes.includes(file.type)) {
+      return { valid: false, error: 'Nur PDF, JPEG und PNG Dateien sind erlaubt' };
+    }
+    
+    if (file.size > maxSize) {
+      return { valid: false, error: 'Datei ist zu groß (max. 10MB)' };
+    }
+    
+    return { valid: true };
+  };
+
+  // Handle document upload with validation
   const handleDocumentUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       const newFiles = Array.from(e.target.files);
-      setDocuments(prev => [...prev, ...newFiles]);
+      const validFiles: File[] = [];
+      
+      newFiles.forEach(file => {
+        const validation = validateFile(file);
+        if (validation.valid) {
+          validFiles.push(file);
+          
+          // Create preview URL for images
+          if (file.type.startsWith('image/')) {
+            const url = URL.createObjectURL(file);
+            setPreviewUrls(prev => ({ ...prev, [file.name]: url }));
+          }
+        } else {
+          alert(`Fehler bei Datei "${file.name}": ${validation.error}`);
+        }
+      });
+      
+      if (validFiles.length > 0) {
+        setDocuments(prev => [...prev, ...validFiles]);
+      }
+    }
+    
+    // Reset input
+    e.target.value = '';
+  };
+
+  // Handle drag and drop
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+
+    const files = Array.from(e.dataTransfer.files);
+    const validFiles: File[] = [];
+    
+    files.forEach(file => {
+      const validation = validateFile(file);
+      if (validation.valid) {
+        validFiles.push(file);
+        
+        // Create preview URL for images
+        if (file.type.startsWith('image/')) {
+          const url = URL.createObjectURL(file);
+          setPreviewUrls(prev => ({ ...prev, [file.name]: url }));
+        }
+      } else {
+        alert(`Fehler bei Datei "${file.name}": ${validation.error}`);
+      }
+    });
+    
+    if (validFiles.length > 0) {
+      setDocuments(prev => [...prev, ...validFiles]);
+    }
+  };
+
+  // Mobile camera capture
+  const handleCameraCapture = () => {
+    const input = document.getElementById('camera-capture') as HTMLInputElement;
+    if (input) {
+      input.click();
     }
   };
   
@@ -402,55 +513,163 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
         </div>
         
         {/* Document upload */}
-        <div className="space-y-2">
-          <label className="text-sm font-medium">Dokumente hochladen (Lieferschein, Fotos, etc.)</label>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" className="w-full sm:w-auto" onClick={() => document.getElementById('document-upload')?.click()}>
-              <Mail className="mr-2 h-4 w-4" />
-              Dokument hinzufügen
-            </Button>
-            <Button variant="outline" className="w-full sm:w-auto" onClick={() => document.getElementById('photo-upload')?.click()}>
-              <Camera className="mr-2 h-4 w-4" />
-              Foto hinzufügen
-            </Button>
-            <input 
-              id="document-upload" 
-              type="file" 
-              multiple 
-              onChange={handleDocumentUpload} 
-              className="hidden" 
-            />
-            <input 
-              id="photo-upload" 
-              type="file" 
-              accept="image/*" 
-              multiple 
-              onChange={handleDocumentUpload} 
-              className="hidden" 
-            />
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <label className="text-sm font-medium">Lieferscheine und Dokumente</label>
+            <Badge variant="outline" className="text-xs">
+              {documents.length} {documents.length === 1 ? 'Datei' : 'Dateien'}
+            </Badge>
           </div>
           
-          {/* Document list */}
+          {/* Upload Area - Drag & Drop */}
+          <div 
+            className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
+              dragActive 
+                ? 'border-blue-500 bg-blue-50 dark:bg-blue-950' 
+                : 'border-gray-300 hover:border-gray-400'
+            }`}
+            onDragEnter={handleDragEnter}
+            onDragLeave={handleDragLeave}
+            onDragOver={handleDragOver}
+            onDrop={handleDrop}
+          >
+            <div className="space-y-3">
+              <div className="mx-auto w-12 h-12 text-gray-400">
+                <Upload className="w-full h-full" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                  Lieferscheine hier ablegen oder Dateien auswählen
+                </p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  PDF, JPEG, PNG • Max. 10MB • Mehrere Dateien möglich
+                </p>
+              </div>
+              
+              {/* Upload Buttons */}
+              <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => document.getElementById('document-upload')?.click()}
+                  className="gap-2"
+                >
+                  <FileText className="h-4 w-4" />
+                  PDF/Dokument wählen
+                </Button>
+                
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => document.getElementById('photo-upload')?.click()}
+                  className="gap-2"
+                >
+                  <ImageIcon className="h-4 w-4" />
+                  Foto auswählen
+                </Button>
+                
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={handleCameraCapture}
+                  className="gap-2"
+                >
+                  <Camera className="h-4 w-4" />
+                  Kamera
+                </Button>
+              </div>
+            </div>
+          </div>
+          
+          {/* File Inputs */}
+          <input 
+            id="document-upload" 
+            type="file" 
+            multiple 
+            accept=".pdf,.jpg,.jpeg,.png"
+            onChange={handleDocumentUpload} 
+            className="hidden" 
+          />
+          <input 
+            id="photo-upload" 
+            type="file" 
+            multiple 
+            accept="image/*"
+            onChange={handleDocumentUpload} 
+            className="hidden" 
+          />
+          <input 
+            id="camera-capture" 
+            type="file" 
+            accept="image/*"
+            capture="environment"
+            onChange={handleDocumentUpload} 
+            className="hidden" 
+          />
+          
+          {/* Uploaded Documents Preview */}
           {documents.length > 0 && (
-            <div className="mt-2">
-              <div className="text-sm mb-1">Hochgeladene Dokumente:</div>
-              <div className="flex flex-wrap gap-2">
-                {documents.map((doc, index) => (
-                  <Badge key={index} variant="secondary" className="flex items-center gap-1">
-                    {doc.type.startsWith('image/') ? (
-                      <Camera className="h-3 w-3" />
-                    ) : (
-                      <Mail className="h-3 w-3" />
+            <div className="space-y-3">
+              <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                Hochgeladene Dokumente ({documents.length})
+              </h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {documents.map((file, index) => (
+                  <div key={`${file.name}-${index}`} className="border rounded-lg p-3 space-y-2">
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        {file.type === 'application/pdf' ? (
+                          <FileText className="h-5 w-5 text-red-500 flex-shrink-0" />
+                        ) : (
+                          <ImageIcon className="h-5 w-5 text-blue-500 flex-shrink-0" />
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium truncate" title={file.name}>
+                            {file.name}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {(file.size / 1024 / 1024).toFixed(1)} MB
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        {file.type.startsWith('image/') && previewUrls[file.name] && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              const win = window.open();
+                              if (win) {
+                                win.document.write(`<img src="${previewUrls[file.name]}" style="max-width:100%;max-height:100vh;" />`);
+                              }
+                            }}
+                            className="h-8 w-8 p-0"
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removeDocument(index)}
+                          className="h-8 w-8 p-0 text-red-500 hover:text-red-700"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                    
+                    {/* Image Preview */}
+                    {file.type.startsWith('image/') && previewUrls[file.name] && (
+                      <div className="mt-2">
+                        <img 
+                          src={previewUrls[file.name]} 
+                          alt={`Preview of ${file.name}`}
+                          className="w-full h-20 object-cover rounded border"
+                        />
+                      </div>
                     )}
-                    <span className="max-w-[200px] truncate">{doc.name}</span>
-                    <button 
-                      type="button" 
-                      onClick={() => removeDocument(index)}
-                      className="ml-1 hover:text-destructive"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </Badge>
+                  </div>
                 ))}
               </div>
             </div>

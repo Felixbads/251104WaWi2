@@ -74,6 +74,7 @@ import { vendonSync } from "./services/vendonSync";
 import { syncWeatherForecast } from './services/openWeatherService';
 import { holidayService } from './services/holidayService';
 import ordersRouter from './routes/orders';
+import goodsReceiptRouter from './routes/goods-receipt';
 import holidaysRouter from './routes/holidays';
 import calendarRoutes from './routes/calendar';
 import calendarOverviewRoutes from './routes/calendarOverview';

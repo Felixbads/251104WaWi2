@@ -1788,6 +1788,10 @@ app.get('/orders-data', (req, res) => {
   // Mount orders router BEFORE registerRoutes to bypass Vite wildcard routing
   const ordersRouter = (await import('./routes/orders')).default;
   app.use('/api/orders', ordersRouter);
+  
+  // Mount goods receipt router for delivery note upload functionality
+  const goodsReceiptRouter = (await import('./routes/goods-receipt')).default;
+  app.use('/api/goods-receipt', goodsReceiptRouter);
   console.log('[SERVER] Orders router mounted successfully');
   
   // Mount order-items router for direct product addition to orders

@@ -2157,7 +2157,12 @@ export const orders = pgTable("orders", {
   deliveryConfirmationStatus: text("delivery_confirmation_status").default("pending"), // Status: pending, confirmed, modified, cancelled
   supplierAccessToken: text("supplier_access_token"), // Access Token für Lieferantenzugang
   emailSentToSupplier: timestamp("email_sent_to_supplier"), // Zeitpunkt des E-Mail-Versands an Lieferant
-  supplierNotificationsSent: boolean("supplier_notifications_sent").default(false) // Wurden interne Benachrichtigungen nach Bestätigung gesendet?
+  supplierNotificationsSent: boolean("supplier_notifications_sent").default(false), // Wurden interne Benachrichtigungen nach Bestätigung gesendet?
+  
+  // Lieferschein-Tracking
+  deliveryNoteUploaded: boolean("delivery_note_uploaded").default(false), // Wurde ein Lieferschein hochgeladen?
+  deliveryNoteCount: integer("delivery_note_count").default(0), // Anzahl hochgeladener Lieferscheine
+  lastDeliveryNoteUpload: timestamp("last_delivery_note_upload"), // Zeitpunkt des letzten Lieferschein-Uploads
 });
 
 export const insertOrderSchema = createInsertSchema(orders).omit({
@@ -2272,6 +2277,86 @@ export const orderItemRelations = relations(orderItems, ({ one }) => ({
   targetMachine: one(machines, {
     fields: [orderItems.targetMachineId],
     references: [machines.id],
+  }),
+}));
+
+// ================================ Lieferscheine ================================
+
+// Lieferscheine-Tabelle für Upload-Funktionalität
+export const deliveryNotes = pgTable("delivery_notes", {
+  id: serial("id").primaryKey(),
+  orderId: integer("order_id").notNull().references(() => orders.id, { onDelete: "cascade" }),
+  
+  // Upload-Informationen
+  fileName: text("file_name").notNull(), // Generierter Dateiname
+  originalFileName: text("original_file_name").notNull(), // Original-Dateiname vom Benutzer
+  fileSize: integer("file_size").notNull(), // Dateigröße in Bytes
+  mimeType: text("mime_type").notNull(), // MIME-Type (image/jpeg, application/pdf, etc.)
+  fileUrl: text("file_url").notNull(), // Cloudinary URL oder lokaler Pfad
+  filePath: text("file_path"), // Lokaler Backup-Pfad (optional)
+  
+  // Lieferschein-Details
+  deliveryNoteNumber: text("delivery_note_number"), // Lieferscheinnummer (falls erkennbar/eingegeben)
+  deliveryDate: date("delivery_date"), // Lieferdatum (falls eingegeben)
+  uploadedAt: timestamp("uploaded_at").defaultNow().notNull(), // Upload-Zeitpunkt
+  uploadedBy: integer("uploaded_by").references(() => users.id), // Hochgeladen von (Benutzer-ID)
+  uploadedByName: text("uploaded_by_name"), // Hochgeladen von (Name)
+  
+  // Metadaten
+  notes: text("notes"), // Notizen zum Lieferschein
+  isProcessed: boolean("is_processed").default(false), // Wurde verarbeitet/geprüft?
+  isVisible: boolean("is_visible").default(true), // Sichtbarkeit (für Löschung ohne DB-Delete)
+  
+  // Audit
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertDeliveryNoteSchema = createInsertSchema(deliveryNotes).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  uploadedAt: true,
+});
+
+export type InsertDeliveryNote = z.infer<typeof insertDeliveryNoteSchema>;
+export type DeliveryNote = typeof deliveryNotes.$inferSelect;
+
+// DeliveryNote - Order Relation
+export const deliveryNoteRelations = relations(deliveryNotes, ({ one }) => ({
+  order: one(orders, {
+    fields: [deliveryNotes.orderId],
+    references: [orders.id],
+  }),
+  uploadedByUser: one(users, {
+    fields: [deliveryNotes.uploadedBy],
+    references: [users.id],
+  }),
+}));
+
+// Update Order Relations to include deliveryNotes
+export const orderRelationsExtended = relations(orders, ({ many, one }) => ({
+  orderItems: many(orderItems),
+  deliveryNotes: many(deliveryNotes), // Neue Relation zu Lieferscheinen
+  supplier: one(suppliers, {
+    fields: [orders.supplierId],
+    references: [suppliers.id],
+  }),
+  location: one(locations, {
+    fields: [orders.locationId],
+    references: [locations.id],
+  }),
+  creator: one(users, {
+    fields: [orders.createdById],
+    references: [users.id],
+  }),
+  lastModifier: one(users, {
+    fields: [orders.lastModifiedById],
+    references: [users.id],
+  }),
+  forecast: one(forecastModels, {
+    fields: [orders.forecastId],
+    references: [forecastModels.id],
   }),
 }));
 
@@ -3644,8 +3729,9 @@ export const refillTemplateProductRelations = relations(refillTemplateProducts, 
 }));
 
 export const allRelations = {
-  orderRelations,
+  orderRelations: orderRelationsExtended,
   orderItemRelations,
+  deliveryNoteRelations,
   warehouseRelations,
   inventoryItemRelations,
   inventoryBatchRelations,
