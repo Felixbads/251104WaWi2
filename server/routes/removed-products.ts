@@ -428,4 +428,246 @@ router.post('/location-trends', async (req, res) => {
   }
 });
 
+// Raw Data API für detaillierte Entnahmen-Tabelle mit Filtering und Pagination
+router.get('/raw-data', async (req, res) => {
+  try {
+    const {
+      machine_id,
+      from_date,
+      to_date,
+      operator,
+      product_name,
+      sort_by = 'refill_date',
+      sort_order = 'DESC',
+      page = '1',
+      limit = '50'
+    } = req.query;
+
+    console.log('[RAW-DATA] Request params:', req.query);
+
+    const offset = (parseInt(page as string) - 1) * parseInt(limit as string);
+    
+    // Base query mit allen erforderlichen Feldern
+    let query = `
+      SELECT 
+        r.created_at as refill_date,
+        m.name as machine_name,
+        r.machine_id,
+        rd.product_name,
+        r.operator,
+        rd.removed as removed_quantity,
+        (rd.removed * COALESCE(p.purchase_price, pc.unit_price, 2.0)) as estimated_loss,
+        COUNT(*) OVER() as total_count
+      FROM refills r
+      JOIN refill_details rd ON r.id = rd.refill_id  
+      JOIN machines m ON r.machine_id = m.id
+      LEFT JOIN products p ON rd.product_name = p.name
+      LEFT JOIN purchase_conditions pc ON p.id = pc.product_id AND pc.is_preferred = true
+      WHERE rd.removed > 0
+    `;
+
+    const params: any[] = [];
+    let paramIndex = 1;
+
+    // Filter anwenden
+    if (from_date) {
+      query += ` AND r.created_at >= $${paramIndex}`;
+      params.push(from_date);
+      paramIndex++;
+    }
+
+    if (to_date) {
+      query += ` AND r.created_at <= $${paramIndex}`;
+      params.push(to_date + ' 23:59:59'); // Ende des Tages
+      paramIndex++;
+    }
+
+    if (machine_id) {
+      query += ` AND r.machine_id = $${paramIndex}`;
+      params.push(parseInt(machine_id as string));
+      paramIndex++;
+    }
+
+    if (operator) {
+      query += ` AND r.operator ILIKE $${paramIndex}`;
+      params.push(`%${operator}%`);
+      paramIndex++;
+    }
+
+    if (product_name) {
+      query += ` AND rd.product_name ILIKE $${paramIndex}`;
+      params.push(`%${product_name}%`);
+      paramIndex++;
+    }
+
+    // Sortierung validieren und anwenden
+    const validSortColumns = ['refill_date', 'machine_name', 'product_name', 'operator', 'removed_quantity', 'estimated_loss'];
+    const validSortOrders = ['ASC', 'DESC'];
+    
+    const sortColumn = validSortColumns.includes(sort_by as string) ? sort_by : 'refill_date';
+    const sortDirection = validSortOrders.includes((sort_order as string).toUpperCase()) ? 
+      (sort_order as string).toUpperCase() : 'DESC';
+
+    query += ` ORDER BY ${sortColumn} ${sortDirection}`;
+
+    // Pagination
+    query += ` LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+    params.push(parseInt(limit as string), offset);
+
+    console.log('[RAW-DATA] Executing query with params:', params);
+    const result = await pool.query(query, params);
+
+    const totalCount = result.rows.length > 0 ? parseInt(result.rows[0].total_count) : 0;
+    const totalPages = Math.ceil(totalCount / parseInt(limit as string));
+
+    const data = result.rows.map(row => ({
+      refill_date: row.refill_date,
+      machine_name: row.machine_name,
+      machine_id: row.machine_id,
+      product_name: row.product_name,
+      operator: row.operator || 'Unbekannt',
+      removed_quantity: parseInt(row.removed_quantity),
+      estimated_loss: parseFloat(row.estimated_loss) || 0
+    }));
+
+    const response = {
+      success: true,
+      data,
+      pagination: {
+        current_page: parseInt(page as string),
+        total_pages: totalPages,
+        total_count: totalCount,
+        per_page: parseInt(limit as string),
+        has_next: parseInt(page as string) < totalPages,
+        has_prev: parseInt(page as string) > 1
+      },
+      filters: {
+        machine_id,
+        from_date,
+        to_date,
+        operator,
+        product_name,
+        sort_by: sortColumn,
+        sort_order: sortDirection
+      }
+    };
+
+    console.log(`[RAW-DATA] Response: ${data.length} items, page ${page}/${totalPages}, total: ${totalCount}`);
+    res.json(response);
+
+  } catch (error) {
+    console.error('[RAW-DATA] Error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Fehler beim Abrufen der Raw-Data',
+      data: [],
+      pagination: {
+        current_page: 1,
+        total_pages: 0,
+        total_count: 0,
+        per_page: 50,
+        has_next: false,
+        has_prev: false
+      }
+    });
+  }
+});
+
+// Raw Data Excel Export
+router.get('/raw-data/export', async (req, res) => {
+  try {
+    const {
+      machine_id,
+      from_date,
+      to_date,
+      operator,
+      product_name
+    } = req.query;
+
+    console.log('[RAW-DATA-EXPORT] Request params:', req.query);
+
+    // Basis-Query ohne Pagination für Export
+    let query = `
+      SELECT 
+        r.created_at as refill_date,
+        m.name as machine_name,
+        rd.product_name,
+        r.operator,
+        rd.removed as removed_quantity,
+        (rd.removed * COALESCE(p.purchase_price, pc.unit_price, 2.0)) as estimated_loss
+      FROM refills r
+      JOIN refill_details rd ON r.id = rd.refill_id  
+      JOIN machines m ON r.machine_id = m.id
+      LEFT JOIN products p ON rd.product_name = p.name
+      LEFT JOIN purchase_conditions pc ON p.id = pc.product_id AND pc.is_preferred = true
+      WHERE rd.removed > 0
+    `;
+
+    const params: any[] = [];
+    let paramIndex = 1;
+
+    // Filter anwenden (gleiche Logik wie beim normalen Endpoint)
+    if (from_date) {
+      query += ` AND r.created_at >= $${paramIndex}`;
+      params.push(from_date);
+      paramIndex++;
+    }
+
+    if (to_date) {
+      query += ` AND r.created_at <= $${paramIndex}`;
+      params.push(to_date + ' 23:59:59');
+      paramIndex++;
+    }
+
+    if (machine_id) {
+      query += ` AND r.machine_id = $${paramIndex}`;
+      params.push(parseInt(machine_id as string));
+      paramIndex++;
+    }
+
+    if (operator) {
+      query += ` AND r.operator ILIKE $${paramIndex}`;
+      params.push(`%${operator}%`);
+      paramIndex++;
+    }
+
+    if (product_name) {
+      query += ` AND rd.product_name ILIKE $${paramIndex}`;
+      params.push(`%${product_name}%`);
+      paramIndex++;
+    }
+
+    query += ` ORDER BY r.created_at DESC`;
+
+    const result = await pool.query(query, params);
+
+    // Excel-Export mit xlsx
+    const XLSX = require('xlsx');
+    const workbook = XLSX.utils.book_new();
+
+    const worksheet = XLSX.utils.json_to_sheet(result.rows.map(row => ({
+      'Datum/Zeit': row.refill_date,
+      'Automat': row.machine_name,
+      'Produkt': row.product_name,
+      'Mitarbeiter': row.operator || 'Unbekannt',
+      'Entnahme-Menge': row.removed_quantity,
+      'Geschätzter Verlust (€)': parseFloat(row.estimated_loss).toFixed(2)
+    })));
+
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Raw Data');
+
+    const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+
+    res.setHeader('Content-Disposition', 'attachment; filename=ruecklaufer-raw-data.xlsx');
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.send(buffer);
+
+    console.log(`[RAW-DATA-EXPORT] Exported ${result.rows.length} records`);
+
+  } catch (error) {
+    console.error('[RAW-DATA-EXPORT] Error:', error);
+    res.status(500).json({ error: 'Fehler beim Raw-Data Export' });
+  }
+});
+
 export default router;

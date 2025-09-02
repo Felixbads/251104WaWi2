@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowDown, Clock, TrendingDown, Download, Filter, BarChart3, AlertTriangle } from "lucide-react";
+import { ArrowDown, Clock, TrendingDown, Download, Filter, BarChart3, AlertTriangle, Database } from "lucide-react";
 import PageHeader from "@/components/layout/PageHeader";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -8,10 +8,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, XAxis, YAxis, BarChart, Bar } from "recharts";
 import { formatDistanceToNow, format, startOfDay, subDays } from "date-fns";
 import { de } from "date-fns/locale";
 import { apiRequest } from "@/lib/queryClient";
+import RuecklauferRawDataTab from "@/components/RuecklauferRawDataTab";
 
 interface RemovedProduct {
   id: number;
@@ -131,6 +133,7 @@ export default function Ruecklaufer() {
   const [dateRange, setDateRange] = useState(90);
   const [filterMachine, setFilterMachine] = useState<string>("");
   const [filterProduct, setFilterProduct] = useState<string>("");
+  const [activeTab, setActiveTab] = useState("overview");
 
   // Fetch top entfernte Produkte
   const { data: topProducts, isLoading: isLoadingTop } = useQuery({
@@ -176,8 +179,29 @@ export default function Ruecklaufer() {
     <div className="space-y-6">
       <PageHeader title="Rückläufer-Analyse" />
 
-      {/* Filter und Steuerung */}
-      <div className="flex flex-col sm:flex-row gap-4 items-end">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="overview" className="flex items-center gap-2">
+            <BarChart3 className="h-4 w-4" />
+            Übersicht
+          </TabsTrigger>
+          <TabsTrigger value="trends" className="flex items-center gap-2">
+            <TrendingDown className="h-4 w-4" />
+            Trends
+          </TabsTrigger>
+          <TabsTrigger value="analysis" className="flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4" />
+            Analyse
+          </TabsTrigger>
+          <TabsTrigger value="rawdata" className="flex items-center gap-2">
+            <Database className="h-4 w-4" />
+            Raw Data
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="overview" className="space-y-6">
+          {/* Filter und Steuerung */}
+          <div className="flex flex-col sm:flex-row gap-4 items-end">
         <div className="flex-1">
           <label className="text-sm font-medium mb-2 block">Zeitraum</label>
           <Select value={dateRange.toString()} onValueChange={(value) => setDateRange(parseInt(value))}>
@@ -220,8 +244,7 @@ export default function Ruecklaufer() {
             Häufigste Rückläufer basierend auf Einkaufspreisen.
             <br />
             <span className="text-sm text-muted-foreground font-medium">
-              Zeitraum: {dateRange.from ? format(dateRange.from, 'dd.MM.yyyy', { locale: de }) : ''} 
-              {dateRange.to && ` - ${format(dateRange.to, 'dd.MM.yyyy', { locale: de })}`}
+              Zeitraum: Letzte {dateRange} Tage
             </span>
           </CardDescription>
         </CardHeader>
@@ -500,8 +523,7 @@ export default function Ruecklaufer() {
             Welche Produkte werden an welchen Standorten übermäßig entfernt - zeigt Überschuss-Probleme basierend auf Einkaufspreisen.
             <br />
             <span className="text-sm text-muted-foreground font-medium">
-              Zeitraum: {dateRange.from ? format(dateRange.from, 'dd.MM.yyyy', { locale: de }) : ''} 
-              {dateRange.to && ` - ${format(dateRange.to, 'dd.MM.yyyy', { locale: de })}`}
+              Zeitraum: Letzte {dateRange} Tage
             </span>
           </CardDescription>
         </CardHeader>
@@ -579,20 +601,10 @@ export default function Ruecklaufer() {
                               </span>
                             </TableCell>
                             <TableCell className="text-right">
-                              <span className="text-green-600 font-medium">
-                                {product.salesAnalysis?.avgWeeklySales > 0 ? 
-                                  `${product.salesAnalysis.avgWeeklySales}` : 
-                                  <span className="text-gray-400">-</span>
-                                }
-                              </span>
+                              <span className="text-gray-400">-</span>
                             </TableCell>
                             <TableCell className="text-right">
-                              <span className="text-gray-600">
-                                {product.salesAnalysis?.totalMonthsWithData > 0 ? 
-                                  `${product.salesAnalysis.totalMonthsWithData}/24` : 
-                                  <span className="text-gray-400">-</span>
-                                }
-                              </span>
+                              <span className="text-gray-400">-</span>
                             </TableCell>
                           </TableRow>
                         ))}
@@ -618,6 +630,184 @@ export default function Ruecklaufer() {
           )}
         </CardContent>
       </Card>
+        </TabsContent>
+
+        <TabsContent value="trends" className="space-y-6">
+          {/* Standort-Trends: Problematische Produkte nach Standort */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-orange-500" />
+                Standort-Trends: Überschuss-Probleme
+              </CardTitle>
+              <CardDescription>
+                Welche Produkte werden an welchen Standorten übermäßig entfernt - zeigt Überschuss-Probleme basierend auf Einkaufspreisen.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {isLoadingTrends ? (
+                <div className="flex justify-center py-8">
+                  <div className="animate-spin h-6 w-6 border-2 border-primary border-t-transparent rounded-full"></div>
+                </div>
+              ) : locationTrends && locationTrends.length > 0 ? (
+                <div className="space-y-6">
+                  {locationTrends.map((location, locationIndex) => (
+                    <div key={locationIndex} className="border rounded-lg p-4 bg-gray-50">
+                      <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-lg font-semibold text-gray-900">
+                          {location.locationName}
+                        </h3>
+                        <div className="flex gap-4 text-sm">
+                          <div className="text-center">
+                            <div className="text-red-600 font-bold">{location.totalRemovedAtLocation}</div>
+                            <div className="text-gray-500">Gesamt entfernt</div>
+                          </div>
+                          <div className="text-center">
+                            <div className="text-red-600 font-bold">€{location.totalLossAtLocation.toFixed(2)}</div>
+                            <div className="text-gray-500">Gesamtverlust</div>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="overflow-x-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Rank</TableHead>
+                              <TableHead>Produktname</TableHead>
+                              <TableHead className="text-right">Entfernt</TableHead>
+                              <TableHead className="text-right">Ereignisse</TableHead>
+                              <TableHead className="text-right">Ø pro Ereignis</TableHead>
+                              <TableHead className="text-right">Ø Einkaufspreis</TableHead>
+                              <TableHead className="text-right">Verlust</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {location.products.slice(0, 5).map((product, productIndex) => (
+                              <TableRow key={productIndex} className="hover:bg-white">
+                                <TableCell>
+                                  <Badge variant="outline">#{product.rankAtLocation}</Badge>
+                                </TableCell>
+                                <TableCell>
+                                  <div className="font-medium">{product.productName}</div>
+                                </TableCell>
+                                <TableCell className="text-right font-bold text-red-600">
+                                  {product.totalRemoved}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  {product.removalEvents}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  {product.avgPerEvent?.toFixed(1)}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  €{product.avgPurchasePrice?.toFixed(2)}
+                                </TableCell>
+                                <TableCell className="text-right font-bold text-red-600">
+                                  €{product.locationLoss?.toFixed(2)}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  <AlertTriangle className="h-8 w-8 mx-auto mb-2 text-gray-400" />
+                  <p>Keine Standort-Trends verfügbar</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="analysis" className="space-y-6">
+          {/* Detailanalyse für ausgewähltes Produkt */}
+          {selectedProduct ? (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <BarChart3 className="h-5 w-5 text-blue-500" />
+                  Detailanalyse: {selectedProduct}
+                </CardTitle>
+                <CardDescription>
+                  Zeitverlauf und Automaten-spezifische Entnahmen
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {isLoadingStats ? (
+                  <div className="flex justify-center py-8">
+                    <div className="animate-spin h-6 w-6 border-2 border-primary border-t-transparent rounded-full"></div>
+                  </div>
+                ) : productStats ? (
+                  <div className="space-y-6">
+                    {/* Übersichtskarten */}
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                      <Card>
+                        <CardContent className="pt-6">
+                          <div className="text-2xl font-bold text-red-600">
+                            {productStats.totalRemoved}
+                          </div>
+                          <p className="text-xs text-muted-foreground">Gesamt entfernt</p>
+                        </CardContent>
+                      </Card>
+                      <Card>
+                        <CardContent className="pt-6">
+                          <div className="text-2xl font-bold">
+                            {productStats.removalsCount}
+                          </div>
+                          <p className="text-xs text-muted-foreground">Entnahme-Vorgänge</p>
+                        </CardContent>
+                      </Card>
+                      <Card>
+                        <CardContent className="pt-6">
+                          <div className="text-2xl font-bold">
+                            {productStats.avgPerRemoval?.toFixed(1)}
+                          </div>
+                          <p className="text-xs text-muted-foreground">Ø pro Entnahme</p>
+                        </CardContent>
+                      </Card>
+                      <Card>
+                        <CardContent className="pt-6">
+                          <div className="text-2xl font-bold">
+                            {productStats.machines?.length || 0}
+                          </div>
+                          <p className="text-xs text-muted-foreground">Betroffene Automaten</p>
+                        </CardContent>
+                      </Card>
+                    </div>
+
+                    <Button 
+                      variant="outline" 
+                      onClick={() => setSelectedProduct(null)}
+                      className="w-full"
+                    >
+                      Auswahl aufheben
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    <p>Keine Detaildaten verfügbar</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="text-center py-8 text-gray-500">
+              <BarChart3 className="h-8 w-8 mx-auto mb-2 text-gray-400" />
+              <p>Wählen Sie ein Produkt aus der Übersicht für eine detaillierte Analyse</p>
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="rawdata" className="space-y-6">
+          <RuecklauferRawDataTab />
+        </TabsContent>
+
+      </Tabs>
     </div>
   );
 }
