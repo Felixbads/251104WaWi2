@@ -2687,12 +2687,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       `;
       
       const result = await rawDb.query(insertQuery, [
-        req.body.supplier_id, req.body.product_id, req.body.unit_price || 0,
-        req.body.tax_rate || 19, req.body.gross_price || 0, req.body.min_quantity || 1,
-        req.body.packaging_unit, req.body.packaging_quantity || 1, req.body.delivery_time || 7,
-        req.body.valid_from, req.body.valid_to, req.body.is_preferred || false,
-        req.body.notes, req.body.lead_time || 7, req.body.packaging_type,
-        req.body.min_quantity_unit, req.body.deposit_per_unit || 0, req.body.supplier_article_number
+        req.body.supplierId, req.body.productId, req.body.unitPrice || 0,
+        req.body.taxRate || 19, req.body.grossPrice || 0, req.body.minQuantity || 1,
+        req.body.packagingUnit, req.body.packagingQuantity || 1, req.body.deliveryTime || 7,
+        req.body.validFrom, req.body.validTo, req.body.isPreferred || false,
+        req.body.notes, req.body.leadTime || 7, req.body.packagingType,
+        req.body.minQuantityUnit, req.body.depositPerUnit || 0, req.body.supplierArticleNumber
       ]);
       const purchaseCondition = result.rows[0];
       
