@@ -933,6 +933,45 @@ app.get('/orders-data', (req, res) => {
         ORDER BY oi.id
       `, [orderId]);
       
+      // Portal-Link für Lieferanten generieren (wichtig für Template!)
+      let portalLink = '';
+      if (order.supplier_id) {
+        try {
+          // Import der Portal-Link Funktion aus dem working email service
+          const { getSupplierPortalLink } = await import('./routes/orders-email-working');
+          // Alternativ: Erstelle Portal-Link direkt hier
+          const { rawDb } = await import('./db/database');
+          
+          const result = await rawDb.query(
+            'SELECT access_token FROM supplier_access_pins WHERE supplier_id = $1 AND is_active = true ORDER BY created_at DESC LIMIT 1',
+            [order.supplier_id]
+          );
+          
+          if (result.rows.length === 0) {
+            // Erstelle neuen Access-Pin für den Lieferanten
+            const { createSupplierPin } = await import('./services/supplierPinService');
+            const pinResult = await createSupplierPin(order.supplier_id, orderId);
+            
+            if (pinResult.success && pinResult.data) {
+              const baseUrl = process.env.REPLIT_DEV_DOMAIN 
+                ? `https://${process.env.REPLIT_DEV_DOMAIN}` 
+                : 'https://www.proviantomat.de';
+              portalLink = `${baseUrl}/lieferant/${pinResult.data.accessToken}/bestellung/${orderId}`;
+              console.log(`[EmailTemplate] Neuer Portal-Link erstellt für Lieferant ${order.supplier_id}`);
+            }
+          } else {
+            const accessToken = result.rows[0].access_token;
+            const baseUrl = process.env.REPLIT_DEV_DOMAIN 
+              ? `https://${process.env.REPLIT_DEV_DOMAIN}` 
+              : 'https://www.proviantomat.de';
+            portalLink = `${baseUrl}/lieferant/${accessToken}/bestellung/${orderId}`;
+            console.log(`[EmailTemplate] Existierenden Portal-Link verwendet für Lieferant ${order.supplier_id}`);
+          }
+        } catch (error) {
+          console.error('[EmailTemplate] Fehler beim Portal-Link generieren:', error);
+        }
+      }
+      
       // E-Mail-Vorlage basierend auf Typ generieren
       let subject = '';
       let content = '';
@@ -1159,33 +1198,6 @@ app.get('/orders-data', (req, res) => {
       const isPickup = order.delivery_type === 'pickup';
       const paymentTerms = order.supplier_payment_terms || '14 Tage netto';
       
-      // Portal-Link für Lieferanten generieren (wenn verfügbar)
-      let portalLink = '';
-      if (order.supplier_id) {
-        try {
-          console.log(`[EmailTemplate] Generiere Portal-Link für Lieferant ${order.supplier_id}...`);
-          
-          // Portal-Link aus supplier_access_pins abrufen
-          const pinResult = await pool.query(
-            'SELECT access_token FROM supplier_access_pins WHERE supplier_id = $1 AND is_active = true ORDER BY created_at DESC LIMIT 1',
-            [order.supplier_id]
-          );
-          
-          if (pinResult.rows.length > 0) {
-            const accessToken = pinResult.rows[0].access_token;
-            const baseUrl = process.env.PRODUCTION_DOMAIN ? 
-              `https://${process.env.PRODUCTION_DOMAIN}` : 
-              (process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : 'https://www.proviantomat.de');
-              
-            portalLink = `${baseUrl}/lieferant/${accessToken}/bestellung/${orderId}`;
-            console.log(`[EmailTemplate] Portal-Link erfolgreich generiert für Bestellung ${orderId}: ${portalLink.substring(0, 50)}...`);
-          } else {
-            console.log(`[EmailTemplate] Kein aktiver Access-Token für Lieferant ${order.supplier_id} gefunden`);
-          }
-        } catch (error) {
-          console.error('[EmailTemplate] Fehler beim Generieren des Portal-Links:', error);
-        }
-      }
       
       // Template-spezifische Generierung
       switch (templateType) {
