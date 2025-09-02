@@ -117,7 +117,15 @@ const RuecklauferRawDataTab: React.FC = () => {
   // Fetch machines for dropdown
   const { data: machines } = useQuery({
     queryKey: ['/api/machines'],
-    queryFn: () => apiRequest('/api/machines'),
+    queryFn: async () => {
+      try {
+        const response = await apiRequest('/api/machines');
+        return Array.isArray(response) ? response : response?.machines || [];
+      } catch (error) {
+        console.error('Error fetching machines:', error);
+        return [];
+      }
+    },
     refetchOnWindowFocus: false,
   });
 
@@ -125,10 +133,18 @@ const RuecklauferRawDataTab: React.FC = () => {
   const { data: operators } = useQuery({
     queryKey: ['/api/removed-products/operators'],
     queryFn: async () => {
-      // Da es keinen spezifischen Operators-Endpoint gibt, simuliere ich das mit einer kleinen Abfrage
-      const result = await apiRequest('/api/removed-products/raw-data?limit=1000');
-      const operatorSet = new Set(result.data?.map((item: any) => item.operator).filter(Boolean));
-      return Array.from(operatorSet);
+      try {
+        // Da es keinen spezifischen Operators-Endpoint gibt, hole ich das mit einer kleinen Abfrage
+        const result = await apiRequest('/api/removed-products/raw-data?limit=200');
+        if (result?.success && Array.isArray(result.data)) {
+          const operatorSet = new Set(result.data.map((item: any) => item.operator).filter(Boolean));
+          return Array.from(operatorSet);
+        }
+        return [];
+      } catch (error) {
+        console.error('Error fetching operators:', error);
+        return [];
+      }
     },
     refetchOnWindowFocus: false,
   });
@@ -268,9 +284,9 @@ const RuecklauferRawDataTab: React.FC = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Alle Automaten</SelectItem>
-                  {machines?.map((machine: any) => (
+                  {Array.isArray(machines) && machines.map((machine: any) => (
                     <SelectItem key={machine.id} value={machine.id.toString()}>
-                      {machine.name}
+                      {machine.name || machine.machine_name}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -285,7 +301,7 @@ const RuecklauferRawDataTab: React.FC = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Alle Mitarbeiter</SelectItem>
-                  {operators?.map((operator: string) => (
+                  {Array.isArray(operators) && operators.map((operator: string) => (
                     <SelectItem key={operator} value={operator}>
                       {operator}
                     </SelectItem>

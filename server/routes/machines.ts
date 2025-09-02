@@ -7,6 +7,53 @@ import { storage } from '../storage';
 const router = Router();
 
 /**
+ * GET /api/machines
+ * Get all machines (for dropdowns and lists)
+ */
+router.get('/', async (req, res) => {
+  try {
+    console.log('[MACHINES API] Fetching all machines for dropdown');
+    
+    const result = await rawDb.query(`
+      SELECT 
+        id,
+        machine_name,
+        vendon_id,
+        location_id,
+        machine_type,
+        status
+      FROM machines 
+      WHERE machine_name IS NOT NULL 
+        AND machine_name != '' 
+        AND machine_name NOT LIKE '%Demo%'
+        AND machine_name NOT LIKE '%Test%'
+        AND id > 1
+      ORDER BY machine_name ASC
+    `);
+    
+    const machines = result.rows.map(machine => ({
+      id: machine.id,
+      name: machine.machine_name,
+      machine_name: machine.machine_name,
+      vendon_id: machine.vendon_id,
+      location_id: machine.location_id,
+      machine_type: machine.machine_type,
+      status: machine.status
+    }));
+    
+    console.log(`[MACHINES API] Returning ${machines.length} machines`);
+    res.json(machines);
+    
+  } catch (error) {
+    console.error('[MACHINES API] Error fetching machines:', error);
+    res.status(500).json({
+      error: 'Fehler beim Abrufen der Maschinen',
+      message: error.message
+    });
+  }
+});
+
+/**
  * GET /api/machines/:id
  * Get basic machine data by ID (supports internal ID, vendon_id, location_id)
  */
