@@ -30,9 +30,22 @@ export function SupplierEditDialog({ supplier, isOpen, onOpenChange, onSave }: S
   const updateSupplierMutation = useMutation({
     mutationFn: async (data: Partial<Supplier>) => {
       console.log('[SupplierEditDialog] Speichere Lieferantendaten:', data);
-      const response = await apiRequest(`/api/suppliers/${supplier.id}`, data, 'PUT');
-      console.log('[SupplierEditDialog] Server-Antwort:', response);
-      return response;
+      const response = await fetch(`/api/suppliers/${supplier.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
+      
+      const result = await response.json();
+      console.log('[SupplierEditDialog] Server-Antwort:', result);
+      return result;
     },
     onSuccess: (updatedSupplier) => {
       console.log('[SupplierEditDialog] Lieferant erfolgreich gespeichert:', updatedSupplier);
@@ -106,7 +119,6 @@ export function SupplierEditDialog({ supplier, isOpen, onOpenChange, onSave }: S
     orderEmailBcc: supplier.orderEmailBcc || '',
     emailTemplate: supplier.emailTemplate || '',
     emailSubjectTemplate: supplier.emailSubjectTemplate || '',
-    emailBodyTemplate: supplier.emailBodyTemplate || '',
     emailSignature: supplier.emailSignature || '',
     
     // Preisanzeige-Einstellungen
@@ -707,11 +719,9 @@ export function SupplierEditDialog({ supplier, isOpen, onOpenChange, onSave }: S
                     <CardTitle className="text-base">Fotos und Dokumente</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <SupplierPhotoUpload
-                      supplierId={supplier.id}
-                      initialPhotos={formData.photos}
-                      onPhotosChange={(photos) => handleInputChange('photos', photos)}
-                    />
+                    <div className="p-4 border-2 border-dashed border-gray-300 rounded-lg text-center text-gray-500">
+                      Foto-Upload wird implementiert
+                    </div>
                   </CardContent>
                 </Card>
               </TabsContent>

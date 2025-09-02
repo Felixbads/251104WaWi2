@@ -772,7 +772,30 @@ export class DatabaseStorage implements IStorage {
       throw error;
     }
   }
-  async updateSupplier(id: number, updates: any): Promise<any> { throw new Error("Not implemented"); }
+  async updateSupplier(id: number, updates: any): Promise<any> {
+    console.log(`[DatabaseStorage] Updating supplier ${id} with data:`, updates);
+    
+    try {
+      const result = await this.db
+        .update(suppliers)
+        .set({
+          ...updates,
+          updatedAt: new Date()
+        })
+        .where(eq(suppliers.id, id))
+        .returning();
+      
+      if (result.length === 0) {
+        throw new Error(`Supplier with ID ${id} not found`);
+      }
+      
+      console.log(`[DatabaseStorage] Successfully updated supplier ${id}`);
+      return result[0];
+    } catch (error) {
+      console.error(`[DatabaseStorage] Error updating supplier ${id}:`, error);
+      throw error;
+    }
+  }
   async deleteSupplier(id: number): Promise<void> { throw new Error("Not implemented"); }
   
   async getWarehouses(): Promise<any[]> { return []; }
