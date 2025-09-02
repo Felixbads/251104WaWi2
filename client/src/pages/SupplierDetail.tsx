@@ -623,6 +623,10 @@ export default function SupplierDetail() {
   const [productSearchTerm, setProductSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState("dashboard");
   
+  // Check if this is a "new supplier" route
+  const isNewSupplier = id === 'new';
+  const supplierId = isNewSupplier ? null : parseInt(id);
+  
   // Mutation zum Aktualisieren des Lieferanten
   const updateSupplierMutation = useMutation({
     mutationFn: async (updatedSupplier: Partial<Supplier>) => {
@@ -653,20 +657,51 @@ export default function SupplierDetail() {
     },
   });
   
-  // Lieferantendaten abfragen
+  // Mutation zum Erstellen eines neuen Lieferanten
+  const createSupplierMutation = useMutation({
+    mutationFn: async (newSupplier: SupplierFormValues) => {
+      return apiRequest('/api/suppliers', {
+        method: 'POST',
+        body: JSON.stringify(newSupplier),
+      });
+    },
+    onSuccess: (response) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/suppliers'] });
+      toast({
+        title: "Lieferant erstellt",
+        description: "Der neue Lieferant wurde erfolgreich erstellt.",
+      });
+      // Navigate to the newly created supplier
+      if (response?.data?.id) {
+        navigate(`/lieferanten/${response.data.id}`);
+      } else {
+        navigate('/lieferanten');
+      }
+    },
+    onError: (error) => {
+      console.error('Create error:', error);
+      toast({
+        title: "Fehler",
+        description: "Fehler beim Erstellen des Lieferanten.",
+        variant: "destructive",
+      });
+    },
+  });
+  
+  // Lieferantendaten abfragen (nur wenn nicht "new")
   const { data: supplier, isLoading, error } = useQuery<Supplier>({
     queryKey: [`/api/suppliers/${id}`],
     staleTime: 1000 * 60, // 1 Minute
-    enabled: !!id && !isNaN(parseInt(id)),
+    enabled: !isNewSupplier && !!supplierId && !isNaN(supplierId),
     retry: 2,
     retryDelay: 1000,
   });
   
-  // Produkte des Lieferanten abfragen
+  // Produkte des Lieferanten abfragen (nur wenn nicht "new")
   const { data: productsResponse, isLoading: isProductsLoading, error: productsError } = useQuery({
-    queryKey: ['/api/products', { supplierId: parseInt(id) }],
+    queryKey: ['/api/products', { supplierId: supplierId }],
     staleTime: 1000 * 60, // 1 Minute
-    enabled: !!id && !isNaN(parseInt(id)),
+    enabled: !isNewSupplier && !!supplierId && !isNaN(supplierId),
     retry: 2,
   });
   
@@ -859,8 +894,13 @@ export default function SupplierDetail() {
   
   // Handler für das Absenden des Formulars
   const onSubmit = (values: SupplierFormValues) => {
-    // Die ID muss nicht übergeben werden, da updateSupplier sie bereits als Parameter nimmt
-    updateMutation.mutate(values);
+    if (isNewSupplier) {
+      // Neuen Lieferant erstellen
+      createSupplierMutation.mutate(values);
+    } else {
+      // Bestehenden Lieferant aktualisieren
+      updateMutation.mutate(values);
+    }
   };
   
   const handleUpdateSupplier = (updatedData: Partial<Supplier>) => {
@@ -927,7 +967,8 @@ export default function SupplierDetail() {
     );
   }
   
-  if (error || !supplier) {
+  // Show error only if not a new supplier and there's actually an error
+  if (!isNewSupplier && (error || !supplier)) {
     return (
       <div className="container space-y-6">
         <PageHeader
@@ -958,6 +999,181 @@ export default function SupplierDetail() {
               Erneut versuchen
             </Button>
           </CardFooter>
+        </Card>
+      </div>
+    );
+  }
+
+  // Render new supplier form if this is a new supplier
+  if (isNewSupplier) {
+    return (
+      <div className="container space-y-6">
+        <PageHeader
+          additionalButtons={
+            <Button variant="outline" size="icon" className="h-9 w-9" onClick={handleBack}>
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+          }
+        />
+        
+        <div className="mb-6">
+          <h1 className="text-3xl font-bold tracking-tight">Neuen Lieferanten erstellen</h1>
+          <p className="text-muted-foreground">Geben Sie die Informationen für den neuen Lieferanten ein.</p>
+        </div>
+        
+        <Card>
+          <CardHeader>
+            <CardTitle>Lieferantendaten</CardTitle>
+            <CardDescription>
+              Füllen Sie die folgenden Felder aus, um einen neuen Lieferanten zu erstellen.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Hauptdaten */}
+                  <FormField
+                    control={form.control}
+                    name="name"
+                    render={({ field }) => (
+                      <FormItem className="md:col-span-2">
+                        <FormLabel>Name *</FormLabel>
+                        <FormControl>
+                          <Input {...field} placeholder="Name des Lieferanten" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <FormField
+                    control={form.control}
+                    name="contactPerson"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Kontaktperson</FormLabel>
+                        <FormControl>
+                          <Input {...field} placeholder="Kontaktperson" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <FormField
+                    control={form.control}
+                    name="phone"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Telefon</FormLabel>
+                        <FormControl>
+                          <Input {...field} placeholder="+49 123 456-789" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <FormField
+                    control={form.control}
+                    name="email"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>E-Mail</FormLabel>
+                        <FormControl>
+                          <Input {...field} type="email" placeholder="kontakt@beispiel.de" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <FormField
+                    control={form.control}
+                    name="website"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Website</FormLabel>
+                        <FormControl>
+                          <Input {...field} placeholder="https://www.beispiel.de" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <FormField
+                    control={form.control}
+                    name="address"
+                    render={({ field }) => (
+                      <FormItem className="md:col-span-2">
+                        <FormLabel>Adresse</FormLabel>
+                        <FormControl>
+                          <Input {...field} placeholder="Straße und Hausnummer" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <FormField
+                    control={form.control}
+                    name="city"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Stadt</FormLabel>
+                        <FormControl>
+                          <Input {...field} placeholder="Stadt" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <FormField
+                    control={form.control}
+                    name="postalCode"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>PLZ</FormLabel>
+                        <FormControl>
+                          <Input {...field} placeholder="01234" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <FormField
+                    control={form.control}
+                    name="notes"
+                    render={({ field }) => (
+                      <FormItem className="md:col-span-2">
+                        <FormLabel>Notizen</FormLabel>
+                        <FormControl>
+                          <Textarea {...field} placeholder="Zusätzliche Informationen" rows={3} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+                
+                <div className="flex justify-between pt-6">
+                  <Button type="button" variant="outline" onClick={handleBack}>
+                    Abbrechen
+                  </Button>
+                  <Button type="submit" disabled={createSupplierMutation.isPending}>
+                    {createSupplierMutation.isPending && (
+                      <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                    )}
+                    Lieferant erstellen
+                  </Button>
+                </div>
+              </form>
+            </Form>
+          </CardContent>
         </Card>
       </div>
     );
