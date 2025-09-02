@@ -9,6 +9,7 @@ import { Loader2, Mail, Send, Eye, Code } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { queryClient } from '@/lib/queryClient';
 
 interface EmailDialogProps {
   open: boolean;
@@ -165,6 +166,11 @@ export default function EmailDialog({
           description: successMessage,
           variant: result.type === 'html_fallback' ? "default" : "default",
         });
+        
+        // Invalidate orders cache to show updated status
+        queryClient.invalidateQueries({ queryKey: ['/api/orders/dashboard/open'] });
+        queryClient.invalidateQueries({ queryKey: ['/api/orders'] });
+        
         onSendEmail(true);
         onOpenChange(false);
       } else {

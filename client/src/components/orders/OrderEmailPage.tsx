@@ -335,6 +335,10 @@ USt-IdNr.: DE353967134`);
           description: `Die Bestellung wurde erfolgreich an ${emailAddress} gesendet.`,
         });
         
+        // Invalidate orders cache to show updated status
+        queryClient.invalidateQueries({ queryKey: ['/api/orders/dashboard/open'] });
+        queryClient.invalidateQueries({ queryKey: ['/api/orders'] });
+        
         // Callback aufrufen
         if (onSendEmail) {
           onSendEmail(emailAddress, '');

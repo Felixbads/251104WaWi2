@@ -133,14 +133,37 @@ async function getSupplierPortalLink(supplierId: number, orderId?: number): Prom
     }
 
     // Sichere Datenbankabfrage mit Validierung
-    const result = await rawDb.query(
+    let result = await rawDb.query(
       'SELECT access_token, created_at, valid_until FROM supplier_access_pins WHERE supplier_id = $1 AND is_active = true ORDER BY created_at DESC LIMIT 1',
       [supplierId]
     );
     
     if (result.rows.length === 0) {
-      console.log(`[WorkingOrderEmail] Kein aktiver Access-Token für Lieferant ${supplierId} gefunden`);
-      return '';
+      console.log(`[WorkingOrderEmail] Kein aktiver Access-Token für Lieferant ${supplierId} gefunden - erstelle neuen`);
+      
+      // Importiere createSupplierPin dynamisch
+      const { createSupplierPin } = await import('../services/supplierPinService');
+      
+      // Erstelle neuen Access-Pin für den Lieferanten
+      const pinResult = await createSupplierPin(supplierId, orderId);
+      
+      if (!pinResult.success || !pinResult.data) {
+        console.error(`[WorkingOrderEmail] Fehler beim Erstellen des Access-Pins:`, pinResult.error);
+        return '';
+      }
+      
+      console.log(`[WorkingOrderEmail] Neuer Access-Token für Lieferant ${supplierId} erstellt`);
+      
+      // Hole den neuen Token
+      result = await rawDb.query(
+        'SELECT access_token, created_at, valid_until FROM supplier_access_pins WHERE supplier_id = $1 AND is_active = true ORDER BY created_at DESC LIMIT 1',
+        [supplierId]
+      );
+      
+      if (result.rows.length === 0) {
+        console.error(`[WorkingOrderEmail] Auch nach Erstellung kein Access-Token gefunden`);
+        return '';
+      }
     }
 
     const tokenData = result.rows[0];
