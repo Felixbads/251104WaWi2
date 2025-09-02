@@ -1934,6 +1934,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get(`${API_PREFIX}/dashboard/ruecklaufer`, async (req: Request, res: Response) => {
     try {
       const days = 7; // Last 7 days as requested
+      const { pool } = await import('./db');
       
       // Top 5 products by removal quantity with purchase cost
       const topProductsQuery = `
@@ -1941,11 +1942,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
           rd.product_name as "productName",
           SUM(rd.removed) as "totalRemoved",
           COUNT(*) as "removalEvents",
-          COALESCE(AVG(p.cost_price), 0) as "avgCostPrice",
-          SUM(rd.removed * COALESCE(p.cost_price, 0)) as "totalCostValue"
+          COALESCE(AVG(pc.unit_price), 0) as "avgCostPrice",
+          SUM(rd.removed * COALESCE(pc.unit_price, 0)) as "totalCostValue"
         FROM refill_details rd
         INNER JOIN refills r ON rd.refill_id = r.id
         LEFT JOIN products p ON rd.product_name = p.product_name
+        LEFT JOIN LATERAL (
+          SELECT unit_price
+          FROM purchase_conditions pc_sub 
+          WHERE pc_sub.product_id = p.id 
+          ORDER BY pc_sub.is_preferred DESC, pc_sub.unit_price ASC 
+          LIMIT 1
+        ) pc ON true
         WHERE rd.removed > 0 
           AND r.datetime >= NOW() - INTERVAL '${days} days'
         GROUP BY rd.product_name
@@ -1960,10 +1968,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
           r.machine_id as "machineId",
           SUM(rd.removed) as "totalRemoved",
           COUNT(DISTINCT rd.product_name) as "uniqueProducts",
-          SUM(rd.removed * COALESCE(p.cost_price, 0)) as "totalCostValue"
+          SUM(rd.removed * COALESCE(pc.unit_price, 0)) as "totalCostValue"
         FROM refill_details rd
         INNER JOIN refills r ON rd.refill_id = r.id
         LEFT JOIN products p ON rd.product_name = p.product_name
+        LEFT JOIN LATERAL (
+          SELECT unit_price
+          FROM purchase_conditions pc_sub 
+          WHERE pc_sub.product_id = p.id 
+          ORDER BY pc_sub.is_preferred DESC, pc_sub.unit_price ASC 
+          LIMIT 1
+        ) pc ON true
         WHERE rd.removed > 0 
           AND r.datetime >= NOW() - INTERVAL '${days} days'
         GROUP BY r.machine_name, r.machine_id
@@ -1997,22 +2012,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Enhanced Dashboard Analytics - Critical Locations
   app.get(`${API_PREFIX}/dashboard/critical-locations`, async (req: Request, res: Response) => {
     try {
+      const { pool } = await import('./db');
+      
       // 1. Locations without alcohol sales in 24h despite having alcohol products
       const noAlcoholSalesQuery = `
         WITH alcohol_machines AS (
           SELECT DISTINCT m.id, m.machine_name, m.vendon_id
           FROM machines m
-          INNER JOIN products p ON p.vendon_id = ANY(
-            SELECT DISTINCT product_vendon_id 
-            FROM machine_product_loadings mpl 
-            WHERE mpl.machine_id = m.id AND mpl.current_stock > 0
-          )
-          WHERE p.isAlcoholic = true
+          INNER JOIN refills rf ON rf.machine_id = m.id
+          INNER JOIN refill_details rfd ON rfd.refill_id = rf.id
+          INNER JOIN products p ON p.product_name = rfd.product_name
+          WHERE (p.product_name ILIKE '%bier%' 
+             OR p.product_name ILIKE '%wein%' 
+             OR p.product_name ILIKE '%schnaps%'
+             OR p.product_name ILIKE '%vodka%'
+             OR p.product_name ILIKE '%whisky%')
+            AND rf.datetime >= NOW() - INTERVAL '30 days'
         ),
         recent_alcohol_sales AS (
           SELECT DISTINCT t.machine_id
           FROM transactions t
-          INNER JOIN products p ON t.product_vendon_id = p.vendon_id
+          INNER JOIN products p ON t.product_id = p.vendon_id
           WHERE p.isAlcoholic = true
             AND t.datetime >= NOW() - INTERVAL '24 hours'
         )
@@ -2063,19 +2083,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
           p.product_name as "productName",
           p.shelf_life_days as "shelfLifeDays",
           m.machine_name as "locationName",
-          mpl.current_stock as "currentStock",
+          rd.refilled as "currentStock",
           CASE 
             WHEN p.shelf_life_days <= 1 THEN 'Morgen'
             WHEN p.shelf_life_days <= 2 THEN 'Übermorgen'
             ELSE CONCAT(p.shelf_life_days, ' Tage')
           END as "expiryStatus"
         FROM products p
-        INNER JOIN machine_product_loadings mpl ON p.vendon_id = mpl.product_vendon_id
-        INNER JOIN machines m ON mpl.machine_id = m.id
-        WHERE p.shelf_life_days IS NOT NULL 
-          AND p.shelf_life_days <= 2
-          AND mpl.current_stock > 0
-        ORDER BY p.shelf_life_days ASC, mpl.current_stock DESC
+        INNER JOIN refill_details rd ON p.product_name = rd.product_name
+        INNER JOIN refills r ON rd.refill_id = r.id
+        INNER JOIN machines m ON r.machine_id = m.id
+        WHERE p.expiry_date IS NOT NULL 
+          AND p.expiry_date <= NOW() + INTERVAL '2 days'
+          AND r.datetime >= NOW() - INTERVAL '7 days'
+        ORDER BY p.expiry_date ASC, rd.refilled DESC
         LIMIT 10
       `;
 
