@@ -1,0 +1,81 @@
+AGENT-PROMPT: Rückläufer Raw-Data-Tab Implementation
+VORBEREITUNG (vor der Umsetzung):
+Prüfe bestehende Datenstruktur:
+Überprüfe refills und refill_details Tabellen
+Stelle sicher, dass removed Feld in refill_details verfügbar ist
+Prüfe ob operator (Mitarbeiter) Feld vollständig befüllt ist
+Teste bestehende API:
+Überprüfe /api/removed-products/* Endpunkte
+Teste Datenqualität der Rückläufer-Daten
+Verifiziere Zeitstempel-Formate
+HAUPTAUFGABE:
+Erstelle einen neuen Tab "Raw Data" in der Rückläufer-Seite mit folgenden Anforderungen:
+
+1. NEUE KOMPONENTE: RuecklauferRawDataTab.tsx
+Erstelle eine sortierbare Tabelle mit Spalten:
+Datum/Zeit
+Automat (Machine Name)
+Produkt (Product Name)
+Mitarbeiter (Operator)
+Entnahme-Menge (Removed Quantity)
+Wert (geschätzter Verlust)
+2. FUNKTIONALITÄTEN:
+Sortierung nach allen Spalten (aufsteigend/absteigend)
+Filter für:
+Automat (Dropdown mit allen verfügbaren Automaten)
+Zeitraum (Datepicker von/bis)
+Produkt (Suchfeld mit Autocomplete)
+Mitarbeiter (Dropdown)
+Paginierung (50 Einträge pro Seite)
+Export-Button für Excel-Download der gefilterten Daten
+3. API-ERWEITERUNG:
+Erweitere bestehenden /api/removed-products Endpunkt oder erstelle neuen /api/removed-products/raw-data
+Parameter: machine_id, from_date, to_date, operator, product_name, sort_by, sort_order, page, limit
+Response: Array mit einzelnen Entnahme-Ereignissen
+4. INTEGRATION:
+Erweitere client/src/pages/Ruecklaufer.tsx um neuen Tab
+Tab-Namen: "Raw Data" oder "Rohdaten"
+Position: Als letzter Tab nach bestehenden Analysen
+5. STYLING:
+Nutze bestehende UI-Komponenten (Table, Button, Select, DatePicker)
+Responsive Design für mobile Ansicht
+Konsistentes Design mit anderen Tabs
+6. DATENBANK-QUERY (für Backend):
+SELECT 
+  r.created_at as refill_date,
+  m.name as machine_name,
+  r.machine_id,
+  rd.product_name,
+  r.operator,
+  rd.removed as removed_quantity,
+  (rd.removed * p.purchase_price) as estimated_loss
+FROM refills r
+JOIN refill_details rd ON r.id = rd.refill_id  
+JOIN machines m ON r.machine_id = m.machine_id
+LEFT JOIN products p ON rd.product_name = p.name
+WHERE rd.removed > 0
+  AND r.created_at BETWEEN ? AND ?
+  [OPTIONAL FILTERS]
+ORDER BY r.created_at DESC
+LIMIT ? OFFSET ?
+7. ERROR HANDLING:
+Leere Datensätze abfangen
+Loading-Spinner während API-Calls
+Fehlermeldungen bei API-Fehlern
+Fallback bei fehlenden Daten
+8. PERFORMANCE:
+Client-seitige Caching der Filterergebnisse
+Debouncing bei Such-Eingaben
+Lazy Loading der Dropdown-Optionen
+ERWARTETES ERGEBNIS:
+Nach der Implementierung soll unter /ruecklaufer ein neuer Tab "Raw Data" verfügbar sein, der eine vollständige, sortier- und filterbare Liste aller Entnahmen aus den Automaten zeigt. Diese Daten bilden die Grundlage für weitere Rückläufer-Analysen und Prognosen.
+
+VALIDIERUNG:
+Teste mit verschiedenen Filtern und stelle sicher, dass:
+
+Sortierung funktioniert
+Filter korrekt angewendet werden
+Paginierung läuft stabil
+Export funktioniert
+Mobile Ansicht ist funktional
+STARTE MIT DER UMSETZUNG DIESER SPEZIFIKATION!
