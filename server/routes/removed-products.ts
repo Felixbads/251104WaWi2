@@ -11,22 +11,32 @@ router.get('/', async (req, res) => {
     console.log(`[RemovedProducts] Dashboard API: Getting removals for ${days} days`);
     
     const query = `
+      WITH deduplicated_removals AS (
+        SELECT DISTINCT ON (rd.refill_id, rd.product_name)
+          rd.refill_id,
+          r.datetime,
+          rd.product_name,
+          rd.removed,
+          r.machine_id,
+          r.machine_name
+        FROM refill_details rd
+        INNER JOIN refills r ON rd.refill_id = r.id
+        WHERE rd.removed > 0 
+          AND r.datetime >= NOW() - INTERVAL '${days} days'
+        ORDER BY rd.refill_id, rd.product_name, r.datetime DESC
+      )
       SELECT 
-        rd.product_name as "productName",
-        r.machine_name as "machineName", 
-        SUM(rd.removed) as "totalRemoved",
+        dr.product_name as "productName",
+        dr.machine_name as "machineName", 
+        SUM(dr.removed) as "totalRemoved",
         AVG(COALESCE(p.cost_price, pc.unit_price, 2.0)) as "productPrice",
-        COUNT(*) as "removalCount",
-        MAX(r.datetime) as "lastRemoved"
-      FROM refill_details rd
-      INNER JOIN refills r ON rd.refill_id = r.id
-      LEFT JOIN products p ON rd.product_name = p.product_name
+        COUNT(DISTINCT dr.refill_id) as "removalCount",
+        MAX(dr.datetime) as "lastRemoved"
+      FROM deduplicated_removals dr
+      LEFT JOIN products p ON dr.product_name = p.product_name
       LEFT JOIN purchase_conditions pc ON p.id = pc.product_id AND pc.is_preferred = true
-
-      WHERE rd.removed > 0 
-        AND r.datetime >= NOW() - INTERVAL '${days} days'
-      GROUP BY rd.product_name, r.machine_name
-      ORDER BY "totalRemoved" DESC, r.machine_name
+      GROUP BY dr.product_name, dr.machine_name
+      ORDER BY "totalRemoved" DESC, dr.machine_name
     `;
     
     const result = await pool.query(query);
@@ -87,19 +97,18 @@ router.post('/top', async (req, res) => {
     const days = parseInt(req.query.days as string) || 30;
     const limit = parseInt(req.query.limit as string) || 20;
     
+    // KORRIGIERTE QUERY: Verwende dieselbe Logik wie Raw Data API
     const query = `
       SELECT 
         rd.product_name as "productName",
         SUM(rd.removed) as "totalRemoved",
-        COUNT(*) as "removalsCount",
+        COUNT(rd.id) as "removalsCount",
         MAX(r.datetime) as "lastRemoved",
-        COALESCE(AVG(p.cost_price), AVG(pc.unit_price), 2.0) as "avgPurchasePrice",
-        SUM(rd.removed * COALESCE(p.cost_price, pc.unit_price, 2.0)) as "estimatedLoss"
+        COALESCE(AVG(p.cost_price), 2.0) as "avgPurchasePrice",
+        SUM(rd.removed * COALESCE(p.cost_price, 2.0)) as "estimatedLoss"
       FROM refill_details rd
       INNER JOIN refills r ON rd.refill_id = r.id
       LEFT JOIN products p ON rd.product_name = p.product_name
-      LEFT JOIN purchase_conditions pc ON p.id = pc.product_id AND pc.is_preferred = true
-
       WHERE rd.removed > 0 
         AND r.datetime >= NOW() - INTERVAL '${days} days'
       GROUP BY rd.product_name
@@ -316,27 +325,37 @@ router.post('/location-trends', async (req, res) => {
     
     console.log(`[LOCATION-TRENDS] Calculating REALISTIC removal data for ${days} days`);
     
-    // CORRECTED QUERY: Cap removal values at realistic levels (max 10 per event)
+    // CORRECTED QUERY mit Deduplikation: Realistische Entnahmedaten ohne Duplikate
     const query = `
+      WITH deduplicated_removals AS (
+        SELECT DISTINCT ON (rd.refill_id, rd.product_name)
+          rd.refill_id,
+          r.datetime,
+          rd.product_name,
+          rd.removed,
+          r.machine_id,
+          r.machine_name
+        FROM refill_details rd
+        INNER JOIN refills r ON rd.refill_id = r.id
+        WHERE rd.removed > 0 
+          AND r.datetime >= NOW() - INTERVAL '${days} days'
+        ORDER BY rd.refill_id, rd.product_name, r.datetime DESC
+      )
       SELECT 
-        r.machine_name as "locationName",
-        rd.product_name as "productName",
-        SUM(LEAST(rd.removed, 10)) as "totalRemoved",
-        COUNT(*) as "removalEvents",
-        AVG(LEAST(rd.removed, 10)) as "avgPerEvent",
+        dr.machine_name as "locationName",
+        dr.product_name as "productName",
+        SUM(dr.removed) as "totalRemoved",
+        COUNT(DISTINCT dr.refill_id) as "removalEvents",
+        AVG(dr.removed) as "avgPerEvent",
         COALESCE(AVG(p.cost_price), AVG(pc.unit_price), 2.0) as "avgPurchasePrice",
-        SUM(LEAST(rd.removed, 10) * COALESCE(p.cost_price, pc.unit_price, 2.0)) as "locationLoss",
-        RANK() OVER (PARTITION BY r.machine_name ORDER BY SUM(LEAST(rd.removed, 10)) DESC) as "rankAtLocation"
-      FROM refill_details rd
-      INNER JOIN refills r ON rd.refill_id = r.id
-      LEFT JOIN products p ON rd.product_name = p.product_name
+        SUM(dr.removed * COALESCE(p.cost_price, pc.unit_price, 2.0)) as "locationLoss",
+        RANK() OVER (PARTITION BY dr.machine_name ORDER BY SUM(dr.removed) DESC) as "rankAtLocation"
+      FROM deduplicated_removals dr
+      LEFT JOIN products p ON dr.product_name = p.product_name
       LEFT JOIN purchase_conditions pc ON p.id = pc.product_id AND pc.is_preferred = true
-      WHERE rd.removed > 0 
-        AND r.datetime >= NOW() - INTERVAL '${days} days'
-        AND LEAST(rd.removed, 10) >= 1
-      GROUP BY r.machine_name, rd.product_name
-      HAVING SUM(LEAST(rd.removed, 10)) >= 2
-      ORDER BY r.machine_name, "totalRemoved" DESC
+      GROUP BY dr.machine_name, dr.product_name
+      HAVING SUM(dr.removed) >= 1
+      ORDER BY dr.machine_name, "totalRemoved" DESC
     `;
     
     const result = await pool.query(query);
