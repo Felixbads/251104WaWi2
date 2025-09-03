@@ -520,8 +520,7 @@ router.post('/:orderId/send-email-working', async (req: Request, res: Response) 
         .update(orders)
         .set({ 
           status: 'sent',
-          sentDate: new Date(),
-          emailSentDate: new Date()
+          updatedAt: new Date()
         })
         .where(eq(orders.id, orderId));
       
