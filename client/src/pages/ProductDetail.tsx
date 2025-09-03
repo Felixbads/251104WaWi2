@@ -17,6 +17,7 @@ import { apiRequest } from '@/lib/queryClient';
 import ProductInventoryViewSimple from '@/components/product/ProductInventoryViewSimple';
 import ProductSalesView from '@/components/product/ProductSalesView';
 import ProductAnalyticsView from '@/components/product/ProductAnalyticsView';
+import ProductForecastView from '@/components/product/ProductForecastView';
 import UnifiedPurchaseConditionsManager from '@/components/purchase-conditions/UnifiedPurchaseConditionsManager';
 import { PurchaseConditionsDisplay } from '@/components/PurchaseConditionsDisplay';
 import ProductProfitabilityAnalysis from '@/pages/ProductProfitabilityAnalysis';
@@ -334,6 +335,10 @@ export default function ProductDetail() {
             <TabsTrigger value="profitability" className="flex items-center gap-1 px-3 py-2 text-xs sm:text-sm whitespace-nowrap">
               <TrendingUp className="h-3 w-3 sm:h-4 sm:w-4" />
               <span>Wirtschaftlichkeit</span>
+            </TabsTrigger>
+            <TabsTrigger value="prognose" className="flex items-center gap-1 px-3 py-2 text-xs sm:text-sm whitespace-nowrap">
+              <TrendingUp className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span>Prognose</span>
             </TabsTrigger>
           </TabsList>
         </div>
@@ -972,6 +977,11 @@ export default function ProductDetail() {
         {/* Profitability Analysis Tab */}
         <TabsContent value="profitability" className="space-y-6 mt-6">
           <ProductProfitabilityAnalysis productId={parseInt(id!)} />
+        </TabsContent>
+
+        {/* Forecast Tab */}
+        <TabsContent value="prognose" className="space-y-6 mt-6">
+          <ProductForecastView productId={parseInt(id!)} productName={product.productName} />
         </TabsContent>
       </Tabs>
 

@@ -3653,6 +3653,336 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // FORECAST ENDPOINTS - Product forecast data (historical sales vs predictions)
+  
+  // Get weekly forecast data for a product
+  app.get(`${API_PREFIX}/products/:id/forecast/weekly`, async (req: Request, res: Response) => {
+    try {
+      const productId = parseInt(req.params.id);
+      
+      if (isNaN(productId)) {
+        return res.status(400).json({ error: "Invalid product ID" });
+      }
+      
+      console.log(`[FORECAST API] Fetching weekly forecast data for product ${productId}`);
+      
+      // Get product to verify it exists
+      const productQuery = `SELECT id, product_name, vendon_id FROM products WHERE id = $1`;
+      const productResult = await rawDb.query(productQuery, [productId]);
+      
+      if (productResult.rows.length === 0) {
+        return res.status(404).json({ error: "Product not found" });
+      }
+      
+      const product = productResult.rows[0];
+      const vendonId = product.vendon_id;
+      
+      // Query for historical sales data aggregated by week (last 24 weeks)
+      const historicalQuery = `
+        WITH weeks AS (
+          SELECT 
+            DATE_TRUNC('week', generate_series(
+              NOW() - INTERVAL '24 weeks',
+              NOW(),
+              INTERVAL '1 week'
+            )) as week_start
+        ),
+        sales_by_week AS (
+          SELECT 
+            DATE_TRUNC('week', t.datetime) as week_start,
+            SUM(t.quantity) as historical_sales
+          FROM transactions t
+          LEFT JOIN products p ON (t.product_id = p.vendon_id OR t.product_name = p.product_name)
+          WHERE (t.product_id = $1 OR p.id = $2)
+            AND t.datetime >= NOW() - INTERVAL '24 weeks'
+          GROUP BY DATE_TRUNC('week', t.datetime)
+        )
+        SELECT 
+          w.week_start,
+          EXTRACT(WEEK FROM w.week_start) as week_number,
+          EXTRACT(YEAR FROM w.week_start) as year,
+          COALESCE(s.historical_sales, 0) as historical_sales
+        FROM weeks w
+        LEFT JOIN sales_by_week s ON w.week_start = s.week_start
+        ORDER BY w.week_start
+      `;
+      
+      // Query for forecast data aggregated by week (next 12 weeks)
+      const forecastQuery = `
+        WITH forecast_weeks AS (
+          SELECT 
+            DATE_TRUNC('week', generate_series(
+              DATE_TRUNC('week', NOW()),
+              DATE_TRUNC('week', NOW()) + INTERVAL '12 weeks',
+              INTERVAL '1 week'
+            )) as week_start
+        ),
+        forecasts_by_week AS (
+          SELECT 
+            DATE_TRUNC('week', f.forecast_date) as week_start,
+            SUM(f.expected_sales) as forecast_sales
+          FROM forecasts f
+          WHERE f.product_id = $1
+            AND f.forecast_date >= DATE_TRUNC('week', NOW())
+            AND f.forecast_date <= DATE_TRUNC('week', NOW()) + INTERVAL '12 weeks'
+          GROUP BY DATE_TRUNC('week', f.forecast_date)
+        )
+        SELECT 
+          fw.week_start,
+          EXTRACT(WEEK FROM fw.week_start) as week_number,
+          EXTRACT(YEAR FROM fw.week_start) as year,
+          COALESCE(f.forecast_sales, 0) as forecast_sales
+        FROM forecast_weeks fw
+        LEFT JOIN forecasts_by_week f ON fw.week_start = f.week_start
+        ORDER BY fw.week_start
+      `;
+      
+      const [historicalResult, forecastResult] = await Promise.all([
+        rawDb.query(historicalQuery, [vendonId, productId]),
+        rawDb.query(forecastQuery, [vendonId])
+      ]);
+      
+      // Combine and format the data
+      const weeklyData = [];
+      
+      // Add historical data
+      for (const row of historicalResult.rows) {
+        const weekStart = new Date(row.week_start);
+        weeklyData.push({
+          week: weekStart.toISOString().split('T')[0],
+          year: parseInt(row.year),
+          weekNumber: parseInt(row.week_number),
+          historicalSales: parseInt(row.historical_sales) || 0,
+          forecastSales: null,
+          percentageDeviation: null
+        });
+      }
+      
+      // Add forecast data and calculate deviations
+      for (const row of forecastResult.rows) {
+        const weekStart = new Date(row.week_start);
+        const weekKey = weekStart.toISOString().split('T')[0];
+        const existingWeek = weeklyData.find(w => w.week === weekKey);
+        
+        if (existingWeek) {
+          existingWeek.forecastSales = parseInt(row.forecast_sales) || 0;
+          if (existingWeek.historicalSales > 0) {
+            existingWeek.percentageDeviation = ((existingWeek.forecastSales - existingWeek.historicalSales) / existingWeek.historicalSales) * 100;
+          }
+        } else {
+          weeklyData.push({
+            week: weekKey,
+            year: parseInt(row.year),
+            weekNumber: parseInt(row.week_number),
+            historicalSales: 0,
+            forecastSales: parseInt(row.forecast_sales) || 0,
+            percentageDeviation: null
+          });
+        }
+      }
+      
+      console.log(`[FORECAST API] Found ${weeklyData.length} weekly data points for product ${productId}`);
+      res.json(weeklyData.sort((a, b) => a.week.localeCompare(b.week)));
+      
+    } catch (error) {
+      console.error(`[FORECAST API] Error fetching weekly forecast for product ${req.params.id}:`, error);
+      res.status(500).json({ 
+        error: "Failed to fetch weekly forecast data", 
+        details: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
+  
+  // Get monthly forecast data for a product
+  app.get(`${API_PREFIX}/products/:id/forecast/monthly`, async (req: Request, res: Response) => {
+    try {
+      const productId = parseInt(req.params.id);
+      
+      if (isNaN(productId)) {
+        return res.status(400).json({ error: "Invalid product ID" });
+      }
+      
+      console.log(`[FORECAST API] Fetching monthly forecast data for product ${productId}`);
+      
+      // Get product to verify it exists
+      const productQuery = `SELECT id, product_name, vendon_id FROM products WHERE id = $1`;
+      const productResult = await rawDb.query(productQuery, [productId]);
+      
+      if (productResult.rows.length === 0) {
+        return res.status(404).json({ error: "Product not found" });
+      }
+      
+      const product = productResult.rows[0];
+      const vendonId = product.vendon_id;
+      
+      // Query for historical sales data aggregated by month (last 24 months)
+      const historicalQuery = `
+        WITH months AS (
+          SELECT 
+            DATE_TRUNC('month', generate_series(
+              NOW() - INTERVAL '24 months',
+              NOW(),
+              INTERVAL '1 month'
+            )) as month_start
+        ),
+        sales_by_month AS (
+          SELECT 
+            DATE_TRUNC('month', t.datetime) as month_start,
+            SUM(t.quantity) as historical_sales
+          FROM transactions t
+          LEFT JOIN products p ON (t.product_id = p.vendon_id OR t.product_name = p.product_name)
+          WHERE (t.product_id = $1 OR p.id = $2)
+            AND t.datetime >= NOW() - INTERVAL '24 months'
+          GROUP BY DATE_TRUNC('month', t.datetime)
+        )
+        SELECT 
+          m.month_start,
+          EXTRACT(MONTH FROM m.month_start) as month_number,
+          EXTRACT(YEAR FROM m.month_start) as year,
+          TO_CHAR(m.month_start, 'Mon') as month,
+          COALESCE(s.historical_sales, 0) as historical_sales
+        FROM months m
+        LEFT JOIN sales_by_month s ON m.month_start = s.month_start
+        ORDER BY m.month_start
+      `;
+      
+      // Query for forecast data aggregated by month (next 12 months)
+      const forecastQuery = `
+        WITH forecast_months AS (
+          SELECT 
+            DATE_TRUNC('month', generate_series(
+              DATE_TRUNC('month', NOW()),
+              DATE_TRUNC('month', NOW()) + INTERVAL '12 months',
+              INTERVAL '1 month'
+            )) as month_start
+        ),
+        forecasts_by_month AS (
+          SELECT 
+            DATE_TRUNC('month', f.forecast_date) as month_start,
+            SUM(f.expected_sales) as forecast_sales
+          FROM forecasts f
+          WHERE f.product_id = $1
+            AND f.forecast_date >= DATE_TRUNC('month', NOW())
+            AND f.forecast_date <= DATE_TRUNC('month', NOW()) + INTERVAL '12 months'
+          GROUP BY DATE_TRUNC('month', f.forecast_date)
+        )
+        SELECT 
+          fm.month_start,
+          EXTRACT(MONTH FROM fm.month_start) as month_number,
+          EXTRACT(YEAR FROM fm.month_start) as year,
+          TO_CHAR(fm.month_start, 'Mon') as month,
+          COALESCE(f.forecast_sales, 0) as forecast_sales
+        FROM forecast_months fm
+        LEFT JOIN forecasts_by_month f ON fm.month_start = f.month_start
+        ORDER BY fm.month_start
+      `;
+      
+      const [historicalResult, forecastResult] = await Promise.all([
+        rawDb.query(historicalQuery, [vendonId, productId]),
+        rawDb.query(forecastQuery, [vendonId])
+      ]);
+      
+      // Combine and format the data
+      const monthlyData = [];
+      
+      // Add historical data
+      for (const row of historicalResult.rows) {
+        monthlyData.push({
+          month: row.month,
+          year: parseInt(row.year),
+          monthNumber: parseInt(row.month_number),
+          historicalSales: parseInt(row.historical_sales) || 0,
+          forecastSales: null,
+          percentageDeviation: null
+        });
+      }
+      
+      // Add forecast data and calculate deviations
+      for (const row of forecastResult.rows) {
+        const monthKey = `${row.month}_${row.year}`;
+        const existingMonth = monthlyData.find(m => `${m.month}_${m.year}` === monthKey);
+        
+        if (existingMonth) {
+          existingMonth.forecastSales = parseInt(row.forecast_sales) || 0;
+          if (existingMonth.historicalSales > 0) {
+            existingMonth.percentageDeviation = ((existingMonth.forecastSales - existingMonth.historicalSales) / existingMonth.historicalSales) * 100;
+          }
+        } else {
+          monthlyData.push({
+            month: row.month,
+            year: parseInt(row.year),
+            monthNumber: parseInt(row.month_number),
+            historicalSales: 0,
+            forecastSales: parseInt(row.forecast_sales) || 0,
+            percentageDeviation: null
+          });
+        }
+      }
+      
+      console.log(`[FORECAST API] Found ${monthlyData.length} monthly data points for product ${productId}`);
+      res.json(monthlyData.sort((a, b) => a.year - b.year || a.monthNumber - b.monthNumber));
+      
+    } catch (error) {
+      console.error(`[FORECAST API] Error fetching monthly forecast for product ${req.params.id}:`, error);
+      res.status(500).json({ 
+        error: "Failed to fetch monthly forecast data", 
+        details: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
+  
+  // Get forecast summary for a product
+  app.get(`${API_PREFIX}/products/:id/forecast/summary`, async (req: Request, res: Response) => {
+    try {
+      const productId = parseInt(req.params.id);
+      
+      if (isNaN(productId)) {
+        return res.status(400).json({ error: "Invalid product ID" });
+      }
+      
+      console.log(`[FORECAST API] Fetching forecast summary for product ${productId}`);
+      
+      // Get product to verify it exists
+      const productQuery = `SELECT id, product_name, vendon_id FROM products WHERE id = $1`;
+      const productResult = await rawDb.query(productQuery, [productId]);
+      
+      if (productResult.rows.length === 0) {
+        return res.status(404).json({ error: "Product not found" });
+      }
+      
+      const product = productResult.rows[0];
+      const vendonId = product.vendon_id;
+      
+      // Query for next 7 and 14 days forecast
+      const shortTermQuery = `
+        SELECT 
+          SUM(CASE WHEN f.forecast_date <= NOW() + INTERVAL '7 days' THEN f.expected_sales ELSE 0 END) as next_7_days,
+          SUM(CASE WHEN f.forecast_date <= NOW() + INTERVAL '14 days' THEN f.expected_sales ELSE 0 END) as next_14_days
+        FROM forecasts f
+        WHERE f.product_id = $1
+          AND f.forecast_date >= NOW()
+          AND f.forecast_date <= NOW() + INTERVAL '14 days'
+      `;
+      
+      const shortTermResult = await rawDb.query(shortTermQuery, [vendonId]);
+      const shortTermData = shortTermResult.rows[0] || { next_7_days: 0, next_14_days: 0 };
+      
+      res.json({
+        next7Days: parseInt(shortTermData.next_7_days) || 0,
+        next14Days: parseInt(shortTermData.next_14_days) || 0,
+        next12Weeks: [], // This would be populated from the weekly endpoint
+        next12Months: [] // This would be populated from the monthly endpoint
+      });
+      
+    } catch (error) {
+      console.error(`[FORECAST API] Error fetching forecast summary for product ${req.params.id}:`, error);
+      res.status(500).json({ 
+        error: "Failed to fetch forecast summary", 
+        details: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
+
   // Get machines (deduplicated by machine_name to prevent dropdown duplicates)
   app.get(`${API_PREFIX}/machines`, async (req: Request, res: Response) => {
     try {
