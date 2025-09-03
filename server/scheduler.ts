@@ -6,16 +6,20 @@
  * - Feiertags-API für Feiertage und Schulferien
  */
 
-import { vendonSync } from './services/vendonSync';
+import { getUnifiedVendonSyncInstance } from './services/UnifiedVendonSync';
 import { vendonDeltaSync } from './services/vendonDeltaSync';
 import { syncWeatherForecast, syncHistoricalWeatherBatch } from './services/openWeatherService';
 import { syncMissingHolidays } from './services/holidayService';
 import { reconcileWarehouseProducts } from './services/warehouseReconciliation';
 import { productSyncService } from './services/productSyncService'; // Neuer verbesserter Product-Sync-Service
 import { trainForecastModel, createForecast } from './services/forecastService';
+import { verifyWeatherCoverage } from './services/weatherCoverageService';
 
 // Speichern der Timeout-IDs zur späteren Verwaltung
 const timers: Record<string, NodeJS.Timeout> = {};
+
+// Unified Vendon Sync Instance
+const unifiedSync = getUnifiedVendonSyncInstance();
 
 // Konfiguration für verschiedene Syncs
 const syncConfig = {
@@ -37,7 +41,12 @@ const syncConfig = {
   },
   slow: {
     interval: 24 * 60 * 60 * 1000, // 24 Stunden
-    syncTypes: ['weather_historical_batch', 'warehouse_reconciliation'] // Feiertags-Sync vorübergehend deaktiviert
+    syncTypes: ['weather_historical_batch', 'warehouse_reconciliation', 'holidays', 'weather_coverage_check'] // Weather Coverage Check hinzugefügt
+  },
+  // Neuer jährlicher Scheduler für Feiertagsdaten
+  annual: {
+    interval: 365 * 24 * 60 * 60 * 1000, // 365 Tage (jährlich)
+    syncTypes: ['annual_holidays', 'annual_school_holidays'] // Jährliche Holiday-Synchronisation
   },
   historical: {
     interval: 6 * 60 * 60 * 1000, // 6 Stunden (erhöht von 2 Stunden)
@@ -75,10 +84,11 @@ async function performSync(syncType: string): Promise<void> {
         // Synchronisiere Refills der letzten 24 Stunden
         const yesterdayRefills = new Date();
         yesterdayRefills.setDate(yesterdayRefills.getDate() - 1);
-        result = await vendonSync.syncRefills(yesterdayRefills);
+        const todayRefills = new Date();
+        result = await unifiedSync.syncRefills({ startDate: yesterdayRefills, endDate: todayRefills });
         break;
       case 'machines':
-        result = await vendonSync.syncMachines();
+        result = await unifiedSync.syncMachines();
         break;
       case 'products':
         // Verwende den neuen verbesserten ProductSyncService
@@ -89,17 +99,15 @@ async function performSync(syncType: string): Promise<void> {
         // Synchronisiere Events der letzten 24 Stunden
         const yesterdayEvents = new Date();
         yesterdayEvents.setDate(yesterdayEvents.getDate() - 1);
-        result = await vendonSync.syncEvents(yesterdayEvents);
+        const todayEvents = new Date();
+        result = await unifiedSync.syncEvents({ startDate: yesterdayEvents, endDate: todayEvents });
         break;
       case 'historical_batch':
-        // Führe einen Batch der historischen Synchronisierung durch
-        result = await vendonSync.syncHistoricalBatch();
-        // Wenn der historische Prozess abgeschlossen ist, stoppe die historische Synchronisierung
-        if (result && result.isComplete) {
-          console.log("Historische Synchronisierung vollständig abgeschlossen. Entferne aus der Scheduler-Liste.");
-          delete timers[syncType];
-          return; // Keine weitere Planung
-        }
+        // Führe inkrementelle historische Synchronisierung durch
+        const weekAgo = new Date();
+        weekAgo.setDate(weekAgo.getDate() - 7);
+        result = await unifiedSync.runIncrementalSync(weekAgo, new Date());
+        console.log("✅ Historische Batch-Synchronisierung abgeschlossen.");
         break;
       case 'weather_forecast':
         // Synchronisiere Wetterprognosen für Bad Schandau (50.9196, 14.1524)
@@ -121,6 +129,49 @@ async function performSync(syncType: string): Promise<void> {
         const currentYear = new Date().getFullYear();
         result = await syncMissingHolidays(currentYear, currentYear + 1, undefined, true);
         break;
+      case 'annual_holidays':
+        // Jährliche Synchronisation aller Public Holidays für nächstes Jahr (1. Dezember)
+        console.log('🎄 Starte jährliche Public Holiday Synchronisation...');
+        const nextYear = new Date().getFullYear() + 1;
+        try {
+          result = await syncMissingHolidays(nextYear, nextYear, undefined, false); // Nur Public Holidays
+          console.log(`✅ Jährliche Public Holiday-Sync für ${nextYear} erfolgreich abgeschlossen`);
+        } catch (error) {
+          console.error(`❌ Fehler bei jährlicher Public Holiday-Sync für ${nextYear}:`, error);
+          // Retry-Logik: Plane erneuten Versuch in 1 Stunde
+          setTimeout(() => performSync('annual_holidays'), 60 * 60 * 1000);
+          result = { success: false, error: error instanceof Error ? error.message : 'Unbekannter Fehler' };
+        }
+        break;
+      case 'annual_school_holidays':
+        // Jährliche Synchronisation aller School Holidays für nächstes Jahr (1. Dezember)
+        console.log('🎄 Starte jährliche School Holiday Synchronisation...');
+        const nextYearSchool = new Date().getFullYear() + 1;
+        try {
+          result = await syncMissingHolidays(nextYearSchool, nextYearSchool, undefined, true); // Mit School Holidays
+          console.log(`✅ Jährliche School Holiday-Sync für ${nextYearSchool} erfolgreich abgeschlossen`);
+        } catch (error) {
+          console.error(`❌ Fehler bei jährlicher School Holiday-Sync für ${nextYearSchool}:`, error);
+          // Retry-Logik: Plane erneuten Versuch in 1 Stunde
+          setTimeout(() => performSync('annual_school_holidays'), 60 * 60 * 1000);
+          result = { success: false, error: error instanceof Error ? error.message : 'Unbekannter Fehler' };
+        }
+        break;
+      case 'weather_coverage_check':
+        // Tägliche Überprüfung der Wetterdaten-Vollständigkeit ab 1.1.2024
+        console.log('🌦️ Starte täglichen Weather Coverage Check...');
+        try {
+          result = await verifyWeatherCoverage();
+          if (result.success) {
+            console.log(`✅ Coverage Check abgeschlossen: ${result.coveragePercentage}% Abdeckung, ${result.gapsFilled} Lücken gefüllt`);
+          } else {
+            console.log(`⚠️ Coverage Check mit ${result.errors.length} Fehlern abgeschlossen`);
+          }
+        } catch (error) {
+          console.error('❌ Fehler beim Weather Coverage Check:', error);
+          result = { success: false, error: error instanceof Error ? error.message : 'Unbekannter Fehler' };
+        }
+        break;
       case 'warehouse_reconciliation':
         // Führe täglichen Lagerabgleich durch, um neue Produkte in Automaten zu erkennen
         console.log('Starte täglichen Lagerabgleich für alle Automaten-Lager-Kombinationen (NUR Automatenprodukte)...');
@@ -128,62 +179,24 @@ async function performSync(syncType: string): Promise<void> {
         console.log(`Täglicher Lagerabgleich abgeschlossen: ${result.productsAdded} neue Produkte zu ${result.warehousesChecked} Lagern hinzugefügt.`);
         break;
       case 'vendon_gap_check':
-        // Führe Vendon-Datenlücken-Analyse durch
-        console.log('🔍 Starte automatische Vendon-Datenlücken-Prüfung...');
+        // Führe einfache Datenqualitäts-Prüfung durch
+        console.log('🔍 Starte einfache Datenqualitäts-Prüfung...');
         try {
-          // Analysiere die letzten 14 Tage
-          const gapAnalysis = await vendonSync.analyzeDataGaps(
-            new Date(Date.now() - 14 * 24 * 60 * 60 * 1000), // 14 Tage zurück
-            new Date(),
-            {
-              minDailyTransactions: 30, // Niedrigere Schwelle für automatische Checks
-              criticalGapDays: 2, // 2+ aufeinanderfolgende Tage = kritisch
-              warningGapDays: 1   // 1+ Tag = Warnung
-            }
-          );
+          // Einfache inkrementelle Synchronisierung als Datenqualitäts-Check
+          const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+          const now = new Date();
+          const checkResult = await unifiedSync.runIncrementalSync(twoDaysAgo, now);
           
-          console.log(`📊 Gap-Analyse abgeschlossen: ${gapAnalysis.summary.missingDays} fehlende, ${gapAnalysis.summary.incompleteDays} unvollständige Tage`);
-          
-          // Führe automatisches Backfill nur für kritische Lücken durch
-          if (gapAnalysis.summary.criticalGaps > 0) {
-            console.log(`🚨 ${gapAnalysis.summary.criticalGaps} kritische Lücken erkannt - starte automatisches Backfill...`);
-            
-            const backfillResult = await vendonSync.performAutomaticBackfill(gapAnalysis, {
-              priority: 'critical',
-              dryRun: false, // Echtes Backfill für kritische Lücken
-              maxDaysPerOperation: 5
-            });
-            
-            console.log(`✅ Automatisches Backfill abgeschlossen: ${backfillResult.summary.successful}/${backfillResult.summary.totalOperations} Operationen erfolgreich`);
-            
-            result = {
-              success: true,
-              gapAnalysis,
-              backfillResult,
-              message: `Gap-Check abgeschlossen: ${gapAnalysis.summary.criticalGaps} kritische Lücken, ${backfillResult.summary.transactionsSynced} Transaktionen nachgefüllt`
-            };
-          } else if (gapAnalysis.summary.warningGaps > 0) {
-            console.log(`⚠️ ${gapAnalysis.summary.warningGaps} Warnungs-Lücken gefunden - protokolliert für manuelle Überprüfung`);
-            
-            result = {
-              success: true,
-              gapAnalysis,
-              message: `Gap-Check abgeschlossen: ${gapAnalysis.summary.warningGaps} Warnungs-Lücken gefunden, keine kritischen Lücken`
-            };
-          } else {
-            console.log('✅ Keine Datenlücken gefunden - Datenqualität ist gut');
-            
-            result = {
-              success: true,
-              gapAnalysis,
-              message: 'Gap-Check abgeschlossen: Keine Datenlücken gefunden'
-            };
-          }
+          console.log('✅ Datenqualitäts-Check abgeschlossen');
+          result = {
+            success: true,
+            message: `Datenqualitäts-Check abgeschlossen: ${checkResult.stats.found} Datensätze geprüft`
+          };
         } catch (error) {
-          console.error('❌ Fehler bei der Datenlücken-Prüfung:', error);
+          console.error('❌ Fehler bei der Datenqualitäts-Prüfung:', error);
           result = {
             success: false,
-            message: `Fehler bei der Datenlücken-Prüfung: ${error instanceof Error ? error.message : 'Unbekannter Fehler'}`
+            message: `Fehler bei der Datenqualitäts-Prüfung: ${error instanceof Error ? error.message : 'Unbekannter Fehler'}`
           };
         }
         break;
@@ -253,7 +266,7 @@ async function performSync(syncType: string): Promise<void> {
         console.log(`Automatische Prognoseerstellung abgeschlossen: ${generatedForecasts} Prognosen erstellt`);
         break;
       case 'all':
-        result = await vendonSync.syncAll();
+        result = await unifiedSync.runFullSync();
         // Auch Wetter, Feiertage und Produkte synchronisieren
         await syncWeatherForecast(50.9196, 14.1524);
         await productSyncService.syncProducts(false);
@@ -299,6 +312,19 @@ function scheduleNextSync(syncType: string): void {
     interval = syncConfig.forecast.interval;
   } else if (syncConfig.historical.syncTypes.includes(syncType)) {
     interval = syncConfig.historical.interval;
+  } else if (syncConfig.annual && syncConfig.annual.syncTypes.includes(syncType)) {
+    // Für jährliche Syncs: Berechne Zeit bis zum nächsten 1. Dezember
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const nextDecember = new Date(currentYear, 11, 1, 0, 0, 0); // 1. Dezember um Mitternacht
+    
+    // Wenn der 1. Dezember dieses Jahr schon vorbei ist, plane für nächstes Jahr
+    if (now > nextDecember) {
+      nextDecember.setFullYear(currentYear + 1);
+    }
+    
+    interval = nextDecember.getTime() - now.getTime();
+    console.log(`🎄 Jährlicher ${syncType}-Sync geplant für: ${nextDecember.toLocaleDateString('de-DE')}`);
   } else {
     // Fallback auf 1 Stunde
     interval = syncConfig.medium.interval;
@@ -369,6 +395,41 @@ export function startAutomaticSync(): void {
     const delay = 30 * 60000 + (index * 5 * 60000);
     timers[syncType] = setTimeout(() => performSync(syncType), delay);
   });
+  
+  // Jährliche Sync-Jobs: Schedule für 1. Dezember um 00:00 Uhr
+  if (syncConfig.annual) {
+    syncConfig.annual.syncTypes.forEach((syncType, index) => {
+      scheduleAnnualSync(syncType, index);
+    });
+  }
+}
+
+/**
+ * Plant jährliche Sync-Jobs für den 1. Dezember
+ * @param syncType - Typ der jährlichen Synchronisation
+ * @param index - Index für gestaffelte Ausführung
+ */
+function scheduleAnnualSync(syncType: string, index: number): void {
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const nextDecember = new Date(currentYear, 11, 1, 0, 0, 0); // 1. Dezember um Mitternacht
+  
+  // Wenn der 1. Dezember dieses Jahr schon vorbei ist, plane für nächstes Jahr
+  if (now > nextDecember) {
+    nextDecember.setFullYear(currentYear + 1);
+  }
+  
+  // Verteile die jährlichen Jobs über mehrere Stunden am 1. Dezember
+  nextDecember.setHours(index * 2); // Alle 2 Stunden am 1. Dezember
+  
+  const delay = nextDecember.getTime() - now.getTime();
+  
+  console.log(`🗓️ Plane jährlichen ${syncType}-Sync für: ${nextDecember.toLocaleString('de-DE')}`);
+  
+  // Setze Timer für das nächste Jahr
+  timers[syncType] = setTimeout(() => {
+    performSync(syncType);
+  }, delay);
 }
 
 /**

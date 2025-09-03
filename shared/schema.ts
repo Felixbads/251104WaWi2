@@ -1598,14 +1598,16 @@ export const weatherForecasts = pgTable("weather_forecasts", {
   timezone_offset: integer("timezone_offset"),
   // Weitere Metadaten im JSON-Format
   metadata: text("metadata"),
+  // Revision für Forecast-Versionierung (Phase 2 Verbesserung)
+  revision: integer("revision").default(1).notNull(),
   // Zeitpunkt der Erstellung
   created_at: timestamp("created_at").defaultNow(),
   // Zeitpunkt der letzten Aktualisierung
   updated_at: timestamp("updated_at").defaultNow(),
 }, (table) => {
   return {
-    // Eindeutiger Index für Datum, Stunde und Typ
-    datetimeTypeIdx: unique().on(table.date, table.hour, table.type),
+    // Eindeutiger Index für Datum, Stunde, Typ und Revision
+    datetimeTypeRevisionIdx: unique().on(table.date, table.hour, table.type, table.revision),
   };
 });
 
