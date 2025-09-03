@@ -104,7 +104,9 @@ export class HistoricalBackfillService {
         : `Backfill mit Fehlern: ${result.errors.length} Fehler aufgetreten`;
 
       this.logger.log(`✅ Backfill abgeschlossen: ${result.message}`);
-      this.logger.log(`📈 Statistiken: ${result.totalFetched} abgerufen, ${result.totalUpserted} gespeichert, ${result.totalSkipped} übersprungen, ${result.duration}ms Dauer`);
+      
+      // B1) Strukturierte Logs mit allen geforderten Feldern
+      this.logger.log(`📊 B1) Observability: { window: "completed", fetched: ${result.totalFetched}, upserted: ${result.totalUpserted}, skipped: ${result.totalSkipped}, duration_ms: ${result.duration}, errors: ${result.errors.length} }`);
 
     } catch (error) {
       result.success = false;
@@ -138,7 +140,8 @@ export class HistoricalBackfillService {
       page++;
       
       try {
-        this.logger.log(`📄 Verarbeite Seite ${page} (Offset: ${offset}) in Fenster ${windowIndex}/${totalWindows}`);
+        // B1) Strukturierte Logs pro Page
+        this.logger.log(`📄 B1) Page Processing: { window: "${windowIndex}/${totalWindows}", page: ${page}, offset: ${offset} }`);
 
         // API-Abruf mit Enhanced getTransactions
         const apiResponse = await this.vendonApi.getTransactionsEnhanced({
@@ -154,7 +157,8 @@ export class HistoricalBackfillService {
         const items = apiResponse.items || [];
         fetchedCount += items.length;
 
-        this.logger.log(`📊 API Response: ${items.length} Transaktionen empfangen`);
+        // B1) Strukturierte Logs für Page-Results  
+        this.logger.log(`📊 B1) Page Result: { window: "${windowIndex}/${totalWindows}", page: ${page}, offset: ${offset}, fetched: ${items.length} }`);
 
         if (items.length === 0) {
           this.logger.log(`🔚 Keine weiteren Daten, Ende der Pagination`);

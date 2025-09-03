@@ -1,0 +1,148 @@
+VERBINDLICHER AUFTRAG AN DICH (AGENT) — VENDON HISTORICAL SYNC JETZT PRODUKTIONSREIF UMSETZEN
+
+Regeln
+	•	Kein Workaround, kein später: Alle Punkte jetzt vollständig umsetzen.
+	•	Keine Mock-/Fake-Daten: Nur echter Code, echte Migrationen, echte DB-Schreibpfade.
+	•	Beweislast liegt bei dir: Du lieferst konkrete Beweisstellen (Datei, Zeilen, Snippet) + Kurzkommentar.
+
+⸻
+
+A) BLOCKER (P0) — SOFORT FIXEN
+
+A1) Datenbank & ORM-Schema
+
+Soll-Zustand
+	•	Tabelle: vendon_watermarks (machine_id TEXT PRIMARY KEY, last_updated_at TIMESTAMP NOT NULL)
+	•	Composite-Unique: transactions (machine_id, vendon_id)
+	•	Index: transactions (updated_at)
+
+ToDo
+	1.	Lege Migrationen an (z. B. Drizzle/Prisma/SQL) für:
+
+CREATE TABLE IF NOT EXISTS vendon_watermarks (
+  machine_id TEXT PRIMARY KEY,
+  last_updated_at TIMESTAMP NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS transactions_machine_vendon_uq ON transactions(machine_id, vendon_id);
+CREATE INDEX IF NOT EXISTS transactions_updated_at_idx ON transactions(updated_at);
+
+
+	2.	Passe shared/schema.ts (o. ä.) an (Constraints/Indizes müssen dort abgebildet sein).
+	3.	Wende Migrationen lokal an (Script aus package.json) und dokumentiere den Nachweis (Schema-Dump/Status in PR).
+
+A2) API-Client (z. B. server/services/vendonSync.new.ts)
+
+Soll-Zustand
+	•	machine_id Pflicht (throw bei Fehlen)
+	•	search_time='updated' (in Delta-/Schedulerpfad Standard)
+	•	sort='-transaction_id' als Default
+	•	Kein Hardcoded/Fallback API-Key (nur ENV, sonst fail-fast)
+	•	429/Retry-After-Handling (Header parsen, warten, retry)
+
+ToDo
+	1.	Entferne Fallback-API-Key vollständig; wenn ENV fehlt → throw mit klarer Meldung.
+	2.	Erzwinge machine_id in jedem Vendon-Stats-Request (sonst throw).
+	3.	Ergänze search_time (Default 'updated' für Delta) und sort='-transaction_id'.
+	4.	Implementiere 429-Handling (HTTP-Date/Seconds in Retry-After unterstützen), Logging mit Wartezeit & Retry-Zähler.
+
+A3) Persistenz/Storage (Upsert statt Dupe-Hacks)
+
+Soll-Zustand
+	•	Echte Upserts auf (machine_id, vendon_id) (idempotent)
+	•	Kein Umschreiben/Manipulieren von vendonId mehr
+
+ToDo
+	1.	Implementiere upsertTransaction / upsertTransactionsBatch:
+	•	SQL: INSERT ... ON CONFLICT (machine_id, vendon_id) DO UPDATE SET ...
+	•	NoSQL: updateOne({machine_id, vendon_id}, {$set: …}, {upsert:true})
+	2.	Entferne sämtliche manuelle Duplikatlogik/ID-Manipulation (z. B. in bulkTransactionExport.ts).
+
+A4) WatermarkStore (neu)
+
+Soll-Zustand
+	•	get(machineId): Date | null
+	•	set(machineId, ts: Date) (Fortschreibung auf max(updated_at) pro Batch)
+
+ToDo
+	1.	Implementiere server/services/watermarkStore.ts (o. ä.).
+	2.	In Import-/Syncpfaden nach jedem erfolgreichen Batch set() mit max(updated_at) aus Items aufrufen.
+
+A5) Backfill-Service & CLI
+
+Soll-Zustand
+	•	Service: runBackfill(machineId, fromTs, toTs, chunkDays=14, pageSize=500, dryRun=false, maxPagesPerWindow?)
+	•	CLI:
+
+npm run backfill -- --machine-id=<id|all> --from=<UNIX> --to=<UNIX> --chunk=<tage> --limit=<n> --dry-run --concurrency=<n> --max-pages-per-window=<n>
+
+
+	•	Dry-Run garantiert 0 Writes, Exit-Codes korrekt (0=OK, >0=Fehler)
+
+ToDo
+	1.	Implementiere Service mit Chunking (Fenster), Pagination (limit/offset), Safety-Valve.
+	2.	CLI-Entry + Argument-Parsing + Exit-Codes.
+	3.	„No-write“-Guard im Dry-Run hart einbauen (kein DB-Zugriff auf Write-Pfade).
+
+A6) Scheduler auf Delta umstellen
+
+Soll-Zustand
+	•	Pro Maschine Watermark laden → Zeitfenster bilden
+	•	Requests immer mit machine_id, search_time='updated', sort='-transaction_id'
+	•	Nach Erfolg Watermark fortschreiben
+	•	Optional: Lock/Mutex je machine_id (keine Parallel-Läufe)
+
+ToDo
+	1.	Passe server/services/vendonScheduler.ts (o. ä.) an: Delta-Logik statt fixem 24h-Fenster.
+	2.	Füge (sofern nicht vorhanden) einfache Locking-Strategie hinzu oder sichere Single-Run.
+
+⸻
+
+B) HOHE PRIORITÄT (P1)
+
+B1) Observability
+	•	Strukturierte Logs mit Feldern: window, page, offset, fetched, upserted, skipped, duration_ms, retries, rate_limited
+	•	WARN/INFO-Level sinnvoll setzen (429→WARN)
+
+B2) Tests (mindestens Basis, können nachgezogen werden aber jetzt anlegen)
+	•	Unit: Watermark-Fortschreibung (max updated_at), Upsert-Idempotenz, API-Param-Komposition
+	•	Integration: 429/Retry-After Pfad (Header→Wartezeit→Retry), Pagination, Resume nach Abbruch
+	•	CLI: Dry-Run (0 Writes) vs. Live (Upserts), Exit-Codes
+
+⸻
+
+C) ABNAHME — MUSS-Checkliste (du füllst aus und belegst jede Zeile)
+	•	Migrationen angewendet: vendon_watermarks, Unique (machine_id, vendon_id), Index updated_at (Beweis: Migrationsdateien + Schema-Dump/Screenshot)
+	•	API-Client hart: machine_id erzwungen, search_time='updated', sort='-transaction_id', kein Hard-Key, 429/Retry-After aktiv (Beweis: Code-Snippets)
+	•	Persistenz idempotent: Upserts aktiv, Dupe-Hacks entfernt (Beweis: Code-Diffs/Snippets)
+	•	WatermarkStore aktiv: get/set, Fortschreibung max(updated_at) (Beweis: Code-Snippets + Aufrufstellen)
+	•	Backfill-CLI lauffähig: Flags wie oben, Dry-Run schreibt nicht, Exit-Codes korrekt (Beweis: Code + Logausschnitt der Guards)
+	•	Scheduler = Delta: nutzt Watermarks + erzwungene API-Parameter (Beweis: Scheduler-Code)
+	•	Logs wie spezifiziert vorhanden (Beweis: Logger-Aufrufe im Code)
+	•	(Empfohlen) Tests vorhanden & grün (Beweis: Testdateien + npm test-Script)
+
+⸻
+
+D) SELBSTPRÜFUNG (lokal ausführen, keine Fake-Logs)
+	1.	Dry-Run Backfill
+
+npm run backfill -- --machine-id=<MID> --from=<UNIX_FROM> --to=<UNIX_TO> --chunk=14 --limit=500 --dry-run --concurrency=1
+
+Erwartung: Fenster/Seiten im Log, 0 Writes klar erkennbar.
+
+	2.	Live Backfill (gleiches Kommando ohne --dry-run): Upserts > 0, keine Duplikatfehler, Watermark aktualisiert (SELECT Nachweis).
+	3.	Delta-Scheduler: Tick starten, Logs zeigen Requests mit machine_id, search_time='updated', sort='-transaction_id'; Watermark steigt.
+
+⸻
+
+E) ABGABE (Pflicht-Artefakte in deinem PR)
+	•	Migrations + Schema-Dump/ORM-Status
+	•	Code-Änderungen: API-Client, Storage/Upserts, WatermarkStore, Backfill-Service, Scheduler, CLI
+	•	Runbook_Prod.md: reale Befehle, erwartete Logfelder (aus Code), Troubleshooting (429, fehlender API-Key, Migrationsfehler)
+	•	VerificationReport_Prod_Final.md: Beweisstellen (Datei, Zeile, 10–30-Zeilen-Snippet) je Akzeptanzpunkt
+
+⸻
+
+F) WICHTIG
+
+Wenn irgendein Punkt fehlt (z. B. Unique-Index, search_time, sort, 429-Handling, Dry-Run schreibt doch):
+→ Nicht „fertig“ melden. Erst vollständig beheben, selbst prüfen, Beweise anfügen.
