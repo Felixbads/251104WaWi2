@@ -57,14 +57,24 @@ router.get('/:machineId/refilltemplates', async (req: AuthenticatedRequest, res)
         if (locationCheck.rows.length > 0) {
           resolvedMachineId = locationCheck.rows[0].id;
         } else {
-          return res.status(404).json({ error: 'Maschine nicht gefunden' });
+          // Try as vendon_id (parsed number)
+          const vendonCheck = await rawDb.query(
+            'SELECT id FROM machines WHERE vendon_id = $1 LIMIT 1',
+            [parsedId.toString()]
+          );
+          
+          if (vendonCheck.rows.length > 0) {
+            resolvedMachineId = vendonCheck.rows[0].id;
+          } else {
+            return res.status(404).json({ error: 'Maschine nicht gefunden' });
+          }
         }
       }
     } else {
-      // Try as vendon_id
+      // Try as vendon_id (string)
       const vendonCheck = await rawDb.query(
         'SELECT id FROM machines WHERE vendon_id = $1 LIMIT 1',
-        [machineId]
+        [machineId.toString()]
       );
       
       if (vendonCheck.rows.length > 0) {
