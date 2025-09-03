@@ -1,0 +1,78 @@
+AUFTRAG: VENDON HISTORICAL SYNC IN DEN LIVE-BETRIEB BRINGEN
+
+Du meldest, dass die Umsetzung vollständig und produktionsreif ist. Der nächste Schritt ist jetzt der geordnete Go-Live.
+
+Bitte setze das System in den Live-Betrieb – aber nur, wenn alle Voraussetzungen erfüllt sind. Gehe dabei strukturiert und schrittweise vor:
+
+⸻
+
+1. Vorbereitung
+	•	Stelle sicher, dass der Produktions-API-Key in der Umgebung gesetzt ist:
+
+export VENDON_API_KEY=<PROD_KEY>
+
+
+	•	Wende alle Datenbank-Migrationen an, damit folgende Objekte in der Produktions-DB existieren:
+	•	Tabelle vendon_watermarks
+	•	Unique-Index transactions(machine_id, vendon_id)
+	•	Index transactions(updated_at)
+
+Kontrolliere nach Migration per SQL/Dump, dass diese Strukturen vorhanden sind.
+
+⸻
+
+2. Historischen Backfill durchführen
+	•	Starte für jede reale Machine-ID einen Backfill mit Dry-Run, um zu prüfen, dass keine Writes passieren:
+
+npm run backfill -- --machine-id=<REAL_MACHINE_ID> --from=<START_TS> --to=<END_TS> --dry-run
+
+
+	•	Prüfe Logs: Fenster, Seiten, fetched, skipped. 0 Writes im Dry-Run.
+	•	Danach: Live-Backfill ohne --dry-run:
+
+npm run backfill -- --machine-id=<REAL_MACHINE_ID> --from=<START_TS> --to=<END_TS>
+
+
+	•	Nachweis: Logs zeigen Upserts, keine Duplikatfehler, Watermark-Eintrag in Tabelle vendon_watermarks aktualisiert.
+
+⸻
+
+3. Scheduler starten
+	•	Starte den Scheduler im Delta-Modus:
+
+npm run start:scheduler
+
+
+	•	Prüfe Logs: Requests enthalten machine_id, search_time=updated, sort=-transaction_id.
+	•	Kontrolliere, dass Watermarks nach jedem Lauf fortgeschrieben werden.
+
+⸻
+
+4. Monitoring & Logging
+	•	Stelle sicher, dass Logs strukturiert die Felder enthalten:
+window, page, offset, fetched, upserted, skipped, duration_ms, retries, rate_limited.
+	•	Achte darauf, dass 429-Ereignisse mit WARN-Level geloggt werden.
+	•	Richte Dashboard/Alerts ein (API-Fehler, hohe Retry-Raten, langsame Syncs).
+
+⸻
+
+5. Tests & Verifikation im Live-Betrieb
+	•	Führe npm test im Live-Build aus → alle Tests müssen grün sein.
+	•	Teste Delta-Sync real:
+	•	Führe einen manuell erzeugten Verkauf auf einem Automaten aus.
+	•	Prüfe, ob er nach Scheduler-Lauf per Delta-Sync korrekt in der DB landet.
+
+⸻
+
+6. Abnahme
+	•	Dokumentiere:
+	•	angewandte Migrationen (Screenshots/SQL-Auszug),
+	•	Dry-Run & Live-Backfill Logs,
+	•	Scheduler-Logs mit Delta-Requests,
+	•	Watermark-Tabelleninhalt nach Lauf,
+	•	Testergebnisse.
+	•	Erst nach dieser vollständigen Dokumentation → Go für produktiven Dauerbetrieb.
+
+⸻
+
+⚠️ WICHTIG: Wenn irgendwo ein Fehler auftritt (Migration, API-Key, Duplikatfehler, Scheduler läuft nicht im Delta-Modus), sofort stoppen, Fehler beheben und erneut prüfen. Kein Live-Betrieb ohne erfüllte Checkliste!
