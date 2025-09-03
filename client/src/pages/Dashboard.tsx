@@ -33,6 +33,7 @@ import { useAuth } from "@/lib/auth";
 import Login from "@/pages/Login";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CriticalMHDTile, MHDRecommendationsStatusTile, MHDQuickActionsTile } from "@/components/MHDRecommendationTiles";
+import { VendonSyncStatusCard } from "@/components/dashboard/VendonSyncStatusCard";
 import { 
   getTransactions, 
   getMachines, 
@@ -673,6 +674,9 @@ export default function Dashboard() {
 
             {/* MHD Quick Actions Tile */}
             <MHDQuickActionsTile />
+            
+            {/* Vendon Sync Status Card */}
+            <VendonSyncStatusCard />
           </div>
 
           {/* Right Column - Sidebar on desktop */}

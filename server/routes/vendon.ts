@@ -1201,4 +1201,113 @@ router.get('/historical-data-availability', async (req: Request, res: Response) 
   }
 });
 
+/**
+ * GET /api/vendon/sync-stats - Vendon Historical Sync Statistics
+ */
+router.get('/sync-stats', async (req: Request, res: Response) => {
+  try {
+    console.log('📊 Abrufe Vendon Sync Statistiken...');
+
+    // 1. Watermark-Status abrufen
+    const watermarkQuery = `
+      SELECT 
+        vw.machine_id,
+        vw.last_updated_at,
+        vw.created_at as watermark_created,
+        vw.updated_at as watermark_updated,
+        m.machine_name,
+        m.vendon_id as machine_vendon_id
+      FROM vendon_watermarks vw
+      LEFT JOIN machines m ON m.vendon_id::text = vw.machine_id OR m.id::text = vw.machine_id
+      ORDER BY vw.updated_at DESC
+    `;
+
+    const watermarkResult = await rawDb.query(watermarkQuery);
+
+    // 2. Historische Transaktionen (neue seit Go-Live)
+    const transactionQuery = `
+      SELECT 
+        machine_id,
+        COUNT(*) as transaction_count,
+        MIN(created_at) as first_import,
+        MAX(created_at) as last_import,
+        MIN(datetime) as earliest_transaction_date,
+        MAX(datetime) as latest_transaction_date
+      FROM transactions 
+      WHERE created_at >= '2025-09-03 17:00:00'  -- Go-Live Zeitstempel
+      GROUP BY machine_id
+      ORDER BY transaction_count DESC
+    `;
+
+    const transactionResult = await rawDb.query(transactionQuery);
+
+    // 3. Scheduler-Status (letzte Updates)
+    const recentWatermarkUpdates = watermarkResult.rows.filter((row: any) => 
+      new Date(row.watermark_updated) > new Date(Date.now() - 2 * 60 * 60 * 1000) // Letzte 2 Stunden
+    );
+
+    // 4. Aggregiere Statistiken
+    const totalTransactions = transactionResult.rows.reduce((sum: number, row: any) => 
+      sum + parseInt(row.transaction_count), 0
+    );
+
+    const activeMachines = watermarkResult.rows.length;
+    const machinesWithData = transactionResult.rows.length;
+    const recentActivity = recentWatermarkUpdates.length;
+
+    // 5. Machine-spezifische Details
+    const machineDetails = watermarkResult.rows.map((wm: any) => {
+      const transactionData = transactionResult.rows.find((tr: any) => 
+        tr.machine_id === wm.machine_id
+      );
+      
+      return {
+        machineId: wm.machine_id,
+        machineName: wm.machine_name || `Maschine ${wm.machine_id}`,
+        watermarkTime: wm.last_updated_at,
+        lastSyncUpdate: wm.watermark_updated,
+        transactionCount: transactionData ? parseInt(transactionData.transaction_count) : 0,
+        dateRange: transactionData ? {
+          earliest: transactionData.earliest_transaction_date,
+          latest: transactionData.latest_transaction_date,
+          firstImport: transactionData.first_import
+        } : null,
+        isActive: new Date(wm.watermark_updated) > new Date(Date.now() - 24 * 60 * 60 * 1000)
+      };
+    });
+
+    const syncStats = {
+      summary: {
+        totalTransactions,
+        activeMachines,
+        machinesWithData,
+        recentActivity,
+        lastSyncTime: watermarkResult.rows[0]?.watermark_updated || null,
+        systemStatus: recentActivity > 0 ? 'active' : 'idle'
+      },
+      machines: machineDetails,
+      performance: {
+        avgTransactionsPerMachine: machinesWithData > 0 ? Math.round(totalTransactions / machinesWithData) : 0,
+        dataAvailability: `${machinesWithData}/${activeMachines}`,
+        uptimeIndicator: (recentActivity / Math.max(activeMachines, 1)) * 100
+      }
+    };
+
+    console.log(`📊 Sync Stats: ${totalTransactions} Transaktionen, ${activeMachines} Maschinen, ${recentActivity} aktive`);
+    
+    res.json({
+      success: true,
+      data: syncStats
+    });
+
+  } catch (error) {
+    console.error('❌ Fehler beim Abrufen der Vendon Sync Statistiken:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Fehler beim Abrufen der Sync Statistiken',
+      error: error instanceof Error ? error.message : String(error)
+    });
+  }
+});
+
 export default router;
