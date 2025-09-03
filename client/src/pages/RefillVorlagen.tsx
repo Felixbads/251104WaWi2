@@ -17,7 +17,12 @@ import {
   CheckCircle,
   AlertTriangle,
   Save,
-  X
+  X,
+  Eye,
+  ChevronDown,
+  ChevronUp,
+  Minus,
+  PlusCircle
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -79,7 +84,9 @@ export default function RefillVorlagen() {
   const [selectedTemplate, setSelectedTemplate] = useState<RefillTemplate | null>(null);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
+  const [showProductsDialog, setShowProductsDialog] = useState(false);
   const [editFormData, setEditFormData] = useState({ name: '', description: '', isDefault: false });
+  const [expandedTemplates, setExpandedTemplates] = useState<Set<number>>(new Set());
 
   // Fetch all machines first to get the list
   const { data: machines = [], isLoading: machinesLoading } = useQuery<Machine[]>({
@@ -231,6 +238,45 @@ export default function RefillVorlagen() {
     }
   });
 
+  // Update product quantity mutation
+  const updateProductMutation = useMutation({
+    mutationFn: async ({ machineId, templateId, productId, updateData }: { 
+      machineId: number; 
+      templateId: number; 
+      productId: number;
+      updateData: { quantity?: number; minRefill?: number; maxCapacity?: number } 
+    }) => {
+      const response = await fetch(`/api/machines/${machineId}/refill-templates/${templateId}/products/${productId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(updateData)
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Produktaktualisierung fehlgeschlagen');
+      }
+      
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Produkt aktualisiert",
+        description: "Produktmenge wurde erfolgreich geändert",
+      });
+      refetchTemplates();
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Aktualisierung fehlgeschlagen",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  });
+
   // Update template mutation
   const updateTemplateMutation = useMutation({
     mutationFn: async ({ machineId, templateId, updateData }: { 
@@ -345,6 +391,33 @@ export default function RefillVorlagen() {
     setShowEditDialog(false);
     setSelectedTemplate(null);
     setEditFormData({ name: '', description: '', isDefault: false });
+  };
+
+  const handleShowProducts = (template: RefillTemplate) => {
+    setSelectedTemplate(template);
+    setShowProductsDialog(true);
+  };
+
+  const handleUpdateProductQuantity = (productId: number, currentQuantity: number, increment: number) => {
+    if (!selectedTemplate) return;
+    
+    const newQuantity = Math.max(0, currentQuantity + increment);
+    updateProductMutation.mutate({
+      machineId: selectedTemplate.machineId,
+      templateId: selectedTemplate.id,
+      productId: productId,
+      updateData: { quantity: newQuantity }
+    });
+  };
+
+  const toggleTemplateExpansion = (templateId: number) => {
+    const newExpanded = new Set(expandedTemplates);
+    if (newExpanded.has(templateId)) {
+      newExpanded.delete(templateId);
+    } else {
+      newExpanded.add(templateId);
+    }
+    setExpandedTemplates(newExpanded);
   };
 
   const isLoading = machinesLoading || templatesLoading;
@@ -546,7 +619,7 @@ export default function RefillVorlagen() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredTemplates.map((template) => (
+                    filteredTemplates.flatMap((template) => [
                       <TableRow key={`${template.machineId}-${template.id}`}>
                         <TableCell>
                           <div>
@@ -565,9 +638,31 @@ export default function RefillVorlagen() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <Badge variant="secondary">
-                            {template.products?.length || 0} Produkte
-                          </Badge>
+                          <div className="flex items-center gap-2">
+                            <Badge variant="secondary">
+                              {template.products?.length || 0} Produkte
+                            </Badge>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleShowProducts(template)}
+                              className="p-1 h-6"
+                            >
+                              <Eye className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => toggleTemplateExpansion(template.id)}
+                              className="p-1 h-6"
+                            >
+                              {expandedTemplates.has(template.id) ? (
+                                <ChevronUp className="h-3 w-3" />
+                              ) : (
+                                <ChevronDown className="h-3 w-3" />
+                              )}
+                            </Button>
+                          </div>
                         </TableCell>
                         <TableCell>
                           {template.isDefault && (
@@ -622,8 +717,55 @@ export default function RefillVorlagen() {
                             </Button>
                           </div>
                         </TableCell>
-                      </TableRow>
-                    ))
+                      </TableRow>,
+                      ...(expandedTemplates.has(template.id) && template.products ? [
+                        <TableRow key={`expanded-${template.id}`}>
+                          <TableCell colSpan={7} className="bg-gray-50">
+                            <div className="p-4">
+                              <h4 className="font-medium mb-3 text-sm">Produkte im Template:</h4>
+                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 max-h-60 overflow-y-auto">
+                                {template.products.map((product: RefillTemplateProduct, index: number) => (
+                                  <div key={product.id || index} className="flex items-center justify-between bg-white p-2 rounded border text-sm">
+                                    <div className="flex-1">
+                                      <div className="font-medium truncate" title={product.productName}>
+                                        {product.productName.length > 20 ? 
+                                          `${product.productName.substring(0, 20)}...` : 
+                                          product.productName
+                                        }
+                                      </div>
+                                      <div className="text-xs text-gray-500">Position: {product.position || 'N/A'}</div>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => handleUpdateProductQuantity(product.id, product.quantity, -1)}
+                                        disabled={updateProductMutation.isPending || product.quantity <= 0}
+                                        className="h-6 w-6 p-0"
+                                      >
+                                        <Minus className="h-3 w-3" />
+                                      </Button>
+                                      <span className="min-w-[2rem] text-center font-mono">
+                                        {product.quantity}
+                                      </span>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => handleUpdateProductQuantity(product.id, product.quantity, 1)}
+                                        disabled={updateProductMutation.isPending}
+                                        className="h-6 w-6 p-0"
+                                      >
+                                        <PlusCircle className="h-3 w-3" />
+                                      </Button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ] : [])
+                    ])
                   )}
                 </TableBody>
               </Table>
@@ -692,6 +834,77 @@ export default function RefillVorlagen() {
               >
                 <Save className="h-4 w-4 mr-2" />
                 {updateTemplateMutation.isPending ? 'Speichere...' : 'Speichern'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Product Details Dialog */}
+        <Dialog open={showProductsDialog} onOpenChange={setShowProductsDialog}>
+          <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Produktdetails - {selectedTemplate?.name}</DialogTitle>
+              <DialogDescription>
+                Bearbeiten Sie die Mengen der Produkte in der Vorlage. Verwenden Sie +/- um die Mengen anzupassen.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              {selectedTemplate?.products && selectedTemplate.products.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {selectedTemplate.products.map((product, index) => (
+                    <div key={product.id || index} className="border rounded-lg p-4 space-y-3">
+                      <div>
+                        <h5 className="font-medium" title={product.productName}>
+                          {product.productName}
+                        </h5>
+                        <p className="text-sm text-gray-500">Position: {product.position || 'Nicht zugeordnet'}</p>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium">Menge:</span>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleUpdateProductQuantity(product.id, product.quantity, -1)}
+                              disabled={updateProductMutation.isPending || product.quantity <= 0}
+                              className="h-8 w-8 p-0"
+                            >
+                              <Minus className="h-4 w-4" />
+                            </Button>
+                            <span className="min-w-[3rem] text-center font-mono text-lg font-bold">
+                              {product.quantity}
+                            </span>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleUpdateProductQuantity(product.id, product.quantity, 1)}
+                              disabled={updateProductMutation.isPending}
+                              className="h-8 w-8 p-0"
+                            >
+                              <PlusCircle className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                        
+                        {((product.minRefill && product.minRefill > 0) || (product.maxCapacity && product.maxCapacity > 0)) && (
+                          <div className="text-xs text-gray-500 flex gap-4">
+                            {product.minRefill && product.minRefill > 0 && <span>Min: {product.minRefill}</span>}
+                            {product.maxCapacity && product.maxCapacity > 0 && <span>Max: {product.maxCapacity}</span>}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-center text-gray-500 py-8">Keine Produkte in diesem Template gefunden.</p>
+              )}
+            </div>
+            <DialogFooter>
+              <Button onClick={() => setShowProductsDialog(false)}>
+                Schließen
               </Button>
             </DialogFooter>
           </DialogContent>
