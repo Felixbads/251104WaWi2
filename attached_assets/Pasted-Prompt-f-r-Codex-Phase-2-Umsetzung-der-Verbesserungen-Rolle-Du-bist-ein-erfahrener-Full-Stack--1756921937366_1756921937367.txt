@@ -1,0 +1,89 @@
+Prompt für Codex (Phase 2: Umsetzung der Verbesserungen)
+
+Rolle: Du bist ein erfahrener Full-Stack- und Data-Engineering-Agent. Ziel: Verbesserungen umsetzen, die in der Analyse identifiziert wurden, ohne bestehende Features wie die Wetteranzeige zu brechen.
+Wichtige Vorgaben:
+	•	Änderungen müssen rückwärtskompatibel sein und bestehende Tabellen und Endpunkte weiter nutzbar lassen.
+	•	Nur additive Migrationen, keine Breaking Changes.
+	•	Es dürfen keine Fake- oder Mockup-Daten verwendet werden, sondern ausschließlich echte API-Daten aus OpenWeather, Meteostat, OpenHolidays und Nager.Date.
+
+Aufgaben:
+	1.	Scheduler und Sync-Jobs erweitern
+
+	•	Ergänze automatische Scheduler-Einträge für Public Holidays und School Holidays.
+	•	Frequenz: einmal jährlich, z. B. am 1. Dezember für das Folgejahr.
+	•	Mit Retry-Logik bei API-Fehlern.
+	•	Logging ins bestehende Sync-Logging integrieren.
+
+	2.	Historische Wetterlücken schließen
+
+	•	Implementiere Coverage-Checks für weather_data und weather_historical.
+	•	Baue einen Job verifyWeatherCoverage, der täglich prüft, ob ab dem 1.1.2024 stündlich vollständige Daten vorliegen.
+	•	Fehlende Stunden automatisch per OpenWeather Timemachine oder Meteostat (Fallback) nachladen.
+	•	Ergebnisse in einer Coverage-Tabelle speichern.
+
+	3.	DST-Handling absichern
+
+	•	Ergänze Tests für Zeitumstellungstage im März und Oktober.
+	•	Stelle sicher, dass die Zeitzone Europe/Berlin korrekt berücksichtigt wird.
+	•	Falls doppelte oder fehlende Stunden auftreten: Logging und Korrektur durch Nachimport.
+
+	4.	Forecast-Versionierung
+
+	•	Erweiterung der Tabelle weather_forecasts: neue Spalte revision INT DEFAULT 1.
+	•	Bei erneutem Abruf für denselben Timestamp wird revision hochgezählt, statt den alten Datensatz zu überschreiben.
+	•	Anpassung der Forecast-Speicherlogik syncWeatherForecast, sodass Snapshots historisch nachvollziehbar bleiben.
+
+	5.	Multi-Location-Support vorbereiten
+
+	•	Erweiterung des openWeatherService um ein optionales Parameter-Array locations.
+	•	Standard bleibt Bad Schandau, bestehende Funktionen bleiben unverändert.
+	•	Wenn locations gesetzt, Forecast und Historie für mehrere Koordinaten laden und abspeichern (Feld location_id oder station_id als Bestandteil des Primary Keys).
+	•	Migration: ALTER TABLE weather_forecasts ADD COLUMN location_id TEXT DEFAULT ‘default’; ebenso für weather_historical.
+
+	6.	Monitoring und Alarmierung
+
+	•	Ergänze Warnungen im Logging-Modul:
+	•	Wenn API-Quota über 80 Prozent erreicht wird.
+	•	Wenn Coverage-Check Lücken meldet.
+	•	Wenn Holiday- oder SchoolHoliday-Sync fehlschlägt.
+	•	Ziel: Alerts über Slack oder Webhook, konfigurierbar in .env.
+
+	7.	Dashboard-Erweiterung (erste Seite)
+
+	•	Auf der ersten Seite des Dashboards sollen folgende Daten klar ersichtlich sein:
+	•	Wetterprognose für die nächsten Tage (bestehende Prognose-Logik nutzen, Darstellung erweitern).
+	•	Feiertage der kommenden Tage.
+	•	Ferien der kommenden Tage, inklusive Angabe des Bundeslandes (z. B. Sommerferien in Sachsen, Herbstferien in Bayern).
+	•	Alle Daten müssen aus den echten Quellen (calendar_overview, holidays, weather_forecasts) stammen.
+	•	Darstellung so, dass Nutzer direkt sehen:
+Beispiel: Am 15.08. ist in Bayern Feiertag (Mariä Himmelfahrt).
+Beispiel: Vom 20.08. bis 01.09. Sommerferien in Sachsen.
+	•	Keine Platzhalter oder Mockups, ausschließlich echte API-Daten.
+
+	8.	Tests
+
+	•	Schreibe Unit- und Integrationstests für:
+	•	neuen Holiday-Scheduler
+	•	Coverage-Check
+	•	Forecast-Versionierung (Revision-Inkrement)
+	•	DST-Edge-Cases
+	•	Dashboard-Abfrage für Wetter, Feiertage und Ferien (Integrationstest mit echten API-Daten).
+
+Konkrete Umsetzungsschritte:
+	1.	Neue Scheduler-Jobs in server/scheduler.ts registrieren.
+	2.	Neue Services und Jobs implementieren: verifyWeatherCoverage.ts, holidayScheduler.ts.
+	3.	Additive Migrationsskripte erstellen (ALTER TABLE).
+	4.	Logging und Monitoring erweitern.
+	5.	Dashboard-Code so erweitern, dass Wetter, Feiertage und Ferien auf der ersten Seite angezeigt werden.
+	6.	Tests ergänzen unter /tests/services und /tests/dashboard.
+
+Akzeptanzkriterien:
+	•	Holiday- und SchoolHoliday-Sync laufen automatisiert im Scheduler.
+	•	Coverage-Check erzeugt täglich Logs und lädt fehlende Stunden nach.
+	•	Forecasts sind versioniert, revision wird hochgezählt, alte Snapshots bleiben erhalten.
+	•	DST-Edge-Cases sind korrekt abgedeckt.
+	•	Multi-Location-Support ist vorbereitet, Standard bleibt Bad Schandau, keine Breaking Changes.
+	•	Dashboard zeigt Wetterprognose, Feiertage und Ferien (inklusive Bundesland) für die kommenden Tage.
+	•	Keine Fake- oder Mockup-Daten, ausschließlich echte API-Daten.
+	•	Tests vorhanden und erfolgreich.
+	•	Keine Funktionalität der bestehenden Wetteranzeige beeinträchtigt.
