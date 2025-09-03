@@ -556,16 +556,24 @@ export default function AutomatDetail() {
 
   const updateProductQuantityMutation = useMutation({
     mutationFn: async ({ templateId, productId, quantity }: { templateId: number; productId: number; quantity: number }) => {
+      console.log('Updating product quantity:', { templateId, productId, quantity });
       const response = await fetch(`/api/machines/${machineId}/refill-templates/${templateId}/products/${productId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ quantity }),
       });
       if (!response.ok) throw new Error('Fehler beim Aktualisieren der Produktmenge');
-      return response.json();
+      const result = await response.json();
+      console.log('Product quantity update result:', result);
+      return result;
     },
     onSuccess: () => {
-      refetchRefillTemplates();
+      console.log('Product quantity update successful, invalidating cache');
+      queryClient.invalidateQueries({ queryKey: [`/api/machines/${machineId}/refilltemplates`] });
+    },
+    onError: (error) => {
+      console.error('Product quantity update error:', error);
+      toast({ title: "Fehler", description: "Die Produktmenge konnte nicht aktualisiert werden.", variant: "destructive" });
     },
   });
 
@@ -2281,9 +2289,31 @@ export default function AutomatDetail() {
                                       <Minus className="h-4 w-4" />
                                     </Button>
                                     
-                                    <div className="bg-white px-4 py-2 rounded border font-bold text-lg min-w-[60px] text-center">
-                                      {product.quantity}
-                                    </div>
+                                    <Input
+                                      type="number"
+                                      min="0"
+                                      value={product.quantity}
+                                      className="bg-white font-bold text-lg text-center w-[80px] h-10"
+                                      onChange={(e) => {
+                                        const newQuantity = parseInt(e.target.value) || 0;
+                                        updateProductQuantityMutation.mutate({
+                                          templateId: template.id,
+                                          productId: product.id,
+                                          quantity: newQuantity
+                                        });
+                                      }}
+                                      onBlur={(e) => {
+                                        const newQuantity = parseInt(e.target.value) || 0;
+                                        if (newQuantity !== product.quantity) {
+                                          updateProductQuantityMutation.mutate({
+                                            templateId: template.id,
+                                            productId: product.id,
+                                            quantity: newQuantity
+                                          });
+                                        }
+                                      }}
+                                      disabled={updateProductQuantityMutation.isPending}
+                                    />
                                     
                                     <Button
                                       variant="outline"
