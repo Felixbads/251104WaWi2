@@ -15,7 +15,9 @@ import {
   Package,
   Settings,
   CheckCircle,
-  AlertTriangle
+  AlertTriangle,
+  Save,
+  X
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -24,6 +26,11 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { useForm } from "react-hook-form";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { format, parseISO } from "date-fns";
@@ -72,6 +79,7 @@ export default function RefillVorlagen() {
   const [selectedTemplate, setSelectedTemplate] = useState<RefillTemplate | null>(null);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
+  const [editFormData, setEditFormData] = useState({ name: '', description: '', isDefault: false });
 
   // Fetch all machines first to get the list
   const { data: machines = [], isLoading: machinesLoading } = useQuery<Machine[]>({
@@ -223,6 +231,46 @@ export default function RefillVorlagen() {
     }
   });
 
+  // Update template mutation
+  const updateTemplateMutation = useMutation({
+    mutationFn: async ({ machineId, templateId, updateData }: { 
+      machineId: number; 
+      templateId: number; 
+      updateData: { name?: string; description?: string; isDefault?: boolean } 
+    }) => {
+      const response = await fetch(`/api/machines/${machineId}/refilltemplates/${templateId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(updateData)
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Update failed');
+      }
+      
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Erfolgreich aktualisiert",
+        description: "Refill-Vorlage wurde erfolgreich aktualisiert",
+      });
+      setShowEditDialog(false);
+      setSelectedTemplate(null);
+      refetchTemplates();
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Aktualisierung fehlgeschlagen",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  });
+
   // Delete template mutation
   const deleteTemplateMutation = useMutation({
     mutationFn: async ({ machineId, templateId }: { machineId: number; templateId: number }) => {
@@ -271,6 +319,32 @@ export default function RefillVorlagen() {
         templateId: template.id 
       });
     }
+  };
+
+  const handleEditTemplate = (template: RefillTemplate) => {
+    setSelectedTemplate(template);
+    setEditFormData({
+      name: template.name,
+      description: template.description || '',
+      isDefault: template.isDefault
+    });
+    setShowEditDialog(true);
+  };
+
+  const handleSaveEdit = () => {
+    if (selectedTemplate) {
+      updateTemplateMutation.mutate({
+        machineId: selectedTemplate.machineId,
+        templateId: selectedTemplate.id,
+        updateData: editFormData
+      });
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setShowEditDialog(false);
+    setSelectedTemplate(null);
+    setEditFormData({ name: '', description: '', isDefault: false });
   };
 
   const isLoading = machinesLoading || templatesLoading;
@@ -526,10 +600,7 @@ export default function RefillVorlagen() {
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => {
-                                setSelectedTemplate(template);
-                                setShowEditDialog(true);
-                              }}
+                              onClick={() => handleEditTemplate(template)}
                             >
                               <Edit className="h-4 w-4" />
                             </Button>
@@ -559,6 +630,72 @@ export default function RefillVorlagen() {
             )}
           </CardContent>
         </Card>
+
+        {/* Edit Template Dialog */}
+        <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Refill-Vorlage bearbeiten</DialogTitle>
+              <DialogDescription>
+                Bearbeiten Sie die Details der Refill-Vorlage "{selectedTemplate?.name}"
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-name">Name *</Label>
+                <Input
+                  id="edit-name"
+                  value={editFormData.name}
+                  onChange={(e) => setEditFormData(prev => ({ ...prev, name: e.target.value }))}
+                  placeholder="Name der Vorlage eingeben..."
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-description">Beschreibung</Label>
+                <Textarea
+                  id="edit-description"
+                  value={editFormData.description}
+                  onChange={(e) => setEditFormData(prev => ({ ...prev, description: e.target.value }))}
+                  placeholder="Optionale Beschreibung..."
+                  rows={3}
+                />
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox 
+                  id="edit-default"
+                  checked={editFormData.isDefault}
+                  onCheckedChange={(checked) => 
+                    setEditFormData(prev => ({ ...prev, isDefault: !!checked }))
+                  }
+                />
+                <Label htmlFor="edit-default">Als Standard-Vorlage markieren</Label>
+              </div>
+              {selectedTemplate && (
+                <div className="text-sm text-gray-500">
+                  <p><strong>Automat:</strong> {selectedTemplate.machineName}</p>
+                  <p><strong>Produkte:</strong> {selectedTemplate.products?.length || 0}</p>
+                </div>
+              )}
+            </div>
+            <DialogFooter>
+              <Button 
+                variant="outline" 
+                onClick={handleCancelEdit}
+                disabled={updateTemplateMutation.isPending}
+              >
+                <X className="h-4 w-4 mr-2" />
+                Abbrechen
+              </Button>
+              <Button 
+                onClick={handleSaveEdit}
+                disabled={updateTemplateMutation.isPending || !editFormData.name.trim()}
+              >
+                <Save className="h-4 w-4 mr-2" />
+                {updateTemplateMutation.isPending ? 'Speichere...' : 'Speichern'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
