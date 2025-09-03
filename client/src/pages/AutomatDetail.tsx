@@ -579,15 +579,27 @@ export default function AutomatDetail() {
 
   const syncWithVendonMutation = useMutation({
     mutationFn: async (templateId: number) => {
-      const response = await fetch(`/api/refilltemplates/${templateId}/sync-vendon`, {
+      console.log('Syncing template to Vendon:', { templateId, machineId });
+      const response = await fetch(`/api/machines/${machineId}/refill-templates/${templateId}/sync-to-vendon`, {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
       });
-      if (!response.ok) throw new Error('Fehler beim Synchronisieren mit Vendon');
-      return response.json();
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Fehler beim Synchronisieren mit Vendon');
+      }
+      const result = await response.json();
+      console.log('Vendon sync result:', result);
+      return result;
     },
     onSuccess: () => {
-      refetchRefillTemplates();
+      console.log('Vendon sync successful, refreshing templates');
+      queryClient.invalidateQueries({ queryKey: [`/api/machines/${machineId}/refilltemplates`] });
       toast({ title: "Mit Vendon synchronisiert", description: "Die Vorlage wurde erfolgreich mit Vendon synchronisiert." });
+    },
+    onError: (error) => {
+      console.error('Vendon sync error:', error);
+      toast({ title: "Sync-Fehler", description: error.message || "Fehler beim Synchronisieren mit Vendon", variant: "destructive" });
     },
   });
 
