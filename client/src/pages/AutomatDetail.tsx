@@ -351,14 +351,14 @@ export default function AutomatDetail() {
   });
 
   // Fetch cash data
-  const { data: cashData, isLoading: cashLoading, refetch: refetchCash } = useQuery({
+  const { data: cashData, isLoading: cashLoading, refetch: refetchCash } = useQuery<any>({
     queryKey: [`/api/machines/${machineId}/cash`],
     enabled: !!machineId && activeTab === 'cash',
     staleTime: 2 * 60 * 1000, // 2 minutes stale time for cash data
   });
 
   // Fetch status data
-  const { data: statusData, isLoading: statusLoading, refetch: refetchStatus } = useQuery({
+  const { data: statusData, isLoading: statusLoading, refetch: refetchStatus } = useQuery<any>({
     queryKey: [`/api/machines/${machineId}/status`],
     enabled: !!machineId && activeTab === 'status',
     staleTime: 1 * 60 * 1000, // 1 minute stale time for status data
@@ -2450,6 +2450,35 @@ export default function AutomatDetail() {
             </div>
           ) : cashData?.success ? (
             <div className="space-y-6">
+              {/* Low Stock Alert */}
+              {cashData.data.result?.coins_per_tube && (
+                (() => {
+                  const lowStockTubes = cashData.data.result.coins_per_tube.filter((tube: any) => tube.count < 5);
+                  return lowStockTubes.length > 0 ? (
+                    <Card className="border-red-500 bg-red-50">
+                      <CardHeader className="pb-3">
+                        <CardTitle className="flex items-center gap-2 text-red-600">
+                          <AlertTriangle className="h-5 w-5" />
+                          Münzstand-Warnung
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-sm text-red-800 mb-2">
+                          {lowStockTubes.length} Münzröhre{lowStockTubes.length > 1 ? 'n haben' : ' hat'} weniger als 5 Münzen:
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {lowStockTubes.map((tube: any) => (
+                            <Badge key={tube.tube} variant="destructive" className="text-xs">
+                              {formatCurrency(tube.value / 100)}: {tube.count} Münzen
+                            </Badge>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ) : null;
+                })()
+              )}
+              
               {/* Cash Overview */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <Card>
@@ -2509,31 +2538,42 @@ export default function AutomatDetail() {
                   </CardHeader>
                   <CardContent>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
-                      {cashData.data.result.coins_per_tube.map((tube: any, index: number) => (
-                        <Card key={tube.tube || index} className="border-2">
-                          <CardContent className="p-4 text-center">
-                            <div className="space-y-2">
-                              <div className="text-lg font-bold text-primary">
-                                {formatCurrency(tube.value / 100)} Münzen
+                      {cashData.data.result.coins_per_tube.map((tube: any, index: number) => {
+                        const isLowStock = tube.count < 5;
+                        return (
+                          <Card key={tube.tube || index} className={`border-2 ${isLowStock ? 'border-red-500 bg-red-50' : ''}`}>
+                            <CardContent className="p-4 text-center">
+                              <div className="space-y-2">
+                                <div className="text-lg font-bold text-primary">
+                                  {formatCurrency(tube.value / 100)} Münzen
+                                </div>
+                                <div className={`text-2xl font-bold ${isLowStock ? 'text-red-600' : ''}`}>
+                                  {tube.count}
+                                  {isLowStock && (
+                                    <AlertTriangle className="h-5 w-5 text-red-600 inline ml-2" />
+                                  )}
+                                </div>
+                                <div className="text-sm text-muted-foreground">
+                                  Röhre {tube.tube}
+                                </div>
+                                <div className="text-xs font-medium text-green-600">
+                                  Wert: {formatCurrency((tube.value * tube.count) / 100)}
+                                </div>
+                                {isLowStock && (
+                                  <Badge variant="destructive" className="text-xs">
+                                    ⚠️ Weniger als 5 Münzen!
+                                  </Badge>
+                                )}
+                                {tube.critical > 0 && !isLowStock && (
+                                  <Badge variant="secondary" className="text-xs">
+                                    Kritisch bei {tube.critical}
+                                  </Badge>
+                                )}
                               </div>
-                              <div className="text-2xl font-bold">
-                                {tube.count}
-                              </div>
-                              <div className="text-sm text-muted-foreground">
-                                Röhre {tube.tube}
-                              </div>
-                              <div className="text-xs font-medium text-green-600">
-                                Wert: {formatCurrency((tube.value * tube.count) / 100)}
-                              </div>
-                              {tube.critical > 0 && (
-                                <Badge variant="destructive" className="text-xs">
-                                  Kritisch bei {tube.critical}
-                                </Badge>
-                              )}
-                            </div>
-                          </CardContent>
-                        </Card>
-                      ))}
+                            </CardContent>
+                          </Card>
+                        );
+                      })}
                     </div>
                   </CardContent>
                 </Card>
