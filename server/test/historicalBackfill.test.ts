@@ -1,5 +1,5 @@
 /**
- * Tests für Historische Vendon-Synchronisation
+ * C1) Tests für Historische Vendon-Synchronisation
  * 
  * Unit- und Integrationstests für die implementierten Komponenten:
  * - WatermarkStore
@@ -8,10 +8,34 @@
  * - Upsert-Funktionalität
  */
 
-import { describe, test, expect, beforeEach } from '@jest/globals';
+// Simple test framework (no Jest dependency needed)
+interface TestResult {
+  name: string;
+  passed: boolean;
+  error?: string;
+}
+
+class SimpleTestRunner {
+  private results: TestResult[] = [];
+
+  async test(name: string, testFn: () => Promise<void> | void): Promise<void> {
+    try {
+      await testFn();
+      this.results.push({ name, passed: true });
+      console.log(`✅ ${name}`);
+    } catch (error) {
+      this.results.push({ name, passed: false, error: String(error) });
+      console.log(`❌ ${name}: ${error}`);
+    }
+  }
+
+  summary(): { passed: number; failed: number; total: number } {
+    const passed = this.results.filter(r => r.passed).length;
+    const failed = this.results.length - passed;
+    return { passed, failed, total: this.results.length };
+  }
+}
 import { watermarkStore } from '../services/watermarkStore';
-import { historicalBackfillService } from '../services/historicalBackfillService';
-import { vendonDeltaSync } from '../services/vendonDeltaSync';
 import { storage } from '../storage';
 
 // Mock-Daten für Tests
@@ -41,13 +65,13 @@ const mockTransactions = [
   }
 ];
 
-describe('WatermarkStore', () => {
-  beforeEach(async () => {
-    // Cleanup vor jedem Test
-    await watermarkStore.deleteWatermark(mockMachineId);
-  });
+// Test execution function
+async function runTests() {
+  const runner = new SimpleTestRunner();
+  console.log('🚀 Starte C1) Tests für historische Vendon-Synchronisation\n');
 
-  test('sollte Watermark für neue Maschine initialisieren', async () => {
+  // C1) Unit Tests
+  await runner.test('WatermarkStore: Initialisierung einer neuen Maschine', async () => {
     const testDate = new Date('2024-01-15T00:00:00Z');
     const success = await watermarkStore.initializeWatermark(mockMachineId, testDate);
     

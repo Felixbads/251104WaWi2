@@ -6,7 +6,6 @@
  * - Ratenbegrenzung zur Vermeidung von API-Limits
  */
 
-const DEFAULT_API_KEY = process.env.VENDON_API_KEY || '';
 // Basierend auf der API-Dokumentation
 const DEFAULT_API_BASE_URL = 'https://cloud.vendon.net/rest/v1.8.0';
 
@@ -23,7 +22,13 @@ export class VendonAPI {
   private requestCount: number = 0;
   
   constructor(apiKey?: string, apiBaseUrl?: string) {
-    this.apiKey = apiKey || DEFAULT_API_KEY;
+    // A2.2) Auth sichern: Hardcoded/Fallback API-Key entfernen. Nur ENV akzeptieren, sonst fail-fast
+    const envApiKey = process.env.VENDON_API_KEY;
+    if (!envApiKey && !apiKey) {
+      throw new Error('VENDON_API_KEY environment variable is required. No fallback allowed for production safety.');
+    }
+    
+    this.apiKey = apiKey || envApiKey!;
     this.apiBaseUrl = apiBaseUrl || DEFAULT_API_BASE_URL;
     
     // Masking des API-Keys für Logs
@@ -31,7 +36,6 @@ export class VendonAPI {
       "****" + this.apiKey.slice(-4) : "****";
     console.log(`Vendon API initialisiert mit Basis-URL: ${this.apiBaseUrl}`);
     console.log(`API-Schlüssel: ${maskedKey}`);
-    
   }
   
   /**
@@ -102,7 +106,7 @@ export class VendonAPI {
           return null; // No Content
         }
         
-        // 429 Rate Limit - Retry-After Header parsen und respektieren (vor JSON parsing)
+        // B1) 429 Rate Limit - Retry-After Header parsen und respektieren (vor JSON parsing)
         if (response.status === 429) {
           const retryAfterHeader = response.headers.get('Retry-After');
           let sleepMs = Math.min(2 ** retries * 1000, 15000); // Fallback: exponential backoff
@@ -111,11 +115,14 @@ export class VendonAPI {
             const retryAfterSeconds = parseFloat(retryAfterHeader);
             if (!isNaN(retryAfterSeconds)) {
               sleepMs = retryAfterSeconds * 1000;
-              console.log(`429 Rate Limit: Warte ${retryAfterSeconds} Sekunden (Retry-After Header)`);
+              console.warn(`⚠️ 429 Rate Limit: Warte ${retryAfterSeconds} Sekunden (Retry-After Header). Versuch ${retries + 1}/${MAX_RETRIES}`);
             }
           } else {
-            console.log(`429 Rate Limit: Warte ${sleepMs}ms (exponential backoff)`);
+            console.warn(`⚠️ 429 Rate Limit: Warte ${sleepMs}ms (exponential backoff). Versuch ${retries + 1}/${MAX_RETRIES}`);
           }
+          
+          // B1) Logging von 429-Ereignissen mit Level WARN und Metadaten
+          console.warn(`🚨 API Rate Limit erreicht: Endpoint ${endpoint}, Retry ${retries + 1}/${MAX_RETRIES}, Wartezeit ${sleepMs}ms`);
           
           await new Promise(resolve => setTimeout(resolve, sleepMs));
           retries++;
@@ -263,18 +270,25 @@ export class VendonAPI {
     to_timestamp: number;
     limit?: number;
     offset?: number;
-    machine_id?: string | number;
+    machine_id: string | number; // A2.1) Parameter erzwingen: machine_id NICHT optional
     search_time?: 'registered' | 'transaction' | 'updated';
     sort?: string;
   }): Promise<any> {
     try {
+      // A2.1) Parameter erzwingen: machine_id immer setzen, sonst throw
+      if (!params.machine_id) {
+        throw new Error('machine_id is required for all transaction requests. No fallback allowed.');
+      }
+
       console.log(`Verwende Zeitraum: ${new Date(params.from_timestamp * 1000).toISOString()} bis ${new Date(params.to_timestamp * 1000).toISOString()}`);
       console.log(`Timestamps: ${params.from_timestamp} bis ${params.to_timestamp}`);
       
       // Erweiterte Parameter für historische Synchronisation
       const requestParams = {
         ...params,
-        // Standard-Sort explizit auf -transaction_id setzen für deterministische Pagination
+        // A2.1) search_time='updated' standardmäßig im Delta-/Scheduler-Pfad
+        search_time: params.search_time || 'updated',
+        // A2.1) sort='-transaction_id' als Default
         sort: params.sort || '-transaction_id'
       };
       
@@ -300,15 +314,20 @@ export class VendonAPI {
     sort?: string;
   }): Promise<{ items: any[]; count?: number }> {
     try {
-      // Immer machine_id übergeben (Pflichtparameter)
+      // A2.1) Parameter erzwingen: machine_id immer setzen, sonst throw
+      if (!params.machineId) {
+        throw new Error('machineId is required for all transaction requests. No fallback allowed.');
+      }
+
       const requestParams = {
         machine_id: params.machineId,
         from_timestamp: params.fromTs,
         to_timestamp: params.toTs,
         limit: params.limit || 500,
         offset: params.offset || 0,
-        search_time: params.searchTime,
-        // Standard-Sort explizit auf -transaction_id setzen für deterministische Pagination
+        // A2.1) search_time='updated' standardmäßig im Delta-/Scheduler-Pfad
+        search_time: params.searchTime || 'updated',
+        // A2.1) sort='-transaction_id' als Default
         sort: params.sort || '-transaction_id'
       };
 

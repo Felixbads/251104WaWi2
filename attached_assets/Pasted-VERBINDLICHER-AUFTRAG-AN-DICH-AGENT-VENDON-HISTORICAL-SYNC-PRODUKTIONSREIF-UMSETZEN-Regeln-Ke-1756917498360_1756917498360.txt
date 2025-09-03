@@ -1,0 +1,124 @@
+VERBINDLICHER AUFTRAG AN DICH (AGENT): VENDON-HISTORICAL-SYNC PRODUKTIONSREIF UMSETZEN
+
+Regeln
+	•	Kein Workaround, kein “später”: Alle Punkte jetzt vollständig umsetzen.
+	•	Keine Mock-/Fake-Daten: Nutze ausschließlich echte DB-Strukturen und echten Code.
+	•	Keine kosmetischen Änderungen: Jede Anforderung muss im Code und per Tests nachweisbar sein.
+	•	Melden erst nach Abschluss: Du meldest dich erst, wenn alle Schritte umgesetzt, lokal getestet und verifiziert sind – inklusive Artefakte (siehe „Abgabe“).
+
+⸻
+
+A. BLOCKER (P0) — SOFORT UMSETZEN
+
+A1) Datenbank & Schema (Migrationen)
+	1.	Tabelle Watermarks
+	•	vendon_watermarks(machine_id TEXT PRIMARY KEY, last_updated_at TIMESTAMP NOT NULL)
+	2.	Idempotenz & Delta
+	•	Unique-Index: transactions(machine_id, vendon_id)
+	•	Index: transactions(updated_at)
+	3.	ORM/Schema anpassen (z. B. shared/schema.ts) – die obigen Constraints/Indizes müssen dort widerspiegeln.
+	4.	Anwenden: Lokale Migrationen ausführen; Nachweis über Schema-Dump/ORM-Status.
+
+A2) API-Client (z. B. server/services/vendonSync.ts)
+	1.	Parameter erzwingen:
+	•	machine_id immer setzen, sonst throw.
+	•	search_time='updated' standardmäßig im Delta-/Scheduler-Pfad.
+	•	sort='-transaction_id' als Default.
+	2.	Auth sichern:
+	•	Hardcoded/Fallback API-Key entfernen. Nur ENV akzeptieren, sonst fail-fast mit klarer Fehlermeldung.
+	3.	Rate-Limit beachten:
+	•	Bei HTTP 429: Retry-After aus Header parsen, pausieren, danach retry.
+	•	Backoff-Strategie beibehalten/ergänzen (aber Retry-After priorisieren).
+
+A3) Persistenz/Storage (Upsert statt Duplikat-Hacks)
+	1.	Upsert-Funktionen einführen:
+	•	upsertTransaction(tx) & upsertTransactionsBatch(list)
+	•	Konfliktschlüssel: (machine_id, vendon_id); DO UPDATE mit Feldern (inkl. updated_at).
+	2.	Alte Duplikatlogik entfernen:
+	•	Kein Modifizieren/“Umbenennen” von IDs mehr.
+	•	Kein manueller Vorab-Existenzcheck als Hauptpfad – Upsert erledigt das.
+
+A4) WatermarkStore (neu)
+	1.	Implementierung:
+	•	get(machineId) -> Date | null
+	•	set(machineId, ts: Date)
+	2.	Fortschreibung:
+	•	Nach jedem Batch: Watermark auf max(updated_at) der eingeflossenen Transaktionen setzen (nur bei erfolgreichen Writes).
+
+A5) Backfill-Service & CLI
+	1.	Service HistoricalBackfillService.runBackfill(machineId, fromTs, toTs, chunkDays=14, pageSize=500, dryRun=false, maxPagesPerWindow?)
+	•	Chunking (Fenster), Pagination (limit/offset), Safety-Valve (maxPagesPerWindow)
+	•	dryRun=true → keine DB-Writes (hart sicherstellen)
+	2.	CLI npm run backfill -- --machine-id=<id|all> --from=<UNIX> --to=<UNIX> --chunk=<tage> --limit=<n> --dry-run --concurrency=<n> --max-pages-per-window=<n>
+	•	Exit-Codes: 0=OK, >0=Fehler
+
+A6) Scheduler auf Delta-Sync umstellen
+	1.	Pro Maschine Watermark laden → Zeitfenster ableiten.
+	2.	Delta-Request: search_time=updated + sort=-transaction_id + Pflicht machine_id.
+	3.	Nach erfolgreichem Lauf Watermark aktualisieren.
+	4.	Parallel-Läufe verhindern (Lock je machine_id oder zentrale Orchestrierung).
+
+⸻
+
+B. HOHE PRIORITÄT (P1)
+
+B1) Fehler-/Retry-Strategie schärfen
+	•	Logging von 429-Ereignissen (Level, Wartezeit).
+	•	Retries mit Zähler/Abbruchkriterien (kein Endlos-Loop).
+
+B2) Observability
+	•	Strukturierte Logs (window, page, offset, fetched, upserted, skipped, duration, retries).
+	•	Metriken (Counters/Histogramme) für fetched/upserted/skipped/duration/retries; einfache Alertbedingungen.
+
+⸻
+
+C. NICE-TO-HAVE (P2)
+
+C1) Tests (trotz „nice“ bitte mindestens Basis liefern)
+	•	Unit: Watermark-Fortschreibung (max updated_at), Upsert-Idempotenz, API-Param-Komposition.
+	•	Integration (Mock API): Pagination, leere Seite, 5xx/Timeout, 429 mit Retry-After, Resume nach Abbruch.
+	•	CLI: Dry-Run (0 Writes) vs. Live (Upserts), Exit-Codes.
+
+⸻
+
+D. AKZEPTANZKRITERIEN (Go/No-Go – alle erfüllt, sonst „Nicht fertig“)
+	1.	Schema live: vendon_watermarks, Unique (machine_id, vendon_id), Index updated_at existieren und sind angewendet (Beweis über Dump/Status).
+	2.	API-Client korrekt: machine_id erzwungen, search_time=updated in Delta-Pfad, Default sort=-transaction_id, kein Hard-Key, 429/Retry-After aktiv.
+	3.	Persistenz idempotent: Upserts mit Schlüssel (machine_id, vendon_id); keine manuelle Dupe-Logik mehr.
+	4.	WatermarkStore: wird pro Batch mit max(updated_at) fortgeschrieben; Delta nutzt Watermark.
+	5.	Backfill CLI: läuft; Dry-Run schreibt nichts; Live upsertet ohne Duplikate; Exit-Codes korrekt.
+	6.	Scheduler: arbeitet im Delta-Modus (Watermark-basiert) und nutzt die erzwungenen API-Parameter.
+	7.	Observability: Logs/Metriken vorhanden und sinnvoll.
+
+⸻
+
+E. SELBSTPRÜFUNG (lokal ausführen & mitliefern)
+
+E1) Dry-Run Backfill (Beispiel)
+
+npm run backfill -- --machine-id=<MID> --from=<UNIX_FROM> --to=<UNIX_TO> --chunk=14 --limit=500 --dry-run --concurrency=1
+
+	•	Erwartung: Logs mit Fenstern/Seiten/0 Writes, Summary (fetched/skipped/duration)
+
+E2) Live-Backfill (gleiche Parameter, ohne --dry-run)
+	•	Erwartung: Upserts > 0, keine Duplikatfehler; vendon_watermarks aktualisiert (SELECT-Nachweis)
+
+E3) Delta-Scheduler-Tick
+	•	Trigger Scheduler; Log-Nachweis: Requests mit machine_id, search_time=updated, sort=-transaction_id; Watermark steigt.
+
+⸻
+
+F. ABGABE (Pflicht-Artefakte in deinem PR)
+	•	Migrations (Watermarks/Indizes) + Schema-Dump/ORM-Status als Beleg
+	•	Code-Änderungen (API-Client, Storage/Upserts, WatermarkStore, Backfill-Service, Scheduler, CLI)
+	•	Runbook (Runbook_Prod.md): Befehle, erwartete Log-Muster, Troubleshooting
+	•	VerificationReport_Prod.md: Pfad+Zeile+Snippet als Beweis je Akzeptanzpunkt
+	•	(Optional aber empfohlen) Tests: Kurzbericht + „grün“ Nachweis
+
+⸻
+
+G. HINWEIS ZUR STRIKTHEIT
+
+Wenn irgendein Punkt oben unvollständig bleibt (z. B. Unique-Index fehlt, API-Key hardcoded, search_time/sort nicht gesetzt, 429 unbehandelt, Dry-Run schreibt doch):
+→ Nicht abschließen. Erst vollständig beheben, selbst prüfen, Belege beifügen.
+Erst danach: Rückmeldung „Fertig“ mit Verweis auf PR und Artefakte.
