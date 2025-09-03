@@ -692,7 +692,7 @@ export default function Dashboard() {
             {/* Enhanced Weather, Holiday & Sales Forecast Tile - ANKLICKBAR */}
             <Card 
               className="cursor-pointer hover:shadow-md transition-all duration-200"
-              onClick={() => setLocation('/forecast-factors')}
+              onClick={() => setLocation('/enhanced-forecast')}
             >
               <CardHeader>
                 <CardTitle className="flex items-center text-lg">
