@@ -344,6 +344,13 @@ export default function AutomatDetail() {
     staleTime: 5 * 60 * 1000,
   });
 
+  // Fetch cash data
+  const { data: cashData, isLoading: cashLoading, refetch: refetchCash } = useQuery({
+    queryKey: [`/api/machines/${machineId}/cash`],
+    enabled: !!machineId && activeTab === 'cash',
+    staleTime: 2 * 60 * 1000, // 2 minutes stale time for cash data
+  });
+
   // Stock summary calculation with aggregation
   const stockSummary = useMemo(() => {
     if (!machineStock) return null;
@@ -778,6 +785,12 @@ export default function AutomatDetail() {
                 className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-3 text-sm font-medium whitespace-nowrap min-w-[120px] h-12"
               >
                 Refill-Vorlagen
+              </TabsTrigger>
+              <TabsTrigger 
+                value="cash"
+                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-3 text-sm font-medium whitespace-nowrap min-w-[80px] h-12"
+              >
+                Cash
               </TabsTrigger>
             </TabsList>
           </div>
@@ -2398,6 +2411,192 @@ export default function AutomatDetail() {
                 )
               ))}
             </div>
+          )}
+        </TabsContent>
+
+        {/* Cash Tab */}
+        <TabsContent value="cash" className="space-y-6 mt-0">
+          {cashLoading ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {[...Array(6)].map((_, i) => (
+                <Card key={i}>
+                  <CardHeader>
+                    <Skeleton className="h-6 w-32" />
+                  </CardHeader>
+                  <CardContent>
+                    <Skeleton className="h-20 w-full" />
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : cashData?.success ? (
+            <div className="space-y-6">
+              {/* Cash Overview */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="flex items-center gap-2 text-lg">
+                      <Euro className="h-5 w-5 text-green-600" />
+                      Cash Box
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-3xl font-bold text-green-600">
+                      {formatCurrency(cashData.data.result?.cash_box || 0)}
+                    </div>
+                    <p className="text-sm text-muted-foreground mt-1">Bargeld im Automaten</p>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="flex items-center gap-2 text-lg">
+                      <Euro className="h-5 w-5 text-blue-600" />
+                      Scheine
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-3xl font-bold text-blue-600">
+                      {formatCurrency(cashData.data.result?.bill_stacker || 0)}
+                    </div>
+                    <p className="text-sm text-muted-foreground mt-1">Scheine im Stapel</p>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="flex items-center gap-2 text-lg">
+                      <Euro className="h-5 w-5 text-purple-600" />
+                      Gesamt
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-3xl font-bold text-purple-600">
+                      {formatCurrency((cashData.data.result?.cash_box || 0) + (cashData.data.result?.bill_stacker || 0))}
+                    </div>
+                    <p className="text-sm text-muted-foreground mt-1">Gesamtes Bargeld</p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Coin Tubes */}
+              {cashData.data.result?.coins_per_tube && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Package className="h-5 w-5" />
+                      Münzröhren
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+                      {cashData.data.result.coins_per_tube.map((tube: any, index: number) => (
+                        <Card key={tube.tube || index} className="border-2">
+                          <CardContent className="p-4 text-center">
+                            <div className="space-y-2">
+                              <div className="text-lg font-bold text-primary">
+                                {formatCurrency(tube.value / 100)} Münzen
+                              </div>
+                              <div className="text-2xl font-bold">
+                                {tube.count}
+                              </div>
+                              <div className="text-sm text-muted-foreground">
+                                Röhre {tube.tube}
+                              </div>
+                              <div className="text-xs font-medium text-green-600">
+                                Wert: {formatCurrency((tube.value * tube.count) / 100)}
+                              </div>
+                              {tube.critical > 0 && (
+                                <Badge variant="destructive" className="text-xs">
+                                  Kritisch bei {tube.critical}
+                                </Badge>
+                              )}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Additional Cash Info */}
+              {(cashData.data.result?.overpay || cashData.data.result?.tokens) && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Zusätzliche Informationen</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {cashData.data.result.overpay && (
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium text-muted-foreground">Überzahlung</Label>
+                          <div className="text-xl font-bold">{formatCurrency(cashData.data.result.overpay)}</div>
+                        </div>
+                      )}
+                      {cashData.data.result.tokens && (
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium text-muted-foreground">Token</Label>
+                          <div className="text-xl font-bold">{cashData.data.result.tokens}</div>
+                          {cashData.data.result.tokens_value && (
+                            <div className="text-sm text-muted-foreground">
+                              Wert: {formatCurrency(cashData.data.result.tokens_value)}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Cash Summary Chart */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Münzverteilung</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-80">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={cashData.data.result?.coins_per_tube?.map((tube: any) => ({
+                        name: `${formatCurrency(tube.value / 100)}`,
+                        anzahl: tube.count,
+                        wert: (tube.value * tube.count) / 100,
+                        tube: tube.tube
+                      })) || []}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="name" />
+                        <YAxis yAxisId="left" orientation="left" />
+                        <YAxis yAxisId="right" orientation="right" />
+                        <Tooltip 
+                          formatter={(value, name) => [
+                            name === 'anzahl' ? `${value} Münzen` : formatCurrency(Number(value)),
+                            name === 'anzahl' ? 'Anzahl' : 'Gesamtwert'
+                          ]}
+                        />
+                        <Legend />
+                        <Bar yAxisId="left" dataKey="anzahl" name="Anzahl" fill="#3b82f6" />
+                        <Bar yAxisId="right" dataKey="wert" name="Wert (€)" fill="#10b981" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          ) : (
+            <Card>
+              <CardContent className="p-8 text-center">
+                <AlertCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-medium mb-2">Cash-Daten nicht verfügbar</h3>
+                <p className="text-muted-foreground">
+                  Die Cash-Daten für diese Maschine konnten nicht geladen werden.
+                </p>
+                <Button onClick={() => refetchCash()} className="mt-4" variant="outline">
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Erneut versuchen
+                </Button>
+              </CardContent>
+            </Card>
           )}
         </TabsContent>
         

@@ -300,6 +300,21 @@ export class VendonAPI {
       return null;
     }
   }
+
+  /**
+   * Holt Cash-Informationen für einen bestimmten Automaten
+   * @param machineId Die Automaten-ID
+   * @returns Cash-Daten oder null im Fehlerfall
+   */
+  async getMachineCash(machineId: string): Promise<any | null> {
+    try {
+      console.log(`[VENDON API] Fetching cash data for machine ${machineId}`);
+      return await this.request(`/machine/${machineId}/cash`);
+    } catch (error) {
+      console.error(`Fehler beim Abrufen der Cash-Daten für Automat ${machineId}:`, error);
+      return null;
+    }
+  }
 }
 
 /**

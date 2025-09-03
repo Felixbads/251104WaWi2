@@ -3,8 +3,14 @@ import { db, rawDb } from '../db';
 import { eq, desc, and, gte, lte, count, sql } from 'drizzle-orm';
 import { machines, transactions, refills, events, locationCosts } from '../../shared/schema';
 import { storage } from '../storage';
+import { VendonAPI } from '../services/vendonAPI';
+import { replitAuthMiddleware } from '../auth/replit-auth';
 
 const router = Router();
+const vendonAPI = new VendonAPI();
+
+// Apply authentication middleware to protected routes
+router.use(replitAuthMiddleware);
 
 /**
  * GET /api/machines
@@ -1801,6 +1807,82 @@ router.get('/:id/profitability', async (req, res) => {
     const errorMessage = error instanceof Error ? error.message : 'Unbekannter Fehler';
     res.status(500).json({
       error: 'Fehler bei der Rentabilitätsberechnung',
+      message: errorMessage
+    });
+  }
+});
+
+/**
+ * GET /api/machines/:id/cash
+ * Get cash data for a machine from Vendon API
+ */
+router.get('/:id/cash', async (req, res) => {
+  try {
+    const inputId = req.params.id;
+    console.log(`[MACHINES API] Fetching cash data for machine ID: ${inputId}`);
+
+    // Resolve machine to get Vendon ID
+    let vendonMachineId: string;
+    
+    const parsedId = parseInt(inputId);
+    if (!isNaN(parsedId)) {
+      // Check if it's an internal ID
+      const machineCheck = await rawDb.query(
+        'SELECT vendon_id FROM machines WHERE id = $1 LIMIT 1',
+        [parsedId]
+      );
+      
+      if (machineCheck.rows.length > 0) {
+        vendonMachineId = machineCheck.rows[0].vendon_id;
+      } else {
+        // Try as location_id
+        const locationCheck = await rawDb.query(
+          'SELECT vendon_id FROM machines WHERE location_id = $1 LIMIT 1',
+          [parsedId]
+        );
+        
+        if (locationCheck.rows.length > 0) {
+          vendonMachineId = locationCheck.rows[0].vendon_id;
+        } else {
+          // Use as vendon_id directly
+          vendonMachineId = parsedId.toString();
+        }
+      }
+    } else {
+      // Use as vendon_id string directly
+      vendonMachineId = inputId;
+    }
+
+    if (!vendonMachineId) {
+      return res.status(404).json({ 
+        error: 'Maschine nicht gefunden oder keine Vendon-ID verfügbar' 
+      });
+    }
+
+    console.log(`[MACHINES API] Using Vendon machine ID: ${vendonMachineId} for cash data`);
+
+    // Fetch cash data from Vendon API
+    const cashData = await vendonAPI.getMachineCash(vendonMachineId);
+
+    if (!cashData) {
+      return res.status(404).json({ 
+        error: 'Cash-Daten für diese Maschine nicht verfügbar',
+        vendonMachineId 
+      });
+    }
+
+    console.log(`[MACHINES API] Cash data retrieved for machine ${vendonMachineId}`);
+    res.json({
+      success: true,
+      vendonMachineId,
+      data: cashData
+    });
+
+  } catch (error) {
+    console.error(`[MACHINES API] Error fetching cash data for machine ${req.params.id}:`, error);
+    const errorMessage = error instanceof Error ? error.message : 'Unbekannter Fehler';
+    res.status(500).json({
+      error: 'Fehler beim Abrufen der Cash-Daten',
       message: errorMessage
     });
   }
