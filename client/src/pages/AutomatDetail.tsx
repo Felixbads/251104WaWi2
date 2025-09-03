@@ -21,7 +21,13 @@ import {
   Edit,
   Plus,
   Download,
-  Filter
+  Filter,
+  Minus,
+  Share,
+  Eye,
+  EyeOff,
+  Copy,
+  Save
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -249,6 +255,9 @@ export default function AutomatDetail() {
     name: '',
     description: ''
   });
+  const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(null);
+  const [expandedTemplates, setExpandedTemplates] = useState<Set<number>>(new Set());
+  const [editingProduct, setEditingProduct] = useState<{ templateId: number; productId: number } | null>(null);
   const { toast } = useToast();
 
   const machineId = params?.id;
@@ -542,6 +551,35 @@ export default function AutomatDetail() {
     onSuccess: () => {
       refetchRefillTemplates();
       toast({ title: "Standard-Vorlage aktualisiert", description: "Die Standard-Vorlage wurde erfolgreich geändert." });
+    },
+  });
+
+  const updateProductQuantityMutation = useMutation({
+    mutationFn: async ({ templateId, productId, quantity }: { templateId: number; productId: number; quantity: number }) => {
+      const response = await fetch(`/api/refilltemplates/${templateId}/products/${productId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ quantity }),
+      });
+      if (!response.ok) throw new Error('Fehler beim Aktualisieren der Produktmenge');
+      return response.json();
+    },
+    onSuccess: () => {
+      refetchRefillTemplates();
+    },
+  });
+
+  const syncWithVendonMutation = useMutation({
+    mutationFn: async (templateId: number) => {
+      const response = await fetch(`/api/refilltemplates/${templateId}/sync-vendon`, {
+        method: 'POST',
+      });
+      if (!response.ok) throw new Error('Fehler beim Synchronisieren mit Vendon');
+      return response.json();
+    },
+    onSuccess: () => {
+      refetchRefillTemplates();
+      toast({ title: "Mit Vendon synchronisiert", description: "Die Vorlage wurde erfolgreich mit Vendon synchronisiert." });
     },
   });
 
@@ -2119,8 +2157,29 @@ export default function AutomatDetail() {
                         <TableCell>{formatDate(template.updatedAt)}</TableCell>
                         <TableCell>
                           <div className="flex items-center space-x-2">
-                            <Button variant="outline" size="sm">
-                              <Edit className="h-4 w-4" />
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => {
+                                const isExpanded = expandedTemplates.has(template.id);
+                                const newExpanded = new Set(expandedTemplates);
+                                if (isExpanded) {
+                                  newExpanded.delete(template.id);
+                                } else {
+                                  newExpanded.add(template.id);
+                                }
+                                setExpandedTemplates(newExpanded);
+                              }}
+                            >
+                              {expandedTemplates.has(template.id) ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                            </Button>
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => syncWithVendonMutation.mutate(template.id)}
+                              disabled={syncWithVendonMutation.isPending}
+                            >
+                              <Share className="h-4 w-4" />
                             </Button>
                             <Button 
                               variant="outline" 
@@ -2152,41 +2211,145 @@ export default function AutomatDetail() {
             </Card>
           )}
 
-          {/* Template Details */}
+          {/* Enhanced Template Product Details with +/- Controls */}
           {filteredRefillTemplates?.length > 0 && (
-            <div className="grid gap-4">
+            <div className="grid gap-6">
               {filteredRefillTemplates.map((template: RefillTemplate) => (
-                template.products?.length > 0 && (
-                  <Card key={`details-${template.id}`}>
+                expandedTemplates.has(template.id) && template.products?.length > 0 && (
+                  <Card key={`enhanced-${template.id}`} className="border-2">
                     <CardHeader>
-                      <CardTitle className="text-lg flex items-center justify-between">
-                        <span>Details: {template.name}</span>
-                        {template.isDefault && (
-                          <Badge variant="default">Standard-Vorlage</Badge>
-                        )}
-                      </CardTitle>
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-lg flex items-center gap-2">
+                          <Package className="h-5 w-5" />
+                          {template.name}
+                          {template.isDefault && (
+                            <Badge variant="default">Standard-Vorlage</Badge>
+                          )}
+                        </CardTitle>
+                        <div className="flex items-center space-x-2">
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => syncWithVendonMutation.mutate(template.id)}
+                            disabled={syncWithVendonMutation.isPending}
+                          >
+                            <Share className="h-4 w-4 mr-2" />
+                            Mit Vendon sync
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => {
+                              const newExpanded = new Set(expandedTemplates);
+                              newExpanded.delete(template.id);
+                              setExpandedTemplates(newExpanded);
+                            }}
+                          >
+                            <EyeOff className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
                     </CardHeader>
                     <CardContent>
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         {template.products.map((product: RefillTemplateProduct, index: number) => (
-                          <div key={`${template.id}-product-${index}`} className="border rounded p-4">
-                            <h4 className="font-medium mb-2">{product.productName}</h4>
-                            <div className="space-y-1 text-sm">
-                              <div className="flex justify-between">
-                                <span>Auffüll-Menge:</span>
-                                <span className="font-medium">{product.quantity}</span>
+                          <Card key={`${template.id}-enhanced-${index}`} className="border shadow-sm hover:shadow-md transition-shadow">
+                            <CardContent className="p-4">
+                              <div className="space-y-3">
+                                <h4 className="font-medium text-lg leading-tight">{product.productName}</h4>
+                                
+                                {/* Quantity Controls */}
+                                <div className="bg-blue-50 p-3 rounded-lg">
+                                  <label className="text-sm font-medium text-blue-900 block mb-2">
+                                    Auffüll-Menge
+                                  </label>
+                                  <div className="flex items-center justify-center space-x-3">
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      className="h-8 w-8 p-0 bg-white hover:bg-blue-100"
+                                      onClick={() => {
+                                        const newQuantity = Math.max(0, product.quantity - 1);
+                                        updateProductQuantityMutation.mutate({
+                                          templateId: template.id,
+                                          productId: product.productId,
+                                          quantity: newQuantity
+                                        });
+                                      }}
+                                      disabled={updateProductQuantityMutation.isPending || product.quantity <= 0}
+                                    >
+                                      <Minus className="h-4 w-4" />
+                                    </Button>
+                                    
+                                    <div className="bg-white px-4 py-2 rounded border font-bold text-lg min-w-[60px] text-center">
+                                      {product.quantity}
+                                    </div>
+                                    
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      className="h-8 w-8 p-0 bg-white hover:bg-blue-100"
+                                      onClick={() => {
+                                        const newQuantity = product.quantity + 1;
+                                        updateProductQuantityMutation.mutate({
+                                          templateId: template.id,
+                                          productId: product.productId,
+                                          quantity: newQuantity
+                                        });
+                                      }}
+                                      disabled={updateProductQuantityMutation.isPending}
+                                    >
+                                      <Plus className="h-4 w-4" />
+                                    </Button>
+                                  </div>
+                                </div>
+
+                                {/* Product Details */}
+                                <div className="space-y-2 text-sm">
+                                  <div className="flex justify-between items-center p-2 bg-gray-50 rounded">
+                                    <span className="text-gray-600">Min. Auffüllung:</span>
+                                    <span className="font-medium">{product.minRefill}</span>
+                                  </div>
+                                  <div className="flex justify-between items-center p-2 bg-gray-50 rounded">
+                                    <span className="text-gray-600">Max. Kapazität:</span>
+                                    <span className="font-medium">{product.maxCapacity}</span>
+                                  </div>
+                                  <div className="flex justify-between items-center p-2 bg-green-50 rounded">
+                                    <span className="text-green-700 font-medium">Füllgrad:</span>
+                                    <span className="font-bold text-green-800">
+                                      {product.maxCapacity > 0 ? Math.round((product.quantity / product.maxCapacity) * 100) : 0}%
+                                    </span>
+                                  </div>
+                                </div>
                               </div>
-                              <div className="flex justify-between">
-                                <span>Min. Auffüllung:</span>
-                                <span>{product.minRefill}</span>
-                              </div>
-                              <div className="flex justify-between">
-                                <span>Max. Kapazität:</span>
-                                <span>{product.maxCapacity}</span>
-                              </div>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+                      
+                      {/* Template Summary */}
+                      <div className="mt-6 p-4 bg-gray-50 rounded-lg">
+                        <h4 className="font-medium mb-2">Vorlagen-Zusammenfassung</h4>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                          <div>
+                            <span className="text-muted-foreground">Produkte:</span>
+                            <div className="font-medium">{template.products.length}</div>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Gesamt-Menge:</span>
+                            <div className="font-medium">
+                              {template.products.reduce((sum, p) => sum + p.quantity, 0)}
                             </div>
                           </div>
-                        ))}
+                          <div>
+                            <span className="text-muted-foreground">Erstellt:</span>
+                            <div className="font-medium">{formatDateOnly(template.createdAt)}</div>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Aktualisiert:</span>
+                            <div className="font-medium">{formatDateOnly(template.updatedAt)}</div>
+                          </div>
+                        </div>
                       </div>
                     </CardContent>
                   </Card>
