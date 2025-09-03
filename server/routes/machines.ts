@@ -1888,4 +1888,79 @@ router.get('/:id/cash', async (req, res) => {
   }
 });
 
+/**
+ * GET /api/machines/:id/status
+ * Get status data for a machine from Vendon API
+ */
+router.get('/:id/status', async (req, res) => {
+  try {
+    const inputId = req.params.id;
+    console.log(`[MACHINES API] Fetching status data for machine ID: ${inputId}`);
+
+    // Resolve machine to get Vendon ID
+    let vendonMachineId: string;
+    
+    const parsedId = parseInt(inputId);
+    if (!isNaN(parsedId)) {
+      // Check if it's an internal ID
+      const machineCheck = await rawDb.query(
+        'SELECT vendon_id FROM machines WHERE id = $1 LIMIT 1',
+        [parsedId]
+      );
+      
+      if (machineCheck.rows.length > 0 && machineCheck.rows[0].vendon_id) {
+        vendonMachineId = machineCheck.rows[0].vendon_id.toString();
+      } else {
+        // Try as location_id
+        const locationCheck = await rawDb.query(
+          'SELECT vendon_id FROM machines WHERE location_id = $1 LIMIT 1',
+          [parsedId]
+        );
+        
+        if (locationCheck.rows.length > 0 && locationCheck.rows[0].vendon_id) {
+          vendonMachineId = locationCheck.rows[0].vendon_id.toString();
+        } else {
+          // Assume it's already a Vendon ID
+          vendonMachineId = inputId;
+        }
+      }
+    } else {
+      vendonMachineId = inputId;
+    }
+
+    if (!vendonMachineId) {
+      return res.status(404).json({ 
+        error: 'Maschine nicht gefunden oder keine Vendon-ID verfügbar' 
+      });
+    }
+
+    console.log(`[MACHINES API] Using Vendon machine ID: ${vendonMachineId} for status data`);
+
+    // Fetch status data from Vendon API
+    const statusData = await vendonAPI.getMachineStatus(vendonMachineId);
+
+    if (!statusData) {
+      return res.status(404).json({ 
+        error: 'Status-Daten für diese Maschine nicht verfügbar',
+        vendonMachineId 
+      });
+    }
+
+    console.log(`[MACHINES API] Status data retrieved for machine ${vendonMachineId}`);
+    res.json({
+      success: true,
+      vendonMachineId,
+      data: statusData
+    });
+
+  } catch (error) {
+    console.error(`[MACHINES API] Error fetching status data for machine ${req.params.id}:`, error);
+    const errorMessage = error instanceof Error ? error.message : 'Unbekannter Fehler';
+    res.status(500).json({
+      error: 'Fehler beim Abrufen der Status-Daten',
+      message: errorMessage
+    });
+  }
+});
+
 export default router;

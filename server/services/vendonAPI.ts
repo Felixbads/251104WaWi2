@@ -315,6 +315,21 @@ export class VendonAPI {
       return null;
     }
   }
+
+  /**
+   * Holt Status-Informationen für einen bestimmten Automaten
+   * @param machineId Die Automaten-ID
+   * @returns Status-Daten oder null im Fehlerfall
+   */
+  async getMachineStatus(machineId: string): Promise<any | null> {
+    try {
+      console.log(`[VENDON API] Fetching status data for machine ${machineId}`);
+      return await this.request(`/machine/${machineId}/status`);
+    } catch (error) {
+      console.error(`Fehler beim Abrufen der Status-Daten für Automat ${machineId}:`, error);
+      return null;
+    }
+  }
 }
 
 /**

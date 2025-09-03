@@ -3,31 +3,37 @@ import { queryClient } from "@/lib/queryClient";
 import { useState, useMemo } from "react";
 import { useRoute } from "wouter";
 import { 
-  ArrowLeft, 
-  RefreshCw, 
-  CheckCircle, 
-  AlertTriangle, 
-  XCircle,
-  MapPin,
-  Calendar,
-  User,
-  Package,
-  TrendingUp,
-  BarChart3,
-  Clock,
-  Euro,
+  Activity,
   AlertCircle,
-  Trash2,
-  Edit,
-  Plus,
+  AlertTriangle, 
+  ArrowLeft, 
+  BarChart3,
+  Battery,
+  Calendar,
+  CheckCircle, 
+  Clock,
+  Copy,
   Download,
-  Filter,
-  Minus,
-  Share,
+  Edit,
+  Euro,
   Eye,
   EyeOff,
-  Copy,
-  Save
+  Filter,
+  Info,
+  MapPin,
+  Minus,
+  Package,
+  Plus,
+  RefreshCw, 
+  Save,
+  Settings,
+  Share,
+  Thermometer,
+  Trash2,
+  TrendingUp,
+  User,
+  Wifi,
+  XCircle
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -349,6 +355,13 @@ export default function AutomatDetail() {
     queryKey: [`/api/machines/${machineId}/cash`],
     enabled: !!machineId && activeTab === 'cash',
     staleTime: 2 * 60 * 1000, // 2 minutes stale time for cash data
+  });
+
+  // Fetch status data
+  const { data: statusData, isLoading: statusLoading, refetch: refetchStatus } = useQuery({
+    queryKey: [`/api/machines/${machineId}/status`],
+    enabled: !!machineId && activeTab === 'status',
+    staleTime: 1 * 60 * 1000, // 1 minute stale time for status data
   });
 
   // Stock summary calculation with aggregation
@@ -791,6 +804,12 @@ export default function AutomatDetail() {
                 className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-3 text-sm font-medium whitespace-nowrap min-w-[80px] h-12"
               >
                 Cash
+              </TabsTrigger>
+              <TabsTrigger 
+                value="status"
+                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-3 text-sm font-medium whitespace-nowrap min-w-[80px] h-12"
+              >
+                Status
               </TabsTrigger>
             </TabsList>
           </div>
@@ -2592,6 +2611,244 @@ export default function AutomatDetail() {
                   Die Cash-Daten für diese Maschine konnten nicht geladen werden.
                 </p>
                 <Button onClick={() => refetchCash()} className="mt-4" variant="outline">
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Erneut versuchen
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
+        {/* Status Tab */}
+        <TabsContent value="status" className="space-y-6 mt-0">
+          {statusLoading ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {[...Array(6)].map((_, i) => (
+                <Card key={i}>
+                  <CardHeader>
+                    <Skeleton className="h-6 w-32" />
+                  </CardHeader>
+                  <CardContent>
+                    <Skeleton className="h-20 w-full" />
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : statusData?.success ? (
+            <div className="space-y-6">
+              {/* System Status Overview */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="flex items-center gap-2 text-lg">
+                      <Activity className="h-5 w-5 text-green-600" />
+                      System
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-muted-foreground">Status</span>
+                        <Badge variant={statusData.data.result?.status === 'ok' ? 'default' : 'destructive'}>
+                          {statusData.data.result?.status || 'Unbekannt'}
+                        </Badge>
+                      </div>
+                      {statusData.data.result?.last_communication && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-muted-foreground">Letzte Kommunikation</span>
+                          <span className="text-sm font-medium">
+                            {format(parseISO(statusData.data.result.last_communication), 'dd.MM.yy HH:mm', { locale: de })}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="flex items-center gap-2 text-lg">
+                      <Wifi className="h-5 w-5 text-blue-600" />
+                      Verbindung
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-muted-foreground">Online</span>
+                        <Badge variant={statusData.data.result?.online ? 'default' : 'destructive'}>
+                          {statusData.data.result?.online ? 'Ja' : 'Nein'}
+                        </Badge>
+                      </div>
+                      {statusData.data.result?.connection_type && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-muted-foreground">Typ</span>
+                          <span className="text-sm font-medium">{statusData.data.result.connection_type}</span>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="flex items-center gap-2 text-lg">
+                      <Battery className="h-5 w-5 text-orange-600" />
+                      Stromversorgung
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      {statusData.data.result?.power_status && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-muted-foreground">Status</span>
+                          <Badge variant={statusData.data.result.power_status === 'ok' ? 'default' : 'destructive'}>
+                            {statusData.data.result.power_status}
+                          </Badge>
+                        </div>
+                      )}
+                      {statusData.data.result?.voltage && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-muted-foreground">Spannung</span>
+                          <span className="text-sm font-medium">{statusData.data.result.voltage}V</span>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="flex items-center gap-2 text-lg">
+                      <Thermometer className="h-5 w-5 text-purple-600" />
+                      Temperatur
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      {statusData.data.result?.temperature && (
+                        <div className="text-2xl font-bold text-purple-600">
+                          {statusData.data.result.temperature}°C
+                        </div>
+                      )}
+                      {statusData.data.result?.temperature_status && (
+                        <Badge variant={statusData.data.result.temperature_status === 'ok' ? 'default' : 'destructive'}>
+                          {statusData.data.result.temperature_status}
+                        </Badge>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Detailed Status Information */}
+              {statusData.data.result && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Settings className="h-5 w-5" />
+                      Detaillierte Status-Informationen
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {Object.entries(statusData.data.result)
+                        .filter(([key, value]) => 
+                          value !== null && 
+                          value !== undefined && 
+                          !['status', 'last_communication', 'online', 'connection_type', 'power_status', 'voltage', 'temperature', 'temperature_status'].includes(key)
+                        )
+                        .map(([key, value]) => (
+                          <div key={key} className="space-y-2">
+                            <Label className="text-sm font-medium text-muted-foreground capitalize">
+                              {key.replace(/_/g, ' ')}
+                            </Label>
+                            <div className="text-sm font-medium">
+                              {typeof value === 'boolean' ? (
+                                <Badge variant={value ? 'default' : 'secondary'}>
+                                  {value ? 'Ja' : 'Nein'}
+                                </Badge>
+                              ) : typeof value === 'object' ? (
+                                <pre className="text-xs bg-gray-100 p-2 rounded overflow-x-auto">
+                                  {JSON.stringify(value, null, 2)}
+                                </pre>
+                              ) : (
+                                String(value)
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Machine Health Indicators */}
+              {(statusData.data.result?.alerts || statusData.data.result?.warnings || statusData.data.result?.errors) && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-red-600">
+                      <AlertTriangle className="h-5 w-5" />
+                      Meldungen & Warnungen
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      {statusData.data.result.errors && statusData.data.result.errors.length > 0 && (
+                        <div>
+                          <Label className="text-sm font-medium text-red-600 mb-2 block">Fehler</Label>
+                          <div className="space-y-2">
+                            {statusData.data.result.errors.map((error: any, index: number) => (
+                              <div key={index} className="flex items-center gap-2 p-2 bg-red-50 rounded">
+                                <AlertCircle className="h-4 w-4 text-red-600" />
+                                <span className="text-sm">{error.message || error}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {statusData.data.result.warnings && statusData.data.result.warnings.length > 0 && (
+                        <div>
+                          <Label className="text-sm font-medium text-orange-600 mb-2 block">Warnungen</Label>
+                          <div className="space-y-2">
+                            {statusData.data.result.warnings.map((warning: any, index: number) => (
+                              <div key={index} className="flex items-center gap-2 p-2 bg-orange-50 rounded">
+                                <AlertTriangle className="h-4 w-4 text-orange-600" />
+                                <span className="text-sm">{warning.message || warning}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {statusData.data.result.alerts && statusData.data.result.alerts.length > 0 && (
+                        <div>
+                          <Label className="text-sm font-medium text-blue-600 mb-2 block">Hinweise</Label>
+                          <div className="space-y-2">
+                            {statusData.data.result.alerts.map((alert: any, index: number) => (
+                              <div key={index} className="flex items-center gap-2 p-2 bg-blue-50 rounded">
+                                <Info className="h-4 w-4 text-blue-600" />
+                                <span className="text-sm">{alert.message || alert}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          ) : (
+            <Card>
+              <CardContent className="p-8 text-center">
+                <AlertCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-medium mb-2">Status-Daten nicht verfügbar</h3>
+                <p className="text-muted-foreground">
+                  Die Status-Daten für diese Maschine konnten nicht geladen werden.
+                </p>
+                <Button onClick={() => refetchStatus()} className="mt-4" variant="outline">
                   <RefreshCw className="h-4 w-4 mr-2" />
                   Erneut versuchen
                 </Button>
