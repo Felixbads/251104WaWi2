@@ -3720,7 +3720,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         forecasts_by_week AS (
           SELECT 
             DATE_TRUNC('week', f.forecast_date) as week_start,
-            SUM(f.expected_sales) as forecast_sales
+            SUM(f.predicted_quantity) as forecast_sales
           FROM forecasts f
           WHERE f.product_id = $1
             AND f.forecast_date >= DATE_TRUNC('week', NOW())
@@ -3859,7 +3859,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         forecasts_by_month AS (
           SELECT 
             DATE_TRUNC('month', f.forecast_date) as month_start,
-            SUM(f.expected_sales) as forecast_sales
+            SUM(f.predicted_quantity) as forecast_sales
           FROM forecasts f
           WHERE f.product_id = $1
             AND f.forecast_date >= DATE_TRUNC('month', NOW())
@@ -3956,8 +3956,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Query for next 7 and 14 days forecast
       const shortTermQuery = `
         SELECT 
-          SUM(CASE WHEN f.forecast_date <= NOW() + INTERVAL '7 days' THEN f.expected_sales ELSE 0 END) as next_7_days,
-          SUM(CASE WHEN f.forecast_date <= NOW() + INTERVAL '14 days' THEN f.expected_sales ELSE 0 END) as next_14_days
+          SUM(CASE WHEN f.forecast_date <= NOW() + INTERVAL '7 days' THEN f.predicted_quantity ELSE 0 END) as next_7_days,
+          SUM(CASE WHEN f.forecast_date <= NOW() + INTERVAL '14 days' THEN f.predicted_quantity ELSE 0 END) as next_14_days
         FROM forecasts f
         WHERE f.product_id = $1
           AND f.forecast_date >= NOW()
@@ -3982,6 +3982,300 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     }
   });
+
+  // Get context analysis data for a product (weekday effects, holidays, weather, stockouts)
+  app.get(`${API_PREFIX}/products/:id/forecast/context-analysis`, async (req: Request, res: Response) => {
+    try {
+      const productId = parseInt(req.params.id);
+      
+      if (isNaN(productId)) {
+        return res.status(400).json({ error: "Invalid product ID" });
+      }
+      
+      console.log(`[CONTEXT API] Fetching context analysis for product ${productId}`);
+      
+      // Get product to verify it exists
+      const productQuery = `SELECT id, product_name, vendon_id FROM products WHERE id = $1`;
+      const productResult = await rawDb.query(productQuery, [productId]);
+      
+      if (productResult.rows.length === 0) {
+        return res.status(404).json({ error: "Product not found" });
+      }
+      
+      const product = productResult.rows[0];
+      const vendonId = product.vendon_id;
+      const productName = product.product_name;
+      
+      // 1. WEEKDAY EFFECTS ANALYSIS
+      const weekdayQuery = `
+        SELECT 
+          CASE 
+            WHEN EXTRACT(DOW FROM t.datetime) = 0 THEN 'Sonntag'
+            WHEN EXTRACT(DOW FROM t.datetime) = 1 THEN 'Montag'
+            WHEN EXTRACT(DOW FROM t.datetime) = 2 THEN 'Dienstag'
+            WHEN EXTRACT(DOW FROM t.datetime) = 3 THEN 'Mittwoch'
+            WHEN EXTRACT(DOW FROM t.datetime) = 4 THEN 'Donnerstag'
+            WHEN EXTRACT(DOW FROM t.datetime) = 5 THEN 'Freitag'
+            WHEN EXTRACT(DOW FROM t.datetime) = 6 THEN 'Samstag'
+          END as weekday,
+          EXTRACT(DOW FROM t.datetime) as weekday_number,
+          COUNT(*) as sample_size,
+          SUM(t.quantity) as total_sales,
+          AVG(t.quantity) as average_sales
+        FROM transactions t
+        LEFT JOIN products p ON (t.product_id = p.vendon_id OR t.product_name = p.product_name)
+        WHERE (t.product_id = $1 OR p.id = $2)
+          AND t.datetime >= NOW() - INTERVAL '6 months'
+        GROUP BY EXTRACT(DOW FROM t.datetime)
+        ORDER BY weekday_number
+      `;
+      
+      // 2. HOLIDAY EFFECTS ANALYSIS
+      const holidayQuery = `
+        WITH holiday_sales AS (
+          SELECT 
+            cd.is_public_holiday,
+            cd.is_school_holiday,
+            cd.holiday_name,
+            AVG(daily_sales.sales) as avg_sales,
+            COUNT(*) as sample_size
+          FROM calendar_days cd
+          LEFT JOIN (
+            SELECT 
+              DATE(t.datetime) as sale_date,
+              SUM(t.quantity) as sales
+            FROM transactions t
+            LEFT JOIN products p ON (t.product_id = p.vendon_id OR t.product_name = p.product_name)
+            WHERE (t.product_id = $1 OR p.id = $2)
+              AND t.datetime >= NOW() - INTERVAL '12 months'
+            GROUP BY DATE(t.datetime)
+          ) daily_sales ON cd.date = daily_sales.sale_date
+          WHERE cd.date >= NOW() - INTERVAL '12 months'
+          GROUP BY cd.is_public_holiday, cd.is_school_holiday, cd.holiday_name
+        )
+        SELECT 
+          CASE 
+            WHEN is_public_holiday THEN 'holiday'
+            WHEN is_school_holiday THEN 'vacation'
+            ELSE 'normal'
+          END as type,
+          COALESCE(holiday_name, 'Normale Tage') as name,
+          COALESCE(avg_sales, 0) as average_sales,
+          sample_size
+        FROM holiday_sales
+        WHERE sample_size > 5
+        ORDER BY type, average_sales DESC
+      `;
+      
+      // 3. WEATHER CORRELATION ANALYSIS
+      const weatherQuery = `
+        SELECT 
+          wd.temperature,
+          wd.weather_main as weather_condition,
+          wd.date::text as date,
+          COALESCE(daily_sales.sales, 0) as sales
+        FROM weather_data wd
+        LEFT JOIN (
+          SELECT 
+            DATE(t.datetime) as sale_date,
+            SUM(t.quantity) as sales
+          FROM transactions t
+          LEFT JOIN products p ON (t.product_id = p.vendon_id OR t.product_name = p.product_name)
+          WHERE (t.product_id = $1 OR p.id = $2)
+            AND t.datetime >= NOW() - INTERVAL '6 months'
+          GROUP BY DATE(t.datetime)
+        ) daily_sales ON wd.date = daily_sales.sale_date
+        WHERE wd.date >= NOW() - INTERVAL '6 months'
+          AND wd.temperature IS NOT NULL
+          AND daily_sales.sales > 0
+        ORDER BY wd.date DESC
+        LIMIT 200
+      `;
+      
+      // 4. STOCKOUT ANALYSIS
+      const stockoutQuery = `
+        SELECT 
+          ms.last_updated as date,
+          ms.machine_id,
+          m.machine_name,
+          CASE WHEN ms.current_stock = 0 THEN 'stockout' ELSE 'normal' END as type,
+          COALESCE(
+            EXTRACT(EPOCH FROM (
+              LEAD(ms.last_updated) OVER (PARTITION BY ms.machine_id ORDER BY ms.last_updated) - ms.last_updated
+            )) / 3600, 
+            24
+          ) as duration
+        FROM machine_stocks ms
+        LEFT JOIN machines m ON ms.machine_id = m.id
+        LEFT JOIN products p ON ms.product_id = p.vendon_id
+        WHERE p.id = $1
+          AND ms.last_updated >= NOW() - INTERVAL '3 months'
+        ORDER BY ms.last_updated DESC
+        LIMIT 100
+      `;
+      
+      // Execute all queries in parallel
+      const [weekdayResult, holidayResult, weatherResult, stockoutResult] = await Promise.all([
+        rawDb.query(weekdayQuery, [vendonId, productId]),
+        rawDb.query(holidayQuery, [vendonId, productId]),
+        rawDb.query(weatherQuery, [vendonId, productId]),
+        rawDb.query(stockoutQuery, [productId])
+      ]);
+      
+      // Process weekday effects data
+      const weekdayEffects = weekdayResult.rows.map(row => ({
+        weekday: row.weekday,
+        weekdayNumber: parseInt(row.weekday_number),
+        averageSales: parseFloat(row.average_sales || 0),
+        totalSales: parseInt(row.total_sales || 0),
+        sampleSize: parseInt(row.sample_size || 0)
+      }));
+      
+      // Process holiday effects data and calculate percentage changes
+      const holidayEffects = holidayResult.rows.map(row => {
+        const normalDaysAvg = holidayResult.rows.find(r => r.type === 'normal')?.average_sales || 1;
+        const percentageChange = normalDaysAvg > 0 ? 
+          ((parseFloat(row.average_sales || 0) - normalDaysAvg) / normalDaysAvg) * 100 : 0;
+        
+        return {
+          type: row.type as 'holiday' | 'vacation' | 'normal',
+          name: row.name,
+          averageSales: parseFloat(row.average_sales || 0),
+          percentageChange: percentageChange,
+          sampleSize: parseInt(row.sample_size || 0)
+        };
+      });
+      
+      // Process weather correlations
+      const weatherCorrelations = weatherResult.rows.map(row => ({
+        temperature: parseFloat(row.temperature || 0),
+        sales: parseInt(row.sales || 0),
+        weatherCondition: row.weather_condition || 'Unknown',
+        date: row.date
+      }));
+      
+      // Process stockout analysis
+      const stockoutEvents = stockoutResult.rows.map(row => ({
+        date: row.date,
+        machineId: parseInt(row.machine_id),
+        machineName: row.machine_name || 'Unknown',
+        duration: parseFloat(row.duration || 0),
+        type: row.type as 'stockout' | 'normal'
+      }));
+      
+      // Calculate stockout summary
+      const stockouts = stockoutEvents.filter(e => e.type === 'stockout');
+      const weekendStockouts = stockouts.filter(e => {
+        const dayOfWeek = new Date(e.date).getDay();
+        return dayOfWeek === 0 || dayOfWeek === 6; // Sunday or Saturday
+      });
+      
+      const stockoutSummary = {
+        totalStockouts: stockouts.length,
+        averageDuration: stockouts.length > 0 ? 
+          stockouts.reduce((sum, s) => sum + s.duration, 0) / stockouts.length : 0,
+        mostAffectedMachine: stockouts.length > 0 ?
+          stockouts.reduce((prev, current) => 
+            stockouts.filter(s => s.machineId === current.machineId).length >
+            stockouts.filter(s => s.machineId === prev.machineId).length ? current : prev
+          ).machineName : 'Keine',
+        weekendStockouts: weekendStockouts.length
+      };
+      
+      // Generate insights based on the data
+      const insights = {
+        weekday: generateWeekdayInsight(weekdayEffects),
+        holiday: generateHolidayInsight(holidayEffects),
+        weather: generateWeatherInsight(weatherCorrelations),
+        stockout: generateStockoutInsight(stockoutSummary, productName)
+      };
+      
+      const contextAnalysis = {
+        weekdayEffects,
+        holidayEffects,
+        weatherCorrelations,
+        stockoutAnalysis: {
+          events: stockoutEvents,
+          summary: stockoutSummary
+        },
+        insights
+      };
+      
+      console.log(`[CONTEXT API] Context analysis completed for product ${productId}:`, {
+        weekdayDataPoints: weekdayEffects.length,
+        holidayDataPoints: holidayEffects.length,
+        weatherDataPoints: weatherCorrelations.length,
+        stockoutEvents: stockoutEvents.length
+      });
+      
+      res.json(contextAnalysis);
+      
+    } catch (error) {
+      console.error(`[CONTEXT API] Error fetching context analysis for product ${req.params.id}:`, error);
+      res.status(500).json({ 
+        error: "Failed to fetch context analysis", 
+        details: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
+
+  // Helper functions for generating insights
+  function generateWeekdayInsight(weekdayEffects: any[]) {
+    if (weekdayEffects.length === 0) return "Keine Wochentagsdaten verfügbar.";
+    
+    const sorted = [...weekdayEffects].sort((a, b) => b.averageSales - a.averageSales);
+    const strongest = sorted[0]?.weekday || '';
+    const weakest = sorted[sorted.length - 1]?.weekday || '';
+    
+    return `${strongest} ist der stärkste Verkaufstag, ${weakest} der schwächste.`;
+  }
+  
+  function generateHolidayInsight(holidayEffects: any[]) {
+    const holidayEffect = holidayEffects.find(h => h.type === 'holiday');
+    const vacationEffect = holidayEffects.find(h => h.type === 'vacation');
+    
+    if (!holidayEffect && !vacationEffect) {
+      return "Keine signifikanten Ferien-/Feiertagseffekte erkennbar.";
+    }
+    
+    const effects = [];
+    if (holidayEffect && holidayEffect.percentageChange !== 0) {
+      effects.push(`Feiertage ${holidayEffect.percentageChange > 0 ? 'steigern' : 'senken'} Verkäufe um ${Math.abs(holidayEffect.percentageChange).toFixed(0)}%`);
+    }
+    if (vacationEffect && vacationEffect.percentageChange !== 0) {
+      effects.push(`Ferien ${vacationEffect.percentageChange > 0 ? 'steigern' : 'senken'} Verkäufe um ${Math.abs(vacationEffect.percentageChange).toFixed(0)}%`);
+    }
+    
+    return effects.join(', ') + '.';
+  }
+  
+  function generateWeatherInsight(weatherCorrelations: any[]) {
+    if (weatherCorrelations.length < 10) return "Zu wenige Wetterdaten für Analyse verfügbar.";
+    
+    const hotDays = weatherCorrelations.filter(w => w.temperature > 25);
+    const coldDays = weatherCorrelations.filter(w => w.temperature < 5);
+    
+    const hotAvg = hotDays.length > 0 ? hotDays.reduce((sum, d) => sum + d.sales, 0) / hotDays.length : 0;
+    const coldAvg = coldDays.length > 0 ? coldDays.reduce((sum, d) => sum + d.sales, 0) / coldDays.length : 0;
+    
+    if (hotAvg > coldAvg * 1.2) {
+      return "Heiße Tage (+25°C) fördern den Absatz deutlich.";
+    } else if (coldAvg > hotAvg * 1.2) {
+      return "Kalte Tage (<5°C) fördern den Absatz.";
+    }
+    
+    return "Temperatur zeigt keinen starken Einfluss auf Verkäufe.";
+  }
+  
+  function generateStockoutInsight(summary: any, productName: string) {
+    if (summary.totalStockouts === 0) {
+      return `${productName} war in den letzten 3 Monaten nicht ausverkauft.`;
+    }
+    
+    const weekendPercentage = summary.weekendStockouts / summary.totalStockouts * 100;
+    
+    return `${productName} war ${summary.totalStockouts} mal ausverkauft (Ø ${summary.averageDuration.toFixed(1)}h)${weekendPercentage > 60 ? ' - meist am Wochenende' : ''}.`;
+  }
 
   // Get machines (deduplicated by machine_name to prevent dropdown duplicates)
   app.get(`${API_PREFIX}/machines`, async (req: Request, res: Response) => {
