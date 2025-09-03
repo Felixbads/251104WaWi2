@@ -556,8 +556,8 @@ export default function AutomatDetail() {
 
   const updateProductQuantityMutation = useMutation({
     mutationFn: async ({ templateId, productId, quantity }: { templateId: number; productId: number; quantity: number }) => {
-      const response = await fetch(`/api/refilltemplates/${templateId}/products/${productId}`, {
-        method: 'PATCH',
+      const response = await fetch(`/api/machines/${machineId}/refill-templates/${templateId}/products/${productId}`, {
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ quantity }),
       });
@@ -2272,7 +2272,7 @@ export default function AutomatDetail() {
                                         const newQuantity = Math.max(0, product.quantity - 1);
                                         updateProductQuantityMutation.mutate({
                                           templateId: template.id,
-                                          productId: product.productId,
+                                          productId: product.id,
                                           quantity: newQuantity
                                         });
                                       }}
@@ -2293,7 +2293,7 @@ export default function AutomatDetail() {
                                         const newQuantity = product.quantity + 1;
                                         updateProductQuantityMutation.mutate({
                                           templateId: template.id,
-                                          productId: product.productId,
+                                          productId: product.id,
                                           quantity: newQuantity
                                         });
                                       }}
