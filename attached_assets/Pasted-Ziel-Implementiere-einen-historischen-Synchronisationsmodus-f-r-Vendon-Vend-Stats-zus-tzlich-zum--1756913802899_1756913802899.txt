@@ -1,0 +1,208 @@
+Ziel
+
+Implementiere einen historischen Synchronisationsmodus für Vendon (Vend Stats) zusätzlich zum bestehenden Live-Sync. Historische Transaktionen sollen vollständig nachgeladen und identisch zum aktuellen Pfad gespeichert werden. Duplikate sind zu vermeiden (idempotent). Der Modus muss sicher, wiederaufsetzbar und beobachtbar sein.
+
+Kontext (Ist-Stand aus Code-Audit)
+	•	Zentraler VendonAPI-Client lädt API-Key aus ENV, macht Requests mit Retries und liefert Transaktionen im Zeitfenster.
+	•	Scheduler triggert alle 10 Min. Sync für Intervall „gestern → heute“.
+	•	Paging vorhanden; Mapping auf Maschinen/Produkte; Persistenz via storage.createTransaction.
+	•	Dedup nur über vendonId.
+	•	Schema: Unique-Index auf vendonId, kein kombinierter Index mit machine_id.
+	•	Für Backfill vorgesehen: Chunking, search_time=updated, Watermark-Store; Upserts über (machine_id, vendon_id); Migration + Dry-Run + Monitoring + Tests.
+
+API-Randbedingungen (verbindlich berücksichtigen)
+	•	Pflichtparameter: machine_id in Stats-Requests.  ￼
+	•	Endpoints (Kerndaten): GET /rest/v1.9.0/stats/vends (Einzelverkäufe; Filter/Paging/Sort), GET /rest/v1.9.0/stats/vendsTotals. Default-Sort bei vends: -transaction_id.  ￼
+	•	Delta-Abrufe: search_time=updated + Feld updated_at für inkrementelles Nachladen/Watermarks.  ￼
+	•	Fensterlimit (nur falls Selections genutzt): max. 31 Tage.  ￼
+
+Akzeptanzkriterien (müssen alle erfüllt sein)
+	1.	Historischer Backfill pro machine_id in konfigurierbaren Zeit-Chunks (empf.: 7–14 Tage) mit Paging bis vollständig.
+	2.	Idempotente Speicherung via Upsert und Unique-Key (machine_id, vendon_id); bestehende reine vendonId-Eindeutigkeit wird erweitert.
+	3.	Watermark-Store pro machine_id (speichert last_updated_at), Live-Sync nutzt search_time=updated.
+	4.	Kein Duplikat bei wiederholter Ausführung (re-entrant, crash-safe, resume-fähig).
+	5.	CLI/Job für Backfill (Dry-Run & Live), konfigurierbar (from/to, chunkDays, pageSize).
+	6.	Monitoring & Logs: gezogene/gespeicherte/übersprungene Datensätze, Dauer, Fehlerrate, Retries, Rest-Work.
+	7.	Migrations: Watermark-Tabelle, Unique-Index (machine_id, vendon_id), Index auf updated_at.
+	8.	Tests: Unit (Mapping/Upsert/Dedupe), Integration (Paging, leere Seiten, Retries, Netzwerkfehler), CLI-Smoke-Tests.
+	9.	Scheduler-Rollout: Backfill sequentiell/limitiert, danach Umschalten auf reinen Delta-Live-Sync mit Watermark.
+
+Änderungen (konkret umsetzen)
+
+1) Schema/Migrations
+
+SQL (sinngemäß; an ORM anpassen):
+
+CREATE TABLE IF NOT EXISTS vendon_watermarks (
+  machine_id TEXT PRIMARY KEY,
+  last_updated_at TIMESTAMP NOT NULL
+);
+
+-- Composite-Unique für harte Idempotenz
+CREATE UNIQUE INDEX IF NOT EXISTS transactions_machine_vendon_uq
+  ON transactions(machine_id, vendon_id);
+
+-- Delta-Optimierung
+CREATE INDEX IF NOT EXISTS transactions_updated_at_idx
+  ON transactions(updated_at);
+
+Hinweise:
+	•	Falls vendon_id nicht 1:1 transaction_id ist, sicherstellen, dass wir das stabile Feld aus stats/vends mappen. Default-Sort -transaction_id für deterministische Pagination setzen.  ￼
+	•	Backfill kann ohne search_time starten (volle Historie), Live/Retry-Läufe mit search_time=updated.  ￼
+
+2) Services & Schnittstellen
+
+Neue Komponente: HistoricalBackfillService
+
+type BackfillOpts = {
+  machineId: string;
+  fromTs: number;    // UNIX (UTC)
+  toTs: number;      // UNIX (UTC)
+  chunkDays?: number;  // default 14
+  pageSize?: number;   // default 500
+  dryRun?: boolean;    // no writes
+  maxPagesPerWindow?: number; // safety valve
+};
+
+class HistoricalBackfillService {
+  constructor(private api: VendonAPI, private store: Storage, private wms: WatermarkStore, private logger: Logger) {}
+
+  async runBackfill(opts: BackfillOpts): Promise<void> { /* implementiert siehe Pseudocode */ }
+}
+
+Erweitere bestehenden Live-Sync zu Delta-Sync:
+	•	Lies/Setze WatermarkStore.last_updated_at[machine_id].
+	•	API-Abruf mit search_time=updated, sort=-transaction_id.  ￼  ￼
+
+3) API-Aufrufschicht (VendonAPI)
+
+Stelle sicher, dass die Methode getTransactions folgende Parameter unterstützt:
+
+getTransactions(params: {
+  machineId: string;
+  fromTs: number;
+  toTs: number;
+  limit?: number;
+  offset?: number;
+  searchTime?: 'registered' | 'transaction' | 'updated'; // add 'updated'
+  sort?: string; // default '-transaction_id'
+}): Promise<{ items: VendonTxn[]; count?: number }>;
+
+	•	Immer machine_id übergeben.  ￼
+	•	Standard-Sort explizit auf -transaction_id setzen.  ￼
+
+4) Mapping & Persistenz (idempotent)
+	•	Key: (machine_id, vendon_id) → in Domain-Modell abbilden.
+	•	Persistenzpfad wiederverwenden (storage.createTransaction / storage.updateTransaction), aber als Upsert kapseln:
+
+async function upsertTransaction(tx: DomainTxn) {
+  // SQL: INSERT ... ON CONFLICT (machine_id, vendon_id) DO UPDATE SET ...
+  // NoSQL: updateOne({machine_id, vendon_id}, {$set: mapped}, {upsert: true})
+}
+
+	•	Optionale Behandlung „gelöschte Verkäufe“ via Query-Parameter deleted (only|none), wenn vom Produkt benötigt.
+
+5) Backfill-Algorithmus (Pseudocode)
+
+for (const machineId of configuredMachines()) {
+  const wm = await wms.get(machineId); // optional für Resume
+
+  for (const window of windows(opts.fromTs, opts.toTs, opts.chunkDays ?? 14)) {
+    let offset = 0;
+    let page = 0;
+
+    do {
+      const resp = await api.getTransactions({
+        machineId,
+        fromTs: window.start,
+        toTs: window.end,
+        limit: opts.pageSize ?? 500,
+        offset,
+        // Für reine Historie optional ohne search_time; für Wiederläufe:
+        searchTime: 'updated',
+        sort: '-transaction_id'
+      });
+
+      const items = mapToDomain(resp.items); // Feldzuweisungen inkl. updated_at
+      if (!opts.dryRun) await upsertAll(items); // key=(machine_id, vendon_id)
+
+      // Watermark nur bei Delta-Runs/Retry sinnvoll updaten:
+      // wm.last_updated_at = max(wm.last_updated_at, max(items.updated_at))
+
+      offset += items.length;
+      page += 1;
+
+      if ((opts.maxPagesPerWindow ?? Infinity) <= page) break; // Safety valve
+    } while (items.length === (opts.pageSize ?? 500));
+
+    // Optional: Fortschritt loggen/monitoren
+  }
+}
+
+Eigenschaften: deterministische Pagination (Sort), idempotent (Upserts+Unique), re-entrant (Fenster/Offset-basiert), resume-fähig (Watermark).
+
+6) CLI/Jobs
+
+Neuer Befehl:
+
+backfill --machine-id=<id|all> --from=<unix> --to=<unix> --chunk=<tage=14> --limit=<500> --dry-run[=true]
+
+	•	--machine-id=all: iteriert über alle bekannten Maschinen (mit optionaler Concurrency-Begrenzung, z. B. --concurrency=2).
+	•	Exit-Codes: 0 ok, >0 Fehler (für Automations).
+	•	Drucke am Ende eine Kurzbilanz (Fetched / Upserted / Skipped / Duration).
+
+7) Scheduler-Rollout
+	1.	Migration ausführen (Watermark/Indizes).
+	2.	Backfill pro Maschine im Dry-Run → Ergebnisse prüfen.
+	3.	Live-Backfill in Batches (z. B. 5–10 Maschinen), Concurrency limitieren.
+	4.	Nach Abschluss: Scheduler auf Delta-Sync (alle 10 Min.) mit search_time=updated + Watermark umstellen.  ￼
+	5.	Feature-Flag VENDON_BACKFILL_ENABLED zum gezielten Aktivieren/Deaktivieren.
+
+8) Fehlerbehandlung & Robustheit
+	•	Retries mit Exponential-Backoff sind vorhanden; ergänze Retry-Budget pro Fenster.
+	•	Rate-Limit: Backoff bei 429/Retry-After.
+	•	Zeit-Drift: Serverzeiten als UNIX (UTC); Fenstergrenzen konsistent erzeugen.
+	•	Locking: Prozess-/DB-Lock je machine_id (verhindert doppelte parallele Läufe aus CLI & Scheduler).
+	•	Backpressure: maxPagesPerWindow + concurrency limitieren.
+	•	Observability: strukturierte Logs (window, page, offset, timings), Metriken (Counter/Histogramme), Alerts bei Fehlerraten, Leerlauf (unerwartet 0 Items) oder endlosen Paging-Loops.
+
+9) Tests (mindestens)
+	•	Unit:
+	•	Mapping: API → Domain → Persistenzobjekte, inkl. updated_at.
+	•	Upsert-Idempotenz: Insert dann identischer Datensatz → kein Duplikat.
+	•	Integration (mit Mock-API):
+	•	Paging über mehrere Seiten, letzte Seite < pageSize.
+	•	Netzwerkfehler/Timeout → Retries.
+	•	429/5xx → Backoff.
+	•	Resume-Fähigkeit: erzwungener Abbruch, danach Fortsetzung.
+	•	CLI:
+	•	Dry-Run gibt korrekte Bilanz aus, keine Writes.
+	•	Parameter-Validierung (from<to, chunk>0, limit>0).
+
+10) Konfiguration (ENV)
+
+VENDON_BASE_URL=https://cloud.vendon.net
+VENDON_API_TOKEN=...
+BACKFILL_EARLIEST_TS=<unix>
+BACKFILL_CHUNK_DAYS=14
+SYNC_PAGE_SIZE=500
+SYNC_SORT=-transaction_id
+VENDON_BACKFILL_ENABLED=true
+SYNC_CONCURRENCY=2
+
+11) Code-Touchpoints (bitte aktualisieren)
+	•	VendonAPI.getTransactions(...): searchTime, sort, Pflicht machineId, Default-Sort setzen.  ￼
+	•	Live-Sync-Orchestrierung (syncTransactions o. ä.): auf Delta mit Watermark umstellen (search_time=updated).  ￼
+	•	Neuer HistoricalBackfillService + WatermarkStore.
+	•	storage.createTransaction/updateTransaction: in upsertTransaction konsolidieren (oder ORM-Upsert verwenden).
+	•	Scheduler/CLI: neuer backfill-Befehl + Flag-gesteuertes Scheduling.
+
+⸻
+
+Hinweise zur API-Nutzung (nochmals knapp):
+	•	Stats-Requests immer mit machine_id.  ￼
+	•	Für deterministisches Paging sort=-transaction_id setzen.  ￼
+	•	Für Deltas search_time=updated + updated_at als Watermark verwenden; volle Historie initial ohne search_time, danach Wiederläufe mit updated.  ￼
+
+Bitte implementiere exakt wie oben beschrieben und liefere zum PR:
+	•	Migrationsskripte, Service-Klassen, CLI, Tests, Doku (BackfillDesign.md, Runbook.md), sowie Dashboards/Alerts-Konzept.
