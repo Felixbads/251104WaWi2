@@ -1,0 +1,187 @@
+Auftrag: Historischen Vendon-Backfill fertig implementieren & Delta-Sync produktionsreif machen
+
+Ziel
+
+Bringe die Vendon-Synchronisation auf den Zielzustand:
+	•	Historischer Backfill pro machine_id mit Chunking + Pagination
+	•	Idempotente Speicherung via Upsert mit Unique (machine_id, vendon_id)
+	•	Delta-Sync mit search_time=updated und Watermarks pro Maschine
+	•	Deterministische Pagination mit sort=-transaction_id
+	•	Betriebssicher (Retry-After, Locking, Dry-Run, Monitoring, Tests)
+
+Scope (umsetzen/ändern)
+	1.	DB & Schema (Migrations)
+	•	Tabelle: vendon_watermarks(machine_id TEXT PRIMARY KEY, last_updated_at TIMESTAMP NOT NULL)
+	•	Unique-Index: (machine_id, vendon_id) auf transactions
+	•	Index: transactions(updated_at)
+	•	ORM/Schema aktualisieren (z. B. shared/schema.ts)
+	2.	API-Client (z. B. server/services/vendonSync.ts → VendonAPI)
+	•	Erzwinge machine_id in jedem Stats-Request
+	•	Füge Parameter search_time ('updated' | 'registered' | 'transaction') hinzu
+	•	Setze Default sort=-transaction_id
+	•	Entferne jeglichen Hard-Code-API-Key; nur ENV, sonst Fail-Fast mit klarem Log
+	•	Implementiere 429-Handling: Retry-After aus Header parsen und respektieren
+	3.	Persistenz (Storage/DAO)
+	•	Ersetze manuelle Duplikat-Checks durch Upsert auf Key (machine_id, vendon_id)
+	•	Achte bei Upsert auf korrektes Setzen/Aktualisieren von updated_at
+	4.	Watermark-Store
+	•	Service WatermarkStore mit get(machineId) und set(machineId, ts)
+	•	Nach jedem Batch Watermark auf max(updated_at) der gelieferten Items setzen
+	5.	Historical Backfill Service
+	•	runBackfill(machineId, fromTs, toTs, chunkDays=14, pageSize=500, dryRun=false, concurrency=1)
+	•	Fensterbildung (Chunks), Pagination (limit/offset), Safety-Valve (maxPagesPerWindow)
+	•	Dry-Run darf nie persistieren
+	6.	Scheduler / Live-Delta
+	•	Scheduler nutzt WatermarkStore.last_updated_at[machine]
+	•	Requests in Live-Sync: search_time=updated + sort=-transaction_id
+	•	Rate-Limit/Concurrency begrenzen; optional Lock je machine_id (kein paralleler Doppel-Run)
+	7.	CLI
+	•	Befehl:
+
+npm run backfill -- --machine-id=<id|all> --from=<UNIX> --to=<UNIX> --chunk=<tage> --limit=<n> --dry-run --concurrency=<n>
+
+
+	8.	Observability
+	•	Strukturierte Logs: window, page, offset, fetched, upserted, skipped, duration, retries
+	•	Metriken (Counter/Histogramme) + einfache Alerts (Fehlerrate, Leerlauf, Endlosschleife)
+	9.	Tests
+	•	Unit: Mapping, Upsert-Idempotenz, Watermark-Fortschreibung
+	•	Integration (Mock-API): Pagination, leere Seiten, 5xx/Timeout/429+Retry-After, Resume nach Abbruch
+	•	CLI: Dry-Run vs. Live; Exit-Codes
+
+⸻
+
+Vorgabe-Snippets (anpassen/einfügen)
+
+SQL-Migrationen (sinngemäß; an ORM anpassen)
+
+-- 1) Watermarks
+CREATE TABLE IF NOT EXISTS vendon_watermarks (
+  machine_id TEXT PRIMARY KEY,
+  last_updated_at TIMESTAMP NOT NULL
+);
+
+-- 2) Idempotenz & Delta
+CREATE UNIQUE INDEX IF NOT EXISTS transactions_machine_vendon_uq
+  ON transactions(machine_id, vendon_id);
+
+CREATE INDEX IF NOT EXISTS transactions_updated_at_idx
+  ON transactions(updated_at);
+
+API-Client (TypeScript-Skizze)
+
+type TxnQuery = {
+  machineId: string;
+  fromTs: number;
+  toTs: number;
+  limit?: number;
+  offset?: number;
+  searchTime?: 'updated' | 'registered' | 'transaction';
+  sort?: string; // default '-transaction_id'
+};
+
+async function getTransactions(q: TxnQuery) {
+  if (!process.env.VENDON_API_TOKEN) throw new Error('VENDON_API_TOKEN missing');
+  if (!q.machineId) throw new Error('machineId required');
+  const params = new URLSearchParams({
+    machine_id: q.machineId,
+    from_timestamp: String(q.fromTs),
+    to_timestamp: String(q.toTs),
+    limit: String(q.limit ?? 500),
+    offset: String(q.offset ?? 0),
+    search_time: q.searchTime ?? 'updated',
+    sort: q.sort ?? '-transaction_id',
+  });
+
+  return await makeRequest(`/rest/v1.9.0/stats/vends?${params.toString()}`);
+}
+
+async function makeRequest(path: string) {
+  let attempt = 0;
+  while (true) {
+    const res = await fetch(BASE + path, { headers: { Authorization: `Token ${process.env.VENDON_API_TOKEN}` }});
+    if (res.status === 429) {
+      const ra = res.headers.get('Retry-After');
+      const sleepMs = ra ? parseFloat(ra) * 1000 : Math.min(2 ** attempt * 500, 15000);
+      await sleep(sleepMs);
+      attempt++; continue;
+    }
+    if (!res.ok) throw new Error(`Vendon ${res.status}`);
+    return res.json();
+  }
+}
+
+Upsert-Persistenz
+
+async function upsertTransaction(tx: DomainTxn) {
+  // SQL: INSERT ... ON CONFLICT (machine_id, vendon_id) DO UPDATE SET ...
+  // NoSQL: updateOne({machine_id: tx.machine_id, vendon_id: tx.vendon_id}, {$set: tx}, {upsert: true})
+}
+
+async function upsertTransactionsBatch(list: DomainTxn[]) {
+  // Bulk-Upsert je nach DB/ORM
+}
+
+Watermark-Fortschreibung
+
+const maxUpdatedAt = items.reduce((m,i)=>Math.max(m, Date.parse(i.updated_at||0)), 0);
+if (!dryRun && maxUpdatedAt) await watermarkStore.set(machineId, new Date(maxUpdatedAt));
+
+Backfill-Algorithmus
+
+for (const id of machineIds) {
+  for (const window of windows(fromTs, toTs, chunkDays)) {
+    let offset = 0, page = 0;
+    do {
+      const resp = await getTransactions({ machineId: id, fromTs: window.start, toTs: window.end, limit: pageSize, offset, searchTime: 'updated', sort: '-transaction_id' });
+      const items = mapToDomain(resp.items);
+      if (!dryRun) await upsertTransactionsBatch(items);
+      offset += items.length; page++;
+      if (page >= (maxPagesPerWindow ?? Infinity)) break;
+    } while (items.length === pageSize);
+  }
+}
+
+Scheduler (Delta-Sync)
+
+for (const id of activeMachineIds) {
+  const last = await watermarkStore.get(id); // may be null
+  const fromTs = last ? Math.floor(+last / 1000) : defaultFromTs();
+  const toTs = Math.floor(Date.now() / 1000);
+  await syncDelta({ machineId: id, fromTs, toTs, searchTime: 'updated', sort: '-transaction_id' });
+}
+
+Locking (optional, empfohlen)
+
+// acquireLock(`vendon:${machineId}`) ... finally releaseLock()
+
+
+⸻
+
+Akzeptanzkriterien (Go/No-Go)
+	•	Migrationen angewendet: vendon_watermarks, Unique (machine_id, vendon_id), Index updated_at
+	•	API-Client: machine_id erzwungen, search_time=updated, Default sort=-transaction_id, kein Hard-Key
+	•	Persistenz: echte Upserts (kein manuelles Dupe-Hack), Key (machine_id, vendon_id)
+	•	Watermark: max(updated_at) pro Batch gespeichert; Delta-Sync nutzt es
+	•	Backfill CLI: funktioniert (Dry-Run schreibt nicht; Live upsertet)
+	•	Scheduler: läuft als Delta-Sync mit Rate-Limit/optional Lock
+	•	429-Handling mit Retry-After
+	•	Tests grün (Unit/Integration/CLI)
+
+⸻
+
+Verifizierung (ausführen & liefern)
+	1.	Dry-Run (Beispiel):
+
+npm run backfill -- --machine-id=<MID> --from=<UNIX_FROM> --to=<UNIX_TO> --chunk=14 --limit=500 --dry-run --concurrency=1
+
+→ Logs zeigen Fenster/Seiten, 0 Writes, Summary.
+	2.	Live-Backfill (gleiches Kommando ohne --dry-run)
+→ Summary: fetched/upserted/skipped/duration; keine Duplikat-Fehler.
+	3.	Delta-Scheduler
+→ Nachweis im Log/Trace: Requests mit search_time=updated & sort=-transaction_id; Watermark-Update sichtbar.
+	4.	Artefakte ins Repo
+
+	•	BackfillDesign.md (final), Runbook_Backfill.md (Betrieb), VerificationReport.md (Beweisstellen Pfad+Zeile+Snippet), Gaps_Backlog.md (falls offen)
+
+Lieferformat: PR mit Migrations, Code, Tests, Doku + kurze Release-Notes.

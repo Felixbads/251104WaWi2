@@ -245,8 +245,15 @@ async function main(): Promise<void> {
   }
 }
 
-// CLI ausführen wenn direkt aufgerufen
-if (require.main === module) {
+// CLI ausführen wenn direkt aufgerufen (ES Module kompatibel)
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// Überprüfe ob Skript direkt ausgeführt wird
+if (import.meta.url === `file://${process.argv[1]}`) {
   main().catch((error) => {
     console.error('❌ Unbehandelter Fehler:', error);
     process.exit(1);

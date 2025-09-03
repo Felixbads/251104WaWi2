@@ -102,6 +102,26 @@ export class VendonAPI {
           return null; // No Content
         }
         
+        // 429 Rate Limit - Retry-After Header parsen und respektieren (vor JSON parsing)
+        if (response.status === 429) {
+          const retryAfterHeader = response.headers.get('Retry-After');
+          let sleepMs = Math.min(2 ** retries * 1000, 15000); // Fallback: exponential backoff
+          
+          if (retryAfterHeader) {
+            const retryAfterSeconds = parseFloat(retryAfterHeader);
+            if (!isNaN(retryAfterSeconds)) {
+              sleepMs = retryAfterSeconds * 1000;
+              console.log(`429 Rate Limit: Warte ${retryAfterSeconds} Sekunden (Retry-After Header)`);
+            }
+          } else {
+            console.log(`429 Rate Limit: Warte ${sleepMs}ms (exponential backoff)`);
+          }
+          
+          await new Promise(resolve => setTimeout(resolve, sleepMs));
+          retries++;
+          continue; // Retry the request
+        }
+        
         // Antwort parsen
         const data = await response.json();
         
@@ -119,6 +139,7 @@ export class VendonAPI {
         console.log(`API-Antwort: Erfolg (Code ${data.code})`);
         return data.result;
       } catch (error) {
+        // Für Server-Fehler (5xx) oder andere nicht-429 Fehler: Standard-Retry-Logik
         retries++;
         console.error(`API-Fehler (Versuch ${retries}/${MAX_RETRIES}):`, error);
         
