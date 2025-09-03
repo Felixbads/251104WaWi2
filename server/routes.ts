@@ -245,6 +245,7 @@ import exportImportRoutes from "./routes/exportImport";
 import { getRemovedProducts } from "./routes/removedProducts";
 import weatherRoutes from "./routes/weather";
 import holidaysRoutes from "./routes/holidays";
+import germanHolidaysRoutes from "./routes/germanHolidays";
 import bulkSyncRoutes from "./routes/bulkSync";
 import dbExportRoutes from "./routes/databaseExport";
 import databaseViewerRoutes from "./routes/database-viewer";
@@ -5513,6 +5514,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   app.use(`${API_PREFIX}/holidays`, holidaysRouter);
+  app.use(`${API_PREFIX}/german-holidays`, germanHolidaysRoutes);
   app.use(`${API_PREFIX}/calendar`, calendarRoutes);
   app.use(`${API_PREFIX}/calendar/overview`, calendarOverviewRoutes);
   app.use(`${API_PREFIX}/bulk`, bulkSyncRoutes);

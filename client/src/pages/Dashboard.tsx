@@ -190,6 +190,13 @@ export default function Dashboard() {
     staleTime: 30 * 60 * 1000
   });
 
+  // Deutsche Schulferien-Daten (Phase 2 Dashboard-Erweiterung)
+  const { data: germanSchoolHolidays, isLoading: isLoadingHolidays } = useQuery({
+    queryKey: ["/api/german-holidays/current-school-holidays"],
+    staleTime: 60 * 60 * 1000, // 1 hour cache
+    refetchInterval: 3600000, // 1 hour refresh
+  });
+
   const { data: dbIndexData, isLoading: isLoadingDBIndex } = useQuery<DBIResponse>({
     queryKey: ['db-index-data'],
     queryFn: async () => {
@@ -788,9 +795,55 @@ export default function Dashboard() {
                         Erwarteter Verkaufseinfluss: {weatherForecast.slice(0, 7).reduce((sum: number, day: any) => sum + (day.salesImpact || 0), 0) > 0 ? '+' : ''}
                         {(weatherForecast.slice(0, 7).reduce((sum: number, day: any) => sum + (day.salesImpact || 0), 0) / 7).toFixed(1)}% • 
                         {weatherForecast.slice(0, 7).filter((day: any) => day.isHoliday).length} Feiertage • 
-                        {weatherForecast.slice(0, 7).filter((day: any) => day.isVacation).length} Ferientage
+                        {germanSchoolHolidays?.data?.summary?.totalActiveStates || 0} Bundesländer mit Ferien
                       </p>
                     </div>
+                    
+                    {/* Deutsche Schulferien Detail (nur anzeigen wenn Ferien aktiv) */}
+                    {!isLoadingHolidays && germanSchoolHolidays?.success && germanSchoolHolidays?.data?.summary?.hasActiveHolidays && (
+                      <div className="bg-orange-50 p-3 rounded border border-orange-200">
+                        <h5 className="font-medium text-sm text-orange-800 mb-2 flex items-center">
+                          <School className="h-4 w-4 mr-1" />
+                          Aktuelle Sommerferien (🇩🇪)
+                        </h5>
+                        <div className="space-y-1">
+                          {germanSchoolHolidays.data.activeHolidays.slice(0, 3).map((holiday: any, index: number) => (
+                            <p key={index} className="text-xs text-orange-700">
+                              <span className="font-medium">{holiday.stateName}:</span> bis {new Date(holiday.endDate).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })}
+                              {holiday.daysRemaining <= 3 && (
+                                <span className="text-red-600 font-medium"> (noch {holiday.daysRemaining} Tage)</span>
+                              )}
+                            </p>
+                          ))}
+                          {germanSchoolHolidays.data.activeHolidays.length > 3 && (
+                            <p className="text-xs text-orange-600 italic">
+                              ...und {germanSchoolHolidays.data.activeHolidays.length - 3} weitere Bundesländer
+                            </p>
+                          )}
+                        </div>
+                        <p className="text-xs text-orange-600 mt-1 font-medium">
+                          {germanSchoolHolidays.data.formatted.activeStatesText}
+                        </p>
+                      </div>
+                    )}
+                    
+                    {/* Ferien beendet oder keine Ferien */}
+                    {!isLoadingHolidays && germanSchoolHolidays?.success && !germanSchoolHolidays?.data?.summary?.hasActiveHolidays && (
+                      <div className="bg-blue-50 p-3 rounded border border-blue-200">
+                        <h5 className="font-medium text-sm text-blue-800 mb-1 flex items-center">
+                          <School className="h-4 w-4 mr-1" />
+                          Deutsche Schulferien
+                        </h5>
+                        <p className="text-xs text-blue-700">
+                          {germanSchoolHolidays.data.formatted.summary}
+                        </p>
+                        {germanSchoolHolidays.data.recentlyEnded.length > 0 && (
+                          <p className="text-xs text-blue-600 mt-1">
+                            Zuletzt beendet: {germanSchoolHolidays.data.recentlyEnded[0].stateName}
+                          </p>
+                        )}
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="text-center py-6 text-gray-500">
