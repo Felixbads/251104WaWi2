@@ -135,6 +135,7 @@ import Fuellstaende from "@/pages/Fuellstaende";
 import LocationDetail from "@/pages/LocationDetail";
 import PagePermissions from "@/pages/PagePermissions";
 import DBIndex from "@/pages/DBIndex";
+import RefillVorlagen from "@/pages/RefillVorlagen";
 
 // Authentifizierte und nicht-authentifizierte Router
 function AuthenticatedRouter() {
@@ -479,6 +480,13 @@ function AuthenticatedRouter() {
         <Route path="/refill-tracking" component={props => (
           <ApprovedUserRoute>
             <RefillTrackingPage {...props} />
+          </ApprovedUserRoute>
+        )} />
+
+        {/* Refill-Vorlagen Route */}
+        <Route path="/refill-vorlagen" component={props => (
+          <ApprovedUserRoute>
+            <RefillVorlagen {...props} />
           </ApprovedUserRoute>
         )} />
 
