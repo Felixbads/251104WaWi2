@@ -130,7 +130,7 @@ export default function ProductForecastView({ productId, productName }: ProductF
           ? `KW ${(row as WeeklyData).weekNumber}/${row.year}` 
           : `${(row as MonthlyData).month} ${row.year}`;
         return [
-          timeLabel,
+          `"${timeLabel}"`,
           row.historicalSales || 0,
           row.forecastSales || 0,
           row.percentageDeviation ? `${row.percentageDeviation.toFixed(1)}%` : 'k.A.'
