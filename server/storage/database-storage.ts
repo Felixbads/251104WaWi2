@@ -970,6 +970,148 @@ export class DatabaseStorage implements IStorage {
   async deleteTransaction(id: number): Promise<void> { throw new Error("Not implemented"); }
   async getTransactionsByMachine(machineId: number): Promise<any[]> { return []; }
   async getTransactionsByDateRange(startDate: Date, endDate: Date): Promise<any[]> { return []; }
+
+  /**
+   * Upsert transaction with composite unique constraint (machine_id, vendon_id)
+   * For idempotent historical backfill according to specification
+   */
+  async upsertTransaction(transaction: any): Promise<any> {
+    console.log(`🔄 UPSERT Transaction ${transaction.vendonId} für Maschine ${transaction.machineId}`);
+    
+    try {
+      const result = await rawDb.query(`
+        INSERT INTO transactions (
+          vendon_id, machine_id, machine_name, datetime, 
+          product_name, price, quantity, source, extra_data,
+          payment_method, status, currency, vat, price_vat, price_wo_vat,
+          updated_at, transaction_dt, registered_dt, product_id
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+        ON CONFLICT (machine_id, vendon_id) DO UPDATE SET
+          machine_name = EXCLUDED.machine_name,
+          datetime = EXCLUDED.datetime,
+          product_name = EXCLUDED.product_name,
+          price = EXCLUDED.price,
+          quantity = EXCLUDED.quantity,
+          payment_method = EXCLUDED.payment_method,
+          status = EXCLUDED.status,
+          currency = EXCLUDED.currency,
+          vat = EXCLUDED.vat,
+          price_vat = EXCLUDED.price_vat,
+          price_wo_vat = EXCLUDED.price_wo_vat,
+          updated_at = EXCLUDED.updated_at,
+          transaction_dt = EXCLUDED.transaction_dt,
+          registered_dt = EXCLUDED.registered_dt,
+          product_id = EXCLUDED.product_id
+        RETURNING id, vendon_id, machine_id, machine_name, datetime, 
+                  product_name, price, quantity, source, payment_method, status, updated_at
+      `, [
+        transaction.vendonId,
+        transaction.machineId, 
+        transaction.machineName,
+        transaction.datetime,
+        transaction.productName,
+        transaction.price,
+        transaction.quantity,
+        transaction.source || 'vendon',
+        transaction.extraData || null,
+        transaction.paymentMethod || null,
+        transaction.status || 'completed',
+        transaction.currency || 'EUR',
+        transaction.vat || null,
+        transaction.priceVat || null,
+        transaction.priceWoVat || null,
+        transaction.updatedAt || new Date(),
+        transaction.transactionDt || null,
+        transaction.registeredDt || null,
+        transaction.productId || null
+      ]);
+      
+      return result.rows[0];
+    } catch (error) {
+      console.error(`Fehler beim Upsert der Transaktion ${transaction.vendonId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Batch upsert for multiple transactions with composite unique constraint
+   * Optimized for historical backfill performance
+   */
+  async upsertTransactionsBatch(transactionList: any[]): Promise<any[]> {
+    console.log(`📦 Batch-UPSERT für ${transactionList.length} Transaktionen`);
+    
+    if (transactionList.length === 0) {
+      return [];
+    }
+
+    try {
+      const values: string[] = [];
+      const params: any[] = [];
+      let paramIndex = 1;
+
+      for (const transaction of transactionList) {
+        values.push(`($${paramIndex}, $${paramIndex + 1}, $${paramIndex + 2}, $${paramIndex + 3}, $${paramIndex + 4}, $${paramIndex + 5}, $${paramIndex + 6}, $${paramIndex + 7}, $${paramIndex + 8}, $${paramIndex + 9}, $${paramIndex + 10}, $${paramIndex + 11}, $${paramIndex + 12}, $${paramIndex + 13}, $${paramIndex + 14}, $${paramIndex + 15}, $${paramIndex + 16}, $${paramIndex + 17}, $${paramIndex + 18})`);
+        
+        params.push(
+          transaction.vendonId,
+          transaction.machineId,
+          transaction.machineName,
+          transaction.datetime,
+          transaction.productName || 'Unbekanntes Produkt',
+          transaction.price || 0,
+          transaction.quantity || 1,
+          transaction.source || 'vendon',
+          transaction.extraData || null,
+          transaction.paymentMethod || null,
+          transaction.status || 'completed',
+          transaction.currency || 'EUR',
+          transaction.vat || null,
+          transaction.priceVat || null,
+          transaction.priceWoVat || null,
+          transaction.updatedAt || new Date(),
+          transaction.transactionDt || null,
+          transaction.registeredDt || null,
+          transaction.productId || null
+        );
+        paramIndex += 19;
+      }
+
+      const sql = `
+        INSERT INTO transactions (
+          vendon_id, machine_id, machine_name, datetime, 
+          product_name, price, quantity, source, extra_data,
+          payment_method, status, currency, vat, price_vat, price_wo_vat,
+          updated_at, transaction_dt, registered_dt, product_id
+        ) VALUES ${values.join(', ')}
+        ON CONFLICT (machine_id, vendon_id) DO UPDATE SET
+          machine_name = EXCLUDED.machine_name,
+          datetime = EXCLUDED.datetime,
+          product_name = EXCLUDED.product_name,
+          price = EXCLUDED.price,
+          quantity = EXCLUDED.quantity,
+          payment_method = EXCLUDED.payment_method,
+          status = EXCLUDED.status,
+          currency = EXCLUDED.currency,
+          vat = EXCLUDED.vat,
+          price_vat = EXCLUDED.price_vat,
+          price_wo_vat = EXCLUDED.price_wo_vat,
+          updated_at = EXCLUDED.updated_at,
+          transaction_dt = EXCLUDED.transaction_dt,
+          registered_dt = EXCLUDED.registered_dt,
+          product_id = EXCLUDED.product_id
+        RETURNING id, vendon_id, machine_id, machine_name, datetime, 
+                  product_name, price, quantity, source, payment_method, status, updated_at
+      `;
+
+      const result = await rawDb.query(sql, params);
+      
+      console.log(`✅ ${result.rows.length} Transaktionen erfolgreich upserted (${transactionList.length} versucht)`);
+      return result.rows;
+    } catch (error) {
+      console.error("Fehler bei Batch-Upsert:", error);
+      throw error;
+    }
+  }
   
   async getMachineByVendonId(vendonId: string): Promise<any | undefined> { 
     try {

@@ -47,6 +47,14 @@ export const syncState = pgTable("sync_state", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(), // Zeitpunkt der letzten Aktualisierung
 });
 
+// Vendon Watermarks für historische Synchronisation
+export const vendonWatermarks = pgTable("vendon_watermarks", {
+  machineId: text("machine_id").primaryKey(),                // Vendon Machine ID als Primärschlüssel
+  lastUpdatedAt: timestamp("last_updated_at").notNull(),     // Letzter updated_at Timestamp für Delta-Sync
+  createdAt: timestamp("created_at").defaultNow().notNull(), // Erstellung des Watermark-Eintrags
+  updatedAt: timestamp("updated_at").defaultNow().notNull(), // Letzte Aktualisierung des Watermarks
+});
+
 export const insertSyncLogSchema = createInsertSchema(syncLogs).omit({
   id: true,
   createdAt: true,
@@ -55,6 +63,15 @@ export const insertSyncLogSchema = createInsertSchema(syncLogs).omit({
 
 export type InsertSyncLog = z.infer<typeof insertSyncLogSchema>;
 export type SyncLog = typeof syncLogs.$inferSelect;
+
+// Schema für Vendon Watermarks
+export const insertVendonWatermarkSchema = createInsertSchema(vendonWatermarks).omit({
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertVendonWatermark = z.infer<typeof insertVendonWatermarkSchema>;
+export type VendonWatermark = typeof vendonWatermarks.$inferSelect;
 
 // Schema für historische Synchronisierungsoptionen
 export const historicalSyncOptionsSchema = z.object({
@@ -67,6 +84,19 @@ export const historicalSyncOptionsSchema = z.object({
 });
 
 export type HistoricalSyncOptions = z.infer<typeof historicalSyncOptionsSchema>;
+
+// Schema für historische Backfill-Optionen
+export const backfillOptionsSchema = z.object({
+  machineId: z.string(),
+  fromTs: z.number(), // UNIX (UTC)
+  toTs: z.number(),   // UNIX (UTC)
+  chunkDays: z.number().min(1).max(31).default(14), // default 14
+  pageSize: z.number().min(1).max(1000).default(500), // default 500
+  dryRun: z.boolean().default(false), // no writes
+  maxPagesPerWindow: z.number().min(1).default(100) // safety valve
+});
+
+export type BackfillOptions = z.infer<typeof backfillOptionsSchema>;
 
 // Updated users table with more fields
 // Suppliers table
@@ -667,11 +697,13 @@ export const transactions = pgTable("transactions", {
   // Datensatz-Tracking
   createdAt: timestamp("created_at").defaultNow(),            // Wann wurde der Datensatz erstellt
 }, (table) => {
-  return {
-    vendonIdx: unique().on(table.vendonId),                   // Eindeutiger Index auf Vendon-ID
-    vendonMachineIdx: index("transactions_vendon_machine_idx").on(table.vendonId, table.machineId), // Compound index für batch-Duplikatschecks
-    datetimeVendonIdx: index("transactions_datetime_vendon_idx").on(table.datetime, table.vendonId), // Index für Datum-basierte Queries
-    machineTimestampIdx: index("transactions_machine_timestamp_idx").on(table.machineId, table.datetime), // Index für Maschinen-Zeitbereich Queries
+    return {
+      vendonIdx: unique().on(table.vendonId),                   // Eindeutiger Index auf Vendon-ID (Legacy)
+      vendonMachineUniqueIdx: unique("transactions_machine_vendon_uq").on(table.machineId, table.vendonId), // Composite unique für harte Idempotenz
+      vendonMachineIdx: index("transactions_vendon_machine_idx").on(table.vendonId, table.machineId), // Compound index für batch-Duplikatschecks
+      datetimeVendonIdx: index("transactions_datetime_vendon_idx").on(table.datetime, table.vendonId), // Index für Datum-basierte Queries
+      machineTimestampIdx: index("transactions_machine_timestamp_idx").on(table.machineId, table.datetime), // Index für Maschinen-Zeitbereich Queries
+      updatedAtIdx: index("transactions_updated_at_idx").on(table.updatedAt), // Delta-Optimierung für updated_at Queries
   };
 });
 

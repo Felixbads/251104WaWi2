@@ -484,6 +484,10 @@ export interface IStorage {
   getTransactionsByMachine(machineId: number): Promise<Transaction[]>;
   getTransactionsByDateRange(startDate: Date, endDate: Date): Promise<Transaction[]>;
   
+  // Upsert operation for idempotent transaction handling (historical backfill)
+  upsertTransaction(transaction: Omit<Transaction, 'id'>): Promise<Transaction>;
+  upsertTransactionsBatch(transactions: Omit<Transaction, 'id'>[]): Promise<Transaction[]>;
+  
   // Machine operations
   getMachines(limit?: number): Promise<Machine[]>;
   getMachineById(id: number): Promise<Machine | undefined>;

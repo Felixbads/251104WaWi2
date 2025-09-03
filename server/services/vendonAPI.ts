@@ -243,16 +243,66 @@ export class VendonAPI {
     limit?: number;
     offset?: number;
     machine_id?: string | number;
+    search_time?: 'registered' | 'transaction' | 'updated';
+    sort?: string;
   }): Promise<any> {
     try {
       console.log(`Verwende Zeitraum: ${new Date(params.from_timestamp * 1000).toISOString()} bis ${new Date(params.to_timestamp * 1000).toISOString()}`);
       console.log(`Timestamps: ${params.from_timestamp} bis ${params.to_timestamp}`);
       
+      // Erweiterte Parameter für historische Synchronisation
+      const requestParams = {
+        ...params,
+        // Standard-Sort explizit auf -transaction_id setzen für deterministische Pagination
+        sort: params.sort || '-transaction_id'
+      };
+      
       // Vollständige API-Antwort zurückgeben, um den Statuscode zu prüfen
-      return await this.request('/stats/vends', params, 'GET');
+      return await this.request('/stats/vends', requestParams, 'GET');
     } catch (error) {
       console.error('Fehler beim Abrufen der Vendon-Transaktionen:', error);
       throw error; // Fehler weiterreichen für bessere Fehlerbehandlung
+    }
+  }
+
+  /**
+   * Enhanced getTransactions method for historical backfill with proper typing
+   * Supports all required parameters for the historical synchronization mode
+   */
+  async getTransactionsEnhanced(params: {
+    machineId: string;
+    fromTs: number;
+    toTs: number;
+    limit?: number;
+    offset?: number;
+    searchTime?: 'registered' | 'transaction' | 'updated';
+    sort?: string;
+  }): Promise<{ items: any[]; count?: number }> {
+    try {
+      // Immer machine_id übergeben (Pflichtparameter)
+      const requestParams = {
+        machine_id: params.machineId,
+        from_timestamp: params.fromTs,
+        to_timestamp: params.toTs,
+        limit: params.limit || 500,
+        offset: params.offset || 0,
+        search_time: params.searchTime,
+        // Standard-Sort explizit auf -transaction_id setzen für deterministische Pagination
+        sort: params.sort || '-transaction_id'
+      };
+
+      console.log(`Enhanced getTransactions - Machine: ${params.machineId}, Time: ${new Date(params.fromTs * 1000).toISOString()} - ${new Date(params.toTs * 1000).toISOString()}`);
+      
+      const result = await this.request('/stats/vends', requestParams, 'GET');
+      
+      // Return consistent format for backfill service
+      return {
+        items: Array.isArray(result) ? result : [],
+        count: Array.isArray(result) ? result.length : 0
+      };
+    } catch (error) {
+      console.error('Fehler beim Enhanced getTransactions:', error);
+      throw error;
     }
   }
   

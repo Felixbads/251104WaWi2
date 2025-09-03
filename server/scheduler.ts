@@ -7,6 +7,7 @@
  */
 
 import { vendonSync } from './services/vendonSync';
+import { vendonDeltaSync } from './services/vendonDeltaSync';
 import { syncWeatherForecast, syncHistoricalWeatherBatch } from './services/openWeatherService';
 import { syncMissingHolidays } from './services/holidayService';
 import { reconcileWarehouseProducts } from './services/warehouseReconciliation';
@@ -55,10 +56,20 @@ async function performSync(syncType: string): Promise<void> {
     let result;
     switch (syncType) {
       case 'transactions':
-        // Synchronisiere Transaktionen der letzten 24 Stunden
-        const yesterday = new Date();
-        yesterday.setDate(yesterday.getDate() - 1);
-        result = await vendonSync.syncTransactions(yesterday);
+        // Neue Delta-Synchronisation mit Watermarks (ersetzt zeitfenster-basierte Sync)
+        console.log('🚀 Verwende neuen Delta-Sync mit Watermarks für Transaktionen');
+        result = await vendonDeltaSync.syncAllMachines();
+        
+        // Berechne Gesamtstatistik für Logging
+        const totalStats = Object.values(result).reduce((acc: any, machineResult: any) => {
+          return {
+            successful: acc.successful + (machineResult.success ? 1 : 0),
+            failed: acc.failed + (machineResult.success ? 0 : 1),
+            totalUpserted: acc.totalUpserted + machineResult.upsertedCount
+          };
+        }, { successful: 0, failed: 0, totalUpserted: 0 });
+        
+        console.log(`✅ Delta-Sync abgeschlossen: ${totalStats.successful} Maschinen erfolgreich, ${totalStats.totalUpserted} neue Transaktionen`);
         break;
       case 'refills':
         // Synchronisiere Refills der letzten 24 Stunden
