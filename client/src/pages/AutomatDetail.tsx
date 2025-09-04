@@ -307,15 +307,40 @@ export default function AutomatDetail() {
     staleTime: 5 * 60 * 1000,
   });
 
-  // Fetch removed products - API returns direct array
-  const { data: removedProductsArray, isLoading: removedProductsLoading } = useQuery<RemovedProduct[]>({
-    queryKey: [`/api/machines/${machineId}/removed-products?filter=${removedProductsFilter}`],
-    enabled: !!machineId && activeTab === 'entnommene-produkte',
+  // Fetch removed products using Raw Data API 
+  const { data: rawRemovedData, isLoading: removedProductsLoading } = useQuery<{
+    success: boolean;
+    data: Array<{
+      refill_date: string;
+      machine_name: string;
+      machine_id: number;
+      product_name: string;
+      operator: string;
+      removed_quantity: number;
+      estimated_loss: number;
+    }>;
+    pagination: {
+      current_page: number;
+      total_pages: number;
+      total_count: number;
+    };
+  }>({
+    queryKey: [`/api/removed-products/raw-data?machine_id=${machine?.id}&limit=50&sort_by=refill_date&sort_order=DESC`],
+    enabled: !!machineId && !!machine?.id && activeTab === 'entnommene-produkte',
     staleTime: 5 * 60 * 1000,
   });
 
-  // Use direct array
-  const removedProducts = removedProductsArray || [];
+  // Transform Raw Data for compatibility with existing UI
+  const removedProducts: RemovedProduct[] = rawRemovedData?.data?.map(item => ({
+    id: item.machine_id,
+    datetime: item.refill_date,
+    productName: item.product_name,
+    removedQuantity: item.removed_quantity,
+    operator: item.operator,
+    position: `MID-${item.machine_id}`,
+    purchasePrice: item.estimated_loss / item.removed_quantity || 0,
+    value: item.estimated_loss
+  })) || [];
   
   // Calculate removal analysis summary
   const removalSummary = useMemo(() => {
