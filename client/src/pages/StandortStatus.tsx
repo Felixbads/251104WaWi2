@@ -3,7 +3,6 @@ import { useQuery } from "@tanstack/react-query";
 import { useLocation, Link } from "wouter";
 import { 
   Clock, 
-  DoorOpen, 
   ShoppingCart, 
   Wine, 
   CreditCard, 
@@ -456,34 +455,6 @@ function MachineStatusCard({ machine }: { machine: MachineStatusData }) {
           </div>
         </div>
 
-        {/* Letzte Türöffnung - NUR echte Türöffnungs-Events */}
-        <div className="flex items-center space-x-2 text-sm">
-          <DoorOpen className="h-4 w-4 text-orange-500" />
-          <div className="flex-1">
-            <p className="font-medium">Letzte Türöffnung</p>
-            {machine.lastDoorOpening ? (
-              <div>
-                <p className="text-muted-foreground">
-                  {formatDaysAgo(machine.lastDoorOpening.daysAgo)}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {new Date(machine.lastDoorOpening.datetime).toLocaleString('de-DE', {
-                    day: '2-digit',
-                    month: '2-digit',
-                    year: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit'
-                  })}
-                </p>
-              </div>
-            ) : (
-              <div>
-                <p className="text-muted-foreground">Keine echte Türöffnung</p>
-                <p className="text-xs text-muted-foreground">in den letzten 7 Tagen</p>
-              </div>
-            )}
-          </div>
-        </div>
 
         {/* Letzter Alkoholverkauf */}
         <div className="flex items-center space-x-2 text-sm">
@@ -592,16 +563,87 @@ function MachineStatusCard({ machine }: { machine: MachineStatusData }) {
 
 
 
-        {/* Warnungen */}
-        {machine.warnings.length > 0 && (
-          <div className="space-y-1">
-            {machine.warnings.map((warning, index) => (
-              <Badge key={index} variant="secondary" className="text-xs">
-                {warning}
-              </Badge>
-            ))}
+        {/* Nächstes MHD */}
+        {machine.mhdStatus?.earliestExpiry && (
+          <div className="flex items-center space-x-2 text-sm">
+            <Calendar className="h-4 w-4 text-yellow-500" />
+            <div className="flex-1">
+              <p className="font-medium">Nächstes MHD</p>
+              <p className="text-muted-foreground">
+                {new Date(machine.mhdStatus.earliestExpiry).toLocaleDateString('de-DE', {
+                  day: '2-digit',
+                  month: '2-digit',
+                  year: 'numeric'
+                })}
+              </p>
+            </div>
           </div>
         )}
+
+        {/* Status Indicators und Warnungen */}
+        <div className="mt-4 space-y-2">
+          {/* Power & System Status */}
+          {machine.systemStatus && (
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <Power className={`h-4 w-4 ${machine.systemStatus.power ? 'text-green-500' : 'text-red-500'}`} />
+                <span className="text-sm">System</span>
+              </div>
+              <Badge variant={machine.systemStatus.power ? "default" : "destructive"}>
+                {machine.systemStatus.power ? 'EIN' : 'AUS'}
+              </Badge>
+            </div>
+          )}
+
+          {/* Telemetry Status */}
+          {machine.systemStatus && (
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                {machine.systemStatus.telemetryOnline ? (
+                  <Wifi className="h-4 w-4 text-green-500" />
+                ) : (
+                  <WifiOff className="h-4 w-4 text-red-500" />
+                )}
+                <span className="text-sm">Telemetrie</span>
+              </div>
+              <Badge variant={machine.systemStatus.telemetryOnline ? "default" : "destructive"}>
+                {machine.systemStatus.telemetryOnline ? 'ONLINE' : 'OFFLINE'}
+              </Badge>
+            </div>
+          )}
+
+          {/* Cash Status Warnings */}
+          {machine.cashStatus && (
+            <>
+              {machine.cashStatus.hasHighCash && (
+                <div className="flex items-center space-x-2 text-sm bg-yellow-50 p-2 rounded">
+                  <AlertTriangle className="h-4 w-4 text-yellow-600" />
+                  <span className="text-yellow-800">
+                    Hoher Bargeldbestand: {(machine.cashStatus.totalCash || 0).toFixed(2)}€
+                  </span>
+                </div>
+              )}
+              {(machine.cashStatus.lowCoinTubes || 0) > 0 && (
+                <div className="flex items-center space-x-2 text-sm bg-orange-50 p-2 rounded">
+                  <PackageX className="h-4 w-4 text-orange-600" />
+                  <span className="text-orange-800">
+                    {machine.cashStatus.lowCoinTubes} Münzröhre(n) mit &lt;5 Münzen
+                  </span>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* Collection Warning */}
+          {machine.lastCashCollection && machine.lastCashCollection.daysAgo > 14 && (
+            <div className="flex items-center space-x-2 text-sm bg-red-50 p-2 rounded">
+              <AlertTriangle className="h-4 w-4 text-red-600" />
+              <span className="text-red-800">
+                Letzte Entleerung vor {machine.lastCashCollection.daysAgo} Tagen
+              </span>
+            </div>
+          )}
+        </div>
       </CardContent>
     </Card>
   );

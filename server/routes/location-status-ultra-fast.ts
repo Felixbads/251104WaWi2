@@ -341,23 +341,12 @@ router.get('/', async (req: Request, res: Response) => {
           let systemStatus = null;
           if (statusResult.status === 'fulfilled' && statusResult.value) {
             const status = statusResult.value;
-            console.log(`[DEBUG] Status data for ${machine.machineName}:`, JSON.stringify(status, null, 2));
             systemStatus = {
               power: status.power || false,
               powerStatus: status.power_status || 'UNKNOWN',
               telemetryOnline: status.telemetry_unit_online || false,
               stockLevel: status.stock_level || null
             };
-
-            // Add status warnings
-            if (!status.power || status.power_status === 'OFF') {
-              machine.warnings.push('System/Power ist ausgeschaltet');
-              machine.status = 'error';
-            }
-            if (!status.telemetry_unit_online) {
-              machine.warnings.push('Telemetrie offline');
-              if (machine.status !== 'error') machine.status = 'warning';
-            }
 
             // Add last cash collection info
             if (status.last_cash_collection) {
@@ -366,12 +355,6 @@ router.get('/', async (req: Request, res: Response) => {
                 datetime: new Date(status.last_cash_collection * 1000).toISOString(),
                 daysAgo
               };
-              
-              // Add warning if >2 weeks ago
-              if (daysAgo > 14) {
-                machine.warnings.push(`Letzte Entleerung vor ${daysAgo} Tagen`);
-                if (machine.status !== 'error') machine.status = 'warning';
-              }
             }
           }
 
@@ -379,7 +362,6 @@ router.get('/', async (req: Request, res: Response) => {
           let cashStatus = null;
           if (cashResult.status === 'fulfilled' && cashResult.value) {
             const cash = cashResult.value;
-            console.log(`[DEBUG] Cash data for ${machine.machineName}:`, JSON.stringify(cash, null, 2));
             const totalCash = (cash.cash_box || 0) + (cash.bill_stacker || 0);
             
             let lowCoinTubes = 0;
@@ -393,21 +375,46 @@ router.get('/', async (req: Request, res: Response) => {
               hasHighCash: totalCash > 250
             };
 
-            // Add cash warnings
-            if (totalCash > 250) {
-              machine.warnings.push(`Hoher Bargeldbestand: ${totalCash.toFixed(2)}€`);
-              if (machine.status !== 'error') machine.status = 'warning';
+            // Status and warnings will be handled in frontend display
+          }
+
+          // Get MHD status for this machine
+          let mhdStatus = null;
+          try {
+            const mhdResult = await rawDb.execute(sql`
+              SELECT 
+                ms.expiry_date,
+                p.product_name
+              FROM machine_stocks ms
+              JOIN products p ON p.vendon_id = ms.product_vendon_id
+              JOIN machines m ON m.id = ms.machine_id
+              WHERE m.vendon_id = ${vendonId} 
+                AND ms.quantity > 0
+                AND ms.expiry_date IS NOT NULL
+                AND ms.expiry_date >= CURRENT_DATE
+              ORDER BY ms.expiry_date ASC
+              LIMIT 1
+            `);
+            
+            if (mhdResult.length > 0) {
+              const nextExpiring = mhdResult[0];
+              mhdStatus = {
+                earliestExpiry: nextExpiring.expiry_date,
+                nextExpiringProduct: nextExpiring.product_name,
+                expiredCount: 0,
+                warningCount: 0,
+                alertLevel: 'ok' as 'expired' | 'warning' | 'ok'
+              };
             }
-            if (lowCoinTubes > 0) {
-              machine.warnings.push(`${lowCoinTubes} Münzröhre(n) mit <5 Münzen`);
-              if (machine.status !== 'error') machine.status = 'warning';
-            }
+          } catch (error) {
+            console.error(`Error fetching MHD data for ${machine.machineName}:`, error);
           }
 
           return {
             ...machine,
             systemStatus,
-            cashStatus
+            cashStatus,
+            mhdStatus
           };
 
         } catch (error) {

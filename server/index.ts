@@ -3632,7 +3632,7 @@ app.get('/orders-data', (req, res) => {
     // Re-enable Vendon background synchronization as requested by user
     // Import and start the vendon sync service
     try {
-      const { ResilientVendonSync } = await import('./services/vendonSync');
+      const { ResilientVendonSync } = await import('./services/resilientVendonSync');
       
       // Start background sync every 5 minutes for transactions
       setInterval(async () => {
