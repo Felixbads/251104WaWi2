@@ -242,7 +242,7 @@ function getDateRange(period: string): { startDate: Date; endDate: Date } {
 
 export default function AutomatDetail() {
   const [match, params] = useRoute("/automaten/:id");
-  const [activeTab, setActiveTab] = useState("allgemein");
+  const [activeTab, setActiveTab] = useState("status");
   const [editingMHD, setEditingMHD] = useState<number | null>(null);
   const [removedProductsFilter, setRemovedProductsFilter] = useState("30"); // days
   const [newCost, setNewCost] = useState({
@@ -734,6 +734,12 @@ export default function AutomatDetail() {
           <div className="overflow-x-auto tab-scroll">
             <TabsList className="inline-flex h-12 items-center justify-start rounded-none bg-transparent p-0 gap-0 min-w-max">
               <TabsTrigger 
+                value="status"
+                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-3 text-sm font-medium whitespace-nowrap min-w-[80px] h-12"
+              >
+                Status
+              </TabsTrigger>
+              <TabsTrigger 
                 value="allgemein" 
                 className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-3 text-sm font-medium whitespace-nowrap min-w-[100px] h-12"
               >
@@ -804,12 +810,6 @@ export default function AutomatDetail() {
                 className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-3 text-sm font-medium whitespace-nowrap min-w-[80px] h-12"
               >
                 Cash
-              </TabsTrigger>
-              <TabsTrigger 
-                value="status"
-                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-3 text-sm font-medium whitespace-nowrap min-w-[80px] h-12"
-              >
-                Status
               </TabsTrigger>
             </TabsList>
           </div>
@@ -2663,7 +2663,7 @@ export default function AutomatDetail() {
         <TabsContent value="status" className="space-y-6 mt-0">
           {statusLoading ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {[...Array(6)].map((_, i) => (
+              {[...Array(8)].map((_, i) => (
                 <Card key={i}>
                   <CardHeader>
                     <Skeleton className="h-6 w-32" />
@@ -2688,16 +2688,22 @@ export default function AutomatDetail() {
                   <CardContent>
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
-                        <span className="text-sm text-muted-foreground">Status</span>
-                        <Badge variant={statusData.data.result?.status === 'ok' ? 'default' : 'destructive'}>
-                          {statusData.data.result?.status || 'Unbekannt'}
+                        <span className="text-sm text-muted-foreground">Power</span>
+                        <Badge variant={statusData.data.power ? 'default' : 'destructive'}>
+                          {statusData.data.power ? 'Ein' : 'Aus'}
                         </Badge>
                       </div>
-                      {statusData.data.result?.last_communication && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-muted-foreground">Power Status</span>
+                        <Badge variant={statusData.data.power_status === 'ON' ? 'default' : 'secondary'}>
+                          {statusData.data.power_status || 'Unbekannt'}
+                        </Badge>
+                      </div>
+                      {statusData.data.last_updated_at && (
                         <div className="flex items-center justify-between">
-                          <span className="text-sm text-muted-foreground">Letzte Kommunikation</span>
+                          <span className="text-sm text-muted-foreground">Zuletzt aktualisiert</span>
                           <span className="text-sm font-medium">
-                            {format(parseISO(statusData.data.result.last_communication), 'dd.MM.yy HH:mm', { locale: de })}
+                            {format(new Date(statusData.data.last_updated_at * 1000), 'dd.MM.yy HH:mm', { locale: de })}
                           </span>
                         </div>
                       )}
@@ -2709,115 +2715,224 @@ export default function AutomatDetail() {
                   <CardHeader className="pb-3">
                     <CardTitle className="flex items-center gap-2 text-lg">
                       <Wifi className="h-5 w-5 text-blue-600" />
-                      Verbindung
+                      Telemetrie
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <span className="text-sm text-muted-foreground">Online</span>
-                        <Badge variant={statusData.data.result?.online ? 'default' : 'destructive'}>
-                          {statusData.data.result?.online ? 'Ja' : 'Nein'}
+                        <Badge variant={statusData.data.telemetry_unit_online ? 'default' : 'destructive'}>
+                          {statusData.data.telemetry_unit_online ? 'Ja' : 'Nein'}
                         </Badge>
                       </div>
-                      {statusData.data.result?.connection_type && (
+                      {statusData.data.telemetry_unit_id && (
                         <div className="flex items-center justify-between">
-                          <span className="text-sm text-muted-foreground">Typ</span>
-                          <span className="text-sm font-medium">{statusData.data.result.connection_type}</span>
+                          <span className="text-sm text-muted-foreground">Unit ID</span>
+                          <span className="text-sm font-medium">{statusData.data.telemetry_unit_id}</span>
                         </div>
                       )}
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="flex items-center gap-2 text-lg">
-                      <Battery className="h-5 w-5 text-orange-600" />
-                      Stromversorgung
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-2">
-                      {statusData.data.result?.power_status && (
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-muted-foreground">Status</span>
-                          <Badge variant={statusData.data.result.power_status === 'ok' ? 'default' : 'destructive'}>
-                            {statusData.data.result.power_status}
-                          </Badge>
-                        </div>
-                      )}
-                      {statusData.data.result?.voltage && (
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-muted-foreground">Spannung</span>
-                          <span className="text-sm font-medium">{statusData.data.result.voltage}V</span>
-                        </div>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="flex items-center gap-2 text-lg">
-                      <Thermometer className="h-5 w-5 text-purple-600" />
-                      Temperatur
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-2">
-                      {statusData.data.result?.temperature && (
-                        <div className="text-2xl font-bold text-purple-600">
-                          {statusData.data.result.temperature}°C
-                        </div>
-                      )}
-                      {statusData.data.result?.temperature_status && (
-                        <Badge variant={statusData.data.result.temperature_status === 'ok' ? 'default' : 'destructive'}>
-                          {statusData.data.result.temperature_status}
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-muted-foreground">SIM Status</span>
+                        <Badge variant={statusData.data.sim_status === 'ACTIVE' ? 'default' : 'secondary'}>
+                          {statusData.data.sim_status || 'Unbekannt'}
                         </Badge>
+                      </div>
+                      {statusData.data.signal && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-muted-foreground">Signal</span>
+                          <span className="text-sm font-medium">{statusData.data.signal}/31</span>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="flex items-center gap-2 text-lg">
+                      <Package className="h-5 w-5 text-green-600" />
+                      Warenbestand
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      {statusData.data.stock_level !== undefined && (
+                        <div className="text-2xl font-bold text-green-600">
+                          {statusData.data.stock_level}%
+                        </div>
+                      )}
+                      <div className="text-sm text-muted-foreground">Füllstand</div>
+                      {statusData.data.stock_level !== undefined && (
+                        <Progress value={statusData.data.stock_level} className="w-full" />
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="flex items-center gap-2 text-lg">
+                      <Clock className="h-5 w-5 text-orange-600" />
+                      Aktivität
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      {statusData.data.last_purchase_at && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-muted-foreground">Letzter Kauf</span>
+                          <span className="text-sm font-medium">
+                            {format(new Date(statusData.data.last_purchase_at * 1000), 'dd.MM.yy HH:mm', { locale: de })}
+                          </span>
+                        </div>
+                      )}
+                      {statusData.data.last_refill && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-muted-foreground">Letzte Befüllung</span>
+                          <span className="text-sm font-medium">
+                            {format(new Date(statusData.data.last_refill * 1000), 'dd.MM.yy HH:mm', { locale: de })}
+                          </span>
+                        </div>
+                      )}
+                      {statusData.data.last_cash_collection && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-muted-foreground">Letzte Entleerung</span>
+                          <span className="text-sm font-medium">
+                            {format(new Date(statusData.data.last_cash_collection * 1000), 'dd.MM.yy HH:mm', { locale: de })}
+                          </span>
+                        </div>
                       )}
                     </div>
                   </CardContent>
                 </Card>
               </div>
 
-              {/* Detailed Status Information */}
-              {statusData.data.result && (
+              {/* Peripheral Devices */}
+              {statusData.data.peripheral_devices && (
                 <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <Settings className="h-5 w-5" />
-                      Detaillierte Status-Informationen
+                      Peripheriegeräte
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {Object.entries(statusData.data.result)
-                        .filter(([key, value]) => 
-                          value !== null && 
-                          value !== undefined && 
-                          !['status', 'last_communication', 'online', 'connection_type', 'power_status', 'voltage', 'temperature', 'temperature_status'].includes(key)
-                        )
-                        .map(([key, value]) => (
-                          <div key={key} className="space-y-2">
-                            <Label className="text-sm font-medium text-muted-foreground capitalize">
-                              {key.replace(/_/g, ' ')}
-                            </Label>
-                            <div className="text-sm font-medium">
-                              {typeof value === 'boolean' ? (
-                                <Badge variant={value ? 'default' : 'secondary'}>
-                                  {value ? 'Ja' : 'Nein'}
-                                </Badge>
-                              ) : typeof value === 'object' ? (
-                                <pre className="text-xs bg-gray-100 p-2 rounded overflow-x-auto">
-                                  {JSON.stringify(value, null, 2)}
-                                </pre>
-                              ) : (
-                                String(value)
-                              )}
+                      {Object.entries(statusData.data.peripheral_devices).map(([deviceType, device]: [string, any]) => {
+                        const getDeviceName = (type: string) => {
+                          switch (type) {
+                            case 'coin_changer': return 'Münzwechsler';
+                            case 'cashless': return 'Kartenzahlung';
+                            case 'bill_validator': return 'Scheinprüfer';
+                            case 'age_verification': return 'Altersprüfung';
+                            case 'comm_gateway': return 'Kommunikationsgateway';
+                            default: return type.replace(/_/g, ' ');
+                          }
+                        };
+                        
+                        const getStatusColor = (status: number) => {
+                          switch (status) {
+                            case 1: return 'default'; // OK
+                            case 2: return 'secondary'; // Warning
+                            case 3: return 'destructive'; // Error
+                            default: return 'outline';
+                          }
+                        };
+                        
+                        const getStatusText = (status: number) => {
+                          switch (status) {
+                            case 1: return 'OK';
+                            case 2: return 'Warnung';
+                            case 3: return 'Fehler';
+                            default: return 'Unbekannt';
+                          }
+                        };
+                        
+                        return (
+                          <div key={deviceType} className="space-y-2 p-3 border rounded-lg">
+                            <div className="flex items-center justify-between">
+                              <Label className="text-sm font-medium">{getDeviceName(deviceType)}</Label>
+                              <Badge variant={getStatusColor(device.status)}>
+                                {getStatusText(device.status)}
+                              </Badge>
                             </div>
+                            {device.serial_number && (
+                              <div className="text-xs text-muted-foreground">
+                                SN: {device.serial_number}
+                              </div>
+                            )}
+                            {device.manufacturer_id && (
+                              <div className="text-xs text-muted-foreground">
+                                MFG: {device.manufacturer_id}
+                              </div>
+                            )}
+                            {device.status_updated_at && (
+                              <div className="text-xs text-muted-foreground">
+                                Status: {format(new Date(device.status_updated_at * 1000), 'dd.MM.yy HH:mm', { locale: de })}
+                              </div>
+                            )}
                           </div>
-                        ))}
+                        );
+                      })}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Additional Status Information */}
+              {statusData.data && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Info className="h-5 w-5" />
+                      Zusätzliche Informationen
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {statusData.data.has_audit !== undefined && (
+                        <div className="space-y-1">
+                          <Label className="text-sm font-medium text-muted-foreground">Audit verfügbar</Label>
+                          <Badge variant={statusData.data.has_audit ? 'default' : 'secondary'}>
+                            {statusData.data.has_audit ? 'Ja' : 'Nein'}
+                          </Badge>
+                        </div>
+                      )}
+                      {statusData.data.audit_status && (
+                        <div className="space-y-1">
+                          <Label className="text-sm font-medium text-muted-foreground">Audit Status</Label>
+                          <div className="text-sm font-medium">{statusData.data.audit_status}</div>
+                        </div>
+                      )}
+                      {statusData.data.peripheral_communication !== undefined && (
+                        <div className="space-y-1">
+                          <Label className="text-sm font-medium text-muted-foreground">Peripheriekommunikation</Label>
+                          <Badge variant={statusData.data.peripheral_communication ? 'default' : 'destructive'}>
+                            {statusData.data.peripheral_communication ? 'OK' : 'Fehler'}
+                          </Badge>
+                        </div>
+                      )}
+                      {statusData.data.has_unresolved_events !== undefined && (
+                        <div className="space-y-1">
+                          <Label className="text-sm font-medium text-muted-foreground">Ungelöste Ereignisse</Label>
+                          <Badge variant={statusData.data.has_unresolved_events ? 'secondary' : 'default'}>
+                            {statusData.data.has_unresolved_events ? 'Ja' : 'Keine'}
+                          </Badge>
+                        </div>
+                      )}
+                      {statusData.data.active_task && (
+                        <div className="space-y-1">
+                          <Label className="text-sm font-medium text-muted-foreground">Aktive Aufgabe</Label>
+                          <div className="text-sm font-medium">{statusData.data.active_task}</div>
+                        </div>
+                      )}
+                      {statusData.data.in_route && (
+                        <div className="space-y-1">
+                          <Label className="text-sm font-medium text-muted-foreground">In Route</Label>
+                          <div className="text-sm font-medium">{statusData.data.in_route}</div>
+                        </div>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
