@@ -1157,37 +1157,32 @@ router.get('/:id/removed-products', async (req, res) => {
     let removedProductsResult;
     try {
       removedProductsResult = await rawDb.query(
-        `WITH samples_per_date_product AS (
-          -- Hole max. 8 Einträge pro Datum+Produkt-Kombination für Diversität
-          SELECT 
-            rd.id,
-            r.datetime,
-            rd.product_name as "productName",
-            rd.removed as "removedQuantity",
-            r.operator,
-            COALESCE(NULLIF(rd.position, ''), 'Position ' || ROW_NUMBER() OVER (PARTITION BY rd.refill_id ORDER BY rd.id)) as "position",
-            COALESCE(pc.unit_price, 0) as "purchasePrice",
-            ROW_NUMBER() OVER (PARTITION BY DATE(r.datetime), rd.product_name ORDER BY rd.id) as rn
-          FROM refill_details rd
-          JOIN refills r ON rd.refill_id = r.id
-          LEFT JOIN products p ON rd.product_name = p.product_name
-          LEFT JOIN LATERAL (
-            SELECT unit_price
-            FROM purchase_conditions pc_sub 
-            WHERE pc_sub.product_id = p.id 
-            ORDER BY pc_sub.is_preferred DESC, pc_sub.unit_price ASC 
-            LIMIT 1
-          ) pc ON true
-          WHERE r.machine_id = $1 
-          AND r.datetime >= CURRENT_DATE - INTERVAL '${days} days'
-          AND rd.removed > 0
-        )
-        SELECT 
-          id, datetime, "productName", "removedQuantity", 
-          operator, position, "purchasePrice"
-        FROM samples_per_date_product 
-        WHERE rn <= 8  -- Max 8 Einträge pro Datum+Produkt für Vielfalt
-        ORDER BY datetime DESC, "productName"
+        `SELECT 
+          MIN(rd.id) as id,
+          r.datetime,
+          rd.product_name as "productName",
+          SUM(rd.removed) as "removedQuantity",
+          r.operator,
+          STRING_AGG(
+            DISTINCT COALESCE(NULLIF(rd.position, ''), 'Pos' || rd.id::text), 
+            ', ' ORDER BY COALESCE(NULLIF(rd.position, ''), 'Pos' || rd.id::text)
+          ) as "position",
+          COALESCE(pc.unit_price, 0) as "purchasePrice"
+        FROM refill_details rd
+        JOIN refills r ON rd.refill_id = r.id
+        LEFT JOIN products p ON rd.product_name = p.product_name
+        LEFT JOIN LATERAL (
+          SELECT unit_price
+          FROM purchase_conditions pc_sub 
+          WHERE pc_sub.product_id = p.id 
+          ORDER BY pc_sub.is_preferred DESC, pc_sub.unit_price ASC 
+          LIMIT 1
+        ) pc ON true
+        WHERE r.machine_id = $1 
+        AND r.datetime >= CURRENT_DATE - INTERVAL '${days} days'
+        AND rd.removed > 0
+        GROUP BY r.datetime, rd.product_name, r.operator, pc.unit_price
+        ORDER BY r.datetime DESC, rd.product_name
         LIMIT $2`,
         [machineInternalId!, limit]
       );

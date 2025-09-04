@@ -1,0 +1,33 @@
+Datum	Produkt	Entfernte Anzahl	Einkaufspreis (netto)	Gesamtwert	Operator	Position
+31.08.2025 11:02	Pasta Lucia Canaletto Edition (Wehlen)	2	1.94 €	3.89 €	Armand Mathy	Position 3
+31.08.2025 11:02	Pasta Lucia Canaletto Edition (Wehlen)	2	1.94 €	3.89 €	Armand Mathy	Position 2
+31.08.2025 11:02	Pasta Lucia Canaletto Edition (Wehlen)	2	1.94 €	3.89 €	Armand Mathy	Position 8
+31.08.2025 11:02	Pasta Lucia Canaletto Edition (Wehlen)	2	1.94 €	3.89 €	Armand Mathy	Position 1
+31.08.2025 11:02	Pasta Lucia Canaletto Edition (Wehlen)	2	1.94 €	3.89 €	Armand Mathy	Position 7
+31.08.2025 11:02	Pasta Lucia Canaletto Edition (Wehlen)	2	1.94 €	3.89 €	Armand Mathy	Position 6
+31.08.2025 11:02	Pasta Lucia Canaletto Edition (Wehlen)	2	1.94 €	3.89 €	Armand Mathy	Position 5
+31.08.2025 11:02	Pasta Lucia Canaletto Edition (Wehlen)	2	1.94 €	3.89 €	Armand Mathy	Position 4
+29.08.2025 15:11	Bockwurst Paar (Landfleischerei Struppen)	4	2.06 €	8.24 €	Annie Venus	Position 1
+29.08.2025 15:11	Bockwurst Paar (Landfleischerei Struppen)	4	2.06 €	8.24 €	Annie Venus	Position 5
+29.08.2025 15:11	Bockwurst Paar (Landfleischerei Struppen)	4	2.06 €	8.24 €	Annie Venus	Position 6
+29.08.2025 15:11	Bockwurst Paar (Landfleischerei Struppen)	4	2.06 €	8.24 €	Annie Venus	Position 8
+29.08.2025 15:11	Bockwurst Paar (Landfleischerei Struppen)	4	2.06 €	8.24 €	Annie Venus	Position 7
+29.08.2025 15:11	Bockwurst Paar (Landfleischerei Struppen)	4	2.06 €	8.24 €	Annie Venus	Position 4
+29.08.2025 15:11	Bockwurst Paar (Landfleischerei Struppen)	4	2.06 €	8.24 €	Annie Venus	Position 3
+29.08.2025 15:11	Bockwurst Paar (Landfleischerei Struppen)	4	2.06 €	8.24 €	Annie Venus	Position 2
+27.08.2025 07:59	Leberwurst (Landfleischerei Struppen)	1	2.71 €	2.71 €	Annie Venus	Position 1
+27.08.2025 07:59	Leberwurst (Landfleischerei Struppen)	1	2.71 €	2.71 €	Annie Venus	Position 22
+27.08.2025 07:59	Leberwurst (Landfleischerei Struppen)	1	2.71 €	2.71 €	Annie Venus	Position 19
+27.08.2025 07:59	Leberwurst (Landfleischerei Struppen)	1	2.71 €	2.71 €	Annie Venus	Position 4
+27.08.2025 07:59	Leberwurst (Landfleischerei Struppen)	1	2.71 €	2.71 €	Annie Venus	Position 13
+27.08.2025 07:59	Leberwurst (Landfleischerei Struppen)	1	2.71 €	2.71 €	Annie Venus	Position 10
+27.08.2025 07:59	Leberwurst (Landfleischerei Struppen)	1	2.71 €	2.71 €	Annie Venus	Position 7
+27.08.2025 07:59	Leberwurst (Landfleischerei Struppen)	1	2.71 €	2.71 €	Annie Venus	Position 16
+27.08.2025 07:59	Oppacher Classic PET	4	0.29 €	1.16 €	Annie Venus	Position 23
+27.08.2025 07:59	Oppacher Classic PET	4	0.29 €	1.16 €	Annie Venus	Position 2
+27.08.2025 07:59	Oppacher Classic PET	4	0.29 €	1.16 €	Annie Venus	Position 5
+27.08.2025 07:59	Oppacher Classic PET	4	0.29 €	1.16 €	Annie Venus	Position 8
+27.08.2025 07:59	Oppacher Classic PET	4	0.29 €	1.16 €	Annie Venus	Position 11
+27.08.2025 07:59	Oppacher Classic PET	4	0.29 €	1.16 €	Annie Venus	Position 14
+27.08.2025 07:59	Oppacher Classic PET	4	0.29 €	1.16 €	Annie Venus	Position 17
+27.08.2025 07:59	Oppacher Classic PET	4	0.29 €	1.16 €	Annie Venus	Position 20
