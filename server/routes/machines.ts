@@ -1163,9 +1163,18 @@ router.get('/:id/removed-products', async (req, res) => {
           rd.product_name as "productName",
           rd.removed as "removedQuantity",
           r.operator,
-          rd.position
+          COALESCE(NULLIF(rd.position, ''), 'Position ' || ROW_NUMBER() OVER (PARTITION BY rd.refill_id ORDER BY rd.id)) as "position",
+          COALESCE(pc.unit_price, 0) as "purchasePrice"
         FROM refill_details rd
         JOIN refills r ON rd.refill_id = r.id
+        LEFT JOIN products p ON rd.product_name = p.product_name
+        LEFT JOIN LATERAL (
+          SELECT unit_price
+          FROM purchase_conditions pc_sub 
+          WHERE pc_sub.product_id = p.id 
+          ORDER BY pc_sub.is_preferred DESC, pc_sub.unit_price ASC 
+          LIMIT 1
+        ) pc ON true
         WHERE r.machine_id = $1 
         AND r.datetime >= CURRENT_DATE - INTERVAL '${days} days'
         AND rd.removed > 0
@@ -1184,7 +1193,9 @@ router.get('/:id/removed-products', async (req, res) => {
       productName: row.productName,
       removedQuantity: parseInt(row.removedQuantity),
       operator: row.operator,
-      position: row.position
+      position: row.position || '-',
+      purchasePrice: parseFloat(row.purchasePrice) || 0,
+      value: (parseInt(row.removedQuantity) || 0) * (parseFloat(row.purchasePrice) || 0)
     }));
 
     console.log(`[MACHINES API] Found ${formattedRemovedProducts.length} removed products for machine ${machineInternalId}`);

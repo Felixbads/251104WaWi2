@@ -106,12 +106,18 @@ router.post('/top', async (req, res) => {
         SUM(rd.removed) as "totalRemoved",
         COUNT(*) as "removalsCount",
         MAX(r.datetime) as "lastRemoved",
-        AVG(rd.removed * COALESCE(pc.unit_price, 2.0) / NULLIF(rd.removed, 0)) as "avgPurchasePrice",
+        AVG(COALESCE(pc.unit_price, 2.0)) as "avgPurchasePrice",
         SUM(rd.removed * COALESCE(pc.unit_price, 2.0)) as "estimatedLoss"
       FROM refill_details rd
       INNER JOIN refills r ON rd.refill_id = r.id
       LEFT JOIN products p ON rd.product_name = p.product_name
-      LEFT JOIN purchase_conditions pc ON p.id = pc.product_id AND pc.is_preferred = true
+      LEFT JOIN LATERAL (
+        SELECT unit_price
+        FROM purchase_conditions pc_sub 
+        WHERE pc_sub.product_id = p.id 
+        ORDER BY pc_sub.is_preferred DESC, pc_sub.unit_price ASC 
+        LIMIT 1
+      ) pc ON true
       WHERE rd.removed > 0
         AND r.datetime >= NOW() - make_interval(days => $2)
       GROUP BY rd.product_name

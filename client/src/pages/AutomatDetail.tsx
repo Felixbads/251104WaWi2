@@ -122,8 +122,8 @@ interface RemovedProduct {
   quantity?: number; // API response field
   operator?: string;
   position?: string;
-  productPrice?: number; // Einkaufspreis netto
-  value?: number; // Gesamtwert (Menge * Preis)
+  purchasePrice?: number; // Einkaufspreis netto aus echten Produktdaten
+  value?: number; // Gesamtwert (Menge * Einkaufspreis)
 }
 
 interface MachineCost {
@@ -1311,7 +1311,7 @@ export default function AutomatDetail() {
                           <TableCell>{formatDate(product.datetime)}</TableCell>
                           <TableCell>{product.productName}</TableCell>
                           <TableCell>{product.quantity || product.removedQuantity}</TableCell>
-                          <TableCell>{product.productPrice ? `${product.productPrice.toFixed(2)} €` : '-'}</TableCell>
+                          <TableCell>{product.purchasePrice ? `${product.purchasePrice.toFixed(2)} €` : '-'}</TableCell>
                           <TableCell>{product.value ? `${product.value.toFixed(2)} €` : '-'}</TableCell>
                           <TableCell>{product.operator || '-'}</TableCell>
                           <TableCell>{product.position || '-'}</TableCell>
