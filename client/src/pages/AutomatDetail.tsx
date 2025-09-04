@@ -278,7 +278,7 @@ export default function AutomatDetail() {
   // Fetch transactions
   const { data: transactions, isLoading: transactionsLoading } = useQuery<TransactionData[]>({
     queryKey: [`/api/machines/${machineId}/transactions`],
-    enabled: !!machineId && (activeTab === 'transaktionen' || activeTab === 'allgemein' || activeTab === 'analysen' || activeTab === 'auswertung'),
+    enabled: !!machineId && (activeTab === 'transaktionen' || activeTab === 'status' || activeTab === 'analysen' || activeTab === 'auswertung'),
     staleTime: 2 * 60 * 1000, // 2 minutes
   });
 
@@ -300,7 +300,7 @@ export default function AutomatDetail() {
     monthlyRevenue: { month: string; revenue: number }[];
   }>({
     queryKey: [`/api/machines/${machineId}/analytics`],
-    enabled: !!machineId && (activeTab === 'analysen' || activeTab === 'auswertung'),
+    enabled: !!machineId && (activeTab === 'status' || activeTab === 'analysen' || activeTab === 'auswertung'),
     staleTime: 5 * 60 * 1000,
   });
 
@@ -740,12 +740,6 @@ export default function AutomatDetail() {
                 Status
               </TabsTrigger>
               <TabsTrigger 
-                value="allgemein" 
-                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-3 text-sm font-medium whitespace-nowrap min-w-[100px] h-12"
-              >
-                Allgemein
-              </TabsTrigger>
-              <TabsTrigger 
                 value="transaktionen"
                 className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-3 text-sm font-medium whitespace-nowrap min-w-[100px] h-12"
               >
@@ -818,140 +812,6 @@ export default function AutomatDetail() {
         {/* Content with proper mobile spacing */}
         <div className="px-4 py-6">
         
-        {/* Allgemein Tab */}
-        <TabsContent value="allgemein" className="space-y-6 mt-0">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {/* Stammdaten Card */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Package className="h-5 w-5" />
-                  Stammdaten
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div>
-                  <Label className="text-sm font-medium text-muted-foreground">Name des Automaten</Label>
-                  <p className="font-medium">{machine.machineName}</p>
-                </div>
-                <div>
-                  <Label className="text-sm font-medium text-muted-foreground">Vendon ID</Label>
-                  <p className="font-medium">{machine.vendonId}</p>
-                </div>
-                {machine.serialNumber && (
-                  <div>
-                    <Label className="text-sm font-medium text-muted-foreground">Seriennummer</Label>
-                    <p className="font-medium">{machine.serialNumber}</p>
-                  </div>
-                )}
-                {machine.machineType && (
-                  <div>
-                    <Label className="text-sm font-medium text-muted-foreground">Typ</Label>
-                    <p className="font-medium">{machine.machineType}</p>
-                  </div>
-                )}
-                {machine.installationDate && (
-                  <div>
-                    <Label className="text-sm font-medium text-muted-foreground">Installationsdatum</Label>
-                    <p className="font-medium">{formatDateOnly(machine.installationDate)}</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Standort Info Card */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <MapPin className="h-5 w-5" />
-                  Standortinformationen
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {machine.location && (
-                  <div>
-                    <Label className="text-sm font-medium text-muted-foreground">Standortname</Label>
-                    <p className="font-medium">{machine.location}</p>
-                  </div>
-                )}
-                {machine.address && (
-                  <div>
-                    <Label className="text-sm font-medium text-muted-foreground">Adresse</Label>
-                    <p className="font-medium">{machine.address}</p>
-                  </div>
-                )}
-                <Button variant="outline" size="sm" className="w-full">
-                  <MapPin className="h-4 w-4 mr-2" />
-                  Auf Karte anzeigen
-                </Button>
-              </CardContent>
-            </Card>
-
-            {/* KPI Overview (if analytics loaded) */}
-            {analytics && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <TrendingUp className="h-5 w-5" />
-                    Leistungskennzahlen
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div>
-                    <Label className="text-sm font-medium text-muted-foreground">Verkäufe heute</Label>
-                    <p className="text-2xl font-bold">{analytics?.kpis?.transactionCount || 0}</p>
-                  </div>
-                  <div>
-                    <Label className="text-sm font-medium text-muted-foreground">Umsatz heute</Label>
-                    <p className="text-2xl font-bold">{formatCurrency(analytics?.kpis?.totalRevenue || 0)}</p>
-                  </div>
-                  <div>
-                    <Label className="text-sm font-medium text-muted-foreground">Durchschnittspreis</Label>
-                    <p className="text-2xl font-bold">{formatCurrency(analytics?.kpis?.avgPrice || 0)}</p>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-          </div>
-
-          {/* Umsatzentwicklung Chart */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Umsatzentwicklung (letzte 30 Tage)</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {analyticsLoading ? (
-                <Skeleton className="h-64 w-full" />
-              ) : analytics?.salesTimeSeries?.length ? (
-                <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={analytics?.salesTimeSeries || []}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis 
-                      dataKey="date" 
-                      tick={{ fontSize: 12 }}
-                      tickFormatter={(value) => new Date(value).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })}
-                    />
-                    <YAxis tick={{ fontSize: 12 }} />
-                    <Tooltip
-                      labelFormatter={(value) => new Date(value).toLocaleDateString('de-DE')}
-                      formatter={(value, name) => [
-                        name === 'revenue' ? formatCurrency(Number(value)) : value,
-                        name === 'revenue' ? 'Umsatz' : 'Verkäufe'
-                      ]}
-                    />
-                    <Legend />
-                    <Line type="monotone" dataKey="count" stroke="#8884d8" name="Verkäufe" strokeWidth={2} />
-                    <Line type="monotone" dataKey="revenue" stroke="#82ca9d" name="Umsatz" strokeWidth={2} />
-                  </LineChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="h-64 bg-muted rounded flex items-center justify-center text-muted-foreground">
-                  Keine Umsatzdaten für den gewählten Zeitraum
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
 
         {/* Transaktionen Tab */}
         <TabsContent value="transaktionen" className="space-y-4">
@@ -2451,9 +2311,9 @@ export default function AutomatDetail() {
           ) : cashData?.success ? (
             <div className="space-y-6">
               {/* Low Stock Alert */}
-              {cashData.data.result?.coins_per_tube && (
+              {cashData.data?.coins_per_tube && (
                 (() => {
-                  const lowStockTubes = cashData.data.result.coins_per_tube.filter((tube: any) => tube.count < 5);
+                  const lowStockTubes = cashData.data.coins_per_tube.filter((tube: any) => tube.count < 5);
                   return lowStockTubes.length > 0 ? (
                     <Card className="border-red-500 bg-red-50">
                       <CardHeader className="pb-3">
@@ -2490,7 +2350,7 @@ export default function AutomatDetail() {
                   </CardHeader>
                   <CardContent>
                     <div className="text-3xl font-bold text-green-600">
-                      {formatCurrency(cashData.data.result?.cash_box || 0)}
+                      {formatCurrency(cashData.data?.cash_box || 0)}
                     </div>
                     <p className="text-sm text-muted-foreground mt-1">Bargeld im Automaten</p>
                   </CardContent>
@@ -2505,7 +2365,7 @@ export default function AutomatDetail() {
                   </CardHeader>
                   <CardContent>
                     <div className="text-3xl font-bold text-blue-600">
-                      {formatCurrency(cashData.data.result?.bill_stacker || 0)}
+                      {formatCurrency(cashData.data?.bill_stacker || 0)}
                     </div>
                     <p className="text-sm text-muted-foreground mt-1">Scheine im Stapel</p>
                   </CardContent>
@@ -2520,7 +2380,7 @@ export default function AutomatDetail() {
                   </CardHeader>
                   <CardContent>
                     <div className="text-3xl font-bold text-purple-600">
-                      {formatCurrency((cashData.data.result?.cash_box || 0) + (cashData.data.result?.bill_stacker || 0))}
+                      {formatCurrency((cashData.data?.cash_box || 0) + (cashData.data?.bill_stacker || 0))}
                     </div>
                     <p className="text-sm text-muted-foreground mt-1">Gesamtes Bargeld</p>
                   </CardContent>
@@ -2528,7 +2388,7 @@ export default function AutomatDetail() {
               </div>
 
               {/* Coin Tubes */}
-              {cashData.data.result?.coins_per_tube && (
+              {cashData.data?.coins_per_tube && (
                 <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
@@ -2538,7 +2398,7 @@ export default function AutomatDetail() {
                   </CardHeader>
                   <CardContent>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
-                      {cashData.data.result.coins_per_tube.map((tube: any, index: number) => {
+                      {cashData.data.coins_per_tube.map((tube: any, index: number) => {
                         const isLowStock = tube.count < 5;
                         return (
                           <Card key={tube.tube || index} className={`border-2 ${isLowStock ? 'border-red-500 bg-red-50' : ''}`}>
@@ -2579,29 +2439,109 @@ export default function AutomatDetail() {
                 </Card>
               )}
 
+              {/* Bills in Stacker Details */}
+              {cashData.data?.bills_in_stacker && cashData.data.bills_in_stacker.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Euro className="h-5 w-5" />
+                      Scheine im Stapel
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      {cashData.data.bills_in_stacker.map((bill: any, index: number) => (
+                        <Card key={index} className="border">
+                          <CardContent className="p-4 text-center">
+                            <div className="space-y-2">
+                              <div className="text-lg font-bold text-primary">
+                                {formatCurrency(bill.value)} Scheine
+                              </div>
+                              <div className="text-2xl font-bold">
+                                {bill.count}
+                              </div>
+                              <div className="text-xs font-medium text-blue-600">
+                                Wert: {formatCurrency(bill.value * bill.count)}
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Coins in Cashbox */}
+              {cashData.data?.coins_in_cashbox && cashData.data.coins_in_cashbox.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Package className="h-5 w-5" />
+                      Münzen in der Cashbox
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+                      {cashData.data.coins_in_cashbox
+                        .filter((coin: any) => coin.count > 0)
+                        .map((coin: any, index: number) => (
+                        <Card key={index} className="border">
+                          <CardContent className="p-3 text-center">
+                            <div className="space-y-1">
+                              <div className="text-sm font-bold text-primary">
+                                {formatCurrency(coin.value)}
+                              </div>
+                              <div className="text-xl font-bold">
+                                {coin.count}
+                              </div>
+                              <div className="text-xs font-medium text-green-600">
+                                {formatCurrency(coin.value * coin.count)}
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
               {/* Additional Cash Info */}
-              {(cashData.data.result?.overpay || cashData.data.result?.tokens) && (
+              {(cashData.data?.overpay || cashData.data?.tokens || cashData.data?.value_of_tubes || cashData.data?.value_of_refill) && (
                 <Card>
                   <CardHeader>
                     <CardTitle>Zusätzliche Informationen</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {cashData.data.result.overpay && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                      {cashData.data.overpay !== undefined && (
                         <div className="space-y-2">
                           <Label className="text-sm font-medium text-muted-foreground">Überzahlung</Label>
-                          <div className="text-xl font-bold">{formatCurrency(cashData.data.result.overpay)}</div>
+                          <div className="text-xl font-bold">{formatCurrency(cashData.data.overpay)}</div>
                         </div>
                       )}
-                      {cashData.data.result.tokens && (
+                      {cashData.data.tokens && (
                         <div className="space-y-2">
                           <Label className="text-sm font-medium text-muted-foreground">Token</Label>
-                          <div className="text-xl font-bold">{cashData.data.result.tokens}</div>
-                          {cashData.data.result.tokens_value && (
+                          <div className="text-xl font-bold">{cashData.data.tokens}</div>
+                          {cashData.data.tokens_value && (
                             <div className="text-sm text-muted-foreground">
-                              Wert: {formatCurrency(cashData.data.result.tokens_value)}
+                              Wert: {formatCurrency(cashData.data.tokens_value)}
                             </div>
                           )}
+                        </div>
+                      )}
+                      {cashData.data.value_of_tubes !== undefined && (
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium text-muted-foreground">Wert Münzröhren</Label>
+                          <div className="text-xl font-bold">{formatCurrency(cashData.data.value_of_tubes)}</div>
+                        </div>
+                      )}
+                      {cashData.data.value_of_refill !== undefined && (
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium text-muted-foreground">Nachfüllwert</Label>
+                          <div className="text-xl font-bold">{formatCurrency(cashData.data.value_of_refill)}</div>
                         </div>
                       )}
                     </div>
@@ -2617,7 +2557,7 @@ export default function AutomatDetail() {
                 <CardContent>
                   <div className="h-80">
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={cashData.data.result?.coins_per_tube?.map((tube: any) => ({
+                      <BarChart data={cashData.data?.coins_per_tube?.map((tube: any) => ({
                         name: `${formatCurrency(tube.value / 100)}`,
                         anzahl: tube.count,
                         wert: (tube.value * tube.count) / 100,
@@ -2878,6 +2818,143 @@ export default function AutomatDetail() {
                     </div>
                   </CardContent>
                 </Card>
+              )}
+
+              {/* Machine Basic Information (moved from Allgemein) */}
+              {machine && (
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {/* Stammdaten Card */}
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <Package className="h-5 w-5" />
+                          Stammdaten
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-3">
+                        <div>
+                          <Label className="text-sm font-medium text-muted-foreground">Name des Automaten</Label>
+                          <p className="font-medium">{machine.machineName}</p>
+                        </div>
+                        <div>
+                          <Label className="text-sm font-medium text-muted-foreground">Vendon ID</Label>
+                          <p className="font-medium">{machine.vendonId}</p>
+                        </div>
+                        {machine.serialNumber && (
+                          <div>
+                            <Label className="text-sm font-medium text-muted-foreground">Seriennummer</Label>
+                            <p className="font-medium">{machine.serialNumber}</p>
+                          </div>
+                        )}
+                        {machine.machineType && (
+                          <div>
+                            <Label className="text-sm font-medium text-muted-foreground">Typ</Label>
+                            <p className="font-medium">{machine.machineType}</p>
+                          </div>
+                        )}
+                        {machine.installationDate && (
+                          <div>
+                            <Label className="text-sm font-medium text-muted-foreground">Installationsdatum</Label>
+                            <p className="font-medium">{formatDateOnly(machine.installationDate)}</p>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+
+                    {/* Standort Info Card */}
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <MapPin className="h-5 w-5" />
+                          Standortinformationen
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-3">
+                        {machine.location && (
+                          <div>
+                            <Label className="text-sm font-medium text-muted-foreground">Standortname</Label>
+                            <p className="font-medium">{machine.location}</p>
+                          </div>
+                        )}
+                        {machine.address && (
+                          <div>
+                            <Label className="text-sm font-medium text-muted-foreground">Adresse</Label>
+                            <p className="font-medium">{machine.address}</p>
+                          </div>
+                        )}
+                        <Button variant="outline" size="sm" className="w-full">
+                          <MapPin className="h-4 w-4 mr-2" />
+                          Auf Karte anzeigen
+                        </Button>
+                      </CardContent>
+                    </Card>
+
+                    {/* KPI Overview (if analytics loaded) */}
+                    {analytics && (
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="flex items-center gap-2">
+                            <TrendingUp className="h-5 w-5" />
+                            Leistungskennzahlen
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-3">
+                          <div>
+                            <Label className="text-sm font-medium text-muted-foreground">Verkäufe heute</Label>
+                            <p className="text-2xl font-bold">{analytics?.kpis?.transactionCount || 0}</p>
+                          </div>
+                          <div>
+                            <Label className="text-sm font-medium text-muted-foreground">Umsatz heute</Label>
+                            <p className="text-2xl font-bold">{formatCurrency(analytics?.kpis?.totalRevenue || 0)}</p>
+                          </div>
+                          <div>
+                            <Label className="text-sm font-medium text-muted-foreground">Durchschnittspreis</Label>
+                            <p className="text-2xl font-bold">{formatCurrency(analytics?.kpis?.avgPrice || 0)}</p>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+                  </div>
+
+                  {/* Umsatzentwicklung Chart */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Umsatzentwicklung (letzte 30 Tage)</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      {analyticsLoading ? (
+                        <Skeleton className="h-64 w-full" />
+                      ) : analytics?.salesTimeSeries?.length ? (
+                        <ResponsiveContainer width="100%" height={300}>
+                          <LineChart data={analytics?.salesTimeSeries || []}>
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis 
+                              dataKey="date" 
+                              tick={{ fontSize: 12 }}
+                              tickFormatter={(value) => new Date(value).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })}
+                            />
+                            <YAxis tick={{ fontSize: 12 }} />
+                            <Tooltip
+                              labelFormatter={(value) => new Date(value).toLocaleDateString('de-DE')}
+                              formatter={(value, name) => [
+                                name === 'revenue' ? formatCurrency(Number(value)) : value,
+                                name === 'revenue' ? 'Umsatz' : 'Verkäufe'
+                              ]}
+                            />
+                            <Legend />
+                            <Line type="monotone" dataKey="count" stroke="#8884d8" name="Verkäufe" strokeWidth={2} />
+                            <Line type="monotone" dataKey="revenue" stroke="#82ca9d" name="Umsatz" strokeWidth={2} />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      ) : (
+                        <div className="h-64 bg-muted rounded flex items-center justify-center text-muted-foreground">
+                          Keine Umsatzdaten für den gewählten Zeitraum
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </>
               )}
 
               {/* Additional Status Information */}
