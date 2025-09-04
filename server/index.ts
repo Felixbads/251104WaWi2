@@ -3629,11 +3629,27 @@ app.get('/orders-data', (req, res) => {
   server.listen(port, "0.0.0.0", async () => {
     log(`serving on port ${port}`);
     
-    // PERFORMANCE FIX: Intensive automatic synchronization disabled to improve application responsiveness
-    // This was causing hundreds of database queries on startup, making the app slow and unresponsive
-    // Synchronization can be run manually via API endpoints when needed
-    log('Automatische Synchronisierung ist für bessere Performance deaktiviert.');
-    log('Bei Bedarf kann die Synchronisierung manuell über API-Endpunkte gestartet werden.');
+    // Re-enable Vendon background synchronization as requested by user
+    // Import and start the vendon sync service
+    try {
+      const { ResilientVendonSync } = await import('./services/vendonSync');
+      
+      // Start background sync every 5 minutes for transactions
+      setInterval(async () => {
+        try {
+          console.log('🔄 Starting background Vendon sync...');
+          const syncResult = await ResilientVendonSync.syncTransactions();
+          console.log('✅ Background Vendon sync completed:', syncResult);
+        } catch (error) {
+          console.error('❌ Background Vendon sync failed:', error);
+        }
+      }, 5 * 60 * 1000); // 5 minutes
+      
+      log('✅ Vendon background synchronization re-activated (every 5 minutes)');
+    } catch (error) {
+      console.error('❌ Failed to start Vendon background sync:', error);
+      log('⚠️ Vendon background sync could not be started - continuing without automatic sync');
+    }
 
     // Start Supplier Analytics Cache Background Service  
     const supplierAnalyticsCache = SupplierAnalyticsCache.getInstance();

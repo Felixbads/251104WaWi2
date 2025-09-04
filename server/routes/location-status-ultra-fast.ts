@@ -339,8 +339,9 @@ router.get('/', async (req: Request, res: Response) => {
 
           // Process status data
           let systemStatus = null;
-          if (statusResult.status === 'fulfilled' && statusResult.value.success) {
-            const status = statusResult.value.data;
+          if (statusResult.status === 'fulfilled' && statusResult.value) {
+            const status = statusResult.value;
+            console.log(`[DEBUG] Status data for ${machine.machineName}:`, JSON.stringify(status, null, 2));
             systemStatus = {
               power: status.power || false,
               powerStatus: status.power_status || 'UNKNOWN',
@@ -376,8 +377,9 @@ router.get('/', async (req: Request, res: Response) => {
 
           // Process cash data
           let cashStatus = null;
-          if (cashResult.status === 'fulfilled' && cashResult.value.success) {
-            const cash = cashResult.value.data;
+          if (cashResult.status === 'fulfilled' && cashResult.value) {
+            const cash = cashResult.value;
+            console.log(`[DEBUG] Cash data for ${machine.machineName}:`, JSON.stringify(cash, null, 2));
             const totalCash = (cash.cash_box || 0) + (cash.bill_stacker || 0);
             
             let lowCoinTubes = 0;
