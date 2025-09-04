@@ -346,7 +346,7 @@ export default function AutomatDetail() {
     estimatedLoss: number;
   }>>({
     queryKey: [`/api/removed-products/top`, { days: removedProductsFilter, limit: 10 }],
-    queryFn: () => apiRequest(`/api/removed-products/top?days=${removedProductsFilter}&limit=10`, {
+    queryFn: () => apiRequest(`/api/removed-products/top?days=${removedProductsFilter}&limit=10&machineId=${machineId}`, {
       method: 'POST'
     }),
     enabled: !!machineId && activeTab === 'entnommene-produkte',

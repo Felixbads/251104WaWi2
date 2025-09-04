@@ -91,41 +91,72 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Top entfernte Produkte API mit Kostenanalyse 
+// Top entfernte Produkte API mit Kostenanalyse (machine-specific)
 router.post('/top', async (req, res) => {
   try {
     const days = parseInt(req.query.days as string) || 30;
     const limit = parseInt(req.query.limit as string) || 20;
+    const machineId = req.query.machineId as string || null;
     
     // FINALE LÖSUNG: Nutze Raw Data API-Subquery für korrekte Deduplizierung
     console.log(`[TOP-API] Berechne Top-Produkte für ${days} Tage mit Raw Data Logik`);
     
-    const query = `
-      SELECT 
-        rd.product_name as "productName",
-        SUM(rd.removed) as "totalRemoved",
-        COUNT(*) as "removalsCount",
-        MAX(r.datetime) as "lastRemoved",
-        AVG(COALESCE(pc.unit_price, 2.0)) as "avgPurchasePrice",
-        SUM(rd.removed * COALESCE(pc.unit_price, 2.0)) as "estimatedLoss"
-      FROM refill_details rd
-      INNER JOIN refills r ON rd.refill_id = r.id
-      LEFT JOIN products p ON rd.product_name = p.product_name
-      LEFT JOIN LATERAL (
-        SELECT unit_price
-        FROM purchase_conditions pc_sub 
-        WHERE pc_sub.product_id = p.id 
-        ORDER BY pc_sub.is_preferred DESC, pc_sub.unit_price ASC 
-        LIMIT 1
-      ) pc ON true
-      WHERE rd.removed > 0
-        AND r.datetime >= NOW() - make_interval(days => $2)
-      GROUP BY rd.product_name
-      ORDER BY "totalRemoved" DESC
-      LIMIT $1
-    `;
+    let query, queryParams;
     
-    const result = await pool.query(query, [limit, days]);
+    if (machineId) {
+      // Machine-spezifische Top-Produkte
+      console.log(`[TOP-API] Machine-spezifische Top-Produkte für Maschine ${machineId}`);
+      query = `
+        WITH machine_filter AS (
+          SELECT id FROM machines WHERE vendon_id = $2
+        )
+        SELECT 
+          rd.product_name as "productName",
+          SUM(rd.removed) as "totalRemoved",
+          COUNT(*) as "removalsCount",
+          MAX(r.datetime) as "lastRemoved",
+          2.0 as "avgPurchasePrice",
+          SUM(rd.removed * 2.0) as "estimatedLoss"
+        FROM refill_details rd
+        INNER JOIN refills r ON rd.refill_id = r.id
+        WHERE rd.removed > 0
+          AND r.datetime >= NOW() - make_interval(days => $3)
+          AND r.machine_id IN (SELECT id FROM machine_filter)
+        GROUP BY rd.product_name
+        ORDER BY "totalRemoved" DESC
+        LIMIT $1
+      `;
+      queryParams = [limit, machineId, days];
+    } else {
+      // System-weite Top-Produkte
+      query = `
+        SELECT 
+          rd.product_name as "productName",
+          SUM(rd.removed) as "totalRemoved",
+          COUNT(*) as "removalsCount",
+          MAX(r.datetime) as "lastRemoved",
+          AVG(COALESCE(pc.unit_price, 2.0)) as "avgPurchasePrice",
+          SUM(rd.removed * COALESCE(pc.unit_price, 2.0)) as "estimatedLoss"
+        FROM refill_details rd
+        INNER JOIN refills r ON rd.refill_id = r.id
+        LEFT JOIN products p ON rd.product_name = p.product_name
+        LEFT JOIN LATERAL (
+          SELECT unit_price
+          FROM purchase_conditions pc_sub 
+          WHERE pc_sub.product_id = p.id 
+          ORDER BY pc_sub.is_preferred DESC, pc_sub.unit_price ASC 
+          LIMIT 1
+        ) pc ON true
+        WHERE rd.removed > 0
+          AND r.datetime >= NOW() - make_interval(days => $2)
+        GROUP BY rd.product_name
+        ORDER BY "totalRemoved" DESC
+        LIMIT $1
+      `;
+      queryParams = [limit, days];
+    }
+    
+    const result = await pool.query(query, queryParams);
     
     const response = result.rows.map((row, index) => ({
       rank: index + 1,
