@@ -307,21 +307,15 @@ export default function AutomatDetail() {
     staleTime: 5 * 60 * 1000,
   });
 
-  // Fetch removed products - API returns object with items array
-  const { data: removedProductsResponse, isLoading: removedProductsLoading } = useQuery<{
-    items: RemovedProduct[];
-    total: number;
-    page: number;
-    limit: number;
-    totalPages: number;
-  }>({
+  // Fetch removed products - API returns direct array
+  const { data: removedProductsArray, isLoading: removedProductsLoading } = useQuery<RemovedProduct[]>({
     queryKey: [`/api/machines/${machineId}/removed-products?filter=${removedProductsFilter}`],
     enabled: !!machineId && activeTab === 'entnommene-produkte',
     staleTime: 5 * 60 * 1000,
   });
 
-  // Extract items array for frontend compatibility
-  const removedProducts = removedProductsResponse?.items || [];
+  // Use direct array
+  const removedProducts = removedProductsArray || [];
   
   // Calculate removal analysis summary
   const removalSummary = useMemo(() => {
