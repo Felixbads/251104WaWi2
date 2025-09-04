@@ -3629,26 +3629,33 @@ app.get('/orders-data', (req, res) => {
   server.listen(port, "0.0.0.0", async () => {
     log(`serving on port ${port}`);
     
-    // Re-enable Vendon background synchronization as requested by user
-    // Import and start the vendon sync service
+    // Activate permanent Vendon transaction downloads as requested by user
     try {
-      const { ResilientVendonSync } = await import('./services/resilientVendonSync');
+      const { UnifiedVendonSync } = await import('./services/UnifiedVendonSync');
       
       // Start background sync every 5 minutes for transactions
       setInterval(async () => {
         try {
-          console.log('🔄 Starting background Vendon sync...');
-          const syncResult = await ResilientVendonSync.syncTransactions();
-          console.log('✅ Background Vendon sync completed:', syncResult);
+          console.log('🔄 Starting background Vendon transaction sync...');
+          const unifiedSync = new UnifiedVendonSync();
+          const yesterday = new Date();
+          yesterday.setDate(yesterday.getDate() - 1);
+          const today = new Date();
+          
+          const syncResult = await unifiedSync.syncTransactions({
+            startDate: yesterday,
+            endDate: today
+          });
+          console.log('✅ Background Vendon transaction sync completed:', syncResult);
         } catch (error) {
-          console.error('❌ Background Vendon sync failed:', error);
+          console.error('❌ Background Vendon transaction sync failed:', error);
         }
       }, 5 * 60 * 1000); // 5 minutes
       
-      log('✅ Vendon background synchronization re-activated (every 5 minutes)');
+      log('✅ Vendon transaction downloads permanently activated (every 5 minutes)');
     } catch (error) {
-      console.error('❌ Failed to start Vendon background sync:', error);
-      log('⚠️ Vendon background sync could not be started - continuing without automatic sync');
+      console.error('❌ Failed to start Vendon transaction sync:', error);
+      log('⚠️ Vendon transaction sync could not be started - continuing without automatic sync');
     }
 
     // Start Supplier Analytics Cache Background Service  
