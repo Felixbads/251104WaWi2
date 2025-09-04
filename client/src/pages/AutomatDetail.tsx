@@ -119,8 +119,11 @@ interface RemovedProduct {
   datetime: string;
   productName: string;
   removedQuantity: number;
+  quantity?: number; // API response field
   operator?: string;
   position?: string;
+  productPrice?: number; // Einkaufspreis netto
+  value?: number; // Gesamtwert (Menge * Preis)
 }
 
 interface MachineCost {
@@ -319,6 +322,39 @@ export default function AutomatDetail() {
 
   // Extract items array for frontend compatibility
   const removedProducts = removedProductsResponse?.items || [];
+  
+  // Calculate removal analysis summary
+  const removalSummary = useMemo(() => {
+    if (!removedProducts || removedProducts.length === 0) return null;
+    
+    const totalQuantity = removedProducts.reduce((sum, p) => sum + (p.quantity || p.removedQuantity || 0), 0);
+    const totalValue = removedProducts.reduce((sum, p) => sum + (p.value || 0), 0);
+    const uniqueProducts = new Set(removedProducts.map(p => p.productName)).size;
+    const avgValuePerProduct = totalValue / totalQuantity || 0;
+    
+    return {
+      totalQuantity,
+      totalValue,
+      uniqueProducts,
+      avgValuePerProduct,
+      totalRemovals: removedProducts.length
+    };
+  }, [removedProducts]);
+  
+  // Fetch top removed products for analysis
+  const { data: topRemovedProducts, isLoading: topRemovedLoading } = useQuery<Array<{
+    rank: number;
+    productName: string;
+    totalRemoved: number;
+    removalsCount: number;
+    lastRemoved: string;
+    avgPurchasePrice: number;
+    estimatedLoss: number;
+  }>>({
+    queryKey: [`/api/removed-products/top?days=${removedProductsFilter}&limit=10`],
+    enabled: !!machineId && activeTab === 'entnommene-produkte',
+    staleTime: 5 * 60 * 1000,
+  });
 
   // Fetch machine costs
   const { data: machineCosts, isLoading: costsLoading, refetch: refetchCosts } = useQuery<MachineCost[]>({
@@ -1260,38 +1296,123 @@ export default function AutomatDetail() {
               ))}
             </div>
           ) : (
-            <Card>
-              <CardContent className="p-0">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Datum</TableHead>
-                      <TableHead>Produkt</TableHead>
-                      <TableHead>Entfernte Anzahl</TableHead>
-                      <TableHead>Operator</TableHead>
-                      <TableHead>Position</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {removedProducts?.map((product) => (
-                      <TableRow key={product.id}>
-                        <TableCell>{formatDate(product.datetime)}</TableCell>
-                        <TableCell>{product.productName}</TableCell>
-                        <TableCell>{product.removedQuantity}</TableCell>
-                        <TableCell>{product.operator || '-'}</TableCell>
-                        <TableCell>{product.position || '-'}</TableCell>
-                      </TableRow>
-                    )) || (
+            <div>
+              <Card>
+                <CardContent className="p-0">
+                  <Table>
+                    <TableHeader>
                       <TableRow>
-                        <TableCell colSpan={5} className="text-center text-muted-foreground">
-                          Keine entnommenen Produkte gefunden
-                        </TableCell>
+                        <TableHead>Datum</TableHead>
+                        <TableHead>Produkt</TableHead>
+                        <TableHead>Entfernte Anzahl</TableHead>
+                        <TableHead>Einkaufspreis (netto)</TableHead>
+                        <TableHead>Gesamtwert</TableHead>
+                        <TableHead>Operator</TableHead>
+                        <TableHead>Position</TableHead>
                       </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
+                    </TableHeader>
+                    <TableBody>
+                      {removedProducts?.map((product) => (
+                        <TableRow key={product.id}>
+                          <TableCell>{formatDate(product.datetime)}</TableCell>
+                          <TableCell>{product.productName}</TableCell>
+                          <TableCell>{product.quantity || product.removedQuantity}</TableCell>
+                          <TableCell>{product.productPrice ? `${product.productPrice.toFixed(2)} €` : '-'}</TableCell>
+                          <TableCell>{product.value ? `${product.value.toFixed(2)} €` : '-'}</TableCell>
+                          <TableCell>{product.operator || '-'}</TableCell>
+                          <TableCell>{product.position || '-'}</TableCell>
+                        </TableRow>
+                      )) || (
+                        <TableRow>
+                          <TableCell colSpan={7} className="text-center text-muted-foreground">
+                            Keine entnommenen Produkte gefunden
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+
+              {removalSummary && (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center">
+                        <BarChart3 className="h-5 w-5 mr-2" />
+                        Zusammenfassung ({removedProductsFilter} Tage)
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="text-center">
+                          <div className="text-2xl font-bold text-red-600">{removalSummary.totalQuantity}</div>
+                          <div className="text-sm text-muted-foreground">Entnommene Produkte</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-2xl font-bold text-red-600">{removalSummary.totalValue.toFixed(2)} €</div>
+                          <div className="text-sm text-muted-foreground">Gesamtwert</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-2xl font-bold">{removalSummary.uniqueProducts}</div>
+                          <div className="text-sm text-muted-foreground">Verschiedene Produkte</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-2xl font-bold">{removalSummary.avgValuePerProduct.toFixed(2)} €</div>
+                          <div className="text-sm text-muted-foreground">Ø je Produkt</div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center">
+                        <TrendingUp className="h-5 w-5 mr-2" />
+                        Top 10 Entnommene Produkte
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      {topRemovedLoading ? (
+                        <div className="space-y-2">
+                          {Array.from({ length: 10 }).map((_, i) => (
+                            <Skeleton key={i} className="h-8 w-full" />
+                          ))}
+                        </div>
+                      ) : topRemovedProducts && topRemovedProducts.length > 0 ? (
+                        <div className="space-y-2">
+                          {topRemovedProducts.slice(0, 10).map((product) => (
+                            <div key={product.rank} className="flex items-center justify-between p-2 rounded border">
+                              <div className="flex items-center space-x-3">
+                                <Badge variant="outline" className="w-8 h-6 flex items-center justify-center text-xs">
+                                  {product.rank}
+                                </Badge>
+                                <div>
+                                  <div className="font-medium">{product.productName}</div>
+                                  <div className="text-sm text-muted-foreground">
+                                    {product.totalRemoved} Stück • {product.removalsCount} Entnahmen
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <div className="font-medium text-red-600">{product.estimatedLoss.toFixed(2)} €</div>
+                                <div className="text-xs text-muted-foreground">
+                                  {product.avgPurchasePrice.toFixed(2)} €/Stk
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-center text-muted-foreground">
+                          Keine Daten für Top-Produkte verfügbar
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+            </div>
           )}
         </TabsContent>
 
