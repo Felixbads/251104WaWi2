@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../db';
+import { VendonAPI } from '../services/vendonAPI';
 
 const router = Router();
 
@@ -285,15 +286,141 @@ router.get('/', async (req: Request, res: Response) => {
 
     // Update each machine with its recent transactions
     machineStatusData.forEach((machine: any) => {
-      machine.recentTransactions = recentTransactionsByLocation[machine.location] || [];
+      machine.recentTransactions = recentTransactionsByLocation[machine.machineName] || [];
     });
+
+    // Enhance with Vendon status and cash data for each location
+    const enhancedMachineData = await Promise.all(
+      machineStatusData.map(async (machine: any) => {
+        try {
+          // Get vendon_id mapping for location
+          const vendonIdMap: Record<string, string> = {
+            'Rathen': '325762',
+            'Schöna': '348079', 
+            'Bad Schandau, Nationalparkbahnhof': '323959',
+            'Bad Schandau, Elbkai': '391262',
+            'Bad Schandau': '391262', // Default to Elbkai
+            'Hohnstein': '363236',
+            'Ostrau': '347989',
+            'Schmilka': '391263',
+            'Papstdorf, Feuerwehrmuseum': '380593',
+            'Papstdorf': '380593',
+            'Gohrisch': '340303',
+            'Burg Stolpen': '362117',
+            'Schloss Pilnitz,in der Orangerie': '395727',
+            'Schloss Pilnitz': '395727',
+            'Leupoldishain': '334642',
+            'Bad Gottleuba-Berggishübel': '380053',
+            'Bad Gottleuba': '380053',
+            'Berggishübel': '380053',
+            'COMÖDIE Dresden, Schloß Übigau': '504610',
+            'COMÖDIE Dresden': '504610',
+            'Pfaffendorf': '323780',
+            'Pirna, Hotel zur Post': '380592',
+            'Pirna': '380592',
+            'Pötzscha': '384501',
+            'Struppen, Landschlachthof': '378540',
+            'Struppen': '378540'
+          };
+
+          const vendonId = vendonIdMap[machine.machineName];
+          if (!vendonId) {
+            return machine; // Return original data if no vendon mapping
+          }
+
+          // Create Vendon API instance
+          const vendonAPI = new VendonAPI();
+          
+          // Fetch status and cash data concurrently
+          const [statusResult, cashResult] = await Promise.allSettled([
+            vendonAPI.request(`/machine/${vendonId}/status`),
+            vendonAPI.request(`/machine/${vendonId}/cash`)
+          ]);
+
+          // Process status data
+          let systemStatus = null;
+          if (statusResult.status === 'fulfilled' && statusResult.value.success) {
+            const status = statusResult.value.data;
+            systemStatus = {
+              power: status.power || false,
+              powerStatus: status.power_status || 'UNKNOWN',
+              telemetryOnline: status.telemetry_unit_online || false,
+              stockLevel: status.stock_level || null
+            };
+
+            // Add status warnings
+            if (!status.power || status.power_status === 'OFF') {
+              machine.warnings.push('System/Power ist ausgeschaltet');
+              machine.status = 'error';
+            }
+            if (!status.telemetry_unit_online) {
+              machine.warnings.push('Telemetrie offline');
+              if (machine.status !== 'error') machine.status = 'warning';
+            }
+
+            // Add last cash collection info
+            if (status.last_cash_collection) {
+              const daysAgo = getDaysAgo(new Date(status.last_cash_collection * 1000));
+              machine.lastCashCollection = {
+                datetime: new Date(status.last_cash_collection * 1000).toISOString(),
+                daysAgo
+              };
+              
+              // Add warning if >2 weeks ago
+              if (daysAgo > 14) {
+                machine.warnings.push(`Letzte Entleerung vor ${daysAgo} Tagen`);
+                if (machine.status !== 'error') machine.status = 'warning';
+              }
+            }
+          }
+
+          // Process cash data
+          let cashStatus = null;
+          if (cashResult.status === 'fulfilled' && cashResult.value.success) {
+            const cash = cashResult.value.data;
+            const totalCash = (cash.cash_box || 0) + (cash.bill_stacker || 0);
+            
+            let lowCoinTubes = 0;
+            if (cash.coins_per_tube) {
+              lowCoinTubes = cash.coins_per_tube.filter((tube: any) => tube.count < 5).length;
+            }
+
+            cashStatus = {
+              totalCash,
+              lowCoinTubes,
+              hasHighCash: totalCash > 250
+            };
+
+            // Add cash warnings
+            if (totalCash > 250) {
+              machine.warnings.push(`Hoher Bargeldbestand: ${totalCash.toFixed(2)}€`);
+              if (machine.status !== 'error') machine.status = 'warning';
+            }
+            if (lowCoinTubes > 0) {
+              machine.warnings.push(`${lowCoinTubes} Münzröhre(n) mit <5 Münzen`);
+              if (machine.status !== 'error') machine.status = 'warning';
+            }
+          }
+
+          return {
+            ...machine,
+            systemStatus,
+            cashStatus
+          };
+
+        } catch (error) {
+          console.error(`Error fetching enhanced data for location ${machine.machineName}:`, error);
+          return machine; // Return original data on error
+        }
+      })
+    );
     
     // Update cache
-    locationStatusCache = machineStatusData;
+    locationStatusCache = enhancedMachineData;
     cacheTimestamp = Date.now();
     
-    console.log(`Ultra-fast location status with raw SQL: Returning ${machineStatusData.length} locations`);
-    res.json(machineStatusData);
+    console.log(`Ultra-fast location status with raw SQL: Returning ${enhancedMachineData.length} locations`);
+    res.json(enhancedMachineData);
     
   } catch (error) {
     console.error('Fehler beim Abrufen der Location-Status-Daten:', error);
