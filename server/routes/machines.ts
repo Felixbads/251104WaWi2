@@ -1157,33 +1157,28 @@ router.get('/:id/removed-products', async (req, res) => {
     let removedProductsResult;
     try {
       removedProductsResult = await rawDb.query(
-        `WITH diverse_removals AS (
-          -- Get representative samples from each refill date and product
-          SELECT DISTINCT ON (DATE(r.datetime), rd.product_name)
-            rd.id,
-            r.datetime,
-            rd.product_name as "productName",
-            rd.removed as "removedQuantity",
-            r.operator,
-            COALESCE(NULLIF(rd.position, ''), 'Position ' || ROW_NUMBER() OVER (PARTITION BY rd.refill_id ORDER BY rd.id)) as "position",
-            COALESCE(pc.unit_price, 0) as "purchasePrice"
-          FROM refill_details rd
-          JOIN refills r ON rd.refill_id = r.id
-          LEFT JOIN products p ON rd.product_name = p.product_name
-          LEFT JOIN LATERAL (
-            SELECT unit_price
-            FROM purchase_conditions pc_sub 
-            WHERE pc_sub.product_id = p.id 
-            ORDER BY pc_sub.is_preferred DESC, pc_sub.unit_price ASC 
-            LIMIT 1
-          ) pc ON true
-          WHERE r.machine_id = $1 
-          AND r.datetime >= CURRENT_DATE - INTERVAL '${days} days'
-          AND rd.removed > 0
-          ORDER BY DATE(r.datetime) DESC, rd.product_name, r.datetime DESC
-        )
-        SELECT * FROM diverse_removals
-        ORDER BY datetime DESC
+        `SELECT 
+          rd.id,
+          r.datetime,
+          rd.product_name as "productName",
+          rd.removed as "removedQuantity",
+          r.operator,
+          COALESCE(NULLIF(rd.position, ''), 'Position ' || ROW_NUMBER() OVER (PARTITION BY rd.refill_id ORDER BY rd.id)) as "position",
+          COALESCE(pc.unit_price, 0) as "purchasePrice"
+        FROM refill_details rd
+        JOIN refills r ON rd.refill_id = r.id
+        LEFT JOIN products p ON rd.product_name = p.product_name
+        LEFT JOIN LATERAL (
+          SELECT unit_price
+          FROM purchase_conditions pc_sub 
+          WHERE pc_sub.product_id = p.id 
+          ORDER BY pc_sub.is_preferred DESC, pc_sub.unit_price ASC 
+          LIMIT 1
+        ) pc ON true
+        WHERE r.machine_id = $1 
+        AND r.datetime >= CURRENT_DATE - INTERVAL '${days} days'
+        AND rd.removed > 0
+        ORDER BY r.datetime DESC, rd.product_name
         LIMIT $2`,
         [machineInternalId!, limit]
       );

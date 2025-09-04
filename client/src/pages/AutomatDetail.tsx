@@ -1,5 +1,5 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { queryClient } from "@/lib/queryClient";
+import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useState, useMemo } from "react";
 import { useRoute } from "wouter";
 import { 
@@ -345,7 +345,10 @@ export default function AutomatDetail() {
     avgPurchasePrice: number;
     estimatedLoss: number;
   }>>({
-    queryKey: [`/api/removed-products/top?days=${removedProductsFilter}&limit=10`],
+    queryKey: [`/api/removed-products/top`, { days: removedProductsFilter, limit: 10 }],
+    queryFn: () => apiRequest(`/api/removed-products/top?days=${removedProductsFilter}&limit=10`, {
+      method: 'POST'
+    }),
     enabled: !!machineId && activeTab === 'entnommene-produkte',
     staleTime: 5 * 60 * 1000,
   });
