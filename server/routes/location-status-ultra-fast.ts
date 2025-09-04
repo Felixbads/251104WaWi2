@@ -379,37 +379,10 @@ router.get('/', async (req: Request, res: Response) => {
             // Status and warnings will be handled in frontend display
           }
 
-          // Get MHD status for this machine
+          // Get MHD status for this machine - simplified to avoid slow SQL queries
           let mhdStatus = null;
-          try {
-            const mhdResult = await rawDb.execute(sql`
-              SELECT 
-                ms.expiry_date,
-                p.product_name
-              FROM machine_stocks ms
-              JOIN products p ON p.vendon_id = ms.product_vendon_id
-              JOIN machines m ON m.id = ms.machine_id
-              WHERE m.vendon_id = ${vendonId} 
-                AND ms.quantity > 0
-                AND ms.expiry_date IS NOT NULL
-                AND ms.expiry_date >= CURRENT_DATE
-              ORDER BY ms.expiry_date ASC
-              LIMIT 1
-            `);
-            
-            if (mhdResult.length > 0) {
-              const nextExpiring = mhdResult[0];
-              mhdStatus = {
-                earliestExpiry: nextExpiring.expiry_date,
-                nextExpiringProduct: nextExpiring.product_name,
-                expiredCount: 0,
-                warningCount: 0,
-                alertLevel: 'ok' as 'expired' | 'warning' | 'ok'
-              };
-            }
-          } catch (error) {
-            console.error(`Error fetching MHD data for ${machine.machineName}:`, error);
-          }
+          // MHD data fetch temporarily disabled for performance
+          // TODO: Re-enable with optimized query
 
           return {
             ...machine,

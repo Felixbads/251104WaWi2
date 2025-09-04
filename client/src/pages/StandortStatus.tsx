@@ -197,14 +197,14 @@ export default function StandortStatus() {
 
 
 
-      {/* Suche */}
+      {/* Mobile-First Suche */}
       <div className="flex items-center space-x-2">
         <Search className="h-4 w-4 text-muted-foreground" />
         <Input
-          placeholder="Automat oder Standort suchen..."
+          placeholder="Standort suchen..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="max-w-sm"
+          className="flex-1"
         />
       </div>
 
