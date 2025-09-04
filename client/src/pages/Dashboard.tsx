@@ -34,6 +34,7 @@ import Login from "@/pages/Login";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CriticalMHDTile, MHDRecommendationsStatusTile, MHDQuickActionsTile } from "@/components/MHDRecommendationTiles";
 import { VendonSyncStatusCard } from "@/components/dashboard/VendonSyncStatusCard";
+import { CriticalLocationsCard } from "@/components/dashboard/CriticalLocationsCard";
 import { 
   getTransactions, 
   getMachines, 
@@ -684,6 +685,9 @@ export default function Dashboard() {
             
             {/* Vendon Sync Status Card */}
             <VendonSyncStatusCard />
+            
+            {/* Critical Locations Card */}
+            <CriticalLocationsCard />
           </div>
 
           {/* Right Column - Sidebar on desktop */}

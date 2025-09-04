@@ -10,7 +10,7 @@ import Machines from "@/pages/Machines"; // Alte Maschinen-Komponente
 import Automaten from "@/pages/Automaten"; // Neue Automaten-Komponente
 import Automaten2 from "@/pages/Automaten2"; // Noch neuere Automaten-Komponente
 import AutomatenNew from "@/pages/AutomatenNew"; // Neueste Automaten-Übersicht
-import StandortStatus from "@/pages/StandortStatus"; // Standort-Status-Übersicht
+import StandortStatus from "@/pages/StandortStatusNew"; // Mobile-First Standort-Status-Übersicht
 import StandortAnalyse from "@/pages/StandortAnalyse"; // Standort-Analyse mit Verkäufen vs. Entnahmen
 import AutomatDetail from "@/pages/AutomatDetail"; // Detail-Ansicht eines Automaten
 import RefillDetail from "@/pages/RefillDetail"; // Detail-Ansicht einer Auffüllung

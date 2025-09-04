@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
-import { db } from '../db';
+import { db, rawDb } from '../db';
 import { VendonAPI } from '../services/vendonAPI';
+import { sql } from 'drizzle-orm';
 
 const router = Router();
 
