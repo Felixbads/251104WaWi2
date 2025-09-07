@@ -2020,7 +2020,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           SELECT DISTINCT t.machine_id
           FROM transactions t
           INNER JOIN products p ON t.product_id = p.vendon_id
-          WHERE p.isAlcoholic = true
+          WHERE p."isAlcoholic" = true
             AND t.datetime >= NOW() - INTERVAL '24 hours'
         )
         SELECT 
@@ -2029,7 +2029,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           COUNT(DISTINCT p.vendon_id) as "alcoholProductCount"
         FROM alcohol_machines am
         LEFT JOIN recent_alcohol_sales ras ON am.id = ras.machine_id
-        LEFT JOIN products p ON p.isAlcoholic = true
+        LEFT JOIN products p ON p."isAlcoholic" = true
         WHERE ras.machine_id IS NULL
         GROUP BY am.machine_name, am.id
         ORDER BY "alcoholProductCount" DESC
@@ -2064,26 +2064,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
         LIMIT 5
       `;
       
-      // 3. Products expiring in 1-2 days (based on shelf_life_days)
+      // 3. Products expiring soon (from machine_stocks table)
       const expiringProductsQuery = `
         SELECT 
           p.product_name as "productName",
-          p.shelf_life_days as "shelfLifeDays",
+          ms.expiry_date,
           m.machine_name as "locationName",
-          rd.refilled as "currentStock",
+          ms.quantity as "currentStock",
           CASE 
-            WHEN p.shelf_life_days <= 1 THEN 'Morgen'
-            WHEN p.shelf_life_days <= 2 THEN 'Übermorgen'
-            ELSE CONCAT(p.shelf_life_days, ' Tage')
+            WHEN ms.expiry_date <= NOW() + INTERVAL '1 day' THEN 'Morgen'
+            WHEN ms.expiry_date <= NOW() + INTERVAL '2 days' THEN 'Übermorgen'
+            ELSE EXTRACT(DAY FROM (ms.expiry_date - NOW()))::text || ' Tage'
           END as "expiryStatus"
-        FROM products p
-        INNER JOIN refill_details rd ON p.product_name = rd.product_name
-        INNER JOIN refills r ON rd.refill_id = r.id
-        INNER JOIN machines m ON r.machine_id = m.id
-        WHERE p.expiry_date IS NOT NULL 
-          AND p.expiry_date <= NOW() + INTERVAL '2 days'
-          AND r.datetime >= NOW() - INTERVAL '7 days'
-        ORDER BY p.expiry_date ASC, rd.refilled DESC
+        FROM machine_stocks ms
+        INNER JOIN machines m ON ms.machine_id = m.id
+        LEFT JOIN products p ON ms.product_vendon_id = p.vendon_id
+        WHERE ms.expiry_date IS NOT NULL 
+          AND ms.expiry_date <= NOW() + INTERVAL '2 days'
+          AND ms.quantity > 0
+        ORDER BY ms.expiry_date ASC, ms.quantity DESC
         LIMIT 10
       `;
 
