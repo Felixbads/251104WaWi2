@@ -2376,6 +2376,11 @@ app.get('/orders-data', (req, res) => {
   // Register stock ratios router for filling level calculations
   app.use('/api/stock-ratios', stockRatiosRouter);
   console.log('[SERVER] Stock ratios router mounted successfully');
+
+  // Register batch traceability system for comprehensive batch tracking
+  const batchTraceabilityRouter = (await import('./routes/batch-traceability')).default;
+  app.use('/api/batch-traceability', batchTraceabilityRouter);
+  console.log('[SERVER] Batch Traceability System mounted successfully');
   
 
   
