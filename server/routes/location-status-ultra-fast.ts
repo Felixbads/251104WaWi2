@@ -8,7 +8,7 @@ const router = Router();
 // Cache for location status data
 let locationStatusCache: any = null;
 let cacheTimestamp: number = 0;
-const CACHE_DURATION = 2 * 60 * 1000; // 2 minutes cache
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes cache for performance
 
 
 
@@ -27,14 +27,17 @@ router.get('/', async (req: Request, res: Response) => {
   try {
     console.log('🚀 LOCATION-STATUS GROUPED BY LOCATION! 🚀');
     
-    // Cache disabled and clear any residual cache
-    locationStatusCache = null;
-    cacheTimestamp = 0;
-    
     // Force refresh parameter
     const forceRefresh = req.query.refresh === '1' || req.query.force === '1';
     
     console.log(`🔄 Force refresh: ${forceRefresh}, Query params:`, req.query);
+    
+    // Check cache first (unless force refresh)
+    const now = Date.now();
+    if (!forceRefresh && locationStatusCache && (now - cacheTimestamp) < CACHE_DURATION) {
+      console.log(`💨 Cache hit! Returning cached data (${Math.round((now - cacheTimestamp) / 1000)}s old)`);
+      return res.json(locationStatusCache);
+    }
     
     // Query to get data grouped by LOCATION (extracted directly from transactions)
     const result = await db.execute(`
@@ -290,9 +293,14 @@ router.get('/', async (req: Request, res: Response) => {
       machine.recentTransactions = recentTransactionsByLocation[machine.machineName] || [];
     });
 
-    // Enhance with Vendon status and cash data for each location
-    const enhancedMachineData = await Promise.all(
-      machineStatusData.map(async (machine: any) => {
+    // Enhance with Vendon status and cash data for each location (LIMITED PARALLEL PROCESSING)
+    const enhancedMachineData = [];
+    const BATCH_SIZE = 6; // Limit to 6 concurrent Vendon API calls for performance
+    
+    for (let i = 0; i < machineStatusData.length; i += BATCH_SIZE) {
+      const batch = machineStatusData.slice(i, i + BATCH_SIZE);
+      const batchResults = await Promise.all(
+        batch.map(async (machine: any) => {
         try {
           // Get vendon_id mapping for location
           const vendonIdMap: Record<string, string> = {
@@ -396,7 +404,11 @@ router.get('/', async (req: Request, res: Response) => {
           return machine; // Return original data on error
         }
       })
-    );
+      );
+      
+      enhancedMachineData.push(...batchResults);
+      console.log(`✅ Batch ${Math.floor(i/BATCH_SIZE) + 1}: Processed ${batchResults.length} locations`);
+    }
     
     // Update cache
     locationStatusCache = enhancedMachineData;
