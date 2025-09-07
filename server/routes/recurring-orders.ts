@@ -22,6 +22,7 @@ import { eq, desc, asc, and, sql, isNull, or, gte, lte } from 'drizzle-orm';
 import { z } from 'zod';
 import RecurringOrderScheduler from '../services/recurringOrderScheduler';
 import GoodsReceiptService from '../services/goodsReceiptService';
+import nodemailer from 'nodemailer';
 
 // Services initialisieren
 const scheduler = new RecurringOrderScheduler();
@@ -92,11 +93,9 @@ router.post('/test-email', async (req: Request, res: Response) => {
     console.log(testEmailContent);
 
     // ECHTER E-MAIL-SERVICE IMPLEMENTIERT
-    try {
-      import nodemailer from 'nodemailer';
-      
+    try {      
       // SMTP-Transporter konfigurieren
-      const transporter = nodemailer.createTransporter({
+      const transporter = nodemailer.createTransport({
         host: process.env.SMTP_HOST,
         port: parseInt(process.env.SMTP_PORT || '587'),
         secure: process.env.SMTP_PORT === '465',
