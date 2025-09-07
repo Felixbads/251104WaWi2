@@ -3783,7 +3783,9 @@ export const refillTemplates = pgTable("refill_templates", {
   machineId: integer("machine_id").notNull().references(() => machines.id),
   vendonId: varchar("vendon_id", { length: 50 }), // Optional: for Vendon integration
   name: varchar("name", { length: 255 }).notNull(),
+  templateName: varchar("template_name", { length: 255 }),
   description: text("description"),
+  isActive: boolean("is_active").default(true),
   isDefault: boolean("is_default").default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -3823,6 +3825,29 @@ export type InsertRefillTemplateProduct = z.infer<typeof insertRefillTemplatePro
 export type RefillTemplate = typeof refillTemplates.$inferSelect;
 export type RefillTemplateProduct = typeof refillTemplateProducts.$inferSelect;
 
+// Weekly Template Changes table for tracking automated weekly adjustments
+export const weeklyTemplateChanges = pgTable("weekly_template_changes", {
+  id: serial("id").primaryKey(),
+  templateId: integer("template_id").notNull().references(() => refillTemplates.id, { onDelete: "cascade" }),
+  productName: varchar("product_name", { length: 255 }).notNull(),
+  oldQuantity: integer("old_quantity").notNull(),
+  newQuantity: integer("new_quantity").notNull(),
+  changeType: varchar("change_type", { length: 20 }).notNull(), // 'increase', 'decrease', 'unchanged'
+  changePercentage: integer("change_percentage").notNull().default(0),
+  reasons: text("reasons"), // JSON array of reasons as string
+  confidence: real("confidence").notNull().default(0.8),
+  explanationText: text("explanation_text"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertWeeklyTemplateChangeSchema = createInsertSchema(weeklyTemplateChanges).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertWeeklyTemplateChange = z.infer<typeof insertWeeklyTemplateChangeSchema>;
+export type WeeklyTemplateChange = typeof weeklyTemplateChanges.$inferSelect;
+
 // Define relations for refill templates
 export const refillTemplateRelations = relations(refillTemplates, ({ one, many }) => ({
   machine: one(machines, {
@@ -3830,6 +3855,7 @@ export const refillTemplateRelations = relations(refillTemplates, ({ one, many }
     references: [machines.id],
   }),
   products: many(refillTemplateProducts),
+  weeklyChanges: many(weeklyTemplateChanges),
   createdByUser: one(users, {
     fields: [refillTemplates.createdBy],
     references: [users.id],
@@ -3837,6 +3863,13 @@ export const refillTemplateRelations = relations(refillTemplates, ({ one, many }
   updatedByUser: one(users, {
     fields: [refillTemplates.updatedBy],
     references: [users.id],
+  }),
+}));
+
+export const weeklyTemplateChangeRelations = relations(weeklyTemplateChanges, ({ one }) => ({
+  template: one(refillTemplates, {
+    fields: [weeklyTemplateChanges.templateId],
+    references: [refillTemplates.id],
   }),
 }));
 
