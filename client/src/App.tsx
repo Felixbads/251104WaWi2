@@ -357,11 +357,7 @@ function AuthenticatedRouter() {
           </ApprovedUserRoute>
         </Route>
 
-        <Route path="/lieferantenportal">
-          <ApprovedUserRoute>
-            <SupplierPortal />
-          </ApprovedUserRoute>
-        </Route>
+        {/* Removed static supplier portal route - use token-based access only */}
 
         <Route path="/lager">
           <ApprovedUserRoute>
@@ -837,31 +833,36 @@ function MainRouter() {
     );
   }
 
-  // PORTAL-ROUTE: Direkte Abfangung und Rendering (höchste Priorität)
+  // VEREINFACHTE PORTAL-ROUTEN: Nur Token-basierter Zugang
   if (location.includes('/lieferant/')) {
-    console.log('[MAIN-ROUTER] PORTAL ROUTE DETECTED - Direct rendering');
+    console.log('[MAIN-ROUTER] PORTAL ROUTE DETECTED - Centralized rendering');
     console.log('[MAIN-ROUTER] Location:', location);
     
-    // Check if URL contains order ID (e.g., /lieferant/token/bestellung/123)
-    const orderMatch = location.match(/\/lieferant\/([^\/]+)\/bestellung\/(\d+)/);
-    const simpleMatch = location.match(/\/lieferant\/([^\/]+)$/);
+    // Extrahiere Access-Token aus URL (erstes Segment nach /lieferant/)
+    const tokenMatch = location.match(/\/lieferant\/([^\/]+)/);
     
-    const accessToken = orderMatch ? orderMatch[1] : (simpleMatch ? simpleMatch[1] : null);
-    const orderId = orderMatch ? orderMatch[2] : null;
-    
-    console.log('[MAIN-ROUTER] Access Token extracted:', accessToken);
-    console.log('[MAIN-ROUTER] Order ID extracted:', orderId);
-    
-    if (accessToken) {
+    if (tokenMatch) {
+      const [, accessToken] = tokenMatch;
+      console.log('[MAIN-ROUTER] Access Token extracted:', accessToken.substring(0, 10) + '...');
+      
+      // Verwende nur SupplierPortalNew für alle Portal-Zugriffe
       return (
         <QueryClientProvider client={queryClient}>
-          <SupplierPortalNew orderId={orderId} accessToken={accessToken} />
+          <SupplierPortalNew accessToken={accessToken} />
           <Toaster />
         </QueryClientProvider>
       );
     } else {
       console.error('[MAIN-ROUTER] No access token found in URL');
-      return <div>Portal-Zugang: Kein gültiger Token gefunden</div>;
+      return (
+        <div className="flex h-screen items-center justify-center">
+          <div className="text-center">
+            <h2 className="text-2xl font-bold mb-4 text-red-600">Ungültiger Portal-Link</h2>
+            <p className="text-gray-600">Der Portal-Link ist ungültig oder fehlerhaft.</p>
+            <p className="text-gray-600">Bitte kontaktieren Sie unser Team für Unterstützung.</p>
+          </div>
+        </div>
+      );
     }
   }
 
