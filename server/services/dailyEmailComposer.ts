@@ -1,6 +1,6 @@
 /**
  * Email Composer Service für tägliche E-Mail-Benachrichtigungen
- * Komponiert HTML-E-Mails basierend auf Templates und Daten
+ * Komponiert HTML-E-Mails basierend auf Proviantomat-Datenstruktur
  */
 import { DailyReportData } from './dailyEmailDataAggregator';
 import { EmailTemplates } from '@shared/schema';
@@ -14,7 +14,7 @@ export class DailyEmailComposer {
     html: string;
     text: string;
   }> {
-    const subject = `📊 ${data.template} - ${this.formatDate(data.date)}`;
+    const subject = data.betreff || `📊 ${data.template} - ${this.formatDate(data.date)}`;
     
     const html = template?.htmlTemplate 
       ? this.renderCustomTemplate(template.htmlTemplate, data)
@@ -31,23 +31,22 @@ export class DailyEmailComposer {
   private renderCustomTemplate(htmlTemplate: string, data: DailyReportData): string {
     try {
       // Einfache Template-Variable-Ersetzung
-      // In einer erweiterten Version könnte hier Handlebars oder ähnliches verwendet werden
       let rendered = htmlTemplate;
       
       // Ersetze grundlegende Variablen
       rendered = rendered.replace(/{{date}}/g, this.formatDate(data.date));
       rendered = rendered.replace(/{{template}}/g, data.template);
       
-      // Ersetze Sektionen
-      rendered = rendered.replace(/{{umsatz_gesamt}}/g, data.sections.rückblick.umsatz_gesamt.toFixed(2));
-      rendered = rendered.replace(/{{netto_ergebnis}}/g, data.sections.rückblick.netto_ergebnis.toFixed(2));
+      // Ersetze Verkaufsdaten
+      rendered = rendered.replace(/{{anzahl_verkäufe}}/g, data.sections.verkäufe.anzahl_verkäufe.toString());
+      rendered = rendered.replace(/{{umsatzsumme}}/g, data.sections.verkäufe.umsatzsumme.toFixed(2));
       
       // Füge Listen hinzu
-      if (rendered.includes('{{anomalien_liste}}')) {
-        const anomalienHtml = data.sections.automaten_anomalien
-          .map(anomaly => `<li><strong>${anomaly.automat}:</strong> ${anomaly.meldung}</li>`)
+      if (rendered.includes('{{top_produkte_liste}}')) {
+        const produkteHtml = data.sections.verkäufe.top_produkte
+          .map(product => `<li><strong>${product.name}:</strong> ${product.stückzahl} Stück (${product.umsatz.toFixed(2)} €)</li>`)
           .join('');
-        rendered = rendered.replace(/{{anomalien_liste}}/g, anomalienHtml);
+        rendered = rendered.replace(/{{top_produkte_liste}}/g, produkteHtml);
       }
       
       return rendered;
@@ -58,7 +57,7 @@ export class DailyEmailComposer {
   }
 
   /**
-   * Rendert das Standard-HTML-Template
+   * Rendert das Standard-HTML-Template für Proviantomat-Berichte
    */
   private renderDefaultTemplate(data: DailyReportData): string {
     return `
@@ -119,409 +118,413 @@ export class DailyEmailComposer {
                 align-items: center;
                 gap: 8px;
             }
-            .weather-box {
-                background: linear-gradient(135deg, #74b9ff, #0984e3);
+            .sales-box {
+                background: linear-gradient(135deg, #00b894, #00a085);
                 color: white;
                 padding: 20px;
-                border-radius: 8px;
-                margin: 15px 0;
-            }
-            .forecast-grid {
-                display: grid;
-                grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
-                gap: 10px;
-                margin-top: 15px;
-            }
-            .forecast-day {
-                background: rgba(255,255,255,0.2);
-                padding: 10px;
-                border-radius: 4px;
-                text-align: center;
-                font-size: 12px;
-            }
-            .sales-grid {
-                display: grid;
-                grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-                gap: 15px;
-                margin-top: 15px;
-            }
-            .sales-card {
-                background: white;
-                padding: 15px;
                 border-radius: 6px;
-                border: 1px solid #e0e6ed;
-                text-align: center;
+                margin-bottom: 15px;
             }
-            .amount {
+            .metric {
+                display: inline-block;
+                margin-right: 30px;
+            }
+            .metric-value {
                 font-size: 24px;
                 font-weight: bold;
-                color: #27ae60;
+                display: block;
             }
-            .mhd-table {
-                width: 100%;
-                border-collapse: collapse;
+            .metric-label {
+                font-size: 12px;
+                opacity: 0.9;
+            }
+            .product-list {
+                background: #fff;
+                border-radius: 4px;
+                padding: 15px;
                 margin-top: 15px;
             }
-            .mhd-table th,
-            .mhd-table td {
+            .product-item {
+                padding: 8px 0;
+                border-bottom: 1px solid #eee;
+                display: flex;
+                justify-content: space-between;
+            }
+            .product-item:last-child {
+                border-bottom: none;
+            }
+            .alert-high {
+                background-color: #ff6b6b;
+                color: white;
                 padding: 10px;
-                text-align: left;
-                border-bottom: 1px solid #ddd;
-            }
-            .mhd-table th {
-                background: #f1f3f4;
-                font-weight: 600;
-            }
-            .urgent { color: #e74c3c; font-weight: bold; }
-            .warning { color: #f39c12; font-weight: bold; }
-            .normal { color: #27ae60; }
-            .anomaly {
-                background: #fff5f5;
-                border-left: 4px solid #e53e3e;
-                padding: 12px;
-                margin: 8px 0;
                 border-radius: 4px;
+                margin-bottom: 10px;
             }
-            .anomaly strong {
-                color: #c53030;
-            }
-            .summary-stats {
-                display: grid;
-                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-                gap: 20px;
-                margin: 20px 0;
-            }
-            .stat-card {
-                background: white;
-                padding: 20px;
-                border-radius: 8px;
-                border: 1px solid #e0e6ed;
-                text-align: center;
-            }
-            .stat-value {
-                font-size: 28px;
-                font-weight: bold;
-                color: #2c3e50;
-            }
-            .stat-label {
-                font-size: 14px;
-                color: #7f8c8d;
-                margin-top: 5px;
-            }
-            .hints {
-                background: #fff8e1;
-                border-left: 4px solid #ffa726;
-                padding: 15px;
+            .alert-medium {
+                background-color: #ffa500;
+                color: white;
+                padding: 10px;
                 border-radius: 4px;
-                margin-top: 20px;
+                margin-bottom: 10px;
+            }
+            .alert-low {
+                background-color: #74b9ff;
+                color: white;
+                padding: 10px;
+                border-radius: 4px;
+                margin-bottom: 10px;
             }
             .footer {
-                background: #34495e;
-                color: #ecf0f1;
-                padding: 20px;
                 text-align: center;
+                padding: 20px;
+                background: #f8f9fa;
+                color: #666;
                 font-size: 12px;
             }
-            ul { margin: 10px 0; padding-left: 20px; }
-            li { margin: 5px 0; }
+            .link-button {
+                display: inline-block;
+                background: #667eea;
+                color: white;
+                padding: 10px 20px;
+                text-decoration: none;
+                border-radius: 4px;
+                margin-top: 15px;
+            }
+            ul {
+                list-style: none;
+                padding-left: 0;
+            }
+            li {
+                padding: 5px 0;
+                border-bottom: 1px solid #eee;
+            }
+            li:last-child {
+                border-bottom: none;
+            }
         </style>
     </head>
     <body>
         <div class="container">
             <div class="header">
-                <h1>${data.template}</h1>
+                <h1>📊 ${data.template}</h1>
                 <div class="date">${this.formatDate(data.date)}</div>
             </div>
             
             <div class="content">
-                <!-- Wetter & Umsatzprognose -->
-                <div class="section">
-                    <h2>🌤️ Wetter & Umsatzprognose</h2>
-                    <div class="weather-box">
-                        <h3>Heute in ${data.sections.wetter_ferien_umsatz.standort}</h3>
-                        <p><strong>${data.sections.wetter_ferien_umsatz.heute.wetter}</strong></p>
-                        
-                        <div class="sales-grid">
-                            ${data.sections.wetter_ferien_umsatz.heute.prognostizierter_umsatz
-                              .map(sale => `
-                                <div class="sales-card">
-                                    <div>${sale.automat}</div>
-                                    <div class="amount">${sale.wert}€</div>
-                                </div>
-                              `).join('')}
-                        </div>
-                    </div>
-                    
-                    <div class="forecast-grid">
-                        ${data.sections.wetter_ferien_umsatz.wettervorschau
-                          .map(day => `
-                            <div class="forecast-day">
-                                <div><strong>${day.tag}</strong></div>
-                                <div>${day.temperatur}</div>
-                                <div>${day.wetter}</div>
-                                <div style="font-size: 10px; margin-top: 5px;">${day.bemerkung}</div>
-                            </div>
-                          `).join('')}
-                    </div>
-                    
-                    <p style="margin-top: 15px; font-style: italic;">
-                        ${data.sections.wetter_ferien_umsatz.auswirkung}
-                    </p>
-                </div>
-
-                <!-- Tagesrückblick -->
-                <div class="section">
-                    <h2>📈 Tagesrückblick</h2>
-                    <div class="summary-stats">
-                        <div class="stat-card">
-                            <div class="stat-value">${data.sections.rückblick.umsatz_gesamt.toFixed(2)}€</div>
-                            <div class="stat-label">Gesamtumsatz</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-value">${data.sections.rückblick.netto_ergebnis.toFixed(2)}€</div>
-                            <div class="stat-label">Nettoegebnis</div>
-                        </div>
-                    </div>
-                    
-                    ${data.sections.rückblick.entnahmen.length > 0 ? `
-                        <h3>🔄 Entnahmen/Nachfüllungen</h3>
-                        ${data.sections.rückblick.entnahmen
-                          .map(entnahme => `
-                            <div style="margin: 10px 0; padding: 10px; background: white; border-radius: 4px;">
-                                <strong>${entnahme.automat}:</strong> ${entnahme.produkte.join(', ')}
-                            </div>
-                          `).join('')}
-                    ` : ''}
-                </div>
-
-                <!-- MHD Übersicht -->
-                <div class="section">
-                    <h2>⏰ MHD-Übersicht</h2>
-                    
-                    ${this.renderMHDSection('🚨 Kritisch (<5 Tage)', data.sections.mhd_lager["<5"], 'urgent')}
-                    ${this.renderMHDSection('⚠️ Bald ablaufend (<14 Tage)', data.sections.mhd_lager["<14"], 'warning')}
-                    ${this.renderMHDSection('📅 Überwachen (<31 Tage)', data.sections.mhd_lager["<31"], 'normal')}
-                    
-                    ${data.sections.mhd_automaten.length > 0 ? `
-                        <h3>🏪 MHD in Automaten</h3>
-                        <table class="mhd-table">
-                            <thead>
-                                <tr>
-                                    <th>Automat</th>
-                                    <th>Produkt</th>
-                                    <th>Anzahl</th>
-                                    <th>MHD</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${data.sections.mhd_automaten
-                                  .map(item => `
-                                    <tr>
-                                        <td>${item.automat}</td>
-                                        <td>${item.produkt}</td>
-                                        <td>${item.anzahl}</td>
-                                        <td class="${this.getMHDClass(item.mhd)}">${this.formatDate(item.mhd)}</td>
-                                    </tr>
-                                  `).join('')}
-                            </tbody>
-                        </table>
-                    ` : ''}
-                </div>
-
-                <!-- Niedriger Lagerbestand -->
-                ${data.sections.niedriger_lagerbestand.length > 0 ? `
-                    <div class="section">
-                        <h2>📦 Niedriger Lagerbestand</h2>
-                        <table class="mhd-table">
-                            <thead>
-                                <tr>
-                                    <th>Produkt</th>
-                                    <th>Aktueller Bestand</th>
-                                    <th>Sollbestand</th>
-                                    <th>Status</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${data.sections.niedriger_lagerbestand
-                                  .map(item => `
-                                    <tr>
-                                        <td>${item.produkt}</td>
-                                        <td>${item.bestand}</td>
-                                        <td>${item.bedarf}</td>
-                                        <td class="${item.bestand < item.bedarf * 0.5 ? 'urgent' : 'warning'}">
-                                            ${item.bestand < item.bedarf * 0.5 ? '🚨 Kritisch' : '⚠️ Niedrig'}
-                                        </td>
-                                    </tr>
-                                  `).join('')}
-                            </tbody>
-                        </table>
-                    </div>
-                ` : ''}
-
-                <!-- Offene Wareneingänge -->
-                ${data.sections.offene_wareneingänge.length > 0 ? `
-                    <div class="section">
-                        <h2>📋 Offene Wareneingänge</h2>
-                        ${data.sections.offene_wareneingänge
-                          .map(order => `
-                            <div style="margin: 10px 0; padding: 15px; background: white; border-radius: 4px; border-left: 4px solid #3498db;">
-                                <strong>Lieferant:</strong> ${order.lieferant}<br>
-                                <strong>Bestelldatum:</strong> ${this.formatDate(order.bestelldatum)}<br>
-                                <strong>Produkte:</strong> ${order.produkte.join(', ')}
-                            </div>
-                          `).join('')}
-                    </div>
-                ` : ''}
-
-                <!-- Automaten-Anomalien -->
-                ${data.sections.automaten_anomalien.length > 0 ? `
-                    <div class="section">
-                        <h2>🚨 Automaten-Anomalien</h2>
-                        ${data.sections.automaten_anomalien
-                          .map(anomaly => `
-                            <div class="anomaly">
-                                <strong>${anomaly.automat}:</strong> ${anomaly.meldung}
-                            </div>
-                          `).join('')}
-                    </div>
-                ` : ''}
-
-                <!-- Hinweise -->
-                ${data.sections.hinweise.length > 0 ? `
-                    <div class="hints">
-                        <h3>💡 Hinweise für heute</h3>
-                        <ul>
-                            ${data.sections.hinweise.map(hint => `<li>${hint}</li>`).join('')}
-                        </ul>
-                    </div>
-                ` : ''}
+                ${this.renderSalesSection(data)}
+                ${this.renderInventorySection(data)}
+                ${data.sections.wetter_ferien_umsatz ? this.renderWeatherSection(data) : ''}
+                ${data.sections.offene_wareneingänge ? this.renderOpenOrdersSection(data) : ''}
+                ${data.sections.agent_analyse ? this.renderAgentAnalysisSection(data) : ''}
+                ${this.renderHinweiseSection(data)}
             </div>
             
             <div class="footer">
-                <p>📧 Automatisch generierter Tagesbericht vom Warenwirtschaftssystem</p>
-                <p>Generiert am ${new Date().toLocaleString('de-DE')}</p>
+                <p>Automatisch generiert von Ihrem Proviantomat-System</p>
+                <a href="${process.env.FRONTEND_URL || 'https://your-app.replit.app'}/dashboard" class="link-button">Zum Dashboard</a>
             </div>
         </div>
     </body>
-    </html>`;
-  }
-
-  /**
-   * Rendert eine MHD-Sektion
-   */
-  private renderMHDSection(title: string, items: any[], cssClass: string): string {
-    if (items.length === 0) return '';
-    
-    return `
-      <h3>${title}</h3>
-      <table class="mhd-table">
-          <thead>
-              <tr>
-                  <th>Lager</th>
-                  <th>Produkt</th>
-                  <th>Anzahl</th>
-                  <th>MHD</th>
-              </tr>
-          </thead>
-          <tbody>
-              ${items
-                .map(item => `
-                  <tr>
-                      <td>${item.lager}</td>
-                      <td>${item.produkt}</td>
-                      <td>${item.anzahl}</td>
-                      <td class="${cssClass}">${this.formatDate(item.mhd)}</td>
-                  </tr>
-                `).join('')}
-          </tbody>
-      </table>
+    </html>
     `;
   }
 
   /**
-   * Bestimmt CSS-Klasse basierend auf MHD
+   * Rendert die Verkaufs-Sektion
    */
-  private getMHDClass(mhdDate: string): string {
-    const today = new Date();
-    const mhd = new Date(mhdDate);
-    const daysDiff = Math.ceil((mhd.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+  private renderSalesSection(data: DailyReportData): string {
+    const verkäufe = data.sections.verkäufe;
     
-    if (daysDiff <= 5) return 'urgent';
-    if (daysDiff <= 14) return 'warning';
-    return 'normal';
+    return `
+    <div class="section">
+        <h2>💰 Verkäufe</h2>
+        <div class="sales-box">
+            <div class="metric">
+                <span class="metric-value">${verkäufe.anzahl_verkäufe}</span>
+                <span class="metric-label">Anzahl Verkäufe</span>
+            </div>
+            <div class="metric">
+                <span class="metric-value">${verkäufe.umsatzsumme.toFixed(2)} €</span>
+                <span class="metric-label">Umsatzsumme</span>
+            </div>
+        </div>
+        
+        ${verkäufe.top_produkte.length > 0 ? `
+        <div class="product-list">
+            <h3>🏆 Top-Produkte</h3>
+            ${verkäufe.top_produkte.map(product => `
+                <div class="product-item">
+                    <span><strong>${product.name}</strong></span>
+                    <span>${product.stückzahl} Stück • ${product.umsatz.toFixed(2)} €</span>
+                </div>
+            `).join('')}
+        </div>
+        ` : ''}
+    </div>
+    `;
+  }
+
+  /**
+   * Rendert die Bestände & Logistik-Sektion
+   */
+  private renderInventorySection(data: DailyReportData): string {
+    const bestände = data.sections.bestände_logistik;
+    
+    return `
+    <div class="section">
+        <h2>📦 Bestände & Logistik</h2>
+        
+        ${bestände.niedriger_lagerbestand.length > 0 ? `
+        <div class="alert-high">
+            <h3>⚠️ Niedriger Lagerbestand</h3>
+            <ul>
+                ${bestände.niedriger_lagerbestand.map(item => 
+                    `<li><strong>${item.produkt}</strong>: ${item.bestand} Stück (Schwellenwert: ${item.schwellenwert})</li>`
+                ).join('')}
+            </ul>
+        </div>
+        ` : ''}
+        
+        ${bestände.nachzubestellende_artikel.length > 0 ? `
+        <div class="alert-medium">
+            <h3>🔄 Nachzubestellende Artikel</h3>
+            <ul>
+                ${bestände.nachzubestellende_artikel.map(item => 
+                    `<li><strong>${item.produkt}</strong> (${item.priorität}) - Empfohlen: ${item.empfohlene_menge} Stück</li>`
+                ).join('')}
+            </ul>
+        </div>
+        ` : ''}
+        
+        ${this.renderMHDSection(bestände.nahendes_mhd)}
+    </div>
+    `;
+  }
+
+  /**
+   * Rendert die MHD-Sektion
+   */
+  private renderMHDSection(mhdData: any): string {
+    const hasLagerMHD = mhdData.lager["<5"].length > 0 || mhdData.lager["<14"].length > 0 || mhdData.lager["<31"].length > 0;
+    const hasAutomatenMHD = mhdData.automaten.length > 0;
+    
+    if (!hasLagerMHD && !hasAutomatenMHD) {
+      return '<div class="alert-low">✅ Alle Produkte haben ausreichend lange MHD</div>';
+    }
+    
+    return `
+    <div class="alert-medium">
+        <h3>📅 Produkte mit nahendem MHD</h3>
+        
+        ${mhdData.lager["<5"].length > 0 ? `
+        <div style="margin-bottom: 15px;">
+            <strong>Kritisch (&lt;5 Tage):</strong>
+            <ul>
+                ${mhdData.lager["<5"].map((item: any) => 
+                    `<li>${item.lager}: <strong>${item.produkt}</strong> (${item.anzahl} Stück, MHD: ${item.mhd})</li>`
+                ).join('')}
+            </ul>
+        </div>
+        ` : ''}
+        
+        ${mhdData.lager["<14"].length > 0 ? `
+        <div style="margin-bottom: 15px;">
+            <strong>Warnung (&lt;14 Tage):</strong>
+            <ul>
+                ${mhdData.lager["<14"].map((item: any) => 
+                    `<li>${item.lager}: <strong>${item.produkt}</strong> (${item.anzahl} Stück, MHD: ${item.mhd})</li>`
+                ).join('')}
+            </ul>
+        </div>
+        ` : ''}
+        
+        ${mhdData.automaten.length > 0 ? `
+        <div>
+            <strong>Automaten:</strong>
+            <ul>
+                ${mhdData.automaten.map((item: any) => 
+                    `<li>${item.automat}: <strong>${item.produkt}</strong> (${item.anzahl} Stück, MHD: ${item.mhd})</li>`
+                ).join('')}
+            </ul>
+        </div>
+        ` : ''}
+    </div>
+    `;
+  }
+
+  /**
+   * Rendert die Wetter-Sektion
+   */
+  private renderWeatherSection(data: DailyReportData): string {
+    const wetter = data.sections.wetter_ferien_umsatz!;
+    
+    return `
+    <div class="section">
+        <h2>🌤️ Wetter & Prognose</h2>
+        <div class="alert-low">
+            <strong>${wetter.standort}:</strong> ${wetter.heute.wetter}
+            <p><strong>Auswirkung:</strong> ${wetter.auswirkung}</p>
+        </div>
+        
+        ${wetter.heute.prognostizierter_umsatz.length > 0 ? `
+        <div style="background: white; padding: 15px; border-radius: 4px; margin-top: 15px;">
+            <h4>💰 Prognostizierter Umsatz</h4>
+            <ul>
+                ${wetter.heute.prognostizierter_umsatz.map(prognose => 
+                    `<li><strong>${prognose.automat}</strong>: ${prognose.wert} €</li>`
+                ).join('')}
+            </ul>
+        </div>
+        ` : ''}
+    </div>
+    `;
+  }
+
+  /**
+   * Rendert die offenen Bestellungen
+   */
+  private renderOpenOrdersSection(data: DailyReportData): string {
+    const bestellungen = data.sections.offene_wareneingänge!;
+    
+    if (bestellungen.length === 0) {
+      return '';
+    }
+    
+    return `
+    <div class="section">
+        <h2>📋 Offene Wareneingänge</h2>
+        <ul>
+            ${bestellungen.map(bestellung => 
+                `<li><strong>${bestellung.lieferant}</strong> (${bestellung.bestelldatum}): ${bestellung.produkte.join(', ')}</li>`
+            ).join('')}
+        </ul>
+    </div>
+    `;
+  }
+
+  /**
+   * Rendert die Agent-Analyse
+   */
+  private renderAgentAnalysisSection(data: DailyReportData): string {
+    const analyse = data.sections.agent_analyse!;
+    
+    return `
+    <div class="section">
+        <h2>🤖 Agent-Analyse</h2>
+        
+        ${analyse.besondere_auffälligkeiten.length > 0 ? `
+        <div class="alert-medium">
+            <h4>⚠️ Besondere Auffälligkeiten</h4>
+            <ul>
+                ${analyse.besondere_auffälligkeiten.map(auffälligkeit => 
+                    `<li>${auffälligkeit}</li>`
+                ).join('')}
+            </ul>
+        </div>
+        ` : ''}
+        
+        ${analyse.empfehlungen.length > 0 ? `
+        <div class="alert-low">
+            <h4>💡 Empfehlungen</h4>
+            <ul>
+                ${analyse.empfehlungen.map(empfehlung => 
+                    `<li>${empfehlung}</li>`
+                ).join('')}
+            </ul>
+        </div>
+        ` : ''}
+    </div>
+    `;
+  }
+
+  /**
+   * Rendert die Hinweise-Sektion
+   */
+  private renderHinweiseSection(data: DailyReportData): string {
+    return `
+    <div class="section">
+        <h2>💡 Hinweise</h2>
+        <ul>
+            ${data.sections.hinweise.map(hinweis => 
+                `<li>${hinweis}</li>`
+            ).join('')}
+        </ul>
+    </div>
+    `;
   }
 
   /**
    * Generiert eine Textversion der E-Mail
    */
   private generateTextVersion(data: DailyReportData): string {
-    return `
-${data.template}
-${this.formatDate(data.date)}
-
-===========================================
-
-WETTER & UMSATZPROGNOSE
-Standort: ${data.sections.wetter_ferien_umsatz.standort}
-Heute: ${data.sections.wetter_ferien_umsatz.heute.wetter}
-
-Prognostizierter Umsatz:
-${data.sections.wetter_ferien_umsatz.heute.prognostizierter_umsatz
-  .map(sale => `- ${sale.automat}: ${sale.wert}€`)
-  .join('\n')}
-
-Wettervorschau:
-${data.sections.wetter_ferien_umsatz.wettervorschau
-  .map(day => `${day.tag}: ${day.temperatur}, ${day.wetter} (${day.bemerkung})`)
-  .join('\n')}
-
-${data.sections.wetter_ferien_umsatz.auswirkung}
-
-===========================================
-
-TAGESRÜCKBLICK
-Gesamtumsatz: ${data.sections.rückblick.umsatz_gesamt.toFixed(2)}€
-Netto-Ergebnis: ${data.sections.rückblick.netto_ergebnis.toFixed(2)}€
-
-${data.sections.rückblick.entnahmen.length > 0 ? `
-Entnahmen/Nachfüllungen:
-${data.sections.rückblick.entnahmen
-  .map(entnahme => `- ${entnahme.automat}: ${entnahme.produkte.join(', ')}`)
-  .join('\n')}
-` : ''}
-
-===========================================
-
-${data.sections.automaten_anomalien.length > 0 ? `
-AUTOMATEN-ANOMALIEN
-${data.sections.automaten_anomalien
-  .map(anomaly => `- ${anomaly.automat}: ${anomaly.meldung}`)
-  .join('\n')}
-
-===========================================
-` : ''}
-
-${data.sections.hinweise.length > 0 ? `
-HINWEISE
-${data.sections.hinweise.map(hint => `- ${hint}`).join('\n')}
-
-===========================================
-` : ''}
-
-Automatisch generiert am ${new Date().toLocaleString('de-DE')}
-`;
+    const lines: string[] = [];
+    
+    lines.push(`${data.template}`);
+    lines.push(`Datum: ${this.formatDate(data.date)}`);
+    lines.push('');
+    
+    // Verkäufe
+    lines.push('=== VERKÄUFE ===');
+    lines.push(`Anzahl Verkäufe: ${data.sections.verkäufe.anzahl_verkäufe}`);
+    lines.push(`Umsatzsumme: ${data.sections.verkäufe.umsatzsumme.toFixed(2)} €`);
+    lines.push('');
+    
+    if (data.sections.verkäufe.top_produkte.length > 0) {
+      lines.push('Top-Produkte:');
+      data.sections.verkäufe.top_produkte.forEach(product => {
+        lines.push(`- ${product.name}: ${product.stückzahl} Stück (${product.umsatz.toFixed(2)} €)`);
+      });
+      lines.push('');
+    }
+    
+    // Bestände & Logistik
+    lines.push('=== BESTÄNDE & LOGISTIK ===');
+    const bestände = data.sections.bestände_logistik;
+    
+    if (bestände.niedriger_lagerbestand.length > 0) {
+      lines.push('Niedriger Lagerbestand:');
+      bestände.niedriger_lagerbestand.forEach(item => {
+        lines.push(`- ${item.produkt}: ${item.bestand} Stück`);
+      });
+      lines.push('');
+    }
+    
+    if (bestände.nachzubestellende_artikel.length > 0) {
+      lines.push('Nachzubestellende Artikel:');
+      bestände.nachzubestellende_artikel.forEach(item => {
+        lines.push(`- ${item.produkt} (${item.priorität}): ${item.empfohlene_menge} Stück empfohlen`);
+      });
+      lines.push('');
+    }
+    
+    // Hinweise
+    lines.push('=== HINWEISE ===');
+    data.sections.hinweise.forEach(hinweis => {
+      lines.push(`- ${hinweis}`);
+    });
+    
+    lines.push('');
+    lines.push('---');
+    lines.push('Automatisch generiert von Ihrem Proviantomat-System');
+    lines.push(`Dashboard: ${process.env.FRONTEND_URL || 'https://your-app.replit.app'}/dashboard`);
+    
+    return lines.join('\n');
   }
 
   /**
    * Formatiert ein Datum für die Anzeige
    */
-  private formatDate(date: string | Date): string {
-    const d = typeof date === 'string' ? new Date(date) : date;
-    return d.toLocaleDateString('de-DE', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
+  private formatDate(dateString: string): string {
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString('de-DE', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+    } catch (error) {
+      return dateString;
+    }
   }
 }

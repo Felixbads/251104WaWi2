@@ -608,7 +608,7 @@ export class DailyEmailDataAggregator {
       // Niedriger Lagerbestand
       const lowStockItems = await db
         .select({
-          productName: products.name,
+          productName: products.productName,
           currentStock: inventoryItems.quantity,
           minQuantity: inventoryItems.minQuantity
         })
@@ -632,7 +632,7 @@ export class DailyEmailDataAggregator {
       return {
         niedriger_lagerbestand: lowStockItems.map(item => ({
           produkt: item.productName || 'Unbekannt',
-          bestand: item.currentStock || 0,
+          bestand: Number(item.currentStock) || 0,
           schwellenwert: lowStockThreshold
         })),
         nachzubestellende_artikel: reorderRecommendations,
