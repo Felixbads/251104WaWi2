@@ -3683,6 +3683,17 @@ app.get('/orders-data', (req, res) => {
       log('[VENDON-SYNC] ⚠️ Vendon Sync Service konnte nicht gestartet werden - System läuft ohne automatische Synchronisation');
     }
 
+    // ✅ VENDON HEALTH MONITORING - Aktiviere Health-Monitoring-System
+    try {
+      const vendonHealthRoutes = await import('./routes/vendon-health');
+      vendonHealthRoutes.initializeVendonHealthRoutes(pool);
+      app.use('/api/vendon-health', vendonHealthRoutes.default);
+      log('✅ Vendon Health Monitoring System aktiviert');
+    } catch (error) {
+      console.error('❌ Fehler beim Initialisieren des Health Monitoring:', error);
+      log('⚠️ Health Monitoring konnte nicht gestartet werden');
+    }
+
     // Start Supplier Analytics Cache Background Service  
     const supplierAnalyticsCache = SupplierAnalyticsCache.getInstance();
     log('⏸️ Supplier Analytics Cache temporarily disabled due to SQL parameter issue');
