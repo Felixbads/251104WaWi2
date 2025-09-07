@@ -131,6 +131,29 @@ export class EnhancedProphetService {
    * Sammelt Stockout-Ereignisse für Korrektur
    */
   private async getStockoutEvents(input: EnhancedForecastInput) {
+    // Verwende die neue Enhanced Stockout Analysis Service
+    const { EnhancedStockoutAnalysisService } = await import('./enhancedStockoutAnalysisService');
+    const stockoutAnalysisService = new EnhancedStockoutAnalysisService();
+    
+    // Hole verlorene Verkäufe Analyse für die spezifische Maschine/Produkt
+    const lostSalesAnalysis = await stockoutAnalysisService.analyzeLostSalesComprehensive(
+      90, // 90 Tage zurück
+      input.machineId,
+      input.productId
+    );
+    
+    // Konvertiere zu Stockout-Events Format
+    return lostSalesAnalysis.map(analysis => ({
+      machineId: analysis.machineId,
+      productId: analysis.productId,
+      demandSuppression: analysis.demandSuppression,
+      stockoutFrequency: analysis.stockoutFrequency,
+      avgStockoutDuration: analysis.avgStockoutDuration,
+      lostRevenue: analysis.totalLostRevenue,
+      actualDemandEstimate: analysis.actualDemandEstimate
+    }));
+    
+    /* Original Query - jetzt durch Enhanced Service ersetzt
     let query = `
       SELECT 
         r.machine_id,
@@ -285,7 +308,9 @@ export class EnhancedProphetService {
     input: EnhancedForecastInput
   ): Promise<EnhancedForecastResult[]> {
     
-    return baseForecast.map(forecast => {
+    const results: EnhancedForecastResult[] = [];
+    
+    for (const forecast of baseForecast) {
       let adjustedSales = forecast.predictedSales;
       let weatherAdjustment = 1.0;
       let holidayAdjustment = 1.0;
@@ -303,9 +328,14 @@ export class EnhancedProphetService {
         adjustedSales *= holidayAdjustment;
       }
       
-      // Stockout-Korrektur
+      // Stockout-Korrektur mit Enhanced Analysis
       if (input.includeStockoutCorrection) {
-        stockoutAdjustment = this.calculateStockoutCorrection(forecast.date, stockoutEvents);
+        stockoutAdjustment = await this.calculateEnhancedStockoutCorrection(
+          forecast.date, 
+          stockoutEvents,
+          input.machineId,
+          input.productId
+        );
         adjustedSales *= stockoutAdjustment;
       }
       
@@ -317,7 +347,7 @@ export class EnhancedProphetService {
         stockoutAdjustment
       );
       
-      return {
+      results.push({
         date: forecast.date,
         predictedSales: Math.round(adjustedSales),
         confidence: enhancedConfidence,
@@ -334,8 +364,10 @@ export class EnhancedProphetService {
         adjustedForStockouts: input.includeStockoutCorrection || false,
         weatherAdjustment: weatherAdjustment - 1.0,
         holidayAdjustment: holidayAdjustment - 1.0
-      };
-    });
+      });
+    }
+    
+    return results;
   }
 
   /**
@@ -389,14 +421,55 @@ export class EnhancedProphetService {
     }
   }
 
-  private calculateStockoutCorrection(date: Date, stockoutEvents: any[]): number {
-    const stockout = stockoutEvents.find(event => {
-      const eventStart = new Date(event.stockout_start);
-      const eventEnd = new Date(event.estimated_stockout_end);
-      return date >= eventStart && date <= eventEnd;
-    });
+  /**
+   * ERWEITERTE Stockout-Korrektur mit Lost Sales Analysis
+   */
+  private async calculateEnhancedStockoutCorrection(
+    date: Date, 
+    stockoutEvents: any[],
+    machineId?: number,
+    productId?: number
+  ): Promise<number> {
+    if (!machineId || !productId) return 1.0;
     
-    return stockout ? 0.1 : 1.0; // Drastische Reduktion bei Stockout
+    // Verwende Enhanced Stockout Analysis Service für präzise Korrektur
+    const { EnhancedStockoutAnalysisService } = await import('./enhancedStockoutAnalysisService');
+    const stockoutAnalysisService = new EnhancedStockoutAnalysisService();
+    
+    try {
+      const correctionFactor = await stockoutAnalysisService.calculateStockoutCorrectionFactor(
+        machineId,
+        productId,
+        date
+      );
+      
+      return correctionFactor;
+    } catch (error) {
+      console.error('Fehler bei Enhanced Stockout Correction:', error);
+      return this.calculateStockoutCorrection(date, stockoutEvents); // Fallback
+    }
+  }
+
+  private calculateStockoutCorrection(date: Date, stockoutEvents: any[]): number {
+    // Verwende Stockout-Events für direkte Korrektur
+    const relevantEvent = stockoutEvents.find(event => 
+      event.machineId && event.productId && event.demandSuppression > 0
+    );
+    
+    if (relevantEvent) {
+      // Korrigiere basierend auf geschätzter Nachfrage-Unterdrückung
+      return 1 + Math.min(relevantEvent.demandSuppression, 0.5); // Max 50% Aufschlag
+    }
+    
+    return 1.0; // Keine Korrektur
+  }
+
+  private getSeasonName(date: Date): string {
+    const month = date.getMonth() + 1;
+    if (month >= 3 && month <= 5) return 'Frühling';
+    if (month >= 6 && month <= 8) return 'Sommer'; 
+    if (month >= 9 && month <= 11) return 'Herbst';
+    return 'Winter';
   }
 
   private calculateEnhancedConfidence(
