@@ -55,83 +55,97 @@ interface MachineAnomaly {
   meldung: string;
 }
 
-// Daily report data structure
+// Enhanced Daily report data structure based on Proviantomat requirements
 export interface DailyReportData {
   template: string;
   date: string;
+  betreff: string;
   sections: {
-    wetter_ferien_umsatz: WeatherData;
-    offene_wareneingänge: Array<{
+    // Verkäufe Section
+    verkäufe: {
+      anzahl_verkäufe: number;
+      umsatzsumme: number;
+      top_produkte: Array<{
+        name: string;
+        stückzahl: number;
+        umsatz: number;
+      }>;
+    };
+    // Bestände & Logistik Section
+    bestände_logistik: {
+      niedriger_lagerbestand: Array<{
+        produkt: string;
+        bestand: number;
+        schwellenwert: number;
+      }>;
+      nachzubestellende_artikel: Array<{
+        produkt: string;
+        priorität: string;
+        abverkaufsgeschwindigkeit: string;
+        empfohlene_menge: number;
+      }>;
+      nahendes_mhd: {
+        lager: {
+          "<5": MHDItem[];
+          "<14": MHDItem[];
+          "<31": MHDItem[];
+        };
+        automaten: MHDItem[];
+      };
+    };
+    // Wetter, Ferien & Umsatzprognose
+    wetter_ferien_umsatz?: WeatherData;
+    // Offene Wareneingänge
+    offene_wareneingänge?: Array<{
       lieferant: string;
       bestelldatum: string;
       produkte: string[];
     }>;
-    mhd_lager: {
-      "<5": MHDItem[];
-      "<14": MHDItem[];
-      "<31": MHDItem[];
+    // Agent-Analyse (nur wenn sinnvoll)
+    agent_analyse?: {
+      besondere_auffälligkeiten: string[];
+      trends: string[];
+      empfehlungen: string[];
     };
-    mhd_automaten: MHDItem[];
-    niedriger_lagerbestand: Array<{
-      produkt: string;
-      bestand: number;
-      bedarf: number;
-    }>;
-    automaten_anomalien: MachineAnomaly[];
-    rückblick: {
-      umsatz_gesamt: number;
-      netto_ergebnis: number;
-      entnahmen: Array<{
-        automat: string;
-        produkte: string[];
-      }>;
-    };
+    // Zusätzliche Hinweise
     hinweise: string[];
   };
 }
 
 export class DailyEmailDataAggregator {
   /**
-   * Sammelt alle Daten für den täglichen Statusbericht
+   * Sammelt alle Daten für den täglichen Statusbericht basierend auf Proviantomat-Anforderungen
    */
-  async aggregateData(reportDate: Date = new Date()): Promise<DailyReportData> {
+  async aggregateData(reportDate: Date = new Date(), settings?: any): Promise<DailyReportData> {
     console.log(`📊 Sammle Daten für täglichen Bericht vom ${reportDate.toISOString().split('T')[0]}`);
 
     const [
+      salesData,
+      inventoryData,
       weatherData,
       openOrders,
-      mhdData,
-      lowStockData,
-      machineAnomalies,
-      dailySummary,
-      recentWithdrawals
+      agentAnalysis
     ] = await Promise.all([
-      this.getWeatherAndForecastData(reportDate),
-      this.getOpenOrders(),
-      this.getMHDData(),
-      this.getLowStockData(),
-      this.getMachineAnomalies(),
-      this.getDailySummary(reportDate),
-      this.getRecentWithdrawals(reportDate)
+      this.getSalesAnalysis(reportDate),
+      this.getInventoryAnalysis(settings),
+      settings?.includeWeatherForecast !== false ? this.getWeatherAndForecastData(reportDate) : null,
+      settings?.includeOpenOrders !== false ? this.getOpenOrders() : null,
+      this.getAgentAnalysis(reportDate)
     ]);
 
-    const hints = this.generateHints(openOrders, machineAnomalies);
+    const hints = this.generateEnhancedHints(salesData, inventoryData, agentAnalysis);
+    const dateStr = reportDate.toISOString().split('T')[0];
 
     return {
       template: "Täglicher Proviantomat-Statusbericht",
-      date: reportDate.toISOString().split('T')[0],
+      date: dateStr,
+      betreff: `📊 Tagesreport – ${new Date(reportDate).toLocaleDateString('de-DE')}`,
       sections: {
-        wetter_ferien_umsatz: weatherData,
-        offene_wareneingänge: openOrders,
-        mhd_lager: mhdData.lager,
-        mhd_automaten: mhdData.automaten,
-        niedriger_lagerbestand: lowStockData,
-        automaten_anomalien: machineAnomalies,
-        rückblick: {
-          umsatz_gesamt: Number(dailySummary.umsatz_gesamt) || 0,
-          netto_ergebnis: Number(dailySummary.netto_ergebnis) || 0,
-          entnahmen: recentWithdrawals
-        },
+        verkäufe: salesData,
+        bestände_logistik: inventoryData,
+        wetter_ferien_umsatz: weatherData || undefined,
+        offene_wareneingänge: openOrders || undefined,
+        agent_analyse: agentAnalysis.hasRelevantFindings ? agentAnalysis : undefined,
         hinweise: hints
       }
     };
@@ -521,7 +535,209 @@ export class DailyEmailDataAggregator {
   }
 
   /**
-   * Generiert Hinweise basierend auf den gesammelten Daten
+   * Analysiert Verkäufe und Top-Produkte für den Berichtszeitraum
+   */
+  private async getSalesAnalysis(reportDate: Date) {
+    const dayStart = new Date(reportDate);
+    dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(reportDate);
+    dayEnd.setHours(23, 59, 59, 999);
+
+    try {
+      // Gesamtumsatz und Anzahl Verkäufe
+      const salesStats = await db
+        .select({
+          totalRevenue: sum(transactions.price).as('totalRevenue'),
+          totalSales: count(transactions.id).as('totalSales')
+        })
+        .from(transactions)
+        .where(
+          and(
+            gte(transactions.datetime, dayStart),
+            lte(transactions.datetime, dayEnd)
+          )
+        );
+
+      // Top-Produkte nach Stückzahl und Umsatz
+      const topProducts = await db
+        .select({
+          productName: transactions.productName,
+          quantity: sum(transactions.quantity).as('quantity'),
+          revenue: sum(transactions.price).as('revenue')
+        })
+        .from(transactions)
+        .where(
+          and(
+            gte(transactions.datetime, dayStart),
+            lte(transactions.datetime, dayEnd)
+          )
+        )
+        .groupBy(transactions.productName)
+        .orderBy(desc(sum(transactions.quantity)))
+        .limit(5);
+
+      const stats = salesStats[0] || {};
+      
+      return {
+        anzahl_verkäufe: Number(stats.totalSales) || 0,
+        umsatzsumme: Number(stats.totalRevenue) || 0,
+        top_produkte: topProducts.map(product => ({
+          name: product.productName || 'Unbekannt',
+          stückzahl: Number(product.quantity) || 0,
+          umsatz: Number(product.revenue) || 0
+        }))
+      };
+    } catch (error) {
+      console.error('Fehler bei der Verkaufsanalyse:', error);
+      return {
+        anzahl_verkäufe: 0,
+        umsatzsumme: 0,
+        top_produkte: []
+      };
+    }
+  }
+
+  /**
+   * Analysiert Lagerbestand und Logistik
+   */
+  private async getInventoryAnalysis(settings?: any) {
+    const lowStockThreshold = settings?.lowStockThreshold || 10;
+    const mhdWarningDays = settings?.mhdWarningDays || 7;
+
+    try {
+      // Niedriger Lagerbestand
+      const lowStockItems = await db
+        .select({
+          productName: products.name,
+          currentStock: inventoryItems.quantity,
+          minQuantity: inventoryItems.minQuantity
+        })
+        .from(inventoryItems)
+        .leftJoin(products, eq(inventoryItems.productId, products.id))
+        .where(lte(inventoryItems.quantity, lowStockThreshold))
+        .orderBy(inventoryItems.quantity)
+        .limit(10);
+
+      // MHD-Daten
+      const mhdData = await this.getMHDData();
+
+      // Nachbestellempfehlungen (vereinfachte Logik)
+      const reorderRecommendations = lowStockItems.slice(0, 5).map(item => ({
+        produkt: item.productName || 'Unbekannt',
+        priorität: item.currentStock <= 5 ? 'hoch' : 'mittel',
+        abverkaufsgeschwindigkeit: '5-10 Stück/Woche', // Mock-Daten
+        empfohlene_menge: Math.max(20, (item.minQuantity || 10) * 2)
+      }));
+
+      return {
+        niedriger_lagerbestand: lowStockItems.map(item => ({
+          produkt: item.productName || 'Unbekannt',
+          bestand: item.currentStock || 0,
+          schwellenwert: lowStockThreshold
+        })),
+        nachzubestellende_artikel: reorderRecommendations,
+        nahendes_mhd: {
+          lager: mhdData.lager,
+          automaten: mhdData.automaten
+        }
+      };
+    } catch (error) {
+      console.error('Fehler bei der Lageranalyse:', error);
+      return {
+        niedriger_lagerbestand: [],
+        nachzubestellende_artikel: [],
+        nahendes_mhd: {
+          lager: { "<5": [], "<14": [], "<31": [] },
+          automaten: []
+        }
+      };
+    }
+  }
+
+  /**
+   * Agent-Analyse für besondere Auffälligkeiten
+   */
+  private async getAgentAnalysis(reportDate: Date) {
+    try {
+      // Anomalien von der alten getMachineAnomalies Methode
+      const anomalies = await this.getMachineAnomalies();
+      
+      // Trends-Analyse (vereinfacht)
+      const trends: string[] = [];
+      const recommendations: string[] = [];
+      
+      if (anomalies.length > 3) {
+        trends.push('Erhöhte Anzahl von Maschinenstörungen erkannt');
+        recommendations.push('Wartungsintervalle überprüfen');
+      }
+
+      const specialFindings = anomalies.map(a => a.meldung);
+      
+      return {
+        hasRelevantFindings: specialFindings.length > 0 || trends.length > 0,
+        besondere_auffälligkeiten: specialFindings,
+        trends,
+        empfehlungen: recommendations
+      };
+    } catch (error) {
+      console.error('Fehler bei der Agent-Analyse:', error);
+      return {
+        hasRelevantFindings: false,
+        besondere_auffälligkeiten: [],
+        trends: [],
+        empfehlungen: []
+      };
+    }
+  }
+
+  /**
+   * Erweiterte Hinweise-Generierung
+   */
+  private generateEnhancedHints(salesData: any, inventoryData: any, agentAnalysis: any): string[] {
+    const hints: string[] = [];
+
+    // Verkaufs-Hinweise
+    if (salesData.anzahl_verkäufe === 0) {
+      hints.push('Keine Verkäufe heute - System prüfen');
+    }
+
+    // Lager-Hinweise
+    if (inventoryData.niedriger_lagerbestand.length > 0) {
+      hints.push(`${inventoryData.niedriger_lagerbestand.length} Produkte unter Mindestbestand`);
+    }
+
+    if (inventoryData.nachzubestellende_artikel.length > 0) {
+      const highPriorityItems = inventoryData.nachzubestellende_artikel.filter((item: any) => item.priorität === 'hoch').length;
+      if (highPriorityItems > 0) {
+        hints.push(`${highPriorityItems} Artikel mit hoher Nachbestellpriorität`);
+      }
+    }
+
+    // MHD-Hinweise
+    const criticalMHD = inventoryData.nahendes_mhd.lager["<5"].length + inventoryData.nahendes_mhd.automaten.filter((item: any) => {
+      const days = Math.ceil((new Date(item.mhd).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+      return days <= 5;
+    }).length;
+    
+    if (criticalMHD > 0) {
+      hints.push(`${criticalMHD} Produkte laufen in <5 Tagen ab`);
+    }
+
+    // Agent-Analyse Hinweise
+    if (agentAnalysis.empfehlungen.length > 0) {
+      hints.push(...agentAnalysis.empfehlungen.slice(0, 2));
+    }
+
+    if (hints.length === 0) {
+      hints.push('Alle Systeme laufen normal');
+    }
+
+    return hints;
+  }
+
+  // Behalte die alten Methoden für Kompatibilität bei
+  /**
+   * @deprecated Use getSalesAnalysis instead
    */
   private generateHints(openOrders: any[], anomalies: MachineAnomaly[]): string[] {
     const hints: string[] = [];

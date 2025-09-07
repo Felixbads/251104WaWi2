@@ -3539,6 +3539,21 @@ export const emailSettings = pgTable("email_settings", {
   weekdayMask: jsonb("weekday_mask").default("[true,true,true,true,true,true,true]"), // Monday to Sunday
   sendTime: time("send_time").default("06:00"),
   templateId: integer("template_id").references(() => emailTemplates.id),
+  
+  // Erweiterte Einstellungen für Proviantomat-spezifische Inhalte
+  includeWeatherForecast: boolean("include_weather_forecast").default(true),
+  includeSalesAnalysis: boolean("include_sales_analysis").default(true),
+  includeInventoryAlerts: boolean("include_inventory_alerts").default(true),
+  includeMhdAlerts: boolean("include_mhd_alerts").default(true),
+  includeMachineAnomalies: boolean("include_machine_anomalies").default(true),
+  includeOpenOrders: boolean("include_open_orders").default(true),
+  includeLowStockAlerts: boolean("include_low_stock_alerts").default(true),
+  
+  // Schwellenwerte für Benachrichtigungen
+  lowStockThreshold: integer("low_stock_threshold").default(10),
+  mhdWarningDays: integer("mhd_warning_days").default(7),
+  anomalyDetectionDays: integer("anomaly_detection_days").default(3),
+  
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -3553,6 +3568,16 @@ export const insertEmailSettingsSchema = createInsertSchema(emailSettings)
     enabled: z.boolean().optional(),
     weekdayMask: z.array(z.boolean()).length(7).optional(),
     sendTime: z.string().regex(/^\d{2}:\d{2}$/, "Zeit muss im Format HH:MM sein").optional(),
+    includeWeatherForecast: z.boolean().optional(),
+    includeSalesAnalysis: z.boolean().optional(),
+    includeInventoryAlerts: z.boolean().optional(),
+    includeMhdAlerts: z.boolean().optional(),
+    includeMachineAnomalies: z.boolean().optional(),
+    includeOpenOrders: z.boolean().optional(),
+    includeLowStockAlerts: z.boolean().optional(),
+    lowStockThreshold: z.number().min(1).max(100).optional(),
+    mhdWarningDays: z.number().min(1).max(30).optional(),
+    anomalyDetectionDays: z.number().min(1).max(14).optional(),
   });
 
 export type InsertEmailSettings = z.infer<typeof insertEmailSettingsSchema>;
