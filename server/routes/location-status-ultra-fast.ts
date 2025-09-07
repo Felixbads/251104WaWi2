@@ -44,12 +44,12 @@ router.get('/', async (req: Request, res: Response) => {
       SELECT 
         ROW_NUMBER() OVER (ORDER BY today_revenue DESC, location) as id,
         location as machine_name,
-        COUNT(DISTINCT machine_id) as machine_count,
-        STRING_AGG(DISTINCT machine_name, ', ' ORDER BY machine_name) as machine_names,
-        MAX(datetime) as last_sale,
-        COALESCE(SUM(CASE WHEN datetime >= CURRENT_DATE THEN price ELSE 0 END), 0) as today_revenue,
-        COUNT(CASE WHEN datetime >= CURRENT_DATE THEN 1 END) as today_transactions,
-        MAX(CASE WHEN UPPER(TRIM(payment_method)) IN ('CASHLESS', 'CARD', 'MOBILE', 'CONTACTLESS', 'NFC', 'QR') THEN datetime END) as last_cashless_sale,
+        machine_count,
+        machine_names,
+        last_sale,
+        today_revenue,
+        today_transactions,
+        last_cashless_sale,
         NULL as last_cashless_product,
         NULL as last_alcohol_sale,
         NULL as last_alcohol_product,
@@ -61,24 +61,34 @@ router.get('/', async (req: Request, res: Response) => {
         NULL as earliest_expiry
       FROM (
         SELECT 
-          CASE 
-            WHEN POSITION(',' IN t.machine_name) > 0 
-            THEN TRIM(SUBSTRING(t.machine_name FROM 1 FOR POSITION(',' IN t.machine_name) - 1))
-            ELSE t.machine_name
-          END as location,
-          t.machine_id,
-          t.machine_name,
-          t.datetime,
-          t.price,
-          t.payment_method,
-          t.product_name
-        FROM transactions t
-        WHERE t.machine_name IS NOT NULL
-          AND t.machine_name NOT LIKE '%*%'
-          AND t.machine_name NOT LIKE '%Test%'
-          AND t.datetime >= CURRENT_DATE - INTERVAL '30 days'
-      ) tbl
-      GROUP BY location
+          location,
+          COUNT(DISTINCT machine_id) as machine_count,
+          STRING_AGG(DISTINCT machine_name, ', ' ORDER BY machine_name) as machine_names,
+          MAX(datetime) as last_sale,
+          COALESCE(SUM(CASE WHEN datetime >= CURRENT_DATE THEN price ELSE 0 END), 0) as today_revenue,
+          COUNT(CASE WHEN datetime >= CURRENT_DATE THEN 1 END) as today_transactions,
+          MAX(CASE WHEN UPPER(TRIM(payment_method)) IN ('CASHLESS', 'CARD', 'MOBILE', 'CONTACTLESS', 'NFC', 'QR') THEN datetime END) as last_cashless_sale
+        FROM (
+          SELECT 
+            CASE 
+              WHEN POSITION(',' IN t.machine_name) > 0 
+              THEN TRIM(SUBSTRING(t.machine_name FROM 1 FOR POSITION(',' IN t.machine_name) - 1))
+              ELSE t.machine_name
+            END as location,
+            t.machine_id,
+            t.machine_name,
+            t.datetime,
+            t.price,
+            t.payment_method,
+            t.product_name
+          FROM transactions t
+          WHERE t.machine_name IS NOT NULL
+            AND t.machine_name NOT LIKE '%*%'
+            AND t.machine_name NOT LIKE '%Test%'
+            AND t.datetime >= CURRENT_DATE - INTERVAL '30 days'
+        ) tbl
+        GROUP BY location
+      ) location_stats
       ORDER BY 
         CASE WHEN today_revenue > 0 THEN 0 ELSE 1 END,
         today_revenue DESC,
