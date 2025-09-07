@@ -1976,25 +1976,42 @@ app.get('/orders-data', (req, res) => {
   // This unified scheduler handles both order processing AND email notifications
   const { getRecurringOrderSchedulerInstance } = await import('./routes/recurring-orders');
   const recurringOrderScheduler = getRecurringOrderSchedulerInstance();
-  // CRITICAL FIX: TEMPORARILY DISABLED DUE TO DATABASE CONSTRAINT ERRORS
-  // recurringOrderScheduler.start();
-  console.log('[SERVER] ✅ Unified RecurringOrderScheduler started - handles orders AND emails (daily 6:00 AM)');
+  
+  // ✅ E-MAIL-SYSTEM REPARIERT: SMTP-basiertes System aktiviert
+  try {
+    recurringOrderScheduler.start();
+    console.log('[SERVER] ✅ Unified RecurringOrderScheduler started - handles orders AND emails (daily 6:00 AM)');
+  } catch (error) {
+    console.error('[SERVER] ❌ Fehler beim Starten des RecurringOrderScheduler:', error);
+    console.log('[SERVER] ⚠️ RecurringOrderScheduler konnte nicht gestartet werden');
+  }
   
   // Start daily summary service for morning email aggregation
   const { getDailySummaryServiceInstance } = await import('./routes/daily-summary');
   const dailySummaryService = getDailySummaryServiceInstance();
-  // CRITICAL FIX: TEMPORARILY DISABLED DUE TO DATABASE CONSTRAINT ERRORS
-  // dailySummaryService.start();
-  console.log('[SERVER] ✅ Daily Summary Service started - sends daily overview to einkauf@proviantomat.de (daily 6:00 AM)');
+  
+  // ✅ E-MAIL-SYSTEM REPARIERT: SMTP-basiertes System aktiviert
+  try {
+    dailySummaryService.start();
+    console.log('[SERVER] ✅ Daily Summary Service started - sends daily overview to einkauf@proviantomat.de (daily 6:00 AM)');
+  } catch (error) {
+    console.error('[SERVER] ❌ Fehler beim Starten des DailySummaryService:', error);
+    console.log('[SERVER] ⚠️ DailySummaryService konnte nicht gestartet werden');
+  }
   
   // Start weekly report cron service for automated weekly email reports
   weeklyReportCron.start();
   console.log('[SERVER] Weekly report cron service started (Monday 6:00 AM)');
   
-  // CRITICAL FIX: TEMPORARILY DISABLED DUE TO DATABASE CONSTRAINT ERRORS
+  // ✅ E-MAIL-SYSTEM REPARIERT: SMTP-basiertes System aktiviert
   // Start daily email notification scheduler for automated daily status reports
-  // startDailyEmailScheduler();
-  console.log('[SERVER] ✅ Daily Email Scheduler started - sends daily status reports (daily 6:00 AM)');
+  try {
+    startDailyEmailScheduler();
+    console.log('[SERVER] ✅ Daily Email Scheduler started - sends daily status reports (daily 6:00 AM)');
+  } catch (error) {
+    console.error('[SERVER] ❌ Fehler beim Starten des DailyEmailScheduler:', error);
+    console.log('[SERVER] ⚠️ DailyEmailScheduler konnte nicht gestartet werden');
+  }
 
   // ✅ UNIFIED VENDON SYNC SYSTEM - AKTIVIERT UND KONSOLIDIERT
   console.log('[SERVER] ✅ Unified Vendon Sync System aktiviert - alle konkurrierenden Services deaktiviert');
