@@ -1,5 +1,8 @@
 import * as React from "react"
 import { cn } from "@/lib/utils"
+import { useMediaQuery } from "@/hooks/useMediaQuery"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { Button } from "@/components/ui/button"
 
 // Komplett eigene Tab-Implementierung ohne Radix UI, um die RovingFocusGroup-Probleme zu umgehen
 interface TabsContextValue {
@@ -59,24 +62,64 @@ Tabs.displayName = "Tabs"
 const TabsList = React.forwardRef<
   HTMLDivElement,
   React.HTMLAttributes<HTMLDivElement>
->(({ className, ...props }, ref) => (
-  <div
-    ref={ref}
-    className={cn(
-      "inline-flex h-10 items-center justify-center rounded-md bg-muted p-1 text-muted-foreground",
-      className
-    )}
-    {...props}
-  />
-))
+>(({ className, ...props }, ref) => {
+  const isMobile = useMediaQuery("(max-width: 768px)")
+  
+  if (isMobile) {
+    return (
+      <div className={cn("w-full border-b bg-background", className)}>
+        <ScrollArea className="w-full">
+          <div
+            ref={ref}
+            className="flex h-12 items-center space-x-1 px-4 whitespace-nowrap"
+            {...props}
+          />
+        </ScrollArea>
+      </div>
+    )
+  }
+  
+  return (
+    <div
+      ref={ref}
+      className={cn(
+        "inline-flex h-10 items-center justify-center rounded-md bg-muted p-1 text-muted-foreground",
+        className
+      )}
+      {...props}
+    />
+  )
+})
 TabsList.displayName = "TabsList"
 
 const TabsTrigger = React.forwardRef<
   HTMLButtonElement,
   React.ButtonHTMLAttributes<HTMLButtonElement> & { value: string }
 >(({ className, value, ...props }, ref) => {
+  const isMobile = useMediaQuery("(max-width: 768px)")
   const { value: selectedValue, onValueChange } = useTabsContext()
   const isActive = selectedValue === value
+  
+  if (isMobile) {
+    return (
+      <button
+        ref={ref}
+        type="button"
+        role="tab"
+        aria-selected={isActive}
+        data-state={isActive ? "active" : "inactive"}
+        className={cn(
+          "flex-shrink-0 px-4 py-2 text-sm font-medium transition-all duration-200 border-b-2 min-w-fit touch-manipulation",
+          isActive
+            ? "border-primary text-primary bg-primary/5"
+            : "border-transparent text-muted-foreground hover:text-foreground hover:border-muted",
+          className
+        )}
+        onClick={() => onValueChange(value)}
+        {...props}
+      />
+    )
+  }
   
   return (
     <button
