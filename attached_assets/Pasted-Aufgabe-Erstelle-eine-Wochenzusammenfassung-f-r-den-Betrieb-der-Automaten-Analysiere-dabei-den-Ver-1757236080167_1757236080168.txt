@@ -1,0 +1,32 @@
+Aufgabe:
+Erstelle eine Wochenzusammenfassung für den Betrieb der Automaten. Analysiere dabei den Verlauf der Füllstellen und bewerte die Wirtschaftlichkeit der Befüllungen.
+
+Analyseschritte:
+	1.	Wochenzusammenfassung erstellen
+	•	Zeige an, wann jeder Automat aufgefüllt wurde.
+	•	Dokumentiere, wer die Befüllung durchgeführt hat.
+	•	Stelle den zeitlichen Verlauf der Füllstände dar (Füllgrad pro Automat und Produkt).
+	2.	Füllstellen-Verlauf
+	•	Visualisiere oder beschreibe, wie sich die Füllstände der Automaten über die Woche entwickelt haben.
+	•	Zeige an, welche Produkte schnell ausverkauft waren und welche kaum entnommen wurden.
+	•	Markiere Produkte mit hohem Deckungsbeitrag und deren Verfügbarkeitsprobleme.
+	3.	MHD-Management (Mindesthaltbarkeit)
+	•	Prüfe, ob Produkte mit kurzem MHD rechtzeitig nachgefüllt oder entnommen wurden.
+	•	Analysiere, ob Befüllungen unnötig Produkte mit bald ablaufendem MHD verdrängt haben.
+	4.	Kosten-Nutzen-Analyse der Befüllungen
+	•	Lege pro Auffüllung Fixkosten von ca. 50 € zugrunde (Fahrt, Zeit, Logistik).
+	•	Berechne, ob die Nachfüllungen wirtschaftlich sinnvoll waren (z. B. Umsatz- und DB-Potenzial vs. Auffüllkosten).
+	•	Markiere ineffiziente Befüllungen.
+	5.	Optimierungskonzept entwickeln
+	•	Entwirf ein Modell, das den idealen Zeitpunkt für Befüllungen ermittelt, abhängig von:
+	•	Rest-Füllständen der Automaten
+	•	MHD der vorhandenen Produkte
+	•	Umsatz- & Deckungsbeitragsrelevanz (Produkte mit hohem DB haben Priorität)
+	•	Schlage Regeln oder einen Algorithmus vor, wie sich zukünftige Auffüllungen steuern lassen, um Kosten zu minimieren und Umsatz/DB zu maximieren.
+	•	Gib konkrete Handlungsempfehlungen (z. B. Auffüllen ab <30 % Restfüllung, Sofort-Auffüllen bei ausverkauften Top-Produkten, dynamische Tourenplanung nach Standort & Produktmix).
+
+Erwartetes Ergebnis:
+	•	Klare Wochenübersicht aller Auffüllungen (wann, durch wen, welche Produkte).
+	•	Darstellung der Füllstandsverläufe und identifizierte Problemstellen.
+	•	Berechnete Wirtschaftlichkeit pro Befüllung (50 € Fixkosten angesetzt).
+	•	Ein durchdachtes Optimierungskonzept mit Priorisierungslogik für künftige Befüllungen.
