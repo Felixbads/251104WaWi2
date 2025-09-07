@@ -638,6 +638,11 @@ export const transactions = pgTable("transactions", {
   cashlessCredit: real("cashless_credit").default(0),         // Bargeldloses Guthaben
   isTest: boolean("is_test").default(false),                  // Ist dies eine Test-Transaktion
   
+  // Chargen-Tracking für vollständige Rückverfolgbarkeit
+  batchId: integer("batch_id").references(() => productBatches.id), // Referenz zur Charge
+  batchNumber: text("batch_number"), // Chargennummer für schnelle Suche
+  expiryDateAtSale: date("expiry_date_at_sale"), // MHD zum Verkaufszeitpunkt
+  
   // Verarbeitungs-Tracking
   syncedAt: timestamp("synced_at").defaultNow(),              // Wann wurde die Transaktion synchronisiert
   lastSync: timestamp("last_sync"),                           // Letzte Synchronisation
@@ -945,6 +950,12 @@ export const machineStocks = pgTable("machine_stocks", {
   expiryDate: date("expiry_date"),                               // MHD von inventory_batches übertragen
   batchId: integer("batch_id").references(() => inventoryBatches.id), // Referenz zur ursprünglichen Charge
   receivedDate: timestamp("received_date"),                      // Wann in Automat eingefüllt (für FIFO)
+  
+  // Erweiterte Chargen-Tracking für Rückverfolgbarkeit
+  sourceBatchId: integer("source_batch_id").references(() => productBatches.id), // Ursprungscharge aus dem Lager
+  sourceBatchNumber: text("source_batch_number"), // Chargennummer für schnelle Suche
+  refillId: integer("refill_id"), // Referenz zum Refill-Vorgang
+  
   // Speichere alle Rohdaten als JSON
   rawData: text("raw_data"),                                     // Alle Rohdaten der API-Antwort
   lastSync: timestamp("last_sync"),                              // Letzte Synchronisation
@@ -3773,6 +3784,84 @@ export const refillTemplateRelations = relations(refillTemplates, ({ one, many }
   updatedByUser: one(users, {
     fields: [refillTemplates.updatedBy],
     references: [users.id],
+  }),
+}));
+
+// ================================ Batch Transaction Log ================================
+// Manipulationssichere Dokumentation jeder Transaktion mit Chargen-Referenz
+export const batchTransactionLog = pgTable("batch_transaction_log", {
+  id: serial("id").primaryKey(),
+  
+  // Transaktions-Referenz
+  transactionId: integer("transaction_id").notNull().references(() => transactions.id),
+  vendonTransactionId: text("vendon_transaction_id").notNull(), // Für schnelle Suche
+  
+  // Maschinen- und Produkt-Informationen
+  machineId: integer("machine_id").notNull().references(() => machines.id),
+  productId: integer("product_id"), // Referenz zur products-Tabelle
+  productName: text("product_name").notNull(),
+  
+  // Chargen-Informationen (KRITISCH für Rückverfolgung)
+  batchId: integer("batch_id").notNull().references(() => productBatches.id),
+  batchNumber: text("batch_number").notNull(),
+  expiryDate: date("expiry_date").notNull(), // MHD zum Verkaufszeitpunkt
+  
+  // Bestandsverfolgung
+  stockBefore: integer("stock_before").notNull(), // Bestand vor der Transaktion
+  stockAfter: integer("stock_after").notNull(), // Bestand nach der Transaktion
+  quantity: integer("quantity").notNull().default(1), // Verkaufte Menge
+  
+  // FIFO-Verbrauchslogik
+  fifoSequence: integer("fifo_sequence"), // Reihenfolge des Verbrauchs (älteste zuerst)
+  isLastOfBatch: boolean("is_last_of_batch").default(false), // Ist dies das letzte Produkt der Charge?
+  
+  // Audit-Trail (MANIPULATIONSSICHER)
+  processedAt: timestamp("processed_at").defaultNow().notNull(),
+  processedBy: text("processed_by").default("system"), // System oder Benutzer
+  verificationHash: text("verification_hash"), // Hash für Integritätsprüfung
+  
+  // Metadaten
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  // Eindeutige Verknüpfung: Jede Transaktion wird nur einmal geloggt
+  uniqueTransactionBatch: unique("unique_transaction_batch").on(table.transactionId, table.batchId),
+  
+  // Indizes für schnelle Suche
+  batchNumberIdx: index("batch_transaction_batch_number_idx").on(table.batchNumber),
+  machineProductIdx: index("batch_transaction_machine_product_idx").on(table.machineId, table.productId),
+  processedAtIdx: index("batch_transaction_processed_at_idx").on(table.processedAt),
+  vendonTransactionIdx: index("batch_transaction_vendon_id_idx").on(table.vendonTransactionId),
+}));
+
+export const insertBatchTransactionLogSchema = createInsertSchema(batchTransactionLog).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  processedAt: true,
+});
+
+export type InsertBatchTransactionLog = z.infer<typeof insertBatchTransactionLogSchema>;
+export type BatchTransactionLog = typeof batchTransactionLog.$inferSelect;
+
+// ================================ Batch Transaction Log Relations ================================
+export const batchTransactionLogRelations = relations(batchTransactionLog, ({ one }) => ({
+  transaction: one(transactions, {
+    fields: [batchTransactionLog.transactionId],
+    references: [transactions.id],
+  }),
+  machine: one(machines, {
+    fields: [batchTransactionLog.machineId],
+    references: [machines.id],
+  }),
+  batch: one(productBatches, {
+    fields: [batchTransactionLog.batchId],
+    references: [productBatches.id],
+  }),
+  product: one(products, {
+    fields: [batchTransactionLog.productId],
+    references: [products.id],
   }),
 }));
 
