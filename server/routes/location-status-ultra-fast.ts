@@ -39,10 +39,27 @@ router.get('/', async (req: Request, res: Response) => {
       return res.json(locationStatusCache);
     }
     
-    // Query to get data grouped by LOCATION (extracted directly from transactions)
+    // PERFORMANCE-OPTIMIZED Query - Simplified structure, minimal JOINs
     const result = await db.execute(`
-      WITH transactions_by_location AS (
-        -- Get transaction data grouped by location (extracted from machine_name)
+      SELECT 
+        ROW_NUMBER() OVER (ORDER BY today_revenue DESC, location) as id,
+        location as machine_name,
+        COUNT(DISTINCT machine_id) as machine_count,
+        STRING_AGG(DISTINCT machine_name, ', ' ORDER BY machine_name) as machine_names,
+        MAX(datetime) as last_sale,
+        COALESCE(SUM(CASE WHEN datetime >= CURRENT_DATE THEN price ELSE 0 END), 0) as today_revenue,
+        COUNT(CASE WHEN datetime >= CURRENT_DATE THEN 1 END) as today_transactions,
+        MAX(CASE WHEN UPPER(TRIM(payment_method)) IN ('CASHLESS', 'CARD', 'MOBILE', 'CONTACTLESS', 'NFC', 'QR') THEN datetime END) as last_cashless_sale,
+        NULL as last_cashless_product,
+        NULL as last_alcohol_sale,
+        NULL as last_alcohol_product,
+        NULL as last_refill,
+        NULL as last_operator,
+        NULL as last_door_open,
+        0 as expired_count,
+        0 as warning_count,
+        NULL as earliest_expiry
+      FROM (
         SELECT 
           CASE 
             WHEN POSITION(',' IN t.machine_name) > 0 
@@ -60,124 +77,13 @@ router.get('/', async (req: Request, res: Response) => {
           AND t.machine_name NOT LIKE '%*%'
           AND t.machine_name NOT LIKE '%Test%'
           AND t.datetime >= CURRENT_DATE - INTERVAL '30 days'
-      ),
-      location_aggregated AS (
-        SELECT 
-          tbl.location,
-          COUNT(DISTINCT tbl.machine_id) as machine_count,
-          STRING_AGG(DISTINCT tbl.machine_name, ', ' ORDER BY tbl.machine_name) as machine_names,
-          
-          -- Direct aggregation from transactions
-          MAX(tbl.datetime) as last_sale,
-          COALESCE(SUM(CASE WHEN tbl.datetime >= CURRENT_DATE THEN tbl.price ELSE 0 END), 0) as today_revenue,
-          COUNT(CASE WHEN tbl.datetime >= CURRENT_DATE THEN 1 END) as today_transactions,
-          MAX(CASE WHEN UPPER(TRIM(tbl.payment_method)) IN ('CASHLESS', 'CARD', 'MOBILE', 'CONTACTLESS', 'NFC', 'QR') THEN tbl.datetime END) as last_cashless_sale,
-          (SELECT t2.product_name FROM transactions t2 WHERE 
-            CASE 
-              WHEN POSITION(',' IN t2.machine_name) > 0 
-              THEN TRIM(SUBSTRING(t2.machine_name FROM 1 FOR POSITION(',' IN t2.machine_name) - 1))
-              ELSE t2.machine_name
-            END = tbl.location 
-            AND UPPER(TRIM(t2.payment_method)) IN ('CASHLESS', 'CARD', 'MOBILE', 'CONTACTLESS', 'NFC', 'QR')
-            AND t2.datetime >= CURRENT_DATE - INTERVAL '30 days'
-            ORDER BY t2.datetime DESC LIMIT 1) as last_cashless_product,
-          MAX(CASE WHEN EXISTS(SELECT 1 FROM products p WHERE LOWER(TRIM(tbl.product_name)) = LOWER(TRIM(p.product_name)) AND p."isAlcoholic" = true) THEN tbl.datetime END) as last_alcohol_sale,
-          (SELECT t3.product_name FROM transactions t3 WHERE 
-            CASE 
-              WHEN POSITION(',' IN t3.machine_name) > 0 
-              THEN TRIM(SUBSTRING(t3.machine_name FROM 1 FOR POSITION(',' IN t3.machine_name) - 1))
-              ELSE t3.machine_name
-            END = tbl.location 
-            AND EXISTS(SELECT 1 FROM products p WHERE LOWER(TRIM(t3.product_name)) = LOWER(TRIM(p.product_name)) AND p."isAlcoholic" = true)
-            AND t3.datetime >= CURRENT_DATE - INTERVAL '30 days'
-            ORDER BY t3.datetime DESC LIMIT 1) as last_alcohol_product,
-          
-          -- Latest refill across all machines at location
-          MAX(r.last_refill) as last_refill,
-          (array_agg(r.last_operator ORDER BY r.last_refill DESC NULLS LAST))[1] as last_operator,
-          
-          -- Latest door opening across all machines
-          MAX(e.last_door_open) as last_door_open,
-          
-          -- Total MHD stats for location (aggregate properly without double-counting)
-          COALESCE(MAX(mhd.expired_count), 0) as expired_count,
-          COALESCE(MAX(mhd.warning_count), 0) as warning_count,
-          MIN(mhd.earliest_expiry) as earliest_expiry
-          
-        FROM transactions_by_location tbl
-        
-        -- Refill stats per machine (DIRECT machine_name - NO JOIN needed!)
-        LEFT JOIN (
-          SELECT 
-            r.machine_name,
-            MAX(r.datetime) as last_refill,
-            (array_agg(r.operator ORDER BY r.datetime DESC))[1] as last_operator
-          FROM refills r
-          WHERE r.datetime >= CURRENT_DATE - INTERVAL '90 days'
-            AND r.machine_name IS NOT NULL
-          GROUP BY r.machine_name
-        ) r ON tbl.machine_name = r.machine_name
-        
-        -- Event stats per machine (JOIN über machine_id ODER machine_name für vollständige Abdeckung!)
-        LEFT JOIN (
-          SELECT 
-            COALESCE(e.machine_name, m.machine_name) as machine_name,
-            MAX(e.datetime) as last_door_open
-          FROM events e
-          LEFT JOIN machines m ON e.machine_id = m.id
-          WHERE (e.description LIKE '%Automatentüre in Stellung offen%'
-            OR e.description LIKE '%door open%' 
-            OR e.description LIKE '%Door open%'
-            OR e.description LIKE '%Türöffnung%'
-            OR e.event_type = 'DOOR_OPEN'
-            OR (e.event_type = 'R' AND e.description LIKE '%Automatentüre%offen%'))
-            AND e.datetime >= CURRENT_DATE - INTERVAL '90 days'
-            AND (e.machine_name IS NOT NULL OR e.machine_id IS NOT NULL)
-          GROUP BY COALESCE(e.machine_name, m.machine_name)
-        ) e ON tbl.machine_name = e.machine_name
-        
-        -- MHD stats per machine (JOIN by machine name, aggregate all machines with same name)
-        LEFT JOIN (
-          SELECT 
-            COALESCE(m.machine_name, ms.machine_id::text) as machine_name,
-            COUNT(*) FILTER (WHERE ms.expiry_date < CURRENT_DATE) as expired_count,
-            COUNT(*) FILTER (WHERE ms.expiry_date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '7 days') as warning_count,
-            MIN(ms.expiry_date) FILTER (WHERE ms.expiry_date < CURRENT_DATE) as earliest_expiry
-          FROM machine_stocks ms
-          LEFT JOIN machines m ON ms.machine_id = m.id
-          WHERE ms.expiry_date IS NOT NULL
-            AND ms.quantity > 0
-          GROUP BY COALESCE(m.machine_name, ms.machine_id::text)
-        ) mhd ON tbl.machine_name = mhd.machine_name
-        
-        GROUP BY tbl.location
-      )
-      SELECT 
-        ROW_NUMBER() OVER (ORDER BY today_revenue DESC, location) as id,
-        location as machine_name,  -- Using location as machine_name for compatibility
-        machine_count,
-        machine_names,
-        last_sale,
-        today_revenue,
-        today_transactions,
-        last_cashless_sale,
-        last_cashless_product,
-        last_alcohol_sale,
-        last_alcohol_product,
-        last_refill,
-        last_operator,
-        last_door_open,
-        expired_count,
-        warning_count,
-        earliest_expiry
-      FROM location_aggregated
+      ) tbl
+      GROUP BY location
       ORDER BY 
         CASE WHEN today_revenue > 0 THEN 0 ELSE 1 END,
         today_revenue DESC,
         location
     `);
-
-
 
     // Process results for LOCATION-based tiles
     const machineStatusData = result.rows.map((row: any) => {
