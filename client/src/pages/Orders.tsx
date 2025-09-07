@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { Link, useLocation } from "wouter";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
@@ -772,10 +773,16 @@ export default function Orders() {
           </TabsList>
 
           <TabsContent value="orders" className="space-y-6 mt-6">
-            {/* Einheitliche Filter- und Aktionsleiste */}
-            <div className="w-full mb-6 flex justify-between">
-              {/* Linke Seite: Suchfeld */}
-              <div className="relative flex-1 mr-4">
+            {/* Mobile-optimierte Filter- und Aktionsleiste */}
+            <div className={useMediaQuery("(max-width: 768px)") 
+              ? "w-full mb-6 space-y-3" 
+              : "w-full mb-6 flex justify-between"
+            }>
+              {/* Suchfeld */}
+              <div className={useMediaQuery("(max-width: 768px)") 
+                ? "relative w-full" 
+                : "relative flex-1 mr-4"
+              }>
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
                   type="search"
@@ -786,20 +793,23 @@ export default function Orders() {
                 />
               </div>
               
-              {/* Rechte Seite: Aktionen */}
-              <div className="flex items-center gap-2">
-                <Button asChild variant="default">
+              {/* Mobile: Stack buttons vertically */}
+              <div className={useMediaQuery("(max-width: 768px)") 
+                ? "flex flex-col gap-2 sm:flex-row" 
+                : "flex items-center gap-2"
+              }>
+                <Button asChild variant="default" className="w-full sm:w-auto">
                   <Link to="/bestellungen/neu-v2">
                     <Plus className="h-4 w-4 mr-2" />
-                    Neue Bestellung
+                    {useMediaQuery("(max-width: 768px)") ? "Neu" : "Neue Bestellung"}
                   </Link>
                 </Button>
                 
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="outline">
+                    <Button variant="outline" className="w-full sm:w-auto">
                       <Download className="h-4 w-4 mr-2" />
-                      Exportieren
+                      Export
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent>
@@ -823,20 +833,87 @@ export default function Orders() {
               onResetFilter={resetFilter} 
             />
             
-            {/* Vereinfachte Bestellungs-Tabelle */}
-            <Card className="overflow-hidden">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-[180px]">Bestellnummer</TableHead>
-                    <TableHead>Lieferant</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Datum</TableHead>
-                    <TableHead>Liefertermin</TableHead>
-                    <TableHead>Priorität / Aktionen</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
+            {/* Mobile-optimierte Bestellungsansicht */}
+            {useMediaQuery("(max-width: 768px)") ? (
+              // Mobile: Card-basierte Ansicht
+              <div className="space-y-3">
+                {ordersLoading ? (
+                  <Card className="p-6">
+                    <div className="flex items-center justify-center">
+                      <Loader2 className="h-6 w-6 animate-spin mr-2" />
+                      <span>Bestellungen werden geladen...</span>
+                    </div>
+                  </Card>
+                ) : orders && orders.length > 0 ? (
+                  orders.map((order) => {
+                    const handleCardClick = () => {
+                      if (order.status === 'sent' || order.status === 'partially_received') {
+                        setLocation(`/bestellungen/${order.id}/wareneingang`);
+                      } else {
+                        setLocation(`/bestellungen/workflow?step=viewOrder&orderId=${order.id}`);
+                      }
+                    };
+                    
+                    return (
+                      <Card 
+                        key={order.id} 
+                        className="cursor-pointer hover:bg-muted/50 transition-colors p-4"
+                        onClick={handleCardClick}
+                      >
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex-1">
+                            <h3 className="font-medium text-sm text-muted-foreground">#{order.orderNumber}</h3>
+                            <p className="font-semibold">{order.supplierName}</p>
+                          </div>
+                          <OrderStatusBadge status={order.status} />
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-2 text-sm">
+                          <div>
+                            <span className="text-muted-foreground">Datum:</span>
+                            <p className="font-medium">{formatDate(order.orderDate)}</p>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Liefertermin:</span>
+                            <p className={`font-medium ${order.isOverdue ? 'text-red-600' : ''}`}>
+                              {formatDate(order.expectedDeliveryDate) || "TBD"}
+                            </p>
+                          </div>
+                        </div>
+                        
+                        {order.totalAmountNet && (
+                          <div className="mt-3 pt-2 border-t">
+                            <span className="text-sm text-muted-foreground">Gesamt: </span>
+                            <span className="font-semibold">{formatCurrency(order.totalAmountNet)}</span>
+                          </div>
+                        )}
+                      </Card>
+                    );
+                  })
+                ) : (
+                  <Card className="p-8">
+                    <div className="text-center text-muted-foreground">
+                      <Package className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                      <p>Keine Bestellungen gefunden</p>
+                    </div>
+                  </Card>
+                )}
+              </div>
+            ) : (
+              // Desktop: Tabellen-Ansicht
+              <Card className="overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-[180px]">Bestellnummer</TableHead>
+                      <TableHead>Lieferant</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Datum</TableHead>
+                      <TableHead>Liefertermin</TableHead>
+                      <TableHead>Priorität / Aktionen</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
                   {ordersLoading ? (
                     <TableRow>
                       <TableCell colSpan={6} className="text-center py-8">
