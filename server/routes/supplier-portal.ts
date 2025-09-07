@@ -8,6 +8,7 @@ import { Router, Request, Response } from 'express';
 import { rawDb } from '../db';
 import { validatePin } from '../services/supplierPinService';
 import { emailService } from '../utils/enhancedEmailService';
+import { validatePortalToken } from '../services/supplierPortalService';
 
 const router = Router();
 
@@ -26,8 +27,9 @@ router.get('/test', (req: Request, res: Response) => {
 });
 
 /**
- * Direct authentication via access token (no PIN required)
  * POST /api/supplier-portal/authenticate
+ * Authentifiziert einen Lieferanten über Access-Token
+ * VERWENDET JETZT ZENTRALEN SERVICE
  */
 router.post('/authenticate', async (req: Request, res: Response) => {
   try {
@@ -49,51 +51,18 @@ router.post('/authenticate', async (req: Request, res: Response) => {
 
     console.log('[SUPPLIER-PORTAL] Access token found:', accessToken.substring(0, 10) + '...');
 
-    // Validiere Access Token direkt (ohne PIN)
-    const tokenQuery = `
-      SELECT 
-        supplier_id, access_token, valid_until, 
-        created_at, access_count, last_access_at, is_active
-      FROM supplier_access_pins 
-      WHERE access_token = $1 AND is_active = true
-    `;
+    // Verwende zentralen Validierungsservice
+    const validation = await validatePortalToken(accessToken);
 
-    const result = await rawDb.query(tokenQuery, [accessToken]);
-
-    if (result.rows.length === 0) {
-      console.log('[SUPPLIER-PORTAL] Token nicht gefunden in der Datenbank:', accessToken.substring(0, 10) + '...');
+    if (!validation.success) {
+      console.log('[SUPPLIER-PORTAL] Validation failed:', validation.error);
       return res.status(401).json({
         success: false,
-        error: 'Zugriff verweigert: Ungültiger oder abgelaufener Zugangs-Token. Bitte wenden Sie sich an unser Team für einen neuen Portal-Zugang.'
+        error: validation.error || 'Ungültiger oder abgelaufener Access Token'
       });
     }
 
-    const tokenData = result.rows[0];
-
-    // Prüfe Gültigkeit - Erweiterte Logging
-    const now = new Date();
-    const validUntil = new Date(tokenData.valid_until);
-    
-    console.log('[SUPPLIER-PORTAL] Token-Gültigkeit prüfen:');
-    console.log('[SUPPLIER-PORTAL] - Aktuell:', now.toISOString());
-    console.log('[SUPPLIER-PORTAL] - Gültig bis:', validUntil.toISOString());
-    console.log('[SUPPLIER-PORTAL] - Is Active:', tokenData.is_active);
-    
-    if (validUntil < now) {
-      console.log('[SUPPLIER-PORTAL] Token ist abgelaufen');
-      return res.status(401).json({
-        success: false,
-        error: 'Zugriff verweigert: Der Portal-Link ist abgelaufen. Bitte wenden Sie sich an unser Team für einen neuen Zugang.'
-      });
-    }
-    
     console.log('[SUPPLIER-PORTAL] Token ist gültig, führe Authentifizierung durch');
-
-    // Update access count and last access time
-    await rawDb.query(
-      'UPDATE supplier_access_pins SET access_count = access_count + 1, last_access_at = NOW() WHERE access_token = $1',
-      [accessToken]
-    );
 
     // Generiere einfaches Session Token (mit Math.random für Kompatibilität)
     const sessionToken = Math.random().toString(36).substring(2) + Math.random().toString(36).substring(2) + Math.random().toString(36).substring(2);
@@ -101,17 +70,17 @@ router.post('/authenticate', async (req: Request, res: Response) => {
 
     // Update PIN mit Session-Token und Ablaufzeit
     await rawDb.query(
-      'UPDATE supplier_access_pins SET session_token = $1, session_expires_at = $2 WHERE access_token = $3',
+      'UPDATE supplier_access_pins SET session_token = $1, session_expires_at = $2, access_count = access_count + 1 WHERE access_token = $3',
       [sessionToken, sessionExpiry, accessToken]
     );
 
     res.json({
       success: true,
       data: {
-        supplierId: tokenData.supplier_id,
+        supplierId: validation.supplierId,
+        supplierName: validation.supplierName,
         sessionToken: sessionToken,
-        validUntil: tokenData.valid_until,
-        accessCount: tokenData.access_count + 1
+        authenticated: true
       }
     });
 
