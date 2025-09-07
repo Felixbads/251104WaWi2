@@ -16,6 +16,7 @@ interface ForecastResult {
   predictedQuantity: number;
   confidence: number;
   baselineQuantity: number;
+  stockoutCorrected?: boolean;
 }
 
 interface SchedulerConfig {
@@ -339,52 +340,146 @@ class RecurringOrderScheduler {
   }
 
   /**
-   * Holt Prognose für Produkte (vereinfachte Integration)
+   * Holt ERWEITERTE Prognose für Produkte mit Stockout-Korrektur
    */
   private async getForecastForProducts(productIds: number[], periodDays: number): Promise<ForecastResult[]> {
-    // Hier würde normalerweise das Prophet-System aufgerufen
-    // Für jetzt eine vereinfachte Simulation basierend auf historischen Daten
+    console.log(`📊 Erstelle erweiterte Prognose mit Stockout-Analyse für ${productIds.length} Produkte`);
+    
+    // Verwende Enhanced Stockout Analysis Service für bessere Prognosen
+    const { EnhancedStockoutAnalysisService } = await import('./enhancedStockoutAnalysisService');
+    const stockoutAnalysisService = new EnhancedStockoutAnalysisService();
     
     const results: ForecastResult[] = [];
     
-    for (const productId of productIds) {
-      try {
-        // Hole historische Verkaufsdaten der letzten 30 Tage
-        const historicalData = await this.db.execute(sql`
-          SELECT 
-            DATE(datetime) as sale_date,
-            SUM(quantity) as daily_quantity
-          FROM transactions 
-          WHERE product_id = ${productId}
-            AND datetime >= CURRENT_DATE - INTERVAL '30 days'
-          GROUP BY DATE(datetime)
-          ORDER BY sale_date
-        `);
-
-        if (historicalData.rows.length > 0) {
-          const totalQuantity = historicalData.rows.reduce((sum: number, row: any) => 
-            sum + (row.daily_quantity || 0), 0
+    try {
+      // Hole umfassende Lost Sales Analyse für bessere Nachfrage-Schätzung
+      const lostSalesAnalysis = await stockoutAnalysisService.analyzeLostSalesComprehensive(90);
+      
+      for (const productId of productIds) {
+        try {
+          // Finde Stockout-Analyse für dieses Produkt (falls vorhanden)
+          const productStockoutAnalysis = lostSalesAnalysis.filter(analysis => 
+            analysis.productId === productId
           );
-          const avgDaily = totalQuantity / historicalData.rows.length;
-          const predictedQuantity = avgDaily * periodDays;
+          
+          // Hole historische Verkaufsdaten der letzten 30 Tage
+          const historicalData = await this.db.execute(sql`
+            SELECT 
+              DATE(datetime) as sale_date,
+              SUM(quantity) as daily_quantity,
+              machine_id
+            FROM transactions 
+            WHERE product_id = ${productId}
+              AND datetime >= CURRENT_DATE - INTERVAL '30 days'
+            GROUP BY DATE(datetime), machine_id
+            ORDER BY sale_date
+          `);
 
-          results.push({
-            productId,
-            predictedQuantity: Math.max(1, Math.round(predictedQuantity)),
-            confidence: historicalData.rows.length >= 7 ? 0.8 : 0.5,
-            baselineQuantity: Math.round(avgDaily)
-          });
-        } else {
-          // Keine historischen Daten - verwende Standardmenge
-          results.push({
-            productId,
-            predictedQuantity: 10, // Standard-Fallback
-            confidence: 0.3,
-            baselineQuantity: 10
-          });
+          if (historicalData.rows.length > 0) {
+            // Standard-Berechnung basierend auf historischen Daten
+            const totalQuantity = historicalData.rows.reduce((sum: number, row: any) => 
+              sum + (row.daily_quantity || 0), 0
+            );
+            const avgDaily = totalQuantity / historicalData.rows.length;
+            let predictedQuantity = avgDaily * periodDays;
+            let confidence = historicalData.rows.length >= 7 ? 0.8 : 0.5;
+            
+            // ERWEITERT: Korrigiere Prognose mit Lost Sales Analysis
+            if (productStockoutAnalysis.length > 0) {
+              const totalActualDemand = productStockoutAnalysis.reduce((sum, analysis) => 
+                sum + analysis.actualDemandEstimate, 0
+              );
+              const totalObservedSales = productStockoutAnalysis.reduce((sum, analysis) => 
+                sum + analysis.observedSales, 0
+              );
+              
+              if (totalObservedSales > 0) {
+                // Stockout-korrigierte Nachfrage-Schätzung
+                const demandMultiplier = totalActualDemand / totalObservedSales;
+                predictedQuantity *= demandMultiplier;
+                confidence = Math.min(0.95, confidence + 0.2); // Erhöhe Konfidenz durch bessere Datengrundlage
+                
+                console.log(`📈 Stockout-Korrektur für Produkt ${productId}: ${demandMultiplier.toFixed(2)}x Multiplikator`);
+              }
+            }
+
+            results.push({
+              productId,
+              predictedQuantity: Math.max(1, Math.round(predictedQuantity)),
+              confidence,
+              baselineQuantity: Math.round(avgDaily),
+              stockoutCorrected: productStockoutAnalysis.length > 0
+            });
+          } else {
+            // Keine historischen Daten - prüfe ob Stockout-Analyse verfügbar ist
+            const stockoutInfo = productStockoutAnalysis[0];
+            if (stockoutInfo && stockoutInfo.actualDemandEstimate > 0) {
+              const dailyDemand = stockoutInfo.actualDemandEstimate / 30;
+              results.push({
+                productId,
+                predictedQuantity: Math.max(1, Math.round(dailyDemand * periodDays)),
+                confidence: 0.6, // Mittlere Konfidenz durch Stockout-Analyse
+                baselineQuantity: Math.round(dailyDemand),
+                stockoutCorrected: true
+              });
+            } else {
+              // Standard-Fallback
+              results.push({
+                productId,
+                predictedQuantity: 10,
+                confidence: 0.3,
+                baselineQuantity: 10,
+                stockoutCorrected: false
+              });
+            }
+          }
+        } catch (error) {
+          console.error(`Enhanced Forecast Fehler für Produkt ${productId}:`, error);
         }
-      } catch (error) {
-        console.error(`Prognose-Fehler für Produkt ${productId}:`, error);
+      }
+    } catch (error) {
+      console.error('Fehler beim Laden der Stockout-Analyse:', error);
+      
+      // Fallback auf Standard-Prognose
+      for (const productId of productIds) {
+        try {
+          const historicalData = await this.db.execute(sql`
+            SELECT 
+              DATE(datetime) as sale_date,
+              SUM(quantity) as daily_quantity
+            FROM transactions 
+            WHERE product_id = ${productId}
+              AND datetime >= CURRENT_DATE - INTERVAL '30 days'
+            GROUP BY DATE(datetime)
+            ORDER BY sale_date
+          `);
+
+          if (historicalData.rows.length > 0) {
+            const totalQuantity = historicalData.rows.reduce((sum: number, row: any) => 
+              sum + (row.daily_quantity || 0), 0
+            );
+            const avgDaily = totalQuantity / historicalData.rows.length;
+            const predictedQuantity = avgDaily * periodDays;
+
+            results.push({
+              productId,
+              predictedQuantity: Math.max(1, Math.round(predictedQuantity)),
+              confidence: historicalData.rows.length >= 7 ? 0.8 : 0.5,
+              baselineQuantity: Math.round(avgDaily),
+              stockoutCorrected: false
+            });
+          } else {
+            results.push({
+              productId,
+              predictedQuantity: 10,
+              confidence: 0.3,
+              baselineQuantity: 10,
+              stockoutCorrected: false
+            });
+          }
+        } catch (innerError) {
+          console.error(`Fallback Prognose-Fehler für Produkt ${productId}:`, innerError);
+        }
       }
     }
     
