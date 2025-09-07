@@ -35,6 +35,7 @@ The system employs a robust architecture designed for complex vending machine op
 -   **Analytics and Charting**: Repaired data flow for machine detail pages, ensuring analytics charts display correctly by adapting to daily backend data and intelligently distributing it hourly. Implemented loading, error, and empty states for all revenue charts and product performance sections.
 -   **Centralized Ordering**: Consolidated fragmented ordering processes into a single "Neue Bestellung" function with an OrderModeSelector, enhancing user experience with improved search, filter, and sort options for order copying.
 -   **Routing Consistency**: Resolved all routing issues, ensuring functional and consistent URL structures for machine details (`/automaten/:id`) and correct navigation from status overviews to machine details using `vendon_id`.
+-   **MHD-Optimized Refill Templates**: Comprehensive system for managing perishable products (milk, cheese, sausage) with expiration date (MHD) optimization. Features automated product categorization by shelf life, risk-based quantity adjustments for refill templates, bidirectional Vendon API synchronization (import → optimize → upload), and batch processing for multiple machines. The system applies intelligent reduction algorithms (70% for critical, 50% for high, 30% for medium risk) to prevent stock spoilage while maintaining availability for popular products.
 
 ## External Dependencies
 -   **Vendon API**: Primary integration for real-time vending machine data collection and synchronization.
