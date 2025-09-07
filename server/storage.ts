@@ -537,7 +537,7 @@ export interface IStorage {
   updateInventoryForTransfer(sourceWarehouseId: number, targetWarehouseId: number, productId: number, quantity: number): Promise<any>;
   
   // Refill operations
-  getRefills(): Promise<Refill[]>;
+  getRefills(options?: { warehouseId?: number; startDate?: Date; endDate?: Date; limit?: number }): Promise<Refill[]>;
   getRefillById(id: number): Promise<Refill | undefined>;
   getRefillsByMachine(machineId: number): Promise<Refill[]>;
   createRefill(refill: Omit<Refill, 'id'>): Promise<Refill>;

@@ -1163,11 +1163,75 @@ export class DatabaseStorage implements IStorage {
   async updateInventoryMovement(id: number, updates: any): Promise<any> { throw new Error("Not implemented"); }
   async deleteInventoryMovement(id: number): Promise<void> { throw new Error("Not implemented"); }
   
-  async getRefills(): Promise<any[]> { 
+  async getRefills(options?: { warehouseId?: number; startDate?: Date; endDate?: Date; limit?: number }): Promise<any[]> { 
     try {
-      return await db.select().from(refills).orderBy(desc(refills.updatedAt));
+      const { warehouseId, startDate, endDate, limit = 100 } = options || {};
+      
+      // Build the query with proper JOINs to get refill details including 'removed' quantities
+      let query = db.select({
+        id: refills.id,
+        vendonId: refills.vendonId,
+        machineId: refills.machineId,
+        machineName: refills.machineName,
+        datetime: refills.datetime,
+        refillNumber: refills.refillNumber,
+        isCompleted: refills.isCompleted,
+        totalAmount: refills.totalAmount,
+        processStatus: refills.processStatus,
+        createdAt: refills.createdAt,
+        updatedAt: refills.updatedAt,
+        // Include details with removed quantities
+        details: sql`(
+          SELECT json_agg(
+            json_build_object(
+              'id', rd.id,
+              'productId', rd.product_id,
+              'productName', rd.product_name,
+              'quantity', rd.quantity,
+              'added', rd.added,
+              'removed', rd.removed,
+              'position', rd.position,
+              'previousStock', rd.previous_stock,
+              'currentStock', rd.current_stock
+            )
+          )
+          FROM refill_details rd 
+          WHERE rd.refill_id = ${refills.id}
+        )`.as('details')
+      })
+      .from(refills)
+      .leftJoin(machines, eq(machines.id, refills.machineId));
+      
+      // Add filters
+      const conditions = [];
+      
+      if (warehouseId) {
+        // Filter by warehouse through machine assignment
+        conditions.push(eq(machines.warehouseId, warehouseId));
+      }
+      
+      if (startDate) {
+        conditions.push(gte(refills.datetime, startDate));
+      }
+      
+      if (endDate) {
+        conditions.push(lte(refills.datetime, endDate));
+      }
+      
+      if (conditions.length > 0) {
+        query = query.where(and(...conditions));
+      }
+      
+      // Add ordering and limit
+      query = query.orderBy(desc(refills.datetime)).limit(limit);
+      
+      const result = await query;
+      
+      console.log(`✅ Fetched ${result.length} refills with details${warehouseId ? ` for warehouse ${warehouseId}` : ''}${startDate ? ` from ${startDate.toISOString()}` : ''}${endDate ? ` to ${endDate.toISOString()}` : ''}`);
+      
+      return result;
     } catch (error) {
-      console.error("Error fetching refills:", error);
+      console.error("Error fetching refills with options:", error);
       return [];
     }
   }
