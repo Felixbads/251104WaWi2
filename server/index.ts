@@ -1996,9 +1996,9 @@ app.get('/orders-data', (req, res) => {
   // startDailyEmailScheduler();
   console.log('[SERVER] ✅ Daily Email Scheduler started - sends daily status reports (daily 6:00 AM)');
 
-  // ✅ UNIFIED VENDON SYNC SYSTEM - TEMPORARILY DISABLED FOR DEBUGGING
-  console.log('[SERVER] ⚠️ Unified Vendon Sync System temporarily disabled for debugging');
-  console.log('[SERVER] ✅ Unified Vendon System gestartet - keine konkurrierenden Services mehr!');
+  // ✅ UNIFIED VENDON SYNC SYSTEM - AKTIVIERT UND KONSOLIDIERT
+  console.log('[SERVER] ✅ Unified Vendon Sync System aktiviert - alle konkurrierenden Services deaktiviert');
+  console.log('[SERVER] ✅ Zentraler Vendon Service ist jetzt der einzige aktive Sync-Service');
   
   // IMMEDIATE TEST EMAIL ROUTE - Direct SMTP test to resolve authentication failure
   app.post('/api/test-email-immediate', async (req, res) => {
@@ -3629,15 +3629,31 @@ app.get('/orders-data', (req, res) => {
   server.listen(port, "0.0.0.0", async () => {
     log(`serving on port ${port}`);
     
-    // Activate permanent Vendon transaction downloads as requested by user
+    // ✅ KONSOLIDIERTER VENDON SYNC - Einheitlicher Service mit robuster Fehlerbehandlung
     try {
-      const { UnifiedVendonSync } = await import('./services/UnifiedVendonSync');
+      console.log('[VENDON-SYNC] Starte konsolidierten Unified Vendon Sync Service...');
       
-      // Start background sync every 5 minutes for transactions
+      const { UnifiedVendonSync } = await import('./services/UnifiedVendonSync');
+      const unifiedSync = new UnifiedVendonSync();
+      
+      // Erste Synchronisation beim Serverstart
+      console.log('[VENDON-SYNC] Führe initiale Synchronisation durch...');
+      try {
+        const initialResult = await unifiedSync.runFullSync({
+          batchSize: 100,
+          maxRetries: 3,
+          requestDelay: 1500
+        });
+        console.log('[VENDON-SYNC] ✅ Initiale Synchronisation erfolgreich:', initialResult.message);
+      } catch (initialError) {
+        console.warn('[VENDON-SYNC] ⚠️ Initiale Synchronisation fehlgeschlagen, Service läuft trotzdem weiter:', initialError);
+      }
+      
+      // Periodische Synchronisation alle 5 Minuten
       setInterval(async () => {
         try {
-          console.log('🔄 Starting background Vendon transaction sync...');
-          const unifiedSync = new UnifiedVendonSync();
+          console.log('[VENDON-SYNC] 🔄 Starte geplante Transaktions-Synchronisation...');
+          
           const yesterday = new Date();
           yesterday.setDate(yesterday.getDate() - 1);
           const today = new Date();
@@ -3645,17 +3661,26 @@ app.get('/orders-data', (req, res) => {
           const syncResult = await unifiedSync.syncTransactions({
             startDate: yesterday,
             endDate: today
+          }, {
+            batchSize: 100,
+            maxRetries: 2,
+            requestDelay: 1000
           });
-          console.log('✅ Background Vendon transaction sync completed:', syncResult);
+          
+          if (syncResult.status === 'success') {
+            console.log(`[VENDON-SYNC] ✅ Synchronisation erfolgreich: ${syncResult.stats.saved} neue, ${syncResult.stats.duplicates} Duplikate`);
+          } else {
+            console.warn(`[VENDON-SYNC] ⚠️ Synchronisation teilweise erfolgreich: ${syncResult.message}`);
+          }
         } catch (error) {
-          console.error('❌ Background Vendon transaction sync failed:', error);
+          console.error('[VENDON-SYNC] ❌ Geplante Synchronisation fehlgeschlagen:', error);
         }
-      }, 5 * 60 * 1000); // 5 minutes
+      }, 5 * 60 * 1000); // 5 Minuten
       
-      log('✅ Vendon transaction downloads permanently activated (every 5 minutes)');
+      log('[VENDON-SYNC] ✅ Konsolidierter Vendon Sync Service erfolgreich gestartet (alle 5 Minuten)');
     } catch (error) {
-      console.error('❌ Failed to start Vendon transaction sync:', error);
-      log('⚠️ Vendon transaction sync could not be started - continuing without automatic sync');
+      console.error('[VENDON-SYNC] ❌ Kritischer Fehler beim Starten des Vendon Sync Service:', error);
+      log('[VENDON-SYNC] ⚠️ Vendon Sync Service konnte nicht gestartet werden - System läuft ohne automatische Synchronisation');
     }
 
     // Start Supplier Analytics Cache Background Service  

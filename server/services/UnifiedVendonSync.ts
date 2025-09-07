@@ -199,7 +199,7 @@ export class UnifiedVendonSync {
   }
 
   /**
-   * Synchronisiert Transaktionen für einen Zeitraum
+   * ENHANCED: Synchronisiert Transaktionen für einen Zeitraum mit dynamischen Zeitfenstern
    */
   async syncTransactions(range: DateRange, options?: SyncOptions): Promise<SyncResult> {
     const opts = { ...this.defaultOptions, ...options };
@@ -208,67 +208,133 @@ export class UnifiedVendonSync {
     const errors: string[] = [];
 
     try {
-      console.log(`🔄 Synchronisiere Transaktionen: ${range.startDate.toISOString()} bis ${range.endDate.toISOString()}`);
+      console.log(`🔄 ENHANCED Transaktionen-Sync: ${range.startDate.toISOString()} bis ${range.endDate.toISOString()}`);
       
-      let offset = 0;
-      let hasMore = true;
+      // DYNAMIC TIME WINDOW ALGORITHM
+      let currentStartTime = Math.floor(range.startDate.getTime() / 1000);
+      const finalEndTime = Math.floor(range.endDate.getTime() / 1000);
       
-      while (hasMore) {
-        try {
-          // API-Daten abrufen
-          const apiResult = await this.vendonApi.getTransactions(
-            range.startDate,
-            range.endDate,
-            opts.batchSize
-          );
-          
-          if (!apiResult || apiResult.length === 0) {
-            hasMore = false;
-            break;
-          }
+      // Dynamische Zeitfenster-Konfiguration (Standard: 2 Stunden)
+      const baseTimeWindow = 2 * 60 * 60; // 2 Stunden in Sekunden
+      let currentTimeWindow = baseTimeWindow;
+      
+      while (currentStartTime < finalEndTime) {
+        const currentEndTime = Math.min(currentStartTime + currentTimeWindow, finalEndTime);
+        
+        console.log(`📅 Zeitfenster: ${new Date(currentStartTime * 1000).toISOString()} bis ${new Date(currentEndTime * 1000).toISOString()}`);
+        
+        // Timestamp-basierte Pagination für aktuelles Zeitfenster
+        let offset = 0;
+        let hasMore = true;
+        let lastTransactionTimestamp = currentStartTime;
+        
+        while (hasMore && currentStartTime < finalEndTime) {
+          try {
+            // Enhanced API-Aufruf mit präziser Timestamp-Kontrolle
+            const fromTimestamp = Math.max(currentStartTime, lastTransactionTimestamp);
+            
+            const apiResult = await this.vendonApi.getTransactions(
+              new Date(fromTimestamp * 1000),
+              new Date(currentEndTime * 1000),
+              opts.batchSize
+            );
+            
+            if (!apiResult || apiResult.length === 0) {
+              hasMore = false;
+              break;
+            }
 
-          stats.found += apiResult.length;
-          
-          // Batch-Verarbeitung mit Duplicate Prevention Service
-          const processResult = await this.duplicateService.processTransactionBatch(
-            apiResult, 
-            opts.forceUpdate
-          );
-          
-          stats.saved += processResult.saved;
-          stats.updated += processResult.updated;
-          stats.duplicates += processResult.duplicates;
-          
-          if (processResult.errors.length > 0) {
-            stats.errors += processResult.errors.length;
-            errors.push(...processResult.errors);
-          }
+            stats.found += apiResult.length;
+            
+            // Kritische Erkennung: API-Limit erreicht?
+            const hitApiLimit = apiResult.length === opts.batchSize;
+            
+            if (hitApiLimit && apiResult.length > 0) {
+              console.log(`🔥 API-Limit erreicht (${opts.batchSize}) - aktiviere Timestamp-Fortsetzung`);
+              
+              // Sortiere nach Timestamp für präzise Fortsetzung
+              const sortedTransactions = apiResult.sort((a, b) => {
+                const timestampA = new Date(a.datetime || a.transaction_dt).getTime();
+                const timestampB = new Date(b.datetime || b.transaction_dt).getTime();
+                return timestampA - timestampB;
+              });
+              
+              // Letzter Timestamp als neuer Startpunkt
+              const lastTransaction = sortedTransactions[sortedTransactions.length - 1];
+              const lastTimestamp = new Date(lastTransaction.datetime || lastTransaction.transaction_dt).getTime();
+              lastTransactionTimestamp = Math.floor(lastTimestamp / 1000) + 1;
+              
+              console.log(`⏭️ Fortsetzung ab: ${new Date(lastTransactionTimestamp * 1000).toISOString()}`);
+            }
+            
+            // Batch-Verarbeitung mit Duplicate Prevention Service
+            const processResult = await this.duplicateService.processTransactionBatch(
+              apiResult, 
+              opts.forceUpdate
+            );
+            
+            stats.saved += processResult.saved;
+            stats.updated += processResult.updated;
+            stats.duplicates += processResult.duplicates;
+            
+            if (processResult.errors.length > 0) {
+              stats.errors += processResult.errors.length;
+              errors.push(...processResult.errors);
+            }
 
-          // Pagination-Kontrolle
-          hasMore = apiResult.length === opts.batchSize;
-          offset += opts.batchSize;
-          
-          // Rate Limiting
-          if (hasMore && opts.requestDelay > 0) {
-            await this.sleep(opts.requestDelay);
-          }
+            // Entscheidung über Fortsetzung
+            if (hitApiLimit) {
+              // Bei API-Limit: Timestamp-basierte Fortsetzung
+              hasMore = lastTransactionTimestamp < currentEndTime;
+              offset = 0;
+            } else {
+              // Normal: Keine weiteren Daten in diesem Zeitfenster
+              hasMore = false;
+            }
+            
+            // Rate Limiting
+            if (hasMore && opts.requestDelay > 0) {
+              await this.sleep(opts.requestDelay);
+            }
+            
+            console.log(`📊 Batch: ${processResult.saved} neue von ${apiResult.length} (${stats.duplicates} Duplikate gesamt)`);
 
-        } catch (batchError) {
-          const errorMsg = `Batch-Fehler bei Offset ${offset}: ${batchError instanceof Error ? batchError.message : String(batchError)}`;
-          errors.push(errorMsg);
-          stats.errors++;
-          
-          console.error(errorMsg);
-          
-          // Bei Fehlern: exponentielles Backoff
-          await this.sleep(opts.requestDelay * Math.min(stats.errors, 4));
+          } catch (batchError) {
+            const errorMsg = `Enhanced Batch-Fehler bei Timestamp ${currentStartTime}: ${batchError instanceof Error ? batchError.message : String(batchError)}`;
+            errors.push(errorMsg);
+            stats.errors++;
+            
+            console.error(errorMsg);
+            
+            // Kleineres Zeitfenster bei Fehlern
+            if (currentTimeWindow > 900) { // Mindestens 15 Minuten
+              currentTimeWindow = Math.floor(currentTimeWindow / 2);
+              console.log(`🔧 Reduziere Zeitfenster auf ${currentTimeWindow / 60} Minuten`);
+            }
+            
+            // Exponentielles Backoff
+            await this.sleep(opts.requestDelay * Math.min(stats.errors, 4));
+          }
+        }
+
+        // Zum nächsten Zeitfenster
+        currentStartTime = currentEndTime;
+        
+        // Zeitfenster-Anpassung basierend auf Datendichte
+        if (stats.found > 0) {
+          const transactionsPerSecond = stats.found / ((currentEndTime - Math.floor(range.startDate.getTime() / 1000)) || 1);
+          if (transactionsPerSecond > 0.1) { // Hohe Dichte
+            currentTimeWindow = Math.max(900, Math.floor(currentTimeWindow * 0.8));
+          } else if (transactionsPerSecond < 0.01) { // Niedrige Dichte  
+            currentTimeWindow = Math.min(8 * 60 * 60, Math.floor(currentTimeWindow * 1.5));
+          }
         }
       }
 
       stats.duration = Date.now() - startTime;
       
       const status = stats.errors > 0 ? 'partial' : 'success';
-      const message = `Transaktionen-Sync: ${stats.saved} neu, ${stats.duplicates} Duplikate`;
+      const message = `Enhanced Transaktionen-Sync: ${stats.saved} neu, ${stats.duplicates} Duplikate (${stats.duration}ms)`;
 
       return { status, message, stats, errors: errors.length > 0 ? errors : undefined };
 
@@ -276,7 +342,7 @@ export class UnifiedVendonSync {
       stats.duration = Date.now() - startTime;
       stats.errors++;
       
-      const errorMsg = `Transaktionen-Sync fehlgeschlagen: ${error instanceof Error ? error.message : String(error)}`;
+      const errorMsg = `Enhanced Transaktionen-Sync fehlgeschlagen: ${error instanceof Error ? error.message : String(error)}`;
       
       return {
         status: 'error',
