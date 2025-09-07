@@ -660,4 +660,68 @@ router.get('/validate', async (_req: Request, res: Response) => {
   }
 });
 
+// POST /api/email/daily/send-proviantomat-test - Sende Proviantomat Test-Bericht
+router.post('/send-proviantomat-test', async (req: Request, res: Response) => {
+  try {
+    const { recipientEmail } = z.object({
+      recipientEmail: z.string().email("Ungültige E-Mail-Adresse").default('felix@proviantomat.de')
+    }).parse(req.body);
+    
+    console.log(`📊 Sende Proviantomat Test-Bericht an ${recipientEmail}...`);
+    
+    // Hole die erweiterten E-Mail-Einstellungen für den Test
+    const settingsResults = await db
+      .select()
+      .from(emailSettings)
+      .where(eq(emailSettings.recipientEmail, recipientEmail))
+      .limit(1);
+    
+    const emailSettings: any = settingsResults[0] || {
+      includeWeatherForecast: true,
+      includeSalesAnalysis: true,
+      includeInventoryAlerts: true,
+      includeMhdAlerts: true,
+      includeMachineAnomalies: true,
+      includeOpenOrders: true,
+      includeLowStockAlerts: true,
+      lowStockThreshold: 15,
+      mhdWarningDays: 7,
+      anomalyDetectionDays: 3
+    };
+    
+    const result = await dailyEmailService.sendProviantomatReport(recipientEmail, emailSettings);
+    
+    if (result.success) {
+      res.json({
+        success: true,
+        message: `Proviantomat Test-Bericht erfolgreich an ${recipientEmail} gesendet`,
+        data: result
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: `Fehler beim Senden des Proviantomat-Berichts: ${result.error}`,
+        details: result.details
+      });
+    }
+    
+  } catch (error) {
+    console.error('❌ Fehler beim Senden des Proviantomat Test-Berichts:', error);
+    
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({
+        success: false,
+        error: 'Ungültige Test-Daten',
+        details: error.errors
+      });
+    }
+    
+    res.status(500).json({
+      success: false,
+      error: 'Fehler beim Senden des Proviantomat Test-Berichts',
+      details: error instanceof Error ? error.message : String(error)
+    });
+  }
+});
+
 export default router;

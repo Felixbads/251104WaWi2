@@ -18,12 +18,14 @@ import { DailyEmailComposer } from './dailyEmailComposer';
 import { sendEmail } from './emailService';
 
 export class DailyEmailService {
-  private dataAggregator: DailyEmailDataAggregator;
-  private emailComposer: DailyEmailComposer;
+  private aggregator: DailyEmailDataAggregator;
+  private composer: DailyEmailComposer;
+  private emailService: { sendEmail: typeof sendEmail };
 
   constructor() {
-    this.dataAggregator = new DailyEmailDataAggregator();
-    this.emailComposer = new DailyEmailComposer();
+    this.aggregator = new DailyEmailDataAggregator();
+    this.composer = new DailyEmailComposer();
+    this.emailService = { sendEmail };
   }
 
   /**
@@ -72,11 +74,11 @@ export class DailyEmailService {
 
       // 5. Sammle Daten
       console.log('📊 Sammle Daten für den Tagesbericht...');
-      const reportData = await this.dataAggregator.aggregateData(date);
+      const reportData = await this.aggregator.aggregateData(date);
 
       // 6. Komponiere E-Mail
       console.log('✍️ Komponiere E-Mail...');
-      const emailContent = await this.emailComposer.composeEmail(reportData, template || undefined);
+      const emailContent = await this.composer.composeEmail(reportData, template || undefined);
 
       // 7. Versende E-Mails an alle Empfänger
       console.log(`📤 Versende E-Mails an ${recipients.length} Empfänger...`);
@@ -129,10 +131,10 @@ export class DailyEmailService {
       const template = templateId ? await this.getEmailTemplate(templateId) : null;
 
       // Sammle aktuelle Daten
-      const reportData = await this.dataAggregator.aggregateData();
+      const reportData = await this.aggregator.aggregateData();
 
       // Komponiere Test-E-Mail
-      const emailContent = await this.emailComposer.composeEmail(reportData, template || undefined);
+      const emailContent = await this.composer.composeEmail(reportData, template || undefined);
       
       // Füge Test-Prefix hinzu
       emailContent.subject = `[TEST] ${emailContent.subject}`;
@@ -340,6 +342,62 @@ export class DailyEmailService {
     } catch (error) {
       console.error('Fehler beim Laden der E-Mail-Logs:', error);
       return [];
+    }
+  }
+
+  /**
+   * Sendet einen Proviantomat-Bericht mit spezifischen Einstellungen
+   */
+  async sendProviantomatReport(recipientEmail: string, settings: any): Promise<any> {
+    try {
+      console.log(`📊 Sende Proviantomat-Bericht an ${recipientEmail}...`);
+      
+      // Sammle echte Daten mit den spezifizierten Einstellungen
+      const reportData = await this.aggregator.aggregateData(new Date(), settings);
+      
+      const emailContent = await this.composer.composeEmail(reportData);
+      
+      const result = await this.emailService.sendEmail({
+        to: recipientEmail,
+        subject: emailContent.subject,
+        html: emailContent.html,
+        text: emailContent.text
+      });
+      
+      if (result.success) {
+        await this.logEmail({
+          recipient: recipientEmail,
+          templateId: null,
+          status: 'sent',
+          emailSubject: emailContent.subject,
+          payload: reportData
+        });
+        console.log(`✅ Proviantomat-Bericht erfolgreich gesendet an ${recipientEmail}`);
+        return { success: true, emailData: emailContent };
+      } else {
+        await this.logEmail({
+          recipient: recipientEmail,
+          templateId: null,
+          status: 'failed',
+          emailSubject: emailContent.subject,
+          payload: reportData,
+          errorMessage: result.error
+        });
+        console.error(`❌ Proviantomat-Bericht-Versand fehlgeschlagen: ${result.error}`);
+        return { success: false, error: result.error };
+      }
+      
+    } catch (error) {
+      console.error('❌ Fehler beim Senden des Proviantomat-Berichts:', error);
+      await this.logEmail({
+        recipient: recipientEmail,
+        templateId: null,
+        status: 'failed',
+        emailSubject: '[PROVIANTOMAT] Fehler',
+        payload: null,
+        errorMessage: error instanceof Error ? error.message : String(error)
+      });
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
   }
 
