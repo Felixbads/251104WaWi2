@@ -153,27 +153,7 @@ export class EnhancedProphetService {
       actualDemandEstimate: analysis.actualDemandEstimate
     }));
     
-    /* Original Query - jetzt durch Enhanced Service ersetzt
-    let query = `
-      SELECT 
-        r.machine_id,
-        r.datetime as stockout_start,
-        r.datetime + INTERVAL '4 hours' as estimated_stockout_end,
-        'REFILL_PATTERN' as detection_method
-      FROM refills r
-      WHERE r.datetime >= $1 AND r.datetime <= $2
-    `;
-    
-    const params = [input.startDate, input.endDate];
-    let paramIndex = 3;
-    
-    if (input.machineId) {
-      query += ` AND r.machine_id = $${paramIndex}`;
-      params.push(input.machineId);
-    }
-    
-    const result = await pool.query(query, params);
-    return result.rows;
+    // Original Query - jetzt durch Enhanced Service ersetzt
   }
 
   /**

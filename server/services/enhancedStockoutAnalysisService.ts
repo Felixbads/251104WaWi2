@@ -118,6 +118,7 @@ export class EnhancedStockoutAnalysisService {
           ${machineFilter}
           ${productFilter}
           AND p.id IS NOT NULL
+          AND rd.product_id IS NOT NULL
           
       ), sales_velocity AS (
         -- Berechne Verkaufsgeschwindigkeit pro Produkt/Maschine

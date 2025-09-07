@@ -2368,6 +2368,11 @@ app.get('/orders-data', (req, res) => {
   const simpleEnhancedForecastRouter = (await import('./routes/simple-enhanced-forecast')).default;
   app.use('/api/enhanced-forecast', simpleEnhancedForecastRouter);
   
+  // Register enhanced stockout analytics router
+  const enhancedStockoutAnalyticsRouter = (await import('./routes/enhanced-stockout-analytics')).default;
+  app.use('/api/enhanced-stockout', enhancedStockoutAnalyticsRouter);
+  console.log('[SERVER] Enhanced Stockout Analytics router mounted successfully');
+  
   // Register stock ratios router for filling level calculations
   app.use('/api/stock-ratios', stockRatiosRouter);
   console.log('[SERVER] Stock ratios router mounted successfully');

@@ -7,7 +7,7 @@
 
 import { Router, Request, Response } from 'express';
 import { EnhancedStockoutAnalysisService } from '../services/enhancedStockoutAnalysisService';
-import { isAuthenticated } from '../middleware/auth';
+import { replitAuthMiddleware } from '../auth/replit-auth';
 
 const router = Router();
 const stockoutAnalysisService = new EnhancedStockoutAnalysisService();
@@ -16,7 +16,7 @@ const stockoutAnalysisService = new EnhancedStockoutAnalysisService();
  * Umfassende Lost Sales Analyse
  * GET /api/enhanced-stockout/lost-sales-analysis
  */
-router.get('/lost-sales-analysis', isAuthenticated, async (req: Request, res: Response) => {
+router.get('/lost-sales-analysis', replitAuthMiddleware, async (req: Request, res: Response) => {
   try {
     const {
       daysBack = '90',
@@ -62,7 +62,7 @@ router.get('/lost-sales-analysis', isAuthenticated, async (req: Request, res: Re
  * Refill-Optimierungs-Empfehlungen
  * GET /api/enhanced-stockout/refill-optimization
  */
-router.get('/refill-optimization', isAuthenticated, async (req: Request, res: Response) => {
+router.get('/refill-optimization', replitAuthMiddleware, async (req: Request, res: Response) => {
   try {
     const {
       machineId,
@@ -117,7 +117,7 @@ router.get('/refill-optimization', isAuthenticated, async (req: Request, res: Re
  * Stockout Analytics Dashboard Daten
  * GET /api/enhanced-stockout/dashboard
  */
-router.get('/dashboard', isAuthenticated, async (req: Request, res: Response) => {
+router.get('/dashboard', replitAuthMiddleware, async (req: Request, res: Response) => {
   try {
     const { machineId } = req.query;
 
@@ -144,7 +144,7 @@ router.get('/dashboard', isAuthenticated, async (req: Request, res: Response) =>
  * Stockout-Korrektur-Faktor für Prophet-Prognosen
  * GET /api/enhanced-stockout/correction-factor
  */
-router.get('/correction-factor', isAuthenticated, async (req: Request, res: Response) => {
+router.get('/correction-factor', replitAuthMiddleware, async (req: Request, res: Response) => {
   try {
     const { machineId, productId, date } = req.query;
 
@@ -186,7 +186,7 @@ router.get('/correction-factor', isAuthenticated, async (req: Request, res: Resp
  * Top Lost Revenue Opportunities (für Quick-Actions)
  * GET /api/enhanced-stockout/top-opportunities
  */
-router.get('/top-opportunities', isAuthenticated, async (req: Request, res: Response) => {
+router.get('/top-opportunities', replitAuthMiddleware, async (req: Request, res: Response) => {
   try {
     const { limit = '10' } = req.query;
 
@@ -231,7 +231,7 @@ router.get('/top-opportunities', isAuthenticated, async (req: Request, res: Resp
  * Stockout-Trend-Analyse für Chart-Visualisierung  
  * GET /api/enhanced-stockout/trend-analysis
  */
-router.get('/trend-analysis', isAuthenticated, async (req: Request, res: Response) => {
+router.get('/trend-analysis', replitAuthMiddleware, async (req: Request, res: Response) => {
   try {
     const { 
       machineId,
