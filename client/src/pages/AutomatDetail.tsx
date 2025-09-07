@@ -2,6 +2,8 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useState, useMemo } from "react";
 import { useRoute } from "wouter";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { 
   Activity,
   AlertCircle,

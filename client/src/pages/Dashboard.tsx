@@ -1,5 +1,6 @@
 import React from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { 
   Package, 
   AlertTriangle, 
