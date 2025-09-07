@@ -1,38 +1,130 @@
 /**
- * E-Mail-Service für Admin-Benachrichtigungen
+ * SMTP-BASIERTER E-MAIL-SERVICE FÜR ADMIN-BENACHRICHTIGUNGEN
+ * Ersetzt SendGrid API durch server-basiertes SMTP für vollständige Kontrolle
  */
-import { MailService } from '@sendgrid/mail';
-
-if (!process.env.SENDGRID_API_KEY) {
-  throw new Error("SENDGRID_API_KEY environment variable must be set");
-}
-
-const mailService = new MailService();
-mailService.setApiKey(process.env.SENDGRID_API_KEY);
+import nodemailer from 'nodemailer';
 
 interface EmailParams {
   to: string;
-  from: string;
+  from?: string;
   subject: string;
   text?: string;
   html?: string;
 }
 
+/**
+ * SMTP-Transporter erstellen mit Umgebungsvariablen
+ */
+function createSMTPTransporter() {
+  const smtpConfig = {
+    host: process.env.SMTP_HOST || 'localhost',
+    port: parseInt(process.env.SMTP_PORT || '587'),
+    secure: process.env.SMTP_PORT === '465', // true für 465, false für andere Ports
+    auth: {
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS
+    },
+    // Zusätzliche Sicherheitsoptionen
+    tls: {
+      rejectUnauthorized: false // Für lokale/interne SMTP-Server
+    }
+  };
+
+  console.log('📧 SMTP-Konfiguration initialisiert:', {
+    host: smtpConfig.host,
+    port: smtpConfig.port,
+    secure: smtpConfig.secure,
+    user: smtpConfig.auth.user,
+    hasPassword: !!smtpConfig.auth.pass
+  });
+
+  return nodemailer.createTransporter(smtpConfig);
+}
+
+/**
+ * Zentraler E-Mail-Versand über SMTP-Server
+ */
 export async function sendEmail(params: EmailParams): Promise<boolean> {
   try {
-    await mailService.send({
+    const transporter = createSMTPTransporter();
+    
+    // Standard-Absenderadresse falls nicht angegeben
+    const fromEmail = params.from || process.env.FROM_EMAIL || process.env.SMTP_USER || 'noreply@warenwirtschaft.de';
+    
+    const mailOptions = {
+      from: fromEmail,
       to: params.to,
-      from: params.from,
       subject: params.subject,
       text: params.text,
       html: params.html,
+    };
+
+    console.log(`📧 Sende E-Mail über SMTP...`, {
+      from: fromEmail,
+      to: params.to,
+      subject: params.subject,
+      hasHTML: !!params.html
     });
-    console.log(`✅ E-Mail erfolgreich gesendet an: ${params.to}`);
+
+    const result = await transporter.sendMail(mailOptions);
+    
+    console.log(`✅ E-Mail erfolgreich über SMTP gesendet an: ${params.to}`, {
+      messageId: result.messageId,
+      response: result.response
+    });
+    
     return true;
-  } catch (error) {
-    console.error('❌ SendGrid E-Mail-Fehler:', error);
+    
+  } catch (error: any) {
+    console.error('❌ SMTP E-Mail-Fehler:', error);
+    console.error('❌ SMTP Fehler-Details:', {
+      message: error?.message,
+      code: error?.code,
+      command: error?.command,
+      response: error?.response
+    });
+    
     return false;
   }
+}
+
+/**
+ * Test-E-Mail-Funktion für Validierung
+ */
+export async function sendTestEmail(recipientEmail: string): Promise<boolean> {
+  const testContent = `
+    <h2>🧪 SMTP Test-E-Mail</h2>
+    <p>Diese Test-E-Mail bestätigt, dass das SMTP-basierte E-Mail-System korrekt funktioniert.</p>
+    
+    <div style="background: #f0f8ff; padding: 15px; border-radius: 5px; margin: 15px 0;">
+      <h3>✅ System-Information:</h3>
+      <p><strong>Server:</strong> ${process.env.SMTP_HOST}:${process.env.SMTP_PORT}</p>
+      <p><strong>Benutzer:</strong> ${process.env.SMTP_USER}</p>
+      <p><strong>Sicherheit:</strong> ${process.env.SMTP_PORT === '465' ? 'SSL/TLS' : 'STARTTLS'}</p>
+      <p><strong>Zeitstempel:</strong> ${new Date().toLocaleString('de-DE')}</p>
+    </div>
+    
+    <p><em>Gesendet vom Warenwirtschaftssystem über internen SMTP-Server</em></p>
+  `;
+
+  return await sendEmail({
+    to: recipientEmail,
+    subject: '🧪 SMTP E-Mail-System Test',
+    html: testContent,
+    text: `
+      SMTP TEST-E-MAIL
+      
+      Diese Test-E-Mail bestätigt, dass das SMTP-basierte E-Mail-System korrekt funktioniert.
+      
+      System-Information:
+      - Server: ${process.env.SMTP_HOST}:${process.env.SMTP_PORT}
+      - Benutzer: ${process.env.SMTP_USER}
+      - Sicherheit: ${process.env.SMTP_PORT === '465' ? 'SSL/TLS' : 'STARTTLS'}
+      - Zeitstempel: ${new Date().toLocaleString('de-DE')}
+      
+      Gesendet vom Warenwirtschaftssystem über internen SMTP-Server
+    `
+  });
 }
 
 /**
@@ -45,7 +137,6 @@ export async function notifyAdminsOfNewUser(user: {
   createdAt: Date;
 }): Promise<boolean> {
   const adminEmail = process.env.ADMIN_EMAIL || 'admin@warenwirtschaft.de'; 
-  const fromEmail = process.env.FROM_EMAIL || 'noreply@warenwirtschaft.de';
   
   const subject = `🔔 Neue Benutzerregistrierung - Freigabe erforderlich`;
   
@@ -104,7 +195,7 @@ export async function notifyAdminsOfNewUser(user: {
         
         <div class="footer">
           <p>Diese E-Mail wurde automatisch vom Warenwirtschaftssystem generiert.</p>
-          <p>Bei Problemen wenden Sie sich an den Systemadministrator.</p>
+          <p>Gesendet über internen SMTP-Server - ${new Date().toLocaleString('de-DE')}</p>
         </div>
       </div>
     </body>
@@ -130,11 +221,11 @@ export async function notifyAdminsOfNewUser(user: {
     
     ---
     Diese E-Mail wurde automatisch vom Warenwirtschaftssystem generiert.
+    Gesendet über internen SMTP-Server - ${new Date().toLocaleString('de-DE')}
   `;
   
   return await sendEmail({
     to: adminEmail,
-    from: fromEmail,
     subject,
     html: htmlContent,
     text: textContent,
@@ -155,7 +246,6 @@ export async function notifyUserOfApprovalStatus(
     return false;
   }
   
-  const fromEmail = 'noreply@warenwirtschaft.de';
   const subject = approved 
     ? '✅ Ihr Account wurde freigeschaltet' 
     : '❌ Ihr Account wurde nicht freigegeben';
@@ -218,6 +308,7 @@ export async function notifyUserOfApprovalStatus(
           
           <div class="footer">
             <p>Vielen Dank für Ihre Registrierung im Warenwirtschaftssystem.</p>
+            <p>Gesendet über internen SMTP-Server - ${new Date().toLocaleString('de-DE')}</p>
           </div>
         </div>
       </body>
@@ -240,6 +331,7 @@ export async function notifyUserOfApprovalStatus(
       wenden Sie sich an Ihren Administrator.
       
       Vielen Dank für Ihre Registrierung im Warenwirtschaftssystem.
+      Gesendet über internen SMTP-Server - ${new Date().toLocaleString('de-DE')}
     `;
   } else {
     htmlContent = `
@@ -279,6 +371,7 @@ export async function notifyUserOfApprovalStatus(
           
           <div class="footer">
             <p>Bei weiteren Fragen stehen wir gerne zur Verfügung.</p>
+            <p>Gesendet über internen SMTP-Server - ${new Date().toLocaleString('de-DE')}</p>
           </div>
         </div>
       </body>
@@ -297,15 +390,104 @@ export async function notifyUserOfApprovalStatus(
       Fehler handelt, wenden Sie sich bitte an Ihren Administrator.
       
       Bei weiteren Fragen stehen wir gerne zur Verfügung.
+      Gesendet über internen SMTP-Server - ${new Date().toLocaleString('de-DE')}
     `;
   }
   
   return await sendEmail({
     to: userEmail,
-    from: fromEmail,
     subject,
     html: htmlContent,
     text: textContent,
+  });
+}
+
+/**
+ * E-Mail für wiederkehrende Bestellungen mit Portal-Link
+ */
+export async function sendRecurringOrderEmail(
+  recipientEmail: string,
+  orderDetails: {
+    orderName: string;
+    orderNumber: string;
+    supplierName: string;
+    items: Array<{ productName: string; quantity: number; unit: string }>;
+    totalAmount?: number;
+  },
+  portalLink?: string
+): Promise<boolean> {
+  const subject = `📦 Neue Bestellung: ${orderDetails.orderName} (${orderDetails.orderNumber})`;
+  
+  const itemsList = orderDetails.items
+    .map(item => `<li>${item.productName} - ${item.quantity} ${item.unit}</li>`)
+    .join('');
+  
+  const htmlContent = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <title>Neue Bestellung</title>
+      <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: #2563eb; color: white; padding: 20px; border-radius: 8px 8px 0 0; }
+        .content { background: #f8fafc; padding: 20px; border: 1px solid #e2e8f0; }
+        .order-info { background: white; padding: 15px; border-radius: 6px; margin: 15px 0; }
+        .portal-btn { 
+          display: inline-block; 
+          background: #16a34a; 
+          color: white; 
+          padding: 12px 24px; 
+          text-decoration: none; 
+          border-radius: 6px; 
+          margin: 15px 0;
+        }
+        .footer { background: #64748b; color: white; padding: 15px; border-radius: 0 0 8px 8px; font-size: 12px; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h2>📦 Neue Bestellung eingegangen</h2>
+          <p>Bestellung ${orderDetails.orderNumber} wurde automatisch erstellt</p>
+        </div>
+        
+        <div class="content">
+          <div class="order-info">
+            <h3>Bestelldetails:</h3>
+            <p><strong>Bestellname:</strong> ${orderDetails.orderName}</p>
+            <p><strong>Bestellnummer:</strong> ${orderDetails.orderNumber}</p>
+            <p><strong>Lieferant:</strong> ${orderDetails.supplierName}</p>
+            ${orderDetails.totalAmount ? `<p><strong>Gesamtwert:</strong> ${orderDetails.totalAmount.toFixed(2)} €</p>` : ''}
+            
+            <h4>Bestellpositionen:</h4>
+            <ul>${itemsList}</ul>
+          </div>
+          
+          ${portalLink ? `
+            <div style="text-align: center;">
+              <a href="${portalLink}" class="portal-btn">
+                🔗 Bestellung im Portal anzeigen
+              </a>
+              <p><small>Link gültig für 24 Stunden</small></p>
+            </div>
+          ` : ''}
+        </div>
+        
+        <div class="footer">
+          <p>Diese E-Mail wurde automatisch vom Warenwirtschaftssystem generiert.</p>
+          <p>Gesendet über internen SMTP-Server - ${new Date().toLocaleString('de-DE')}</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+  
+  return await sendEmail({
+    to: recipientEmail,
+    subject,
+    html: htmlContent
   });
 }
 
