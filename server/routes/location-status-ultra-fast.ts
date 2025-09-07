@@ -41,25 +41,7 @@ router.get('/', async (req: Request, res: Response) => {
     
     // PERFORMANCE-OPTIMIZED Query - Simplified structure, minimal JOINs
     const result = await db.execute(`
-      SELECT 
-        ROW_NUMBER() OVER (ORDER BY today_revenue DESC, location) as id,
-        location as machine_name,
-        machine_count,
-        machine_names,
-        last_sale,
-        today_revenue,
-        today_transactions,
-        last_cashless_sale,
-        NULL as last_cashless_product,
-        NULL as last_alcohol_sale,
-        NULL as last_alcohol_product,
-        NULL as last_refill,
-        NULL as last_operator,
-        NULL as last_door_open,
-        0 as expired_count,
-        0 as warning_count,
-        NULL as earliest_expiry
-      FROM (
+      WITH location_stats AS (
         SELECT 
           location,
           COUNT(DISTINCT machine_id) as machine_count,
@@ -88,7 +70,26 @@ router.get('/', async (req: Request, res: Response) => {
             AND t.datetime >= CURRENT_DATE - INTERVAL '30 days'
         ) tbl
         GROUP BY location
-      ) location_stats
+      )
+      SELECT 
+        ROW_NUMBER() OVER (ORDER BY today_revenue DESC, location) as id,
+        location as machine_name,
+        machine_count,
+        machine_names,
+        last_sale,
+        today_revenue,
+        today_transactions,
+        last_cashless_sale,
+        NULL as last_cashless_product,
+        NULL as last_alcohol_sale,
+        NULL as last_alcohol_product,
+        NULL as last_refill,
+        NULL as last_operator,
+        NULL as last_door_open,
+        0 as expired_count,
+        0 as warning_count,
+        NULL as earliest_expiry
+      FROM location_stats
       ORDER BY 
         CASE WHEN today_revenue > 0 THEN 0 ELSE 1 END,
         today_revenue DESC,
