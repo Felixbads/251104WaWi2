@@ -14,13 +14,15 @@ import { db } from '../db';
 import { 
   transactions, 
   machineStocks,
-  productBatches,
-  refills,
   machines,
-  products,
-  batchTransactionLog,
-  warehouseTransfers 
+  products
 } from '../../shared/schema';
+import { 
+  refillTrackings,
+  refillTrackingItems,
+  productBatches,
+  inventoryMovements 
+} from '../../shared/warehouse3.schema';
 import { batchTrackingService } from './batchTrackingService';
 
 export interface WeeklyOperationsSummary {
@@ -311,23 +313,23 @@ export class WeeklyOperationsAnalysisService {
       // Hole alle Befüllungen der Woche
       const refillsData = await db
         .select({
-          id: refills.id,
-          machineId: refills.machineId,
+          id: refillTrackings.id,
+          machineId: refillTrackings.machineId,
           machineName: machines.machineName,
           locationId: machines.locationId,
-          refillDate: refills.date,
-          performedBy: refills.performedBy,
+          refillDate: refillTrackings.refillDate,
+          performedBy: refillTrackings.performedBy,
           
-          // Produkt-Details aus refill_details würden hier kommen
-          // Für jetzt vereinfachen wir und nutzen machine_stocks Änderungen
+          // Vereinfachte Implementierung - nutzt warehouse3 schema
         })
-        .from(refills)
-        .leftJoin(machines, eq(refills.machineId, machines.vendonId))
+        .from(refillTrackings)
+        .leftJoin(machines, eq(refillTrackings.machineId, machines.id))
         .where(and(
-          gte(refills.date, startDate),
-          lte(refills.date, endDate)
+          gte(refillTrackings.refillDate, startDate),
+          lte(refillTrackings.refillDate, endDate),
+          eq(refillTrackings.status, 'completed')
         ))
-        .orderBy(asc(refills.date));
+        .orderBy(asc(refillTrackings.refillDate));
 
       const analysisResults: RefillAnalysis[] = [];
 
@@ -409,7 +411,7 @@ export class WeeklyOperationsAnalysisService {
    * Analysiert Bestandsänderungen um eine Befüllung herum
    */
   private async getStockChangesAroundRefill(
-    machineId: string, 
+    machineId: number, 
     refillDate: Date
   ): Promise<RefillAnalysis['productsRefilled']> {
     
@@ -429,7 +431,7 @@ export class WeeklyOperationsAnalysisService {
           expiryDate: machineStocks.expiryDate
         })
         .from(machineStocks)
-        .where(eq(machineStocks.machineVendonId, machineId));
+        .where(eq(machineStocks.machineId, machineId));
 
       // Konvertiere zu erwarteten Format
       return stockData.map(stock => ({
@@ -453,7 +455,7 @@ export class WeeklyOperationsAnalysisService {
   /**
    * Berechnet Verkäufe seit der letzten Befüllung
    */
-  private async getSalesSinceLastRefill(machineId: string, refillDate: Date): Promise<{
+  private async getSalesSinceLastRefill(machineId: number, refillDate: Date): Promise<{
     daysSinceLastRefill: number;
     totalSales: number;
     totalRevenue: number;
@@ -463,18 +465,18 @@ export class WeeklyOperationsAnalysisService {
     try {
       // Finde letzte Befüllung vor dieser
       const previousRefill = await db
-        .select({ date: refills.date })
-        .from(refills)
+        .select({ refillDate: refillTrackings.refillDate })
+        .from(refillTrackings)
         .where(and(
-          eq(refills.machineId, machineId),
-          lte(refills.date, refillDate)
+          eq(refillTrackings.machineId, machineId),
+          lte(refillTrackings.refillDate, refillDate)
         ))
-        .orderBy(desc(refills.date))
+        .orderBy(desc(refillTrackings.refillDate))
         .offset(1)  // Überspringe die aktuelle Befüllung
         .limit(1);
 
       const startDate = previousRefill.length > 0 
-        ? new Date(previousRefill[0].date)
+        ? new Date(previousRefill[0].refillDate)
         : new Date(refillDate.getTime() - 7 * 24 * 60 * 60 * 1000); // Fallback: 7 Tage zurück
 
       // Berechne Zeitspanne
@@ -519,7 +521,7 @@ export class WeeklyOperationsAnalysisService {
    * Berechnet die Wirtschaftlichkeit einer Befüllung
    */
   private async calculateRefillEconomics(
-    machineId: string,
+    machineId: number,
     refillDate: Date,
     stockChanges: RefillAnalysis['productsRefilled'],
     salesData: { totalSales: number; totalRevenue: number; averageDailySales: number }
