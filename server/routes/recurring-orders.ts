@@ -93,7 +93,7 @@ router.post('/test-email', async (req: Request, res: Response) => {
 
     // ECHTER E-MAIL-SERVICE IMPLEMENTIERT
     try {
-      const nodemailer = require('nodemailer');
+      import nodemailer from 'nodemailer';
       
       // SMTP-Transporter konfigurieren
       const transporter = nodemailer.createTransporter({

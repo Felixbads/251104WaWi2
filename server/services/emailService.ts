@@ -38,7 +38,7 @@ function createSMTPTransporter() {
     hasPassword: !!smtpConfig.auth.pass
   });
 
-  return nodemailer.createTransporter(smtpConfig);
+  return nodemailer.createTransport(smtpConfig);
 }
 
 /**
