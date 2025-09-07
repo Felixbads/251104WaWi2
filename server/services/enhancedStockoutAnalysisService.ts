@@ -109,9 +109,9 @@ export class EnhancedStockoutAnalysisService {
         FROM machines m
         INNER JOIN refills r ON m.id = r.machine_id
         INNER JOIN refill_details rd ON r.id = rd.refill_id
-        LEFT JOIN products p ON rd.product_id = p.id
+        LEFT JOIN products p ON rd.product_id::integer = p.id
         LEFT JOIN transactions t ON t.machine_id = m.id 
-          AND t.product_id = rd.product_id
+          AND t.product_id = rd.product_id::integer
           AND t.datetime BETWEEN r.datetime - INTERVAL '7 days' AND r.datetime + INTERVAL '1 hour'
         
         WHERE r.datetime >= NOW() - INTERVAL '${daysBack} days'
@@ -339,7 +339,7 @@ export class EnhancedStockoutAnalysisService {
         INNER JOIN refills r ON m.id = r.machine_id
         INNER JOIN refill_details rd ON r.id = rd.refill_id
         LEFT JOIN transactions t ON t.machine_id = m.id 
-          AND t.product_id = rd.product_id
+          AND t.product_id = rd.product_id::integer
           AND t.datetime BETWEEN r.datetime - INTERVAL '7 days' AND r.datetime
         LEFT JOIN (
           -- Durchschnittliche Verkaufsgeschwindigkeit vor Refill
@@ -428,7 +428,7 @@ export class EnhancedStockoutAnalysisService {
         INNER JOIN refills r ON m.id = r.machine_id
         INNER JOIN refill_details rd ON r.id = rd.refill_id
         LEFT JOIN transactions t ON t.machine_id = m.id 
-          AND t.product_id = rd.product_id
+          AND t.product_id = rd.product_id::integer
           AND t.datetime BETWEEN r.datetime - INTERVAL '7 days' AND r.datetime + INTERVAL '1 hour'
         LEFT JOIN (
           SELECT 
