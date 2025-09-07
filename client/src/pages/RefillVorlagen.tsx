@@ -40,6 +40,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { format, parseISO } from "date-fns";
 import { de } from "date-fns/locale";
+import { WeeklyRefillTemplates } from "@/components/WeeklyRefillTemplates";
 
 interface RefillTemplate {
   id: number;
@@ -497,6 +498,9 @@ export default function RefillVorlagen() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Wöchentliche Templates Sektion */}
+        <WeeklyRefillTemplates />
 
         {/* Pillnitz Highlight Section */}
         {pillnitzTemplates.length > 0 && (

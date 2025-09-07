@@ -17,7 +17,7 @@ import {
 } from "../../shared/schema";
 import * as MHDRefillService from "./mhdOptimizedRefillTemplateService";
 import * as mhdForecast from "./mhdOptimizedForecast";
-import { getWeatherForecastForDays } from "./openWeatherService";
+import { getWeatherForecast } from "./openWeatherService";
 import { format, addDays, startOfWeek, endOfWeek } from "date-fns";
 import { de } from "date-fns/locale";
 
@@ -240,7 +240,7 @@ async function gatherWeeklyFactors(
   // 1. Wettervorhersage für die Woche
   let weatherForecast;
   try {
-    weatherForecast = await getWeatherForecastForDays(7); // 7-Tage Vorhersage
+    weatherForecast = await getWeatherForecast('Dresden,DE', 7); // 7-Tage Vorhersage
     console.log(`[WEEKLY-TEMPLATES] Wettervorhersage geladen: ${weatherForecast?.length || 0} Tage`);
   } catch (error) {
     console.warn('[WEEKLY-TEMPLATES] Wettervorhersage konnte nicht geladen werden:', error);

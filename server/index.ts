@@ -81,6 +81,7 @@ import orderItemsRouter from './routes/order-items';
 import pagePermissionsRouter from './routes/page-permissions';
 import machinesRouter from './routes/machines';
 import refillTemplatesRouter from './routes/refill-templates';
+import weeklyRefillTemplatesRouter from './routes/weekly-refill-templates';
 
 const app = express();
 
@@ -2015,6 +2016,9 @@ app.get('/orders-data', (req, res) => {
   app.use('/api/machines', refillTemplatesRouter);
   console.log('[SERVER] Refill templates router mounted at /api/machines BEFORE registerRoutes');
 
+  app.use('/api/weekly-refill-templates', weeklyRefillTemplatesRouter);
+  console.log('[SERVER] Weekly refill templates router mounted at /api/weekly-refill-templates BEFORE registerRoutes');
+
   // Mount MHD recommendations router BEFORE registerRoutes
   const { registerMHDRecommendationRoutes } = await import('./routes/mhdRecommendations');
   registerMHDRecommendationRoutes(app);
@@ -2063,6 +2067,16 @@ app.get('/orders-data', (req, res) => {
   // Start weekly report cron service for automated weekly email reports
   weeklyReportCron.start();
   console.log('[SERVER] Weekly report cron service started (Monday 6:00 AM)');
+
+  // Start weekly refill template cron service for Sunday morning template creation
+  const { weeklyRefillTemplateCron } = await import('./services/weeklyRefillTemplateCron');
+  try {
+    weeklyRefillTemplateCron.start();
+    console.log('[SERVER] ✅ Weekly Refill Template Cron Service started - creates optimized templates every Sunday 6:00 AM');
+  } catch (error) {
+    console.error('[SERVER] ❌ Fehler beim Starten des Weekly Refill Template Cron Service:', error);
+    console.log('[SERVER] ⚠️ Weekly Refill Template Service konnte nicht gestartet werden');
+  }
   
   // ✅ E-MAIL-SYSTEM REPARIERT: SMTP-basiertes System aktiviert
   // Start daily email notification scheduler for automated daily status reports
