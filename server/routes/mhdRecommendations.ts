@@ -10,6 +10,11 @@ import * as mhdForecast from "../services/mhdOptimizedForecast";
 import * as recommendationEngine from "../services/refillRecommendationEngine";
 import { authenticateUser } from "../middleware/auth";
 
+// Extend Request interface for authenticated routes
+interface AuthenticatedRequest extends Request {
+  user?: { id: number; username: string; email: string };
+}
+
 // API-Prefix
 const API_PREFIX = "/api/mhd-recommendations";
 
@@ -258,7 +263,7 @@ export function registerMHDRecommendationRoutes(app: Express): void {
    * POST /api/mhd-recommendations/approve
    * Genehmigt Empfehlungen
    */
-  app.post(`${API_PREFIX}/approve`, authenticateUser, async (req: Request, res: Response) => {
+  app.post(`${API_PREFIX}/approve`, authenticateUser, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const { recommendationIds, notes } = approveSchema.parse(req.body);
       const userId = req.user?.id;

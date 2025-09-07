@@ -74,14 +74,14 @@ export async function calculateExpiryRisk(
   // 1. Aktuellen Bestand und MHD ermitteln
   const currentInventory = await db
     .select({
-      quantity: machineStocks.currentQuantity,
+      quantity: machineStocks.quantity,
       maxQuantity: machineStocks.maxQuantity,
     })
     .from(machineStocks)
     .where(
       and(
         eq(machineStocks.machineId, machineId),
-        sql`${machineStocks.productName} = (SELECT product_name FROM products WHERE id = ${productId} LIMIT 1)`
+        sql`${machineStocks.productVendonId} = (SELECT vendon_id FROM products WHERE id = ${productId} LIMIT 1)`
       )
     );
 

@@ -158,6 +158,9 @@ export async function getRecommendations(
 
   return results.map(row => ({
     ...row,
+    machineName: row.machineName || `Maschine ${row.machineId}`,
+    productName: row.productName || `Produkt ${row.productId}`,
+    supplierName: row.supplierName || undefined,
     riskCategory: determineRiskCategory(row.priorityScore || 0, row.daysUntilExpiry || 365),
     forecastBasis: row.forecastBasis ? JSON.parse(row.forecastBasis) : undefined,
   }));
@@ -218,8 +221,8 @@ export async function getGroupedRecommendations(
   }
 
   // Durchschnittspriorität berechnen
-  for (const supplier of supplierMap.values()) {
-    supplier.averagePriority = supplier.recommendations.reduce((sum, rec) => 
+  for (const supplier of Array.from(supplierMap.values())) {
+    supplier.averagePriority = supplier.recommendations.reduce((sum: number, rec) => 
       sum + (rec.priorityScore || 0), 0) / supplier.recommendations.length;
   }
 
