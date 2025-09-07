@@ -175,7 +175,7 @@ export async function optimizeTemplateForMHD(
 
     const templateData = template[0];
 
-    const products = await db
+    const templateProducts = await db
       .select()
       .from(refillTemplateProducts)
       .where(eq(refillTemplateProducts.templateId, templateId));
@@ -190,7 +190,7 @@ export async function optimizeTemplateForMHD(
     let adjustedProducts = 0;
     let criticalProducts = 0;
 
-    for (const product of products) {
+    for (const product of templateProducts) {
       const originalQuantity = product.quantity;
       let adjustedQuantity = originalQuantity;
       let adjustmentReason = 'Keine Anpassung notwendig';
@@ -291,14 +291,14 @@ export async function optimizeTemplateForMHD(
       .where(eq(refillTemplates.id, templateId));
 
     const summary = {
-      totalProducts: products.length,
+      totalProducts: templateProducts.length,
       adjustedProducts,
       criticalProducts,
       totalReduction,
       averageConfidence: adjustedProducts > 0 ? 0.8 : 1.0, // Höhere Konfidenz wenn Anpassungen gemacht
     };
 
-    console.log(`[MHD-REFILL] Template optimiert: ${adjustedProducts}/${products.length} Produkte angepasst`);
+    console.log(`[MHD-REFILL] Template optimiert: ${adjustedProducts}/${templateProducts.length} Produkte angepasst`);
 
     return {
       success: true,

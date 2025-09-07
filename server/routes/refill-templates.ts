@@ -14,6 +14,7 @@ import {
 } from '../../shared/schema';
 import { replitAuthMiddleware, ReplitUser } from '../auth/replit-auth';
 import { RefillTemplateVendonService } from '../services/refillTemplateVendonService';
+import * as MHDRefillService from '../services/mhdOptimizedRefillTemplateService';
 
 const router = Router();
 
@@ -798,5 +799,176 @@ router.post('/:machineId/refilltemplates/create-from-vendon-stock', async (req: 
     });
   }
 });
+
+/**
+ * POST /api/machines/:machineId/refill-templates/mhd-optimize
+ * MHD-Optimierung für existierendes Template
+ */
+router.post('/:machineId/refill-templates/:templateId/mhd-optimize', async (req: AuthenticatedRequest, res) => {
+  try {
+    const { machineId, templateId } = req.params;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ error: 'Benutzer nicht authentifiziert' });
+    }
+
+    console.log(`[REFILL-TEMPLATES API] MHD-Optimierung für Template ${templateId}`);
+
+    const result = await MHDRefillService.optimizeTemplateForMHD(parseInt(templateId));
+
+    if (result.success) {
+      res.json({
+        success: true,
+        data: result.template,
+        message: 'Template erfolgreich MHD-optimiert'
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: result.error
+      });
+    }
+
+  } catch (error) {
+    console.error(`[REFILL-TEMPLATES API] Fehler bei MHD-Optimierung:`, error);
+    const errorMessage = error instanceof Error ? error.message : 'Unbekannter Fehler';
+    res.status(500).json({
+      error: 'Fehler bei der MHD-Optimierung',
+      message: errorMessage
+    });
+  }
+});
+
+/**
+ * POST /api/machines/:machineId/refill-templates/mhd-workflow
+ * Vollständiger MHD-Workflow: Import → Optimierung → Sync zu Vendon
+ */
+router.post('/:machineId/refill-templates/mhd-workflow', async (req: AuthenticatedRequest, res) => {
+  try {
+    const { machineId } = req.params;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ error: 'Benutzer nicht authentifiziert' });
+    }
+
+    console.log(`[REFILL-TEMPLATES API] MHD-Workflow für Maschine ${machineId}`);
+
+    // Hole Vendon-ID für die Maschine
+    const machineResult = await rawDb.query(
+      'SELECT vendon_id FROM machines WHERE id = $1 OR location_id = $1 OR vendon_id = $2 LIMIT 1',
+      [parseInt(machineId) || 0, machineId]
+    );
+
+    if (machineResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Maschine nicht gefunden' });
+    }
+
+    const vendonMachineId = machineResult.rows[0].vendon_id;
+    if (!vendonMachineId) {
+      return res.status(400).json({ error: 'Keine Vendon-ID für diese Maschine verfügbar' });
+    }
+
+    const result = await MHDRefillService.fullMHDOptimizedWorkflow(
+      parseInt(machineId), 
+      vendonMachineId
+    );
+
+    if (result.success) {
+      res.json({
+        success: true,
+        data: result.template,
+        vendonSync: result.vendonSync,
+        message: result.error || 'MHD-Workflow erfolgreich abgeschlossen'
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: result.error
+      });
+    }
+
+  } catch (error) {
+    console.error(`[REFILL-TEMPLATES API] Fehler bei MHD-Workflow:`, error);
+    const errorMessage = error instanceof Error ? error.message : 'Unbekannter Fehler';
+    res.status(500).json({
+      error: 'Fehler beim MHD-Workflow',
+      message: errorMessage
+    });
+  }
+});
+
+/**
+ * GET /api/machines/mhd-product-categories
+ * Holt MHD-Produktkategorien für Dashboard
+ */
+router.get('/mhd-product-categories', async (req: AuthenticatedRequest, res) => {
+  try {
+    console.log(`[REFILL-TEMPLATES API] Hole MHD-Produktkategorien`);
+
+    const categories = await MHDRefillService.categorizeProductsByMHD();
+
+    res.json({
+      success: true,
+      data: categories,
+      summary: {
+        total: categories.length,
+        kurzlebig: categories.filter(c => c.category === 'kurzlebig').length,
+        mittel: categories.filter(c => c.category === 'mittel').length,
+        langlebig: categories.filter(c => c.category === 'langlebig').length,
+        requiresAdjustment: categories.filter(c => c.requiresAdjustment).length,
+      }
+    });
+
+  } catch (error) {
+    console.error(`[REFILL-TEMPLATES API] Fehler bei MHD-Kategorien:`, error);
+    const errorMessage = error instanceof Error ? error.message : 'Unbekannter Fehler';
+    res.status(500).json({
+      error: 'Fehler beim Laden der MHD-Kategorien',
+      message: errorMessage
+    });
+  }
+});
+
+/**
+ * POST /api/machines/batch-mhd-optimization
+ * Batch-MHD-Optimierung für mehrere Maschinen
+ */
+router.post('/batch-mhd-optimization', async (req: AuthenticatedRequest, res) => {
+  try {
+    const { machineIds } = req.body;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ error: 'Benutzer nicht authentifiziert' });
+    }
+
+    console.log(`[REFILL-TEMPLATES API] Batch-MHD-Optimierung für ${machineIds?.length || 'alle'} Maschinen`);
+
+    const result = await MHDRefillService.batchMHDOptimization(machineIds);
+
+    res.json({
+      success: result.success,
+      data: result.results,
+      summary: {
+        totalMachines: result.results.length,
+        successful: result.results.filter(r => r.success).length,
+        failed: result.results.filter(r => !r.success).length,
+        totalAdjustments: result.results.reduce((sum, r) => sum + r.adjustedProducts, 0),
+      }
+    });
+
+  } catch (error) {
+    console.error(`[REFILL-TEMPLATES API] Fehler bei Batch-MHD-Optimierung:`, error);
+    const errorMessage = error instanceof Error ? error.message : 'Unbekannter Fehler';
+    res.status(500).json({
+      error: 'Fehler bei der Batch-MHD-Optimierung',
+      message: errorMessage
+    });
+  }
+});
+
+console.log(`[REFILL-TEMPLATES API] ✅ MHD-optimierte Refill-Template Routen hinzugefügt`);
 
 export default router;
