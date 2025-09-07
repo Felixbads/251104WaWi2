@@ -2381,6 +2381,11 @@ app.get('/orders-data', (req, res) => {
   const batchTraceabilityRouter = (await import('./routes/batch-traceability')).default;
   app.use('/api/batch-traceability', batchTraceabilityRouter);
   console.log('[SERVER] Batch Traceability System mounted successfully');
+
+  // Register weekly operations analysis system for comprehensive operations intelligence
+  const weeklyOperationsRouter = (await import('./routes/weekly-operations')).default;
+  app.use('/api/weekly-operations', weeklyOperationsRouter);
+  console.log('[SERVER] Weekly Operations Analysis System mounted successfully');
   
 
   

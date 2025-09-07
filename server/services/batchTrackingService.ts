@@ -16,15 +16,14 @@ import {
   productBatches, 
   batchTransactionLog,
   machines,
-  products 
+  products,
+  machineStocks
 } from '../../shared/schema';
-import { machineStock } from '../../shared/warehouse3.schema';
 import type { 
   Transaction, 
   ProductBatch, 
   InsertBatchTransactionLog 
 } from '../../shared/schema';
-import type { MachineStock } from '../../shared/warehouse3.schema';
 import * as crypto from 'crypto';
 
 export interface BatchAllocationResult {
