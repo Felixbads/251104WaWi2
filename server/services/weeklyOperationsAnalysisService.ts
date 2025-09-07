@@ -15,14 +15,12 @@ import {
   transactions, 
   machineStocks,
   machines,
-  products
-} from '../../shared/schema';
-import { 
-  refillTrackings,
-  refillTrackingItems,
+  products,
+  refills,
+  refillDetails,
   productBatches,
-  inventoryMovements 
-} from '../../shared/warehouse3.schema';
+  batchTransactionLog
+} from '../../shared/schema';
 import { batchTrackingService } from './batchTrackingService';
 
 export interface WeeklyOperationsSummary {
@@ -313,23 +311,22 @@ export class WeeklyOperationsAnalysisService {
       // Hole alle Befüllungen der Woche
       const refillsData = await db
         .select({
-          id: refillTrackings.id,
-          machineId: refillTrackings.machineId,
+          id: refills.id,
+          machineId: refills.machineId,
           machineName: machines.machineName,
-          locationId: machines.locationId,
-          refillDate: refillTrackings.refillDate,
-          performedBy: refillTrackings.performedBy,
-          
-          // Vereinfachte Implementierung - nutzt warehouse3 schema
+          locationId: refills.locationId,
+          refillDate: refills.datetime,
+          performedBy: refills.performedBy,
+          actualAmount: refills.actualAmount,
+          totalProducts: refills.totalProducts
         })
-        .from(refillTrackings)
-        .leftJoin(machines, eq(refillTrackings.machineId, machines.id))
+        .from(refills)
+        .leftJoin(machines, eq(refills.machineId, machines.id))
         .where(and(
-          gte(refillTrackings.refillDate, startDate),
-          lte(refillTrackings.refillDate, endDate),
-          eq(refillTrackings.status, 'completed')
+          gte(refills.datetime, startDate),
+          lte(refills.datetime, endDate)
         ))
-        .orderBy(asc(refillTrackings.refillDate));
+        .orderBy(asc(refills.datetime));
 
       const analysisResults: RefillAnalysis[] = [];
 
@@ -465,13 +462,13 @@ export class WeeklyOperationsAnalysisService {
     try {
       // Finde letzte Befüllung vor dieser
       const previousRefill = await db
-        .select({ refillDate: refillTrackings.refillDate })
-        .from(refillTrackings)
+        .select({ refillDate: refills.datetime })
+        .from(refills)
         .where(and(
-          eq(refillTrackings.machineId, machineId),
-          lte(refillTrackings.refillDate, refillDate)
+          eq(refills.machineId, machineId),
+          lte(refills.datetime, refillDate)
         ))
-        .orderBy(desc(refillTrackings.refillDate))
+        .orderBy(desc(refills.datetime))
         .offset(1)  // Überspringe die aktuelle Befüllung
         .limit(1);
 
