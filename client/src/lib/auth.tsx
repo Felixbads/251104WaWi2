@@ -54,7 +54,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
         }
         
-        // Stelle sicher, dass withCredentials true ist für alle API-Anfragen
+        // Stelle sicher, dass withCredentials true ist für alle API-Anfragen (Enhanced Auth nutzt HttpOnly Cookies)
         if (config.url?.startsWith('/api/')) {
           config.withCredentials = true;
         }
@@ -76,8 +76,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         console.log("[AUTH] Checking Replit authentication status...");
         
-        // Try to get current user from Replit authentication
-        const response = await axios.get('/api/auth/me');
+        // Try to get current user from Enhanced Replit authentication
+        const response = await axios.get('/api/enhanced-auth/me');
         
         if (response.data && response.data.success) {
           const { user } = response.data;
@@ -105,7 +105,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         
         // If running in development mode, try to login automatically
         try {
-          const loginResponse = await axios.post('/api/auth/login');
+          const loginResponse = await axios.post('/api/enhanced-auth/login');
           if (loginResponse.data && loginResponse.data.success) {
             const { user, token } = loginResponse.data;
             console.log("[AUTH] Development mode login successful:", user);
@@ -138,8 +138,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       setIsLoading(true);
       
-      // For Replit auth, credentials are not needed - authentication is based on environment
-      const response = await axios.post('/api/auth/login');
+      // For Enhanced Replit auth, credentials are not needed - authentication is based on environment
+      const response = await axios.post('/api/enhanced-auth/login');
       
       if (response.data && response.data.success) {
         const { token, user } = response.data;
@@ -200,33 +200,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const register = async (userData: any) => {
     try {
       setIsLoading(true);
-      const response = await axios.post('/api/auth/register', userData);
       
-      if (response.data && response.data.success) {
-        toast({
-          title: "Registrierung erfolgreich",
-          description: "Dein Konto wurde angelegt, muss aber noch von einem Administrator freigegeben werden, bevor du dich anmelden kannst.",
-        });
-        setIsLoading(false);
-        return true;
-      } else {
-        toast({
-          title: "Registrierung fehlgeschlagen",
-          description: response.data.error || "Fehler bei der Registrierung",
-          variant: "destructive",
-        });
-        setIsLoading(false);
-        return false;
-      }
-    } catch (error: any) {
-      const errorMessage = 
-        error.response?.data?.error || 
-        error.response?.data?.details || 
-        "Fehler bei der Registrierung";
-      
+      // Registrierung ist für Enhanced Replit Auth nicht verfügbar - Benutzer werden automatisch erstellt
       toast({
-        title: "Registrierung fehlgeschlagen",
-        description: errorMessage,
+        title: "Registrierung nicht erforderlich",
+        description: "Bei Enhanced Replit Auth werden Benutzer automatisch erstellt. Melden Sie sich einfach mit Ihrem Replit-Konto an.",
+        variant: "default",
+      });
+      
+      setIsLoading(false);
+      return false; // Registrierung ist nicht möglich/nötig
+    } catch (error: any) {
+      toast({
+        title: "Registrierung nicht verfügbar",
+        description: "Enhanced Replit Auth erstellt Benutzer automatisch bei der ersten Anmeldung.",
         variant: "destructive",
       });
       setIsLoading(false);
@@ -238,7 +225,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       if (token) {
         // API aufrufen, um das Token zu invalidieren
-        await axios.post('/api/auth/logout', { token });
+        await axios.post('/api/enhanced-auth/logout', { token });
       }
     } catch (error) {
       console.error('Logout error:', error);
