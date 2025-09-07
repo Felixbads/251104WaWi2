@@ -3,6 +3,7 @@ import { orders, orderItems, suppliers, purchaseConditions } from '../../shared/
 import { db, rawDb } from '../db';
 import { eq } from 'drizzle-orm';
 import sgMail from '@sendgrid/mail';
+import { createSupplierPortalLink, generatePortalLinkHTML } from '../services/supplierPortalService';
 
 // Prüfen, ob SendGrid-API-Key vorhanden ist
 if (process.env.SENDGRID_API_KEY) {
@@ -151,8 +152,9 @@ DRINGENDE Bestellpositionen:
 
 /**
  * Holt den access_token für einen Lieferanten und generiert sicheren Portal-Link
+ * VERWENDET JETZT ZENTRALEN SERVICE
  */
-export async function getSupplierPortalLink(supplierId: number): Promise<string> {
+export async function getSupplierPortalLink(supplierId: number, orderNumber?: string): Promise<string> {
   try {
     // Validiere supplierId
     if (!supplierId || supplierId <= 0) {
@@ -160,48 +162,20 @@ export async function getSupplierPortalLink(supplierId: number): Promise<string>
       return '';
     }
 
-    // Sichere Datenbankabfrage mit Validierung
-    const result = await rawDb.query(
-      'SELECT access_token, created_at, valid_until FROM supplier_access_pins WHERE supplier_id = $1 AND is_active = true ORDER BY created_at DESC LIMIT 1',
-      [supplierId]
-    );
-    
-    if (result.rows.length === 0) {
-      console.log(`[OrderEmailUtils] Kein aktiver Access-Token für Lieferant ${supplierId} gefunden`);
+    // Verwende zentralen Service für Portal-Link-Generierung
+    const result = await createSupplierPortalLink({
+      supplierId,
+      orderNumber,
+      validUntilDays: 365 // Lange Gültigkeit für Portal-Zugang
+    });
+
+    if (!result.success || !result.portalUrl) {
+      console.warn(`[OrderEmailUtils] Portal-Link-Generierung fehlgeschlagen für Lieferant ${supplierId}:`, result.error);
       return '';
     }
 
-    const tokenData = result.rows[0];
-    const accessToken = tokenData.access_token;
-    
-    // Validiere Access-Token Format
-    if (!accessToken || typeof accessToken !== 'string' || accessToken.length < 10) {
-      console.error('[OrderEmailUtils] Ungültiger Access-Token:', accessToken);
-      return '';
-    }
-
-    // Prüfe Token-Gültigkeit (falls valid_until gesetzt ist)
-    if (tokenData.valid_until) {
-      const expiresAt = new Date(tokenData.valid_until);
-      const now = new Date();
-      if (expiresAt <= now) {
-        console.warn(`[OrderEmailUtils] Access-Token für Lieferant ${supplierId} ist abgelaufen:`, expiresAt);
-        return '';
-      }
-    }
-
-    // Sichere URL-Generierung
-    const baseUrl = getSecureBaseUrl();
-    const portalUrl = `${baseUrl}/lieferant/${encodeURIComponent(accessToken)}`;
-    
-    // Validiere generierte URL
-    if (!isValidUrl(portalUrl)) {
-      console.error('[OrderEmailUtils] Generierte URL ist ungültig:', portalUrl);
-      return '';
-    }
-
-    console.log(`[OrderEmailUtils] Sicherer Portal-Link generiert für Lieferant ${supplierId}`);
-    return portalUrl;
+    console.log(`[OrderEmailUtils] Portal-Link erfolgreich generiert für Lieferant ${supplierId}`);
+    return result.portalUrl;
     
   } catch (error) {
     console.error('[OrderEmailUtils] Fehler beim Abrufen des Portal-Links:', error);
@@ -241,8 +215,12 @@ function isValidUrl(url: string): boolean {
 
 /**
  * Erstellt eine E-Mail-Vorlage für eine Bestellung
+ * REPARIERT - Portal-Links werden jetzt zuverlässig eingebettet
  */
 export function createOrderEmailTemplate(order: any, supplier: any, templateType: string = 'standard', portalLink: string = ''): string {
+  // Generiere Portal-Link-HTML wenn Portal-URL verfügbar ist
+  const portalLinkSection = portalLink ? generatePortalLinkHTML(portalLink, supplier?.name) : '';
+  
   // Template je nach Typ auswählen
   let template = '';
 
@@ -254,7 +232,7 @@ export function createOrderEmailTemplate(order: any, supplier: any, templateType
         <p><strong>wir benötigen dringend folgende Artikel und bitten um schnellstmögliche Lieferung:</strong></p>
         {{orderItems}}
         <p>Bitte bestätigen Sie den Empfang dieser Bestellung und teilen Sie uns den voraussichtlichen Liefertermin mit.</p>
-        {{portalLinkSection}}
+        ${portalLinkSection}
         <p>Bei Fragen stehen wir Ihnen gerne zur Verfügung.</p>
         <p>Mit freundlichen Grüßen<br>Ihr Proviantomat Team</p>`;
       break;
@@ -266,7 +244,7 @@ export function createOrderEmailTemplate(order: any, supplier: any, templateType
         <p>hiermit bestellen wir in Ergänzung zu unserer vorherigen Bestellung folgende Artikel:</p>
         {{orderItems}}
         <p>Diese Bestellung bezieht sich auf unsere vorherige Bestellung <strong>{{orderNumber}}</strong> vom {{orderDate}}.</p>
-        {{portalLinkSection}}
+        ${portalLinkSection}
         <p>Bei Fragen stehen wir Ihnen gerne zur Verfügung.</p>
         <p>Mit freundlichen Grüßen<br>Ihr Proviantomat Team</p>`;
       break;
