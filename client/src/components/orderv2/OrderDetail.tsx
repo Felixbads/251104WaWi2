@@ -12,29 +12,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Loader2, Package, Mail, FileText, AlertCircle, ArrowLeft, Edit3, Plus, Trash2, Save, X, CalendarDays, MapPin, MessageCircle, Truck, Home } from "lucide-react";
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
+import { OrderItemFrontend } from '@shared/schema';
 import EmailDialog from './EmailDialog';
-
-interface OrderItem {
-  id: number | null;
-  tempId?: number;
-  productId: number;
-  productName: string;
-  quantity: number;
-  unit: string;
-  unitPrice: number;
-  totalPrice: number;
-  packageSize?: number;
-  packageQuantity?: number;
-  packageInfo?: string;
-  vatRate?: number;
-  vatAmount?: number;
-  netAmount?: number;
-  grossAmount?: number;
-}
 
 interface VatGroup {
   vatRate: number;
-  items: OrderItem[];
+  items: OrderItemFrontend[];
   netTotal: number;
   vatTotal: number;
 }
@@ -64,7 +47,7 @@ interface Order {
   supplier_show_prices?: boolean;
   show_prices_in_email?: boolean;
   notes?: string;
-  items: OrderItem[];
+  items: OrderItemFrontend[];
   itemsByVat?: VatGroup[];
   totals?: OrderTotals;
 }
@@ -130,7 +113,7 @@ function ProductRow({ product, onAdd }: {
 
 const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepare }) => {
   const [order, setOrder] = useState<Order | null>(null);
-  const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
+  const [orderItems, setOrderItems] = useState<OrderItemFrontend[]>([]);
   const [emailTemplate, setEmailTemplate] = useState<EmailTemplate | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingItems, setIsLoadingItems] = useState(true);
@@ -141,7 +124,7 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
   // Bearbeitungszustände
   const [isEditing, setIsEditing] = useState(false);
   const [editingOrder, setEditingOrder] = useState<any>(null);
-  const [editingItems, setEditingItems] = useState<OrderItem[]>([]);
+  const [editingItems, setEditingItems] = useState<OrderItemFrontend[]>([]);
   const [showAddItemDialog, setShowAddItemDialog] = useState(false);
   const [showPricesInEmail, setShowPricesInEmail] = useState(true);
   const [availableProducts, setAvailableProducts] = useState<any[]>([]);
@@ -405,15 +388,18 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
   };
 
   const addNewItem = (product: any, quantity: number) => {
-    const newItem: OrderItem = {
+    const newItem: OrderItemFrontend = {
       id: null, // New items have no ID until saved
       tempId: -Math.random(), // Temporary ID for React rendering
+      orderId: orderId, // Required field from current order
       productId: product.id,
       productName: product.productName || product.name,
       quantity: quantity,
       unit: product.units || 'Stk',
       unitPrice: product.price || 0,
-      totalPrice: quantity * (product.price || 0)
+      totalPrice: quantity * (product.price || 0),
+      packageQuantity: 1, // Default value for new items
+      packageCount: 1 // Default value for new items
     };
     setEditingItems(prev => [...prev, newItem]);
     setShowAddItemDialog(false);

@@ -549,11 +549,62 @@ app.get('/orders-data', (req, res) => {
       }
       
       console.log(`Loading items for order ${orderId}`);
-      const result = await pool.query('SELECT * FROM order_items WHERE order_id = $1', [orderId]);
       
-      console.log(`${result.rows.length} items loaded`);
+      // Vollständiges Field-Mapping für Order Items
+      const result = await pool.query(`
+        SELECT 
+          id, order_id, product_id, product_name, sku, supplier_sku, order_article_number,
+          package_type_id, package_type_name, package_quantity, package_count, base_unit_name,
+          quantity, unit, quantity_delivered, unit_price, total_price, vat_rate, vat_amount,
+          discount, discount_amount, position_number, status, notes, item_comment, 
+          delivery_comment, target_machine_id, target_machine_name, created_at, updated_at
+        FROM order_items 
+        WHERE order_id = $1
+        ORDER BY position_number ASC, id ASC
+      `, [orderId]);
+      
+      // Frontend-kompatible Feldnamen
+      const orderItems = result.rows.map(item => ({
+        id: item.id,
+        orderId: item.order_id,
+        productId: item.product_id,
+        productName: item.product_name || '',
+        sku: item.sku,
+        supplierSku: item.supplier_sku,
+        orderArticleNumber: item.order_article_number,
+        packageTypeId: item.package_type_id,
+        packageTypeName: item.package_type_name,
+        packageQuantity: item.package_quantity || 1,
+        packageCount: item.package_count || 1,
+        baseUnitName: item.base_unit_name || 'Stück',
+        quantity: item.quantity || 0,
+        unit: item.unit || 'stk',
+        quantityDelivered: item.quantity_delivered || 0,
+        unitPrice: parseFloat(item.unit_price) || 0,
+        totalPrice: parseFloat(item.total_price) || 0,
+        vatRate: parseFloat(item.vat_rate) || 19,
+        vatAmount: parseFloat(item.vat_amount) || 0,
+        discount: parseFloat(item.discount) || 0,
+        discountAmount: parseFloat(item.discount_amount) || 0,
+        positionNumber: item.position_number,
+        status: item.status || 'pending',
+        notes: item.notes,
+        itemComment: item.item_comment,
+        deliveryComment: item.delivery_comment,
+        targetMachineId: item.target_machine_id,
+        targetMachineName: item.target_machine_name,
+        grossAmount: parseFloat(item.total_price) || 0,
+        netAmount: (parseFloat(item.total_price) || 0) - (parseFloat(item.vat_amount) || 0),
+        packageInfo: item.package_type_name && item.package_count 
+          ? `${item.package_count}x ${item.package_type_name}` 
+          : null,
+        createdAt: item.created_at,
+        updatedAt: item.updated_at
+      }));
+      
+      console.log(`${orderItems.length} items loaded`);
       res.setHeader('Content-Type', 'application/json');
-      res.json(result.rows);
+      res.json(orderItems);
     } catch (error) {
       console.error('Error loading order items:', error);
       res.setHeader('Content-Type', 'application/json');
@@ -578,8 +629,18 @@ app.get('/orders-data', (req, res) => {
       
       const sourceOrder = sourceOrderResult.rows[0];
       
-      // Get source items
-      const sourceItemsResult = await pool.query('SELECT * FROM order_items WHERE order_id = $1', [sourceOrderId]);
+      // Get source items with complete field mapping
+      const sourceItemsResult = await pool.query(`
+        SELECT 
+          id, order_id, product_id, product_name, sku, supplier_sku, order_article_number,
+          package_type_id, package_type_name, package_quantity, package_count, base_unit_name,
+          quantity, unit, quantity_delivered, unit_price, total_price, vat_rate, vat_amount,
+          discount, discount_amount, position_number, status, notes, item_comment, 
+          delivery_comment, target_machine_id, target_machine_name, created_at, updated_at
+        FROM order_items 
+        WHERE order_id = $1
+        ORDER BY position_number ASC, id ASC
+      `, [sourceOrderId]);
       
       // Generate new order number
       const today = new Date();

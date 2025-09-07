@@ -232,29 +232,114 @@ router.get('/order-items-direct/:orderId', async (req, res) => {
     
     console.log(`Lade Bestellpositionen für Bestellung ${orderId} direkt aus der Datenbank...`);
     
-    // Bestellungspositionen abfragen ohne JOIN, um keinen Fehler zu bekommen
+    // Bestellungspositionen mit vollständigem Field-Mapping abfragen
     const itemsResult = await pool.query(`
-      SELECT * FROM order_items WHERE order_id = $1
+      SELECT 
+        id,
+        order_id,
+        product_id,
+        product_name,
+        sku,
+        supplier_sku,
+        order_article_number,
+        
+        -- Gebinde-Logik (KRITISCH - bisher fehlend!)
+        package_type_id,
+        package_type_name,
+        package_quantity,
+        package_count,
+        base_unit_name,
+        
+        -- Mengen
+        quantity,
+        unit,
+        quantity_delivered,
+        
+        -- Preise  
+        unit_price,
+        total_price,
+        vat_rate,
+        vat_amount,
+        discount,
+        discount_amount,
+        
+        -- Position & Status
+        position_number,
+        status,
+        notes,
+        item_comment,
+        delivery_comment,
+        
+        -- Lager
+        target_machine_id,
+        target_machine_name,
+        
+        -- Audit
+        created_at,
+        updated_at
+        
+      FROM order_items 
+      WHERE order_id = $1
+      ORDER BY position_number ASC, id ASC
     `, [orderId]);
     
-    // Bestellpositionen für Frontend aufbereiten
+    // Bestellpositionen für Frontend aufbereiten mit vollständigem Mapping
     const orderItems = itemsResult.rows.map(item => {
-      // Frontend-kompatible Feldnamen
+      // Gebinde-Berechnungen
+      const packageQuantity = item.package_quantity || 1;
+      const packageCount = item.package_count || 1;
+      const totalPrice = parseFloat(item.total_price) || 0;
+      const vatAmount = parseFloat(item.vat_amount) || 0;
+      
       return {
-        ...item,
-        // Stelle sicher, dass alle Frontend-Daten vorhanden sind, auch wenn im Backend andere Namen verwendet werden
-        productName: item.product_name || '',
+        // Basis-Mapping (snake_case → camelCase)
+        id: item.id,
         orderId: item.order_id,
         productId: item.product_id,
+        productName: item.product_name || '',
+        sku: item.sku,
+        supplierSku: item.supplier_sku,
+        orderArticleNumber: item.order_article_number,
+        
+        // Gebinde-Logik (NEU!)
+        packageTypeId: item.package_type_id,
+        packageTypeName: item.package_type_name,
+        packageQuantity: packageQuantity,
+        packageCount: packageCount,
+        baseUnitName: item.base_unit_name || 'Stück',
+        
+        // Mengen
         quantity: item.quantity || 0,
+        unit: item.unit || 'stk',
         quantityDelivered: item.quantity_delivered || 0,
-        unitPrice: item.unit_price || 0,
-        totalPrice: item.total_price || 0,
-        vatRate: item.vat_rate || 0,
-        vatAmount: item.vat_amount || 0,
-        discountAmount: item.discount_amount || 0,
-        targetMachineId: item.target_machine_id || null,
-        targetMachineName: item.target_machine_name || null,
+        
+        // Preise
+        unitPrice: parseFloat(item.unit_price) || 0,
+        totalPrice: totalPrice,
+        vatRate: parseFloat(item.vat_rate) || 19,
+        vatAmount: vatAmount,
+        discount: parseFloat(item.discount) || 0,
+        discountAmount: parseFloat(item.discount_amount) || 0,
+        
+        // Position & Status
+        positionNumber: item.position_number,
+        status: item.status || 'pending',
+        notes: item.notes,
+        itemComment: item.item_comment,
+        deliveryComment: item.delivery_comment,
+        
+        // Lager
+        targetMachineId: item.target_machine_id,
+        targetMachineName: item.target_machine_name,
+        
+        // Berechnete Frontend-Felder
+        grossAmount: totalPrice,
+        netAmount: totalPrice - vatAmount,
+        packageInfo: item.package_type_name && item.package_count 
+          ? `${item.package_count}x ${item.package_type_name}` 
+          : null,
+        
+        // Audit
         createdAt: item.created_at,
         updatedAt: item.updated_at
       };

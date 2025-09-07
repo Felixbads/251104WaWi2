@@ -2284,6 +2284,59 @@ export const insertOrderItemSchema = createInsertSchema(orderItems).omit({
 export type InsertOrderItem = z.infer<typeof insertOrderItemSchema>;
 export type OrderItem = typeof orderItems.$inferSelect;
 
+// Zentrale Frontend-Type für OrderItems mit berechneten Feldern
+export interface OrderItemFrontend {
+  // Basis-Felder (aus DB)
+  id: number | null; // null für neue Items vor dem Speichern
+  tempId?: number; // Temporäre ID für React rendering bei neuen Items
+  orderId: number;
+  productId?: number;
+  productName: string;
+  sku?: string;
+  supplierSku?: string;
+  orderArticleNumber?: string;
+  
+  // Gebinde-Logik (aus DB)
+  packageTypeId?: number;
+  packageTypeName?: string;    // DB: package_type_name
+  packageQuantity: number;     // DB: package_quantity (Stück pro Gebinde)
+  packageCount: number;        // DB: package_count (Anzahl Gebinde)
+  baseUnitName?: string;       // DB: base_unit_name
+  
+  // Mengen (berechnet)
+  quantity: number;            // packageCount × packageQuantity
+  unit: string;
+  quantityDelivered?: number;
+  
+  // Preise (aus DB)
+  unitPrice: number;           // DB: unit_price
+  totalPrice: number;          // DB: total_price
+  vatRate?: number;            // DB: vat_rate
+  vatAmount?: number;          // DB: vat_amount (nicht netAmount!)
+  discount?: number;
+  discountAmount?: number;
+  
+  // Position & Status
+  positionNumber?: number;
+  status?: string;
+  notes?: string;
+  itemComment?: string;
+  deliveryComment?: string;
+  
+  // Lager
+  targetMachineId?: number;
+  targetMachineName?: string;
+  
+  // Berechnete Frontend-Felder
+  grossAmount?: number;        // totalPrice (berechnet)
+  netAmount?: number;          // totalPrice - vatAmount (berechnet)
+  packageInfo?: string;        // "${packageCount}x ${packageTypeName}" (berechnet)
+  
+  // Audit
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 // Order - OrderItems Relation
 export const orderRelations = relations(orders, ({ many, one }) => ({
   orderItems: many(orderItems),
