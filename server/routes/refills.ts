@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { storage } from '../storage';
-import { vendonSync } from '../services/vendonSync';
+import { getUnifiedSyncCoordinator } from '../services/unifiedVendonSyncCoordinator';
 
 const router = Router();
 
@@ -40,7 +40,8 @@ router.get('/', async (req: Request, res: Response) => {
       
       try {
         // Nur synchronisieren, wenn wir ein Datum haben
-        await vendonSync.syncRefills(startDate, endDate);
+        const coordinator = getUnifiedSyncCoordinator();
+        await coordinator.syncRefills(startDate, endDate);
         
         // Nach der Synchronisierung erneut abfragen
         let updatedRefills = await storage.getRefills({ 

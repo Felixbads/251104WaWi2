@@ -17,6 +17,8 @@
  */
 
 import { storage } from "../storage";
+import { rawDb } from '../db';
+import { InsertRefill } from '@shared/schema';
 import { 
   InsertSyncLog, 
   InsertMachine, 
@@ -1161,6 +1163,124 @@ export class UnifiedVendonSyncCoordinator {
       await storage.createSyncLog(syncLog);
     } catch (error) {
       console.warn('⚠️ Fehler beim Protokollieren des Sync-Ergebnisses:', error);
+    }
+  }
+
+  /**
+   * Public method to sync refills for specific date range
+   */
+  async syncRefills(startDate: Date, endDate: Date): Promise<SyncResult> {
+    console.log(`🔄 Öffentliche Refill-Synchronisierung angefordert: ${startDate.toISOString()} bis ${endDate.toISOString()}`);
+    
+    const startTime = Date.now();
+    
+    try {
+      const apiRefills = await this.apiClient.getRefills(startDate, endDate);
+      console.log(`📡 ${apiRefills.length} Refills von API erhalten für angeforderten Zeitraum`);
+
+      // Use the same batch processing logic as the private method
+      // But with the provided date range instead of fixed 7 days
+      
+      if (apiRefills.length === 0) {
+        return {
+          success: true,
+          itemsFound: 0,
+          itemsSaved: 0,
+          itemsUpdated: 0,
+          duplicates: 0,
+          errors: [],
+          durationMs: Date.now() - startTime,
+          message: `Keine Refills im angeforderten Zeitraum gefunden`
+        };
+      }
+
+      // BATCH MACHINE-LOOKUP
+      const machineVendonIds = apiRefills.map(r => r.machine_id || r.relation_machine_id || r.vendon_machine_id || '').filter(Boolean);
+      const machineNames = apiRefills.map(r => r.machine_name || r.relation_name || r.machine || '').filter(Boolean);
+      
+      const machineMap = new Map<string, number>();
+      
+      if (machineNames.length > 0) {
+        const nameResults = await rawDb.query(
+          `SELECT id, machine_name FROM machines WHERE machine_name = ANY($1)`,
+          [machineNames]
+        );
+        nameResults.rows.forEach(row => {
+          machineMap.set(row.machine_name, row.id);
+        });
+        console.log(`✅ ${nameResults.rows.length} Maschinen via Name gefunden`);
+      }
+
+      // Process refills with machine mapping
+      const validRefills: InsertRefill[] = [];
+      const errors: string[] = [];
+      
+      for (const apiRefill of apiRefills) {
+        const machineName = apiRefill.machine_name || apiRefill.relation_name || apiRefill.machine || '';
+        const vendonMachineId = apiRefill.machine_id || apiRefill.relation_machine_id || apiRefill.vendon_machine_id || '';
+        
+        let machineId = machineMap.get(vendonMachineId) || machineMap.get(machineName) || null;
+        
+        if (!machineId) {
+          console.warn(`⚠️ Überspringe Refill ${apiRefill.id} - keine Maschine gefunden`);
+          errors.push(`Keine Maschine gefunden für Refill ${apiRefill.id}`);
+          continue;
+        }
+
+        const refillData: InsertRefill = {
+          vendonId: String(apiRefill.id),
+          machineId,
+          machineName,
+          datetime: this.parseVendonDate(apiRefill.datetime || apiRefill.created_at),
+          refillNumber: apiRefill.refill_number || null,
+          isCompleted: apiRefill.is_completed || false,
+          extraData: apiRefill
+        };
+
+        validRefills.push(refillData);
+      }
+
+      // Batch insert refills
+      const result = await storage.createRefillsBatch(validRefills);
+      const itemsSaved = result.length;
+      const duplicates = apiRefills.length - itemsSaved;
+
+      await this.logSyncResult('refills_custom', {
+        success: true,
+        itemsFound: apiRefills.length,
+        itemsSaved,
+        itemsUpdated: 0,
+        duplicates,
+        errors,
+        durationMs: Date.now() - startTime,
+        message: `Custom range sync: ${itemsSaved} neue Refills gespeichert`
+      });
+
+      return {
+        success: true,
+        itemsFound: apiRefills.length,
+        itemsSaved,
+        itemsUpdated: 0,
+        duplicates,
+        errors,
+        durationMs: Date.now() - startTime,
+        message: `Custom range sync: ${itemsSaved} neue Refills gespeichert, ${duplicates} übersprungen`
+      };
+
+    } catch (error: any) {
+      const result = {
+        success: false,
+        itemsFound: 0,
+        itemsSaved: 0,
+        itemsUpdated: 0,
+        duplicates: 0,
+        errors: [error.message],
+        durationMs: Date.now() - startTime,
+        message: `Fehler beim Synchronisieren von Refills: ${error.message}`
+      };
+      
+      await this.logSyncResult('refills_custom_error', result);
+      return result;
     }
   }
 
