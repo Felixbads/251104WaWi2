@@ -6,8 +6,8 @@ import {
   supplierAccessPins, productCategories, 
   packageTypes, purchaseConditions, recurringOrders, recurringOrderItems, 
   forecasts, users, events,
-  locationCosts, machineDailyStats,
-  type MachineDailyStats, type InsertMachineDailyStats
+  locationCosts, machineDailyStats, machineWarehouseAssignments,
+  type InsertMachineDailyStats, type MachineWarehouseAssignment
 } from '../shared/schema.js';
 
 // Core types and interfaces

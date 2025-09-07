@@ -70,7 +70,7 @@ export async function registerUser(userData: z.infer<typeof registerSchema>) {
         try {
           await notifyAdminsOfNewUser({
             username: userDataToInsert.username,
-            email: userDataToInsert.email || undefined,
+            email: userDataToInsert.email ? userDataToInsert.email : undefined,
             role: userDataToInsert.role,
             createdAt: new Date()
           });
@@ -197,38 +197,7 @@ export async function changeUserRole(userId: number, newRole: string) {
  */
 export async function loginUser(credentials: z.infer<typeof loginSchema>) {
   try {
-    // Demo-Account für Admin/Admin123 (nur in Entwicklung und wenn explizit aktiviert)
-    if (process.env.ENABLE_DEMO_LOGIN === 'true' && 
-        credentials.username === "Admin" && 
-        credentials.password === "Admin123") {
-      
-      console.warn("⚠️ WARNUNG: Demo-Login verwendet! Dies sollte nur in der Entwicklung aktiviert sein.");
-      
-      const token = generateJWTToken({
-        userId: 1,
-        username: "Admin",
-        role: "admin"
-      });
-      
-      const decoded = jwt.decode(token) as JWTPayload;
-      const expiresAt = new Date((decoded.exp || 0) * 1000);
-      
-      // Rückgabe für den Demo-Account
-      return {
-        success: true,
-        token,
-        user: {
-          id: 1,
-          username: "Admin",
-          email: "admin@example.com",
-          role: "admin",
-          approved: true,
-        },
-        expiresAt,
-      };
-    }
-    
-    // Normale Benutzeranmeldung
+    // Benutzeranmeldung über Datenbank
     const user = await db.query.users.findFirst({
       where: eq(users.username, credentials.username),
     });
@@ -281,21 +250,7 @@ export async function validateToken(token: string) {
     // JWT-Token verifizieren
     const decoded = jwt.verify(token, JWT_SECRET) as JWTPayload;
     
-    // Demo-Account für Admin (nur wenn ENABLE_DEMO_LOGIN aktiviert ist)
-    if (process.env.ENABLE_DEMO_LOGIN === 'true' && decoded.userId === 1) {
-      return {
-        id: 1,
-        username: "Admin",
-        email: "admin@example.com",
-        role: "admin",
-        approved: true,
-        password: "-", // Nicht verwendet, nur für Typsicherheit
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-    }
-    
-    // Benutzer aus der Datenbank abrufen für normale Benutzer
+    // Benutzer aus der Datenbank abrufen
     const user = await db.query.users.findFirst({
       where: eq(users.id, decoded.userId),
     });
@@ -336,7 +291,7 @@ function generateJWTToken(payload: Omit<JWTPayload, 'iat' | 'exp'>) {
     expiresIn: JWT_EXPIRES_IN,
     issuer: 'vending-system',
     subject: payload.userId.toString()
-  });
+  } as jwt.SignOptions);
 }
 
 /**
