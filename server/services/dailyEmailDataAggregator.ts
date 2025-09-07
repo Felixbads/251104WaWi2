@@ -128,8 +128,8 @@ export class DailyEmailDataAggregator {
         niedriger_lagerbestand: lowStockData,
         automaten_anomalien: machineAnomalies,
         rückblick: {
-          umsatz_gesamt: dailySummary.umsatz_gesamt,
-          netto_ergebnis: dailySummary.netto_ergebnis,
+          umsatz_gesamt: Number(dailySummary.umsatz_gesamt) || 0,
+          netto_ergebnis: Number(dailySummary.netto_ergebnis) || 0,
           entnahmen: recentWithdrawals
         },
         hinweise: hints
@@ -179,7 +179,7 @@ export class DailyEmailDataAggregator {
       const recentSales = await db
         .select({
           machineName: transactions.machineName,
-          totalSales: sum(transactions.revenue).as('totalSales'),
+          totalSales: sum(transactions.price).as('totalSales'),
           transactionCount: count(transactions.id).as('transactionCount')
         })
         .from(transactions)
@@ -190,12 +190,12 @@ export class DailyEmailDataAggregator {
           )
         )
         .groupBy(transactions.machineName)
-        .orderBy(desc(sum(transactions.revenue)))
+        .orderBy(desc(sum(transactions.price)))
         .limit(3);
 
       return recentSales.map(sale => ({
         automat: sale.machineName || 'Unbekannt',
-        wert: Math.round((sale.totalSales || 0) / 7) // Tagesdurchschnitt
+        wert: Math.round((Number(sale.totalSales) || 0) / 7) // Tagesdurchschnitt
       }));
     } catch (error) {
       console.error('Fehler beim Berechnen der Umsatzprognose:', error);
@@ -445,7 +445,7 @@ export class DailyEmailDataAggregator {
       const dailyStats = await db
         .select({
           totalRevenue: sum(transactions.price).as('totalRevenue'),
-          totalNetResult: sum(transactions.revenue).as('totalNetResult'),
+          totalNetResult: sum(transactions.price).as('totalNetResult'),
           transactionCount: count(transactions.id).as('transactionCount')
         })
         .from(transactions)
@@ -459,8 +459,8 @@ export class DailyEmailDataAggregator {
       const stats = dailyStats[0] || {};
       
       return {
-        umsatz_gesamt: stats.totalRevenue || 0,
-        netto_ergebnis: stats.totalNetResult || 0
+        umsatz_gesamt: Number(stats.totalRevenue) || 0,
+        netto_ergebnis: Number(stats.totalNetResult) || 0
       };
     } catch (error) {
       console.error('Fehler beim Erstellen der Tagesstatistik:', error);
