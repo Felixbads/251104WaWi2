@@ -14,6 +14,7 @@
 
 import express from 'express';
 import { weeklyOperationsAnalysisService } from '../services/weeklyOperationsAnalysisService';
+import { weeklyReportService } from '../services/weeklyReportService';
 
 const router = express.Router();
 
@@ -410,6 +411,60 @@ router.get('/current-week', async (req, res) => {
     console.error(`❌ [WeeklyOperations API] Fehler bei aktueller Wochenanalyse:`, error);
     res.status(500).json({ 
       error: 'Fehler bei der aktuellen Wochenanalyse',
+      details: error instanceof Error ? error.message : 'Unbekannter Fehler'
+    });
+  }
+});
+
+/**
+ * POST /api/weekly-operations/send-email
+ * Sendet umfassenden wöchentlichen Bericht per E-Mail
+ */
+router.post('/send-email', async (req, res) => {
+  try {
+    const { recipientEmail } = req.body;
+    const email = recipientEmail || 'felix@proviantomat.de';
+
+    console.log(`📧 [WeeklyOperations API] Sende umfassenden Wochenbericht an ${email}`);
+
+    const result = await weeklyReportService.sendComprehensiveWeeklyReport(email);
+
+    if (result.success) {
+      res.json({
+        success: true,
+        message: result.message,
+        sentTo: email,
+        generatedAt: new Date(),
+        data: result.data ? {
+          weekPeriod: `${result.data.weekStart} - ${result.data.weekEnd}`,
+          includedSections: [
+            'Wirtschaftliche Leistung',
+            'Befüllungsanalyse', 
+            'Geplante Lieferungen',
+            'Nachbestellbedarf',
+            'MHD-Management',
+            result.data.operationsAnalysis ? 'Optimierungsempfehlungen' : null
+          ].filter(Boolean),
+          operationsDataIncluded: !!result.data.operationsAnalysis
+        } : null
+      });
+      
+      console.log(`✅ [WeeklyOperations API] E-Mail erfolgreich versendet an ${email}`);
+    } else {
+      console.log(`⚠️ [WeeklyOperations API] E-Mail-Versand mit Warnung: ${result.message}`);
+      res.json({
+        success: result.success,
+        message: result.message,
+        sentTo: email,
+        error: result.error,
+        data: result.data
+      });
+    }
+
+  } catch (error) {
+    console.error(`❌ [WeeklyOperations API] Fehler beim E-Mail-Versand:`, error);
+    res.status(500).json({ 
+      error: 'Fehler beim Versenden der E-Mail',
       details: error instanceof Error ? error.message : 'Unbekannter Fehler'
     });
   }

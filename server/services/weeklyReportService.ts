@@ -11,6 +11,8 @@ import { db } from '../db';
 import { orders, orderItems, inventoryItems, recurringOrders, products, suppliers } from '../../shared/schema';
 import { eq, and, sql, gte, lte, desc, asc } from 'drizzle-orm';
 import nodemailer from 'nodemailer';
+import { weeklyOperationsAnalysisService } from './weeklyOperationsAnalysisService';
+import type { WeeklyOperationsSummary } from './weeklyOperationsAnalysisService';
 
 interface WeeklyReportData {
   weekStart: string;
@@ -39,6 +41,8 @@ interface WeeklyReportData {
     quantity: number;
     location: string;
   }>;
+  // Neue umfassende Betriebsanalyse
+  operationsAnalysis?: WeeklyOperationsSummary;
 }
 
 class WeeklyReportService {
@@ -85,13 +89,27 @@ class WeeklyReportService {
 
     console.log(`📊 Sammle Wochendaten für ${weekStart.toLocaleDateString('de-DE')} - ${weekEnd.toLocaleDateString('de-DE')}`);
 
+    // Lade umfassende Betriebsanalyse
+    let operationsAnalysis: WeeklyOperationsSummary | undefined;
+    try {
+      console.log(`🔄 Lade umfassende Betriebsanalyse für die Woche...`);
+      operationsAnalysis = await weeklyOperationsAnalysisService.generateWeeklyAnalysis(
+        weekStart, 
+        weekEnd
+      );
+      console.log(`✅ Betriebsanalyse geladen: ${operationsAnalysis.refillSummary.totalRefills} Befüllungen analysiert`);
+    } catch (error) {
+      console.error(`❌ Fehler beim Laden der Betriebsanalyse:`, error);
+    }
+
     return {
       weekStart: weekStart.toLocaleDateString('de-DE'),
       weekEnd: weekEnd.toLocaleDateString('de-DE'),
       plannedDeliveries: await this.getPlannedDeliveries(weekStart, weekEnd),
       criticalReorders: await this.getCriticalReorders(),
       recommendedReorders: await this.getRecommendedReorders(),
-      expiringProducts: await this.getExpiringProducts(twoWeeksFromNow)
+      expiringProducts: await this.getExpiringProducts(twoWeeksFromNow),
+      operationsAnalysis: operationsAnalysis
     };
   }
 
@@ -264,157 +282,325 @@ class WeeklyReportService {
   }
 
   /**
-   * Erstellt HTML-E-Mail-Inhalt basierend auf der Vorlage aus dem Anhang
+   * Erstellt umfassenden HTML-E-Mail-Inhalt mit Betriebsanalyse und visueller Darstellung
    */
   generateEmailContent(data: WeeklyReportData): string {
+    const ops = data.operationsAnalysis;
+    
     return `
 <!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>🧾 Wochenüberblick: Liefertermine, Bestellbedarf & MHD-Warnungen</title>
+    <title>🏆 Umfassende Wochenanalyse: Betriebsleistung, Wirtschaftlichkeit & Optimierung</title>
     <style>
-        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 800px; margin: 0 auto; padding: 20px; }
-        .header { background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
-        .section { margin-bottom: 30px; }
-        .section h3 { color: #2563eb; border-bottom: 2px solid #e5e7eb; padding-bottom: 8px; }
-        table { width: 100%; border-collapse: collapse; margin: 15px 0; }
-        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #e5e7eb; }
-        th { background: #f8f9fa; font-weight: 600; }
-        .status-critical { color: #dc2626; font-weight: bold; }
-        .status-warning { color: #f59e0b; font-weight: bold; }
-        .status-ok { color: #16a34a; }
-        .footer { background: #f8f9fa; padding: 15px; border-radius: 8px; margin-top: 30px; font-size: 0.9em; color: #6b7280; }
-        .emoji { font-size: 1.2em; }
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            line-height: 1.6; 
+            color: #1a1a1a; 
+            max-width: 900px; 
+            margin: 0 auto; 
+            padding: 20px; 
+            background: #f8fafc;
+        }
+        .container { background: white; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); overflow: hidden; }
+        .header { 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+            color: white; 
+            padding: 30px; 
+            text-align: center;
+        }
+        .header h1 { margin: 0 0 10px 0; font-size: 28px; font-weight: 700; }
+        .header p { margin: 5px 0; font-size: 16px; opacity: 0.9; }
+        .section { padding: 25px 30px; border-bottom: 1px solid #e2e8f0; }
+        .section:last-child { border-bottom: none; }
+        .section h2 { 
+            color: #2d3748; 
+            font-size: 22px; 
+            margin: 0 0 20px 0; 
+            display: flex; 
+            align-items: center; 
+            gap: 10px;
+        }
+        .section h3 { 
+            color: #4a5568; 
+            font-size: 18px; 
+            margin: 20px 0 15px 0; 
+            border-left: 4px solid #667eea; 
+            padding-left: 12px;
+        }
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+        .metric-card {
+            background: #f7fafc;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            border: 2px solid #e2e8f0;
+        }
+        .metric-value {
+            font-size: 28px;
+            font-weight: 700;
+            color: #2d3748;
+            margin: 10px 0;
+        }
+        .metric-label {
+            font-size: 14px;
+            color: #718096;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .positive { color: #38a169; }
+        .negative { color: #e53e3e; }
+        .warning { color: #d69e2e; }
+        table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            margin: 20px 0;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        th, td { padding: 15px 12px; text-align: left; }
+        th { 
+            background: #4a5568; 
+            color: white; 
+            font-weight: 600;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        td { border-bottom: 1px solid #e2e8f0; }
+        tr:last-child td { border-bottom: none; }
+        tr:hover { background: #f7fafc; }
+        .status-critical { color: #e53e3e; font-weight: 700; }
+        .status-warning { color: #d69e2e; font-weight: 600; }
+        .status-ok { color: #38a169; font-weight: 600; }
+        .recommendations {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            padding: 25px;
+            border-radius: 12px;
+            margin: 20px 0;
+        }
+        .recommendations h3 {
+            color: white;
+            border-left: 4px solid white;
+            margin-top: 0;
+        }
+        .recommendation-item {
+            background: rgba(255,255,255,0.1);
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+            border-left: 4px solid #ffd700;
+        }
+        .footer { 
+            background: #2d3748; 
+            color: #e2e8f0; 
+            padding: 25px; 
+            text-align: center;
+            font-size: 14px;
+        }
+        .footer strong { color: white; }
+        .highlight { 
+            background: #fef5e7; 
+            border: 1px solid #f6ad55; 
+            border-radius: 6px; 
+            padding: 15px; 
+            margin: 15px 0;
+        }
+        .icon { font-size: 24px; }
     </style>
 </head>
 <body>
-    <div class="header">
-        <h1>🧾 Wochenüberblick: Liefertermine, Bestellbedarf & MHD-Warnungen</h1>
-        <p><strong>Guten Morgen Felix,</strong></p>
-        <p>hier ist dein aktueller Wochenüberblick für den Zeitraum <strong>${data.weekStart} – ${data.weekEnd}</strong>:</p>
-    </div>
+    <div class="container">
+        <div class="header">
+            <h1>🏆 Umfassende Wochenanalyse</h1>
+            <p><strong>Guten Morgen Felix!</strong></p>
+            <p>Deine detaillierte Betriebsanalyse für <strong>${data.weekStart} – ${data.weekEnd}</strong></p>
+        </div>
 
-    <div class="section">
-        <h3>📦 Geplante Lieferungen diese Woche</h3>
-        ${data.plannedDeliveries.length > 0 ? `
-        <table>
-            <thead>
-                <tr>
-                    <th>Lieferant</th>
-                    <th>Geplantes Lieferdatum</th>
-                    <th>Produkte</th>
-                </tr>
-            </thead>
-            <tbody>
-                ${data.plannedDeliveries.map(delivery => `
-                <tr>
-                    <td>${delivery.supplierName}</td>
-                    <td>${delivery.plannedDate}</td>
-                    <td>${delivery.products.join(', ') || 'Siehe Bestelldetails'}</td>
-                </tr>
-                `).join('')}
-            </tbody>
-        </table>
-        ` : '<p><em>Keine geplanten Lieferungen diese Woche.</em></p>'}
-    </div>
+        ${ops ? `
+        <div class="section">
+            <h2><span class="icon">💰</span> Wirtschaftliche Leistung</h2>
+            <div class="metrics-grid">
+                <div class="metric-card">
+                    <div class="metric-value positive">€${ops.economicAnalysis?.weeklyTotals?.totalRevenue || 0}</div>
+                    <div class="metric-label">Gesamtumsatz</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-value ${(ops.economicAnalysis?.weeklyTotals?.netOperatingResult || 0) > 0 ? 'positive' : 'negative'}">€${ops.economicAnalysis?.weeklyTotals?.netOperatingResult || 0}</div>
+                    <div class="metric-label">Netto-Betriebsergebnis</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-value">${((ops.economicAnalysis?.keyMetrics?.profitMargin || 0) * 100).toFixed(1)}%</div>
+                    <div class="metric-label">Gewinnmarge</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-value">€${ops.economicAnalysis?.weeklyTotals?.totalRefillCost || 0}</div>
+                    <div class="metric-label">Befüllungskosten</div>
+                </div>
+            </div>
+        </div>
 
-    <div class="section">
-        <h3>🔁 Nachbestellbedarf (kritisch)</h3>
-        <p>Diese Produkte sollten dringend nachbestellt werden – basierend auf dem prognostizierten Absatz in den nächsten 14 Tagen:</p>
-        ${data.criticalReorders.length > 0 ? `
-        <table>
-            <thead>
-                <tr>
-                    <th>Produkt</th>
-                    <th>Lagerbestand</th>
-                    <th>Prognose 2 Wochen</th>
-                    <th>Differenz</th>
-                    <th>Status</th>
-                </tr>
-            </thead>
-            <tbody>
-                ${data.criticalReorders.map(item => `
-                <tr>
-                    <td>${item.productName}</td>
-                    <td>${item.currentStock}</td>
-                    <td>${item.forecast14Days}</td>
-                    <td>${item.difference > 0 ? '+' : ''}${item.difference}</td>
-                    <td class="status-${item.status}">
-                        ${item.status === 'critical' ? '🔴 Nachbestellen' : '🟠 Engpass droht'}
-                    </td>
-                </tr>
-                `).join('')}
-            </tbody>
-        </table>
-        ` : '<p><em>Keine kritischen Nachbestellungen erforderlich.</em></p>'}
-    </div>
+        <div class="section">
+            <h2><span class="icon">🔄</span> Befüllungsanalyse</h2>
+            <div class="metrics-grid">
+                <div class="metric-card">
+                    <div class="metric-value">${ops.refillSummary?.totalRefills || 0}</div>
+                    <div class="metric-label">Befüllungen</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-value">${ops.refillSummary?.machinesRefilled || 0}</div>
+                    <div class="metric-label">Maschinen befüllt</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-value">${ops.refillSummary?.productsRefilled || 0}</div>
+                    <div class="metric-label">Produktarten</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-value">${(ops.refillSummary?.averageFillLevel || 0).toFixed(1)}%</div>
+                    <div class="metric-label">Ø Füllstand</div>
+                </div>
+            </div>
+            ${ops.refillDetails && ops.refillDetails.length > 0 ? `
+            <h3>Detaillierte Befüllungshistorie</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Maschine</th>
+                        <th>Datum</th>
+                        <th>Durchgeführt von</th>
+                        <th>ROI</th>
+                        <th>Umsatzpotential</th>
+                        <th>Kosten</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${ops.refillDetails.slice(0, 10).map(refill => `
+                    <tr>
+                        <td><strong>${refill.machineName}</strong></td>
+                        <td>${new Date(refill.refillDate).toLocaleDateString('de-DE')}</td>
+                        <td>${refill.performedBy || 'Unbekannt'}</td>
+                        <td class="${refill.roi > 0 ? 'positive' : 'negative'}">${refill.roi.toFixed(1)}%</td>
+                        <td>€${refill.estimatedRevenuePotential.toFixed(2)}</td>
+                        <td>€${refill.fixCost}</td>
+                    </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+            ` : '<p><em>Keine Befüllungen in diesem Zeitraum.</em></p>'}
+        </div>
+        ` : ''}
 
-    <div class="section">
-        <h3>📊 Empfohlene Nachbestellungen (nicht kritisch, aber sinnvoll)</h3>
-        <p>Diese Produkte könnten in Kürze knapp werden, Bestellmenge nach Bedarf anpassen:</p>
-        ${data.recommendedReorders.length > 0 ? `
-        <table>
-            <thead>
-                <tr>
-                    <th>Produkt</th>
-                    <th>Lagerbestand</th>
-                    <th>Prognose 2 Wochen</th>
-                    <th>Empfehlung</th>
-                </tr>
-            </thead>
-            <tbody>
-                ${data.recommendedReorders.map(item => `
-                <tr>
-                    <td>${item.productName}</td>
-                    <td>${item.currentStock}</td>
-                    <td>${item.forecast14Days}</td>
-                    <td class="status-ok">${item.recommendation}</td>
-                </tr>
-                `).join('')}
-            </tbody>
-        </table>
-        ` : '<p><em>Keine spezifischen Empfehlungen diese Woche.</em></p>'}
-    </div>
+        <div class="section">
+            <h2><span class="icon">📦</span> Geplante Lieferungen</h2>
+            ${data.plannedDeliveries.length > 0 ? `
+            <table>
+                <thead>
+                    <tr>
+                        <th>Lieferant</th>
+                        <th>Lieferdatum</th>
+                        <th>Produkte</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${data.plannedDeliveries.map(delivery => `
+                    <tr>
+                        <td><strong>${delivery.supplierName}</strong></td>
+                        <td>${delivery.plannedDate}</td>
+                        <td>${delivery.products.join(', ') || 'Siehe Bestelldetails'}</td>
+                    </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+            ` : '<p><em>Keine geplanten Lieferungen diese Woche.</em></p>'}
+        </div>
 
-    <div class="section">
-        <h3>⏳ MHD-Warnung – Produkte mit Ablauf in den nächsten 2 Wochen</h3>
-        <p>Folgende Artikel laufen bis <strong>${new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toLocaleDateString('de-DE')}</strong> ab:</p>
-        ${data.expiringProducts.length > 0 ? `
-        <table>
-            <thead>
-                <tr>
-                    <th>Produkt</th>
-                    <th>MHD</th>
-                    <th>Menge</th>
-                    <th>Lagerort</th>
-                </tr>
-            </thead>
-            <tbody>
-                ${data.expiringProducts.map(item => `
-                <tr>
-                    <td>${item.productName}</td>
-                    <td class="status-warning">${item.expiryDate}</td>
-                    <td>${item.quantity}</td>
-                    <td>${item.location}</td>
-                </tr>
-                `).join('')}
-            </tbody>
-        </table>
-        ` : '<p class="status-ok"><em>Keine Produkte laufen in den nächsten 2 Wochen ab.</em></p>'}
-    </div>
+        <div class="section">
+            <h2><span class="icon">🔁</span> Nachbestellbedarf</h2>
+            <h3>Kritische Nachbestellungen</h3>
+            ${data.criticalReorders.length > 0 ? `
+            <table>
+                <thead>
+                    <tr>
+                        <th>Produkt</th>
+                        <th>Bestand</th>
+                        <th>Prognose 14T</th>
+                        <th>Differenz</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${data.criticalReorders.map(item => `
+                    <tr>
+                        <td><strong>${item.productName}</strong></td>
+                        <td>${item.currentStock}</td>
+                        <td>${item.forecast14Days}</td>
+                        <td class="${item.difference > 0 ? 'positive' : 'negative'}">${item.difference > 0 ? '+' : ''}${item.difference}</td>
+                        <td class="status-${item.status}">
+                            ${item.status === 'critical' ? '🔴 Sofort nachbestellen' : '🟠 Engpass droht'}
+                        </td>
+                    </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+            ` : '<div class="highlight"><strong>✅ Keine kritischen Nachbestellungen erforderlich!</strong></div>'}
+        </div>
 
-    <div class="footer">
-        <p><strong>Hinweis:</strong><br>
-        Alle Daten basieren auf dem aktuellen Lagerbestand und der Verkaufsprognose. Du kannst direkt über das System nachbestellen oder die Bestellvorschläge anpassen.</p>
-        
-        <p>Bei Fragen oder Anpassungswünschen an diesen Bericht – einfach kurz melden!</p>
-        
-        <p><strong>Viele Grüße<br>
-        Dein Warenwirtschafts-Assistenzsystem</strong></p>
-        
-        <hr style="margin: 20px 0; border: none; border-top: 1px solid #e5e7eb;">
-        <p><em>Gesendet am: ${new Date().toLocaleDateString('de-DE')}, ${new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}</em></p>
+        <div class="section">
+            <h2><span class="icon">⏳</span> MHD-Management</h2>
+            ${data.expiringProducts.length > 0 ? `
+            <div class="highlight">
+                <strong>⚠️ Aufmerksamkeit erforderlich:</strong> ${data.expiringProducts.length} Produkte laufen in den nächsten 2 Wochen ab.
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Produkt</th>
+                        <th>Ablaufdatum</th>
+                        <th>Menge</th>
+                        <th>Lagerort</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${data.expiringProducts.map(item => `
+                    <tr>
+                        <td><strong>${item.productName}</strong></td>
+                        <td class="status-warning">${item.expiryDate}</td>
+                        <td>${item.quantity}</td>
+                        <td>${item.location}</td>
+                    </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+            ` : '<div class="highlight"><strong>✅ Alle Produkte haben ausreichend lange MHD-Zeiten!</strong></div>'}
+        </div>
+
+        ${ops && ops.optimizationRecommendations && ops.optimizationRecommendations.length > 0 ? `
+        <div class="recommendations">
+            <h3><span class="icon">🎯</span> Optimierungsempfehlungen</h3>
+            ${ops.optimizationRecommendations.map(rec => `
+            <div class="recommendation-item">
+                <strong>${rec.title}</strong><br>
+                ${rec.description}<br>
+                <small><strong>Erwartete Auswirkung:</strong> ${rec.expectedImpact}</small>
+            </div>
+            `).join('')}
+        </div>
+        ` : ''}
+
+        <div class="footer">
+            <p><strong>Dein intelligentes Warenwirtschaftssystem</strong></p>
+            <p>Automatisch generiert mit KI-gestützter Analyse • ${new Date().toLocaleDateString('de-DE')}, ${new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}</p>
+            <p style="margin-top: 15px;"><em>Bei Fragen oder Anpassungswünschen einfach kurz melden!</em></p>
+        </div>
     </div>
 </body>
 </html>
@@ -422,7 +608,54 @@ class WeeklyReportService {
   }
 
   /**
-   * Versendet den wöchentlichen Bericht
+   * Versendet den umfassenden wöchentlichen Bericht mit Betriebsanalyse
+   */
+  async sendComprehensiveWeeklyReport(recipientEmail: string = 'felix@proviantomat.de'): Promise<{ success: boolean; message: string; error?: string; data?: WeeklyReportData }> {
+    try {
+      console.log('📧 Beginne Erstellung des umfassenden wöchentlichen Berichts...');
+      
+      const data = await this.collectWeeklyData();
+      const htmlContent = this.generateEmailContent(data);
+      
+      if (!this.transporter) {
+        // Fallback: Zeige den E-Mail-Inhalt für Testing
+        console.log('📧 SMTP nicht verfügbar - zeige E-Mail-Inhalt für Debugging');
+        return {
+          success: true,
+          message: `Umfassender Wochenbericht für ${recipientEmail} generiert (SMTP nicht verfügbar)`,
+          error: 'SMTP nicht konfiguriert - E-Mail wurde nur generiert',
+          data: data
+        };
+      }
+
+      const mailOptions = {
+        from: process.env.SMTP_USER || 'system@proviantomat.de',
+        to: recipientEmail,
+        subject: '🏆 Umfassende Wochenanalyse: Betriebsleistung, Wirtschaftlichkeit & Optimierung',
+        html: htmlContent
+      };
+
+      await this.transporter.sendMail(mailOptions);
+      
+      console.log(`✅ Umfassender Wochenbericht erfolgreich an ${recipientEmail} gesendet`);
+      return {
+        success: true,
+        message: `Umfassender Wochenbericht erfolgreich an ${recipientEmail} gesendet`,
+        data: data
+      };
+
+    } catch (error: any) {
+      console.error('❌ Fehler beim Versenden des umfassenden wöchentlichen Berichts:', error);
+      return {
+        success: false,
+        message: `Fehler beim Versenden des umfassenden wöchentlichen Berichts: ${error.message}`,
+        error: error.message
+      };
+    }
+  }
+
+  /**
+   * Versendet den standard wöchentlichen Bericht (für Kompatibilität)
    */
   async sendWeeklyReport(recipientEmail: string = 'felix@proviantomat.de'): Promise<{ success: boolean; message: string; error?: string }> {
     try {
