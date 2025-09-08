@@ -751,7 +751,6 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Core stub methods for IStorage interface compatibility (removed duplicate implementations)
-  async getUserByEmail(email: string): Promise<any | undefined> { return undefined; }
   async listUsers(): Promise<any[]> { return []; }
   
   async getProducts(): Promise<any[]> { return []; }
