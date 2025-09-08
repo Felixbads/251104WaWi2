@@ -112,7 +112,7 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
   const [showEditBatchDialog, setShowEditBatchDialog] = useState(false);
   const [selectedItem, setSelectedItem] = useState<SimpleInventoryItem | null>(null);
   const [selectedBatch, setSelectedBatch] = useState<ProductBatch | null>(null);
-  const [groupView, setGroupView] = useState(true); // Toggle für gruppierte Ansicht
+  const [groupView, setGroupView] = useState(false); // Standard: alle Chargen einzeln anzeigen
   
   // Neue State-Variablen für Gebinde-Eingabe
   const [packageCounts, setPackageCounts] = useState<Record<number, number>>({});
@@ -362,6 +362,55 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
     }
   }, [inventurItems, groupView]);
 
+  // Sortierlogik für die Tabelle
+  const [sortColumn, setSortColumn] = useState<string>('');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+
+  const toggleSort = (column: string) => {
+    if (sortColumn === column) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortColumn(column);
+      setSortDirection('asc');
+    }
+  };
+
+  // Sortierte Items für Einzelansicht
+  const sortedItems = React.useMemo(() => {
+    if (!filteredItems.length || groupView) return filteredItems;
+    
+    const sorted = [...filteredItems].sort((a, b) => {
+      let valueA: any, valueB: any;
+      
+      switch (sortColumn) {
+        case 'product':
+          valueA = (a.product?.productName || '').toLowerCase();
+          valueB = (b.product?.productName || '').toLowerCase();
+          break;
+        case 'expected':
+          valueA = a.expectedQuantity || 0;
+          valueB = b.expectedQuantity || 0;
+          break;
+        case 'counted':
+          valueA = a.countedQuantity || 0;
+          valueB = b.countedQuantity || 0;
+          break;
+        case 'difference':
+          valueA = (a.countedQuantity || 0) - a.expectedQuantity;
+          valueB = (b.countedQuantity || 0) - b.expectedQuantity;
+          break;
+        default:
+          return 0;
+      }
+      
+      if (valueA < valueB) return sortDirection === 'asc' ? -1 : 1;
+      if (valueA > valueB) return sortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+    
+    return sorted;
+  }, [filteredItems, sortColumn, sortDirection, groupView]);
+
   // MHD-Batch Dialog Handler
   const handleCreateBatch = (item: SimpleInventoryItem) => {
     console.log('[InventurDetailPage] handleCreateBatch aufgerufen für:', {
@@ -588,9 +637,10 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
           size="sm"
           onClick={() => setGroupView(!groupView)}
           className="flex items-center space-x-2"
+          title={groupView ? "Zur Einzelansicht (alle Chargen sichtbar)" : "Zur gruppierten Ansicht (Duplikate zusammenfassen)"}
         >
           <Package className="h-4 w-4" />
-          <span>Gruppiert</span>
+          <span>{groupView ? "Gruppiert" : "Einzeln"}</span>
         </Button>
       </div>
 
@@ -607,10 +657,59 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Produkt & Gebinde</TableHead>
-                  <TableHead className="text-right">Erwartet</TableHead>
-                  <TableHead className="text-right">Gezählt</TableHead>
-                  <TableHead className="text-right">Differenz</TableHead>
+                  <TableHead className="w-16">#</TableHead>
+                  <TableHead 
+                    className="cursor-pointer hover:bg-muted/20"
+                    onClick={() => toggleSort('product')}
+                  >
+                    <div className="flex items-center">
+                      Produkt & Gebinde
+                      {sortColumn === 'product' && (
+                        sortDirection === 'asc' ? 
+                          <ChevronUp className="ml-1 h-4 w-4" /> : 
+                          <ChevronDown className="ml-1 h-4 w-4" />
+                      )}
+                    </div>
+                  </TableHead>
+                  <TableHead 
+                    className="text-right cursor-pointer hover:bg-muted/20"
+                    onClick={() => toggleSort('expected')}
+                  >
+                    <div className="flex items-center justify-end">
+                      Erwartet
+                      {sortColumn === 'expected' && (
+                        sortDirection === 'asc' ? 
+                          <ChevronUp className="ml-1 h-4 w-4" /> : 
+                          <ChevronDown className="ml-1 h-4 w-4" />
+                      )}
+                    </div>
+                  </TableHead>
+                  <TableHead 
+                    className="text-right cursor-pointer hover:bg-muted/20"
+                    onClick={() => toggleSort('counted')}
+                  >
+                    <div className="flex items-center justify-end">
+                      Gezählt
+                      {sortColumn === 'counted' && (
+                        sortDirection === 'asc' ? 
+                          <ChevronUp className="ml-1 h-4 w-4" /> : 
+                          <ChevronDown className="ml-1 h-4 w-4" />
+                      )}
+                    </div>
+                  </TableHead>
+                  <TableHead 
+                    className="text-right cursor-pointer hover:bg-muted/20"
+                    onClick={() => toggleSort('difference')}
+                  >
+                    <div className="flex items-center justify-end">
+                      Differenz
+                      {sortColumn === 'difference' && (
+                        sortDirection === 'asc' ? 
+                          <ChevronUp className="ml-1 h-4 w-4" /> : 
+                          <ChevronDown className="ml-1 h-4 w-4" />
+                      )}
+                    </div>
+                  </TableHead>
                   <TableHead className="text-center">MHD/Chargen</TableHead>
                   <TableHead className="text-center">Status</TableHead>
                   <TableHead></TableHead>
@@ -619,7 +718,7 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
               <TableBody>
                 {groupView && groupedItems ? (
                   // Gruppierte Ansicht - Produkte gruppiert anzeigen
-                  groupedItems.map((group) => {
+                  groupedItems.map((group, groupIndex) => {
                     const isGroupExpanded = expandedGroups.has(group.productName);
                     return (
                       <React.Fragment key={`group-${group.productName}`}>
@@ -628,6 +727,9 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
                           className={`cursor-pointer hover:bg-muted/50 ${group.hasMultipleEntries ? 'bg-blue-50/50' : ''}`}
                           onClick={() => toggleGroupExpansion(group.productName)}
                         >
+                          <TableCell className="text-center font-mono text-sm text-muted-foreground">
+                            {groupIndex + 1}
+                          </TableCell>
                           <TableCell>
                             <div className="flex items-center space-x-2">
                               {group.hasMultipleEntries && (
@@ -801,7 +903,7 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
                         
                         {/* Erweiterte Einzeleinträge bei mehreren Duplikaten */}
                         {isGroupExpanded && group.hasMultipleEntries && (
-                          group.items.map((item: SimpleInventoryItem) => {
+                          group.items.map((item: SimpleInventoryItem, subIndex) => {
                             const currentCount = editedCounts[item.id] ?? item.countedQuantity ?? '';
                             const expectedQty = item.expectedQuantity || 0;
                             const countedQty = typeof currentCount === 'number' ? currentCount : 0;
@@ -817,6 +919,9 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
                             
                             return (
                               <TableRow key={`expanded-item-${item.id}`} className="bg-muted/25">
+                                <TableCell className="text-center font-mono text-xs text-muted-foreground">
+                                  {groupIndex + 1}.{subIndex + 1}
+                                </TableCell>
                                 <TableCell className="pl-8">
                                   <div className="flex items-center space-x-2">
                                     <div className="text-sm text-muted-foreground">
@@ -894,7 +999,7 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
                   })
                 ) : (
                   // Normale Einzelansicht - alle Items einzeln anzeigen
-                  filteredItems.map((item: SimpleInventoryItem) => {
+                  (sortColumn ? sortedItems : filteredItems).map((item: SimpleInventoryItem, itemIndex) => {
                     const currentCount = editedCounts[item.id] ?? item.countedQuantity ?? '';
                     const expectedQty = item.expectedQuantity || 0;
                     const countedQty = typeof currentCount === 'number' ? currentCount : 0;
@@ -913,6 +1018,9 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
                     return (
                       <React.Fragment key={`fragment-${item.id}-${item.productId}`}>
                         <TableRow key={`row-${item.id}`}>
+                          <TableCell className="text-center font-mono text-sm text-muted-foreground">
+                            {itemIndex + 1}
+                          </TableCell>
                           <TableCell>
                             <div className="flex items-center space-x-2">
                               <Button
