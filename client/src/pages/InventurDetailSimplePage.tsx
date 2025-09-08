@@ -375,6 +375,19 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
     }
   };
 
+  // Filter items based on search (moved before sortedItems)
+  const filteredItems = React.useMemo(() => {
+    if (!inventurItems || !Array.isArray(inventurItems)) return [];
+    
+    return inventurItems.filter((item: SimpleInventoryItem) => {
+      if (!searchTerm) return true;
+      const productName = item.product?.productName || '';
+      const sku = item.product?.sku || '';
+      return productName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+             sku.toLowerCase().includes(searchTerm.toLowerCase());
+    });
+  }, [inventurItems, searchTerm]);
+
   // Sortierte Items für Einzelansicht
   const sortedItems = React.useMemo(() => {
     if (!filteredItems.length || groupView) return filteredItems;
@@ -434,18 +447,6 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
 
 
 
-  // Filter items based on search
-  const filteredItems = React.useMemo(() => {
-    if (!inventurItems || !Array.isArray(inventurItems)) return [];
-    
-    return inventurItems.filter((item: SimpleInventoryItem) => {
-      if (!searchTerm) return true;
-      const productName = item.product?.productName || '';
-      const sku = item.product?.sku || '';
-      return productName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-             sku.toLowerCase().includes(searchTerm.toLowerCase());
-    });
-  }, [inventurItems, searchTerm]);
 
   // Group items by product name for duplicate handling
   const groupedItems = React.useMemo(() => {
