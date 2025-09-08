@@ -218,9 +218,6 @@ function isValidUrl(url: string): boolean {
  * REPARIERT - Portal-Links werden jetzt zuverlässig eingebettet
  */
 export function createOrderEmailTemplate(order: any, supplier: any, templateType: string = 'standard', portalLink: string = ''): string {
-  // Generiere Portal-Link-HTML wenn Portal-URL verfügbar ist
-  const portalLinkSection = portalLink ? generatePortalLinkHTML(portalLink, supplier?.name) : '';
-  
   // Template je nach Typ auswählen
   let template = '';
 
