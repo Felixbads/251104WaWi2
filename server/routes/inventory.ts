@@ -501,40 +501,46 @@ router.post('/:id/complete', async (req, res) => {
         const difference = item.countedQuantity - (item.expectedQuantity || 0);
         console.log(`Verarbeite Produkt ${item.productId}: Erwartet=${item.expectedQuantity}, Gezählt=${item.countedQuantity}, Differenz=${difference}`);
         
-        // Aktualisiere inventory_items Tabelle
-        const existingInventoryItem = await tx.query.inventoryItems.findFirst({
-          where: and(
-            eq(schema.inventoryItems.warehouseId, inventoryCount.warehouseId),
-            eq(schema.inventoryItems.productId, item.productId)
-          )
-        });
-        
-        if (existingInventoryItem) {
-          // Aktualisiere existierenden Bestand
-          await tx.update(schema.inventoryItems)
-            .set({ 
-              quantity: item.countedQuantity,
-              updatedAt: new Date()
-            })
-            .where(eq(schema.inventoryItems.id, existingInventoryItem.id));
-            
-          console.log(`Inventar-Item ${existingInventoryItem.id} aktualisiert: neue Menge = ${item.countedQuantity}`);
-        } else if (item.countedQuantity > 0) {
-          // Erstelle neuen Bestandseintrag wenn noch nicht vorhanden
-          await tx.insert(schema.inventoryItems)
-            .values({
-              warehouseId: inventoryCount.warehouseId,
-              productId: item.productId,
-              quantity: item.countedQuantity,
-              minQuantity: 0,
-              maxQuantity: null,
-              reorderPoint: 0,
-              status: 'active',
-              createdAt: new Date(),
-              updatedAt: new Date()
-            });
-            
-          console.log(`Neues Inventar-Item für Produkt ${item.productId} erstellt: Menge = ${item.countedQuantity}`);
+        // KORRIGIERTE LOGIK: Aktualisiere ENTWEDER inventory_items ODER product_batches, nie beide!
+        if (item.batchId && item.batch) {
+          // *** BATCH-PRODUKT: Nur Batch aktualisieren, inventory_items NICHT berühren ***
+          console.log(`Batch-Produkt ${item.productId}: Aktualisiere NUR die Charge, nicht inventory_items`);
+        } else {
+          // *** NORMALES PRODUKT: Nur inventory_items aktualisieren ***
+          const existingInventoryItem = await tx.query.inventoryItems.findFirst({
+            where: and(
+              eq(schema.inventoryItems.warehouseId, inventoryCount.warehouseId),
+              eq(schema.inventoryItems.productId, item.productId)
+            )
+          });
+          
+          if (existingInventoryItem) {
+            // Aktualisiere existierenden Bestand
+            await tx.update(schema.inventoryItems)
+              .set({ 
+                quantity: item.countedQuantity,
+                updatedAt: new Date()
+              })
+              .where(eq(schema.inventoryItems.id, existingInventoryItem.id));
+              
+            console.log(`Inventar-Item ${existingInventoryItem.id} aktualisiert: neue Menge = ${item.countedQuantity}`);
+          } else if (item.countedQuantity > 0) {
+            // Erstelle neuen Bestandseintrag wenn noch nicht vorhanden
+            await tx.insert(schema.inventoryItems)
+              .values({
+                warehouseId: inventoryCount.warehouseId,
+                productId: item.productId,
+                quantity: item.countedQuantity,
+                minQuantity: 0,
+                maxQuantity: null,
+                reorderPoint: 0,
+                status: 'active',
+                createdAt: new Date(),
+                updatedAt: new Date()
+              });
+              
+            console.log(`Neues Inventar-Item für Produkt ${item.productId} erstellt: Menge = ${item.countedQuantity}`);
+          }
         }
         
         // Erstelle Bewegungsprotokoll für die Anpassung
@@ -560,8 +566,9 @@ router.post('/:id/complete', async (req, res) => {
           console.log(`Bewegungsprotokoll erstellt für Produkt ${item.productId}: ${Math.abs(difference)} Einheiten ${difference > 0 ? 'hinzugefügt' : 'entfernt'}`);
         }
         
-        // Aktualisiere Batch-Mengen falls vorhanden
+        // KORRIGIERTE BATCH-AKTUALISIERUNG: Nur für Batch-Produkte
         if (item.batchId && item.batch) {
+          // *** NUR FÜR BATCH-PRODUKTE: Aktualisiere die spezifische Charge ***
           const batchDifference = item.countedQuantity - (item.batch.currentQuantity || 0);
           
           if (batchDifference !== 0) {
@@ -575,6 +582,7 @@ router.post('/:id/complete', async (req, res) => {
             console.log(`Batch ${item.batchId} aktualisiert: neue Menge = ${item.countedQuantity}`);
           }
         }
+        // Für normale Produkte (ohne batchId): Keine Batch-Aktualisierung nötig
       }
       
       // Setze die Inventur auf "completed"
