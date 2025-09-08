@@ -81,7 +81,7 @@ router.post('/', async (req, res) => {
       batchesByProduct.get(batch.productId)!.push(batch);
     });
     
-    // Erstelle Inventurpositionen - für Produkte mit Chargen erstelle separate Einträge pro Charge
+    // KORRIGIERTE LOGIK: Verwende ENTWEDER inventory_items ODER product_batches, nie beide
     const countItems: any[] = [];
     
     if (inventoryItemsList.length > 0) {
@@ -89,25 +89,26 @@ router.post('/', async (req, res) => {
         const productBatches = batchesByProduct.get(item.productId);
         
         if (productBatches && productBatches.length > 0) {
-          // Erstelle einen Eintrag pro Charge
+          // Produkt hat Chargen: Verwende NUR die Chargen, ignoriere inventory_items
           for (const batch of productBatches) {
             countItems.push({
               inventoryCountId,
               productId: item.productId,
               expectedQuantity: batch.currentQuantity || 0,
               countedQuantity: null,
-              notes: '',
+              notes: `Charge: ${batch.batchNumber || 'Unbekannt'} (MHD: ${batch.expiryDate || 'N/A'})`,
               batchId: batch.id
             });
           }
+          // WICHTIG: Hier wird kein inventory_items Eintrag erstellt!
         } else {
-          // Kein Batch vorhanden - erstelle normalen Eintrag
+          // Produkt hat KEINE Chargen: Verwende normalen inventory_items Eintrag
           countItems.push({
             inventoryCountId,
             productId: item.productId,
             expectedQuantity: item.quantity || 0,
             countedQuantity: null,
-            notes: '',
+            notes: 'Normal inventory (ohne Chargen)',
             batchId: null
           });
         }
@@ -275,13 +276,22 @@ router.patch('/inventory-count-items/:id', async (req, res) => {
       return res.status(404).json({ error: 'Inventurposition nicht gefunden' });
     }
 
-    // Update der Inventurposition
+    // KORRIGIERT: Setze auch countedAt und countedBy wenn countedQuantity gesetzt wird
+    const updateData: any = {
+      countedQuantity: countedQuantity !== undefined ? countedQuantity : existingItem.countedQuantity,
+      notes: notes !== undefined ? notes : existingItem.notes,
+      expectedQuantity: expectedQuantity !== undefined ? expectedQuantity : existingItem.expectedQuantity
+    };
+
+    // Wenn countedQuantity gesetzt wird (auch auf 0), markiere als gezählt
+    if (countedQuantity !== undefined) {
+      updateData.countedAt = new Date();
+      updateData.countedBy = 1; // Default admin user - in Zukunft aus req.user nehmen
+      updateData.status = 'counted'; // Status auf gezählt setzen
+    }
+
     const [updatedItem] = await db.update(inventoryCountItems)
-      .set({ 
-        countedQuantity: countedQuantity !== undefined ? countedQuantity : existingItem.countedQuantity,
-        notes: notes !== undefined ? notes : existingItem.notes,
-        expectedQuantity: expectedQuantity !== undefined ? expectedQuantity : existingItem.expectedQuantity
-      })
+      .set(updateData)
       .where(eq(schema.inventoryCountItems.id, itemId))
       .returning();
 
