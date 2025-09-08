@@ -503,8 +503,15 @@ router.post('/:id/complete', async (req, res) => {
         
         // KORRIGIERTE LOGIK: Aktualisiere ENTWEDER inventory_items ODER product_batches, nie beide!
         if (item.batchId && item.batch) {
-          // *** BATCH-PRODUKT: Nur Batch aktualisieren, inventory_items NICHT berühren ***
-          console.log(`Batch-Produkt ${item.productId}: Aktualisiere NUR die Charge, nicht inventory_items`);
+          // *** BATCH-PRODUKT: Aktualisiere die Charge SOFORT ***
+          await tx.update(schema.productBatches)
+            .set({
+              currentQuantity: item.countedQuantity,
+              updatedAt: new Date()
+            })
+            .where(eq(schema.productBatches.id, item.batchId));
+            
+          console.log(`✅ BATCH-KRITISCH: Batch ${item.batchId} aktualisiert: neue Menge = ${item.countedQuantity}`);
         } else {
           // *** NORMALES PRODUKT: Nur inventory_items aktualisieren ***
           const existingInventoryItem = await tx.query.inventoryItems.findFirst({
@@ -566,23 +573,7 @@ router.post('/:id/complete', async (req, res) => {
           console.log(`Bewegungsprotokoll erstellt für Produkt ${item.productId}: ${Math.abs(difference)} Einheiten ${difference > 0 ? 'hinzugefügt' : 'entfernt'}`);
         }
         
-        // KORRIGIERTE BATCH-AKTUALISIERUNG: Nur für Batch-Produkte
-        if (item.batchId && item.batch) {
-          // *** NUR FÜR BATCH-PRODUKTE: Aktualisiere die spezifische Charge ***
-          const batchDifference = item.countedQuantity - (item.batch.currentQuantity || 0);
-          
-          if (batchDifference !== 0) {
-            await tx.update(schema.productBatches)
-              .set({
-                currentQuantity: item.countedQuantity,
-                updatedAt: new Date()
-              })
-              .where(eq(schema.productBatches.id, item.batchId));
-              
-            console.log(`Batch ${item.batchId} aktualisiert: neue Menge = ${item.countedQuantity}`);
-          }
-        }
-        // Für normale Produkte (ohne batchId): Keine Batch-Aktualisierung nötig
+        // Batch-Aktualisierung bereits oben in der if-Bedingung erledigt - keine redundante Logik mehr
       }
       
       // Setze die Inventur auf "completed"
