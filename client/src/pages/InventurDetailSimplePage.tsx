@@ -1357,7 +1357,7 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
           onSuccess={async () => {
             console.log('[InventurDetailPage] Batch erfolgreich erstellt, lade Daten neu...');
             // Batches für das Lager neu laden
-            refetchBatches();
+            refetchAvailableBatches();
             // Inventur-Items neu laden um Änderungen zu sehen
             refetch();
             
