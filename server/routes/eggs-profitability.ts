@@ -10,10 +10,16 @@ interface EggsProfitabilityResult {
   vendonPrice: number;
   totalSold: number;
   totalRevenue: number;
-  unitCost: number;
   totalCosts: number;
+  totalProfit: number;
+  unitCost: number;
   netProfit: number;
   profitMargin: number;
+  totalQuantitySold: number;
+  averageSellingPrice: number;
+  averageCostPrice: number;
+  monthlySummary: any[];
+  locationBreakdown: any[];
   machineBreakdown: Array<{
     machineId: number;
     machineName: string;
@@ -177,9 +183,7 @@ async function calculateEggsProfitability(): Promise<EggsProfitabilityResult | n
     }));
 
     return {
-      productId: 84,
       productName: product.productName || '6 frische Eier, Struppen',
-      category: 'Frische Lebensmittel',
       totalRevenue: Math.round(totalRevenue * 100) / 100,
       totalCosts: Math.round(totalCosts * 100) / 100,
       totalProfit: Math.round(netProfit * 100) / 100,
@@ -191,6 +195,7 @@ async function calculateEggsProfitability(): Promise<EggsProfitabilityResult | n
       locationBreakdown,
       // Legacy fields for backward compatibility
       vendonPrice: Math.round(vendonPrice * 100) / 100,
+      totalSold: totalSold,
       unitCost: Math.round(unitCost * 100) / 100,
       netProfit: Math.round(netProfit * 100) / 100,
       machineBreakdown,

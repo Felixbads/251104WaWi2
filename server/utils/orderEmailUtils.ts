@@ -218,6 +218,25 @@ function isValidUrl(url: string): boolean {
  * REPARIERT - Portal-Links werden jetzt zuverlässig eingebettet
  */
 export function createOrderEmailTemplate(order: any, supplier: any, templateType: string = 'standard', portalLink: string = ''): string {
+  // Portal-Link-Sektion zuerst erstellen (sicher und robust)
+  const portalLinkSection = portalLink && isValidUrl(portalLink) ? `
+    <div style="background-color: #f0f9ff; border: 2px solid #0891b2; border-radius: 8px; padding: 20px; margin: 20px 0; text-align: left;">
+      <h3 style="color: #0891b2; margin: 0 0 10px 0; font-size: 16px; font-family: Arial, sans-serif;">🚚 Lieferung online bestätigen</h3>
+      <p style="margin: 0 0 15px 0; color: #374151; font-family: Arial, sans-serif; line-height: 1.4;">Nutzen Sie unser sicheres Lieferantenportal, um:</p>
+      <ul style="margin: 0 0 15px 0; color: #374151; padding-left: 20px; font-family: Arial, sans-serif; line-height: 1.5;">
+        <li>Den Liefertermin zu bestätigen</li>
+        <li>Genaue Lieferzeit anzugeben</li>
+        <li>Kommentare zur Bestellung zu hinterlassen</li>
+        <li>Bei Bedarf Mengen anzupassen</li>
+      </ul>
+      <p style="margin: 0; text-align: center;">
+        <a href="${escapeHtml(portalLink)}" target="_blank" rel="noopener noreferrer" style="background-color: #0891b2; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; font-family: Arial, sans-serif;">🔗 Zum Lieferantenportal</a>
+      </p>
+      <p style="margin: 10px 0 0 0; font-size: 12px; color: #6b7280; text-align: center; font-family: Arial, sans-serif;">Dieser sichere Link ist nur für Sie bestimmt und 30 Tage gültig.</p>
+      <p style="margin: 5px 0 0 0; font-size: 11px; color: #9ca3af; text-align: center; font-family: Arial, sans-serif;">🔒 SSL-verschlüsselt | Automatischer Timeout</p>
+    </div>
+  ` : '';
+
   // Template je nach Typ auswählen
   let template = '';
 
@@ -257,25 +276,6 @@ export function createOrderEmailTemplate(order: any, supplier: any, templateType
         <p>Bei Fragen stehen wir Ihnen gerne zur Verfügung.</p>
         <p>Mit freundlichen Grüßen<br>Ihr Proviantomat Team</p>`;
   }
-
-  // Portal-Link-Sektion erstellen (sicher und robust)
-  const portalLinkSection = portalLink && isValidUrl(portalLink) ? `
-    <div style="background-color: #f0f9ff; border: 2px solid #0891b2; border-radius: 8px; padding: 20px; margin: 20px 0; text-align: left;">
-      <h3 style="color: #0891b2; margin: 0 0 10px 0; font-size: 16px; font-family: Arial, sans-serif;">🚚 Lieferung online bestätigen</h3>
-      <p style="margin: 0 0 15px 0; color: #374151; font-family: Arial, sans-serif; line-height: 1.4;">Nutzen Sie unser sicheres Lieferantenportal, um:</p>
-      <ul style="margin: 0 0 15px 0; color: #374151; padding-left: 20px; font-family: Arial, sans-serif; line-height: 1.5;">
-        <li>Den Liefertermin zu bestätigen</li>
-        <li>Genaue Lieferzeit anzugeben</li>
-        <li>Kommentare zur Bestellung zu hinterlassen</li>
-        <li>Bei Bedarf Mengen anzupassen</li>
-      </ul>
-      <p style="margin: 0; text-align: center;">
-        <a href="${escapeHtml(portalLink)}" target="_blank" rel="noopener noreferrer" style="background-color: #0891b2; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; font-family: Arial, sans-serif;">🔗 Zum Lieferantenportal</a>
-      </p>
-      <p style="margin: 10px 0 0 0; font-size: 12px; color: #6b7280; text-align: center; font-family: Arial, sans-serif;">Dieser sichere Link ist nur für Sie bestimmt und 30 Tage gültig.</p>
-      <p style="margin: 5px 0 0 0; font-size: 11px; color: #9ca3af; text-align: center; font-family: Arial, sans-serif;">🔒 SSL-verschlüsselt | Automatischer Timeout</p>
-    </div>
-  ` : '';
 
   // Platzhalter ersetzen
   const compiled = template

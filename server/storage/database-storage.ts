@@ -123,7 +123,7 @@ export class DatabaseStorage implements IStorage {
       },
       machines: {
         count: parseInt(machineCountResult[0]?.count?.toString() || '0'),
-        latest: latestMachine?.id || null
+        latest: latestMachine?.createdAt || null
       },
       refills: {
         count: parseInt(refillCountResult[0]?.count?.toString() || '0'),
@@ -131,7 +131,7 @@ export class DatabaseStorage implements IStorage {
       },
       refillDetails: {
         count: parseInt(refillDetailCountResult[0]?.count?.toString() || '0'),
-        latest: latestRefillDetail?.id || null
+        latest: latestRefillDetail?.createdAt || null
       },
       events: {
         count: parseInt(eventCountResult[0]?.count?.toString() || '0'),
@@ -139,15 +139,15 @@ export class DatabaseStorage implements IStorage {
       },
       products: {
         count: parseInt(productCountResult[0]?.count?.toString() || '0'),
-        latest: latestProduct?.id || null
+        latest: latestProduct?.createdAt || null
       },
       stocks: {
         count: parseInt(stockCountResult[0]?.count?.toString() || '0'),
-        latest: latestStock?.id || null
+        latest: latestStock?.createdAt || null
       },
       machineStocks: {
         count: parseInt(machineStockCountResult[0]?.count?.toString() || '0'),
-        latest: latestMachineStock?.id || null
+        latest: latestMachineStock?.createdAt || null
       }
     };
   }

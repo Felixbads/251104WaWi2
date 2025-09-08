@@ -67,7 +67,7 @@ export class EnhancedVendonHistoryImporter {
   private async initializeDuplicateService(pool: Pool) {
     try {
       const { DuplicatePreventionService } = await import('./DuplicatePreventionService');
-      this.duplicateService = new DuplicatePreventionService(pool);
+      this.duplicateService = new DuplicatePreventionService();
     } catch (error) {
       console.warn('DuplicatePreventionService nicht verfügbar, verwende Fallback-Implementierung');
       this.duplicateService = this.createFallbackDuplicateService(pool);
@@ -342,7 +342,10 @@ export class EnhancedVendonHistoryImporter {
     return {
       success,
       message,
-      stats,
+      stats: {
+        ...stats,
+        duration: 0 // Placeholder für duration - wird durch aufrufende Funktion gesetzt
+      },
       errors: allErrors.length > 0 ? allErrors : undefined
     };
   }
