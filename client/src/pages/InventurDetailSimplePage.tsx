@@ -1355,7 +1355,11 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
           }]}
           initialQuantity={selectedItem.countedQuantity || editedCounts[selectedItem.id] || 1}
           onSuccess={async () => {
-            console.log('[INVENTORY-PAGE] onSuccess callback called - refetching batches');
+            console.log('[InventurDetailPage] Batch erfolgreich erstellt, lade Daten neu...');
+            // Batches für das Lager neu laden
+            refetchBatches();
+            // Inventur-Items neu laden um Änderungen zu sehen
+            refetch();
             
             try {
               // Explizit refetch für sofortige Batch-Anzeige
