@@ -375,6 +375,17 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
     }
   };
 
+  // Create stable item numbering based on original order (before any filtering/sorting)
+  const itemNumberMapping = React.useMemo(() => {
+    const mapping = new Map<number, number>();
+    if (inventurItems && Array.isArray(inventurItems)) {
+      inventurItems.forEach((item, index) => {
+        mapping.set(item.id, index + 1);
+      });
+    }
+    return mapping;
+  }, [inventurItems]);
+
   // Filter items based on search (moved before sortedItems)
   const filteredItems = React.useMemo(() => {
     if (!inventurItems || !Array.isArray(inventurItems)) return [];
@@ -769,7 +780,8 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
                           onClick={() => toggleGroupExpansion(group.productName)}
                         >
                           <TableCell className="text-center font-mono text-sm text-muted-foreground">
-                            {groupIndex + 1}
+                            {Math.min(...group.items.map(item => itemNumberMapping.get(item.id) || 0))}
+                            {group.hasMultipleEntries && `–${Math.max(...group.items.map(item => itemNumberMapping.get(item.id) || 0))}`}
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center space-x-2">
@@ -961,7 +973,7 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
                             return (
                               <TableRow key={`expanded-item-${item.id}`} className="bg-muted/25">
                                 <TableCell className="text-center font-mono text-xs text-muted-foreground">
-                                  {groupIndex + 1}.{subIndex + 1}
+                                  {itemNumberMapping.get(item.id) || 0}
                                 </TableCell>
                                 <TableCell className="pl-8">
                                   <div className="flex items-center space-x-2">
@@ -1060,7 +1072,7 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
                       <React.Fragment key={`fragment-${item.id}-${item.productId}`}>
                         <TableRow key={`row-${item.id}`}>
                           <TableCell className="text-center font-mono text-sm text-muted-foreground">
-                            {itemIndex + 1}
+                            {itemNumberMapping.get(item.id) || 0}
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center space-x-2">
