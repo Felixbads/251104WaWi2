@@ -462,7 +462,7 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
     });
     
     // Convert to array format with summary data
-    return Array.from(groups.entries()).map(([productName, items]) => {
+    const groupsArray = Array.from(groups.entries()).map(([productName, items]) => {
       const totalExpected = items.reduce((sum, item) => sum + (item.expectedQuantity || 0), 0);
       const totalCounted = items.reduce((sum, item) => sum + (item.countedQuantity || 0), 0);
       const allCounted = items.every(item => item.countedQuantity !== null && item.countedQuantity !== undefined);
@@ -498,13 +498,53 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
         hasPackaging,
         packageSize
       };
-    }).sort((a, b) => {
-      // Duplikate zuerst, dann alphabetisch
-      if (a.hasMultipleEntries && !b.hasMultipleEntries) return -1;
-      if (!a.hasMultipleEntries && b.hasMultipleEntries) return 1;
-      return a.productName.localeCompare(b.productName);
     });
-  }, [filteredItems, groupView, availableBatches]);
+    
+    // Apply sorting if sortColumn is set
+    if (sortColumn) {
+      groupsArray.sort((a, b) => {
+        let valueA: any, valueB: any;
+        
+        switch (sortColumn) {
+          case 'product':
+            valueA = a.productName.toLowerCase();
+            valueB = b.productName.toLowerCase();
+            break;
+          case 'expected':
+            valueA = a.totalExpected;
+            valueB = b.totalExpected;
+            break;
+          case 'counted':
+            valueA = a.totalCounted;
+            valueB = b.totalCounted;
+            break;
+          case 'difference':
+            valueA = a.difference;
+            valueB = b.difference;
+            break;
+          default:
+            // Default sorting: Duplikate zuerst, dann alphabetisch
+            if (a.hasMultipleEntries && !b.hasMultipleEntries) return sortDirection === 'asc' ? -1 : 1;
+            if (!a.hasMultipleEntries && b.hasMultipleEntries) return sortDirection === 'asc' ? 1 : -1;
+            valueA = a.productName.toLowerCase();
+            valueB = b.productName.toLowerCase();
+        }
+        
+        if (valueA < valueB) return sortDirection === 'asc' ? -1 : 1;
+        if (valueA > valueB) return sortDirection === 'asc' ? 1 : -1;
+        return 0;
+      });
+    } else {
+      // Default sorting: Duplikate zuerst, dann alphabetisch
+      groupsArray.sort((a, b) => {
+        if (a.hasMultipleEntries && !b.hasMultipleEntries) return -1;
+        if (!a.hasMultipleEntries && b.hasMultipleEntries) return 1;
+        return a.productName.localeCompare(b.productName);
+      });
+    }
+    
+    return groupsArray;
+  }, [filteredItems, groupView, availableBatches, sortColumn, sortDirection]);
 
   // Toggle group expansion
   const toggleGroupExpansion = (productName: string) => {
