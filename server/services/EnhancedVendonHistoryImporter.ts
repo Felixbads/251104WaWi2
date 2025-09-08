@@ -66,7 +66,7 @@ export class EnhancedVendonHistoryImporter {
 
   private async initializeDuplicateService(pool: Pool) {
     try {
-      const { DuplicatePreventionService } = await import('./duplicatePreventionService');
+      const { DuplicatePreventionService } = await import('./DuplicatePreventionService');
       this.duplicateService = new DuplicatePreventionService(pool);
     } catch (error) {
       console.warn('DuplicatePreventionService nicht verfügbar, verwende Fallback-Implementierung');
