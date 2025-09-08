@@ -1353,6 +1353,7 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
             id: selectedItem.productId, 
             productName: selectedItem.product?.productName || 'Unbekanntes Produkt' 
           }]}
+          inventoryId={inventoryId}
           initialQuantity={selectedItem.countedQuantity || editedCounts[selectedItem.id] || 1}
           onSuccess={async () => {
             console.log('[InventurDetailPage] Batch erfolgreich erstellt, lade Daten neu...');

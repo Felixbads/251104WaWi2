@@ -103,6 +103,35 @@ router.post('/product-batches', async (req: Request, res: Response) => {
       });
     }
     
+    // 🔢 NEUE LOGIK: Automatische Inventur-Batch-Nummerierung
+    let finalBatchNumber = batchNumber;
+    if (batchNumber && batchNumber.includes('INV-') && batchNumber.endsWith('-AUTO')) {
+      try {
+        // Extrahiere Inventur-ID aus dem Batch-Number-Format: INV-{ID}-AUTO
+        const inventoryIdMatch = batchNumber.match(/INV-(\d+)-AUTO/);
+        if (inventoryIdMatch) {
+          const inventoryId = parseInt(inventoryIdMatch[1]);
+          console.log(`🔢 [BATCH-NUMBERING] Generiere automatische Nummer für Inventur ${inventoryId}`);
+          
+          // Ermittle die nächste fortlaufende Nummer für diese Inventur
+          const existingBatchesResult = await rawDb.query(
+            `SELECT COUNT(*) as count 
+             FROM product_batches 
+             WHERE batch_number LIKE $1`,
+            [`INV-${inventoryId}-%`]
+          );
+          
+          const nextNumber = (parseInt(existingBatchesResult.rows[0]?.count || 0) + 1).toString().padStart(3, '0');
+          finalBatchNumber = `INV-${inventoryId}-${nextNumber}`;
+          
+          console.log(`✅ [BATCH-NUMBERING] Automatische Nummer generiert: ${finalBatchNumber}`);
+        }
+      } catch (error) {
+        console.error(`❌ [BATCH-NUMBERING] Fehler bei automatischer Nummerierung:`, error);
+        // Fallback: verwende ursprüngliche Batch-Nummer
+      }
+    }
+
     // Erstelle die neue Charge
     // Prüfen, welche Spalten in der Tabelle vorhanden sind, um Fehler zu vermeiden
     let columns = [];
@@ -148,7 +177,7 @@ router.post('/product-batches', async (req: Request, res: Response) => {
     // Die quantity-Spalte wurde entfernt, jetzt verwenden wir initial_quantity und current_quantity
     let columnsString = 'product_id, warehouse_id, batch_number, expiry_date';
     let valuesString = '$1, $2, $3, $4';
-    let valuesArray = [productId, warehouseId, batchNumber, parsedExpiryDate];
+    let valuesArray = [productId, warehouseId, finalBatchNumber, parsedExpiryDate]; // Verwende finale Batch-Nummer
     let valueIndex = 5;
     
     // Füge receivedDate hinzu, wenn die Spalte existiert

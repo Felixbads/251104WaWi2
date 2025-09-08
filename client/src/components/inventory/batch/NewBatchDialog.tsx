@@ -50,17 +50,24 @@ type NewBatchDialogProps = {
   onOpenChange: (open: boolean) => void;
   warehouses: any[];
   products: any[];
+  inventoryId?: number; // Inventur-ID für durchlaufende Nummern
   initialQuantity?: number; // Neue Property für vorausgefüllte Menge
   onSuccess?: () => void;
 };
 
 // Funktion zum Generieren einer einzigartigen Chargennummer
-function generateBatchNumber(): string {
-  const now = new Date();
-  const dateStr = format(now, 'yyyyMMdd');
-  const timeStr = format(now, 'HHmmss');
-  const randomStr = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
-  return `CHG-${dateStr}-${timeStr}-${randomStr}`;
+function generateBatchNumber(inventoryId?: number): string {
+  if (inventoryId) {
+    // Für Inventur-Batches: INV-{ID}-{PLATZHALTER} - die finale Nummer wird vom Backend generiert
+    return `INV-${inventoryId}-AUTO`;
+  } else {
+    // Fallback für normale Batches
+    const now = new Date();
+    const dateStr = format(now, 'yyyyMMdd');
+    const timeStr = format(now, 'HHmmss');
+    const randomStr = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+    return `CHG-${dateStr}-${timeStr}-${randomStr}`;
+  }
 }
 
 export default function NewBatchDialog({ 
@@ -68,6 +75,7 @@ export default function NewBatchDialog({
   onOpenChange, 
   warehouses, 
   products,
+  inventoryId,
   initialQuantity,
   onSuccess 
 }: NewBatchDialogProps) {
@@ -107,7 +115,7 @@ export default function NewBatchDialog({
       warehouseId: warehouses && warehouses.length >= 1 ? String(warehouses[0]?.id || '') : '',
       productId: products && products.length >= 1 ? String(products[0]?.id || '') : '',
       quantity: initialQuantity !== undefined ? String(initialQuantity) : '1',
-      batchNumber: generateBatchNumber(), // Auto-generierte Chargennummer
+      batchNumber: generateBatchNumber(inventoryId), // Auto-generierte Chargennummer
       expiryDate: new Date(new Date().setMonth(new Date().getMonth() + 3)), // 3 Monate in der Zukunft als Standard-MHD
       incomingDate: new Date(), // Standardmäßig das heutige Datum
       notes: '',
@@ -121,7 +129,7 @@ export default function NewBatchDialog({
         warehouseId: warehouses.length >= 1 ? String(warehouses[0]?.id || '') : '',
         productId: products.length >= 1 ? String(products[0]?.id || '') : '',
         quantity: initialQuantity !== undefined ? String(initialQuantity) : '1',
-        batchNumber: generateBatchNumber(),
+        batchNumber: generateBatchNumber(inventoryId),
         expiryDate: new Date(new Date().setMonth(new Date().getMonth() + 3)),
         incomingDate: new Date(),
         notes: '',
