@@ -39,16 +39,21 @@ router.post('/product-batches', async (req: Request, res: Response) => {
     if (expiryDate) {
       try {
         // Versuche, das Datum zu parsen, um sicherzustellen, dass es ein gültiges Format hat
-        parsedExpiryDate = new Date(expiryDate);
-        console.log("Parsed expiry date:", parsedExpiryDate, "Valid:", !isNaN(parsedExpiryDate.getTime()));
+        const dateObj = new Date(expiryDate);
+        console.log("Parsed expiry date:", dateObj, "Valid:", !isNaN(dateObj.getTime()));
         
         // Überprüfe, ob das Datum gültig ist
-        if (isNaN(parsedExpiryDate.getTime())) {
+        if (isNaN(dateObj.getTime())) {
           console.warn("Warning: Invalid expiry date format received:", expiryDate);
           parsedExpiryDate = null;
         } else {
           // Formatiere das Datum im Format YYYY-MM-DD für PostgreSQL
-          parsedExpiryDate = parsedExpiryDate.toISOString().split('T')[0];
+          // WICHTIG: Verwende lokale Zeit-Methoden statt toISOString() um Zeitzonenfehler zu vermeiden
+          const year = dateObj.getFullYear();
+          const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+          const day = String(dateObj.getDate()).padStart(2, '0');
+          parsedExpiryDate = `${year}-${month}-${day}`;
+          console.log("MHD formatiert (lokale Zeit):", parsedExpiryDate, "von Original:", expiryDate);
         }
       } catch (dateError) {
         console.error("Error parsing expiry date:", dateError);
