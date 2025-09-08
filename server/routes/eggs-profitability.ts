@@ -193,7 +193,6 @@ async function calculateEggsProfitability(): Promise<EggsProfitabilityResult | n
       vendonPrice: Math.round(vendonPrice * 100) / 100,
       unitCost: Math.round(unitCost * 100) / 100,
       netProfit: Math.round(netProfit * 100) / 100,
-      profitMargin: Math.round(profitMargin * 100) / 100,
       machineBreakdown,
       summary: {
         activeMachines: machineBreakdown.length,
