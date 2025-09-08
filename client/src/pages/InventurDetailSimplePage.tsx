@@ -128,7 +128,7 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
   });
 
   // Lade Inventur-Items
-  const { data: inventurItems, isLoading: itemsLoading, error: itemsError } = useQuery<SimpleInventoryItem[]>({
+  const { data: inventurItems, isLoading: itemsLoading, error: itemsError, refetch: refetchItems } = useQuery<SimpleInventoryItem[]>({
     queryKey: [`/api/inventory-counts/${inventoryId}/items`],
     enabled: !!inventoryId,
   });
@@ -1359,7 +1359,7 @@ const SimpleInventurDetailPage: React.FC<SimpleInventurDetailPageProps> = ({ par
             // Batches für das Lager neu laden
             refetchAvailableBatches();
             // Inventur-Items neu laden um Änderungen zu sehen
-            refetch();
+            refetchItems();
             
             try {
               // Explizit refetch für sofortige Batch-Anzeige
