@@ -368,4 +368,90 @@ async function getRecentSyncLogs() {
   return result.rows;
 }
 
+/**
+ * GET /api/transactions/stats - Simple transaction statistics for VendonSyncDashboard
+ */
+router.get('/transaction-stats', async (req: Request, res: Response) => {
+  try {
+    const query = `
+      SELECT 
+        COUNT(*) as total,
+        COUNT(CASE WHEN source = 'history-import' THEN 1 END) as history_import,
+        COUNT(CASE WHEN source = 'live-import' THEN 1 END) as live_import,
+        AVG(price::numeric) as avg_price
+      FROM transactions
+    `;
+    
+    const result = await rawDb.query(query);
+    const stats = result.rows[0];
+    
+    res.json({
+      status: 'success',
+      total: parseInt(stats.total) || 0,
+      historyImport: parseInt(stats.history_import) || 0,
+      liveImport: parseInt(stats.live_import) || 0,
+      avgPrice: parseFloat(stats.avg_price) || 0.0
+    });
+  } catch (error) {
+    console.error('Fehler beim Abrufen der Transaktionsstatistiken:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Fehler beim Abrufen der Statistiken',
+      details: error instanceof Error ? error.message : String(error)
+    });
+  }
+});
+
+/**
+ * GET /api/vendon/sync-state - Sync state for VendonSyncDashboard
+ */
+router.get('/sync-state', async (req: Request, res: Response) => {
+  try {
+    // Hole den letzten Sync-Log Eintrag
+    const syncLogQuery = `
+      SELECT 
+        operation_type as job_name,
+        updated_at,
+        status,
+        details
+      FROM sync_logs 
+      WHERE operation_type LIKE '%vendon%'
+      ORDER BY updated_at DESC 
+      LIMIT 1
+    `;
+    
+    const syncLogResult = await rawDb.query(syncLogQuery);
+    
+    let syncState = {
+      status: 'idle',
+      jobName: 'vendon-sync',
+      lastDate: null as string | null,
+      lastOffset: 0,
+      updatedAt: null as string | null,
+      message: 'Kein Sync-Status verfügbar'
+    };
+    
+    if (syncLogResult.rows.length > 0) {
+      const log = syncLogResult.rows[0];
+      syncState = {
+        status: log.status === 'SUCCESS' ? 'completed' : (log.status === 'ERROR' ? 'error' : 'in_progress'),
+        jobName: log.job_name || 'vendon-sync',
+        lastDate: log.updated_at,
+        lastOffset: 0,
+        updatedAt: log.updated_at,
+        message: log.details || 'Sync erfolgreich'
+      };
+    }
+    
+    res.json(syncState);
+  } catch (error) {
+    console.error('Fehler beim Abrufen des Sync-Status:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Fehler beim Abrufen des Sync-Status',
+      details: error instanceof Error ? error.message : String(error)
+    });
+  }
+});
+
 export default router;
