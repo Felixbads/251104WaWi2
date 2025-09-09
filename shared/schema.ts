@@ -4221,3 +4221,54 @@ export const emailLogRelations = relations(emailLog, ({ one }) => ({
     references: [emailTemplates.id],
   }),
 }));
+
+// Monitoring & Recovery System Relations
+
+// Transaction Gaps Relations
+export const transactionGapsRelations = relations(transactionGaps, ({ one, many }) => ({
+  machine: one(machines, {
+    fields: [transactionGaps.machineId],
+    references: [machines.id],
+  }),
+  resolvedByUser: one(users, {
+    fields: [transactionGaps.resolvedBy],
+    references: [users.id],
+  }),
+  recoveryJobs: many(recoveryJobs),
+}));
+
+// Recovery Jobs Relations
+export const recoveryJobsRelations = relations(recoveryJobs, ({ one }) => ({
+  machine: one(machines, {
+    fields: [recoveryJobs.machineId],
+    references: [machines.id],
+  }),
+  triggeredByGap: one(transactionGaps, {
+    fields: [recoveryJobs.triggeredByGapId],
+    references: [transactionGaps.id],
+  }),
+  triggeredByUser: one(users, {
+    fields: [recoveryJobs.triggeredBy],
+    references: [users.id],
+  }),
+}));
+
+// Sync Health Logs Relations
+export const syncHealthLogsRelations = relations(syncHealthLogs, ({ one }) => ({
+  machine: one(machines, {
+    fields: [syncHealthLogs.machineId],
+    references: [machines.id],
+  }),
+  resolvedByUser: one(users, {
+    fields: [syncHealthLogs.resolvedBy],
+    references: [users.id],
+  }),
+}));
+
+// Data Quality Metrics Relations
+export const dataQualityMetricsRelations = relations(dataQualityMetrics, ({ one }) => ({
+  machine: one(machines, {
+    fields: [dataQualityMetrics.machineId],
+    references: [machines.id],
+  }),
+}));
