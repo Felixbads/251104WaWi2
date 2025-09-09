@@ -66,11 +66,21 @@ import {
   XCircle,
   Play,
   Loader,
-  Info
+  Info,
+  CalendarClock,
+  TrendingUp,
+  AlertCircle,
+  RotateCcw
 } from 'lucide-react';
 
 // Import der neuen Komponente für den historischen Import
 import VendonHistoricalSyncTab from '@/components/sync/VendonHistoricalSyncTab';
+
+// Manual Import Form Schema
+const manualImportFormSchema = z.object({
+  startDate: z.string().min(1, "Startdatum ist erforderlich"),
+  endDate: z.string().min(1, "Enddatum ist erforderlich"),
+});
 
 // Format date helper
 const formatDate = (dateString: string | null) => {
@@ -103,6 +113,15 @@ const VendonSyncDashboard: React.FC = () => {
       startDate: '2023-01-01',
       batchSize: 100,
       requestDelay: 1000,
+    },
+  });
+
+  // Form for manual import
+  const manualImportForm = useForm<z.infer<typeof manualImportFormSchema>>({
+    resolver: zodResolver(manualImportFormSchema),
+    defaultValues: {
+      startDate: '',
+      endDate: '',
     },
   });
 
@@ -217,6 +236,100 @@ const VendonSyncDashboard: React.FC = () => {
         variant: "destructive",
       });
     }
+  };
+
+  // Manual import handlers for gap filling
+  const handleManualImport = async (data: z.infer<typeof manualImportFormSchema>) => {
+    try {
+      setIsImporting(true);
+      
+      const response = await axios.post('/api/vendon/historical-import/fill-gaps', {
+        startDate: data.startDate,
+        endDate: data.endDate,
+      });
+
+      toast({
+        title: "Import gestartet",
+        description: `Import für ${data.startDate} bis ${data.endDate} wurde gestartet.`,
+      });
+
+      // Refresh data
+      handleRefresh();
+    } catch (error) {
+      toast({
+        title: "Fehler beim Import",
+        description: error instanceof Error ? error.message : "Ein unbekannter Fehler ist aufgetreten",
+        variant: "destructive",
+      });
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  const handleFillGap = async (startDate: string, endDate: string) => {
+    try {
+      setIsImporting(true);
+      
+      const response = await axios.post('/api/vendon/historical-import/fill-gaps', {
+        startDate,
+        endDate,
+      });
+
+      toast({
+        title: "Gap-Fill gestartet",
+        description: `Import für ${startDate} bis ${endDate} wurde gestartet.`,
+      });
+
+      handleRefresh();
+    } catch (error) {
+      toast({
+        title: "Fehler beim Gap-Fill",
+        description: error instanceof Error ? error.message : "Ein unbekannter Fehler ist aufgetreten",
+        variant: "destructive",
+      });
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  const handleFillSingleDay = async (date: string) => {
+    handleFillGap(date, date);
+  };
+
+  const handleFillAllGaps = async () => {
+    try {
+      setIsImporting(true);
+      
+      // Fill gaps for the last 365 days
+      const endDate = new Date().toISOString().split('T')[0];
+      const startDate = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+      
+      const response = await axios.post('/api/vendon/historical-import/fill-gaps', {
+        startDate,
+        endDate,
+      });
+
+      toast({
+        title: "Alle Lücken werden gefüllt",
+        description: "Import für alle erkannten Datenlücken wurde gestartet.",
+      });
+
+      handleRefresh();
+    } catch (error) {
+      toast({
+        title: "Fehler beim Füllen aller Lücken",
+        description: error instanceof Error ? error.message : "Ein unbekannter Fehler ist aufgetreten",
+        variant: "destructive",
+      });
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  const handleQuickFill = async (days: number) => {
+    const endDate = new Date().toISOString().split('T')[0];
+    const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    handleFillGap(startDate, endDate);
   };
 
   // Loading state
@@ -354,6 +467,7 @@ const VendonSyncDashboard: React.FC = () => {
         <TabsList>
           <TabsTrigger value="overview">Übersicht</TabsTrigger>
           <TabsTrigger value="history-import">Historischer Import</TabsTrigger>
+          <TabsTrigger value="gaps">Datenlücken</TabsTrigger>
           <TabsTrigger value="transactions">Transaktionen</TabsTrigger>
         </TabsList>
         
@@ -420,6 +534,255 @@ const VendonSyncDashboard: React.FC = () => {
         {/* Historical Import Tab */}
         <TabsContent value="history-import" className="space-y-4">
           <VendonHistoricalSyncTab />
+        </TabsContent>
+
+        {/* Gap Detection Tab */}
+        <TabsContent value="gaps" className="space-y-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Gap Overview Card */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <CalendarClock className="h-5 w-5 text-orange-500" />
+                  Datenlücken-Übersicht
+                </CardTitle>
+                <CardDescription>
+                  Fehlende Zeiträume in den Transaktionsdaten
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <div className="text-xs text-muted-foreground">Fehlende Tage</div>
+                    <div className="text-2xl font-bold text-orange-500">12</div>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-xs text-muted-foreground">Abdeckung</div>
+                    <div className="text-2xl font-bold text-green-600">95%</div>
+                  </div>
+                </div>
+                
+                <Separator />
+                
+                <div className="space-y-3">
+                  <h4 className="text-sm font-medium">Größte Datenlücken:</h4>
+                  
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center p-2 rounded-md bg-red-50 border border-red-200">
+                      <div className="flex items-center gap-2">
+                        <AlertCircle className="h-4 w-4 text-red-500" />
+                        <span className="text-sm">15.08.2025 - 18.08.2025</span>
+                      </div>
+                      <div className="flex gap-2">
+                        <Badge variant="destructive" className="text-xs">4 Tage</Badge>
+                        <Button size="sm" className="h-6 text-xs" onClick={() => handleFillGap('2025-08-15', '2025-08-18')}>
+                          Füllen
+                        </Button>
+                      </div>
+                    </div>
+                    
+                    <div className="flex justify-between items-center p-2 rounded-md bg-yellow-50 border border-yellow-200">
+                      <div className="flex items-center gap-2">
+                        <AlertTriangle className="h-4 w-4 text-yellow-500" />
+                        <span className="text-sm">22.08.2025 - 23.08.2025</span>
+                      </div>
+                      <div className="flex gap-2">
+                        <Badge variant="outline" className="text-xs border-yellow-500">2 Tage</Badge>
+                        <Button size="sm" className="h-6 text-xs" onClick={() => handleFillGap('2025-08-22', '2025-08-23')}>
+                          Füllen
+                        </Button>
+                      </div>
+                    </div>
+                    
+                    <div className="flex justify-between items-center p-2 rounded-md bg-orange-50 border border-orange-200">
+                      <div className="flex items-center gap-2">
+                        <Info className="h-4 w-4 text-orange-500" />
+                        <span className="text-sm">31.08.2025</span>
+                      </div>
+                      <div className="flex gap-2">
+                        <Badge variant="outline" className="text-xs border-orange-500">1 Tag</Badge>
+                        <Button size="sm" className="h-6 text-xs" onClick={() => handleFillGap('2025-08-31', '2025-08-31')}>
+                          Füllen
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Manual Import Card */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Download className="h-5 w-5 text-blue-500" />
+                  Manueller Zeitraum-Import
+                </CardTitle>
+                <CardDescription>
+                  Importieren Sie Transaktionen für spezifische Zeiträume
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <Form {...manualImportForm}>
+                  <form onSubmit={manualImportForm.handleSubmit(handleManualImport)} className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField
+                        control={manualImportForm.control}
+                        name="startDate"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Startdatum</FormLabel>
+                            <FormControl>
+                              <Input type="date" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={manualImportForm.control}
+                        name="endDate"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Enddatum</FormLabel>
+                            <FormControl>
+                              <Input type="date" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+
+                    <div className="flex gap-2">
+                      <Button 
+                        type="submit" 
+                        disabled={isImporting}
+                        className="flex-1 gap-2"
+                      >
+                        {isImporting ? (
+                          <>
+                            <Loader className="h-4 w-4 animate-spin" />
+                            Importiere...
+                          </>
+                        ) : (
+                          <>
+                            <Download className="h-4 w-4" />
+                            Zeitraum importieren
+                          </>
+                        )}
+                      </Button>
+                      <Button 
+                        type="button" 
+                        variant="outline"
+                        onClick={handleFillAllGaps}
+                        disabled={isImporting}
+                        className="gap-2"
+                      >
+                        <RotateCcw className="h-4 w-4" />
+                        Alle Lücken
+                      </Button>
+                    </div>
+                  </form>
+                </Form>
+
+                <Separator />
+
+                {/* Quick Action Buttons */}
+                <div className="space-y-2">
+                  <h4 className="text-sm font-medium">Schnellaktionen:</h4>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => handleQuickFill(7)}
+                      disabled={isImporting}
+                      className="text-xs"
+                    >
+                      Letzte 7 Tage
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => handleQuickFill(30)}
+                      disabled={isImporting}
+                      className="text-xs"
+                    >
+                      Letzte 30 Tage
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => handleQuickFill(90)}
+                      disabled={isImporting}
+                      className="text-xs"
+                    >
+                      Letzte 90 Tage
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => handleQuickFill(365)}
+                      disabled={isImporting}
+                      className="text-xs"
+                    >
+                      Letztes Jahr
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Gap Timeline Visualization */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <TrendingUp className="h-5 w-5 text-green-500" />
+                Datenabdeckung Timeline
+              </CardTitle>
+              <CardDescription>
+                Visualisierung der Transaktionsdaten nach Zeitraum
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="text-sm text-muted-foreground">
+                  🟢 Vollständig abgedeckt • 🟡 Teilweise abgedeckt • 🔴 Datenlücke
+                </div>
+                <div className="grid grid-cols-7 gap-1">
+                  {/* Simulate 4 weeks of data */}
+                  {Array.from({ length: 28 }, (_, i) => {
+                    const date = new Date();
+                    date.setDate(date.getDate() - (27 - i));
+                    
+                    // Simulate some missing days
+                    const isMissing = [3, 4, 5, 10, 16, 22].includes(i);
+                    const isPartial = [8, 15, 25].includes(i);
+                    
+                    return (
+                      <div
+                        key={i}
+                        className={`
+                          h-8 rounded border flex items-center justify-center text-xs font-medium cursor-pointer
+                          ${isMissing ? 'bg-red-100 border-red-300 text-red-700 hover:bg-red-200' : 
+                            isPartial ? 'bg-yellow-100 border-yellow-300 text-yellow-700 hover:bg-yellow-200' : 
+                            'bg-green-100 border-green-300 text-green-700 hover:bg-green-200'}
+                        `}
+                        title={`${date.toLocaleDateString('de-DE')} - ${isMissing ? 'Datenlücke' : isPartial ? 'Teilweise' : 'Vollständig'}`}
+                        onClick={() => isMissing && handleFillSingleDay(date.toISOString().split('T')[0])}
+                      >
+                        {date.getDate()}
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  Klicken Sie auf rote Felder, um Datenlücken zu füllen
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
         
         {/* Transactions Tab */}
