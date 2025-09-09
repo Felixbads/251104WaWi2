@@ -191,7 +191,7 @@ router.get('/recent-transactions', async (req: Request, res: Response) => {
         machine_id,
         machine_name,
         product_id,
-        name as product_name,
+        product_name,
         datetime,
         price,
         payment_method,
@@ -348,17 +348,17 @@ async function getRecentSyncLogs() {
     SELECT 
       id, 
       sync_type, 
-      start_date, 
-      end_date, 
+      created_at, 
+      start_time, 
+      end_time, 
       items_found, 
       items_saved, 
       duplicates, 
-      errors, 
+      error_count, 
       duration_seconds, 
-      sync_status, 
-      created_at
+      sync_status
     FROM sync_logs
-    WHERE sync_type LIKE 'vendon%'
+    WHERE sync_type LIKE '%vendon%' OR sync_type LIKE '%sync%'
     ORDER BY created_at DESC
     LIMIT 10
   `;
@@ -410,13 +410,14 @@ router.get('/sync-state', async (req: Request, res: Response) => {
     // Hole den letzten Sync-Log Eintrag
     const syncLogQuery = `
       SELECT 
-        operation_type as job_name,
-        updated_at,
-        status,
-        details
+        sync_type,
+        created_at,
+        sync_status,
+        error_message,
+        total_processed
       FROM sync_logs 
-      WHERE operation_type LIKE '%vendon%'
-      ORDER BY updated_at DESC 
+      WHERE sync_type LIKE '%vendon%' OR sync_type LIKE '%transaction%'
+      ORDER BY created_at DESC 
       LIMIT 1
     `;
     
@@ -434,12 +435,12 @@ router.get('/sync-state', async (req: Request, res: Response) => {
     if (syncLogResult.rows.length > 0) {
       const log = syncLogResult.rows[0];
       syncState = {
-        status: log.status === 'SUCCESS' ? 'completed' : (log.status === 'ERROR' ? 'error' : 'in_progress'),
-        jobName: log.job_name || 'vendon-sync',
-        lastDate: log.updated_at,
-        lastOffset: 0,
-        updatedAt: log.updated_at,
-        message: log.details || 'Sync erfolgreich'
+        status: log.sync_status === 'completed' ? 'completed' : (log.sync_status === 'error' ? 'error' : 'in_progress'),
+        jobName: log.sync_type || 'vendon-sync',
+        lastDate: log.created_at,
+        lastOffset: parseInt(log.total_processed) || 0,
+        updatedAt: log.created_at,
+        message: log.error_message || 'Sync erfolgreich'
       };
     }
     
