@@ -2091,6 +2091,16 @@ app.get('/orders-data', (req, res) => {
   // ✅ UNIFIED VENDON SYNC SYSTEM - AKTIVIERT UND KONSOLIDIERT
   console.log('[SERVER] ✅ Unified Vendon Sync System aktiviert - alle konkurrierenden Services deaktiviert');
   console.log('[SERVER] ✅ Zentraler Vendon Service ist jetzt der einzige aktive Sync-Service');
+
+  // ✅ TRANSACTION GAP MONITORING & RECOVERY SYSTEM - INITIALISIERUNG
+  try {
+    const { monitoringSystemInitializer } = await import('./services/MonitoringSystemInitializer');
+    await monitoringSystemInitializer.start();
+    console.log('[SERVER] ✅ Transaction Gap Monitoring & Recovery System gestartet - Gap Detection & Smart Recovery aktiv');
+  } catch (error) {
+    console.error('[SERVER] ❌ Fehler beim Starten des Monitoring Systems:', error);
+    console.log('[SERVER] ⚠️ Transaction Gap Monitoring System konnte nicht gestartet werden');
+  }
   
   // IMMEDIATE TEST EMAIL ROUTE - Direct SMTP test to resolve authentication failure
   app.post('/api/test-email-immediate', async (req, res) => {
