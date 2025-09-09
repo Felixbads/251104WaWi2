@@ -98,6 +98,207 @@ export const backfillOptionsSchema = z.object({
 
 export type BackfillOptions = z.infer<typeof backfillOptionsSchema>;
 
+// Transaction Gap Detection - Tabelle für erkannte Transaktionslücken
+export const transactionGaps = pgTable("transaction_gaps", {
+  id: serial("id").primaryKey(),
+  machineId: integer("machine_id").references(() => machines.id),
+  vendonMachineId: text("vendon_machine_id"), // Vendon Machine ID als Text
+  machineName: text("machine_name"),
+  
+  // Gap Details
+  gapStart: timestamp("gap_start").notNull(),
+  gapEnd: timestamp("gap_end").notNull(),
+  gapDurationHours: real("gap_duration_hours").notNull(),
+  expectedTransactions: integer("expected_transactions"), // Geschätzte fehlende Transaktionen
+  severity: text("severity").notNull().default("medium"), // low, medium, high, critical
+  
+  // Status and Resolution
+  status: text("status").notNull().default("detected"), // detected, investigating, recovering, resolved, ignored
+  recoveryAttempts: integer("recovery_attempts").default(0),
+  lastRecoveryAttempt: timestamp("last_recovery_attempt"),
+  resolvedAt: timestamp("resolved_at"),
+  resolvedBy: integer("resolved_by").references(() => users.id),
+  
+  // Detection Details
+  detectionMethod: text("detection_method").notNull(), // automatic, manual
+  detectedBy: text("detected_by"), // system component or user
+  notes: text("notes"),
+  
+  // Metadata
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertTransactionGapSchema = createInsertSchema(transactionGaps).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertTransactionGap = z.infer<typeof insertTransactionGapSchema>;
+export type TransactionGap = typeof transactionGaps.$inferSelect;
+
+// Recovery Jobs - Tabelle für automatische Datenwiederherstellungsjobs
+export const recoveryJobs = pgTable("recovery_jobs", {
+  id: serial("id").primaryKey(),
+  jobType: text("job_type").notNull(), // transaction_backfill, gap_recovery, data_validation
+  
+  // Target Information
+  machineId: integer("machine_id").references(() => machines.id),
+  vendonMachineId: text("vendon_machine_id"),
+  machineName: text("machine_name"),
+  
+  // Time Range
+  startDate: timestamp("start_date").notNull(),
+  endDate: timestamp("end_date").notNull(),
+  
+  // Job Configuration
+  priority: text("priority").notNull().default("normal"), // low, normal, high, urgent
+  batchSize: integer("batch_size").default(100),
+  maxRetries: integer("max_retries").default(3),
+  
+  // Status and Progress
+  status: text("status").notNull().default("pending"), // pending, running, completed, failed, cancelled
+  progress: real("progress").default(0), // 0-100%
+  itemsProcessed: integer("items_processed").default(0),
+  itemsTotal: integer("items_total").default(0),
+  itemsSuccessful: integer("items_successful").default(0),
+  itemsFailed: integer("items_failed").default(0),
+  
+  // Execution Details
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  lastHeartbeat: timestamp("last_heartbeat"),
+  executorId: text("executor_id"), // Process/Worker ID
+  
+  // Error Handling
+  retryCount: integer("retry_count").default(0),
+  lastError: text("last_error"),
+  errorDetails: text("error_details"), // JSON with detailed error info
+  
+  // Results
+  result: text("result"), // JSON with job results
+  logs: text("logs"), // Execution logs
+  
+  // Relationships
+  triggeredByGapId: integer("triggered_by_gap_id").references(() => transactionGaps.id),
+  triggeredBy: integer("triggered_by").references(() => users.id),
+  
+  // Metadata
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertRecoveryJobSchema = createInsertSchema(recoveryJobs).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertRecoveryJob = z.infer<typeof insertRecoveryJobSchema>;
+export type RecoveryJob = typeof recoveryJobs.$inferSelect;
+
+// Sync Health Logs - Erweiterte Gesundheitsüberwachung
+export const syncHealthLogs = pgTable("sync_health_logs", {
+  id: serial("id").primaryKey(),
+  
+  // Health Check Details
+  checkType: text("check_type").notNull(), // api_connectivity, data_consistency, gap_detection, performance
+  component: text("component").notNull(), // vendon_api, database, sync_service, scheduler
+  
+  // Timing
+  timestamp: timestamp("timestamp").defaultNow().notNull(),
+  checkDurationMs: integer("check_duration_ms"),
+  
+  // Status
+  status: text("status").notNull(), // healthy, warning, critical, unknown
+  severity: text("severity").notNull().default("info"), // info, warning, error, critical
+  
+  // Health Metrics
+  responseTime: integer("response_time"), // in ms
+  errorRate: real("error_rate"), // 0-1
+  dataQualityScore: real("data_quality_score"), // 0-100
+  uptimePercentage: real("uptime_percentage"), // 0-100
+  
+  // Details
+  message: text("message").notNull(),
+  details: text("details"), // JSON with detailed metrics
+  metrics: text("metrics"), // JSON with performance metrics
+  
+  // Context
+  machineId: integer("machine_id").references(() => machines.id),
+  vendonMachineId: text("vendon_machine_id"),
+  
+  // Resolution
+  resolved: boolean("resolved").default(false),
+  resolvedAt: timestamp("resolved_at"),
+  resolvedBy: integer("resolved_by").references(() => users.id),
+  
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertSyncHealthLogSchema = createInsertSchema(syncHealthLogs).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertSyncHealthLog = z.infer<typeof insertSyncHealthLogSchema>;
+export type SyncHealthLog = typeof syncHealthLogs.$inferSelect;
+
+// Data Quality Metrics - Kontinuierliche Qualitätsmessung
+export const dataQualityMetrics = pgTable("data_quality_metrics", {
+  id: serial("id").primaryKey(),
+  
+  // Metric Details
+  metricType: text("metric_type").notNull(), // completeness, accuracy, consistency, timeliness
+  entityType: text("entity_type").notNull(), // transactions, machines, products
+  
+  // Time Period
+  measurementDate: date("measurement_date").notNull(),
+  measurementHour: integer("measurement_hour"), // 0-23 for hourly metrics
+  
+  // Quality Scores (0-100)
+  completenessScore: real("completeness_score"),
+  accuracyScore: real("accuracy_score"),
+  consistencyScore: real("consistency_score"),
+  timelinessScore: real("timeliness_score"),
+  overallScore: real("overall_score").notNull(),
+  
+  // Raw Metrics
+  totalRecords: integer("total_records"),
+  validRecords: integer("valid_records"),
+  invalidRecords: integer("invalid_records"),
+  missingRecords: integer("missing_records"),
+  duplicateRecords: integer("duplicate_records"),
+  
+  // Specific to entity type
+  machineId: integer("machine_id").references(() => machines.id),
+  vendonMachineId: text("vendon_machine_id"),
+  
+  // Calculation Details
+  calculationMethod: text("calculation_method"),
+  samplingSize: integer("sampling_size"),
+  confidenceLevel: real("confidence_level"),
+  
+  // Metadata
+  details: text("details"), // JSON with detailed breakdown
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  // Index für effiziente Abfragen
+  metricDateTypeIdx: index("data_quality_metrics_date_type_idx")
+    .on(table.measurementDate, table.metricType, table.entityType),
+  machineMetricIdx: index("data_quality_metrics_machine_idx")
+    .on(table.machineId, table.measurementDate),
+}));
+
+export const insertDataQualityMetricsSchema = createInsertSchema(dataQualityMetrics).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertDataQualityMetrics = z.infer<typeof insertDataQualityMetricsSchema>;
+export type DataQualityMetrics = typeof dataQualityMetrics.$inferSelect;
+
 // Updated users table with more fields
 // Suppliers table
 export const suppliers = pgTable("suppliers", {
