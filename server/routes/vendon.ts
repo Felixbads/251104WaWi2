@@ -1251,7 +1251,17 @@ router.get('/sync-stats', async (req: Request, res: Response) => {
       sum + parseInt(row.transaction_count), 0
     );
 
-    const activeMachines = watermarkResult.rows.length;
+    // ✅ KORREKTUR: Verwende echte aktive Maschinen statt nur Watermarks
+    // Alte Berechnung: const activeMachines = watermarkResult.rows.length; // Nur 5 Maschinen mit Watermarks
+    
+    // Neue Berechnung: Maschinen mit Transaktionen in den letzten 7 Tagen
+    const activeMachinesQuery = `
+      SELECT COUNT(DISTINCT machine_id) as active_count
+      FROM transactions 
+      WHERE datetime >= NOW() - INTERVAL '7 days'
+    `;
+    const activeMachinesCountResult = await rawDb.query(activeMachinesQuery);
+    const activeMachines = parseInt(activeMachinesCountResult.rows[0].active_count) || 0;
     const machinesWithData = transactionResult.rows.length;
     const recentActivity = recentWatermarkUpdates.length;
 
@@ -1293,7 +1303,7 @@ router.get('/sync-stats', async (req: Request, res: Response) => {
       }
     };
 
-    console.log(`📊 Sync Stats: ${totalTransactions} Transaktionen, ${activeMachines} Maschinen, ${recentActivity} aktive`);
+    console.log(`📊 Sync Stats: ${totalTransactions} Transaktionen, ${activeMachines} aktive Maschinen (${watermarkResult.rows.length} mit Watermarks), ${recentActivity} kürzlich aktiv`);
     
     res.json({
       success: true,
