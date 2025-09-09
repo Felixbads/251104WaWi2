@@ -65,40 +65,64 @@ router.post('/', async (req: Request, res: Response) => {
  */
 router.get('/status', async (req: Request, res: Response) => {
   try {
-    // SQL-Abfrage für den letzten Sync-Status
-    const syncStateQuery = await pool.query(
-      `SELECT * FROM sync_state WHERE job_name = 'vendon_history_import' LIMIT 1`
-    );
-    
-    // SQL-Abfrage für den letzten Sync-Log
+    // SQL-Abfrage für den letzten Sync-Log mit korrekten Spalten
     const syncLogQuery = await pool.query(
-      `SELECT * FROM sync_logs WHERE sync_type = 'vendon_history_import' 
-       ORDER BY id DESC LIMIT 1`
+      `SELECT 
+        id, sync_type, created_at, sync_status, 
+        start_time, end_time, duration_seconds,
+        items_found, items_saved, duplicates, 
+        error_count, total_processed, error_message
+      FROM sync_logs 
+      WHERE sync_type LIKE '%vendon%' OR sync_type LIKE '%history%'
+      ORDER BY created_at DESC 
+      LIMIT 1`
     );
     
-    const syncState = syncStateQuery.rows[0] || null;
-    const syncLog = syncLogQuery.rows[0] || null;
+    // Transaktionsstatistiken 
+    const statsQuery = await pool.query(
+      `SELECT 
+        COUNT(*) as total_transactions,
+        MIN(datetime) as earliest_transaction,
+        MAX(datetime) as latest_transaction,
+        COUNT(DISTINCT DATE(datetime)) as days_with_data
+      FROM transactions`
+    );
     
-    // Aktuelle Statistik aus sync_logs und sync_state zusammenführen
+    const syncLog = syncLogQuery.rows[0] || null;
+    const stats = statsQuery.rows[0] || null;
+    
+    // Berechne Import-Fortschritt (vereinfacht)
+    let progressPercentage = 0;
+    if (stats && stats.earliest_transaction && stats.latest_transaction) {
+      const totalDays = Math.ceil(
+        (new Date(stats.latest_transaction) - new Date(stats.earliest_transaction)) / (1000 * 60 * 60 * 24)
+      );
+      const daysWithData = parseInt(stats.days_with_data) || 0;
+      progressPercentage = totalDays > 0 ? Math.round((daysWithData / totalDays) * 100) : 0;
+    }
+    
     const status = {
       lastRun: syncLog ? {
         id: syncLog.id,
-        status: syncLog.sync_status,
-        startDate: syncLog.start_date,
-        endDate: syncLog.end_date,
+        status: syncLog.sync_status || 'unknown',
+        startTime: syncLog.start_time,
+        endTime: syncLog.end_time,
         durationSeconds: syncLog.duration_seconds,
-        itemsFound: syncLog.items_found,
-        itemsSaved: syncLog.items_saved,
-        duplicates: syncLog.duplicates,
-        errors: syncLog.errors,
-        additionalData: syncLog.additional_data
+        itemsFound: syncLog.items_found || 0,
+        itemsSaved: syncLog.items_saved || 0,
+        duplicates: syncLog.duplicates || 0,
+        errorCount: syncLog.error_count || 0,
+        totalProcessed: syncLog.total_processed || 0,
+        errorMessage: syncLog.error_message,
+        createdAt: syncLog.created_at
       } : null,
-      cursor: syncState ? {
-        lastDate: syncState.last_date,
-        lastOffset: syncState.last_offset,
-        lastId: syncState.last_id,
-        updatedAt: syncState.updated_at
-      } : null,
+      statistics: {
+        totalTransactions: parseInt(stats?.total_transactions) || 0,
+        earliestTransaction: stats?.earliest_transaction,
+        latestTransaction: stats?.latest_transaction,
+        daysWithData: parseInt(stats?.days_with_data) || 0,
+        progressPercentage: progressPercentage
+      },
       isRunning: syncLog && syncLog.sync_status === 'running'
     };
     
