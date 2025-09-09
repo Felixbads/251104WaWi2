@@ -1310,4 +1310,611 @@ router.get('/sync-stats', async (req: Request, res: Response) => {
   }
 });
 
+// ============================================================================
+// MONITORING & RECOVERY API ENDPOINTS
+// ============================================================================
+
+// Importiere Monitoring Services
+import { transactionMonitoringService } from '../services/TransactionMonitoringService';
+import { gapDetectionService } from '../services/GapDetectionService';
+import { smartRecoveryService } from '../services/SmartRecoveryService';
+import { alertingService } from '../services/AlertingService';
+
+/**
+ * Dashboard-Übersicht für Monitoring System
+ */
+router.get('/monitoring/dashboard', async (req, res) => {
+  try {
+    console.log('[Monitoring-API] Dashboard-Daten werden abgerufen...');
+
+    // Parallele Abfrage aller Dashboard-relevanten Daten
+    const [
+      transactionStats,
+      gapStats,
+      recoveryStats,
+      alertStats,
+      healthStatus,
+      recentActivity
+    ] = await Promise.all([
+      getTransactionStatistics(),
+      getGapStatistics(),
+      getRecoveryStatistics(),
+      getAlertStatistics(),
+      getSystemHealthStatus(),
+      getRecentActivity()
+    ]);
+
+    const dashboardData = {
+      summary: {
+        status: healthStatus.overallStatus,
+        lastUpdate: new Date(),
+        activeIssues: alertStats.activeAlerts,
+        systemHealth: healthStatus.score
+      },
+      transactions: transactionStats,
+      gaps: gapStats,
+      recovery: recoveryStats,
+      alerts: alertStats,
+      health: healthStatus,
+      recentActivity
+    };
+
+    res.json({
+      success: true,
+      data: dashboardData
+    });
+
+  } catch (error) {
+    console.error('[Monitoring-API] Fehler beim Abrufen der Dashboard-Daten:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Fehler beim Abrufen der Dashboard-Daten',
+      error: error instanceof Error ? error.message : String(error)
+    });
+  }
+});
+
+/**
+ * Transaction Gap Analysis - Detaillierte Lückenanalyse
+ */
+router.get('/monitoring/gaps', async (req, res) => {
+  try {
+    const { 
+      startDate, 
+      endDate, 
+      machineId, 
+      severity,
+      status = 'all',
+      limit = 100,
+      offset = 0 
+    } = req.query;
+
+    console.log('[Monitoring-API] Gap-Analyse wird durchgeführt...');
+
+    // Baue WHERE-Bedingungen auf
+    const conditions = [];
+    if (startDate) conditions.push(gte(transactionGaps.gapStart, new Date(startDate as string)));
+    if (endDate) conditions.push(lte(transactionGaps.gapEnd, new Date(endDate as string)));
+    if (machineId) conditions.push(eq(transactionGaps.machineId, parseInt(machineId as string)));
+    if (severity) conditions.push(eq(transactionGaps.severity, severity as string));
+    if (status !== 'all') conditions.push(eq(transactionGaps.status, status as string));
+
+    // Hole Gap-Daten mit Paginierung
+    const gaps = await db
+      .select({
+        id: transactionGaps.id,
+        machineId: transactionGaps.machineId,
+        machineName: transactionGaps.machineName,
+        vendonMachineId: transactionGaps.vendonMachineId,
+        gapStart: transactionGaps.gapStart,
+        gapEnd: transactionGaps.gapEnd,
+        gapDurationHours: transactionGaps.gapDurationHours,
+        expectedTransactions: transactionGaps.expectedTransactions,
+        severity: transactionGaps.severity,
+        status: transactionGaps.status,
+        detectionMethod: transactionGaps.detectionMethod,
+        detectedAt: transactionGaps.detectedAt,
+        resolvedAt: transactionGaps.resolvedAt,
+        notes: transactionGaps.notes
+      })
+      .from(transactionGaps)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(desc(transactionGaps.detectedAt))
+      .limit(parseInt(limit as string))
+      .offset(parseInt(offset as string));
+
+    // Zähle Gesamt-Anzahl
+    const totalCount = await db
+      .select({ count: count() })
+      .from(transactionGaps)
+      .where(conditions.length > 0 ? and(...conditions) : undefined);
+
+    // Gruppiere nach Schweregrad
+    const severityStats = await db
+      .select({
+        severity: transactionGaps.severity,
+        count: count(),
+        avgDuration: sql<number>`AVG(${transactionGaps.gapDurationHours})`
+      })
+      .from(transactionGaps)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .groupBy(transactionGaps.severity);
+
+    res.json({
+      success: true,
+      data: {
+        gaps,
+        pagination: {
+          total: totalCount[0]?.count || 0,
+          limit: parseInt(limit as string),
+          offset: parseInt(offset as string),
+          hasMore: (parseInt(offset as string) + gaps.length) < (totalCount[0]?.count || 0)
+        },
+        statistics: {
+          severityBreakdown: severityStats,
+          totalGaps: totalCount[0]?.count || 0
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('[Monitoring-API] Fehler bei Gap-Analyse:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Fehler bei Gap-Analyse',
+      error: error instanceof Error ? error.message : String(error)
+    });
+  }
+});
+
+/**
+ * Recovery Jobs Status - Übersicht und Management
+ */
+router.get('/monitoring/recovery-jobs', async (req, res) => {
+  try {
+    const { 
+      status = 'all',
+      priority,
+      machineId,
+      limit = 50,
+      offset = 0 
+    } = req.query;
+
+    console.log('[Monitoring-API] Recovery Jobs werden abgerufen...');
+
+    // Baue WHERE-Bedingungen auf
+    const conditions = [];
+    if (status !== 'all') conditions.push(eq(recoveryJobs.status, status as string));
+    if (priority) conditions.push(eq(recoveryJobs.priority, priority as string));
+    if (machineId) conditions.push(eq(recoveryJobs.machineId, parseInt(machineId as string)));
+
+    // Hole Recovery Jobs
+    const jobs = await db
+      .select()
+      .from(recoveryJobs)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(
+        sql`CASE 
+          WHEN priority = 'urgent' THEN 1 
+          WHEN priority = 'high' THEN 2 
+          WHEN priority = 'normal' THEN 3 
+          ELSE 4 
+        END`,
+        desc(recoveryJobs.createdAt)
+      )
+      .limit(parseInt(limit as string))
+      .offset(parseInt(offset as string));
+
+    // Gesamt-Anzahl
+    const totalCount = await db
+      .select({ count: count() })
+      .from(recoveryJobs)
+      .where(conditions.length > 0 ? and(...conditions) : undefined);
+
+    // Job-Status-Statistiken
+    const statusStats = await db
+      .select({
+        status: recoveryJobs.status,
+        count: count()
+      })
+      .from(recoveryJobs)
+      .groupBy(recoveryJobs.status);
+
+    res.json({
+      success: true,
+      data: {
+        jobs,
+        pagination: {
+          total: totalCount[0]?.count || 0,
+          limit: parseInt(limit as string),
+          offset: parseInt(offset as string),
+          hasMore: (parseInt(offset as string) + jobs.length) < (totalCount[0]?.count || 0)
+        },
+        statistics: {
+          statusBreakdown: statusStats,
+          totalJobs: totalCount[0]?.count || 0
+        },
+        activeJobs: smartRecoveryService.getActiveJobs()
+      }
+    });
+
+  } catch (error) {
+    console.error('[Monitoring-API] Fehler beim Abrufen der Recovery Jobs:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Fehler beim Abrufen der Recovery Jobs',
+      error: error instanceof Error ? error.message : String(error)
+    });
+  }
+});
+
+/**
+ * System Health Status - Gesundheitsüberwachung
+ */
+router.get('/monitoring/health', async (req, res) => {
+  try {
+    const { timeframe = '24h' } = req.query;
+    
+    console.log('[Monitoring-API] System Health wird abgerufen...');
+
+    // Berechne Zeitraum
+    const hours = timeframe === '24h' ? 24 : timeframe === '7d' ? 168 : 24;
+    const startTime = new Date(Date.now() - hours * 60 * 60 * 1000);
+
+    // Hole Health Logs
+    const healthLogs = await db
+      .select()
+      .from(syncHealthLogs)
+      .where(gte(syncHealthLogs.checkTime, startTime))
+      .orderBy(desc(syncHealthLogs.checkTime))
+      .limit(200);
+
+    // Gruppiere nach Komponenten
+    const componentHealth = await db
+      .select({
+        component: syncHealthLogs.component,
+        latestStatus: sql<string>`MAX(${syncHealthLogs.status})`,
+        lastCheck: sql<Date>`MAX(${syncHealthLogs.checkTime})`,
+        issueCount: sql<number>`COUNT(CASE WHEN ${syncHealthLogs.status} != 'healthy' THEN 1 END)`
+      })
+      .from(syncHealthLogs)
+      .where(gte(syncHealthLogs.checkTime, startTime))
+      .groupBy(syncHealthLogs.component);
+
+    // Service-Statistiken
+    const serviceStats = {
+      transactionMonitoring: transactionMonitoringService.getServiceStats(),
+      smartRecovery: smartRecoveryService.getServiceStats(),
+      alerting: alertingService.getServiceStats()
+    };
+
+    // Berechne Overall Health Score
+    const healthScore = calculateOverallHealthScore(componentHealth, serviceStats);
+
+    res.json({
+      success: true,
+      data: {
+        overallScore: healthScore.score,
+        status: healthScore.status,
+        components: componentHealth,
+        services: serviceStats,
+        recentLogs: healthLogs.slice(0, 50),
+        summary: {
+          totalChecks: healthLogs.length,
+          issuesDetected: healthLogs.filter(log => log.status !== 'healthy').length,
+          lastUpdate: new Date()
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('[Monitoring-API] Fehler beim Abrufen der System Health:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Fehler beim Abrufen der System Health',
+      error: error instanceof Error ? error.message : String(error)
+    });
+  }
+});
+
+/**
+ * Alerts Management - Aktive Benachrichtigungen
+ */
+router.get('/monitoring/alerts', async (req, res) => {
+  try {
+    const { acknowledged = 'all', severity } = req.query;
+
+    console.log('[Monitoring-API] Alerts werden abgerufen...');
+
+    // Hole aktive Alerts vom AlertingService
+    let alerts = alertingService.getActiveAlerts();
+
+    // Filtere nach Parametern
+    if (acknowledged === 'true') {
+      alerts = alerts.filter(alert => alert.acknowledged);
+    } else if (acknowledged === 'false') {
+      alerts = alerts.filter(alert => !alert.acknowledged);
+    }
+
+    if (severity) {
+      alerts = alerts.filter(alert => alert.severity === severity);
+    }
+
+    // Service-Statistiken
+    const alertStats = alertingService.getServiceStats();
+
+    res.json({
+      success: true,
+      data: {
+        alerts,
+        statistics: alertStats,
+        summary: {
+          totalActive: alerts.length,
+          unacknowledged: alerts.filter(a => !a.acknowledged).length,
+          critical: alerts.filter(a => a.severity === 'critical').length,
+          lastUpdate: new Date()
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('[Monitoring-API] Fehler beim Abrufen der Alerts:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Fehler beim Abrufen der Alerts',
+      error: error instanceof Error ? error.message : String(error)
+    });
+  }
+});
+
+/**
+ * Manuelle Gap-Detection ausführen
+ */
+router.post('/monitoring/detect-gaps', async (req, res) => {
+  try {
+    const { startTime, endTime, machineIds } = req.body;
+
+    console.log('[Monitoring-API] Manuelle Gap-Detection gestartet...');
+
+    const result = await gapDetectionService.performComprehensiveGapAnalysis(
+      startTime ? new Date(startTime) : undefined,
+      endTime ? new Date(endTime) : undefined,
+      machineIds
+    );
+
+    res.json({
+      success: true,
+      data: result,
+      message: `${result.newGaps.length} neue Lücken gefunden in ${Math.round(result.analysisTimeMs / 1000)}s`
+    });
+
+  } catch (error) {
+    console.error('[Monitoring-API] Fehler bei manueller Gap-Detection:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Fehler bei Gap-Detection',
+      error: error instanceof Error ? error.message : String(error)
+    });
+  }
+});
+
+/**
+ * Recovery Job manuell erstellen
+ */
+router.post('/monitoring/create-recovery-job', async (req, res) => {
+  try {
+    const {
+      jobType,
+      machineId,
+      vendonMachineId,
+      machineName,
+      startDate,
+      endDate,
+      priority = 'normal'
+    } = req.body;
+
+    console.log('[Monitoring-API] Recovery Job wird erstellt...');
+
+    const jobId = await smartRecoveryService.createRecoveryJob(
+      jobType,
+      machineId,
+      vendonMachineId,
+      machineName,
+      new Date(startDate),
+      new Date(endDate),
+      priority
+    );
+
+    res.json({
+      success: true,
+      data: { jobId },
+      message: `Recovery Job ${jobId} erfolgreich erstellt`
+    });
+
+  } catch (error) {
+    console.error('[Monitoring-API] Fehler beim Erstellen des Recovery Jobs:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Fehler beim Erstellen des Recovery Jobs',
+      error: error instanceof Error ? error.message : String(error)
+    });
+  }
+});
+
+/**
+ * Alert bestätigen
+ */
+router.post('/monitoring/alerts/:alertId/acknowledge', async (req, res) => {
+  try {
+    const { alertId } = req.params;
+    const { acknowledgedBy = 'user' } = req.body;
+
+    console.log(`[Monitoring-API] Alert ${alertId} wird bestätigt...`);
+
+    const success = await alertingService.acknowledgeAlert(alertId, acknowledgedBy);
+
+    if (success) {
+      res.json({
+        success: true,
+        message: 'Alert erfolgreich bestätigt'
+      });
+    } else {
+      res.status(404).json({
+        success: false,
+        message: 'Alert nicht gefunden'
+      });
+    }
+
+  } catch (error) {
+    console.error('[Monitoring-API] Fehler beim Bestätigen des Alerts:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Fehler beim Bestätigen des Alerts',
+      error: error instanceof Error ? error.message : String(error)
+    });
+  }
+});
+
+// ============================================================================
+// HELPER FUNCTIONS FÜR MONITORING DASHBOARD
+// ============================================================================
+
+async function getTransactionStatistics() {
+  const last24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const last7d = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+  const [today, yesterday, week] = await Promise.all([
+    db.select({ count: count() }).from(transactions)
+      .where(gte(transactions.datetime, last24h)),
+    db.select({ count: count() }).from(transactions)
+      .where(and(
+        gte(transactions.datetime, new Date(last24h.getTime() - 24 * 60 * 60 * 1000)),
+        lt(transactions.datetime, last24h)
+      )),
+    db.select({ count: count() }).from(transactions)
+      .where(gte(transactions.datetime, last7d))
+  ]);
+
+  return {
+    last24h: today[0]?.count || 0,
+    previous24h: yesterday[0]?.count || 0,
+    last7d: week[0]?.count || 0,
+    trend: ((today[0]?.count || 0) - (yesterday[0]?.count || 0)) / Math.max(yesterday[0]?.count || 1, 1) * 100
+  };
+}
+
+async function getGapStatistics() {
+  const [open, recent, critical] = await Promise.all([
+    db.select({ count: count() }).from(transactionGaps)
+      .where(eq(transactionGaps.status, 'detected')),
+    db.select({ count: count() }).from(transactionGaps)
+      .where(gte(transactionGaps.detectedAt, new Date(Date.now() - 24 * 60 * 60 * 1000))),
+    db.select({ count: count() }).from(transactionGaps)
+      .where(and(
+        eq(transactionGaps.severity, 'critical'),
+        eq(transactionGaps.status, 'detected')
+      ))
+  ]);
+
+  return {
+    openGaps: open[0]?.count || 0,
+    recentGaps: recent[0]?.count || 0,
+    criticalGaps: critical[0]?.count || 0
+  };
+}
+
+async function getRecoveryStatistics() {
+  const [pending, running, failed] = await Promise.all([
+    db.select({ count: count() }).from(recoveryJobs)
+      .where(eq(recoveryJobs.status, 'pending')),
+    db.select({ count: count() }).from(recoveryJobs)
+      .where(eq(recoveryJobs.status, 'running')),
+    db.select({ count: count() }).from(recoveryJobs)
+      .where(eq(recoveryJobs.status, 'failed'))
+  ]);
+
+  return {
+    pendingJobs: pending[0]?.count || 0,
+    runningJobs: running[0]?.count || 0,
+    failedJobs: failed[0]?.count || 0,
+    activeJobs: smartRecoveryService.getActiveJobs().length
+  };
+}
+
+function getAlertStatistics() {
+  return alertingService.getServiceStats();
+}
+
+async function getSystemHealthStatus() {
+  const recentLogs = await db
+    .select()
+    .from(syncHealthLogs)
+    .where(gte(syncHealthLogs.checkTime, new Date(Date.now() - 60 * 60 * 1000)))
+    .orderBy(desc(syncHealthLogs.checkTime))
+    .limit(10);
+
+  const criticalIssues = recentLogs.filter(log => log.status === 'critical').length;
+  const warningIssues = recentLogs.filter(log => log.status === 'warning').length;
+
+  let overallStatus = 'healthy';
+  let score = 100;
+
+  if (criticalIssues > 0) {
+    overallStatus = 'critical';
+    score = Math.max(0, 100 - criticalIssues * 20);
+  } else if (warningIssues > 2) {
+    overallStatus = 'warning';
+    score = Math.max(60, 100 - warningIssues * 10);
+  }
+
+  return {
+    overallStatus,
+    score,
+    criticalIssues,
+    warningIssues,
+    recentLogs: recentLogs.slice(0, 5)
+  };
+}
+
+async function getRecentActivity() {
+  const last1h = new Date(Date.now() - 60 * 60 * 1000);
+
+  const [transactions, gaps, recoveryJobs] = await Promise.all([
+    db.select({ count: count() }).from(transactions)
+      .where(gte(transactions.datetime, last1h)),
+    db.select({ count: count() }).from(transactionGaps)
+      .where(gte(transactionGaps.detectedAt, last1h)),
+    db.select({ count: count() }).from(recoveryJobs)
+      .where(gte(recoveryJobs.createdAt, last1h))
+  ]);
+
+  return {
+    newTransactions: transactions[0]?.count || 0,
+    newGaps: gaps[0]?.count || 0,
+    newRecoveryJobs: recoveryJobs[0]?.count || 0
+  };
+}
+
+function calculateOverallHealthScore(componentHealth: any[], serviceStats: any) {
+  let totalScore = 100;
+  
+  // Reduziere Score basierend auf Component Health
+  componentHealth.forEach(component => {
+    if (component.latestStatus === 'critical') totalScore -= 20;
+    else if (component.latestStatus === 'warning') totalScore -= 10;
+  });
+
+  // Reduziere Score basierend auf Service-Status
+  if (!serviceStats.transactionMonitoring.isRunning) totalScore -= 15;
+  if (!serviceStats.smartRecovery.isProcessorRunning) totalScore -= 10;
+
+  totalScore = Math.max(0, totalScore);
+
+  let status = 'healthy';
+  if (totalScore < 30) status = 'critical';
+  else if (totalScore < 70) status = 'warning';
+
+  return { score: totalScore, status };
+}
+
 export default router;
