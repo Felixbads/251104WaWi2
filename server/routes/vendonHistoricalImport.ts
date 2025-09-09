@@ -59,11 +59,11 @@ router.post('/', async (req: Request, res: Response) => {
 });
 
 /**
- * @route GET /api/vendon/historical-import/status
+ * @route GET /api/vendon/historical-import/status/:id?
  * @desc Gibt den aktuellen Status des historischen Imports zurück
  * @access Privat (nur Admin)
  */
-router.get('/status', async (req: Request, res: Response) => {
+router.get('/status/:id?', async (req: Request, res: Response) => {
   try {
     // SQL-Abfrage für den letzten Sync-Log mit korrekten Spalten
     const syncLogQuery = await pool.query(
