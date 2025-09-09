@@ -130,6 +130,7 @@ import RevenueExpectations from "@/pages/RevenueExpectations";
 import OrdersOverviewPage from "@/pages/OrdersOverviewPage";
 import SupportTicket from "@/pages/SupportTicket";
 import VendonSync from "@/pages/admin/VendonSync";
+import VendonSyncDashboard from "@/pages/admin/VendonSyncDashboard";
 import RecurringOrdersPage from "@/pages/RecurringOrdersPage";
 import Fuellstaende from "@/pages/Fuellstaende";
 import LocationDetail from "@/pages/LocationDetail";
@@ -732,6 +733,13 @@ function AuthenticatedRouter() {
         <Route path="/admin/vendon-sync" component={props => (
           <AdminRoute>
             <VendonSync {...props} />
+          </AdminRoute>
+        )} />
+
+        {/* Vendon Sync Dashboard für Admins */}
+        <Route path="/admin/vendon-sync-dashboard" component={props => (
+          <AdminRoute>
+            <VendonSyncDashboard {...props} />
           </AdminRoute>
         )} />
 
