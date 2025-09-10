@@ -12,7 +12,7 @@ import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
-import { Mail, Clock, AlertTriangle, Package, TrendingDown, Calendar } from "lucide-react";
+import { Mail, Clock, AlertTriangle, Package, TrendingDown, Calendar, CreditCard, Trash2 } from "lucide-react";
 
 interface EmailNotificationSettings {
   id?: number;
@@ -60,6 +60,22 @@ interface PreviewData {
     lowPerformingMachines: string[];
     averageDailySales: number;
   };
+  // Neue Standort-Warnungen
+  highCashAlerts?: Array<{
+    machineName: string;
+    cashAmount: number;
+    threshold: number;
+  }>;
+  overdueCollections?: Array<{
+    machineName: string;
+    daysOverdue: number;
+    lastCollection: string;
+  }>;
+  machineWarnings?: Array<{
+    machineName: string;
+    warningMessage: string;
+    warningType: string;
+  }>;
 }
 
 export default function MailBenachrichtigungPage() {
@@ -500,6 +516,67 @@ export default function MailBenachrichtigungPage() {
                       </div>
                     </div>
                   </div>
+                )}
+
+                {/* Standort-Warnungen (neu) */}
+                {settings.includeDeliveryAlerts && (
+                  <>
+                    {/* Hohe Bargeldbestände */}
+                    {previewData?.highCashAlerts?.length ? (
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <CreditCard className="h-4 w-4 text-yellow-500" />
+                          <h3 className="font-medium">Hohe Bargeldbestände</h3>
+                          <Badge variant="outline">{previewData.highCashAlerts.length}</Badge>
+                        </div>
+                        <div className="space-y-1 text-sm">
+                          {previewData.highCashAlerts.slice(0, 3).map((alert, idx) => (
+                            <div key={idx} className="p-2 bg-yellow-50 rounded text-yellow-800">
+                              <strong>{alert.machineName}</strong> - €{alert.cashAmount}
+                              <span className="ml-2 text-yellow-600">(Schwelle: €{alert.threshold})</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+
+                    {/* Überfällige Entleerungen */}
+                    {previewData?.overdueCollections?.length ? (
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <Trash2 className="h-4 w-4 text-red-500" />
+                          <h3 className="font-medium">Überfällige Entleerungen</h3>
+                          <Badge variant="outline">{previewData.overdueCollections.length}</Badge>
+                        </div>
+                        <div className="space-y-1 text-sm">
+                          {previewData.overdueCollections.slice(0, 3).map((alert, idx) => (
+                            <div key={idx} className="p-2 bg-red-50 rounded text-red-800">
+                              <strong>{alert.machineName}</strong> - {alert.daysOverdue} Tage überfällig
+                              <span className="ml-2 text-red-600">(letzte Entleerung vor {alert.daysOverdue} Tagen)</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+
+                    {/* System-Warnungen */}
+                    {previewData?.machineWarnings?.length ? (
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <AlertTriangle className="h-4 w-4 text-orange-500" />
+                          <h3 className="font-medium">System-Warnungen</h3>
+                          <Badge variant="outline">{previewData.machineWarnings.length}</Badge>
+                        </div>
+                        <div className="space-y-1 text-sm">
+                          {previewData.machineWarnings.slice(0, 3).map((warning, idx) => (
+                            <div key={idx} className="p-2 bg-orange-50 rounded text-orange-800">
+                              <strong>{warning.machineName}</strong> - {warning.warningMessage}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+                  </>
                 )}
               </div>
             )}
