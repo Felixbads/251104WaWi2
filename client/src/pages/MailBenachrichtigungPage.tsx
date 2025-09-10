@@ -12,7 +12,7 @@ import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
-import { Mail, Clock, AlertTriangle, Package, TrendingDown, Calendar, CreditCard, Trash2, Coins, Wine, Thermometer } from "lucide-react";
+import { Mail, Clock, AlertTriangle, Package, TrendingDown, Calendar, CreditCard, Trash2, Coins, Wine, Thermometer, BarChart3, Euro, TrendingUp } from "lucide-react";
 
 interface EmailNotificationSettings {
   id?: number;
@@ -93,6 +93,34 @@ interface PreviewData {
     optimalRange: string;
     status: string;
   }>;
+  // 🆕 Standort Status KPIs
+  standortStatus?: {
+    lowStockLocations: Array<{
+      locationName: string;
+      lowStockProducts: number;
+      totalProducts: number;
+      stockPercentage: string;
+    }>;
+    highCashLocations: Array<{
+      locationName: string;
+      cashAmount: string;
+      lastEmptied: string;
+      riskLevel: string;
+    }>;
+    mhdStatusOverview: Array<{
+      locationName: string;
+      criticalMhds: number;
+      nearExpiryValue: string;
+      nextExpiryDate: string;
+    }>;
+    sales24hOverview: Array<{
+      locationName: string;
+      sales24h: string;
+      transactionCount: number;
+      avgTransactionValue: string;
+      trend: string;
+    }>;
+  };
 }
 
 export default function MailBenachrichtigungPage() {
@@ -181,7 +209,7 @@ export default function MailBenachrichtigungPage() {
       setSettings(prev => ({
         ...prev,
         ...currentSettings,
-        sendOnWeekdays: currentSettings.sendOnWeekdays || prev.sendOnWeekdays || []
+        sendOnWeekdays: (currentSettings as any).sendOnWeekdays || prev.sendOnWeekdays || []
       }));
     }
   }, [currentSettings]);
@@ -658,6 +686,100 @@ export default function MailBenachrichtigungPage() {
                       </div>
                     ) : null}
                   </>
+                )}
+
+                {/* 🆕 Neue Standort Status KPIs */}
+                {previewData?.standortStatus && (
+                  <div className="space-y-4 p-4 border-2 border-green-200 rounded-lg bg-green-50">
+                    <h3 className="text-lg font-semibold text-green-800 flex items-center gap-2">
+                      <BarChart3 className="h-5 w-5" />
+                      📊 Standort Status KPIs
+                    </h3>
+
+                    {/* Warenbestände unter 80% */}
+                    {previewData.standortStatus.lowStockLocations?.length > 0 && (
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <Package className="h-4 w-4 text-orange-500" />
+                          <h4 className="font-medium">Warenbestände unter 80%</h4>
+                          <Badge variant="outline">{previewData.standortStatus.lowStockLocations.length}</Badge>
+                        </div>
+                        <div className="space-y-1 text-sm">
+                          {previewData.standortStatus.lowStockLocations.slice(0, 3).map((location: any, idx: number) => (
+                            <div key={idx} className="p-2 bg-orange-50 rounded text-orange-800">
+                              <strong>{location.locationName}</strong> - {location.stockPercentage}% Bestand
+                              <span className="ml-2 text-orange-600">
+                                ({location.lowStockProducts} von {location.totalProducts} Produkten kritisch)
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* MHD Status Übersicht */}
+                    {previewData.standortStatus.mhdStatusOverview?.length > 0 && (
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <Calendar className="h-4 w-4 text-red-500" />
+                          <h4 className="font-medium">MHD Status Übersicht</h4>
+                          <Badge variant="outline">{previewData.standortStatus.mhdStatusOverview.length}</Badge>
+                        </div>
+                        <div className="space-y-1 text-sm">
+                          {previewData.standortStatus.mhdStatusOverview.map((status: any, idx: number) => (
+                            <div key={idx} className="p-2 bg-red-50 rounded text-red-800">
+                              <strong>{status.locationName}</strong> - {status.criticalMhds} kritische MHDs
+                              <span className="ml-2 text-red-600">
+                                (Wert: €{status.nearExpiryValue} - Nächstes Ablaufdatum: {status.nextExpiryDate})
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Hohe Geldbestände */}
+                    {previewData.standortStatus.highCashLocations?.length > 0 && (
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <Euro className="h-4 w-4 text-yellow-500" />
+                          <h4 className="font-medium">Hohe Geldbestände &gt;300€</h4>
+                          <Badge variant="outline">{previewData.standortStatus.highCashLocations.length}</Badge>
+                        </div>
+                        <div className="space-y-1 text-sm">
+                          {previewData.standortStatus.highCashLocations.map((location: any, idx: number) => (
+                            <div key={idx} className="p-2 bg-yellow-50 rounded text-yellow-800">
+                              <strong>{location.locationName}</strong> - €{location.cashAmount}
+                              <span className="ml-2 text-yellow-600">
+                                (Risiko: {location.riskLevel} - Letzte Entleerung: {location.lastEmptied})
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 24h Verkäufe */}
+                    {previewData.standortStatus.sales24hOverview?.length > 0 && (
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <TrendingUp className="h-4 w-4 text-green-500" />
+                          <h4 className="font-medium">24h Verkäufe</h4>
+                          <Badge variant="outline">{previewData.standortStatus.sales24hOverview.length}</Badge>
+                        </div>
+                        <div className="space-y-1 text-sm">
+                          {previewData.standortStatus.sales24hOverview.map((sales: any, idx: number) => (
+                            <div key={idx} className="p-2 bg-green-50 rounded text-green-800">
+                              <strong>{sales.locationName}</strong> - €{sales.sales24h}
+                              <span className="ml-2 text-green-600">
+                                ({sales.transactionCount} Transaktionen, ⌀ €{sales.avgTransactionValue}, Trend: {sales.trend})
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
             )}
