@@ -181,7 +181,7 @@ export default function MailBenachrichtigungPage() {
       setSettings(prev => ({
         ...prev,
         ...currentSettings,
-        sendOnWeekdays: currentSettings.sendOnWeekdays || prev.sendOnWeekdays
+        sendOnWeekdays: currentSettings.sendOnWeekdays || prev.sendOnWeekdays || []
       }));
     }
   }, [currentSettings]);
