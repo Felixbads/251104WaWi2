@@ -4,6 +4,7 @@ import {
   emailSettings, 
   emailRecipients, 
   products, 
+  productBatches,
   inventoryItems, 
   orders,
   machines,
@@ -137,83 +138,123 @@ router.get('/preview', async (req, res) => {
     const now = new Date();
     const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
-    // MHD-Warnungen (vereinfacht - zeige Produkte mit niedrigem Bestand)
-    const mhdAlerts = await db
+    // Echte MHD-Warnungen aus product_batches
+    const mhdAlertsResult = await db
       .select({
-        productName: sql<string>`'Beispiel Produkt A'`.as('productName'),
-        expiryDate: sql<string>`'2025-09-15'`.as('expiryDate'),
-        quantity: sql<number>`25`.as('quantity'),
-        location: sql<string>`'Hauptlager'`.as('location'),
-        daysUntilExpiry: sql<number>`5`.as('daysUntilExpiry')
+        productName: products.productName,
+        expiryDate: productBatches.expiryDate,
+        quantity: productBatches.currentQuantity,
+        location: sql<string>`'Lager ' || ${productBatches.warehouseId}`.as('location'),
+        daysUntilExpiry: sql<number>`EXTRACT(DAY FROM (${productBatches.expiryDate}::date - CURRENT_DATE))`.as('daysUntilExpiry')
       })
-      .from(products)
-      .limit(3);
+      .from(productBatches)
+      .innerJoin(products, eq(productBatches.productId, products.id))
+      .where(and(
+        gte(productBatches.expiryDate, sql`CURRENT_DATE`),
+        lte(productBatches.expiryDate, sql`CURRENT_DATE + INTERVAL '30 days'`),
+        sql`${productBatches.currentQuantity} > 0`
+      ))
+      .orderBy(productBatches.expiryDate)
+      .limit(10);
 
-    // Lagerbestands-Warnungen 
-    const stockResult = await db
+    // Echte Lagerbestands-Warnungen aus inventory_items
+    const stockAlertsResult = await db
       .select({
-        totalProducts: count(products.id)
+        productName: products.productName,
+        currentStock: inventoryItems.quantity,
+        minimumStock: inventoryItems.minQuantity,
+        location: sql<string>`'Lager ' || ${inventoryItems.warehouseId}`.as('location')
       })
-      .from(products);
+      .from(inventoryItems)
+      .innerJoin(products, eq(inventoryItems.productId, products.id))
+      .where(and(
+        isNotNull(inventoryItems.minQuantity),
+        sql`${inventoryItems.quantity} <= ${inventoryItems.minQuantity}`
+      ))
+      .orderBy(sql`${inventoryItems.quantity} - ${inventoryItems.minQuantity}`)
+      .limit(10);
 
-    const stockAlerts = [
-      {
-        productName: 'Coca Cola 0,5L',
-        currentStock: 15,
-        minimumStock: 50,
-        location: 'Hauptlager'
-      },
-      {
-        productName: 'Snickers 50g',
-        currentStock: 8,
-        minimumStock: 30,
-        location: 'Hauptlager'
-      }
-    ];
-
-    // Offene Bestellungen
+    // Echte offene Bestellungen
     const pendingOrdersResult = await db
       .select({
         orderNumber: orders.orderNumber,
         supplierName: orders.supplierName,
         expectedDelivery: orders.expectedDeliveryDate,
-        totalAmount: orders.totalAmount
+        orderDate: orders.orderDate,
+        status: orders.status
       })
       .from(orders)
-      .where(eq(orders.status, 'pending'))
-      .orderBy(desc(orders.createdAt))
-      .limit(5);
+      .where(sql`${orders.status} IN ('pending', 'processing', 'ordered')`)
+      .orderBy(desc(orders.orderDate))
+      .limit(8);
 
-    // Kürzliche Lieferungen (letzten 7 Tage)
-    const recentDeliveries = [
-      {
-        orderNumber: 'ORD-2025-0089',
-        supplierName: 'Getränke Schmidt',
-        deliveredDate: '2025-09-08',
-        products: ['Coca Cola', 'Fanta', 'Sprite']
-      }
-    ];
+    // Echte kürzliche Lieferungen (letzten 7 Tage)
+    const recentDeliveriesResult = await db
+      .select({
+        orderNumber: orders.orderNumber,
+        supplierName: orders.supplierName,
+        deliveredDate: orders.actualDeliveryDate,
+        status: orders.status
+      })
+      .from(orders)
+      .where(and(
+        isNotNull(orders.actualDeliveryDate),
+        gte(orders.actualDeliveryDate, sevenDaysAgo)
+      ))
+      .orderBy(desc(orders.actualDeliveryDate))
+      .limit(8);
 
-    // Performance-Metriken
+    // Echte Performance-Metriken aus transactions
+    const revenueResult = await db
+      .select({
+        totalRevenue: sql<number>`COALESCE(SUM(${transactions.amount}), 0)`.as('totalRevenue'),
+        transactionCount: count(transactions.id)
+      })
+      .from(transactions)
+      .where(gte(transactions.transactionDt, thirtyDaysAgo));
+
     const machinesCount = await db
       .select({
         totalMachines: count(machines.id)
       })
       .from(machines);
 
+    // Top und Low-Performing Maschinen (letzten 30 Tage)
+    const machinePerformance = await db
+      .select({
+        machineName: sql<string>`COALESCE(${machines.locationName}, 'Automat ' || ${machines.id})`.as('machineName'),
+        revenue: sql<number>`COALESCE(SUM(${transactions.amount}), 0)`.as('revenue'),
+        transactionCount: count(transactions.id)
+      })
+      .from(machines)
+      .leftJoin(transactions, and(
+        eq(machines.vendonId, transactions.machineId),
+        gte(transactions.transactionDt, thirtyDaysAgo)
+      ))
+      .groupBy(machines.id, machines.locationName)
+      .orderBy(sql`revenue DESC`)
+      .limit(20);
+
+    const topPerformer = machinePerformance[0];
+    const lowPerformers = machinePerformance.filter(m => m.revenue < (topPerformer?.revenue || 0) * 0.3).slice(0, 3);
+
     const performanceMetrics = {
-      totalRevenue: 2450.75,
-      topPerformingMachine: 'Automat Hauptbahnhof',
-      lowPerformingMachines: ['Automat Bibliothek'],
-      averageDailySales: 81.69
+      totalRevenue: revenueResult[0]?.totalRevenue || 0,
+      totalTransactions: revenueResult[0]?.transactionCount || 0,
+      totalMachines: machinesCount[0]?.totalMachines || 0,
+      topPerformingMachine: topPerformer?.machineName || 'Keine Daten verfügbar',
+      topPerformingRevenue: topPerformer?.revenue || 0,
+      lowPerformingMachines: lowPerformers.map(m => m.machineName),
+      averageDailySales: (revenueResult[0]?.totalRevenue || 0) / 30
     };
 
     res.json({
-      mhdAlerts,
-      stockAlerts,
+      mhdAlerts: mhdAlertsResult,
+      stockAlerts: stockAlertsResult,
       pendingOrders: pendingOrdersResult,
-      recentDeliveries,
+      recentDeliveries: recentDeliveriesResult,
       performanceMetrics
     });
   } catch (error) {
