@@ -147,7 +147,7 @@ router.get('/preview', async (req, res) => {
         expiryDate: productBatches.expiryDate,
         quantity: productBatches.currentQuantity,
         location: sql<string>`'Lager ' || ${productBatches.warehouseId}`.as('location'),
-        daysUntilExpiry: sql<number>`EXTRACT(DAY FROM (${productBatches.expiryDate}::date - CURRENT_DATE))`.as('daysUntilExpiry')
+        daysUntilExpiry: sql<number>`EXTRACT(DAY FROM AGE(${productBatches.expiryDate}, CURRENT_DATE))`.as('daysUntilExpiry')
       })
       .from(productBatches)
       .innerJoin(products, eq(productBatches.productId, products.id))
