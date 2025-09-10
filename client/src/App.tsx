@@ -564,145 +564,145 @@ function AuthenticatedRouter() {
           </ApprovedUserRoute>
         )} />
 
-        <Route path="/wirtschaftlichkeit-alt" component={props => (
+        <Route path="/wirtschaftlichkeit-alt">
           <ApprovedUserRoute>
-            <ProfitabilityAnalysis {...props} />
+            <ProfitabilityAnalysis />
           </ApprovedUserRoute>
-        )} />
+        </Route>
 
-        <Route path="/produkte/:id/wirtschaftlichkeit" component={props => (
+        <Route path="/produkte/:id/wirtschaftlichkeit">
           <ApprovedUserRoute>
-            <ProductProfitabilityAnalysis {...props} />
+            <ProductProfitabilityAnalysis />
           </ApprovedUserRoute>
-        )} />
+        </Route>
 
-        <Route path="/datenverfuegbarkeit" component={props => (
+        <Route path="/datenverfuegbarkeit">
           <ApprovedUserRoute>
-            <DataAvailability {...props} />
+            <DataAvailability />
           </ApprovedUserRoute>
-        )} />
+        </Route>
 
-        <Route path="/support" component={props => (
+        <Route path="/support">
           <ApprovedUserRoute>
-            <SupportTicket {...props} />
+            <SupportTicket />
           </ApprovedUserRoute>
-        )} />
+        </Route>
 
-        <Route path="/datenverfuegbarkeit/wetter" component={props => (
+        <Route path="/datenverfuegbarkeit/wetter">
           <ApprovedUserRoute>
-            <WeatherDataOverview {...props} />
+            <WeatherDataOverview />
           </ApprovedUserRoute>
-        )} />
+        </Route>
 
-        <Route path="/datenverfuegbarkeit/wetter-visualisierung" component={props => (
+        <Route path="/datenverfuegbarkeit/wetter-visualisierung">
           <ApprovedUserRoute>
-            <WeatherVisualization {...props} />
+            <WeatherVisualization />
           </ApprovedUserRoute>
-        )} />
+        </Route>
 
-        <Route path="/datenverfuegbarkeit/feiertage" component={props => (
+        <Route path="/datenverfuegbarkeit/feiertage">
           <ApprovedUserRoute>
-            <HolidaysVacationsOverview {...props} />
+            <HolidaysVacationsOverview />
           </ApprovedUserRoute>
-        )} />
+        </Route>
 
-        <Route path="/feiertage-analyse" component={props => (
+        <Route path="/feiertage-analyse">
           <ApprovedUserRoute>
-            <HolidayAnalysisDashboard {...props} />
+            <HolidayAnalysisDashboard />
           </ApprovedUserRoute>
-        )} />
+        </Route>
 
-        <Route path="/synchronization" component={props => (
+        <Route path="/synchronization">
           <ApprovedUserRoute>
-            <SyncDashboard {...props} />
+            <SyncDashboard />
           </ApprovedUserRoute>
-        )} />
+        </Route>
 
-        <Route path="/sync-history" component={props => (
+        <Route path="/sync-history">
           <ApprovedUserRoute>
-            <SyncHistory {...props} />
+            <SyncHistory />
           </ApprovedUserRoute>
-        )} />
+        </Route>
 
-        <Route path="/sync" component={props => (
+        <Route path="/sync">
           <ApprovedUserRoute>
-            <SyncDashboard {...props} />
+            <SyncDashboard />
           </ApprovedUserRoute>
-        )} />
+        </Route>
 
-        <Route path="/forecast" component={props => (
+        <Route path="/forecast">
           <ApprovedUserRoute>
-            <Forecast {...props} />
+            <Forecast />
           </ApprovedUserRoute>
-        )} />
+        </Route>
 
-        <Route path="/forecast-evaluation" component={props => (
+        <Route path="/forecast-evaluation">
           <ApprovedUserRoute>
-            <ForecastEvaluation {...props} />
+            <ForecastEvaluation />
           </ApprovedUserRoute>
-        )} />
+        </Route>
         
-        <Route path="/forecast-detail" component={props => (
+        <Route path="/forecast-detail">
           <ApprovedUserRoute>
-            <ForecastDetail {...props} />
+            <ForecastDetail />
           </ApprovedUserRoute>
-        )} />
+        </Route>
 
-        <Route path="/enhanced-forecast" component={props => (
+        <Route path="/enhanced-forecast">
           <ApprovedUserRoute>
-            <EnhancedForecastDashboard {...props} />
+            <EnhancedForecastDashboard />
           </ApprovedUserRoute>
-        )} />
+        </Route>
 
-        <Route path="/product-forecasts" component={props => (
+        <Route path="/product-forecasts">
           <ApprovedUserRoute>
-            <ProductForecastPage {...props} />
+            <ProductForecastPage />
           </ApprovedUserRoute>
-        )} />
+        </Route>
 
-        <Route path="/revenue-expectations" component={props => (
+        <Route path="/revenue-expectations">
           <ApprovedUserRoute>
-            <RevenueExpectations {...props} />
+            <RevenueExpectations />
           </ApprovedUserRoute>
-        )} />
+        </Route>
 
-        <Route path="/fuellstaende" component={props => (
+        <Route path="/fuellstaende">
           <ApprovedUserRoute>
-            <Fuellstaende {...props} />
+            <Fuellstaende />
           </ApprovedUserRoute>
-        )} />
+        </Route>
 
-        <Route path="/settings" component={props => (
+        <Route path="/settings">
           <ApprovedUserRoute>
-            <Settings {...props} />
+            <Settings />
           </ApprovedUserRoute>
-        )} />
+        </Route>
 
-        <Route path="/email-einstellungen" component={props => (
+        <Route path="/email-einstellungen">
           <ApprovedUserRoute>
-            <MailSettings {...props} />
+            <MailSettings />
           </ApprovedUserRoute>
-        )} />
+        </Route>
 
-        <Route path="/taegliche-email-einstellungen" component={props => (
+        <Route path="/taegliche-email-einstellungen">
           <ApprovedUserRoute>
-            <DailyEmailSettings {...props} />
+            <DailyEmailSettings />
           </ApprovedUserRoute>
-        )} />
+        </Route>
 
         {/* Nachhaltigkeits-Tracker */}
-        <Route path="/nachhaltigkeit" component={props => (
+        <Route path="/nachhaltigkeit">
           <ApprovedUserRoute>
-            <SustainableVending {...props} />
+            <SustainableVending />
           </ApprovedUserRoute>
-        )} />
+        </Route>
 
         {/* Datenbank-Manager für Admins */}
-        <Route path="/database-manager" component={props => (
+        <Route path="/database-manager">
           <AdminRoute>
-            <DatabaseManager {...props} />
+            <DatabaseManager />
           </AdminRoute>
-        )} />
+        </Route>
 
         {/* Benutzer-Verwaltung für Admins */}
         <Route path="/benutzer">
@@ -721,32 +721,32 @@ function AuthenticatedRouter() {
         </Route>
 
         {/* Inter-App Verbindungen für Admins */}
-        <Route path="/inter-app-verbindungen" component={props => (
+        <Route path="/inter-app-verbindungen">
           <AdminRoute>
-            <InterAppConnections {...props} />
+            <InterAppConnections />
           </AdminRoute>
-        )} />
+        </Route>
 
         {/* Vendon Synchronization für Admins */}
-        <Route path="/admin/vendon-sync" component={props => (
+        <Route path="/admin/vendon-sync">
           <AdminRoute>
-            <VendonSync {...props} />
+            <VendonSync />
           </AdminRoute>
-        )} />
+        </Route>
 
         {/* Vendon Sync Dashboard für Admins */}
-        <Route path="/admin/vendon-sync-dashboard" component={props => (
+        <Route path="/admin/vendon-sync-dashboard">
           <AdminRoute>
-            <VendonSyncDashboard {...props} />
+            <VendonSyncDashboard />
           </AdminRoute>
-        )} />
+        </Route>
 
         {/* Seitenfreigabe für Admins */}
-        <Route path="/seitenfreigabe" component={props => (
+        <Route path="/seitenfreigabe">
           <AdminRoute>
-            <PagePermissions {...props} />
+            <PagePermissions />
           </AdminRoute>
-        )} />
+        </Route>
 
         {/* Umsatz- und Ergebnisübersicht */}
         <Route path="/umsatz-ergebnis-uebersicht" component={props => (
