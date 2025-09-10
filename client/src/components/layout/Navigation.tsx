@@ -53,8 +53,9 @@ const navigationSections = [
       { href: '/admin/benutzer', label: 'Admin-Benutzer', icon: Shield, roles: ['admin'] },
       { href: '/seitenfreigabe', label: 'Seitenfreigabe', icon: Shield, roles: ['admin'] },
       { href: '/inter-app-verbindungen', label: 'App-Verbindungen', icon: Server, roles: ['admin'] },
+      { href: '/system/mail-benachrichtigung', label: 'Mail-Benachrichtigungen', icon: Mail, roles: ['admin'] },
       { href: '/settings', label: 'Einstellungen', icon: Settings, roles: ['user', 'admin'] },
-      { href: '/taegliche-email-einstellungen', label: 'E-Mail-Benachrichtigungen', icon: Mail, roles: ['admin'] },
+      { href: '/taegliche-email-einstellungen', label: 'E-Mail-Benachrichtigungen (Alt)', icon: Mail, roles: ['admin'] },
     ]
   },
   {

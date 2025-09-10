@@ -297,6 +297,15 @@ export default function Sidebar() {
             </NavItem>
             
             <NavItem 
+              href="/system/mail-benachrichtigung" 
+              icon={<Mail className="h-5 w-5 mr-3" />}
+              isActive={isActive("/system/mail-benachrichtigung")}
+              disabled={!isAdmin}
+            >
+              Mail-Benachrichtigungen
+            </NavItem>
+            
+            <NavItem 
               href="/settings" 
               icon={<Settings className="h-5 w-5 mr-3" />}
               isActive={isActive("/settings")}

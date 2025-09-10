@@ -224,7 +224,7 @@ router.get('/preview', async (req, res) => {
     // Top und Low-Performing Maschinen (letzten 30 Tage)
     const machinePerformance = await db
       .select({
-        machineName: sql<string>`COALESCE(${machines.locationName}, 'Automat ' || ${machines.id})`.as('machineName'),
+        machineName: machines.locationName,
         revenue: sql<number>`COALESCE(SUM(${transactions.amount}), 0)`.as('revenue'),
         transactionCount: count(transactions.id)
       })
@@ -253,12 +253,12 @@ router.get('/preview', async (req, res) => {
     // Standort-Warnungen (wie in der Standort-Übersicht)
     const machineWarnings = await db
       .select({
-        machineName: sql<string>`COALESCE(${machines.locationName}, 'Automat ' || ${machines.id})`.as('machineName'),
+        machineName: machines.locationName,
         machineId: machines.id,
         vendonId: machines.vendonId,
         status: sql<string>`'warning'`.as('status'),
         warningType: sql<string>`'system'`.as('warningType'),
-        warningMessage: sql<string>`'System-Check erforderlich'`.as('warningMessage')
+        warningMessage: sql<string>`CASE WHEN ${machines.isActive} THEN 'Geringe Aktivität erkannt' ELSE 'Maschine inaktiv' END`.as('warningMessage')
       })
       .from(machines)
       .where(sql`${machines.id} IS NOT NULL`)
@@ -267,7 +267,7 @@ router.get('/preview', async (req, res) => {
     // Überfällige Entleerungen simulieren (basierend auf letzten Transaktionen)
     const overdueCollections = await db
       .select({
-        machineName: sql<string>`COALESCE(${machines.locationName}, 'Automat ' || ${machines.id})`.as('machineName'),
+        machineName: machines.locationName,
         lastCollection: sql<string>`CURRENT_DATE - INTERVAL '15 days'`.as('lastCollection'),
         daysOverdue: sql<number>`15`.as('daysOverdue')
       })
@@ -280,7 +280,7 @@ router.get('/preview', async (req, res) => {
     // Hohe Bargeldbestände - simuliert basierend auf Transaktionsvolumen
     const highCashAlerts = await db
       .select({
-        machineName: sql<string>`COALESCE(${machines.locationName}, 'Automat ' || ${machines.id})`.as('machineName'),
+        machineName: machines.locationName,
         cashAmount: sql<number>`ROUND(CAST(SUM(${transactions.amount}) * 0.3 AS NUMERIC), 2)`.as('cashAmount'),
         threshold: sql<number>`500`.as('threshold')
       })
@@ -297,7 +297,7 @@ router.get('/preview', async (req, res) => {
     // 🪙 Münzröhren-Warnungen (simuliert aus aktiven Maschinen)
     const lowCoinAlerts = await db
       .select({
-        machineName: sql<string>`COALESCE(${machines.locationName}, 'Automat ' || ${machines.id})`.as('machineName'),
+        machineName: machines.locationName,
         lowCoinTubes: sql<number>`CASE WHEN RANDOM() > 0.7 THEN FLOOR(RANDOM() * 3 + 1) ELSE 0 END`.as('lowCoinTubes'),
         lastMaintenance: sql<string>`CURRENT_DATE - INTERVAL '8 days'`.as('lastMaintenance')
       })
@@ -310,9 +310,9 @@ router.get('/preview', async (req, res) => {
     // 🍺 Alkoholverkaufs-Alerts (Maschinen ohne Bier-Verkäufe)
     const alcoholSalesAlerts = await db
       .select({
-        machineName: sql<string>`COALESCE(${machines.locationName}, 'Automat ' || ${machines.id})`.as('machineName'),
+        machineName: machines.locationName,
         daysSinceLastSale: sql<number>`FLOOR(RANDOM() * 10 + 2)`.as('daysSinceLastSale'),
-        lastAlcoholProduct: sql<string>`'Augustiner Bier 0,5L'`.as('lastAlcoholProduct')
+        lastAlcoholProduct: sql<string>`COALESCE(MAX(${transactions.productName}), 'Kein Alkohol verfügbar')`.as('lastAlcoholProduct')
       })
       .from(machines)
       .leftJoin(transactions, and(
@@ -326,7 +326,7 @@ router.get('/preview', async (req, res) => {
     // 🌡️ Temperatur-Warnungen (simuliert für Kühlautomaten)
     const temperatureAlerts = await db
       .select({
-        machineName: sql<string>`COALESCE(${machines.locationName}, 'Automat ' || ${machines.id})`.as('machineName'),
+        machineName: machines.locationName,
         currentTemp: sql<number>`ROUND(CAST(RANDOM() * 8 + 10 AS NUMERIC), 1)`.as('currentTemp'),
         optimalRange: sql<string>`'4-8°C'`.as('optimalRange'),
         status: sql<string>`CASE WHEN RANDOM() > 0.5 THEN 'TOO_WARM' ELSE 'TOO_COLD' END`.as('status')
@@ -337,33 +337,33 @@ router.get('/preview', async (req, res) => {
 
     // 📊 Standort Status KPIs - Umfassende Betriebsübersicht
     const standortStatus = await Promise.all([
-      // Warenbestand unter 80% pro Standort
+      // Warenbestand unter 80% pro Standort (ECHTE DATEN)
       db.select({
-        locationName: sql<string>`COALESCE(${machines.locationName}, 'Automat ' || ${machines.id})`.as('locationName'),
-        lowStockProducts: sql<number>`FLOOR(RANDOM() * 5 + 1)`.as('lowStockProducts'),
-        totalProducts: sql<number>`FLOOR(RANDOM() * 15 + 10)`.as('totalProducts'),
-        stockPercentage: sql<number>`ROUND(CAST(RANDOM() * 40 + 40 AS NUMERIC), 1)`.as('stockPercentage') // 40-80%
+        locationName: machines.locationName,
+        lowStockProducts: sql<number>`COUNT(CASE WHEN CAST(${inventoryItems.currentStock} AS INTEGER) < CAST(${inventoryItems.minimumStock} AS INTEGER) THEN 1 END)`.as('lowStockProducts'),
+        totalProducts: sql<number>`COUNT(${inventoryItems.id})`.as('totalProducts'),
+        stockPercentage: sql<string>`ROUND(AVG(CASE WHEN CAST(${inventoryItems.minimumStock} AS INTEGER) > 0 THEN (CAST(${inventoryItems.currentStock} AS INTEGER)::DECIMAL / CAST(${inventoryItems.minimumStock} AS INTEGER)) * 100 ELSE 100 END), 1)`.as('stockPercentage')
       })
       .from(machines)
-      .where(sql`RANDOM() > 0.6`) // 40% der Standorte haben niedrige Bestände
-      .limit(6),
-
-      // Geldbestände über 300 EUR pro Standort (basierend auf Transaktionen)
-      db.select({
-        locationName: sql<string>`COALESCE(${machines.locationName}, 'Automat ' || ${machines.id})`.as('locationName'),
-        cashAmount: sql<number>`ROUND(CAST(SUM(${transactions.amount}) * 0.4 AS NUMERIC), 2)`.as('cashAmount'),
-        lastEmptied: sql<string>`CURRENT_DATE - INTERVAL '3 days'`.as('lastEmptied'),
-        riskLevel: sql<string>`CASE WHEN SUM(${transactions.amount}) > 750 THEN 'HOCH' WHEN SUM(${transactions.amount}) > 300 THEN 'MITTEL' ELSE 'NIEDRIG' END`.as('riskLevel')
-      })
-      .from(machines)
-      .leftJoin(transactions, and(
-        eq(machines.vendonId, sql`CAST(${transactions.machineId} AS TEXT)`),
-        gte(transactions.transactionDt, sql`CURRENT_DATE - INTERVAL '7 days'`)
+      .leftJoin(inventoryItems, eq(machines.id, inventoryItems.machineId))
+      .where(and(
+        eq(machines.isActive, true),
+        isNotNull(inventoryItems.id)
       ))
       .groupBy(machines.id, machines.locationName)
-      .having(sql`SUM(${transactions.amount}) > 100`) // Nur Standorte mit nennenswerten Umsätzen
-      .orderBy(sql`SUM(${transactions.amount}) DESC`)
-      .limit(5),
+      .having(sql`ROUND(AVG(CASE WHEN CAST(${inventoryItems.minimumStock} AS INTEGER) > 0 THEN (CAST(${inventoryItems.currentStock} AS INTEGER)::DECIMAL / CAST(${inventoryItems.minimumStock} AS INTEGER)) * 100 ELSE 100 END), 1) < 80`)
+      .limit(10),
+
+      // Geldbestände über 300 EUR pro Standort (ECHTE DATEN - Aktuell keine verfügbar)
+      db.select({
+        locationName: sql<string>`''`.as('locationName'),
+        cashAmount: sql<string>`''`.as('cashAmount'),
+        lastEmptied: sql<string>`''`.as('lastEmptied'),
+        riskLevel: sql<string>`''`.as('riskLevel')
+      })
+      .from(machines)
+      .where(sql`false`)
+      .limit(0),
 
       // MHD-Status pro Standort (kritische Produkte)
       db.select({
@@ -377,11 +377,11 @@ router.get('/preview', async (req, res) => {
 
       // 24h Verkäufe pro Standort
       db.select({
-        locationName: sql<string>`COALESCE(${machines.locationName}, 'Automat ' || ${machines.id})`.as('locationName'),
+        locationName: machines.locationName,
         sales24h: sql<number>`ROUND(CAST(SUM(${transactions.amount}) AS NUMERIC), 2)`.as('sales24h'),
         transactionCount: count(transactions.id),
         avgTransactionValue: sql<number>`ROUND(CAST(AVG(${transactions.amount}) AS NUMERIC), 2)`.as('avgTransactionValue'),
-        trend: sql<string>`CASE WHEN RANDOM() > 0.5 THEN 'STEIGEND' ELSE 'FALLEND' END`.as('trend')
+        trend: sql<string>`'stabil'`.as('trend')
       })
       .from(machines)
       .leftJoin(transactions, and(
