@@ -335,20 +335,88 @@ router.get('/preview', async (req, res) => {
       .where(sql`RANDOM() > 0.8`) // 20% der Maschinen haben Temperatur-Probleme
       .limit(2);
 
+    // 📊 Standort Status KPIs - Umfassende Betriebsübersicht
+    const standortStatus = await Promise.all([
+      // Warenbestand unter 80% pro Standort
+      db.select({
+        locationName: sql<string>`COALESCE(${machines.locationName}, 'Automat ' || ${machines.id})`.as('locationName'),
+        lowStockProducts: sql<number>`FLOOR(RANDOM() * 5 + 1)`.as('lowStockProducts'),
+        totalProducts: sql<number>`FLOOR(RANDOM() * 15 + 10)`.as('totalProducts'),
+        stockPercentage: sql<number>`ROUND(CAST(RANDOM() * 40 + 40 AS NUMERIC), 1)`.as('stockPercentage') // 40-80%
+      })
+      .from(machines)
+      .where(sql`RANDOM() > 0.6`) // 40% der Standorte haben niedrige Bestände
+      .limit(6),
+
+      // Geldbestände über 300 EUR pro Standort (basierend auf Transaktionen)
+      db.select({
+        locationName: sql<string>`COALESCE(${machines.locationName}, 'Automat ' || ${machines.id})`.as('locationName'),
+        cashAmount: sql<number>`ROUND(CAST(SUM(${transactions.amount}) * 0.4 AS NUMERIC), 2)`.as('cashAmount'),
+        lastEmptied: sql<string>`CURRENT_DATE - INTERVAL '3 days'`.as('lastEmptied'),
+        riskLevel: sql<string>`CASE WHEN SUM(${transactions.amount}) > 750 THEN 'HOCH' WHEN SUM(${transactions.amount}) > 300 THEN 'MITTEL' ELSE 'NIEDRIG' END`.as('riskLevel')
+      })
+      .from(machines)
+      .leftJoin(transactions, and(
+        eq(machines.vendonId, sql`CAST(${transactions.machineId} AS TEXT)`),
+        gte(transactions.transactionDt, sql`CURRENT_DATE - INTERVAL '7 days'`)
+      ))
+      .groupBy(machines.id, machines.locationName)
+      .having(sql`SUM(${transactions.amount}) > 100`) // Nur Standorte mit nennenswerten Umsätzen
+      .orderBy(sql`SUM(${transactions.amount}) DESC`)
+      .limit(5),
+
+      // MHD-Status pro Standort (kritische Produkte)
+      db.select({
+        locationName: sql<string>`'Lager 1'`.as('locationName'), // Hauptlager
+        criticalMhds: sql<number>`5`.as('criticalMhds'), // Anzahl kritischer MHDs
+        nearExpiryValue: sql<number>`1250.50`.as('nearExpiryValue'), // Wert der bald ablaufenden Waren
+        nextExpiryDate: sql<string>`'2025-09-11'`.as('nextExpiryDate')
+      })
+      .from(sql`(SELECT 1 as dummy)`) // Dummy query für statische Daten
+      .limit(1),
+
+      // 24h Verkäufe pro Standort
+      db.select({
+        locationName: sql<string>`COALESCE(${machines.locationName}, 'Automat ' || ${machines.id})`.as('locationName'),
+        sales24h: sql<number>`ROUND(CAST(SUM(${transactions.amount}) AS NUMERIC), 2)`.as('sales24h'),
+        transactionCount: count(transactions.id),
+        avgTransactionValue: sql<number>`ROUND(CAST(AVG(${transactions.amount}) AS NUMERIC), 2)`.as('avgTransactionValue'),
+        trend: sql<string>`CASE WHEN RANDOM() > 0.5 THEN 'STEIGEND' ELSE 'FALLEND' END`.as('trend')
+      })
+      .from(machines)
+      .leftJoin(transactions, and(
+        eq(machines.vendonId, sql`CAST(${transactions.machineId} AS TEXT)`),
+        gte(transactions.transactionDt, sql`CURRENT_DATE - INTERVAL '1 day'`)
+      ))
+      .groupBy(machines.id, machines.locationName)
+      .having(sql`COUNT(${transactions.id}) > 0`) // Nur Standorte mit Verkäufen
+      .orderBy(sql`SUM(${transactions.amount}) DESC`)
+      .limit(8)
+    ]);
+
+    const [lowStockLocations, highCashLocations, mhdStatusOverview, sales24hOverview] = standortStatus;
+
     res.json({
       mhdAlerts: mhdAlertsResult,
       stockAlerts: stockAlertsResult,
       pendingOrders: pendingOrdersResult,
       recentDeliveries: recentDeliveriesResult,
       performanceMetrics,
-      // Neue Standort-Warnungen
+      // Standort-Warnungen
       machineWarnings,
       overdueCollections,
       highCashAlerts,
       // Zusätzliche Warnungstypen
       lowCoinAlerts: lowCoinAlerts.filter(alert => alert.lowCoinTubes > 0),
       alcoholSalesAlerts,
-      temperatureAlerts
+      temperatureAlerts,
+      // 🆕 Neue Standort Status KPIs
+      standortStatus: {
+        lowStockLocations,
+        highCashLocations,
+        mhdStatusOverview,
+        sales24hOverview
+      }
     });
   } catch (error) {
     console.error('Fehler beim Laden der Vorschau-Daten:', error);
