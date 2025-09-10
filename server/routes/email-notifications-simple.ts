@@ -53,7 +53,7 @@ router.get('/settings', async (req, res) => {
       sendOnWeekdays: ['1', '2', '3', '4', '5'],
       includeMhdAlerts: setting.includeMhdAlerts || true,
       includeStockAlerts: setting.includeLowStockAlerts || true,
-      includeOrderAlerts: setting.includeOrderUpdates || true,
+      includeOrderAlerts: setting.includeOpenOrders || true,
       includeDeliveryAlerts: setting.includeInventoryAlerts || true,
       includePerformanceAlerts: setting.includeSalesAnalysis || false,
       sendTime: setting.sendTime || '06:00'
@@ -94,7 +94,7 @@ router.post('/settings', async (req, res) => {
           sendTime: sendTime || '06:00',
           includeMhdAlerts: includeMhdAlerts,
           includeLowStockAlerts: includeStockAlerts,
-          includeOrderUpdates: includeOrderAlerts,
+          includeOpenOrders: includeOrderAlerts,
           includeInventoryAlerts: includeDeliveryAlerts,
           includeSalesAnalysis: includePerformanceAlerts
         })
@@ -108,7 +108,7 @@ router.post('/settings', async (req, res) => {
           sendTime: sendTime || '06:00',
           includeMhdAlerts: includeMhdAlerts,
           includeLowStockAlerts: includeStockAlerts,
-          includeOrderUpdates: includeOrderAlerts,
+          includeOpenOrders: includeOrderAlerts,
           includeInventoryAlerts: includeDeliveryAlerts,
           includeSalesAnalysis: includePerformanceAlerts
         })
