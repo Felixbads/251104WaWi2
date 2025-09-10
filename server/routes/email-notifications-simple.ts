@@ -230,7 +230,7 @@ router.get('/preview', async (req, res) => {
       })
       .from(machines)
       .leftJoin(transactions, and(
-        eq(machines.vendonId, transactions.machineId),
+        eq(machines.vendonId, sql`CAST(${transactions.machineId} AS TEXT)`),
         gte(transactions.transactionDt, thirtyDaysAgo)
       ))
       .groupBy(machines.id, machines.locationName)
@@ -272,7 +272,7 @@ router.get('/preview', async (req, res) => {
         daysOverdue: sql<number>`15`.as('daysOverdue')
       })
       .from(machines)
-      .leftJoin(transactions, eq(machines.vendonId, transactions.machineId))
+      .leftJoin(transactions, eq(machines.vendonId, sql`CAST(${transactions.machineId} AS TEXT)`))
       .groupBy(machines.id, machines.locationName)
       .having(sql`COUNT(${transactions.id}) > 10`) // Nur Maschinen mit Aktivität
       .limit(5);
@@ -286,7 +286,7 @@ router.get('/preview', async (req, res) => {
       })
       .from(machines)
       .leftJoin(transactions, and(
-        eq(machines.vendonId, transactions.machineId),
+        eq(machines.vendonId, sql`CAST(${transactions.machineId} AS TEXT)`),
         gte(transactions.transactionDt, sql`CURRENT_DATE - INTERVAL '7 days'`)
       ))
       .groupBy(machines.id, machines.locationName)
@@ -302,7 +302,7 @@ router.get('/preview', async (req, res) => {
         lastMaintenance: sql<string>`CURRENT_DATE - INTERVAL '8 days'`.as('lastMaintenance')
       })
       .from(machines)
-      .leftJoin(transactions, eq(machines.vendonId, transactions.machineId))
+      .leftJoin(transactions, eq(machines.vendonId, sql`CAST(${transactions.machineId} AS TEXT)`))
       .groupBy(machines.id, machines.locationName)
       .having(sql`COUNT(${transactions.id}) > 5`) // Nur aktive Maschinen
       .limit(4);
@@ -316,7 +316,7 @@ router.get('/preview', async (req, res) => {
       })
       .from(machines)
       .leftJoin(transactions, and(
-        eq(machines.vendonId, transactions.machineId),
+        eq(machines.vendonId, sql`CAST(${transactions.machineId} AS TEXT)`),
         sql`${transactions.productName} ILIKE '%Bier%' OR ${transactions.productName} ILIKE '%Augustiner%'`
       ))
       .groupBy(machines.id, machines.locationName)
