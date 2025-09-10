@@ -256,7 +256,7 @@ function AuthenticatedRouter() {
 
         <Route path="/produkte/neu">
           <ApprovedUserRoute>
-            <ProductDetail isNew={true} />
+            <ProductDetail />
           </ApprovedUserRoute>
         </Route>
 
@@ -444,119 +444,119 @@ function AuthenticatedRouter() {
           </ApprovedUserRoute>
         </Route>
 
-        <Route path="/warehouses/:id/warenbewegung" component={props => (
+        <Route path="/warehouses/:id/warenbewegung">
           <ApprovedUserRoute>
-            <WarehouseMovements {...props} />
+            <WarehouseMovements />
           </ApprovedUserRoute>
-        )} />
+        </Route>
 
         {/* Warenbewegung (Warenumlagerung) Route */}
-        <Route path="/warenbewegung" component={props => (
+        <Route path="/warenbewegung">
           <ApprovedUserRoute>
-            <WarenbewegungNewPage {...props} />
+            <WarenbewegungNewPage />
           </ApprovedUserRoute>
-        )} />
+        </Route>
         {/* Alte Routen auskommentiert (können später entfernt werden) */}
-        <Route path="/warenentnahme" component={props => (
+        <Route path="/warenentnahme">
           <ApprovedUserRoute>
-            <WarenentnahmePage {...props} />
+            <WarenentnahmePage />
           </ApprovedUserRoute>
-        )} />
-        <Route path="/warenentnahme/new" component={props => (
+        </Route>
+        <Route path="/warenentnahme/new">
           <ApprovedUserRoute>
-            <WarenentnahmeNew {...props} />
+            <WarenentnahmeNew />
           </ApprovedUserRoute>
-        )} />
-        <Route path="/warenentnahme/:id" component={props => (
+        </Route>
+        <Route path="/warenentnahme/:id">
           <ApprovedUserRoute>
-            <WarenentnahmeDetail {...props} />
+            <WarenentnahmeDetail />
           </ApprovedUserRoute>
-        )} />
+        </Route>
 
         {/* Refill-Tracking Route */}
-        <Route path="/refill-tracking" component={props => (
+        <Route path="/refill-tracking">
           <ApprovedUserRoute>
-            <RefillTrackingPage {...props} />
+            <RefillTrackingPage />
           </ApprovedUserRoute>
-        )} />
+        </Route>
 
         {/* Refill-Vorlagen Route */}
-        <Route path="/refill-vorlagen" component={props => (
+        <Route path="/refill-vorlagen">
           <ApprovedUserRoute>
-            <RefillVorlagen {...props} />
+            <RefillVorlagen />
           </ApprovedUserRoute>
-        )} />
+        </Route>
 
         {/* Inventur-Seiten */}
-        <Route path="/inventur" component={props => (
+        <Route path="/inventur">
           <ApprovedUserRoute>
-            <InventurPage {...props} />
+            <InventurPage />
           </ApprovedUserRoute>
-        )} />
+        </Route>
 
         {/* Englische Route für Inventory Counts → Inventur umleiten */}
-        <Route path="/inventory-counts" component={props => (
+        <Route path="/inventory-counts">
           <ApprovedUserRoute>
-            <InventurPage {...props} />
+            <InventurPage />
           </ApprovedUserRoute>
-        )} />
+        </Route>
 
-        <Route path="/inventur/neu" component={props => (
+        <Route path="/inventur/neu">
           <ApprovedUserRoute>
-            <InventurCreationPage {...props} />
+            <InventurCreationPage />
           </ApprovedUserRoute>
-        )} />
+        </Route>
 
         {/* Inventur-Detailseite */}
-        <Route path="/inventur/:id" component={props => (
+        <Route path="/inventur/:id">
           <ApprovedUserRoute>
-            <InventurDetailSimplePage {...props} />
+            <InventurDetailSimplePage />
           </ApprovedUserRoute>
-        )} />
+        </Route>
         
-        <Route path="/inventur/:id/complex" component={props => (
+        <Route path="/inventur/:id/complex">
           <ApprovedUserRoute>
-            <InventurDetailNewPage {...props} />
+            <InventurDetailNewPage />
           </ApprovedUserRoute>
-        )} />
+        </Route>
 
         {/* Neue verbesserte Inventur-Detailseite - VEREINFACHT! */}
-        <Route path="/inventur-detail/:id" component={props => (
+        <Route path="/inventur-detail/:id">
           <ApprovedUserRoute>
-            <InventurDetailSimplePage {...props} />
+            <InventurDetailSimplePage />
           </ApprovedUserRoute>
-        )} />
+        </Route>
 
         {/* Nur Admin kann die Auswertungsseite sehen */}
-        <Route path="/auswertungen" component={props => (
+        <Route path="/auswertungen">
           <AdminRoute>
-            <Reporting {...props} />
+            <Reporting />
           </AdminRoute>
-        )} />
+        </Route>
 
-        <Route path="/erweiterte-analyse" component={props => (
+        <Route path="/erweiterte-analyse">
           <AdminRoute>
-            <AdvancedAnalysis {...props} />
+            <AdvancedAnalysis />
           </AdminRoute>
-        )} />
+        </Route>
 
-        <Route path="/auswertungen" component={props => (
+        <Route path="/auswertungen-old">
           <ApprovedUserRoute>
-            <ProfitabilityAnalysis {...props} />
+            <ProfitabilityAnalysis />
           </ApprovedUserRoute>
-        )} />
+        </Route>
 
-        <Route path="/wirtschaftlichkeit" component={props => (
+        <Route path="/wirtschaftlichkeit">
           <ApprovedUserRoute>
-            <Wirtschaftlichkeit {...props} />
+            <Wirtschaftlichkeit />
           </ApprovedUserRoute>
-        )} />
+        </Route>
 
-        <Route path="/wirtschaftlichkeit-modern" component={props => (
+        <Route path="/wirtschaftlichkeit-modern">
           <ApprovedUserRoute>
-            <ModernProfitabilityDashboard {...props} />
+            <ModernProfitabilityDashboard />
           </ApprovedUserRoute>
-        )} />
+        </Route>
 
         <Route path="/umsatz-ergebnis-uebersicht" component={props => (
           <ApprovedUserRoute>
@@ -706,11 +706,9 @@ function AuthenticatedRouter() {
 
         {/* Benutzer-Verwaltung für Admins */}
         <Route path="/benutzer">
-          {() => (
-            <AdminRoute>
-              <UserManagement />
-            </AdminRoute>
-          )}
+          <AdminRoute>
+            <AdminUsers />
+          </AdminRoute>
         </Route>
 
         {/* Admin-Benutzerverwaltung für Admins */}
