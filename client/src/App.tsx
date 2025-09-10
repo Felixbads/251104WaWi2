@@ -24,6 +24,7 @@ import SyncHistory from "@/pages/SyncHistory";
 import Settings from "@/pages/Settings";
 import MailSettings from "@/pages/MailSettings"; // Neue Email-Einstellungen-Seite
 import DailyEmailSettings from "@/pages/DailyEmailSettings"; // Tägliche E-Mail-Benachrichtigungen
+import MailBenachrichtigungPage from "@/pages/MailBenachrichtigungPage"; // Zentrale Mail-Benachrichtigung
 import Forecast from "@/pages/Forecast";
 import ForecastEvaluation from "@/pages/ForecastEvaluation";
 import ForecastDetail from "@/pages/ForecastDetail";
@@ -687,6 +688,13 @@ function AuthenticatedRouter() {
         <Route path="/taegliche-email-einstellungen">
           <ApprovedUserRoute>
             <DailyEmailSettings />
+          </ApprovedUserRoute>
+        </Route>
+
+        {/* Zentrale Mail-Benachrichtigungen */}
+        <Route path="/system/mail-benachrichtigung">
+          <ApprovedUserRoute>
+            <MailBenachrichtigungPage />
           </ApprovedUserRoute>
         </Route>
 
