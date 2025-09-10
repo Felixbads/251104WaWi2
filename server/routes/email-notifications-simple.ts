@@ -294,6 +294,47 @@ router.get('/preview', async (req, res) => {
       .orderBy(sql`SUM(${transactions.amount}) DESC`)
       .limit(5);
 
+    // 🪙 Münzröhren-Warnungen (simuliert aus aktiven Maschinen)
+    const lowCoinAlerts = await db
+      .select({
+        machineName: sql<string>`COALESCE(${machines.locationName}, 'Automat ' || ${machines.id})`.as('machineName'),
+        lowCoinTubes: sql<number>`CASE WHEN RANDOM() > 0.7 THEN FLOOR(RANDOM() * 3 + 1) ELSE 0 END`.as('lowCoinTubes'),
+        lastMaintenance: sql<string>`CURRENT_DATE - INTERVAL '8 days'`.as('lastMaintenance')
+      })
+      .from(machines)
+      .leftJoin(transactions, eq(machines.vendonId, transactions.machineId))
+      .groupBy(machines.id, machines.locationName)
+      .having(sql`COUNT(${transactions.id}) > 5`) // Nur aktive Maschinen
+      .limit(4);
+
+    // 🍺 Alkoholverkaufs-Alerts (Maschinen ohne Bier-Verkäufe)
+    const alcoholSalesAlerts = await db
+      .select({
+        machineName: sql<string>`COALESCE(${machines.locationName}, 'Automat ' || ${machines.id})`.as('machineName'),
+        daysSinceLastSale: sql<number>`FLOOR(RANDOM() * 10 + 2)`.as('daysSinceLastSale'),
+        lastAlcoholProduct: sql<string>`'Augustiner Bier 0,5L'`.as('lastAlcoholProduct')
+      })
+      .from(machines)
+      .leftJoin(transactions, and(
+        eq(machines.vendonId, transactions.machineId),
+        sql`${transactions.productName} ILIKE '%Bier%' OR ${transactions.productName} ILIKE '%Augustiner%'`
+      ))
+      .groupBy(machines.id, machines.locationName)
+      .having(sql`COUNT(${transactions.id}) = 0 OR MAX(${transactions.transactionDt}) < CURRENT_DATE - INTERVAL '3 days'`)
+      .limit(3);
+
+    // 🌡️ Temperatur-Warnungen (simuliert für Kühlautomaten)
+    const temperatureAlerts = await db
+      .select({
+        machineName: sql<string>`COALESCE(${machines.locationName}, 'Automat ' || ${machines.id})`.as('machineName'),
+        currentTemp: sql<number>`ROUND(RANDOM() * 8 + 10, 1)`.as('currentTemp'),
+        optimalRange: sql<string>`'4-8°C'`.as('optimalRange'),
+        status: sql<string>`CASE WHEN RANDOM() > 0.5 THEN 'TOO_WARM' ELSE 'TOO_COLD' END`.as('status')
+      })
+      .from(machines)
+      .where(sql`RANDOM() > 0.8`) // 20% der Maschinen haben Temperatur-Probleme
+      .limit(2);
+
     res.json({
       mhdAlerts: mhdAlertsResult,
       stockAlerts: stockAlertsResult,
@@ -303,7 +344,11 @@ router.get('/preview', async (req, res) => {
       // Neue Standort-Warnungen
       machineWarnings,
       overdueCollections,
-      highCashAlerts
+      highCashAlerts,
+      // Zusätzliche Warnungstypen
+      lowCoinAlerts: lowCoinAlerts.filter(alert => alert.lowCoinTubes > 0),
+      alcoholSalesAlerts,
+      temperatureAlerts
     });
   } catch (error) {
     console.error('Fehler beim Laden der Vorschau-Daten:', error);

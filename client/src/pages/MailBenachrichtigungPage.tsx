@@ -12,7 +12,7 @@ import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
-import { Mail, Clock, AlertTriangle, Package, TrendingDown, Calendar, CreditCard, Trash2 } from "lucide-react";
+import { Mail, Clock, AlertTriangle, Package, TrendingDown, Calendar, CreditCard, Trash2, Coins, Wine, Thermometer } from "lucide-react";
 
 interface EmailNotificationSettings {
   id?: number;
@@ -75,6 +75,23 @@ interface PreviewData {
     machineName: string;
     warningMessage: string;
     warningType: string;
+  }>;
+  // Zusätzliche Warnungstypen
+  lowCoinAlerts?: Array<{
+    machineName: string;
+    lowCoinTubes: number;
+    lastMaintenance: string;
+  }>;
+  alcoholSalesAlerts?: Array<{
+    machineName: string;
+    daysSinceLastSale: number;
+    lastAlcoholProduct: string;
+  }>;
+  temperatureAlerts?: Array<{
+    machineName: string;
+    currentTemp: number;
+    optimalRange: string;
+    status: string;
   }>;
 }
 
@@ -161,7 +178,11 @@ export default function MailBenachrichtigungPage() {
 
   useEffect(() => {
     if (currentSettings) {
-      setSettings(currentSettings);
+      setSettings(prev => ({
+        ...prev,
+        ...currentSettings,
+        sendOnWeekdays: currentSettings.sendOnWeekdays || prev.sendOnWeekdays
+      }));
     }
   }, [currentSettings]);
 
@@ -571,6 +592,66 @@ export default function MailBenachrichtigungPage() {
                           {previewData.machineWarnings.slice(0, 3).map((warning, idx) => (
                             <div key={idx} className="p-2 bg-orange-50 rounded text-orange-800">
                               <strong>{warning.machineName}</strong> - {warning.warningMessage}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+
+                    {/* Münzröhren-Warnungen */}
+                    {previewData?.lowCoinAlerts?.length ? (
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <Coins className="h-4 w-4 text-amber-500" />
+                          <h3 className="font-medium">Niedrige Münzbestände</h3>
+                          <Badge variant="outline">{previewData.lowCoinAlerts.length}</Badge>
+                        </div>
+                        <div className="space-y-1 text-sm">
+                          {previewData.lowCoinAlerts.slice(0, 3).map((alert, idx) => (
+                            <div key={idx} className="p-2 bg-amber-50 rounded text-amber-800">
+                              <strong>{alert.machineName}</strong> - {alert.lowCoinTubes} Münzröhre(n) fast leer
+                              <span className="ml-2 text-amber-600">(letzte Wartung: {new Date(alert.lastMaintenance).toLocaleDateString('de-DE')})</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+
+                    {/* Alkoholverkaufs-Alerts */}
+                    {previewData?.alcoholSalesAlerts?.length ? (
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <Wine className="h-4 w-4 text-purple-500" />
+                          <h3 className="font-medium">Alkoholverkauf-Probleme</h3>
+                          <Badge variant="outline">{previewData.alcoholSalesAlerts.length}</Badge>
+                        </div>
+                        <div className="space-y-1 text-sm">
+                          {previewData.alcoholSalesAlerts.slice(0, 3).map((alert, idx) => (
+                            <div key={idx} className="p-2 bg-purple-50 rounded text-purple-800">
+                              <strong>{alert.machineName}</strong> - Kein Alkohol seit {alert.daysSinceLastSale} Tagen
+                              <span className="ml-2 text-purple-600">(letztes Produkt: {alert.lastAlcoholProduct})</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+
+                    {/* Temperatur-Warnungen */}
+                    {previewData?.temperatureAlerts?.length ? (
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <Thermometer className="h-4 w-4 text-blue-500" />
+                          <h3 className="font-medium">Temperatur-Probleme</h3>
+                          <Badge variant="outline">{previewData.temperatureAlerts.length}</Badge>
+                        </div>
+                        <div className="space-y-1 text-sm">
+                          {previewData.temperatureAlerts.slice(0, 3).map((alert, idx) => (
+                            <div key={idx} className="p-2 bg-blue-50 rounded text-blue-800">
+                              <strong>{alert.machineName}</strong> - {alert.currentTemp}°C 
+                              <span className="ml-2 text-blue-600">(optimal: {alert.optimalRange})</span>
+                              <Badge variant={alert.status === 'TOO_WARM' ? 'destructive' : 'secondary'} className="ml-2 text-xs">
+                                {alert.status === 'TOO_WARM' ? 'ZU WARM' : 'ZU KALT'}
+                              </Badge>
                             </div>
                           ))}
                         </div>
