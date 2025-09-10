@@ -127,7 +127,7 @@ import duplicateCleanupRouter from './routes/duplicate-cleanup';
 import machinesRouter from './routes/machines';
 import refillTemplatesRouter from './routes/refill-templates';
 import dailyEmailRouter from './routes/daily-email';
-import emailNotificationsRouter from './routes/email-notifications';
+import emailNotificationsRouter from './routes/email-notifications-simple';
 import warehouseRefillsRouter from './routes/warehouse-refills';
 
 // Hilfsfunktion zum Gruppieren der Transaktionen nach Zeitraum
