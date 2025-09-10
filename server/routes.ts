@@ -127,6 +127,7 @@ import duplicateCleanupRouter from './routes/duplicate-cleanup';
 import machinesRouter from './routes/machines';
 import refillTemplatesRouter from './routes/refill-templates';
 import dailyEmailRouter from './routes/daily-email';
+import emailNotificationsRouter from './routes/email-notifications';
 import warehouseRefillsRouter from './routes/warehouse-refills';
 
 // Hilfsfunktion zum Gruppieren der Transaktionen nach Zeitraum
@@ -6815,6 +6816,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Registriere tägliche E-Mail-Benachrichtigungen
   app.use(`${API_PREFIX}/email/daily`, dailyEmailRouter);
+  app.use(`${API_PREFIX}/email-notifications`, emailNotificationsRouter);
   
   // Registriere Sync-Routen
   app.use(`${API_PREFIX}/sync`, syncRouter);
