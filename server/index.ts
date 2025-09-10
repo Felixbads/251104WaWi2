@@ -16,6 +16,7 @@ import inventoryApiRouter from './routes/inventory-api';
 import inventoryRouter from './routes/inventory';
 import mailTemplatesRouter from './routes/mail-templates';
 import simpleEmailRouter from './routes/simple-email';
+// import testEmailDebugRouter from './routes/test-email-debug'; // ENTFERNT - verursachte Module-Fehler
 import dbDirectRouter from './routes/db-direct';
 import directSqlRouter from './routes/direct-sql';
 import orderV3Router from './routes/order-v3';
@@ -1706,6 +1707,8 @@ app.get('/orders-data', (req, res) => {
   console.log('[SERVER] Mounting simple email router at /api');
   app.use('/api', simpleEmailRouter);
   console.log('[SERVER] Simple email router mounted successfully');
+  
+  // Debug router entfernt - verursachte Module-Fehler
   
 
 

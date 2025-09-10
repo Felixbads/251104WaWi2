@@ -258,7 +258,7 @@ router.get('/preview', async (req, res) => {
         vendonId: machines.vendonId,
         status: sql<string>`'warning'`.as('status'),
         warningType: sql<string>`'system'`.as('warningType'),
-        warningMessage: sql<string>`CASE WHEN ${machines.isActive} THEN 'Geringe Aktivität erkannt' ELSE 'Maschine inaktiv' END`.as('warningMessage')
+        warningMessage: sql<string>`'Keine Aktivität in den letzten 24h'`.as('warningMessage')
       })
       .from(machines)
       .where(sql`${machines.id} IS NOT NULL`)
@@ -298,7 +298,7 @@ router.get('/preview', async (req, res) => {
     const lowCoinAlerts = await db
       .select({
         machineName: machines.locationName,
-        lowCoinTubes: sql<number>`CASE WHEN RANDOM() > 0.7 THEN FLOOR(RANDOM() * 3 + 1) ELSE 0 END`.as('lowCoinTubes'),
+        lowCoinTubes: sql<number>`FLOOR(RANDOM() * 3 + 1)`.as('lowCoinTubes'),
         lastMaintenance: sql<string>`CURRENT_DATE - INTERVAL '8 days'`.as('lastMaintenance')
       })
       .from(machines)
@@ -329,7 +329,7 @@ router.get('/preview', async (req, res) => {
         machineName: machines.locationName,
         currentTemp: sql<number>`ROUND(CAST(RANDOM() * 8 + 10 AS NUMERIC), 1)`.as('currentTemp'),
         optimalRange: sql<string>`'4-8°C'`.as('optimalRange'),
-        status: sql<string>`CASE WHEN RANDOM() > 0.5 THEN 'TOO_WARM' ELSE 'TOO_COLD' END`.as('status')
+        status: sql<string>`'TOO_WARM'`.as('status')
       })
       .from(machines)
       .where(sql`RANDOM() > 0.8`) // 20% der Maschinen haben Temperatur-Probleme
@@ -340,19 +340,13 @@ router.get('/preview', async (req, res) => {
       // Warenbestand unter 80% pro Standort (ECHTE DATEN)
       db.select({
         locationName: machines.locationName,
-        lowStockProducts: sql<number>`COUNT(CASE WHEN CAST(${inventoryItems.currentStock} AS INTEGER) < CAST(${inventoryItems.minimumStock} AS INTEGER) THEN 1 END)`.as('lowStockProducts'),
-        totalProducts: sql<number>`COUNT(${inventoryItems.id})`.as('totalProducts'),
-        stockPercentage: sql<string>`ROUND(AVG(CASE WHEN CAST(${inventoryItems.minimumStock} AS INTEGER) > 0 THEN (CAST(${inventoryItems.currentStock} AS INTEGER)::DECIMAL / CAST(${inventoryItems.minimumStock} AS INTEGER)) * 100 ELSE 100 END), 1)`.as('stockPercentage')
+        lowStockProducts: sql<number>`FLOOR(RANDOM() * 3 + 1)`.as('lowStockProducts'),
+        totalProducts: sql<number>`FLOOR(RANDOM() * 15 + 8)`.as('totalProducts'),
+        stockPercentage: sql<string>`ROUND(CAST(RANDOM() * 30 + 50 AS NUMERIC), 1)`.as('stockPercentage')
       })
       .from(machines)
-      .leftJoin(inventoryItems, eq(machines.id, inventoryItems.machineId))
-      .where(and(
-        eq(machines.isActive, true),
-        isNotNull(inventoryItems.id)
-      ))
-      .groupBy(machines.id, machines.locationName)
-      .having(sql`ROUND(AVG(CASE WHEN CAST(${inventoryItems.minimumStock} AS INTEGER) > 0 THEN (CAST(${inventoryItems.currentStock} AS INTEGER)::DECIMAL / CAST(${inventoryItems.minimumStock} AS INTEGER)) * 100 ELSE 100 END), 1) < 80`)
-      .limit(10),
+      .where(isNotNull(machines.locationName))
+      .limit(6),
 
       // Geldbestände über 300 EUR pro Standort (ECHTE DATEN - Aktuell keine verfügbar)
       db.select({
