@@ -281,7 +281,7 @@ router.get('/preview', async (req, res) => {
     const highCashAlerts = await db
       .select({
         machineName: sql<string>`COALESCE(${machines.locationName}, 'Automat ' || ${machines.id})`.as('machineName'),
-        cashAmount: sql<number>`ROUND(SUM(${transactions.amount}) * 0.3, 2)`.as('cashAmount'),
+        cashAmount: sql<number>`ROUND(CAST(SUM(${transactions.amount}) * 0.3 AS NUMERIC), 2)`.as('cashAmount'),
         threshold: sql<number>`500`.as('threshold')
       })
       .from(machines)
@@ -327,7 +327,7 @@ router.get('/preview', async (req, res) => {
     const temperatureAlerts = await db
       .select({
         machineName: sql<string>`COALESCE(${machines.locationName}, 'Automat ' || ${machines.id})`.as('machineName'),
-        currentTemp: sql<number>`ROUND(RANDOM() * 8 + 10, 1)`.as('currentTemp'),
+        currentTemp: sql<number>`ROUND(CAST(RANDOM() * 8 + 10 AS NUMERIC), 1)`.as('currentTemp'),
         optimalRange: sql<string>`'4-8°C'`.as('optimalRange'),
         status: sql<string>`CASE WHEN RANDOM() > 0.5 THEN 'TOO_WARM' ELSE 'TOO_COLD' END`.as('status')
       })
