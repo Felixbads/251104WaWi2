@@ -92,12 +92,12 @@ export default function SupplierDashboard({ supplierId, supplier }: SupplierDash
       return {
         overview: {
           totalProducts: parseInt(apiData.overview?.products_sold || apiData.products_sold) || 0,
-          activeProducts: parseInt(apiData.overview?.products_sold || apiData.products_sold) || 0,
+          activeProducts: parseInt(apiData.overview?.active_products || apiData.active_products || apiData.overview?.products_sold || apiData.products_sold) || 0,
           totalOrders: parseInt(apiData.overview?.total_orders || apiData.total_orders) || 0,
-          openOrders: 0, // Not provided by API
+          openOrders: parseInt(apiData.overview?.open_orders || apiData.open_orders) || 0,
           totalRevenue: parseFloat(apiData.overview?.total_revenue || apiData.total_revenue) || 0,
-          monthlyRevenue: apiData.salesData?.[0]?.revenue || 0,
-          lastOrderDate: null, // Not provided by API
+          monthlyRevenue: parseFloat(apiData.overview?.monthly_revenue || apiData.monthly_revenue || apiData.salesData?.[0]?.revenue) || 0,
+          lastOrderDate: apiData.overview?.last_order_date || apiData.last_order_date || null,
         },
         salesData: apiData.salesData || [],
         topProducts: apiData.productPerformance?.map((product: any) => ({
