@@ -158,7 +158,7 @@ export default function SupplierStatistics({ supplierId, supplier }: SupplierSta
       {/* Header mit Zeitraum-Selektor */}
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-2xl font-bold">Statistiken für {supplier?.companyName}</h2>
+          <h2 className="text-2xl font-bold">Statistiken für {supplier?.name}</h2>
           <p className="text-muted-foreground">Umfassende Analyse der Lieferantenperformance</p>
         </div>
         <Select value={timeRange} onValueChange={setTimeRange}>
