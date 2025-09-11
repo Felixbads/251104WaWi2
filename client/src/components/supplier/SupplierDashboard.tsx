@@ -73,7 +73,7 @@ interface DashboardData {
 
 export default function SupplierDashboard({ supplierId, supplier }: SupplierDashboardProps) {
   const { data: rawDashboardData, isLoading } = useQuery<DashboardData>({
-    queryKey: [`/api/supplier-analytics/dashboard/${supplierId}`],
+    queryKey: ['/api/supplier-analytics/dashboard', supplierId],
     staleTime: 1000 * 60 * 5, // 5 minutes
     enabled: !!supplierId && !!supplier, // Warte bis Supplier-Daten geladen sind
   });
@@ -82,37 +82,40 @@ export default function SupplierDashboard({ supplierId, supplier }: SupplierDash
   const dashboardData = React.useMemo(() => {
     if (!rawDashboardData) return null;
     
-    // Unwrap the API response if it has the {success: true, data: ...} format
+    // The backend already returns the correct structure directly
     let apiData = rawDashboardData as any;
+    
+    // Unwrap the API response if it has the {success: true, data: ...} format
     if (apiData.success && apiData.data) {
       apiData = apiData.data;
     }
     
-    // Transform the API response to match our expected format
-    if (apiData.overview || apiData.total_revenue) {
-      return {
+    // Log the API data for debugging
+    console.log('[SupplierDashboard] Raw API data:', apiData);
+    
+    // The backend returns the correct structure, so we can use it directly
+    if (apiData.overview) {
+      const result = {
         overview: {
-          totalProducts: parseInt(apiData.overview?.products_sold || apiData.products_sold) || 0,
-          activeProducts: parseInt(apiData.overview?.active_products || apiData.active_products || apiData.overview?.products_sold || apiData.products_sold) || 0,
-          totalOrders: parseInt(apiData.overview?.total_orders || apiData.total_orders) || 0,
-          openOrders: parseInt(apiData.overview?.open_orders || apiData.open_orders) || 0,
-          totalRevenue: parseFloat(apiData.overview?.total_revenue || apiData.total_revenue) || 0,
-          monthlyRevenue: parseFloat(apiData.overview?.monthly_revenue || apiData.monthly_revenue || apiData.salesData?.[0]?.revenue) || 0,
-          lastOrderDate: apiData.overview?.last_order_date || apiData.last_order_date || null,
+          totalProducts: Number(apiData.overview.totalProducts) || 0,
+          activeProducts: Number(apiData.overview.activeProducts) || 0,
+          totalOrders: Number(apiData.overview.totalOrders) || 0,
+          openOrders: Number(apiData.overview.openOrders) || 0,
+          totalRevenue: Number(apiData.overview.totalRevenue) || 0,
+          monthlyRevenue: Number(apiData.overview.monthlyRevenue) || 0,
+          lastOrderDate: apiData.overview.lastOrderDate || null,
         },
         salesData: apiData.salesData || [],
-        topProducts: apiData.productPerformance?.map((product: any) => ({
-          productId: product.productId,
-          productName: product.productName,
-          revenue: product.revenue,
-          quantity: product.quantitySold,
-          growth: 0,
-        })) || [],
+        topProducts: apiData.topProducts || [],
         inventory: apiData.inventory || [],
         topLocations: apiData.topLocations || [],
       };
+      
+      console.log('[SupplierDashboard] Transformed data:', result);
+      return result;
     }
     
+    console.log('[SupplierDashboard] No valid overview found in API response');
     return null;
   }, [rawDashboardData]);
 
