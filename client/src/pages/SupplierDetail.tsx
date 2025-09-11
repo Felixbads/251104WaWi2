@@ -751,27 +751,29 @@ export default function SupplierDetail() {
     ? allProductsResponse.data.map((product: any) => ({ ...product }))
     : [];
   
-  // Bestellungen des Lieferanten abfragen (nur wenn Supplier geladen)
-  const { data: ordersResponse, isLoading: isOrdersLoading, error: ordersError } = useQuery<{data?: any[]; orders?: any[]}>({
-    queryKey: ['/api/orders', { supplierId: parseInt(id) }],
+  // Supplier Dashboard Daten abfragen (enthält korrekte Orders und andere Analytics)
+  const { data: supplierDashboardData, isLoading: isDashboardLoading, error: dashboardError } = useQuery<any>({
+    queryKey: [`/api/supplier-analytics/dashboard/${parseInt(id)}`],
     staleTime: 1000 * 60, // 1 Minute
     enabled: !!id && !isNaN(parseInt(id)) && !!supplier, // Warte auf Supplier-Daten
     retry: 2,
   });
   
-  // Bestellungen extrahieren und als Array zur Verfügung stellen
+  // Bestellungen aus Dashboard-Daten extrahieren (korrekte Orders für diesen Supplier)
   const orders = (() => {
     try {
-      if (!ordersResponse) return [];
-      if (Array.isArray(ordersResponse)) return ordersResponse;
-      if (Array.isArray(ordersResponse?.orders)) return ordersResponse.orders;
-      if (Array.isArray(ordersResponse?.data)) return ordersResponse.data;
+      if (!supplierDashboardData) return [];
+      if (Array.isArray(supplierDashboardData?.recentOrders)) return supplierDashboardData.recentOrders;
       return [];
     } catch (error) {
-      console.error('Fehler beim Verarbeiten der Bestellungsdaten:', error);
+      console.error('Fehler beim Verarbeiten der Dashboard-Bestellungsdaten:', error);
       return [];
     }
   })();
+  
+  // Für Kompatibilität: isOrdersLoading verwenden
+  const isOrdersLoading = isDashboardLoading;
+  const ordersError = dashboardError;
   
   // Einkaufsbedingungen des Lieferanten abfragen (nur wenn Supplier geladen)
   const { 
