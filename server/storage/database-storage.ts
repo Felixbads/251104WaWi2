@@ -775,7 +775,7 @@ export class DatabaseStorage implements IStorage {
     console.log(`[DatabaseStorage] Updating supplier ${id} with data:`, updates);
     
     try {
-      const result = await this.db
+      const result = await db
         .update(suppliers)
         .set({
           ...updates,

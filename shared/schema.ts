@@ -391,6 +391,7 @@ export const insertSupplierSchema = createInsertSchema(suppliers)
     shortDescription: z.string().optional().nullable().or(z.literal("")),
     description: z.string().optional().nullable().or(z.literal("")),
     photos: z.array(z.string()).optional().nullable(),
+    showPricesInOrders: z.boolean().optional(),
     hideOrderPrices: z.boolean().optional(),
     deliveryMethod: z.string().optional().nullable().or(z.literal("")),
     orderFrequency: z.string().optional().nullable().or(z.literal("")),
