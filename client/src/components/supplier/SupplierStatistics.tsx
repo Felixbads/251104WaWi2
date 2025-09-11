@@ -86,18 +86,26 @@ interface StatisticsData {
 
 export default function SupplierStatistics({ supplierId, supplier }: SupplierStatisticsProps) {
   const [timeRange, setTimeRange] = useState('6m');
+  const [activeTab, setActiveTab] = useState('overview');
 
-  const { data: statisticsData, isLoading, error } = useQuery({
-    queryKey: ['/api/supplier-analytics/dashboard', supplierId, timeRange],
-    queryFn: async () => {
-      const response = await fetch(`/api/supplier-analytics/dashboard/${supplierId}`, {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('authToken') || 'test'}` }
-      });
-      if (!response.ok) throw new Error('Failed to fetch statistics');
-      return response.json();
-    },
+  const { data: rawStatisticsData, isLoading, error } = useQuery({
+    queryKey: [`/api/supplier-analytics/dashboard/${supplierId}?range=${timeRange}`, timeRange],
     enabled: !!supplierId
   });
+
+  // Handle different API response formats  
+  const statisticsData = React.useMemo(() => {
+    if (!rawStatisticsData) return null;
+    
+    // If the API returns { success: true, data: ... }, unwrap it
+    const apiData = rawStatisticsData as any;
+    if (apiData.success && apiData.data) {
+      return apiData.data;
+    }
+    
+    // Otherwise return the data as-is
+    return apiData;
+  }, [rawStatisticsData]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('de-DE', {
@@ -167,7 +175,7 @@ export default function SupplierStatistics({ supplierId, supplier }: SupplierSta
       </div>
 
       {/* Tabs für verschiedene Analysen */}
-      <Tabs defaultValue="overview" className="w-full">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="overview">Übersicht</TabsTrigger>
           <TabsTrigger value="locations">Standort-Analyse</TabsTrigger>

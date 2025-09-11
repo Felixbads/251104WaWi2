@@ -177,7 +177,7 @@ function SupplierInlineEditCard({ supplier, onUpdate }: { supplier: any; onUpdat
           <EditableField
             label="Firmenname"
             field="name"
-            value={supplier.name}
+            value={supplier?.name || ''}
             icon={<Building className="h-4 w-4 text-muted-foreground" />}
           />
         </CardContent>
@@ -195,26 +195,26 @@ function SupplierInlineEditCard({ supplier, onUpdate }: { supplier: any; onUpdat
           <EditableField
             label="Ansprechpartner"
             field="contactPerson"
-            value={supplier.contactPerson}
+            value={supplier?.contactPerson || ''}
           />
           <EditableField
             label="Telefon"
             field="phone"
-            value={supplier.phone}
+            value={supplier?.phone || ''}
             type="tel"
             icon={<Phone className="h-4 w-4 text-muted-foreground" />}
           />
           <EditableField
             label="E-Mail"
             field="email"
-            value={supplier.email}
+            value={supplier?.email || ''}
             type="email"
             icon={<Mail className="h-4 w-4 text-muted-foreground" />}
           />
           <EditableField
             label="Website"
             field="website"
-            value={supplier.website}
+            value={supplier?.website || ''}
             type="url"
             icon={<Globe className="h-4 w-4 text-muted-foreground" />}
           />
@@ -233,22 +233,22 @@ function SupplierInlineEditCard({ supplier, onUpdate }: { supplier: any; onUpdat
           <EditableField
             label="Straße/Hausnummer"
             field="address"
-            value={supplier.address}
+            value={supplier?.address || ''}
           />
           <EditableField
             label="Postleitzahl"
             field="postalCode"
-            value={supplier.postalCode}
+            value={supplier?.postalCode || ''}
           />
           <EditableField
             label="Stadt"
             field="city"
-            value={supplier.city}
+            value={supplier?.city || ''}
           />
           <EditableField
             label="Land"
             field="country"
-            value={supplier.country}
+            value={supplier?.country || ''}
           />
         </CardContent>
       </Card>
@@ -265,13 +265,13 @@ function SupplierInlineEditCard({ supplier, onUpdate }: { supplier: any; onUpdat
           <EditableField
             label="Kurzbeschreibung"
             field="shortDescription"
-            value={supplier.shortDescription}
+            value={supplier?.shortDescription || ''}
             type="textarea"
           />
           <EditableField
             label="Detailbeschreibung"
             field="description"
-            value={supplier.description}
+            value={supplier?.description || ''}
             type="textarea"
           />
         </CardContent>
@@ -311,7 +311,7 @@ function SupplierInlineEditCard({ supplier, onUpdate }: { supplier: any; onUpdat
           <EditableField
             label="Notizen"
             field="notes"
-            value={supplier.notes}
+            value={supplier?.notes || ''}
             type="textarea"
           />
         </CardContent>
@@ -830,9 +830,9 @@ export default function SupplierDetail() {
   // Mutation für das Zuweisen eines Produkts zu einem Lieferanten
   const assignProductToSupplierMutation = useMutation({
     mutationFn: (productId: number) => {
-      // Sicherstellen, dass supplier nicht undefined ist
-      if (!supplier) {
-        throw new Error("Lieferant nicht gefunden");
+      // Sicherstellen, dass supplier und ID valide sind
+      if (!supplier?.id || !supplier?.name || isNaN(parseInt(id))) {
+        throw new Error("Lieferant-Daten sind unvollständig oder ungültig");
       }
       return assignProductToSupplier(productId, parseInt(id), supplier.name);
     },
@@ -880,9 +880,9 @@ export default function SupplierDetail() {
   // Standardwerte für das Formular definieren
   const defaultValues = supplier ? {
     ...supplier,
-    status: supplier.status || 'active',
-    country: supplier.country || 'Deutschland',
-    minimumOrderValue: supplier.minimumOrderValue || undefined,
+    status: supplier?.status || 'active',
+    country: supplier?.country || 'Deutschland',
+    minimumOrderValue: supplier?.minimumOrderValue || undefined,
   } : {
     name: '',
     status: 'active',
