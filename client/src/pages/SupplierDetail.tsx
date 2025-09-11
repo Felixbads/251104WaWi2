@@ -954,6 +954,7 @@ export default function SupplierDetail() {
     return (
       <div className="container space-y-6">
         <PageHeader
+          title="Lieferant wird geladen..."
           showRefresh={true}
           showDownload={true}
           additionalButtons={
@@ -989,6 +990,7 @@ export default function SupplierDetail() {
     return (
       <div className="container space-y-6">
         <PageHeader
+          title="Fehler beim Laden"
           additionalButtons={
             <Button variant="outline" size="icon" className="h-9 w-9" onClick={handleBack}>
               <ArrowLeft className="h-4 w-4" />
@@ -1026,6 +1028,7 @@ export default function SupplierDetail() {
     return (
       <div className="container space-y-6">
         <PageHeader
+          title="Neuen Lieferanten erstellen"
           additionalButtons={
             <Button variant="outline" size="icon" className="h-9 w-9" onClick={handleBack}>
               <ArrowLeft className="h-4 w-4" />
@@ -1200,6 +1203,7 @@ export default function SupplierDetail() {
     <div className="container space-y-6">
       {/* Standardisierter PageHeader */}
       <PageHeader
+        title={supplier?.name || 'Lieferant'}
         showRefresh={true}
         showDownload={true}
         additionalButtons={
