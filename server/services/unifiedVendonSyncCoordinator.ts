@@ -1022,9 +1022,11 @@ export class UnifiedVendonSyncCoordinator {
                       productsWithRemovals++;
                       try {
                         // Verwende korrekte Spalten-Namen: previous_stock, current_stock
+                        // FIXED: ON CONFLICT DO NOTHING verhindert Duplikate (nutzt UNIQUE constraint)
                         const insertQuery = `
                           INSERT INTO refill_details (refill_id, product_name, removed, added, previous_stock, current_stock)
                           VALUES ($1, $2, $3, $4, $5, $6)
+                          ON CONFLICT (refill_id, product_name, removed) DO NOTHING
                         `;
                         await rawDb.query(insertQuery, [
                           existingRefill.id,
