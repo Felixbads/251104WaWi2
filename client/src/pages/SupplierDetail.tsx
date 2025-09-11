@@ -709,6 +709,14 @@ export default function SupplierDetail() {
     enabled: !isNewSupplier && !!supplierId && !isNaN(supplierId),
     retry: 2,
     retryDelay: 1000,
+    select: (response: any) => {
+      // ✅ CRITICAL FIX: Extract data from API response wrapper
+      console.log('[SupplierDetail] Raw API response:', response);
+      const supplier = response?.data || response;
+      console.log('[SupplierDetail] Extracted supplier:', supplier);
+      console.log('[SupplierDetail] Supplier ID check:', supplier?.id);
+      return supplier;
+    }
   });
   
   // Produkte des Lieferanten abfragen (nur wenn nicht "new" und Supplier geladen)
@@ -923,7 +931,20 @@ export default function SupplierDetail() {
   };
   
   const handleUpdateSupplier = (updatedData: Partial<Supplier>) => {
-    updateSupplierMutation.mutate(updatedData);
+    // ✅ Das SupplierEditDialog macht bereits das Update - wir invalidieren nur die Queries
+    console.log('[SupplierDetail] Supplier update completed:', updatedData);
+    
+    // Invalidate queries to refresh the data
+    queryClient.invalidateQueries({ queryKey: [`/api/suppliers/${id}`] });
+    queryClient.invalidateQueries({ queryKey: ['/api/suppliers'] });
+    
+    // Close the dialog
+    setIsEditDialogOpen(false);
+    
+    toast({
+      title: "Erfolg",
+      description: "Lieferant erfolgreich aktualisiert",
+    });
   };
   
   // Helper für den Status

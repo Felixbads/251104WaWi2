@@ -29,6 +29,8 @@ export function SupplierEditDialog({ supplier, isOpen, onOpenChange, onSave }: S
   const updateSupplierMutation = useMutation({
     mutationFn: async (data: Partial<Supplier>) => {
       console.log('[SupplierEditDialog] Speichere Lieferantendaten:', data);
+      console.log('[SupplierEditDialog] supplier.id:', supplier.id);
+      console.log('[SupplierEditDialog] Full supplier object:', supplier);
       const response = await fetch(`/api/suppliers/${supplier.id}`, {
         method: 'PUT',
         headers: {
@@ -130,11 +132,20 @@ export function SupplierEditDialog({ supplier, isOpen, onOpenChange, onSave }: S
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleInputChange = (field: string, value: any) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    console.log(`[SupplierEditDialog] handleInputChange: field="${field}", value="${value}"`);
+    setFormData(prev => {
+      const newData = { ...prev, [field]: value };
+      console.log(`[SupplierEditDialog] formData after change:`, newData);
+      return newData;
+    });
   };
 
   const handleSave = async () => {
+    console.log('[SupplierEditDialog] handleSave() started');
+    console.log('[SupplierEditDialog] Current formData:', formData);
+    
     if (!formData.name.trim()) {
+      console.log('[SupplierEditDialog] Validation failed: Name is empty');
       toast({
         title: "Validierungsfehler",
         description: "Lieferantenname ist erforderlich",
@@ -143,6 +154,7 @@ export function SupplierEditDialog({ supplier, isOpen, onOpenChange, onSave }: S
       return;
     }
 
+    console.log('[SupplierEditDialog] Validation passed, setting isSubmitting=true');
     setIsSubmitting(true);
     
     // Clean data before sending - remove empty strings and convert numbers
@@ -160,7 +172,15 @@ export function SupplierEditDialog({ supplier, isOpen, onOpenChange, onSave }: S
       cleanedData.photos = null;
     }
     
-    updateSupplierMutation.mutate(cleanedData);
+    console.log('[SupplierEditDialog] Final cleanedData being sent:', cleanedData);
+    console.log('[SupplierEditDialog] About to call updateSupplierMutation.mutate()');
+    
+    try {
+      updateSupplierMutation.mutate(cleanedData);
+      console.log('[SupplierEditDialog] updateSupplierMutation.mutate() called successfully');
+    } catch (error) {
+      console.error('[SupplierEditDialog] Error calling updateSupplierMutation.mutate():', error);
+    }
   };
 
   return (
@@ -189,7 +209,7 @@ export function SupplierEditDialog({ supplier, isOpen, onOpenChange, onSave }: S
                 <TabsTrigger value="ordering" className="text-xs lg:text-sm py-2">
                   Termine
                 </TabsTrigger>
-                <TabsTrigger value="email" className="text-xs lg:text-sm py-2">
+                <TabsTrigger value="email" className="text-xs lg:text-sm py-2" data-testid="tab-email">
                   E-Mail
                 </TabsTrigger>
               </TabsList>
@@ -209,6 +229,7 @@ export function SupplierEditDialog({ supplier, isOpen, onOpenChange, onSave }: S
                         <Label htmlFor="name" className="text-sm font-medium text-red-600">Lieferantenname *</Label>
                         <Input
                           id="name"
+                          data-testid="input-supplier-name"
                           value={formData.name}
                           onChange={(e) => handleInputChange('name', e.target.value)}
                           className="mt-1"
@@ -654,6 +675,7 @@ export function SupplierEditDialog({ supplier, isOpen, onOpenChange, onSave }: S
                         onChange={(e) => handleInputChange('orderEmailRecipient', e.target.value)}
                         className="mt-1"
                         placeholder="bestellungen@lieferant.de"
+                        data-testid="input-orderEmailRecipient"
                       />
                     </div>
 
@@ -745,9 +767,13 @@ export function SupplierEditDialog({ supplier, isOpen, onOpenChange, onSave }: S
             Abbrechen
           </Button>
           <Button
-            onClick={handleSave}
+            onClick={() => {
+              console.log('[SupplierEditDialog] SPEICHERN Button clicked!');
+              handleSave();
+            }}
             disabled={updateSupplierMutation.isPending || isSubmitting}
             className="w-full sm:w-auto"
+            data-testid="button-save-supplier"
           >
             <Save className="h-4 w-4 mr-2" />
             {updateSupplierMutation.isPending || isSubmitting ? 'Speichert...' : 'Speichern'}

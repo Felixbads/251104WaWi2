@@ -237,7 +237,7 @@ export const queryClient = new QueryClient({
       refetchOnWindowFocus: false,     // kein Refetch beim Tab-Wechsel
       refetchOnMount: false,           // nicht bei jedem Mount neu
       refetchOnReconnect: false,       // kein Refetch bei Reconnect
-      keepPreviousData: true,          // behalte alte Daten während Refetch
+      placeholderData: (previousData: any) => previousData, // behalte alte Daten während Refetch (TanStack Query V5)
       retry: false
     },
     mutations: {
