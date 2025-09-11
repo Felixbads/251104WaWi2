@@ -711,11 +711,11 @@ export default function SupplierDetail() {
     retryDelay: 1000,
   });
   
-  // Produkte des Lieferanten abfragen (nur wenn nicht "new")
+  // Produkte des Lieferanten abfragen (nur wenn nicht "new" und Supplier geladen)
   const { data: productsResponse, isLoading: isProductsLoading, error: productsError } = useQuery<{data?: any[]; products?: any[]}>({
     queryKey: ['/api/products', { supplierId: supplierId }],
     staleTime: 1000 * 60, // 1 Minute
-    enabled: !isNewSupplier && !!supplierId && !isNaN(supplierId),
+    enabled: !isNewSupplier && !!supplierId && !isNaN(supplierId) && !!supplier, // Warte auf Supplier-Daten
     retry: 2,
   });
   
@@ -751,11 +751,11 @@ export default function SupplierDetail() {
     ? allProductsResponse.data.map((product: any) => ({ ...product }))
     : [];
   
-  // Bestellungen des Lieferanten abfragen
+  // Bestellungen des Lieferanten abfragen (nur wenn Supplier geladen)
   const { data: ordersResponse, isLoading: isOrdersLoading, error: ordersError } = useQuery<{data?: any[]; orders?: any[]}>({
     queryKey: ['/api/orders', { supplierId: parseInt(id) }],
     staleTime: 1000 * 60, // 1 Minute
-    enabled: !!id && !isNaN(parseInt(id)),
+    enabled: !!id && !isNaN(parseInt(id)) && !!supplier, // Warte auf Supplier-Daten
     retry: 2,
   });
   
@@ -773,7 +773,7 @@ export default function SupplierDetail() {
     }
   })();
   
-  // Einkaufsbedingungen des Lieferanten abfragen
+  // Einkaufsbedingungen des Lieferanten abfragen (nur wenn Supplier geladen)
   const { 
     data: purchaseConditionsResponse, 
     isLoading: isPurchaseConditionsLoading,
@@ -782,7 +782,7 @@ export default function SupplierDetail() {
   } = useQuery<{data?: any[]}>({
     queryKey: [`/api/suppliers/${id}/purchase-conditions`],
     staleTime: 1000 * 60, // 1 Minute
-    enabled: !!id && !isNaN(parseInt(id)),
+    enabled: !!id && !isNaN(parseInt(id)) && !!supplier, // Warte auf Supplier-Daten
     retry: 2,
   });
   

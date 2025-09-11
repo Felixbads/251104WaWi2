@@ -75,6 +75,7 @@ export default function SupplierDashboard({ supplierId, supplier }: SupplierDash
   const { data: rawDashboardData, isLoading } = useQuery<DashboardData>({
     queryKey: [`/api/supplier-analytics/dashboard/${supplierId}`],
     staleTime: 1000 * 60 * 5, // 5 minutes
+    enabled: !!supplierId && !!supplier, // Warte bis Supplier-Daten geladen sind
   });
 
   // Handle different API response formats

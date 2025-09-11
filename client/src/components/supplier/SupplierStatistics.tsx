@@ -90,7 +90,7 @@ export default function SupplierStatistics({ supplierId, supplier }: SupplierSta
 
   const { data: rawStatisticsData, isLoading, error } = useQuery({
     queryKey: [`/api/supplier-analytics/dashboard/${supplierId}?range=${timeRange}`, timeRange],
-    enabled: !!supplierId
+    enabled: !!supplierId && !!supplier // Warte auf Supplier-Daten
   });
 
   // Handle different API response formats  
