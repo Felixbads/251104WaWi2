@@ -934,7 +934,7 @@ export class DatabaseStorage implements IStorage {
         product_name, price, quantity, source, extra_data,
         payment_method, status, currency, vat, price_vat, price_wo_vat
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
-      ON CONFLICT (vendon_id) DO UPDATE SET
+      ON CONFLICT (vendon_id, machine_id, datetime) DO UPDATE SET
         machine_id = EXCLUDED.machine_id,
         machine_name = EXCLUDED.machine_name,
         datetime = EXCLUDED.datetime,
@@ -985,7 +985,7 @@ export class DatabaseStorage implements IStorage {
           payment_method, status, currency, vat, price_vat, price_wo_vat,
           updated_at, transaction_dt, registered_dt, product_id
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
-        ON CONFLICT (machine_id, vendon_id) DO UPDATE SET
+        ON CONFLICT (vendon_id, machine_id, datetime) DO UPDATE SET
           machine_name = EXCLUDED.machine_name,
           datetime = EXCLUDED.datetime,
           product_name = EXCLUDED.product_name,
@@ -1082,7 +1082,7 @@ export class DatabaseStorage implements IStorage {
           payment_method, status, currency, vat, price_vat, price_wo_vat,
           updated_at, transaction_dt, registered_dt, product_id
         ) VALUES ${values.join(', ')}
-        ON CONFLICT (machine_id, vendon_id) DO UPDATE SET
+        ON CONFLICT (vendon_id, machine_id, datetime) DO UPDATE SET
           machine_name = EXCLUDED.machine_name,
           datetime = EXCLUDED.datetime,
           product_name = EXCLUDED.product_name,
@@ -1174,7 +1174,7 @@ export class DatabaseStorage implements IStorage {
         machineName: refills.machineName,
         datetime: refills.datetime,
         refillNumber: refills.refillNumber,
-        isCompleted: refills.isCompleted,
+        // isCompleted: refills.isCompleted, // Field doesn't exist in schema
         totalAmount: refills.totalAmount,
         processStatus: refills.processStatus,
         createdAt: refills.createdAt,
@@ -1313,25 +1313,24 @@ export class DatabaseStorage implements IStorage {
       let paramIndex = 1;
 
       for (const refill of refillList) {
-        values.push(`($${paramIndex}, $${paramIndex + 1}, $${paramIndex + 2}, $${paramIndex + 3}, $${paramIndex + 4}, $${paramIndex + 5}, $${paramIndex + 6})`);
+        values.push(`($${paramIndex}, $${paramIndex + 1}, $${paramIndex + 2}, $${paramIndex + 3}, $${paramIndex + 4}, $${paramIndex + 5})`);
         params.push(
           refill.vendonId,
           refill.machineId,
           refill.machineName || 'Unbekannt',
           refill.datetime,
           refill.refillNumber || null,
-          refill.isCompleted || false,
           refill.extraData || null
         );
-        paramIndex += 7;
+        paramIndex += 6;
       }
 
       const sql = `
         INSERT INTO refills (
           vendon_id, machine_id, machine_name, datetime, 
-          refill_number, is_completed, extra_data
+          refill_number, extra_data
         ) VALUES ${values.join(', ')}
-        ON CONFLICT (vendon_id) DO UPDATE SET
+        ON CONFLICT (vendon_id, machine_id, datetime) DO UPDATE SET
           machine_id = EXCLUDED.machine_id,
           machine_name = EXCLUDED.machine_name,
           datetime = EXCLUDED.datetime,
@@ -1728,7 +1727,7 @@ export class DatabaseStorage implements IStorage {
           vendon_id, machine_id, machine_name, datetime, 
           event_type, description, extra_data
         ) VALUES ${values.join(', ')}
-        ON CONFLICT (vendon_id) DO UPDATE SET
+        ON CONFLICT (vendon_id, machine_id, datetime) DO UPDATE SET
           machine_id = EXCLUDED.machine_id,
           machine_name = EXCLUDED.machine_name,
           datetime = EXCLUDED.datetime,
@@ -2338,6 +2337,397 @@ export class DatabaseStorage implements IStorage {
       };
     } catch (error) {
       console.error('[STORAGE] Error getting machine cost summary:', error);
+      throw error;
+    }
+  }
+
+  // ==================== REFILL OPERATIONS ====================
+  
+  /**
+   * Get all refills
+   */
+  async getRefills(options?: { limit?: number; offset?: number }): Promise<Refill[]> {
+    try {
+      let query = db.select().from(refills);
+      
+      if (options?.limit) {
+        query = query.limit(options.limit);
+      }
+      
+      if (options?.offset) {
+        query = query.offset(options.offset);
+      }
+      
+      const results = await query.orderBy(desc(refills.datetime));
+      return results;
+    } catch (error) {
+      console.error('[STORAGE] Error getting refills:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get refill details
+   */
+  async getRefillDetails(refillId: number): Promise<RefillDetail[]> {
+    try {
+      const details = await db.select()
+        .from(refillDetails)
+        .where(eq(refillDetails.refillId, refillId))
+        .orderBy(refillDetails.id);
+      
+      return details;
+    } catch (error) {
+      console.error('[STORAGE] Error getting refill details:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get refills by machine ID
+   */
+  async getRefillsByMachine(machineId: number): Promise<Refill[]> {
+    try {
+      const refillList = await db.select()
+        .from(refills)
+        .where(eq(refills.machineId, machineId))
+        .orderBy(desc(refills.datetime));
+      
+      return refillList;
+    } catch (error) {
+      console.error('[STORAGE] Error getting refills by machine:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Create a new refill
+   */
+  async createRefill(refill: Omit<InsertRefill, 'id'>): Promise<Refill> {
+    try {
+      const [newRefill] = await db.insert(refills)
+        .values(refill)
+        .returning();
+      
+      console.log('[STORAGE] Created refill:', newRefill.id);
+      return newRefill;
+    } catch (error) {
+      console.error('[STORAGE] Error creating refill:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Update a refill
+   */
+  async updateRefill(id: number, updates: Partial<InsertRefill>): Promise<Refill> {
+    try {
+      const [updatedRefill] = await db.update(refills)
+        .set(updates)
+        .where(eq(refills.id, id))
+        .returning();
+      
+      if (!updatedRefill) {
+        throw new Error('Refill not found');
+      }
+      
+      console.log('[STORAGE] Updated refill:', id);
+      return updatedRefill;
+    } catch (error) {
+      console.error('[STORAGE] Error updating refill:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Delete a refill
+   */
+  async deleteRefill(id: number): Promise<void> {
+    try {
+      await db.delete(refills)
+        .where(eq(refills.id, id));
+      
+      console.log('[STORAGE] Deleted refill:', id);
+    } catch (error) {
+      console.error('[STORAGE] Error deleting refill:', error);
+      throw error;
+    }
+  }
+
+  // ==================== EVENT OPERATIONS ====================
+
+  /**
+   * Get all events
+   */
+  async getEvents(options?: { limit?: number; offset?: number }): Promise<Event[]> {
+    try {
+      let query = db.select().from(events);
+      
+      if (options?.limit) {
+        query = query.limit(options.limit);
+      }
+      
+      if (options?.offset) {
+        query = query.offset(options.offset);
+      }
+      
+      const results = await query.orderBy(desc(events.datetime));
+      return results;
+    } catch (error) {
+      console.error('[STORAGE] Error getting events:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get events by date range
+   */
+  async getEventsByDateRange(startDate: Date, endDate: Date): Promise<Event[]> {
+    try {
+      const eventList = await db.select()
+        .from(events)
+        .where(and(
+          gte(events.datetime, startDate),
+          lte(events.datetime, endDate)
+        ))
+        .orderBy(events.datetime);
+      
+      return eventList;
+    } catch (error) {
+      console.error('[STORAGE] Error getting events by date range:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get events by machine ID
+   */
+  async getEventsByMachine(machineId: number): Promise<Event[]> {
+    try {
+      const eventList = await db.select()
+        .from(events)
+        .where(eq(events.machineId, machineId))
+        .orderBy(desc(events.datetime));
+      
+      return eventList;
+    } catch (error) {
+      console.error('[STORAGE] Error getting events by machine:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Create a new event
+   */
+  async createEvent(event: Omit<InsertEvent, 'id'>): Promise<Event> {
+    try {
+      const [newEvent] = await db.insert(events)
+        .values(event)
+        .returning();
+      
+      console.log('[STORAGE] Created event:', newEvent.id);
+      return newEvent;
+    } catch (error) {
+      console.error('[STORAGE] Error creating event:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Update an event
+   */
+  async updateEvent(id: number, updates: Partial<InsertEvent>): Promise<Event> {
+    try {
+      const [updatedEvent] = await db.update(events)
+        .set(updates)
+        .where(eq(events.id, id))
+        .returning();
+      
+      if (!updatedEvent) {
+        throw new Error('Event not found');
+      }
+      
+      console.log('[STORAGE] Updated event:', id);
+      return updatedEvent;
+    } catch (error) {
+      console.error('[STORAGE] Error updating event:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Delete an event
+   */
+  async deleteEvent(id: number): Promise<void> {
+    try {
+      await db.delete(events)
+        .where(eq(events.id, id));
+      
+      console.log('[STORAGE] Deleted event:', id);
+    } catch (error) {
+      console.error('[STORAGE] Error deleting event:', error);
+      throw error;
+    }
+  }
+
+  // ==================== SYNC LOG OPERATIONS ====================
+
+  /**
+   * Get sync logs by type
+   */
+  async getSyncLogsByType(syncType: string, options?: { limit?: number; offset?: number; syncStatus?: string }): Promise<SyncLog[]> {
+    try {
+      let query = db.select().from(syncLogs).where(eq(syncLogs.syncType, syncType));
+      
+      if (options?.syncStatus) {
+        query = query.where(and(eq(syncLogs.syncType, syncType), eq(syncLogs.status, options.syncStatus)));
+      }
+      
+      if (options?.limit) {
+        query = query.limit(options.limit);
+      }
+      
+      if (options?.offset) {
+        query = query.offset(options.offset);
+      }
+      
+      const results = await query.orderBy(desc(syncLogs.createdAt));
+      return results;
+    } catch (error) {
+      console.error('[STORAGE] Error getting sync logs by type:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Create a sync log entry
+   */
+  async createSyncLog(log: Omit<InsertSyncLog, 'id'>): Promise<SyncLog> {
+    try {
+      const [newLog] = await db.insert(syncLogs)
+        .values(log)
+        .returning();
+      
+      console.log('[STORAGE] Created sync log:', newLog.id);
+      return newLog;
+    } catch (error) {
+      console.error('[STORAGE] Error creating sync log:', error);
+      throw error;
+    }
+  }
+
+  // ==================== EXTENDED PRODUCT OPERATIONS ====================
+
+  /**
+   * Get a single product by ID (explicit implementation)
+   */
+  async getProduct(id: number): Promise<Product | undefined> {
+    return this.getProductById(id);
+  }
+
+  /**
+   * Get product machines (products available in specific machines)
+   */
+  async getProductMachines(productId: number): Promise<any[]> {
+    try {
+      // This could be machine-product assignments or stock levels
+      const machineProducts = await db.select({
+        machineId: machineStocks.machineId,
+        productId: machineStocks.productId,
+        quantity: machineStocks.quantity,
+        machineName: machines.machineName
+      })
+      .from(machineStocks)
+      .leftJoin(machines, eq(machineStocks.machineId, machines.id))
+      .where(eq(machineStocks.productId, productId));
+      
+      return machineProducts;
+    } catch (error) {
+      console.error('[STORAGE] Error getting product machines:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get product batches
+   */
+  async getProductBatches(productId: number): Promise<ProductBatch[]> {
+    try {
+      const batches = await db.select()
+        .from(productBatches)
+        .where(eq(productBatches.productId, productId))
+        .orderBy(desc(productBatches.createdAt));
+      
+      return batches;
+    } catch (error) {
+      console.error('[STORAGE] Error getting product batches:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get product refills
+   */
+  async getProductRefills(productId: number): Promise<Refill[]> {
+    try {
+      const productRefills = await db.select()
+        .from(refills)
+        .where(eq(refills.productId, productId))
+        .orderBy(desc(refills.datetime));
+      
+      return productRefills;
+    } catch (error) {
+      console.error('[STORAGE] Error getting product refills:', error);
+      throw error;
+    }
+  }
+
+  // ==================== MACHINE STATUS OPERATIONS ====================
+
+  /**
+   * Get machine status overview
+   */
+  async getMachineStatusOverview(): Promise<any[]> {
+    try {
+      const overview = await db.select({
+        id: machines.id,
+        machineName: machines.machineName,
+        vendonId: machines.vendonId,
+        locationId: machines.locationId,
+        warehouseId: machines.warehouseId,
+        isActive: machines.isActive,
+        lastMaintenance: machines.lastMaintenance,
+        lastTransaction: sql<Date>`(
+          SELECT MAX(datetime) 
+          FROM transactions 
+          WHERE transactions.machine_id = machines.id
+        )`,
+        transactionCount: sql<number>`(
+          SELECT COUNT(*) 
+          FROM transactions 
+          WHERE transactions.machine_id = machines.id 
+            AND transactions.datetime >= NOW() - INTERVAL '24 hours'
+        )`
+      })
+      .from(machines)
+      .where(eq(machines.isActive, true));
+      
+      return overview;
+    } catch (error) {
+      console.error('[STORAGE] Error getting machine status overview:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get transaction count for sync status
+   */
+  async getTransactionCount(): Promise<number> {
+    try {
+      const result = await db.select({ count: count() }).from(transactions);
+      return parseInt(result[0]?.count?.toString() || '0');
+    } catch (error) {
+      console.error('[STORAGE] Error getting transaction count:', error);
       throw error;
     }
   }

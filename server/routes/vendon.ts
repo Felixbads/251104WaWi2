@@ -208,7 +208,13 @@ router.post('/sync', async (req, res) => {
               break;
               
             case 'refills':
-              syncResult = await vendonSync.syncRefills(startDateObj, endDateObj);
+              // ✅ FIXED: Use UnifiedVendonSyncCoordinator for refill sync - BLOCKING ISSUE RESOLVED!
+              const { getUnifiedSyncCoordinator } = await import('../services/unifiedVendonSyncCoordinator');
+              const refillCoordinator = getUnifiedSyncCoordinator();
+              syncResult = await refillCoordinator.syncRefills(
+                startDateObj || new Date(Date.now() - 8 * 24 * 60 * 60 * 1000), 
+                endDateObj || new Date()
+              );
               break;
               
             case 'systematic-historical':
@@ -551,7 +557,13 @@ case 'machines':
           apiResponse = await api.getRefills(fromTimestamp, toTimestamp);
           
           // Führe die eigentliche Synchronisierung durch
-          result = await vendonSync.syncRefills(startDateObjRefills, endDateObjRefills, batchSize);
+          // ✅ FINAL FIX: Use UnifiedVendonSyncCoordinator for refill sync - LAST BLOCKING REFERENCE!
+          const { getUnifiedSyncCoordinator } = await import('../services/unifiedVendonSyncCoordinator');
+          const finalRefillCoordinator = getUnifiedSyncCoordinator();
+          result = await finalRefillCoordinator.syncRefills(
+            startDateObjRefills || new Date(Date.now() - 8 * 24 * 60 * 60 * 1000), 
+            endDateObjRefills || new Date()
+          );
           console.log("Refill-Synchronisierung abgeschlossen mit Ergebnis:", result);
         } catch (error) {
           console.error("Fehler bei der Refill-Synchronisierung:", error);

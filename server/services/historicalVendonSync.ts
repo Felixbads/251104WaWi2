@@ -4,7 +4,7 @@ import {
   InsertTransaction,
   HistoricalSyncOptions
 } from "@shared/schema";
-import { vendonSync } from "./vendonSync";
+// import { vendonSync } from "./vendonSync"; // DEPRECATED - use UnifiedVendonSyncCoordinator
 import { addDays, format, parseISO } from "date-fns";
 
 /**
@@ -17,9 +17,10 @@ import { addDays, format, parseISO } from "date-fns";
  * FIXED: Verwendet jetzt die gemeinsame vendonSync-Instanz statt einer neuen Instanz zu erstellen.
  */
 export class HistoricalVendonSyncService {
-  // Verwende die Singleton-Instanz aus vendonSync.ts
-  private get vendonSync() {
-    return vendonSync;
+  // Verwende UnifiedVendonSyncCoordinator
+  private async getUnifiedSyncCoordinator() {
+    const { getUnifiedSyncCoordinator } = await import('./unifiedVendonSyncCoordinator');
+    return getUnifiedSyncCoordinator();
   }
   
   /**

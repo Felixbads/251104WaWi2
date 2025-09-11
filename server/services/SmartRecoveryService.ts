@@ -2,7 +2,7 @@ import { db } from '../db';
 import { transactions, machines, recoveryJobs, transactionGaps, syncLogs } from '@shared/schema';
 import { eq, and, gte, lte, sql, desc, asc, count, isNull, inArray } from 'drizzle-orm';
 import { EventEmitter } from 'events';
-import { vendonSync } from './vendonSync';
+import { getVendonApiClient } from './enhancedVendonApiClient';
 
 // Types für Recovery Operations
 export interface RecoveryJobExecution {
@@ -602,7 +602,7 @@ export class SmartRecoveryService extends EventEmitter {
   private async processApiBackfillBatch(jobDetails: any, batch: any): Promise<any> {
     try {
       // Verwende Vendon-Sync Service für Datenabfrage
-      const api = vendonSync.getApi();
+      const api = getEnhancedVendonApiClient();
       
       const fromTimestamp = Math.floor(batch.startTime.getTime() / 1000);
       const toTimestamp = Math.floor(batch.endTime.getTime() / 1000);
@@ -629,7 +629,7 @@ export class SmartRecoveryService extends EventEmitter {
       for (const transaction of transactionData) {
         try {
           // Hier würde die Transaktion normalerweise gespeichert werden
-          // Die tatsächliche Implementierung würde den vendonSync.processTransaction verwenden
+          // Die tatsächliche Implementierung würde den UnifiedVendonSyncCoordinator verwenden
           itemsRecovered++;
         } catch (error) {
           console.error('[SmartRecovery] Fehler beim Speichern der Transaktion:', error);

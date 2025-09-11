@@ -4,7 +4,7 @@
  */
 
 import { ultraRobustVendonSync } from './ultraRobustVendonSync';
-import { vendonSync } from './vendonSync';
+// import { vendonSync } from './vendonSync'; // DEPRECATED - use UnifiedVendonSyncCoordinator
 import { vendonHistoryImporter } from './vendonHistoryImporter';
 
 class VendonScheduler {
@@ -68,35 +68,34 @@ class VendonScheduler {
     try {
       console.log('Starting scheduled Vendon sync...');
 
-      // 1. Sync transactions - nur letzte 6 Stunden für aktuelle Daten
-      const transactionResult = await vendonSync.syncTransactions(
+      // 1. Sync transactions über UnifiedVendonSyncCoordinator
+      const { getUnifiedSyncCoordinator } = await import('./unifiedVendonSyncCoordinator');
+      const schedulerTxCoordinator = getUnifiedSyncCoordinator();
+      const transactionResult = await schedulerTxCoordinator.syncTransactions(
         new Date(Date.now() - 6 * 60 * 60 * 1000), // nur letzte 6 Stunden
-        new Date(), // jetzt
-        200, // kleinere Batch-Größe für aktuellere Synchronisierung
-        1000, // weniger Transaktionen pro Durchlauf
-        false // forceUpdate
+        new Date() // jetzt
       );
 
       console.log('Transaction sync completed:', transactionResult.message);
 
       // 2. Sync events (for door openings) - nur letzte 2 Stunden
       try {
-        const eventsResult = await vendonSync.syncEvents(
+        const eventsResult = await schedulerTxCoordinator.syncEvents(
           new Date(Date.now() - 2 * 60 * 60 * 1000), // nur letzte 2 Stunden
-          new Date(), // jetzt
-          50 // kleinere Batch-Größe
+          new Date() // jetzt
         );
         console.log('Events sync completed:', eventsResult.message);
       } catch (eventsError) {
         console.error('Events sync failed:', eventsError);
       }
 
-      // 3. Sync refills (for refill data) - nur letzte 4 Stunden
+      // 3. Sync refills (for refill data) - ✅ FINAL DEPRECATED REFERENCE FIXED!
       try {
-        const refillsResult = await vendonSync.syncRefills(
+        const { getUnifiedSyncCoordinator } = await import('./unifiedVendonSyncCoordinator');
+        const schedulerRefillCoordinator = getUnifiedSyncCoordinator();
+        const refillsResult = await schedulerRefillCoordinator.syncRefills(
           new Date(Date.now() - 4 * 60 * 60 * 1000), // nur letzte 4 Stunden
-          new Date(), // jetzt
-          50 // kleinere Batch-Größe
+          new Date() // jetzt
         );
         console.log('Refills sync completed:', refillsResult.message);
       } catch (refillsError) {

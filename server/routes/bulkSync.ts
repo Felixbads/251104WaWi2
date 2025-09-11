@@ -3,15 +3,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { BulkTransactionExporter } from '../services/bulkTransactionExport';
 import { storage } from '../storage';
-import { vendonSync } from '../services/vendonSync';
+// import { vendonSync } from '../services/vendonSync'; // DEPRECATED - use UnifiedVendonSyncCoordinator
 
 const router = express.Router();
 
 // Erstelle den Bulk-Exporter mit den vorhandenen Services
-// ⚠️ TEMPORÄRER FIX - Verwende EnhancedVendonApiClient stattdessen
-// const vendonApi = vendonSync.getApi(); 
-// Temporarily disable bulkSync until we fix the N+1 problem
-const vendonApi = null;
+// ✅ GEFIXT - Verwende EnhancedVendonApiClient 
+import { getVendonApiClient } from '../services/enhancedVendonApiClient';
+const vendonApi = getVendonApiClient();
 const bulkExporter = new BulkTransactionExporter(vendonApi, storage);
 
 // Bulk-Export starten

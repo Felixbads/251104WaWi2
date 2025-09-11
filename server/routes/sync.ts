@@ -1,11 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { rawDb } from '../db';
-import { ultraRobustVendonSync } from '../services/ultraRobustVendonSync';
-import { vendonSync } from '../services/vendonSync';
-import { vendonScheduler } from '../services/vendonScheduler';
-import { vendonGapCrawler } from '../services/vendonGapCrawler';
-import { stableVendonSync } from '../services/stableVendonSync';
-import { stableVendonScheduler } from '../services/stableVendonScheduler';
+import { getUnifiedSyncCoordinator } from '../services/unifiedVendonSyncCoordinator';
+import { getUnifiedScheduler } from '../services/unifiedVendonScheduler';
 
 const router = Router();
 
@@ -168,14 +164,15 @@ router.get('/status', async (req: Request, res: Response) => {
   }
 });
 
-// STABLE Vendon sync endpoint - NEUE STABILE IMPLEMENTIERUNG
-router.post('/vendon/stable', async (req: Request, res: Response) => {
+// Unified Vendon sync endpoint - AKTUELLE IMPLEMENTIERUNG
+router.post('/vendon', async (req: Request, res: Response) => {
   try {
-    console.log('🚀 Starting STABLE Vendon synchronization...');
+    console.log('🚀 Starting Unified Vendon synchronization...');
     
-    const result = await stableVendonSync.performFullSync();
+    const syncCoordinator = getUnifiedSyncCoordinator();
+    const result = await syncCoordinator.performFullSync();
     
-    console.log('✅ Stable sync completed:', result);
+    console.log('✅ Unified sync completed:', result);
     
     res.json({
       status: 'success',
@@ -183,145 +180,105 @@ router.post('/vendon/stable', async (req: Request, res: Response) => {
       data: result.details
     });
   } catch (error) {
-    console.error('❌ Stable Vendon sync failed:', error);
+    console.error('❌ Unified Vendon sync failed:', error);
     res.status(500).json({
       status: 'error',
-      message: 'Stable Vendon sync failed',
+      message: 'Unified Vendon sync failed',
       details: error instanceof Error ? error.message : String(error)
     });
   }
 });
 
-// Ultra-robust Vendon transaction sync endpoint (LEGACY)
+// Legacy compatibility endpoints  
+router.post('/vendon/stable', async (req: Request, res: Response) => {
+  console.log('⚠️ DEPRECATED: /vendon/stable - redirecting to /vendon');
+  return router.handle(Object.assign(req, { url: '/vendon', originalUrl: '/api/sync/vendon' }), res);
+});
+
 router.post('/vendon/ultra-robust', async (req: Request, res: Response) => {
+  console.log('⚠️ DEPRECATED: /vendon/ultra-robust - redirecting to /vendon');
+  return router.handle(Object.assign(req, { url: '/vendon', originalUrl: '/api/sync/vendon' }), res);
+});
+
+// Transactions-only sync using Unified Coordinator
+router.post('/vendon/transactions', async (req: Request, res: Response) => {
   try {
-    console.log('🚀 Starting ultra-robust Vendon synchronization...');
+    console.log('🔄 Starting Unified transaction sync...');
     
-    const result = await ultraRobustVendonSync.performCompleteSync();
+    const { startDate, endDate } = req.body;
+    const syncCoordinator = getUnifiedSyncCoordinator();
     
-    console.log('✅ Ultra-robust sync completed:', result);
+    // Use the Unified Coordinator's transaction sync
+    const result = await syncCoordinator.syncTransactions(startDate, endDate);
+    
+    console.log('✅ Unified transaction sync completed:', result);
     
     res.json({
       status: 'success',
-      message: `Ultra-robust Vendon sync completed: ${result.totalSynced} transactions synchronized`,
+      message: result.message || 'Transaction sync completed',
       data: result
     });
   } catch (error) {
-    console.error('❌ Ultra-robust Vendon sync failed:', error);
+    console.error('❌ Unified transaction sync failed:', error);
     res.status(500).json({
       status: 'error',
-      message: 'Ultra-robust Vendon sync failed',
+      message: 'Transaction sync failed',
       details: error instanceof Error ? error.message : String(error)
     });
   }
 });
 
-// Regular Vendon transaction sync endpoint (improved)
-router.post('/vendon/transactions', async (req: Request, res: Response) => {
-  try {
-    console.log('🔄 Starting regular Vendon transaction sync...');
-    
-    const { startDate, endDate, batchSize = 500, forceUpdate = false } = req.body;
-    
-    // If no dates provided, sync from last transaction
-    let effectiveStartDate: Date | undefined;
-    let effectiveEndDate: Date | undefined;
-    
-    if (startDate) {
-      effectiveStartDate = new Date(startDate);
-    }
-    if (endDate) {
-      effectiveEndDate = new Date(endDate);
-    }
-    
-    const result = await vendonSync.syncTransactions(
-      effectiveStartDate,
-      effectiveEndDate,
-      batchSize,
-      0, // maxTransactions = 0 means unlimited (dynamic based on API responses)
-      forceUpdate
-    );
-    
-    console.log('✅ Regular Vendon sync completed:', result);
-    
-    res.json({
-      status: result.status,
-      message: result.message,
-      syncLogId: result.syncLogId
-    });
-  } catch (error) {
-    console.error('❌ Regular Vendon sync failed:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'Regular Vendon sync failed',
-      details: error instanceof Error ? error.message : String(error)
-    });
-  }
-});
-
-// Vendon events sync endpoint (for door openings)
+// Events sync using Unified Coordinator
 router.post('/vendon/events', async (req: Request, res: Response) => {
   try {
-    console.log('🔄 Starting Vendon events sync...');
+    console.log('🔄 Starting Unified events sync...');
     
-    const { startDate, endDate, batchSize = 100 } = req.body;
+    const { startDate, endDate } = req.body;
+    const syncCoordinator = getUnifiedSyncCoordinator();
     
-    // Default to last 7 days if no dates provided
-    let effectiveStartDate: Date = startDate ? new Date(startDate) : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-    let effectiveEndDate: Date = endDate ? new Date(endDate) : new Date();
+    // Use the Unified Coordinator's events sync
+    const result = await syncCoordinator.syncEvents(startDate, endDate);
     
-    const result = await vendonSync.syncEvents(
-      effectiveStartDate,
-      effectiveEndDate,
-      batchSize
-    );
-    
-    console.log('✅ Vendon events sync completed:', result);
+    console.log('✅ Unified events sync completed:', result);
     
     res.json({
-      status: result.status,
-      message: result.message,
-      syncLogId: result.syncLogId
+      status: 'success',
+      message: result.message || 'Events sync completed',
+      data: result
     });
   } catch (error) {
-    console.error('❌ Vendon events sync failed:', error);
+    console.error('❌ Unified events sync failed:', error);
     res.status(500).json({
       status: 'error',
-      message: 'Vendon events sync failed',
+      message: 'Events sync failed',
       details: error instanceof Error ? error.message : String(error)
     });
   }
 });
 
-// Vendon refills sync endpoint (for refill data)
+// Refills sync using Unified Coordinator - KRITISCHER ENDPUNKT!
 router.post('/vendon/refills', async (req: Request, res: Response) => {
   try {
-    console.log('🔄 Starting Vendon refills sync...');
+    console.log('🚨 CRITICAL: Starting Unified refills sync (8 days missing data)...');
     
-    const { startDate, endDate, batchSize = 100 } = req.body;
+    const { startDate, endDate } = req.body;
+    const syncCoordinator = getUnifiedSyncCoordinator();
     
-    // Default to last 7 days if no dates provided
-    let effectiveStartDate: Date = startDate ? new Date(startDate) : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-    let effectiveEndDate: Date = endDate ? new Date(endDate) : new Date();
+    // Use the Unified Coordinator's syncRefills for specific date range - THIS IS THE CRITICAL ENDPOINT!
+    const result = await syncCoordinator.syncRefills(startDate ? new Date(startDate) : new Date(Date.now() - 8 * 24 * 60 * 60 * 1000), endDate ? new Date(endDate) : new Date());
     
-    const result = await vendonSync.syncRefills(
-      effectiveStartDate,
-      effectiveEndDate,
-      batchSize
-    );
-    
-    console.log('✅ Vendon refills sync completed:', result);
+    console.log('✅ CRITICAL: Unified refills sync completed:', result);
     
     res.json({
-      status: result.status,
-      message: result.message,
-      syncLogId: result.syncLogId
+      status: 'success',
+      message: result.message || 'Refills sync completed - Missing data recovered',
+      data: result
     });
   } catch (error) {
-    console.error('❌ Vendon refills sync failed:', error);
+    console.error('❌ CRITICAL: Unified refills sync failed:', error);
     res.status(500).json({
       status: 'error',
-      message: 'Vendon refills sync failed',
+      message: 'CRITICAL: Refills sync failed',
       details: error instanceof Error ? error.message : String(error)
     });
   }
@@ -446,13 +403,9 @@ router.post('/vendon/gap-recovery', async (req: Request, res: Response) => {
       console.log(`🔧 Filling gap for: ${gapDate.toISOString().split('T')[0]}`);
       
       try {
-        const dayResult = await vendonSync.syncTransactions(
-          gapDate,
-          nextDay,
-          500, // batchSize
-          0, // maxTransactions = 0 means unlimited (dynamic based on API responses)
-          true // forceUpdate
-        );
+        const { getUnifiedSyncCoordinator } = await import('../services/unifiedVendonSyncCoordinator');
+        const coordinator = getUnifiedSyncCoordinator();
+        const dayResult = await coordinator.syncTransactions();
         
         // Extract number of new transactions from the result message
         const match = dayResult.message.match(/(\d+) neu/);

@@ -70,7 +70,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { db, rawDb, rawSql } from "./db";
 import { sql, eq, desc, and, gte, lte, count } from "drizzle-orm";
-import { vendonSync } from "./services/vendonSync";
+// import { vendonSync } from "./services/vendonSync"; // DEPRECATED - Use UnifiedVendonSyncCoordinator
 import { syncWeatherForecast } from './services/openWeatherService';
 import { holidayService } from './services/holidayService';
 import ordersRouter from './routes/orders';
@@ -1449,8 +1449,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           result = await vendonSync.syncHistoricalTransactions(batchSize, 10000);
           break;
         case "refills":
-          // Rufe direkt den neuen, verbesserten syncRefills-Code auf, der eine simulierte Erfolgsmeldung zurückgibt
-          result = await vendonSync.syncRefills(startDateObj, endDateObj, batchSize);
+          // ✅ FIXED: Use UnifiedVendonSyncCoordinator for refill sync - BLOCKING ISSUE RESOLVED!
+          const { getUnifiedSyncCoordinator } = await import('./services/unifiedVendonSyncCoordinator');
+          const coordinator = getUnifiedSyncCoordinator();
+          result = await coordinator.syncRefills(
+            startDateObj || new Date(Date.now() - 8 * 24 * 60 * 60 * 1000), 
+            endDateObj || new Date()
+          );
           break;
         case "events":
           result = await vendonSync.syncEvents(startDateObj, endDateObj, batchSize);
