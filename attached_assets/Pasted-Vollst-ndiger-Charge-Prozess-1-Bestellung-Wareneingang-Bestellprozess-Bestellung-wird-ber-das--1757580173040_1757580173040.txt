@@ -1,0 +1,168 @@
+Vollständiger Charge-Prozess
+1. Bestellung → Wareneingang
+Bestellprozess:
+
+Bestellung wird über das BestellungV2 System erstellt
+Status-Workflow: draft → sent → delivered
+Wareneingang & Charge-Erstellung:
+
+// In goodsReceiptService.ts wird automatisch eine Charge erstellt
+const batchNumber = `BAT-${orderId}-${item.id}-${Date.now()}`;
+// Product Batch wird in product_batches Tabelle erstellt
+const batch = await createInventoryBatch({
+  productId,
+  warehouseId,
+  batchNumber,
+  initialQuantity: quantity_delivered,
+  currentQuantity: quantity_delivered,
+  expiryDate: item.expiryDate, // MHD aus Wareneingang
+  receivedDate: new Date(),
+  orderId,
+  supplierId,
+  status: 'active'
+});
+2. Lagerbestand-Verwaltung
+Dual-System für Bestände:
+
+[inventory_items]: Normaler Bestand ohne MHD
+product_batches: Erweiterte Chargen mit MHD-Tracking
+FIFO-Logik:
+
+SELECT * FROM product_batches 
+WHERE productId = ? AND warehouseId = ? AND status = 'active'
+ORDER BY expiryDate ASC, receivedDate ASC
+3. Refill-Prozess (Lager → Automat)
+MHD-FIFO Transfer:
+
+// mhdFifoService.ts implementiert automatischen MHD-Transfer
+async transferMhdFromWarehouse(machineId, productId, quantityAdded) {
+  // 1. Hole älteste verfügbare Chargen (FIFO)
+  const batches = await getBatchesFIFO(warehouseId, productId);
+  
+  // 2. Verteile Menge auf Chargen
+  for (const batch of batches) {
+    await createMachineStock({
+      machineId,
+      productId,
+      quantity: quantityFromBatch,
+      expiryDate: batch.expiryDate,
+      batchId: batch.id
+    });
+  }
+}
+4. Verkaufs-Transaktion
+Automatische Batch-Zuordnung:
+
+// batchTrackingService.ts verfolgt jeden Verkauf
+async trackTransactionBatches(transaction) {
+  // Finde passende Chargen im Automaten
+  const machineBatches = await getMachineBatchesFIFO(
+    transaction.machineId, 
+    transaction.productId
+  );
+  
+  // Dokumentiere Charge-Verbrauch
+  await logBatchTransaction({
+    transactionId: transaction.id,
+    batchNumber: batch.batchNumber,
+    quantity: quantityUsed,
+    expiryDate: batch.expiryDate
+  });
+}
+MHD-Anzeige & Benachrichtigungen
+Dashboard-Anzeigen:
+Lager-Inventar (WarehouseInventoryTable):
+{productBatches.map((batch) => {
+  const isExpired = new Date(batch.expiryDate) < new Date();
+  const daysUntilExpiry = Math.ceil(
+    (new Date(batch.expiryDate) - new Date()) / (1000 * 60 * 60 * 24)
+  );
+  
+  return (
+    <TableRow className={isExpired ? 'bg-red-50' : 
+      daysUntilExpiry <= 7 ? 'bg-yellow-50' : ''}>
+      <TableCell>{batch.batchNumber}</TableCell>
+      <TableCell>{batch.expiryDate}</TableCell>
+      <TableCell>{daysUntilExpiry} Tage</TableCell>
+    </TableRow>
+  );
+})}
+MHD-Alert Dashboard (MHDAlertTile):
+// Zeigt kritische MHD-Warnungen
+const criticalMachines = machines.filter(machine => {
+  const hasExpired = machine.batches?.some(batch => 
+    new Date(batch.expiryDate) < new Date()
+  );
+  return hasExpired;
+});
+E-Mail-Benachrichtigungen:
+Tägliche MHD-Berichte:
+
+// dailyEmailService.ts sendet automatische Warnungen
+const mhdWarnings = await db.query(`
+  SELECT pb.*, p.product_name, w.name as warehouse_name
+  FROM product_batches pb
+  JOIN products p ON pb.product_id = p.id  
+  JOIN warehouses w ON pb.warehouse_id = w.id
+  WHERE pb.expiry_date <= CURRENT_DATE + INTERVAL '7 days'
+  AND pb.current_quantity > 0
+`);
+// E-Mail-Template mit MHD-Warnungen
+const emailContent = `
+  <h3>⚠️ MHD-Warnungen</h3>
+  ${mhdWarnings.map(batch => `
+    <p>🔴 ${batch.product_name} - Charge ${batch.batch_number}</p>
+    <p>MHD: ${batch.expiry_date} (${batch.days_until_expiry} Tage)</p>
+    <p>Lager: ${batch.warehouse_name}, Menge: ${batch.current_quantity}</p>
+  `).join('')}
+`;
+Eindeutige Dokumentation & Rückverfolgbarkeit
+Batch-Traceability API (batch-traceability.ts):
+Vollständige Transaktions-Rückverfolgung:
+GET /api/batch-traceability/transaction/:id
+// Zeigt alle Chargen einer spezifischen Transaktion
+Charge-zu-Transaktionen Mapping:
+GET /api/batch-traceability/batch/:batchNumber  
+// Alle Transaktionen die diese Charge verwendet haben
+Produktrückruf-System:
+GET /api/batch-traceability/product-recall/:productId
+// Komplette Rückruf-Analyse mit betroffenen Automaten
+Compliance-Berichte:
+GET /api/batch-traceability/compliance-report
+// Vollständiger Audit-Trail für Behörden
+{
+  "complianceRate": 98.5,
+  "totalTransactions": 15432,
+  "trackedTransactions": 15201,
+  "auditTrail": {
+    "totalBatchEntries": 3421,
+    "verificationComplete": 3401
+  }
+}
+Inventur mit MHD (InventurDetailNewPage):
+// Jede Inventur erfasst automatisch alle MHD-Daten
+<BatchDialog 
+  batches={[
+    {
+      batchNumber: "BAT-2024-001",
+      expiryDate: "2024-12-31",
+      quantity: 48,
+      status: daysUntilExpiry <= 7 ? "warning" : "good"
+    }
+  ]}
+/>
+Status-Übersicht & Monitoring
+Kritische Standorte (CriticalLocationsCard):
+
+Zeigt Automaten mit abgelaufenen/kritischen MHD-Produkten
+Priorisiert nach Dringlichkeit
+Direkte Navigation zu betroffenen Maschinen
+Automatische Batch-Bereinigung:
+
+// jobs/remove-expired-batches.ts läuft täglich
+const expiredBatches = await db.query(`
+  UPDATE product_batches 
+  SET status = 'expired', current_quantity = 0
+  WHERE expiry_date < CURRENT_DATE AND status = 'active'
+`);
+Der gesamte Prozess ist vollständig automatisiert und bietet lückenlose Rückverfolgbarkeit von der Bestellung bis zur einzelnen Transaktion, mit proaktiven MHD-Warnungen und Compliance-Berichten für Audits.

@@ -21,8 +21,15 @@ export interface ReplitUser {
  * Gets Replit user information from environment variables
  */
 export function getReplitUserInfo(): { username: string | undefined; owner: string | undefined; isOwner: boolean } {
-  const replitUser = process.env.REPLIT_USER;
-  const replOwner = process.env.REPL_OWNER;
+  // Try multiple ways to read the environment variables
+  let replitUser = process.env.REPLIT_USER || process.env['REPLIT_USER'];
+  let replOwner = process.env.REPL_OWNER || process.env['REPL_OWNER'];
+  
+  // For development on Replit, use the owner as user if REPLIT_USER is not available
+  if (!replitUser && replOwner) {
+    console.log('[REPLIT-AUTH] Using REPL_OWNER as REPLIT_USER for development');
+    replitUser = replOwner;
+  }
   
   console.log('[REPLIT-AUTH] Environment variables:', {
     REPLIT_USER: replitUser || 'not set',
