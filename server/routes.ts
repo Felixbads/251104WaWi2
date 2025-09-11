@@ -1897,7 +1897,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const supplierQuery = `
         SELECT 
           id,
-          name as supplier_name,
+          name,
           contact_person,
           email,
           phone,
@@ -1909,6 +1909,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           notes,
           payment_terms,
           delivery_terms,
+          minimum_order_value,
+          delivery_days,
+          tax_id,
+          bank_details,
+          status,
+          show_prices_in_orders,
           created_at,
           updated_at
         FROM suppliers 
@@ -1923,7 +1929,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Supplier not found" });
       }
       
-      res.json(supplier);
+      res.json({
+        success: true,
+        data: supplier
+      });
     } catch (error) {
       console.error(`Error fetching supplier ${req.params.id}:`, error);
       res.status(500).json({ 

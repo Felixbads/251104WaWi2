@@ -712,7 +712,7 @@ export default function SupplierDetail() {
   });
   
   // Produkte des Lieferanten abfragen (nur wenn nicht "new")
-  const { data: productsResponse, isLoading: isProductsLoading, error: productsError } = useQuery({
+  const { data: productsResponse, isLoading: isProductsLoading, error: productsError } = useQuery<{data?: any[]; products?: any[]}>({
     queryKey: ['/api/products', { supplierId: supplierId }],
     staleTime: 1000 * 60, // 1 Minute
     enabled: !isNewSupplier && !!supplierId && !isNaN(supplierId),
@@ -738,7 +738,7 @@ export default function SupplierDetail() {
   console.log(`Lieferant ${id} - Original response:`, productsResponse);
   
   // Alle verfügbaren Produkte abfragen (für Zuordnung)
-  const { data: allProductsResponse, isLoading: isAllProductsLoading } = useQuery({
+  const { data: allProductsResponse, isLoading: isAllProductsLoading } = useQuery<{data?: any[]} | any[]>({
     queryKey: ['/api/products'],
     staleTime: 1000 * 60, // 1 Minute
     enabled: showProductAssignmentDialog
@@ -752,7 +752,7 @@ export default function SupplierDetail() {
     : [];
   
   // Bestellungen des Lieferanten abfragen
-  const { data: ordersResponse, isLoading: isOrdersLoading, error: ordersError } = useQuery({
+  const { data: ordersResponse, isLoading: isOrdersLoading, error: ordersError } = useQuery<{data?: any[]; orders?: any[]}>({
     queryKey: ['/api/orders', { supplierId: parseInt(id) }],
     staleTime: 1000 * 60, // 1 Minute
     enabled: !!id && !isNaN(parseInt(id)),
@@ -779,7 +779,7 @@ export default function SupplierDetail() {
     isLoading: isPurchaseConditionsLoading,
     error: purchaseConditionsError,
     refetch: refetchPurchaseConditions
-  } = useQuery({
+  } = useQuery<{data?: any[]}>({
     queryKey: [`/api/suppliers/${id}/purchase-conditions`],
     staleTime: 1000 * 60, // 1 Minute
     enabled: !!id && !isNaN(parseInt(id)),
@@ -880,6 +880,8 @@ export default function SupplierDetail() {
   // Standardwerte für das Formular definieren
   const defaultValues = supplier ? {
     ...supplier,
+    status: supplier.status || 'active',
+    country: supplier.country || 'Deutschland',
     minimumOrderValue: supplier.minimumOrderValue || undefined,
   } : {
     name: '',
@@ -1587,10 +1589,10 @@ export default function SupplierDetail() {
       
       {/* Lieferanten Header */}
       <div>
-        <h1 className="text-2xl font-bold">{supplier.name}</h1>
+        <h1 className="text-2xl font-bold">{supplier?.name}</h1>
         <div className="text-muted-foreground flex items-center gap-2">
-          <span>{supplier.contactPerson ? `Kontakt: ${supplier.contactPerson}` : 'Lieferant'}</span>
-          {getStatusBadge(supplier.status || "ACTIVE")}
+          <span>{supplier?.contactPerson ? `Kontakt: ${supplier.contactPerson}` : 'Lieferant'}</span>
+          {getStatusBadge(supplier?.status || "ACTIVE")}
         </div>
       </div>
       
