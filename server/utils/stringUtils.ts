@@ -63,3 +63,68 @@ export function normalizeProductName(name: string): string {
   
   return normalized;
 }
+
+/**
+ * SECURITY: Escapes HTML characters to prevent HTML injection attacks
+ * Critical für E-Mail-Templates mit dynamischen Inhalten
+ * 
+ * @param text Der zu escapende Text
+ * @returns HTML-sicherer Text
+ */
+export function escapeHtml(text: string | number | null | undefined): string {
+  if (text === null || text === undefined) return '';
+  
+  const str = String(text);
+  const escapeMap: { [key: string]: string } = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#x27;',
+    '/': '&#x2F;',
+    '`': '&#x60;'
+  };
+  
+  return str.replace(/[&<>"'`/]/g, (match) => escapeMap[match]);
+}
+
+/**
+ * SECURITY: Escapes text for plain text email content
+ * Verhindert Injection-Angriffe in Text-E-Mails
+ * 
+ * @param text Der zu escapende Text
+ * @returns Text-sicherer Inhalt
+ */
+export function escapeText(text: string | number | null | undefined): string {
+  if (text === null || text === undefined) return '';
+  
+  const str = String(text);
+  
+  // Entferne gefährliche Kontrollzeichen und normalisiere Zeilenumbrüche
+  return str
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '') // Entferne Kontrollzeichen
+    .replace(/\r\n/g, '\n') // Normalisiere Windows-Zeilenumbrüche
+    .replace(/\r/g, '\n') // Normalisiere Mac-Zeilenumbrüche
+    .trim();
+}
+
+/**
+ * SECURITY: Sicherer Umgang mit Arrays - verhindert Laufzeitfehler
+ * 
+ * @param array Potentiell undefined/null Array
+ * @returns Leeres Array falls Input invalid, sonst das ursprüngliche Array
+ */
+export function safeArray<T>(array: T[] | null | undefined): T[] {
+  return Array.isArray(array) ? array : [];
+}
+
+/**
+ * SECURITY: Sicherer Zugriff auf Objekt-Properties
+ * 
+ * @param obj Das Objekt
+ * @param defaultValue Standardwert falls undefined/null
+ * @returns Das Objekt oder den Standardwert
+ */
+export function safeObject<T>(obj: T | null | undefined, defaultValue: T): T {
+  return obj !== null && obj !== undefined ? obj : defaultValue;
+}

@@ -145,7 +145,8 @@ export interface DailyReportData {
     };
     // Wetter, Ferien & Umsatzprognose
     wetter_ferien_umsatz?: WeatherData;
-    // Offene Wareneingänge (legacy - replaced by erweiterte_bestellungen)
+    // Offene Wareneingänge (LEGACY - disabled by default, replaced by erweiterte_bestellungen)
+    // Only included if settings.includeLegacyOpenOrders === true
     offene_wareneingänge?: Array<{
       lieferant: string;
       bestelldatum: string;
@@ -183,7 +184,7 @@ export class DailyEmailDataAggregator {
       this.getEnhancedOrderData(reportDate),
       this.getMachineStatusAlerts(reportDate),
       settings?.includeWeatherForecast !== false ? this.getWeatherAndForecastData(reportDate) : null,
-      settings?.includeOpenOrders !== false ? this.getOpenOrders() : null,
+      settings?.includeLegacyOpenOrders === true ? this.getOpenOrders() : null,
       this.getAgentAnalysis(reportDate)
     ]);
 
@@ -200,7 +201,7 @@ export class DailyEmailDataAggregator {
         erweiterte_bestellungen: enhancedOrderData,
         automaten_status: machineStatusData,
         wetter_ferien_umsatz: weatherData || undefined,
-        offene_wareneingänge: openOrders || undefined,
+        offene_wareneingänge: settings?.includeLegacyOpenOrders === true ? openOrders || undefined : undefined,
         agent_analyse: agentAnalysis.hasRelevantFindings ? agentAnalysis : undefined,
         hinweise: hints
       }

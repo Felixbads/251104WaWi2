@@ -4,6 +4,7 @@
  */
 import { DailyReportData } from './dailyEmailDataAggregator';
 import { EmailTemplates } from '@shared/schema';
+import { escapeHtml, escapeText, safeArray, safeObject } from '../utils/stringUtils';
 
 export class DailyEmailComposer {
   /**
@@ -14,7 +15,7 @@ export class DailyEmailComposer {
     html: string;
     text: string;
   }> {
-    const subject = data.betreff || `📊 ${data.template} - ${this.formatDate(data.date)}`;
+    const subject = data.betreff || `📊 ${escapeText(data.template)} - ${this.formatDate(data.date)}`;
     
     const html = template?.htmlTemplate 
       ? this.renderCustomTemplate(template.htmlTemplate, data)
@@ -34,8 +35,8 @@ export class DailyEmailComposer {
       let rendered = htmlTemplate;
       
       // Ersetze grundlegende Variablen
-      rendered = rendered.replace(/{{date}}/g, this.formatDate(data.date));
-      rendered = rendered.replace(/{{template}}/g, data.template);
+      rendered = rendered.replace(/{{date}}/g, escapeHtml(this.formatDate(data.date)));
+      rendered = rendered.replace(/{{template}}/g, escapeHtml(data.template));
       
       // Ersetze Verkaufsdaten
       rendered = rendered.replace(/{{anzahl_verkäufe}}/g, data.sections.verkäufe.anzahl_verkäufe.toString());
@@ -43,8 +44,8 @@ export class DailyEmailComposer {
       
       // Füge Listen hinzu
       if (rendered.includes('{{top_produkte_liste}}')) {
-        const produkteHtml = data.sections.verkäufe.top_produkte
-          .map(product => `<li><strong>${product.name}:</strong> ${product.stückzahl} Stück (${product.umsatz.toFixed(2)} €)</li>`)
+        const produkteHtml = safeArray(data.sections.verkäufe.top_produkte)
+          .map(product => `<li><strong>${escapeHtml(product.name)}:</strong> ${escapeHtml(product.stückzahl)} Stück (${escapeHtml(product.umsatz.toFixed(2))} €)</li>`)
           .join('');
         rendered = rendered.replace(/{{top_produkte_liste}}/g, produkteHtml);
       }
@@ -66,7 +67,7 @@ export class DailyEmailComposer {
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>${data.template}</title>
+        <title>${escapeHtml(data.template)}</title>
         <style>
             body {
                 font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -174,6 +175,85 @@ export class DailyEmailComposer {
                 border-radius: 4px;
                 margin-bottom: 10px;
             }
+            .alert-critical {
+                background-color: #d63031;
+                color: white;
+                padding: 12px;
+                border-radius: 4px;
+                margin-bottom: 10px;
+                border-left: 4px solid #a52a2a;
+            }
+            .delivery-status {
+                display: inline-block;
+                padding: 3px 8px;
+                border-radius: 12px;
+                font-size: 11px;
+                font-weight: bold;
+                margin-left: 8px;
+            }
+            .status-expected {
+                background: #00b894;
+                color: white;
+            }
+            .status-delayed {
+                background: #fdcb6e;
+                color: #2d3436;
+            }
+            .status-overdue {
+                background: #e17055;
+                color: white;
+            }
+            .machine-alert {
+                background: #fff;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                padding: 12px;
+                margin-bottom: 8px;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+            .machine-alert.severity-kritisch {
+                border-left: 4px solid #d63031;
+                background: #fff5f5;
+            }
+            .machine-alert.severity-hoch {
+                border-left: 4px solid #e17055;
+                background: #fff8f5;
+            }
+            .machine-alert.severity-mittel {
+                border-left: 4px solid #fdcb6e;
+                background: #fffef5;
+            }
+            .machine-alert.severity-niedrig {
+                border-left: 4px solid #74b9ff;
+                background: #f5f9ff;
+            }
+            .alert-value {
+                font-weight: bold;
+                font-size: 14px;
+            }
+            .summary-box {
+                background: linear-gradient(135deg, #636e72, #2d3436);
+                color: white;
+                padding: 15px;
+                border-radius: 6px;
+                margin-bottom: 15px;
+            }
+            .summary-metric {
+                display: inline-block;
+                margin-right: 25px;
+                text-align: center;
+            }
+            .summary-metric-value {
+                font-size: 20px;
+                font-weight: bold;
+                display: block;
+            }
+            .summary-metric-label {
+                font-size: 11px;
+                opacity: 0.9;
+            }
             .footer {
                 text-align: center;
                 padding: 20px;
@@ -206,13 +286,15 @@ export class DailyEmailComposer {
     <body>
         <div class="container">
             <div class="header">
-                <h1>📊 ${data.template}</h1>
-                <div class="date">${this.formatDate(data.date)}</div>
+                <h1>📊 ${escapeHtml(data.template)}</h1>
+                <div class="date">${escapeHtml(this.formatDate(data.date))}</div>
             </div>
             
             <div class="content">
                 ${this.renderSalesSection(data)}
                 ${this.renderInventorySection(data)}
+                ${data.sections.erweiterte_bestellungen ? this.renderEnhancedOrdersSection(data) : ''}
+                ${data.sections.automaten_status ? this.renderMachineStatusSection(data) : ''}
                 ${data.sections.wetter_ferien_umsatz ? this.renderWeatherSection(data) : ''}
                 ${data.sections.offene_wareneingänge ? this.renderOpenOrdersSection(data) : ''}
                 ${data.sections.agent_analyse ? this.renderAgentAnalysisSection(data) : ''}
@@ -240,26 +322,30 @@ export class DailyEmailComposer {
         <h2>💰 Verkäufe</h2>
         <div class="sales-box">
             <div class="metric">
-                <span class="metric-value">${verkäufe.anzahl_verkäufe}</span>
+                <span class="metric-value">${escapeHtml(verkäufe.anzahl_verkäufe)}</span>
                 <span class="metric-label">Anzahl Verkäufe</span>
             </div>
             <div class="metric">
-                <span class="metric-value">${verkäufe.umsatzsumme.toFixed(2)} €</span>
+                <span class="metric-value">${escapeHtml(verkäufe.umsatzsumme.toFixed(2))} €</span>
                 <span class="metric-label">Umsatzsumme</span>
             </div>
         </div>
         
-        ${verkäufe.top_produkte.length > 0 ? `
+        ${safeArray(verkäufe.top_produkte).length > 0 ? `
         <div class="product-list">
             <h3>🏆 Top-Produkte</h3>
-            ${verkäufe.top_produkte.map(product => `
+            ${safeArray(verkäufe.top_produkte).map(product => `
                 <div class="product-item">
-                    <span><strong>${product.name}</strong></span>
-                    <span>${product.stückzahl} Stück • ${product.umsatz.toFixed(2)} €</span>
+                    <span><strong>${escapeHtml(product.name)}</strong></span>
+                    <span>${escapeHtml(product.stückzahl)} Stück • ${escapeHtml(product.umsatz.toFixed(2))} €</span>
                 </div>
             `).join('')}
         </div>
-        ` : ''}
+        ` : `
+        <div class="info-low">
+            ℹ️ Noch keine Verkaufsdaten für heute verfügbar
+        </div>
+        `}
     </div>
     `;
   }
@@ -274,23 +360,23 @@ export class DailyEmailComposer {
     <div class="section">
         <h2>📦 Bestände & Logistik</h2>
         
-        ${bestände.niedriger_lagerbestand.length > 0 ? `
+        ${safeArray(bestände.niedriger_lagerbestand).length > 0 ? `
         <div class="alert-high">
             <h3>⚠️ Niedriger Lagerbestand</h3>
             <ul>
-                ${bestände.niedriger_lagerbestand.map(item => 
-                    `<li><strong>${item.produkt}</strong>: ${item.bestand} Stück (Schwellenwert: ${item.schwellenwert})</li>`
+                ${safeArray(bestände.niedriger_lagerbestand).map(item => 
+                    `<li><strong>${escapeHtml(item.produkt)}</strong>: ${escapeHtml(item.bestand)} Stück (Schwellenwert: ${escapeHtml(item.schwellenwert)})</li>`
                 ).join('')}
             </ul>
         </div>
         ` : ''}
         
-        ${bestände.nachzubestellende_artikel.length > 0 ? `
+        ${safeArray(bestände.nachzubestellende_artikel).length > 0 ? `
         <div class="alert-medium">
             <h3>🔄 Nachzubestellende Artikel</h3>
             <ul>
-                ${bestände.nachzubestellende_artikel.map(item => 
-                    `<li><strong>${item.produkt}</strong> (${item.priorität}) - Empfohlen: ${item.empfohlene_menge} Stück</li>`
+                ${safeArray(bestände.nachzubestellende_artikel).map(item => 
+                    `<li><strong>${escapeHtml(item.produkt)}</strong> (${escapeHtml(item.priorität)}) - Empfohlen: ${escapeHtml(item.empfohlene_menge)} Stück</li>`
                 ).join('')}
             </ul>
         </div>
@@ -320,8 +406,8 @@ export class DailyEmailComposer {
         <div style="margin-bottom: 15px;">
             <strong>Kritisch (&lt;5 Tage):</strong>
             <ul>
-                ${mhdData.lager["<5"].map((item: any) => 
-                    `<li>${item.lager}: <strong>${item.produkt}</strong> (${item.anzahl} Stück, MHD: ${item.mhd})</li>`
+                ${safeArray(mhdData.lager["<5"]).map((item: any) => 
+                    `<li>${escapeHtml(item.lager)}: <strong>${escapeHtml(item.produkt)}</strong> (${escapeHtml(item.anzahl)} Stück, MHD: ${escapeHtml(item.mhd)})</li>`
                 ).join('')}
             </ul>
         </div>
@@ -331,8 +417,8 @@ export class DailyEmailComposer {
         <div style="margin-bottom: 15px;">
             <strong>Warnung (&lt;14 Tage):</strong>
             <ul>
-                ${mhdData.lager["<14"].map((item: any) => 
-                    `<li>${item.lager}: <strong>${item.produkt}</strong> (${item.anzahl} Stück, MHD: ${item.mhd})</li>`
+                ${safeArray(mhdData.lager["<14"]).map((item: any) => 
+                    `<li>${escapeHtml(item.lager)}: <strong>${escapeHtml(item.produkt)}</strong> (${escapeHtml(item.anzahl)} Stück, MHD: ${escapeHtml(item.mhd)})</li>`
                 ).join('')}
             </ul>
         </div>
@@ -342,8 +428,8 @@ export class DailyEmailComposer {
         <div>
             <strong>Automaten:</strong>
             <ul>
-                ${mhdData.automaten.map((item: any) => 
-                    `<li>${item.automat}: <strong>${item.produkt}</strong> (${item.anzahl} Stück, MHD: ${item.mhd})</li>`
+                ${safeArray(mhdData.automaten).map((item: any) => 
+                    `<li>${escapeHtml(item.automat)}: <strong>${escapeHtml(item.produkt)}</strong> (${escapeHtml(item.anzahl)} Stück, MHD: ${escapeHtml(item.mhd)})</li>`
                 ).join('')}
             </ul>
         </div>
@@ -362,16 +448,16 @@ export class DailyEmailComposer {
     <div class="section">
         <h2>🌤️ Wetter & Prognose</h2>
         <div class="alert-low">
-            <strong>${wetter.standort}:</strong> ${wetter.heute.wetter}
-            <p><strong>Auswirkung:</strong> ${wetter.auswirkung}</p>
+            <strong>${escapeHtml(wetter.standort)}:</strong> ${escapeHtml(wetter.heute.wetter)}
+            <p><strong>Auswirkung:</strong> ${escapeHtml(wetter.auswirkung)}</p>
         </div>
         
-        ${wetter.heute.prognostizierter_umsatz.length > 0 ? `
+        ${safeArray(wetter.heute.prognostizierter_umsatz).length > 0 ? `
         <div style="background: white; padding: 15px; border-radius: 4px; margin-top: 15px;">
             <h4>💰 Prognostizierter Umsatz</h4>
             <ul>
-                ${wetter.heute.prognostizierter_umsatz.map(prognose => 
-                    `<li><strong>${prognose.automat}</strong>: ${prognose.wert} €</li>`
+                ${safeArray(wetter.heute.prognostizierter_umsatz).map(prognose => 
+                    `<li><strong>${escapeHtml(prognose.automat)}</strong>: ${escapeHtml(prognose.wert)} €</li>`
                 ).join('')}
             </ul>
         </div>
@@ -394,8 +480,8 @@ export class DailyEmailComposer {
     <div class="section">
         <h2>📋 Offene Wareneingänge</h2>
         <ul>
-            ${bestellungen.map(bestellung => 
-                `<li><strong>${bestellung.lieferant}</strong> (${bestellung.bestelldatum}): ${bestellung.produkte.join(', ')}</li>`
+            ${safeArray(bestellungen).map(bestellung => 
+                `<li><strong>${escapeHtml(bestellung.lieferant)}</strong> (${escapeHtml(bestellung.bestelldatum)}): ${escapeHtml(bestellung.produkte.join(', '))}</li>`
             ).join('')}
         </ul>
     </div>
@@ -438,6 +524,182 @@ export class DailyEmailComposer {
   }
 
   /**
+   * Rendert die erweiterte Bestellungen & Lieferungen-Sektion
+   */
+  private renderEnhancedOrdersSection(data: DailyReportData): string {
+    const bestellungen = data.sections.erweiterte_bestellungen!;
+    
+    return `
+    <div class="section">
+        <h2>🚚 Bestellungen & Lieferungen</h2>
+        
+        <div class="summary-box">
+            <div class="summary-metric">
+                <span class="summary-metric-value">${escapeHtml(bestellungen.zusammenfassung.total_ausstehend)}</span>
+                <span class="summary-metric-label">Ausstehend</span>
+            </div>
+            <div class="summary-metric">
+                <span class="summary-metric-value">${escapeHtml(bestellungen.zusammenfassung.total_wert_ausstehend.toFixed(2))} €</span>
+                <span class="summary-metric-label">Gesamtwert</span>
+            </div>
+            <div class="summary-metric">
+                <span class="summary-metric-value">${escapeHtml(bestellungen.zusammenfassung.kritische_verspätungen)}</span>
+                <span class="summary-metric-label">Verspätungen</span>
+            </div>
+        </div>
+        
+        ${bestellungen.heute_erwartet.length > 0 ? `
+        <div class="alert-low">
+            <h4>📅 Heute erwartet</h4>
+            ${bestellungen.heute_erwartet.map(order => `
+                <div style="background: rgba(255,255,255,0.2); padding: 8px; border-radius: 4px; margin-bottom: 6px;">
+                    <strong>${order.lieferant}</strong> (${order.bestellnummer})
+                    <span class="delivery-status status-expected">Pünktlich</span>
+                    <br><small>${order.produkte.join(', ')} • ${order.gesamtwert.toFixed(2)} €</small>
+                </div>
+            `).join('')}
+        </div>
+        ` : ''}
+        
+        ${bestellungen.diese_woche.length > 0 ? `
+        <div class="alert-medium">
+            <h4>📋 Diese Woche erwartet</h4>
+            ${bestellungen.diese_woche.map(order => `
+                <div style="background: rgba(255,255,255,0.2); padding: 8px; border-radius: 4px; margin-bottom: 6px;">
+                    <strong>${order.lieferant}</strong> (${order.erwartetes_lieferdatum || 'TBD'})
+                    <span class="delivery-status status-expected">Geplant</span>
+                    <br><small>${order.produkte.join(', ')}</small>
+                </div>
+            `).join('')}
+        </div>
+        ` : ''}
+        
+        ${bestellungen.verspätet.length > 0 ? `
+        <div class="alert-high">
+            <h4>⚠️ Verspätete Lieferungen</h4>
+            ${bestellungen.verspätet.map(order => `
+                <div style="background: rgba(255,255,255,0.2); padding: 8px; border-radius: 4px; margin-bottom: 6px;">
+                    <strong>${order.lieferant}</strong> (${order.bestellnummer})
+                    <span class="delivery-status status-delayed">${order.verspätung_tage} Tage</span>
+                    <br><small>Erwartet: ${order.erwartetes_lieferdatum}</small>
+                </div>
+            `).join('')}
+        </div>
+        ` : ''}
+        
+        ${bestellungen.nicht_geliefert.length > 0 ? `
+        <div class="alert-critical">
+            <h4>🚨 Nicht geliefert</h4>
+            ${bestellungen.nicht_geliefert.map(order => `
+                <div style="background: rgba(255,255,255,0.2); padding: 8px; border-radius: 4px; margin-bottom: 6px;">
+                    <strong>${order.lieferant}</strong> (${order.bestelldatum})
+                    <span class="delivery-status status-overdue">Überfällig</span>
+                    <br><small>${order.produkte.join(', ')}</small>
+                </div>
+            `).join('')}
+        </div>
+        ` : ''}
+    </div>
+    `;
+  }
+
+  /**
+   * Rendert die Automaten-Status & Anomalien-Sektion
+   */
+  private renderMachineStatusSection(data: DailyReportData): string {
+    const status = data.sections.automaten_status!;
+    
+    return `
+    <div class="section">
+        <h2>🤖 Automaten-Status</h2>
+        
+        <div class="summary-box">
+            <div class="summary-metric">
+                <span class="summary-metric-value">${status.zusammenfassung.total_alerts}</span>
+                <span class="summary-metric-label">Gesamt Alerts</span>
+            </div>
+            <div class="summary-metric">
+                <span class="summary-metric-value">${status.zusammenfassung.kritische_alerts}</span>
+                <span class="summary-metric-label">Kritisch</span>
+            </div>
+            <div class="summary-metric">
+                <span class="summary-metric-value">${status.zusammenfassung.betroffene_automaten}</span>
+                <span class="summary-metric-label">Betroffene Geräte</span>
+            </div>
+        </div>
+        
+        ${status.hoher_geldbestand.length > 0 ? `
+        <div class="alert-medium">
+            <h4>💰 Hoher Geldbestand</h4>
+            ${status.hoher_geldbestand.map(alert => `
+                <div class="machine-alert severity-${alert.schweregrad}">
+                    <div>
+                        <strong>${alert.automat}</strong><br>
+                        <small>${alert.meldung}</small>
+                    </div>
+                    <div class="alert-value">
+                        ${alert.wert}${alert.einheit || ''} / ${alert.grenzwert}${alert.einheit || ''}
+                    </div>
+                </div>
+            `).join('')}
+        </div>
+        ` : ''}
+        
+        ${status.münzgeld_warnungen.length > 0 ? `
+        <div class="alert-high">
+            <h4>🪙 Münzgeld-Warnungen</h4>
+            ${status.münzgeld_warnungen.map(alert => `
+                <div class="machine-alert severity-${alert.schweregrad}">
+                    <div>
+                        <strong>${alert.automat}</strong><br>
+                        <small>${alert.meldung}</small>
+                    </div>
+                    ${alert.wert ? `<div class="alert-value">${alert.wert}${alert.einheit || ''}</div>` : ''}
+                </div>
+            `).join('')}
+        </div>
+        ` : ''}
+        
+        ${status.technische_anomalien.length > 0 ? `
+        <div class="alert-critical">
+            <h4>🚨 Technische Anomalien</h4>
+            ${status.technische_anomalien.map(alert => `
+                <div class="machine-alert severity-${alert.schweregrad}">
+                    <div>
+                        <strong>${alert.automat}</strong><br>
+                        <small>${alert.meldung}</small>
+                    </div>
+                    ${alert.dauer ? `<div class="alert-value">${alert.dauer}</div>` : ''}
+                </div>
+            `).join('')}
+        </div>
+        ` : ''}
+        
+        ${status.performance_abweichungen.length > 0 ? `
+        <div class="alert-medium">
+            <h4>📊 Performance-Abweichungen</h4>
+            ${status.performance_abweichungen.map(alert => `
+                <div class="machine-alert severity-${alert.schweregrad}">
+                    <div>
+                        <strong>${alert.automat}</strong><br>
+                        <small>${alert.meldung}</small>
+                    </div>
+                    ${alert.wert ? `<div class="alert-value">${alert.wert}${alert.einheit || ''}</div>` : ''}
+                </div>
+            `).join('')}
+        </div>
+        ` : ''}
+        
+        ${status.zusammenfassung.total_alerts === 0 ? `
+        <div class="alert-low">
+            ✅ Alle Automaten funktionieren ordnungsgemäß
+        </div>
+        ` : ''}
+    </div>
+    `;
+  }
+
+  /**
    * Rendert die Hinweise-Sektion
    */
   private renderHinweiseSection(data: DailyReportData): string {
@@ -445,8 +707,8 @@ export class DailyEmailComposer {
     <div class="section">
         <h2>💡 Hinweise</h2>
         <ul>
-            ${data.sections.hinweise.map(hinweis => 
-                `<li>${hinweis}</li>`
+            ${safeArray(data.sections.hinweise).map(hinweis => 
+                `<li>${escapeHtml(hinweis)}</li>`
             ).join('')}
         </ul>
     </div>
@@ -459,20 +721,20 @@ export class DailyEmailComposer {
   private generateTextVersion(data: DailyReportData): string {
     const lines: string[] = [];
     
-    lines.push(`${data.template}`);
-    lines.push(`Datum: ${this.formatDate(data.date)}`);
+    lines.push(`${escapeText(data.template)}`);
+    lines.push(`Datum: ${escapeText(this.formatDate(data.date))}`);
     lines.push('');
     
     // Verkäufe
     lines.push('=== VERKÄUFE ===');
-    lines.push(`Anzahl Verkäufe: ${data.sections.verkäufe.anzahl_verkäufe}`);
-    lines.push(`Umsatzsumme: ${data.sections.verkäufe.umsatzsumme.toFixed(2)} €`);
+    lines.push(`Anzahl Verkäufe: ${escapeText(data.sections.verkäufe.anzahl_verkäufe)}`);
+    lines.push(`Umsatzsumme: ${escapeText(data.sections.verkäufe.umsatzsumme.toFixed(2))} €`);
     lines.push('');
     
     if (data.sections.verkäufe.top_produkte.length > 0) {
       lines.push('Top-Produkte:');
-      data.sections.verkäufe.top_produkte.forEach(product => {
-        lines.push(`- ${product.name}: ${product.stückzahl} Stück (${product.umsatz.toFixed(2)} €)`);
+      safeArray(data.sections.verkäufe.top_produkte).forEach(product => {
+        lines.push(`- ${escapeText(product.name)}: ${escapeText(product.stückzahl)} Stück (${escapeText(product.umsatz.toFixed(2))} €)`);
       });
       lines.push('');
     }
@@ -483,17 +745,65 @@ export class DailyEmailComposer {
     
     if (bestände.niedriger_lagerbestand.length > 0) {
       lines.push('Niedriger Lagerbestand:');
-      bestände.niedriger_lagerbestand.forEach(item => {
-        lines.push(`- ${item.produkt}: ${item.bestand} Stück`);
+      safeArray(bestände.niedriger_lagerbestand).forEach(item => {
+        lines.push(`- ${escapeText(item.produkt)}: ${escapeText(item.bestand)} Stück`);
       });
       lines.push('');
     }
     
     if (bestände.nachzubestellende_artikel.length > 0) {
       lines.push('Nachzubestellende Artikel:');
-      bestände.nachzubestellende_artikel.forEach(item => {
-        lines.push(`- ${item.produkt} (${item.priorität}): ${item.empfohlene_menge} Stück empfohlen`);
+      safeArray(bestände.nachzubestellende_artikel).forEach(item => {
+        lines.push(`- ${escapeText(item.produkt)} (${escapeText(item.priorität)}): ${escapeText(item.empfohlene_menge)} Stück empfohlen`);
       });
+      lines.push('');
+    }
+    
+    // Bestellungen & Lieferungen
+    if (data.sections.erweiterte_bestellungen) {
+      lines.push('=== BESTELLUNGEN & LIEFERUNGEN ===');
+      const bestellungen = data.sections.erweiterte_bestellungen;
+      lines.push(`Ausstehend: ${escapeText(bestellungen.zusammenfassung.total_ausstehend)}`);
+      lines.push(`Gesamtwert: ${escapeText(bestellungen.zusammenfassung.total_wert_ausstehend.toFixed(2))} €`);
+      lines.push(`Verspätungen: ${escapeText(bestellungen.zusammenfassung.kritische_verspätungen)}`);
+      
+      if (bestellungen.heute_erwartet.length > 0) {
+        lines.push('Heute erwartet:');
+        safeArray(bestellungen.heute_erwartet).forEach(order => {
+          lines.push(`- ${escapeText(order.lieferant)} (${escapeText(order.bestellnummer)}): ${escapeText(order.produkte.join(', '))}`);
+        });
+      }
+      
+      if (bestellungen.verspätet.length > 0) {
+        lines.push('Verspätete Lieferungen:');
+        safeArray(bestellungen.verspätet).forEach(order => {
+          lines.push(`- ${escapeText(order.lieferant)}: ${escapeText(order.verspätung_tage)} Tage verspätet`);
+        });
+      }
+      lines.push('');
+    }
+    
+    // Automaten-Status
+    if (data.sections.automaten_status) {
+      lines.push('=== AUTOMATEN-STATUS ===');
+      const status = data.sections.automaten_status;
+      lines.push(`Gesamt Alerts: ${status.zusammenfassung.total_alerts}`);
+      lines.push(`Kritische Alerts: ${status.zusammenfassung.kritische_alerts}`);
+      lines.push(`Betroffene Automaten: ${status.zusammenfassung.betroffene_automaten}`);
+      
+      if (status.hoher_geldbestand.length > 0) {
+        lines.push('Hoher Geldbestand:');
+        status.hoher_geldbestand.forEach(alert => {
+          lines.push(`- ${alert.automat}: ${alert.meldung}`);
+        });
+      }
+      
+      if (status.technische_anomalien.length > 0) {
+        lines.push('Technische Anomalien:');
+        status.technische_anomalien.forEach(alert => {
+          lines.push(`- ${alert.automat}: ${alert.meldung}`);
+        });
+      }
       lines.push('');
     }
     
