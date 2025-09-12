@@ -2,7 +2,7 @@ import { db } from '../db';
 import { transactions, machines, recoveryJobs, transactionGaps, syncLogs } from '@shared/schema';
 import { eq, and, gte, lte, sql, desc, asc, count, isNull, inArray } from 'drizzle-orm';
 import { EventEmitter } from 'events';
-import { getVendonApiClient } from './enhancedVendonApiClient';
+import { getEnhancedVendonApiClientInstance } from './EnhancedVendonApiClient';
 
 // Types für Recovery Operations
 export interface RecoveryJobExecution {
@@ -602,7 +602,7 @@ export class SmartRecoveryService extends EventEmitter {
   private async processApiBackfillBatch(jobDetails: any, batch: any): Promise<any> {
     try {
       // Verwende Vendon-Sync Service für Datenabfrage
-      const api = getEnhancedVendonApiClient();
+      const api = getEnhancedVendonApiClientInstance();
       
       const fromTimestamp = Math.floor(batch.startTime.getTime() / 1000);
       const toTimestamp = Math.floor(batch.endTime.getTime() / 1000);

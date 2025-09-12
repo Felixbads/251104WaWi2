@@ -4,8 +4,10 @@ import { drizzle } from 'drizzle-orm/neon-serverless';
 import ws from 'ws';
 import * as schema from '@shared/schema';
 
-// Konfiguriere WebSocket für Neon Postgres
+// Konfiguriere WebSocket für Neon Postgres mit Fehlerbehandlung
 neonConfig.webSocketConstructor = ws;
+// Workaround für ErrorEvent.message Kompatibilitätsproblem
+neonConfig.fetchConnectionCache = false;
 
 if (!process.env.DATABASE_URL) {
   throw new Error(
@@ -16,9 +18,11 @@ if (!process.env.DATABASE_URL) {
 // Verbindungspool für die Neon-Datenbank erstellen mit verbesserten Einstellungen
 export const pool = new Pool({ 
   connectionString: process.env.DATABASE_URL,
-  connectionTimeoutMillis: 10000, // 10 Sekunden Timeout
-  max: 10, // maximale Anzahl gleichzeitiger Verbindungen
-  idleTimeoutMillis: 30000 // Verbindung nach 30 Sekunden Inaktivität schließen
+  connectionTimeoutMillis: 15000, // 15 Sekunden Timeout (erhöht für Stabilität)
+  max: 5, // reduziert für bessere Stabilität
+  idleTimeoutMillis: 60000, // 60 Sekunden für bessere Verbindungsstabilität
+  // Zusätzliche Workarounds für Neon Serverless Kompatibilität
+  ssl: process.env.NODE_ENV === 'production'
 });
 
 // Verbindungsüberprüfung
