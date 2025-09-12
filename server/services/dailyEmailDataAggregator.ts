@@ -10,7 +10,8 @@ import {
   orders, 
   events,
   refills,
-  inventoryItems
+  inventoryItems,
+  transactionGaps
 } from "@shared/schema";
 import { sql, eq, and, desc, gte, lte, count, sum, max, min } from "drizzle-orm";
 
@@ -171,12 +172,16 @@ export class DailyEmailDataAggregator {
     const [
       salesData,
       inventoryData,
+      enhancedOrderData,
+      machineStatusData,
       weatherData,
       openOrders,
       agentAnalysis
     ] = await Promise.all([
       this.getSalesAnalysis(reportDate),
       this.getInventoryAnalysis(settings),
+      this.getEnhancedOrderData(reportDate),
+      this.getMachineStatusAlerts(reportDate),
       settings?.includeWeatherForecast !== false ? this.getWeatherAndForecastData(reportDate) : null,
       settings?.includeOpenOrders !== false ? this.getOpenOrders() : null,
       this.getAgentAnalysis(reportDate)
@@ -192,6 +197,8 @@ export class DailyEmailDataAggregator {
       sections: {
         verkäufe: salesData,
         bestände_logistik: inventoryData,
+        erweiterte_bestellungen: enhancedOrderData,
+        automaten_status: machineStatusData,
         wetter_ferien_umsatz: weatherData || undefined,
         offene_wareneingänge: openOrders || undefined,
         agent_analyse: agentAnalysis.hasRelevantFindings ? agentAnalysis : undefined,
@@ -673,7 +680,7 @@ export class DailyEmailDataAggregator {
       // Nachbestellempfehlungen (vereinfachte Logik)
       const reorderRecommendations = lowStockItems.slice(0, 5).map(item => ({
         produkt: item.productName || 'Unbekannt',
-        priorität: item.currentStock <= 5 ? 'hoch' : 'mittel',
+        priorität: (item.currentStock || 0) <= 5 ? 'hoch' : 'mittel',
         abverkaufsgeschwindigkeit: '5-10 Stück/Woche', // Mock-Daten
         empfohlene_menge: Math.max(20, (item.minQuantity || 10) * 2)
       }));
@@ -735,6 +742,345 @@ export class DailyEmailDataAggregator {
         besondere_auffälligkeiten: [],
         trends: [],
         empfehlungen: []
+      };
+    }
+  }
+
+  /**
+   * Sammelt erweiterte Bestellungs- und Lieferdaten
+   */
+  private async getEnhancedOrderData(reportDate: Date = new Date()) {
+    const today = new Date(reportDate);
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(today.getDate() + 1);
+    const weekFromNow = new Date(today);
+    weekFromNow.setDate(today.getDate() + 7);
+
+    try {
+      // Heute erwartete Bestellungen
+      const todayExpected = await db
+        .select({
+          orderNumber: orders.orderNumber,
+          supplierName: orders.supplierName,
+          orderDate: orders.orderDate,
+          expectedDeliveryDate: orders.expectedDeliveryDate,
+          status: orders.status,
+          totalAmount: orders.totalAmount,
+          notes: orders.notes
+        })
+        .from(orders)
+        .where(
+          and(
+            eq(orders.status, 'ordered'),
+            gte(orders.expectedDeliveryDate, today),
+            lte(orders.expectedDeliveryDate, tomorrow)
+          )
+        )
+        .orderBy(orders.expectedDeliveryDate);
+
+      // Diese Woche erwartete Bestellungen  
+      const thisWeekExpected = await db
+        .select({
+          orderNumber: orders.orderNumber,
+          supplierName: orders.supplierName,
+          orderDate: orders.orderDate,
+          expectedDeliveryDate: orders.expectedDeliveryDate,
+          status: orders.status,
+          totalAmount: orders.totalAmount,
+          notes: orders.notes
+        })
+        .from(orders)
+        .where(
+          and(
+            eq(orders.status, 'ordered'),
+            gte(orders.expectedDeliveryDate, tomorrow),
+            lte(orders.expectedDeliveryDate, weekFromNow)
+          )
+        )
+        .orderBy(orders.expectedDeliveryDate)
+        .limit(10);
+
+      // Verspätete Bestellungen (erwartetes Lieferdatum überschritten)
+      const overdueOrders = await db
+        .select({
+          orderNumber: orders.orderNumber,
+          supplierName: orders.supplierName,
+          orderDate: orders.orderDate,
+          expectedDeliveryDate: orders.expectedDeliveryDate,
+          status: orders.status,
+          totalAmount: orders.totalAmount,
+          notes: orders.notes
+        })
+        .from(orders)
+        .where(
+          and(
+            eq(orders.status, 'ordered'),
+            lte(orders.expectedDeliveryDate, today)
+          )
+        )
+        .orderBy(orders.expectedDeliveryDate)
+        .limit(10);
+
+      // Nicht gelieferte Bestellungen (ohne erwartetes Lieferdatum)
+      const undeliveredOrders = await db
+        .select({
+          orderNumber: orders.orderNumber,
+          supplierName: orders.supplierName,
+          orderDate: orders.orderDate,
+          expectedDeliveryDate: orders.expectedDeliveryDate,
+          status: orders.status,
+          totalAmount: orders.totalAmount,
+          notes: orders.notes
+        })
+        .from(orders)
+        .where(
+          and(
+            eq(orders.status, 'ordered'),
+            sql`${orders.expectedDeliveryDate} IS NULL`
+          )
+        )
+        .orderBy(orders.orderDate)
+        .limit(5);
+
+      // Hilfsfunktion zur Formatierung der Bestelldaten
+      const formatOrderData = (order: any): OrderDelivery => {
+        const orderDate = order.orderDate?.toISOString().split('T')[0] || '';
+        const expectedDate = order.expectedDeliveryDate?.toISOString().split('T')[0];
+        const delayDays = expectedDate && new Date(expectedDate) < today 
+          ? Math.ceil((today.getTime() - new Date(expectedDate).getTime()) / (1000 * 60 * 60 * 24))
+          : undefined;
+
+        return {
+          bestellnummer: order.orderNumber || 'Unbekannt',
+          lieferant: order.supplierName || 'Unbekannt',
+          bestelldatum: orderDate,
+          erwartetes_lieferdatum: expectedDate,
+          status: order.status || 'unbekannt',
+          produkte: order.notes ? [order.notes] : ['Siehe Bestellung ' + order.orderNumber],
+          gesamtwert: Number(order.totalAmount) || 0,
+          verspätung_tage: delayDays
+        };
+      };
+
+      // Zusammenfassungsstatistiken
+      const allPendingOrders = await db
+        .select({
+          count: count(orders.id).as('count'),
+          totalAmount: sum(orders.totalAmount).as('totalAmount')
+        })
+        .from(orders)
+        .where(eq(orders.status, 'ordered'));
+
+      const pendingStats = allPendingOrders[0] || {};
+      const criticalDelays = overdueOrders.filter(order => {
+        const delay = order.expectedDeliveryDate 
+          ? Math.ceil((today.getTime() - order.expectedDeliveryDate.getTime()) / (1000 * 60 * 60 * 24))
+          : 0;
+        return delay > 7; // Mehr als 7 Tage verspätet
+      }).length;
+
+      return {
+        heute_erwartet: todayExpected.map(formatOrderData),
+        diese_woche: thisWeekExpected.map(formatOrderData),
+        verspätet: overdueOrders.map(formatOrderData),
+        nicht_geliefert: undeliveredOrders.map(formatOrderData),
+        zusammenfassung: {
+          total_ausstehend: Number(pendingStats.count) || 0,
+          total_wert_ausstehend: Number(pendingStats.totalAmount) || 0,
+          kritische_verspätungen: criticalDelays
+        }
+      };
+    } catch (error) {
+      console.error('Fehler beim Laden der erweiterten Bestelldaten:', error);
+      return {
+        heute_erwartet: [],
+        diese_woche: [],
+        verspätet: [],
+        nicht_geliefert: [],
+        zusammenfassung: {
+          total_ausstehend: 0,
+          total_wert_ausstehend: 0,
+          kritische_verspätungen: 0
+        }
+      };
+    }
+  }
+
+  /**
+   * Sammelt Automaten-Status und Anomalie-Alerts
+   */
+  private async getMachineStatusAlerts(reportDate: Date = new Date()) {
+    const alerts: MachineStatusAlert[] = [];
+    const today = new Date(reportDate);
+    const yesterday = new Date(today);
+    yesterday.setDate(today.getDate() - 1);
+    const weekAgo = new Date(today);
+    weekAgo.setDate(today.getDate() - 7);
+
+    try {
+      // 1. Hoher Geldbestand (basierend auf Transaktionen)
+      const highCashMachines = await db
+        .select({
+          machineName: transactions.machineName,
+          machineId: machines.id,
+          totalCash: sum(transactions.price).as('totalCash'),
+          lastTransaction: max(transactions.datetime).as('lastTransaction')
+        })
+        .from(transactions)
+        .leftJoin(machines, eq(transactions.machineName, machines.machineName))
+        .where(
+          and(
+            gte(transactions.datetime, weekAgo),
+            eq(transactions.paymentMethod, 'CASH')
+          )
+        )
+        .groupBy(transactions.machineName, machines.id)
+        .having(sql`SUM(${transactions.price}) > 200`) // Hoher Geldbestand > 200€
+        .orderBy(desc(sum(transactions.price)))
+        .limit(5);
+
+      highCashMachines.forEach(machine => {
+        alerts.push({
+          automat: machine.machineName || 'Unbekannt',
+          automat_id: machine.machineId?.toString() || 'unknown',
+          alert_typ: 'hoher_geldbestand',
+          meldung: `Hoher Bargeldbestand: ${Math.round(Number(machine.totalCash) || 0)}€`,
+          schweregrad: Number(machine.totalCash) > 300 ? 'hoch' : 'mittel',
+          wert: Math.round(Number(machine.totalCash) || 0),
+          grenzwert: 200,
+          einheit: '€'
+        });
+      });
+
+      // 2. Wenig Münzgeld (Automaten mit wenig Kleingeld-Transaktionen)
+      const lowCoinMachines = await db
+        .select({
+          machineName: transactions.machineName,
+          machineId: machines.id,
+          smallTransactions: count(transactions.id).as('smallTransactions'),
+          avgPrice: sql<number>`AVG(${transactions.price})`.as('avgPrice')
+        })
+        .from(transactions)
+        .leftJoin(machines, eq(transactions.machineName, machines.machineName))
+        .where(
+          and(
+            gte(transactions.datetime, yesterday),
+            lte(transactions.price, 2.0), // Kleine Beträge
+            eq(transactions.paymentMethod, 'CASH')
+          )
+        )
+        .groupBy(transactions.machineName, machines.id)
+        .having(sql`COUNT(${transactions.id}) < 3`) // Weniger als 3 kleine Transaktionen
+        .limit(3);
+
+      lowCoinMachines.forEach(machine => {
+        alerts.push({
+          automat: machine.machineName || 'Unbekannt',
+          automat_id: machine.machineId?.toString() || 'unknown',
+          alert_typ: 'wenig_münzen',
+          meldung: `Möglicher Münzgeldmangel - nur ${machine.smallTransactions} kleine Transaktionen`,
+          schweregrad: 'mittel',
+          wert: Number(machine.smallTransactions),
+          grenzwert: 3,
+          einheit: 'Transaktionen'
+        });
+      });
+
+      // 3. Technische Anomalien (aus Events-Tabelle)
+      const technicalIssues = await db
+        .select({
+          machineName: events.machineName,
+          machineId: events.machineId,
+          eventType: events.eventType,
+          description: events.description,
+          eventDatetime: events.eventDatetime
+        })
+        .from(events)
+        .where(
+          and(
+            gte(events.eventTime, yesterday),
+            sql`${events.eventType} IN ('ERROR', 'MALFUNCTION', 'SERVICE_REQUIRED')`
+          )
+        )
+        .orderBy(desc(events.eventTime))
+        .limit(5);
+
+      technicalIssues.forEach(issue => {
+        const severity = issue.eventType === 'ERROR' ? 'hoch' : 'mittel';
+        alerts.push({
+          automat: issue.machineName || 'Unbekannt',
+          automat_id: issue.machineId?.toString() || 'unknown',
+          alert_typ: 'technische_anomalie',
+          meldung: `${issue.eventType}: ${issue.description || 'Technisches Problem'}`,
+          schweregrad: severity,
+          dauer: 'Seit ' + (issue.eventDatetime?.toLocaleTimeString('de-DE') || 'unbekannt')
+        });
+      });
+
+      // 4. Performance-Abweichungen (basierend auf Transaction Gaps)
+      const performanceIssues = await db
+        .select({
+          machineName: transactionGaps.machineName,
+          machineId: transactionGaps.machineId,
+          severity: transactionGaps.severity,
+          gapDurationHours: transactionGaps.gapDurationHours,
+          gapStart: transactionGaps.gapStart
+        })
+        .from(transactionGaps)
+        .where(
+          and(
+            gte(transactionGaps.gapStart, weekAgo),
+            sql`${transactionGaps.status} = 'detected'`,
+            gte(transactionGaps.gapDurationHours, 4) // Lücken > 4 Stunden
+          )
+        )
+        .orderBy(desc(transactionGaps.gapDurationHours))
+        .limit(3);
+
+      performanceIssues.forEach(issue => {
+        const hours = Math.round(Number(issue.gapDurationHours) || 0);
+        alerts.push({
+          automat: issue.machineName || 'Unbekannt',
+          automat_id: issue.machineId?.toString() || 'unknown',
+          alert_typ: 'performance_abweichung',
+          meldung: `Transaktionslücke von ${hours}h erkannt`,
+          schweregrad: issue.severity as any || 'mittel',
+          wert: hours,
+          grenzwert: 4,
+          einheit: 'Stunden',
+          dauer: hours + 'h'
+        });
+      });
+
+      // Zusammenfassung
+      const totalAlerts = alerts.length;
+      const criticalAlerts = alerts.filter(a => a.schweregrad === 'kritisch' || a.schweregrad === 'hoch').length;
+      const affectedMachines = new Set(alerts.map(a => a.automat)).size;
+
+      return {
+        hoher_geldbestand: alerts.filter(a => a.alert_typ === 'hoher_geldbestand'),
+        münzgeld_warnungen: alerts.filter(a => a.alert_typ === 'wenig_münzen'),
+        technische_anomalien: alerts.filter(a => a.alert_typ === 'technische_anomalie'),
+        performance_abweichungen: alerts.filter(a => a.alert_typ === 'performance_abweichung'),
+        zusammenfassung: {
+          total_alerts: totalAlerts,
+          kritische_alerts: criticalAlerts,
+          betroffene_automaten: affectedMachines
+        }
+      };
+    } catch (error) {
+      console.error('Fehler beim Sammeln der Automaten-Status-Alerts:', error);
+      return {
+        hoher_geldbestand: [],
+        münzgeld_warnungen: [],
+        technische_anomalien: [],
+        performance_abweichungen: [],
+        zusammenfassung: {
+          total_alerts: 0,
+          kritische_alerts: 0,
+          betroffene_automaten: 0
+        }
       };
     }
   }
