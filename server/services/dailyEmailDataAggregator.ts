@@ -55,6 +55,31 @@ interface MachineAnomaly {
   meldung: string;
 }
 
+// Order delivery tracking interfaces
+interface OrderDelivery {
+  bestellnummer: string;
+  lieferant: string;
+  bestelldatum: string;
+  erwartetes_lieferdatum?: string;
+  tatsächliches_lieferdatum?: string;
+  status: string;
+  produkte: string[];
+  gesamtwert: number;
+  verspätung_tage?: number;
+}
+
+interface MachineStatusAlert {
+  automat: string;
+  automat_id: string;
+  alert_typ: 'hoher_geldbestand' | 'wenig_münzen' | 'technische_anomalie' | 'performance_abweichung';
+  meldung: string;
+  schweregrad: 'niedrig' | 'mittel' | 'hoch' | 'kritisch';
+  wert?: number;
+  grenzwert?: number;
+  einheit?: string;
+  dauer?: string;
+}
+
 // Enhanced Daily report data structure based on Proviantomat requirements
 export interface DailyReportData {
   template: string;
@@ -93,9 +118,33 @@ export interface DailyReportData {
         automaten: MHDItem[];
       };
     };
+    // ENHANCED: Bestellungen & Lieferungen Section
+    erweiterte_bestellungen: {
+      heute_erwartet: OrderDelivery[];
+      diese_woche: OrderDelivery[];
+      verspätet: OrderDelivery[];
+      nicht_geliefert: OrderDelivery[];
+      zusammenfassung: {
+        total_ausstehend: number;
+        total_wert_ausstehend: number;
+        kritische_verspätungen: number;
+      };
+    };
+    // ENHANCED: Automaten-Status & Anomalien Section  
+    automaten_status: {
+      hoher_geldbestand: MachineStatusAlert[];
+      münzgeld_warnungen: MachineStatusAlert[];
+      technische_anomalien: MachineStatusAlert[];
+      performance_abweichungen: MachineStatusAlert[];
+      zusammenfassung: {
+        total_alerts: number;
+        kritische_alerts: number;
+        betroffene_automaten: number;
+      };
+    };
     // Wetter, Ferien & Umsatzprognose
     wetter_ferien_umsatz?: WeatherData;
-    // Offene Wareneingänge
+    // Offene Wareneingänge (legacy - replaced by erweiterte_bestellungen)
     offene_wareneingänge?: Array<{
       lieferant: string;
       bestelldatum: string;
