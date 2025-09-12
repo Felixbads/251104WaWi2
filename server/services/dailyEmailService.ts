@@ -364,7 +364,7 @@ export class DailyEmailService {
         text: emailContent.text
       });
       
-      if (result.success) {
+      if (result) {
         await this.logEmail({
           recipient: recipientEmail,
           templateId: null,
@@ -381,10 +381,10 @@ export class DailyEmailService {
           status: 'failed',
           emailSubject: emailContent.subject,
           payload: reportData,
-          errorMessage: result.error
+          errorMessage: 'E-Mail-Versand fehlgeschlagen'
         });
-        console.error(`❌ Proviantomat-Bericht-Versand fehlgeschlagen: ${result.error}`);
-        return { success: false, error: result.error };
+        console.error(`❌ Proviantomat-Bericht-Versand fehlgeschlagen`);
+        return { success: false, error: 'E-Mail-Versand fehlgeschlagen' };
       }
       
     } catch (error) {
