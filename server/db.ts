@@ -1,13 +1,8 @@
 
-import { Pool, neonConfig } from '@neondatabase/serverless';
-import { drizzle } from 'drizzle-orm/neon-serverless';
-import ws from 'ws';
+import pkg from 'pg';
+const { Pool } = pkg;
+import { drizzle } from 'drizzle-orm/node-postgres';
 import * as schema from '@shared/schema';
-
-// Konfiguriere WebSocket für Neon Postgres mit Fehlerbehandlung
-neonConfig.webSocketConstructor = ws;
-// Workaround für ErrorEvent.message Kompatibilitätsproblem
-neonConfig.fetchConnectionCache = false;
 
 if (!process.env.DATABASE_URL) {
   throw new Error(
@@ -15,14 +10,18 @@ if (!process.env.DATABASE_URL) {
   );
 }
 
-// Verbindungspool für die Neon-Datenbank erstellen mit verbesserten Einstellungen
-export const pool = new Pool({ 
+// Optimized PostgreSQL connection pool for Neon Database
+export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  connectionTimeoutMillis: 15000, // 15 Sekunden Timeout (erhöht für Stabilität)
-  max: 5, // reduziert für bessere Stabilität
-  idleTimeoutMillis: 60000, // 60 Sekunden für bessere Verbindungsstabilität
-  // Zusätzliche Workarounds für Neon Serverless Kompatibilität
-  ssl: process.env.NODE_ENV === 'production'
+  max: 5, // Reduced max connections for better stability
+  min: 1, // Keep minimum connections alive
+  idleTimeoutMillis: 60000, // 60 seconds idle timeout
+  connectionTimeoutMillis: 20000, // 20 seconds connection timeout (increased for Neon)
+  acquireTimeoutMillis: 30000, // 30 seconds acquire timeout
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+  // Additional Neon-specific optimizations
+  keepAlive: true,
+  keepAliveInitialDelayMillis: 0
 });
 
 // Verbindungsüberprüfung
@@ -30,7 +29,7 @@ pool.on('error', (err) => {
   console.error('Unerwarteter Datenbankfehler', err);
 });
 
-// ORM-Instanz mit den Schemadefinitionen initialisieren
+// Drizzle ORM-Instanz mit Standard PostgreSQL Pool initialisieren
 export const db = drizzle(pool, { schema });
 
 // Raw-Query-Zugriff für direkte SQL-Abfragen bereitstellen
