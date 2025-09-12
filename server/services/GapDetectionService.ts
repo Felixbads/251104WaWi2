@@ -635,7 +635,7 @@ export class GapDetectionService extends EventEmitter {
         .from(transactionGaps)
         .where(
           and(
-            gap.machineId ? eq(transactionGaps.machineId, gap.machineId) : isNull(transactionGaps.machineId),
+            gap.machineId !== null ? eq(transactionGaps.machineId, gap.machineId) : isNull(transactionGaps.machineId),
             sql`ABS(EXTRACT(EPOCH FROM ${transactionGaps.gapStart} - ${gap.gapStart})) < 3600`, // Binnen 1 Stunde
             sql`ABS(EXTRACT(EPOCH FROM ${transactionGaps.gapEnd} - ${gap.gapEnd})) < 3600`
           )

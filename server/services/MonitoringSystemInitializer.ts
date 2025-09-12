@@ -15,6 +15,7 @@ import { alertingService } from './AlertingService';
 export class MonitoringSystemInitializer {
   private isInitialized = false;
   private initializationPromise: Promise<void> | null = null;
+  private gapAnalysisTimeout: NodeJS.Timeout | null = null;
 
   /**
    * Startet das komplette Monitoring-System
@@ -214,7 +215,7 @@ export class MonitoringSystemInitializer {
    */
   private scheduleInitialGapAnalysis(): void {
     console.log('[MonitoringSystem] ⏰ Gap-Analyse wird in 30 Sekunden nach Server-Start durchgeführt');
-    setTimeout(() => {
+    this.gapAnalysisTimeout = setTimeout(() => {
       this.performInitialGapAnalysis().catch(error => {
         console.error('[MonitoringSystem] Fehler bei verzögerter Gap-Analyse:', error);
       });
@@ -277,6 +278,12 @@ export class MonitoringSystemInitializer {
       await transactionMonitoringService.stop();
       smartRecoveryService.stopJobProcessor();
       await alertingService.stop();
+
+      // Storniere ausstehende Gap-Analyse
+      if (this.gapAnalysisTimeout) {
+        clearTimeout(this.gapAnalysisTimeout);
+        this.gapAnalysisTimeout = null;
+      }
 
       this.isInitialized = false;
       this.initializationPromise = null;
