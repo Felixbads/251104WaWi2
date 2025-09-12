@@ -59,12 +59,12 @@ export class MonitoringSystemInitializer {
       // Schritt 4: Event-Handler zwischen Services einrichten
       this.setupInterServiceCommunication();
 
-      // Schritt 5: Initiale Gap-Analyse durchführen
-      console.log('[MonitoringSystem] 🔍 Führe initiale Gap-Analyse durch...');
-      await this.performInitialGapAnalysis();
-
-      // Schritt 6: System als initialisiert markieren
+      // Schritt 5: System als initialisiert markieren (vor Gap-Analyse)
       this.isInitialized = true;
+
+      // Schritt 6: Initiale Gap-Analyse asynchron starten (nicht blockierend)
+      console.log('[MonitoringSystem] 🔍 Plane initiale Gap-Analyse (asynchron nach Startup)...');
+      this.scheduleInitialGapAnalysis();
       
       console.log('[MonitoringSystem] ✅ Transaction Gap Monitoring & Recovery System erfolgreich gestartet');
       console.log('[MonitoringSystem] 📈 Kontinuierliche Überwachung aktiv - Gap Detection & Recovery bereit');
@@ -207,6 +207,18 @@ export class MonitoringSystemInitializer {
     });
 
     console.log('[MonitoringSystem] ✅ Inter-Service Communication eingerichtet');
+  }
+
+  /**
+   * Startet die initiale Gap-Analyse asynchron nach einer Verzögerung
+   */
+  private scheduleInitialGapAnalysis(): void {
+    console.log('[MonitoringSystem] ⏰ Gap-Analyse wird in 30 Sekunden nach Server-Start durchgeführt');
+    setTimeout(() => {
+      this.performInitialGapAnalysis().catch(error => {
+        console.error('[MonitoringSystem] Fehler bei verzögerter Gap-Analyse:', error);
+      });
+    }, 30000); // 30 Sekunden Verzögerung
   }
 
   /**
