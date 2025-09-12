@@ -10,10 +10,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { 
   AlertCircle, Save, RefreshCw, Database, Key, 
-  Bell, User, Clock, Shield, Cog
+  Bell, User, Clock, Shield, Cog, Mail
 } from "lucide-react";
 import DatabaseViewer from "@/components/settings/DatabaseViewer";
 import DatabaseManager from "@/pages/DatabaseManager";
+import EmailNotificationsSettings from "@/components/email/EmailNotificationsSettings";
 import { useToast } from "@/hooks/use-toast";
 
 export default function Settings() {
@@ -167,7 +168,7 @@ export default function Settings() {
       <Card>
         <CardContent className="pt-6">
           <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value)} className="space-y-4">
-            <TabsList className="grid w-full grid-cols-5">
+            <TabsList className="grid w-full grid-cols-6">
               <TabsTrigger value="api" className="flex items-center">
                 <Key className="h-4 w-4 mr-2" />
                 API-Verbindung
@@ -179,6 +180,10 @@ export default function Settings() {
               <TabsTrigger value="notifications" className="flex items-center">
                 <Bell className="h-4 w-4 mr-2" />
                 Benachrichtigungen
+              </TabsTrigger>
+              <TabsTrigger value="email" className="flex items-center">
+                <Mail className="h-4 w-4 mr-2" />
+                Mail-Benachrichtigungen
               </TabsTrigger>
               <TabsTrigger value="database" className="flex items-center">
                 <Database className="h-4 w-4 mr-2" />
@@ -461,6 +466,11 @@ export default function Settings() {
                   </div>
                 )}
               </div>
+            </TabsContent>
+
+            {/* Email Notifications Tab */}
+            <TabsContent value="email" className="space-y-4">
+              <EmailNotificationsSettings />
             </TabsContent>
 
             {/* Database Viewer Tab */}
