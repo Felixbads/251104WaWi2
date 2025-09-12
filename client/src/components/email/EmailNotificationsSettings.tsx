@@ -12,7 +12,16 @@ import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
-import { Mail, Clock, AlertTriangle, Package, TrendingDown, Calendar, CreditCard, Trash2, Coins, Wine, Thermometer, BarChart3, Euro, TrendingUp } from "lucide-react";
+import { Mail, Clock, AlertTriangle, Package, TrendingDown, Calendar, CreditCard, Trash2, Coins, Wine, Thermometer, BarChart3, Euro, TrendingUp, Truck, Wrench, AlertCircle, CheckCircle } from "lucide-react";
+import { 
+  EnhancedPreviewData, 
+  OrderDelivery, 
+  MachineStatusAlert,
+  formatCurrency, 
+  formatDate, 
+  getSeverityColor, 
+  getStatusColor 
+} from "@/types/emailTypes";
 
 interface EmailNotificationSettings {
   id?: number;
@@ -28,100 +37,8 @@ interface EmailNotificationSettings {
   sendTime: string;
 }
 
-interface PreviewData {
-  mhdAlerts: Array<{
-    productName: string;
-    expiryDate: string;
-    daysUntilExpiry: number;
-    quantity: number;
-    location: string;
-  }>;
-  stockAlerts: Array<{
-    productName: string;
-    currentStock: number;
-    minimumStock: number;
-    location: string;
-  }>;
-  pendingOrders: Array<{
-    orderNumber: string;
-    supplierName: string;
-    expectedDelivery: string;
-    totalAmount: number;
-  }>;
-  recentDeliveries: Array<{
-    orderNumber: string;
-    supplierName: string;
-    deliveredDate: string;
-    products: string[];
-  }>;
-  performanceMetrics: {
-    totalRevenue: number;
-    topPerformingMachine: string;
-    lowPerformingMachines: string[];
-    averageDailySales: number;
-  };
-  // Neue Standort-Warnungen
-  highCashAlerts?: Array<{
-    machineName: string;
-    cashAmount: number;
-    threshold: number;
-  }>;
-  overdueCollections?: Array<{
-    machineName: string;
-    daysOverdue: number;
-    lastCollection: string;
-  }>;
-  machineWarnings?: Array<{
-    machineName: string;
-    warningMessage: string;
-    warningType: string;
-  }>;
-  // Zusätzliche Warnungstypen
-  lowCoinAlerts?: Array<{
-    machineName: string;
-    lowCoinTubes: number;
-    lastMaintenance: string;
-  }>;
-  alcoholSalesAlerts?: Array<{
-    machineName: string;
-    daysSinceLastSale: number;
-    lastAlcoholProduct: string;
-  }>;
-  temperatureAlerts?: Array<{
-    machineName: string;
-    currentTemp: number;
-    optimalRange: string;
-    status: string;
-  }>;
-  // 🆕 Standort Status KPIs
-  standortStatus?: {
-    lowStockLocations: Array<{
-      locationName: string;
-      lowStockProducts: number;
-      totalProducts: number;
-      stockPercentage: string;
-    }>;
-    highCashLocations: Array<{
-      locationName: string;
-      cashAmount: string;
-      lastEmptied: string;
-      riskLevel: string;
-    }>;
-    mhdStatusOverview: Array<{
-      locationName: string;
-      criticalMhds: number;
-      nearExpiryValue: string;
-      nextExpiryDate: string;
-    }>;
-    sales24hOverview: Array<{
-      locationName: string;
-      sales24h: string;
-      transactionCount: number;
-      avgTransactionValue: string;
-      trend: string;
-    }>;
-  };
-}
+// Using EnhancedPreviewData interface from types
+// Legacy PreviewData is now part of EnhancedPreviewData for backward compatibility
 
 interface EmailNotificationsSettingsProps {
   showHeader?: boolean;
@@ -149,7 +66,7 @@ export default function EmailNotificationsSettings({ showHeader = false }: Email
   });
 
   // Live-Preview Daten laden
-  const { data: previewData, isLoading: previewLoading } = useQuery<PreviewData>({
+  const { data: previewData, isLoading: previewLoading } = useQuery<EnhancedPreviewData>({
     queryKey: ['/api/email-notifications/preview'],
     enabled: true,
     refetchInterval: 30000 // Alle 30 Sekunden aktualisieren
@@ -549,12 +466,184 @@ export default function EmailNotificationsSettings({ showHeader = false }: Email
                     <div className="text-xs text-muted-foreground space-y-1">
                       <div className="flex justify-between">
                         <span>Gesamtumsatz</span>
-                        <span>{previewData.performanceMetrics.totalRevenue.toFixed(2)}€</span>
+                        <span>{formatCurrency(previewData.performanceMetrics.totalRevenue)}</span>
                       </div>
                       <div className="flex justify-between">
                         <span>Ø Tagesumsatz</span>
-                        <span>{previewData.performanceMetrics.averageDailySales.toFixed(2)}€</span>
+                        <span>{formatCurrency(previewData.performanceMetrics.averageDailySales)}</span>
                       </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* ENHANCED: Erweiterte Bestellungen */}
+                {settings.includeOrderAlerts && previewData.erweiterte_bestellungen && (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Truck className="h-4 w-4 text-blue-500" />
+                      <span className="font-medium text-sm">Erweiterte Bestellübersicht</span>
+                      <Badge variant="secondary">
+                        {previewData.erweiterte_bestellungen.zusammenfassung.total_ausstehend}
+                      </Badge>
+                    </div>
+
+                    {/* Heute erwartete Lieferungen */}
+                    {previewData.erweiterte_bestellungen.heute_erwartet.length > 0 && (
+                      <div className="space-y-1">
+                        <div className="text-xs font-medium text-green-600 flex items-center gap-1">
+                          <CheckCircle className="h-3 w-3" />
+                          Heute erwartet ({previewData.erweiterte_bestellungen.heute_erwartet.length})
+                        </div>
+                        {previewData.erweiterte_bestellungen.heute_erwartet.slice(0, 2).map((delivery: OrderDelivery, index) => (
+                          <div key={index} className="text-xs text-muted-foreground ml-4">
+                            <div className="flex justify-between">
+                              <span>{delivery.bestellnummer}</span>
+                              <span className={`px-1 rounded text-xs ${getStatusColor(delivery.status)}`}>
+                                {delivery.status}
+                              </span>
+                            </div>
+                            <div className="flex justify-between text-xs">
+                              <span>{delivery.lieferant}</span>
+                              <span>{formatCurrency(delivery.gesamtwert)}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Verspätete Lieferungen */}
+                    {previewData.erweiterte_bestellungen.verspätet.length > 0 && (
+                      <div className="space-y-1">
+                        <div className="text-xs font-medium text-red-600 flex items-center gap-1">
+                          <AlertTriangle className="h-3 w-3" />
+                          Verspätet ({previewData.erweiterte_bestellungen.verspätet.length})
+                        </div>
+                        {previewData.erweiterte_bestellungen.verspätet.slice(0, 2).map((delivery: OrderDelivery, index) => (
+                          <div key={index} className="text-xs text-muted-foreground ml-4">
+                            <div className="flex justify-between">
+                              <span>{delivery.bestellnummer}</span>
+                              <span className="text-red-600">{delivery.verspätung_tage} Tage</span>
+                            </div>
+                            <div className="flex justify-between text-xs">
+                              <span>{delivery.lieferant}</span>
+                              <span>{formatCurrency(delivery.gesamtwert)}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Zusammenfassung */}
+                    <div className="text-xs text-muted-foreground space-y-1 border-t pt-2">
+                      <div className="flex justify-between">
+                        <span>Ausstehende Bestellungen</span>
+                        <span>{previewData.erweiterte_bestellungen.zusammenfassung.total_ausstehend}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Gesamtwert ausstehend</span>
+                        <span>{formatCurrency(previewData.erweiterte_bestellungen.zusammenfassung.total_wert_ausstehend)}</span>
+                      </div>
+                      {previewData.erweiterte_bestellungen.zusammenfassung.kritische_verspätungen > 0 && (
+                        <div className="flex justify-between text-red-600">
+                          <span>Kritische Verspätungen</span>
+                          <span>{previewData.erweiterte_bestellungen.zusammenfassung.kritische_verspätungen}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* ENHANCED: Automaten-Status */}
+                {settings.includePerformanceAlerts && previewData.automaten_status && (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Wrench className="h-4 w-4 text-orange-500" />
+                      <span className="font-medium text-sm">Automaten-Status</span>
+                      <Badge variant={previewData.automaten_status.zusammenfassung.kritische_alerts > 0 ? "destructive" : "secondary"}>
+                        {previewData.automaten_status.zusammenfassung.total_alerts}
+                      </Badge>
+                    </div>
+
+                    {/* Hoher Geldbestand */}
+                    {previewData.automaten_status.hoher_geldbestand.length > 0 && (
+                      <div className="space-y-1">
+                        <div className="text-xs font-medium text-yellow-600 flex items-center gap-1">
+                          <Euro className="h-3 w-3" />
+                          Hoher Geldbestand ({previewData.automaten_status.hoher_geldbestand.length})
+                        </div>
+                        {previewData.automaten_status.hoher_geldbestand.slice(0, 2).map((alert: MachineStatusAlert, index) => (
+                          <div key={index} className="text-xs text-muted-foreground ml-4">
+                            <div className="flex justify-between">
+                              <span>{alert.automat}</span>
+                              <span className={`px-1 rounded text-xs ${getSeverityColor(alert.schweregrad)}`}>
+                                {alert.schweregrad}
+                              </span>
+                            </div>
+                            <div className="text-xs">
+                              {alert.wert && alert.einheit && `${alert.wert} ${alert.einheit}`}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Technische Anomalien */}
+                    {previewData.automaten_status.technische_anomalien.length > 0 && (
+                      <div className="space-y-1">
+                        <div className="text-xs font-medium text-red-600 flex items-center gap-1">
+                          <AlertCircle className="h-3 w-3" />
+                          Technische Anomalien ({previewData.automaten_status.technische_anomalien.length})
+                        </div>
+                        {previewData.automaten_status.technische_anomalien.slice(0, 2).map((alert: MachineStatusAlert, index) => (
+                          <div key={index} className="text-xs text-muted-foreground ml-4">
+                            <div className="flex justify-between">
+                              <span>{alert.automat}</span>
+                              <span className={`px-1 rounded text-xs ${getSeverityColor(alert.schweregrad)}`}>
+                                {alert.schweregrad}
+                              </span>
+                            </div>
+                            <div className="text-xs truncate">{alert.meldung}</div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Münzgeld Warnungen */}
+                    {previewData.automaten_status.münzgeld_warnungen.length > 0 && (
+                      <div className="space-y-1">
+                        <div className="text-xs font-medium text-orange-600 flex items-center gap-1">
+                          <Coins className="h-3 w-3" />
+                          Münzgeld-Warnungen ({previewData.automaten_status.münzgeld_warnungen.length})
+                        </div>
+                        {previewData.automaten_status.münzgeld_warnungen.slice(0, 2).map((alert: MachineStatusAlert, index) => (
+                          <div key={index} className="text-xs text-muted-foreground ml-4">
+                            <div className="flex justify-between">
+                              <span>{alert.automat}</span>
+                              <span className={`px-1 rounded text-xs ${getSeverityColor(alert.schweregrad)}`}>
+                                {alert.schweregrad}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Zusammenfassung */}
+                    <div className="text-xs text-muted-foreground space-y-1 border-t pt-2">
+                      <div className="flex justify-between">
+                        <span>Gesamt Alerts</span>
+                        <span>{previewData.automaten_status.zusammenfassung.total_alerts}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Betroffene Automaten</span>
+                        <span>{previewData.automaten_status.zusammenfassung.betroffene_automaten}</span>
+                      </div>
+                      {previewData.automaten_status.zusammenfassung.kritische_alerts > 0 && (
+                        <div className="flex justify-between text-red-600">
+                          <span>Kritische Alerts</span>
+                          <span>{previewData.automaten_status.zusammenfassung.kritische_alerts}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}

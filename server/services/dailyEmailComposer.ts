@@ -27,28 +27,94 @@ export class DailyEmailComposer {
   }
 
   /**
-   * Rendert ein benutzerdefiniertes Template
+   * Rendert ein benutzerdefiniertes Template mit umfassender Platzhalter-Unterstützung
    */
   private renderCustomTemplate(htmlTemplate: string, data: DailyReportData): string {
     try {
-      // Einfache Template-Variable-Ersetzung
       let rendered = htmlTemplate;
       
-      // Ersetze grundlegende Variablen
-      rendered = rendered.replace(/{{date}}/g, escapeHtml(this.formatDate(data.date)));
-      rendered = rendered.replace(/{{template}}/g, escapeHtml(data.template));
+      // BASIC REPLACEMENTS: Date, Time, Meta
+      const currentDate = new Date();
+      rendered = this.replaceVar(rendered, 'date', this.formatDate(data.date));
+      rendered = this.replaceVar(rendered, 'time', currentDate.toLocaleTimeString('de-DE'));
+      rendered = this.replaceVar(rendered, 'timestamp', currentDate.toLocaleString('de-DE'));
+      rendered = this.replaceVar(rendered, 'next_report_time', '08:00 Uhr');
       
-      // Ersetze Verkaufsdaten
-      rendered = rendered.replace(/{{anzahl_verkäufe}}/g, data.sections.verkäufe.anzahl_verkäufe.toString());
-      rendered = rendered.replace(/{{umsatzsumme}}/g, data.sections.verkäufe.umsatzsumme.toFixed(2));
+      // VERKÄUFE & PERFORMANCE
+      const verkäufe = safeObject(data.sections?.verkäufe);
+      const salesAverage = verkäufe.anzahl_verkäufe > 0 ? (verkäufe.umsatzsumme / verkäufe.anzahl_verkäufe) : 0;
       
-      // Füge Listen hinzu
-      if (rendered.includes('{{top_produkte_liste}}')) {
-        const produkteHtml = safeArray(data.sections.verkäufe.top_produkte)
-          .map(product => `<li><strong>${escapeHtml(product.name)}:</strong> ${escapeHtml(product.stückzahl)} Stück (${escapeHtml(product.umsatz.toFixed(2))} €)</li>`)
-          .join('');
-        rendered = rendered.replace(/{{top_produkte_liste}}/g, produkteHtml);
-      }
+      rendered = this.replaceVar(rendered, 'sales_total', verkäufe.umsatzsumme?.toFixed(2) || '0.00');
+      rendered = this.replaceVar(rendered, 'sales_count', verkäufe.anzahl_verkäufe?.toString() || '0');
+      rendered = this.replaceVar(rendered, 'sales_average', salesAverage.toFixed(2));
+      
+      // Top Produkte Details
+      const topProductsHtml = this.renderTopProducts(safeArray(verkäufe.top_produkte));
+      rendered = this.replaceVar(rendered, 'sales_details', topProductsHtml);
+      
+      // ERWEITERTE BESTELLUNGEN & LIEFERUNGEN
+      const erweiterteBest = safeObject(data.sections?.erweiterte_bestellungen);
+      
+      rendered = this.replaceVar(rendered, 'erweiterte_bestellungen_heute_erwartet', 
+        this.renderOrderDeliveries(safeArray(erweiterteBest.heute_erwartet)));
+      rendered = this.replaceVar(rendered, 'erweiterte_bestellungen_verspaetet', 
+        this.renderOrderDeliveries(safeArray(erweiterteBest.verspätet)));
+      rendered = this.replaceVar(rendered, 'erweiterte_bestellungen_ausstehend', 
+        this.renderOrderDeliveries(safeArray(erweiterteBest.diese_woche)));
+      
+      // Bestellungen Zusammenfassung
+      const bestZusammenfassung = safeObject(erweiterteBest.zusammenfassung);
+      rendered = this.replaceVar(rendered, 'bestellungen_total_count', bestZusammenfassung.total_ausstehend?.toString() || '0');
+      rendered = this.replaceVar(rendered, 'bestellungen_total_value', bestZusammenfassung.total_wert_ausstehend?.toFixed(2) || '0.00');
+      rendered = this.replaceVar(rendered, 'bestellungen_critical_delays', bestZusammenfassung.kritische_verspätungen?.toString() || '0');
+      
+      // AUTOMATEN-STATUS & ALERTS
+      const automatenStatus = safeObject(data.sections?.automaten_status);
+      
+      rendered = this.replaceVar(rendered, 'automaten_status_hoher_geldbestand', 
+        this.renderMachineAlerts(safeArray(automatenStatus.hoher_geldbestand)));
+      rendered = this.replaceVar(rendered, 'automaten_status_muenzgeld_warnungen', 
+        this.renderMachineAlerts(safeArray(automatenStatus.münzgeld_warnungen)));
+      rendered = this.replaceVar(rendered, 'automaten_status_technische_anomalien', 
+        this.renderMachineAlerts(safeArray(automatenStatus.technische_anomalien)));
+      
+      // Automaten Zusammenfassung
+      const automatZusammenfassung = safeObject(automatenStatus.zusammenfassung);
+      rendered = this.replaceVar(rendered, 'automaten_alerts_total', automatZusammenfassung.total_alerts?.toString() || '0');
+      rendered = this.replaceVar(rendered, 'automaten_betroffene', automatZusammenfassung.betroffene_automaten?.toString() || '0');
+      rendered = this.replaceVar(rendered, 'automaten_kritische_alerts', automatZusammenfassung.kritische_alerts?.toString() || '0');
+      
+      // BESTÄNDE & LOGISTIK
+      const beständeLogistik = safeObject(data.sections?.bestände_logistik);
+      
+      rendered = this.replaceVar(rendered, 'niedriger_lagerbestand', 
+        this.renderLowStock(safeArray(beständeLogistik.niedriger_lagerbestand)));
+      rendered = this.replaceVar(rendered, 'nachzubestellende_artikel', 
+        this.renderReorderItems(safeArray(beständeLogistik.nachzubestellende_artikel)));
+      rendered = this.replaceVar(rendered, 'bestaende_zusammenfassung', 
+        this.renderInventorySummary(beständeLogistik));
+      
+      // MHD-WARNUNGEN
+      const nahendesMhd = safeObject(beständeLogistik.nahendes_mhd);
+      const mhdLager = safeObject(nahendesMhd.lager);
+      
+      rendered = this.replaceVar(rendered, 'mhd_kritisch', 
+        this.renderMhdItems(safeArray(mhdLager['<5'])));
+      rendered = this.replaceVar(rendered, 'mhd_warnung', 
+        this.renderMhdItems(safeArray(mhdLager['<14'])));
+      rendered = this.replaceVar(rendered, 'mhd_zusammenfassung', 
+        this.renderMhdSummary(nahendesMhd));
+      
+      // WETTER & PROGNOSE
+      const wetterDaten = safeObject(data.sections?.wetter_ferien_umsatz);
+      rendered = this.replaceVar(rendered, 'weather_data', this.renderWeatherData(wetterDaten));
+      rendered = this.replaceVar(rendered, 'umsatz_prognose', this.renderSalesForecast(wetterDaten));
+      
+      // TAGES-ZUSAMMENFASSUNG
+      rendered = this.replaceVar(rendered, 'tages_zusammenfassung', this.renderDailySummary(data));
+      
+      // LEGACY SUPPORT: Support legacy double-brace syntax for backwards compatibility
+      rendered = this.replaceLegacyPlaceholders(rendered, data);
       
       return rendered;
     } catch (error) {
@@ -836,5 +902,266 @@ export class DailyEmailComposer {
     } catch (error) {
       return dateString;
     }
+  }
+
+  // ============= COMPREHENSIVE TEMPLATE REPLACEMENT SYSTEM =============
+
+  /**
+   * Ersetzt eine Platzhalter-Variable im Template (single-brace syntax)
+   */
+  private replaceVar(template: string, varName: string, value: string): string {
+    const regex = new RegExp(`{${varName}}`, 'g');
+    return template.replace(regex, value || '');
+  }
+
+  /**
+   * Rendert Top-Produkte als HTML-Liste
+   */
+  private renderTopProducts(products: any[]): string {
+    if (!products || products.length === 0) {
+      return '<p><em>Keine Top-Produkte-Daten verfügbar</em></p>';
+    }
+
+    return `
+    <div class="product-list">
+      ${products.map(product => `
+        <div class="product-item">
+          <span><strong>${escapeHtml(product.name)}</strong></span>
+          <span>${escapeHtml(product.stückzahl)} Stück - ${escapeHtml(product.umsatz.toFixed(2))} €</span>
+        </div>
+      `).join('')}
+    </div>`;
+  }
+
+  /**
+   * Rendert Bestellungen/Lieferungen als HTML
+   */
+  private renderOrderDeliveries(orders: any[]): string {
+    if (!orders || orders.length === 0) {
+      return '<p><em>Keine Daten verfügbar</em></p>';
+    }
+
+    return orders.map(order => `
+      <div class="delivery-item">
+        <strong>${escapeHtml(order.lieferant)}</strong> - ${escapeHtml(order.bestellnummer)}<br>
+        <small>Wert: ${escapeHtml(order.gesamtwert?.toFixed(2) || '0.00')} € | 
+        ${order.verspätung_tage ? `${escapeHtml(order.verspätung_tage)} Tage verspätet` : 'Im Plan'}</small><br>
+        <small>Produkte: ${escapeHtml(order.produkte?.join(', ') || 'Keine Angabe')}</small>
+      </div>
+    `).join('');
+  }
+
+  /**
+   * Rendert Automaten-Alerts als HTML
+   */
+  private renderMachineAlerts(alerts: any[]): string {
+    if (!alerts || alerts.length === 0) {
+      return '<p><em>Keine Alerts</em></p>';
+    }
+
+    return alerts.map(alert => {
+      const severityClass = `severity-${alert.schweregrad || 'niedrig'}`;
+      return `
+        <div class="machine-alert ${severityClass}">
+          <div>
+            <strong>${escapeHtml(alert.automat)}</strong><br>
+            <span>${escapeHtml(alert.meldung)}</span>
+          </div>
+          <div class="alert-value">
+            ${alert.wert ? `${escapeHtml(alert.wert.toString())} ${escapeHtml(alert.einheit || '')}` : ''}
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  /**
+   * Rendert niedrige Lagerbestände als HTML
+   */
+  private renderLowStock(items: any[]): string {
+    if (!items || items.length === 0) {
+      return '<p><em>Alle Bestände ausreichend</em></p>';
+    }
+
+    return `
+    <div class="stock-alerts">
+      ${items.map(item => `
+        <div class="stock-alert">
+          <strong>${escapeHtml(item.produkt)}</strong><br>
+          <small>Bestand: ${escapeHtml(item.bestand)} | Schwellenwert: ${escapeHtml(item.schwellenwert)}</small>
+        </div>
+      `).join('')}
+    </div>`;
+  }
+
+  /**
+   * Rendert nachzubestellende Artikel als HTML
+   */
+  private renderReorderItems(items: any[]): string {
+    if (!items || items.length === 0) {
+      return '<p><em>Keine Nachbestellungen erforderlich</em></p>';
+    }
+
+    return items.map(item => `
+      <div class="reorder-item">
+        <strong>${escapeHtml(item.produkt)}</strong> 
+        <span class="priority-${item.priorität?.toLowerCase() || 'normal'}">(${escapeHtml(item.priorität || 'Normal')})</span><br>
+        <small>Empfohlen: ${escapeHtml(item.empfohlene_menge)} Stück | 
+        Abverkauf: ${escapeHtml(item.abverkaufsgeschwindigkeit || 'Unbekannt')}</small>
+      </div>
+    `).join('');
+  }
+
+  /**
+   * Rendert Bestände-Zusammenfassung
+   */
+  private renderInventorySummary(inventory: any): string {
+    if (!inventory) {
+      return '<p><em>Keine Inventar-Daten verfügbar</em></p>';
+    }
+
+    const lowStock = safeArray(inventory.niedriger_lagerbestand).length;
+    const reorderItems = safeArray(inventory.nachzubestellende_artikel).length;
+
+    return `
+    <p><strong>Niedrige Bestände:</strong> ${lowStock} Artikel</p>
+    <p><strong>Nachbestellungen:</strong> ${reorderItems} Artikel</p>
+    `;
+  }
+
+  /**
+   * Rendert MHD-Items als HTML
+   */
+  private renderMhdItems(items: any[]): string {
+    if (!items || items.length === 0) {
+      return '<p><em>Keine kritischen MHD-Warnungen</em></p>';
+    }
+
+    return items.map(item => `
+      <div class="mhd-item">
+        <strong>${escapeHtml(item.produkt)}</strong><br>
+        <small>${escapeHtml(item.anzahl)} Stück | MHD: ${escapeHtml(item.mhd)} | 
+        Ort: ${escapeHtml(item.lager || item.automat || 'Unbekannt')}</small>
+      </div>
+    `).join('');
+  }
+
+  /**
+   * Rendert MHD-Zusammenfassung
+   */
+  private renderMhdSummary(mhdData: any): string {
+    if (!mhdData) {
+      return '<p><em>Keine MHD-Daten verfügbar</em></p>';
+    }
+
+    const lager = safeObject(mhdData.lager);
+    const kritisch = safeArray(lager['<5']).length;
+    const warnung = safeArray(lager['<14']).length;
+    const automaten = safeArray(mhdData.automaten).length;
+
+    return `
+    <p><strong>Kritisch (&lt; 5 Tage):</strong> ${kritisch} Artikel</p>
+    <p><strong>Warnung (&lt; 14 Tage):</strong> ${warnung} Artikel</p>
+    <p><strong>Automaten betroffen:</strong> ${automaten} Artikel</p>
+    `;
+  }
+
+  /**
+   * Rendert Wetter-Daten
+   */
+  private renderWeatherData(weatherData: any): string {
+    if (!weatherData || !weatherData.heute) {
+      return '<p><em>Keine Wetter-Daten verfügbar</em></p>';
+    }
+
+    const heute = weatherData.heute;
+    return `
+    <p><strong>Wetter heute:</strong> ${escapeHtml(heute.wetter)} | 
+    <strong>Temperatur:</strong> ${escapeHtml(heute.temperatur)} | 
+    <strong>Regenwahrscheinlichkeit:</strong> ${escapeHtml(heute.regenwahrscheinlichkeit)}</p>
+    <p><strong>Standort:</strong> ${escapeHtml(weatherData.standort)}</p>
+    ${weatherData.auswirkung ? `<p><strong>Auswirkung:</strong> ${escapeHtml(weatherData.auswirkung)}</p>` : ''}
+    `;
+  }
+
+  /**
+   * Rendert Umsatz-Prognose
+   */
+  private renderSalesForecast(weatherData: any): string {
+    if (!weatherData?.heute?.prognostizierter_umsatz) {
+      return '<p><em>Keine Umsatz-Prognose verfügbar</em></p>';
+    }
+
+    const prognose = weatherData.heute.prognostizierter_umsatz;
+    const gesamtprognose = prognose.reduce((sum: number, p: any) => sum + (p.wert || 0), 0);
+
+    return `
+    <p><strong>Prognostizierter Tagesumsatz:</strong> ${gesamtprognose.toFixed(2)} €</p>
+    <div class="forecast-details">
+      ${prognose.map((p: any) => `
+        <small>${escapeHtml(p.automat)}: ${escapeHtml(p.wert?.toFixed(2) || '0.00')} €</small><br>
+      `).join('')}
+    </div>
+    `;
+  }
+
+  /**
+   * Rendert Tages-Zusammenfassung
+   */
+  private renderDailySummary(data: DailyReportData): string {
+    const verkäufe = safeObject(data.sections?.verkäufe);
+    const bestellungen = safeObject(data.sections?.erweiterte_bestellungen?.zusammenfassung);
+    const alerts = safeObject(data.sections?.automaten_status?.zusammenfassung);
+
+    return `
+    <p><strong>Verkäufe heute:</strong> ${verkäufe.anzahl_verkäufe || 0} (${(verkäufe.umsatzsumme || 0).toFixed(2)} €)</p>
+    <p><strong>Ausstehende Bestellungen:</strong> ${bestellungen.total_ausstehend || 0} (${(bestellungen.total_wert_ausstehend || 0).toFixed(2)} €)</p>
+    <p><strong>Aktive Alerts:</strong> ${alerts.total_alerts || 0} (${alerts.kritische_alerts || 0} kritisch)</p>
+    <p><strong>Status:</strong> ${this.calculateOverallStatus(data)}</p>
+    `;
+  }
+
+  /**
+   * Berechnet den Gesamt-Status des Systems
+   */
+  private calculateOverallStatus(data: DailyReportData): string {
+    const alerts = safeObject(data.sections?.automaten_status?.zusammenfassung);
+    const bestellungen = safeObject(data.sections?.erweiterte_bestellungen?.zusammenfassung);
+    
+    const kritischeAlerts = alerts.kritische_alerts || 0;
+    const verspätungen = bestellungen.kritische_verspätungen || 0;
+
+    if (kritischeAlerts > 0 || verspätungen > 0) {
+      return '<span class="alert-high">Aufmerksamkeit erforderlich</span>';
+    }
+    
+    if (alerts.total_alerts > 5) {
+      return '<span class="alert-medium">Überwachung empfohlen</span>';
+    }
+
+    return '<span class="alert-low">System läuft stabil</span>';
+  }
+
+  /**
+   * Legacy-Support: Unterstützt alte double-brace Syntax für Rückwärtskompatibilität
+   */
+  private replaceLegacyPlaceholders(template: string, data: DailyReportData): string {
+    let rendered = template;
+    
+    // Legacy double-brace support
+    rendered = rendered.replace(/{{date}}/g, escapeHtml(this.formatDate(data.date)));
+    rendered = rendered.replace(/{{template}}/g, escapeHtml(data.template));
+    rendered = rendered.replace(/{{anzahl_verkäufe}}/g, data.sections.verkäufe.anzahl_verkäufe.toString());
+    rendered = rendered.replace(/{{umsatzsumme}}/g, data.sections.verkäufe.umsatzsumme.toFixed(2));
+    
+    // Legacy top products list
+    if (rendered.includes('{{top_produkte_liste}}')) {
+      const produkteHtml = safeArray(data.sections.verkäufe.top_produkte)
+        .map(product => `<li><strong>${escapeHtml(product.name)}:</strong> ${escapeHtml(product.stückzahl)} Stück (${escapeHtml(product.umsatz.toFixed(2))} €)</li>`)
+        .join('');
+      rendered = rendered.replace(/{{top_produkte_liste}}/g, produkteHtml);
+    }
+    
+    return rendered;
   }
 }

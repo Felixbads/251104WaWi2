@@ -5,8 +5,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
-import { FileText, Plus, Edit, Trash2, Eye } from 'lucide-react';
+import { FileText, Plus, Edit, Trash2, Eye, Truck, Wrench, Euro, Coins, Package, Calendar, BarChart3, AlertCircle, CheckCircle } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Dialog,
@@ -17,13 +18,22 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
+import { 
+  EnhancedDailyReportData,
+  OrderDelivery,
+  MachineStatusAlert,
+  formatCurrency,
+  formatDate,
+  getSeverityColor,
+  getStatusColor
+} from '@/types/emailTypes';
 
 interface EmailTemplate {
   id?: number;
   name: string;
   description?: string;
   subjectTemplate: string;
-  contentTemplate: string;
+  htmlTemplate: string;
   isDefault: boolean;
   createdAt?: string;
   updatedAt?: string;
@@ -34,33 +44,136 @@ export const EmailTemplatesManager: React.FC = () => {
     name: '',
     description: '',
     subjectTemplate: 'Täglicher Proviantomat-Statusbericht - {date}',
-    contentTemplate: `<!DOCTYPE html>
+    htmlTemplate: `<!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
     <title>Täglicher Proviantomat-Statusbericht</title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 800px; margin: 0 auto; }
+        .header { background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
+        .section { margin-bottom: 20px; border: 1px solid #e9ecef; border-radius: 8px; padding: 15px; }
+        .section-title { color: #495057; font-size: 18px; margin-bottom: 10px; border-bottom: 2px solid #dee2e6; padding-bottom: 5px; }
+        .alert-high { color: #dc3545; font-weight: bold; }
+        .alert-medium { color: #fd7e14; font-weight: bold; }
+        .alert-low { color: #28a745; font-weight: bold; }
+        .summary-box { background: #e9ecef; padding: 10px; border-radius: 4px; margin: 10px 0; }
+        .delivery-item { background: #f8f9fa; padding: 8px; margin: 5px 0; border-left: 4px solid #007bff; }
+        .machine-alert { background: #fff3cd; padding: 8px; margin: 5px 0; border-left: 4px solid #ffc107; }
+        .critical-alert { background: #f8d7da; border-left-color: #dc3545; }
+    </style>
 </head>
-<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
-    <h1>Täglicher Proviantomat-Statusbericht</h1>
-    <p><strong>Datum:</strong> {date}</p>
+<body>
+    <div class="header">
+        <h1>🏪 Täglicher Proviantomat-Statusbericht</h1>
+        <p><strong>📅 Datum:</strong> {date}</p>
+        <p><strong>⏰ Erstellt um:</strong> {time}</p>
+    </div>
     
-    <h2>Wetter & Umsatzprognose</h2>
-    <p>{weather_data}</p>
+    <!-- ENHANCED: Verkäufe & Performance -->
+    <div class="section">
+        <h2 class="section-title">💰 Verkäufe & Umsatz</h2>
+        <div class="summary-box">
+            <p><strong>Gesamtumsatz:</strong> {sales_total}€</p>
+            <p><strong>Anzahl Verkäufe:</strong> {sales_count}</p>
+            <p><strong>Durchschnitt pro Verkauf:</strong> {sales_average}€</p>
+        </div>
+        {sales_details}
+    </div>
+
+    <!-- ENHANCED: Erweiterte Bestellungen & Lieferungen -->
+    <div class="section">
+        <h2 class="section-title">🚚 Bestellungen & Lieferungen</h2>
+        
+        <h3>✅ Heute erwartete Lieferungen</h3>
+        {erweiterte_bestellungen_heute_erwartet}
+        
+        <h3>⚠️ Verspätete Lieferungen</h3>
+        {erweiterte_bestellungen_verspaetet}
+        
+        <h3>📦 Ausstehende Bestellungen</h3>
+        {erweiterte_bestellungen_ausstehend}
+        
+        <div class="summary-box">
+            <p><strong>Gesamt ausstehend:</strong> {bestellungen_total_count}</p>
+            <p><strong>Gesamtwert ausstehend:</strong> {bestellungen_total_value}€</p>
+            <p><strong>Kritische Verspätungen:</strong> {bestellungen_critical_delays}</p>
+        </div>
+    </div>
+
+    <!-- ENHANCED: Automaten-Status & Alerts -->
+    <div class="section">
+        <h2 class="section-title">🔧 Automaten-Status & Alerts</h2>
+        
+        <h3>💰 Hoher Geldbestand</h3>
+        {automaten_status_hoher_geldbestand}
+        
+        <h3>🪙 Münzgeld-Warnungen</h3>
+        {automaten_status_muenzgeld_warnungen}
+        
+        <h3>⚠️ Technische Anomalien</h3>
+        {automaten_status_technische_anomalien}
+        
+        <div class="summary-box">
+            <p><strong>Gesamt Alerts:</strong> {automaten_alerts_total}</p>
+            <p><strong>Betroffene Automaten:</strong> {automaten_betroffene}</p>
+            <p><strong>Kritische Alerts:</strong> {automaten_kritische_alerts}</p>
+        </div>
+    </div>
     
-    <h2>Offene Wareneingänge</h2>
-    <p>{open_orders}</p>
+    <!-- Bestände & Logistik -->
+    <div class="section">
+        <h2 class="section-title">📦 Bestände & Logistik</h2>
+        
+        <h3>🔴 Niedrige Lagerbestände</h3>
+        {niedriger_lagerbestand}
+        
+        <h3>🛒 Nachzubestellende Artikel</h3>
+        {nachzubestellende_artikel}
+        
+        <div class="summary-box">
+            {bestaende_zusammenfassung}
+        </div>
+    </div>
     
-    <h2>MHD-Alerts</h2>
-    <p>{mhd_alerts}</p>
+    <!-- MHD-Alerts -->
+    <div class="section">
+        <h2 class="section-title">📅 MHD-Warnungen</h2>
+        
+        <h3>🚨 Kritisch (&lt; 5 Tage)</h3>
+        {mhd_kritisch}
+        
+        <h3>⚠️ Bald abgelaufen (&lt; 14 Tage)</h3>
+        {mhd_warnung}
+        
+        <div class="summary-box">
+            {mhd_zusammenfassung}
+        </div>
+    </div>
     
-    <h2>Automaten-Anomalien</h2>
-    <p>{machine_anomalies}</p>
+    <!-- Wetter & Prognose -->
+    <div class="section">
+        <h2 class="section-title">🌤️ Wetter & Umsatzprognose</h2>
+        <p>{weather_data}</p>
+        <p>{umsatz_prognose}</p>
+    </div>
     
-    <h2>Tagesrückblick</h2>
-    <p>{daily_summary}</p>
+    <!-- Zusammenfassung -->
+    <div class="section">
+        <h2 class="section-title">📊 Tages-Zusammenfassung</h2>
+        <div class="summary-box">
+            {tages_zusammenfassung}
+        </div>
+    </div>
     
-    <p>Mit freundlichen Grüßen<br>
-    Ihr Proviantomat-System</p>
+    <div style="margin-top: 30px; padding: 20px; background: #f8f9fa; border-radius: 8px; text-align: center;">
+        <p><strong>Mit freundlichen Grüßen</strong><br>
+        Ihr automatisches Proviantomat-System</p>
+        <p style="color: #6c757d; font-size: 12px;">
+            📧 Automatisch generiert am {timestamp}<br>
+            🔄 Nächster Bericht: Morgen um {next_report_time}
+        </p>
+    </div>
 </body>
 </html>`,
     isDefault: false,
@@ -75,6 +188,13 @@ export const EmailTemplatesManager: React.FC = () => {
   const { data: templates = [], isLoading } = useQuery({
     queryKey: ['/api/email/daily/templates'],
     select: (data: any) => data?.data || [],
+  });
+
+  // Lade Preview-Daten für Enhanced Templates
+  const { data: dailyReportPreview, isLoading: previewLoading } = useQuery<EnhancedDailyReportData>({
+    queryKey: ['/api/email/daily/preview'],
+    enabled: true,
+    refetchInterval: 60000 // Alle 60 Sekunden aktualisieren
   });
 
   // Erstelle Template
@@ -105,7 +225,7 @@ export const EmailTemplatesManager: React.FC = () => {
         name: '',
         description: '',
         subjectTemplate: 'Täglicher Proviantomat-Statusbericht - {date}',
-        contentTemplate: newTemplate.contentTemplate,
+        htmlTemplate: newTemplate.htmlTemplate,
         isDefault: false,
       });
     },
@@ -182,7 +302,7 @@ export const EmailTemplatesManager: React.FC = () => {
   });
 
   const handleCreateTemplate = async () => {
-    if (!newTemplate.name || !newTemplate.subjectTemplate || !newTemplate.contentTemplate) {
+    if (!newTemplate.name || !newTemplate.subjectTemplate || !newTemplate.htmlTemplate) {
       toast({
         title: "Fehlende Daten",
         description: "Bitte füllen Sie alle erforderlichen Felder aus.",
@@ -259,8 +379,8 @@ export const EmailTemplatesManager: React.FC = () => {
                     <Label htmlFor="content">HTML-Inhalt</Label>
                     <Textarea
                       id="content"
-                      value={newTemplate.contentTemplate}
-                      onChange={(e) => setNewTemplate({ ...newTemplate, contentTemplate: e.target.value })}
+                      value={newTemplate.htmlTemplate}
+                      onChange={(e) => setNewTemplate({ ...newTemplate, htmlTemplate: e.target.value })}
                       rows={15}
                       className="font-mono text-sm"
                     />
@@ -344,6 +464,208 @@ export const EmailTemplatesManager: React.FC = () => {
         </CardContent>
       </Card>
 
+      {/* Enhanced Template Preview Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Eye className="h-5 w-5" />
+            Live-Vorschau Enhanced Template
+          </CardTitle>
+          <CardDescription>
+            Erweiterte Vorschau mit aktuellen Daten für die neuen Template-Bereiche
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {previewLoading ? (
+            <div className="flex items-center justify-center h-32">
+              <div className="text-sm text-muted-foreground">Lade Enhanced Preview...</div>
+            </div>
+          ) : dailyReportPreview ? (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Enhanced Bestellungen Preview */}
+              <div className="space-y-4">
+                <h3 className="font-medium flex items-center gap-2">
+                  <Truck className="h-4 w-4 text-blue-500" />
+                  Erweiterte Bestellungen Template-Vorschau
+                </h3>
+                
+                {dailyReportPreview.sections.erweiterte_bestellungen && (
+                  <div className="space-y-3 border rounded p-3 bg-blue-50">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium">Bestellungen & Lieferungen</span>
+                      <Badge variant={dailyReportPreview.sections.erweiterte_bestellungen.zusammenfassung.kritische_verspätungen > 0 ? "destructive" : "secondary"}>
+                        {dailyReportPreview.sections.erweiterte_bestellungen.zusammenfassung.total_ausstehend}
+                      </Badge>
+                    </div>
+
+                    {/* Heute erwartete Lieferungen Preview */}
+                    {dailyReportPreview.sections.erweiterte_bestellungen.heute_erwartet.length > 0 && (
+                      <div className="space-y-1">
+                        <div className="text-xs font-medium text-green-600 flex items-center gap-1">
+                          <CheckCircle className="h-3 w-3" />
+                          Heute erwartet ({dailyReportPreview.sections.erweiterte_bestellungen.heute_erwartet.length})
+                        </div>
+                        {dailyReportPreview.sections.erweiterte_bestellungen.heute_erwartet.slice(0, 2).map((delivery: OrderDelivery, index) => (
+                          <div key={index} className="text-xs bg-white p-2 rounded border-l-2 border-green-500">
+                            <div className="flex justify-between">
+                              <span className="font-medium">{delivery.bestellnummer}</span>
+                              <span className={`px-2 py-1 rounded text-xs ${getStatusColor(delivery.status)}`}>
+                                {delivery.status}
+                              </span>
+                            </div>
+                            <div className="flex justify-between text-xs text-muted-foreground">
+                              <span>{delivery.lieferant}</span>
+                              <span>{formatCurrency(delivery.gesamtwert)}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Verspätete Lieferungen Preview */}
+                    {dailyReportPreview.sections.erweiterte_bestellungen.verspätet.length > 0 && (
+                      <div className="space-y-1">
+                        <div className="text-xs font-medium text-red-600 flex items-center gap-1">
+                          <AlertCircle className="h-3 w-3" />
+                          Verspätet ({dailyReportPreview.sections.erweiterte_bestellungen.verspätet.length})
+                        </div>
+                        {dailyReportPreview.sections.erweiterte_bestellungen.verspätet.slice(0, 1).map((delivery: OrderDelivery, index) => (
+                          <div key={index} className="text-xs bg-white p-2 rounded border-l-2 border-red-500">
+                            <div className="flex justify-between">
+                              <span className="font-medium">{delivery.bestellnummer}</span>
+                              <span className="text-red-600 font-medium">{delivery.verspätung_tage} Tage</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <Separator />
+                    <div className="text-xs text-muted-foreground space-y-1">
+                      <div className="flex justify-between">
+                        <span>Template-Platzhalter:</span>
+                        <code className="text-xs bg-gray-100 px-1 rounded">&#123;erweiterte_bestellungen_*&#125;</code>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Ausstehend:</span>
+                        <span>{dailyReportPreview.sections.erweiterte_bestellungen.zusammenfassung.total_ausstehend}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Gesamtwert:</span>
+                        <span>{formatCurrency(dailyReportPreview.sections.erweiterte_bestellungen.zusammenfassung.total_wert_ausstehend)}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Enhanced Automaten-Status Preview */}
+              <div className="space-y-4">
+                <h3 className="font-medium flex items-center gap-2">
+                  <Wrench className="h-4 w-4 text-orange-500" />
+                  Automaten-Status Template-Vorschau
+                </h3>
+                
+                {dailyReportPreview.sections.automaten_status && (
+                  <div className="space-y-3 border rounded p-3 bg-orange-50">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium">Automaten-Status & Alerts</span>
+                      <Badge variant={dailyReportPreview.sections.automaten_status.zusammenfassung.kritische_alerts > 0 ? "destructive" : "secondary"}>
+                        {dailyReportPreview.sections.automaten_status.zusammenfassung.total_alerts}
+                      </Badge>
+                    </div>
+
+                    {/* Hoher Geldbestand Preview */}
+                    {dailyReportPreview.sections.automaten_status.hoher_geldbestand.length > 0 && (
+                      <div className="space-y-1">
+                        <div className="text-xs font-medium text-yellow-600 flex items-center gap-1">
+                          <Euro className="h-3 w-3" />
+                          Hoher Geldbestand ({dailyReportPreview.sections.automaten_status.hoher_geldbestand.length})
+                        </div>
+                        {dailyReportPreview.sections.automaten_status.hoher_geldbestand.slice(0, 2).map((alert: MachineStatusAlert, index) => (
+                          <div key={index} className="text-xs bg-white p-2 rounded border-l-2 border-yellow-500">
+                            <div className="flex justify-between">
+                              <span className="font-medium">{alert.automat}</span>
+                              <span className={`px-2 py-1 rounded text-xs ${getSeverityColor(alert.schweregrad)}`}>
+                                {alert.schweregrad}
+                              </span>
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {alert.wert && alert.einheit && `${alert.wert} ${alert.einheit}`}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Technische Anomalien Preview */}
+                    {dailyReportPreview.sections.automaten_status.technische_anomalien.length > 0 && (
+                      <div className="space-y-1">
+                        <div className="text-xs font-medium text-red-600 flex items-center gap-1">
+                          <AlertCircle className="h-3 w-3" />
+                          Technische Anomalien ({dailyReportPreview.sections.automaten_status.technische_anomalien.length})
+                        </div>
+                        {dailyReportPreview.sections.automaten_status.technische_anomalien.slice(0, 1).map((alert: MachineStatusAlert, index) => (
+                          <div key={index} className="text-xs bg-white p-2 rounded border-l-2 border-red-500">
+                            <div className="flex justify-between">
+                              <span className="font-medium">{alert.automat}</span>
+                              <span className={`px-2 py-1 rounded text-xs ${getSeverityColor(alert.schweregrad)}`}>
+                                {alert.schweregrad}
+                              </span>
+                            </div>
+                            <div className="text-xs text-muted-foreground truncate">{alert.meldung}</div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Münzgeld Warnungen Preview */}
+                    {dailyReportPreview.sections.automaten_status.münzgeld_warnungen.length > 0 && (
+                      <div className="space-y-1">
+                        <div className="text-xs font-medium text-orange-600 flex items-center gap-1">
+                          <Coins className="h-3 w-3" />
+                          Münzgeld-Warnungen ({dailyReportPreview.sections.automaten_status.münzgeld_warnungen.length})
+                        </div>
+                        {dailyReportPreview.sections.automaten_status.münzgeld_warnungen.slice(0, 1).map((alert: MachineStatusAlert, index) => (
+                          <div key={index} className="text-xs bg-white p-2 rounded border-l-2 border-orange-500">
+                            <div className="flex justify-between">
+                              <span className="font-medium">{alert.automat}</span>
+                              <span className={`px-2 py-1 rounded text-xs ${getSeverityColor(alert.schweregrad)}`}>
+                                {alert.schweregrad}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <Separator />
+                    <div className="text-xs text-muted-foreground space-y-1">
+                      <div className="flex justify-between">
+                        <span>Template-Platzhalter:</span>
+                        <code className="text-xs bg-gray-100 px-1 rounded">&#123;automaten_status_*&#125;</code>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Gesamt Alerts:</span>
+                        <span>{dailyReportPreview.sections.automaten_status.zusammenfassung.total_alerts}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Betroffene Automaten:</span>
+                        <span>{dailyReportPreview.sections.automaten_status.zusammenfassung.betroffene_automaten}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="text-center text-sm text-muted-foreground py-8">
+              Keine Enhanced Preview-Daten verfügbar
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Bearbeiten Dialog */}
       {editingTemplate && (
         <Dialog open={!!editingTemplate} onOpenChange={() => setEditingTemplate(null)}>
@@ -383,8 +705,8 @@ export const EmailTemplatesManager: React.FC = () => {
                 <Label htmlFor="edit-content">HTML-Inhalt</Label>
                 <Textarea
                   id="edit-content"
-                  value={editingTemplate.contentTemplate}
-                  onChange={(e) => setEditingTemplate({ ...editingTemplate, contentTemplate: e.target.value })}
+                  value={editingTemplate.htmlTemplate}
+                  onChange={(e) => setEditingTemplate({ ...editingTemplate, htmlTemplate: e.target.value })}
                   rows={15}
                   className="font-mono text-sm"
                 />
@@ -421,7 +743,7 @@ export const EmailTemplatesManager: React.FC = () => {
                 <Label>HTML-Inhalt:</Label>
                 <div className="border rounded p-4 bg-white max-h-96 overflow-y-auto">
                   <iframe
-                    srcDoc={previewTemplate.contentTemplate}
+                    srcDoc={previewTemplate.htmlTemplate}
                     className="w-full h-80 border-none"
                     title="E-Mail Vorschau"
                   />
