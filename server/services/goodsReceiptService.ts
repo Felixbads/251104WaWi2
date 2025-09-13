@@ -25,8 +25,13 @@ interface LegacyGoodsReceiptItem {
   productName: string;
   quantityOrdered: number;
   quantityReceived: number;
+  qualityStatus?: 'good' | 'damaged' | 'partial' | 'rejected';
+  warehouseId?: number;
   expiryDate?: string;
   batchNumber?: string;
+  supplierBatchNumber?: string;
+  locationInWarehouse?: string;
+  damageDescription?: string;
   notes?: string;
 }
 
@@ -106,6 +111,7 @@ class GoodsReceiptService {
         productName: item.productName,
         quantityOrdered: item.quantity,
         quantityReceived: item.quantity, // Bei automatischen Wareneingängen: vollständige Lieferung angenommen
+        qualityStatus: 'good' as const,
         expiryDate: this.calculateDefaultExpiryDate(item.productName),
         batchNumber: this.generateBatchNumber(),
         notes: 'Automatischer Wareneingang aus wiederkehrender Bestellung'
@@ -209,8 +215,12 @@ class GoodsReceiptService {
         }
       }
 
-      // 2. Dann normalen Wareneingang verarbeiten
-      const goodsReceiptResult = await this.processGoodsReceipt(order, data.items);
+      // 2. Dann normalen Wareneingang verarbeiten (convert Legacy items to GoodsReceiptItem format)
+      const convertedItems: GoodsReceiptItem[] = data.items.map(item => ({
+        ...item,
+        qualityStatus: item.qualityStatus || 'good'
+      }));
+      const goodsReceiptResult = await this.processGoodsReceipt(order, convertedItems);
 
       // 3. Resultat erweitern um Lieferschein-Informationen
       return {
@@ -268,6 +278,12 @@ class GoodsReceiptService {
     let batchesCreated = 0;
     let totalValue = 0;
     const processedItems: number[] = [];
+    
+    // Hole alle orderItems für Preisberechnung
+    const allOrderItems = await this.db.drizzle
+      .select()
+      .from(orderItems)
+      .where(eq(orderItems.orderId, order.id));
 
     // Starte Transaktion für konsistente Datenverarbeitung
     await this.db.drizzle.transaction(async (tx) => {
@@ -285,7 +301,7 @@ class GoodsReceiptService {
           batchNumber: item.batchNumber || this.generateBatchNumber(),
           supplierId: order.supplierId || order.supplier_id || 1,
           supplierName: order.supplierName || order.supplier_name || 'Unbekannt',
-          unitPrice: 0, // Wird später aus Bestellposition geholt
+          unitPrice: allOrderItems.find(oi => oi.id === item.orderItemId)?.unitPrice || 0,
           notes: item.notes
         });
 
@@ -301,18 +317,30 @@ class GoodsReceiptService {
             batchId: batchId
           });
           
-          // Berechne Warenwert (vereinfacht)
-          totalValue += item.quantityReceived * 2.5; // Durchschnittspreis als Fallback
+          // Berechne Warenwert mit echten Preisen aus orderItems
+          const orderItem = allOrderItems.find(oi => oi.id === item.orderItemId);
+          const unitPrice = orderItem?.unitPrice || 0;
+          totalValue += item.quantityReceived * unitPrice;
         } else {
           console.log(`⚠️ Batch-Erstellung fehlgeschlagen für Item ${item.orderItemId} - fahre nur mit Order-Status fort`);
         }
 
         // 3. Update Bestellposition IMMER (unabhängig von Inventory-Features)
+        // Hole aktuellen quantityDelivered Wert für Akkumulation
+        const [currentOrderItem] = await tx
+          .select()
+          .from(orderItems)
+          .where(eq(orderItems.id, item.orderItemId))
+          .limit(1);
+        
+        const currentQuantityDelivered = currentOrderItem?.quantityDelivered || 0;
+        const newQuantityDelivered = currentQuantityDelivered + item.quantityReceived;
+        
         await tx
           .update(orderItems)
           .set({ 
-            quantityDelivered: item.quantityReceived,
-            status: item.quantityReceived >= item.quantityOrdered ? 'completed' : 'partial'
+            quantityDelivered: newQuantityDelivered,
+            status: newQuantityDelivered >= item.quantityOrdered ? 'completed' : 'partial'
           })
           .where(eq(orderItems.id, item.orderItemId));
 
@@ -320,10 +348,16 @@ class GoodsReceiptService {
         console.log(`✅ Order Item ${item.orderItemId} aktualisiert: ${item.quantityReceived}/${item.quantityOrdered}`);
       }
 
-      // 4. Update Bestellstatus
-      const allItemsCompleted = items.every(item => 
-        item.quantityReceived >= item.quantityOrdered
-      );
+      // 4. Update Bestellstatus - hole alle orderItems aus DB für korrekte Berechnung
+      const allOrderItemsFromDB = await tx
+        .select()
+        .from(orderItems)
+        .where(eq(orderItems.orderId, order.id));
+      
+      const allItemsCompleted = allOrderItemsFromDB.every(orderItem => {
+        const delivered = orderItem.quantityDelivered || 0;
+        return delivered >= orderItem.quantity;
+      });
 
       const newStatus = allItemsCompleted ? 'received' : 'partially_received';
       
@@ -558,13 +592,13 @@ class GoodsReceiptService {
 
       // Prüfe Items auf Vollständigkeit und Konsistenz
       if (order) {
-        const orderItems = await this.db.drizzle
+        const orderItemsForOrder = await this.db.drizzle
           .select()
           .from(orderItems)
           .where(eq(orderItems.orderId, order.id));
 
         for (const item of validatedData.items) {
-          const orderItem = orderItems.find(oi => oi.id === item.orderItemId);
+          const orderItem = orderItemsForOrder.find(oi => oi.id === item.orderItemId);
           if (!orderItem) {
             errors.push(`Bestellposition ${item.orderItemId} nicht in Bestellung ${order.id} gefunden`);
           } else {
@@ -687,6 +721,12 @@ class GoodsReceiptService {
     let totalValue = 0;
     const processedItems: number[] = [];
     const warnings: string[] = [];
+    
+    // Hole alle orderItems für Preisberechnung
+    const allOrderItemsEnhanced = await this.db.drizzle
+      .select()
+      .from(orderItems)
+      .where(eq(orderItems.orderId, order.id));
 
     // Starte erweiterte Transaktion
     await this.db.drizzle.transaction(async (tx) => {
@@ -707,7 +747,7 @@ class GoodsReceiptService {
           supplierBatchNumber: item.supplierBatchNumber,
           supplierId: data.supplierId || order.supplierId || order.supplier_id || 1,
           supplierName: data.supplierName || order.supplierName || order.supplier_name || 'Unbekannt',
-          unitPrice: 0, // Wird später aus Bestellposition geholt
+          unitPrice: allOrderItemsEnhanced.find(oi => oi.id === item.orderItemId)?.unitPrice || 0,
           locationInWarehouse: item.locationInWarehouse,
           qualityStatus: item.qualityStatus || 'good',
           damageDescription: item.damageDescription,
@@ -731,19 +771,31 @@ class GoodsReceiptService {
             notes: `Wareneingang vom ${data.deliveryDate}: ${item.quantityReceived} Stück`
           });
           
-          // Berechne Warenwert
-          totalValue += item.quantityReceived * 2.5; // Durchschnittspreis als Fallback
+          // Berechne Warenwert mit echten Preisen aus orderItems
+          const orderItemEnhanced = allOrderItemsEnhanced.find(oi => oi.id === item.orderItemId);
+          const unitPriceEnhanced = orderItemEnhanced?.unitPrice || 0;
+          totalValue += item.quantityReceived * unitPriceEnhanced;
         } else {
           console.log(`⚠️ Enhanced Batch-Erstellung fehlgeschlagen für Item ${item.orderItemId}`);
           warnings.push(`Batch-Erstellung für '${item.productName}' fehlgeschlagen - Lagerbestand nicht aktualisiert`);
         }
 
         // 4. Update Bestellposition mit erweiterten Feldern
+        // Hole aktuellen quantityDelivered Wert für Akkumulation
+        const [currentOrderItemEnhanced] = await tx
+          .select()
+          .from(orderItems)
+          .where(eq(orderItems.id, item.orderItemId))
+          .limit(1);
+        
+        const currentQuantityDeliveredEnhanced = currentOrderItemEnhanced?.quantityDelivered || 0;
+        const newQuantityDeliveredEnhanced = currentQuantityDeliveredEnhanced + item.quantityReceived;
+        
         await tx
           .update(orderItems)
           .set({ 
-            quantityDelivered: item.quantityReceived,
-            status: item.quantityReceived >= item.quantityOrdered ? 'completed' : 'partial',
+            quantityDelivered: newQuantityDeliveredEnhanced,
+            status: newQuantityDeliveredEnhanced >= item.quantityOrdered ? 'completed' : 'partial',
             // Weitere Felder falls verfügbar
             notes: item.notes
           })
@@ -753,10 +805,16 @@ class GoodsReceiptService {
         console.log(`✅ Enhanced Order Item ${item.orderItemId} verarbeitet: ${item.quantityReceived}/${item.quantityOrdered}`);
       }
 
-      // 5. Update Bestellstatus mit deliveryDate
-      const allItemsCompleted = data.items.every(item => 
-        item.quantityReceived >= item.quantityOrdered
-      );
+      // 5. Update Bestellstatus mit deliveryDate - hole alle orderItems aus DB für korrekte Berechnung
+      const allOrderItemsFromDBEnhanced = await tx
+        .select()
+        .from(orderItems)
+        .where(eq(orderItems.orderId, order.id));
+      
+      const allItemsCompleted = allOrderItemsFromDBEnhanced.every(orderItem => {
+        const delivered = orderItem.quantityDelivered || 0;
+        return delivered >= orderItem.quantity;
+      });
 
       const newStatus = allItemsCompleted ? 'received' : 'partially_received';
       
@@ -1150,7 +1208,7 @@ class GoodsReceiptService {
     nextActions: string[];
   }> {
     try {
-      const orderItems = await this.db.drizzle
+      const orderItemsForTracking = await this.db.drizzle
         .select()
         .from(orderItems)
         .where(eq(orderItems.orderId, orderId));
@@ -1161,7 +1219,7 @@ class GoodsReceiptService {
       let followUpRequired = false;
       const nextActions: string[] = [];
 
-      for (const item of orderItems) {
+      for (const item of orderItemsForTracking) {
         const delivered = item.quantityDelivered || 0;
         const ordered = item.quantity;
 
@@ -1182,15 +1240,15 @@ class GoodsReceiptService {
 
       let overallStatus: 'completed' | 'partial' | 'requires_attention' | 'rejected' = 'completed';
       
-      if (itemsPending === orderItems.length) {
+      if (itemsPending === orderItemsForTracking.length) {
         overallStatus = 'requires_attention';
       } else if (itemsWithIssues > 0 || itemsPending > 0) {
         overallStatus = 'partial';
-      } else if (itemsCompleted === orderItems.length) {
+      } else if (itemsCompleted === orderItemsForTracking.length) {
         overallStatus = 'completed';
       }
 
-      console.log(`📊 Status-Tracking für Bestellung ${orderId}: ${overallStatus} (${itemsCompleted}/${orderItems.length})`);
+      console.log(`📊 Status-Tracking für Bestellung ${orderId}: ${overallStatus} (${itemsCompleted}/${orderItemsForTracking.length})`);
 
       return {
         overallStatus,
@@ -1274,6 +1332,7 @@ class GoodsReceiptService {
           productName: item.productName,
           quantityOrdered: item.quantity,
           quantityReceived: item.quantityDelivered || 0,
+          qualityStatus: 'good',
           expiryDate: item.expiryDate,
           batchNumber: item.batchNumber
         };
