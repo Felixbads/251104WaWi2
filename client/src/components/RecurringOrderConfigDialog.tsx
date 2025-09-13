@@ -72,7 +72,17 @@ export default function RecurringOrderConfigDialog({
         console.log('📊 WAREHOUSES TYPE:', typeof result);
         console.log('📊 WAREHOUSES IS ARRAY:', Array.isArray(result));
         console.log('📊 WAREHOUSES LENGTH:', result?.length);
-        return result;
+        console.log('📊 WAREHOUSES DATA ARRAY:', Array.isArray(result?.data));
+        console.log('📊 WAREHOUSES DATA LENGTH:', result?.data?.length);
+        
+        // Handle both array and {data: [], meta: {}} response formats
+        if (Array.isArray(result)) {
+          return result;
+        }
+        if (result && Array.isArray(result.data)) {
+          return result.data;
+        }
+        return [];
       } catch (error) {
         console.error('❌ WAREHOUSES API ERROR:', error);
         throw error;
