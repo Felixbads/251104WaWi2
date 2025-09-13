@@ -73,25 +73,237 @@ export const insertVendonWatermarkSchema = createInsertSchema(vendonWatermarks).
 export type InsertVendonWatermark = z.infer<typeof insertVendonWatermarkSchema>;
 export type VendonWatermark = typeof vendonWatermarks.$inferSelect;
 
-// Goods Receipt Validation Schemas
+// Enhanced Goods Receipt Validation Schemas for Extended Process
 export const goodsReceiptItemSchema = z.object({
-  orderItemId: z.number(),
-  productId: z.number(),
-  productName: z.string(),
-  quantityOrdered: z.number(),
-  quantityReceived: z.number().min(0),
-  expiryDate: z.string().optional(),
-  batchNumber: z.string().optional(),
-  notes: z.string().optional()
+  // Basic Item Information
+  orderItemId: z.number().positive("Bestellposition-ID muss positiv sein"),
+  productId: z.number().positive("Produkt-ID muss positiv sein"), 
+  productName: z.string().min(1, "Produktname ist erforderlich"),
+  
+  // Quantity Information
+  quantityOrdered: z.number().min(0, "Bestellte Menge muss mindestens 0 sein"),
+  quantityReceived: z.number().min(0, "Erhaltene Menge muss mindestens 0 sein"),
+  
+  // Batch and Expiry Information (Enhanced)
+  expiryDate: z.union([
+    z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "MHD muss im Format YYYY-MM-DD sein"),
+    z.date()
+  ]).transform((val) => {
+    if (typeof val === 'string') {
+      const date = new Date(val);
+      if (isNaN(date.getTime())) {
+        throw new Error("Ungültiges MHD-Datum");
+      }
+      // Validierung: MHD darf nicht vor heute liegen (erlaubt Termine am gleichen Tag)
+      const today = new Date();
+      today.setHours(0, 0, 0, 0); // Start of today
+      if (date < today) {
+        throw new Error("MHD darf nicht in der Vergangenheit liegen");
+      }
+      return val;
+    }
+    return val.toISOString().split('T')[0];
+  }).optional(),
+  
+  batchNumber: z.string().min(1, "Chargennummer ist erforderlich wenn MHD angegeben").optional(),
+  supplierBatchNumber: z.string().optional(),
+  
+  // Location and Warehouse Information
+  warehouseId: z.number().positive("Lager-ID muss positiv sein").optional(),
+  locationInWarehouse: z.string().optional(),
+  
+  // Additional Information
+  notes: z.string().optional(),
+  
+  // Quality Control
+  qualityStatus: z.enum(["good", "damaged", "partial", "rejected"]).default("good"),
+  damageDescription: z.string().optional(),
+}).superRefine((data, ctx) => {
+  // Quantity comparison validation: Warnung bei erheblicher Abweichung von bestellter Menge
+  if (data.quantityOrdered > 0 && data.quantityReceived > 0) {
+    const deviation = Math.abs(data.quantityReceived - data.quantityOrdered) / data.quantityOrdered;
+    if (deviation > 0.1) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Erhaltene Menge weicht um mehr als 10% von der bestellten Menge ab",
+        path: ["quantityReceived"]
+      });
+    }
+  }
+  
+  // MHD-Chargennummer validation: Wenn MHD angegeben ist, muss Chargennummer vorhanden sein
+  if (data.expiryDate && !data.batchNumber) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Bei MHD-Angabe ist Chargennummer erforderlich",
+      path: ["batchNumber"]
+    });
+  }
+  
+  // Damage description validation: Wenn Status "damaged" ist, muss Beschreibung vorhanden sein
+  if (data.qualityStatus === "damaged" && !data.damageDescription) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Bei Schäden ist eine Beschreibung erforderlich",
+      path: ["damageDescription"]
+    });
+  }
 });
 
 export const goodsReceiptDataSchema = z.object({
-  items: z.array(goodsReceiptItemSchema).min(1, "At least one item is required"),
-  notes: z.string().optional()
+  // Pflichtfeld: Lieferdatum
+  deliveryDate: z.union([
+    z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Lieferdatum muss im Format YYYY-MM-DD sein"),
+    z.date()
+  ]).transform((val) => {
+    if (typeof val === 'string') {
+      const date = new Date(val);
+      if (isNaN(date.getTime())) {
+        throw new Error("Ungültiges Lieferdatum");
+      }
+      return val;
+    }
+    return val.toISOString().split('T')[0];
+  }),
+  
+  // Lagerauswahl (Required for goods receipt)
+  warehouseId: z.number().positive("Lager muss ausgewählt werden"),
+  
+  // Order Information
+  orderId: z.number().positive("Bestellungs-ID ist erforderlich"),
+  
+  // Items (Enhanced validation)
+  items: z.array(goodsReceiptItemSchema).min(1, "Mindestens ein Artikel ist erforderlich")
+    .refine(
+      (items) => items.some(item => item.quantityReceived > 0),
+      "Mindestens ein Artikel muss eine Menge > 0 haben"
+    ),
+  
+  // Additional Information
+  notes: z.string().optional(),
+  deliveryNoteNumber: z.string().optional(),
+  
+  // Supplier and Delivery Information
+  supplierId: z.number().positive().optional(),
+  supplierName: z.string().optional(),
+  deliveryPersonName: z.string().optional(),
+  
+  // Status and Processing
+  status: z.enum(["draft", "processing", "completed", "cancelled"]).default("draft"),
+  
+  // Quality Control Summary
+  overallQuality: z.enum(["good", "acceptable", "poor"]).default("good"),
+  requiresFollowUp: z.boolean().default(false),
+  
+  // Processing Information
+  processedBy: z.number().positive().optional(),
+  processedAt: z.union([
+    z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Verarbeitungsdatum muss im Format YYYY-MM-DD sein"),
+    z.date()
+  ]).transform((val) => {
+    if (typeof val === 'string') {
+      const date = new Date(val);
+      if (isNaN(date.getTime())) {
+        throw new Error("Ungültiges Verarbeitungsdatum");
+      }
+      return val;
+    }
+    return val.toISOString().split('T')[0];
+  }).optional(),
 });
+
+// Enhanced Batch Creation Schema
+export const goodsReceiptBatchCreateSchema = z.object({
+  productId: z.number().positive("Produkt-ID ist erforderlich"),
+  warehouseId: z.number().positive("Lager-ID ist erforderlich"),
+  batchNumber: z.string().min(1, "Chargennummer ist erforderlich"),
+  supplierBatchNumber: z.string().optional(),
+  quantity: z.number().positive("Menge muss positiv sein"),
+  expiryDate: z.union([
+    z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "MHD muss im Format YYYY-MM-DD sein"),
+    z.date()
+  ]).transform((val) => {
+    if (typeof val === 'string') {
+      const date = new Date(val);
+      if (isNaN(date.getTime())) {
+        throw new Error("Ungültiges MHD-Datum");
+      }
+      // Validierung: MHD darf nicht vor heute liegen (erlaubt Termine am gleichen Tag)
+      const today = new Date();
+      today.setHours(0, 0, 0, 0); // Start of today
+      if (date < today) {
+        throw new Error("MHD muss in der Zukunft liegen");
+      }
+      return val;
+    }
+    return val.toISOString().split('T')[0];
+  }),
+  receivedDate: z.union([
+    z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Eingangsdatum muss im Format YYYY-MM-DD sein"),
+    z.date()
+  ]).transform((val) => {
+    if (typeof val === 'string') {
+      return val;
+    }
+    return val.toISOString().split('T')[0];
+  }).default(() => new Date().toISOString().split('T')[0]),
+  locationInWarehouse: z.string().optional(),
+  notes: z.string().optional(),
+  orderId: z.number().positive().optional(),
+  supplierId: z.number().positive().optional(),
+});
+
+// Inventory Update Schema for Goods Receipt
+export const goodsReceiptInventoryUpdateSchema = z.object({
+  warehouseId: z.number().positive("Lager-ID ist erforderlich"),
+  productId: z.number().positive("Produkt-ID ist erforderlich"),
+  quantityChange: z.number().int("Mengenänderung muss eine Ganzzahl sein"),
+  movementType: z.enum(["IN", "OUT", "ADJUSTMENT"]).default("IN"),
+  referenceType: z.literal("GOODS_RECEIPT"),
+  referenceId: z.string().optional(),
+  batchId: z.number().positive().optional(),
+  notes: z.string().optional(),
+  performedBy: z.number().positive().optional(),
+});
+
+// Complete Goods Receipt Processing Schema
+export const completeGoodsReceiptSchema = z.object({
+  orderId: z.number().positive("Bestellungs-ID ist erforderlich"),
+  deliveryDate: z.union([
+    z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Lieferdatum muss im Format YYYY-MM-DD sein"),
+    z.date()
+  ]).transform((val) => typeof val === 'string' ? val : val.toISOString().split('T')[0]),
+  warehouseId: z.number().positive("Lager-ID ist erforderlich"),
+  items: z.array(z.object({
+    orderItemId: z.number().positive("Bestellposition-ID ist erforderlich"),
+    productId: z.number().positive("Produkt-ID ist erforderlich"),
+    quantityReceived: z.number().min(0, "Erhaltene Menge muss mindestens 0 sein"),
+    expiryDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "MHD muss im Format YYYY-MM-DD sein").optional(),
+    batchNumber: z.string().min(1, "Chargennummer ist erforderlich wenn MHD angegeben").optional(),
+    supplierBatchNumber: z.string().optional(),
+    locationInWarehouse: z.string().optional(),
+    notes: z.string().optional(),
+    qualityStatus: z.enum(["good", "damaged", "partial", "rejected"]).default("good"),
+  })).min(1, "Mindestens ein Artikel ist erforderlich"),
+  notes: z.string().optional(),
+  deliveryNoteNumber: z.string().optional(),
+  processedBy: z.number().positive("Verarbeiter-ID ist erforderlich"),
+}).refine(
+  (data) => {
+    // Alle Items mit MHD müssen Chargennummer haben
+    return data.items.every(item => !item.expiryDate || item.batchNumber);
+  },
+  {
+    message: "Alle Artikel mit MHD benötigen eine Chargennummer",
+    path: ["items"]
+  }
+);
 
 export type GoodsReceiptItem = z.infer<typeof goodsReceiptItemSchema>;
 export type GoodsReceiptData = z.infer<typeof goodsReceiptDataSchema>;
+export type GoodsReceiptBatchCreate = z.infer<typeof goodsReceiptBatchCreateSchema>;
+export type GoodsReceiptInventoryUpdate = z.infer<typeof goodsReceiptInventoryUpdateSchema>;
+export type CompleteGoodsReceipt = z.infer<typeof completeGoodsReceiptSchema>;
 
 // Schema für historische Synchronisierungsoptionen
 export const historicalSyncOptionsSchema = z.object({
