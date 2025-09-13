@@ -2,9 +2,9 @@ import { useState, useEffect } from "react";
 import { useParams, useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { format } from "date-fns";
+import { format, addDays, isAfter, isBefore } from "date-fns";
 import { de } from "date-fns/locale";
-import { getOrder, processOrderReceipt, getProducts } from "@/lib/api";
+import { getOrder, getWarehouses, processOrderReceipt, getProducts } from "@/lib/api";
 
 // UI Komponenten
 import { Button } from "@/components/ui/button";
@@ -33,121 +33,99 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Progress } from "@/components/ui/progress";
+import { Separator } from "@/components/ui/separator";
 
 // Icons
 import {
   ArrowLeft,
   Truck,
   Calendar,
+  Package,
+  Warehouse,
+  Clock,
+  CheckCircle2,
+  AlertTriangle,
+  Camera,
+  Upload,
+  Edit2,
+  Save,
+  X,
+  Plus,
+  Loader2,
+  AlertCircle,
   FileText,
   Building2,
-  Package,
-  CheckCircle2,
-  ClipboardCheck,
-  CircleCheck,
-  Loader2,
-  AlertTriangle,
-  Building,
-  Camera,
-  Info,
-  Plus,
-  Upload,
-  X
+  Clipboard,
+  Eye
 } from "lucide-react";
 
-// Mock data
-const mockOrder = {
-  id: 1,
-  orderNumber: "B-2025-001",
-  createdAt: "2025-03-25T10:30:00Z",
-  warehouseId: 1,
-  warehouseName: "Hauptlager Dresden",
-  status: "delivered",
-  supplierId: 1,
-  supplierName: "Milchhof Fiedler",
-  deliveryDate: "2025-03-31T09:45:00Z",
-  deliveryNotes: "",
-  deliveryStatus: "pending_check", // pending_check, partially_accepted, accepted, rejected
-  orderItems: [
-    {
-      id: 1,
-      productId: 12,
-      productName: "Wehlener Pudding vers. Sorten",
-      sku: "WEH-PUD-001",
-      supplierSku: "F-PUD-01",
-      quantity: 24,
-      unit: "stk",
-      unitPrice: 1.25,
-      totalPrice: 30.00,
-      receivedQuantity: null,
-      qualityStatus: "pending", // pending, good, damaged, missing
-      notes: ""
-    },
-    {
-      id: 2,
-      productId: 15,
-      productName: "Wehl'ner Wehlrad min. 150g ver. Sorten",
-      sku: "WEH-KAS-002",
-      supplierSku: "F-KAS-02",
-      quantity: 15,
-      unit: "stk",
-      unitPrice: 4.50,
-      totalPrice: 67.50,
-      receivedQuantity: null,
-      qualityStatus: "pending",
-      notes: "Gemischte Sorten"
-    },
-    {
-      id: 3,
-      productId: 18,
-      productName: "Wehlner Milch 0,5l",
-      sku: "WEH-MIL-003",
-      supplierSku: "F-MIL-03",
-      quantity: 120,
-      unit: "stk",
-      unitPrice: 0.95,
-      totalPrice: 114.00,
-      receivedQuantity: null,
-      qualityStatus: "pending",
-      notes: ""
-    },
-    {
-      id: 4,
-      productId: 21,
-      productName: "Wehlner Quark 500g",
-      sku: "WEH-QUK-004",
-      supplierSku: "F-QUK-04",
-      quantity: 48,
-      unit: "stk",
-      unitPrice: 1.85,
-      totalPrice: 88.80,
-      receivedQuantity: null,
-      qualityStatus: "pending",
-      notes: ""
-    },
-    {
-      id: 5,
-      productId: 24,
-      productName: "Wehlner Joghurt natur",
-      sku: "WEH-JOG-005",
-      supplierSku: "F-JOG-05",
-      quantity: 60,
-      unit: "stk",
-      unitPrice: 0.75,
-      totalPrice: 45.00,
-      receivedQuantity: null,
-      qualityStatus: "pending",
-      notes: ""
-    }
-  ]
-};
+// Interfaces
+interface OrderItem {
+  id: number;
+  productId: number;
+  productName: string;
+  sku?: string;
+  supplierSku?: string;
+  quantity: number;
+  unit: string;
+  unitPrice: number;
+  totalPrice: number;
+  notes?: string;
+  // Erweiterte Felder für Wareneingang
+  receivedQuantity: number;
+  qualityStatus: 'good' | 'damaged' | 'partial' | 'rejected';
+  warehouseId?: number;
+  mhd?: string; // Best-before date
+  batchNumber?: string;
+  supplierBatchNumber?: string;
+  locationInWarehouse?: string;
+  damageDescription?: string;
+  requiresMhd?: boolean;
+  photos?: string[];
+}
 
-// Hilfer für Währungsformatierung
+interface Order {
+  id: number;
+  orderNumber: string;
+  createdAt: string;
+  expectedDeliveryDate?: string;
+  supplierId: number;
+  supplierName: string;
+  status: string;
+  warehouseId?: number;
+  warehouseName?: string;
+  orderItems: OrderItem[];
+}
+
+interface ValidationError {
+  field: string;
+  message: string;
+  severity: 'error' | 'warning' | 'info';
+}
+
+// Hilfsfunktionen
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat("de-DE", {
     style: "currency",
@@ -156,18 +134,45 @@ const formatCurrency = (amount: number) => {
   }).format(amount);
 };
 
-// Hilfer für Datumsformatierung
 const formatDate = (dateString: string | null) => {
   if (!dateString) return "-";
   const date = new Date(dateString);
   return format(date, "dd.MM.yyyy", { locale: de });
 };
 
-// Hilfer für Zeitformatierung
-const formatTime = (dateString: string | null) => {
-  if (!dateString) return "";
+const formatDateTime = (dateString: string | null) => {
+  if (!dateString) return "-";
   const date = new Date(dateString);
-  return format(date, "HH:mm", { locale: de });
+  return format(date, "dd.MM.yyyy HH:mm", { locale: de });
+};
+
+const generateBatchNumber = () => {
+  const now = new Date();
+  const year = now.getFullYear().toString().slice(-2);
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const random = Math.random().toString(36).substr(2, 4).toUpperCase();
+  return `B${year}${month}${day}-${random}`;
+};
+
+const calculateDefaultMhd = (productName: string): string => {
+  const now = new Date();
+  // Intelligente Standard-MHD basierend auf Produkttyp
+  if (productName.toLowerCase().includes('milch')) {
+    return format(addDays(now, 7), 'yyyy-MM-dd');
+  } else if (productName.toLowerCase().includes('joghurt') || productName.toLowerCase().includes('quark')) {
+    return format(addDays(now, 14), 'yyyy-MM-dd');
+  } else if (productName.toLowerCase().includes('käse') || productName.toLowerCase().includes('wehlrad')) {
+    return format(addDays(now, 21), 'yyyy-MM-dd');
+  } else {
+    return format(addDays(now, 30), 'yyyy-MM-dd'); // Standard: 30 Tage
+  }
+};
+
+const checkMhdRequirement = (productName: string): boolean => {
+  // Produkte die MHD benötigen
+  const mhdProducts = ['milch', 'joghurt', 'quark', 'käse', 'pudding', 'sahne', 'butter'];
+  return mhdProducts.some(product => productName.toLowerCase().includes(product));
 };
 
 export default function OrderReceipt() {
@@ -177,295 +182,414 @@ export default function OrderReceipt() {
   const queryClient = useQueryClient();
   
   // Form state
-  const [orderItems, setOrderItems] = useState<any[]>([]);
-  
+  const [deliveryDate, setDeliveryDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
+  const [globalWarehouseId, setGlobalWarehouseId] = useState<number | null>(null);
+  const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
+  const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
   const [notes, setNotes] = useState("");
-  const [showIssueDialog, setShowIssueDialog] = useState(false);
-  const [showEditDialog, setShowEditDialog] = useState(false);
-  const [selectedItem, setSelectedItem] = useState<any>(null);
-  const [issueNotes, setIssueNotes] = useState("");
-  const [editQuantity, setEditQuantity] = useState(0);
-  const [editNotes, setEditNotes] = useState("");
-  const [photoUploaded, setPhotoUploaded] = useState(false);
-  const [confirmComplete, setConfirmComplete] = useState(false);
+  const [deliveryNoteNumber, setDeliveryNoteNumber] = useState("");
+  const [deliveryPersonName, setDeliveryPersonName] = useState("");
+  
+  // Dialog state
+  const [showItemEditDialog, setShowItemEditDialog] = useState(false);
+  const [showBulkEditDialog, setShowBulkEditDialog] = useState(false);
+  const [showQualityDialog, setShowQualityDialog] = useState(false);
+  const [showMhdWarningDialog, setShowMhdWarningDialog] = useState(false);
+  const [selectedItem, setSelectedItem] = useState<OrderItem | null>(null);
+  const [selectedItems, setSelectedItems] = useState<number[]>([]);
+  
+  // Form validation state
+  const [isValidating, setIsValidating] = useState(false);
+  const [canSubmit, setCanSubmit] = useState(false);
+  
+  // Photo upload state
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   
   // Lade Bestelldetails
-  const { data: order, isLoading, error } = useQuery({
+  const { data: order, isLoading: orderLoading, error: orderError } = useQuery({
     queryKey: [`/api/orders/${id}`],
     queryFn: () => getOrder(Number(id)),
-    staleTime: 1000 * 60 // 1 Minute
+    staleTime: 1000 * 60
   });
   
-  // Lade Produktliste für Dropdowns
+  // Lade Lager
+  const { data: warehousesData } = useQuery({
+    queryKey: ['/api/warehouses'],
+    queryFn: () => getWarehouses(),
+    staleTime: 1000 * 60 * 5
+  });
+  
+  const warehouses = Array.isArray(warehousesData) ? warehousesData : 
+                    warehousesData?.data || [];
+  
+  // Lade Produkte für Dropdown-Ergänzungen
   const { data: productsData } = useQuery({
-    queryKey: [`/api/products`],
+    queryKey: ['/api/products'],
     queryFn: () => getProducts(),
-    staleTime: 1000 * 60 * 5 // 5 Minuten
+    staleTime: 1000 * 60 * 5
   });
   
-  // Sichere Produktdaten mit Fallback - handle beide API response Strukturen
-  const products = (() => {
-    if (Array.isArray(productsData)) return productsData;
-    if (productsData && Array.isArray(productsData.data)) return productsData.data;
-    return [];
-  })();
+  const products = Array.isArray(productsData) ? productsData : 
+                  productsData?.data || [];
   
   // Initialize orderItems when order data is loaded
   useEffect(() => {
     if (order && order.orderItems && order.orderItems.length > 0) {
-      setOrderItems(order.orderItems.map(item => ({
+      const enhancedItems: OrderItem[] = order.orderItems.map(item => ({
         ...item,
-        receivedQuantity: item.quantity, // Default to ordered quantity
-        qualityStatus: "good" // Default to good quality
-      })));
+        receivedQuantity: item.quantity, // Default zu bestellter Menge
+        qualityStatus: 'good',
+        warehouseId: order.warehouseId || undefined,
+        requiresMhd: checkMhdRequirement(item.productName),
+        mhd: checkMhdRequirement(item.productName) ? calculateDefaultMhd(item.productName) : undefined,
+        batchNumber: checkMhdRequirement(item.productName) ? generateBatchNumber() : undefined,
+        photos: []
+      }));
+      setOrderItems(enhancedItems);
+      setGlobalWarehouseId(order.warehouseId || null);
     }
   }, [order]);
   
+  // Real-time Validation
+  useEffect(() => {
+    validateForm();
+  }, [deliveryDate, orderItems, globalWarehouseId]);
+  
+  const validateForm = async () => {
+    if (!deliveryDate) {
+      setCanSubmit(false);
+      return;
+    }
+    
+    const errors: ValidationError[] = [];
+    
+    // Lieferdatum-Validierung
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const deliveryDateObj = new Date(deliveryDate);
+    
+    if (isAfter(deliveryDateObj, today)) {
+      errors.push({
+        field: 'deliveryDate',
+        message: 'Lieferdatum kann nicht in der Zukunft liegen',
+        severity: 'error'
+      });
+    }
+    
+    if (isBefore(deliveryDateObj, new Date(Date.now() - 30 * 24 * 60 * 60 * 1000))) {
+      errors.push({
+        field: 'deliveryDate',
+        message: 'Lieferdatum ist älter als 30 Tage',
+        severity: 'warning'
+      });
+    }
+    
+    // Verbesserte Lager-Validierung: Entweder global ODER alle Items haben Warehouse
+    const itemsWithoutWarehouse = orderItems.filter(item => !item.warehouseId);
+    if (!globalWarehouseId && itemsWithoutWarehouse.length > 0) {
+      errors.push({
+        field: 'warehouse',
+        message: `Lager erforderlich für ${itemsWithoutWarehouse.length} Position(en): ${itemsWithoutWarehouse.map(item => item.productName).join(', ')}`,
+        severity: 'error'
+      });
+    }
+    
+    // Item-spezifische Validierung
+    orderItems.forEach((item, index) => {
+      // MHD-Validierung
+      if (item.requiresMhd && !item.mhd) {
+        errors.push({
+          field: `item_${index}_mhd`,
+          message: `MHD erforderlich für ${item.productName}`,
+          severity: 'error'
+        });
+      }
+      
+      if (item.mhd) {
+        const mhdDate = new Date(item.mhd);
+        const warningDate = new Date();
+        warningDate.setDate(warningDate.getDate() + 3); // 3 Tage Warnung
+        
+        if (isBefore(mhdDate, today)) {
+          errors.push({
+            field: `item_${index}_mhd`,
+            message: `MHD bereits abgelaufen für ${item.productName}`,
+            severity: 'error'
+          });
+        } else if (isBefore(mhdDate, warningDate)) {
+          errors.push({
+            field: `item_${index}_mhd`,
+            message: `MHD läuft bald ab für ${item.productName}`,
+            severity: 'warning'
+          });
+        }
+      }
+      
+      // Erweiterte Mengen-Validierung
+      if (item.receivedQuantity < 0) {
+        errors.push({
+          field: `item_${index}_quantity`,
+          message: `Ungültige Menge für ${item.productName}`,
+          severity: 'error'
+        });
+      }
+      
+      // Neue Validierung: Erhaltene Menge darf bestellte Menge nicht überschreiten
+      if (item.receivedQuantity > item.quantity) {
+        errors.push({
+          field: `item_${index}_quantity`,
+          message: `Erhaltene Menge (${item.receivedQuantity}) überschreitet bestellte Menge (${item.quantity}) für ${item.productName}`,
+          severity: 'warning'
+        });
+      }
+      
+      // Validierung: Integer-only für Stückzahlen
+      if (!Number.isInteger(item.receivedQuantity)) {
+        errors.push({
+          field: `item_${index}_quantity`,
+          message: `Menge muss eine ganze Zahl sein für ${item.productName}`,
+          severity: 'error'
+        });
+      }
+      
+      // Qualitätsstatus-Validierung
+      if (item.qualityStatus === 'damaged' && !item.damageDescription) {
+        errors.push({
+          field: `item_${index}_damage`,
+          message: `Schadensbeschreibung erforderlich für ${item.productName}`,
+          severity: 'error'
+        });
+      }
+    });
+    
+    setValidationErrors(errors);
+    setCanSubmit(errors.filter(e => e.severity === 'error').length === 0);
+  };
+  
   // Mutation für Wareneingang
   const receiptMutation = useMutation({
-    mutationFn: (data: any) => {
-      if (!order) return Promise.reject(new Error("Keine Bestelldaten vorhanden"));
+    mutationFn: async (data: any) => {
+      if (!order) throw new Error("Keine Bestelldaten vorhanden");
       
-      return processOrderReceipt(Number(id), {
-        receiptDate: new Date(),
-        receiptNumber: `RE-${order.orderNumber || 'NEW'}-${new Date().getTime().toString().slice(-6)}`,
-        notes: data.notes,
-        receivedItems: data.items.map((item: any) => ({
-          orderItemId: item.orderItemId,
-          receivedQuantity: item.receivedQuantity || 0,
-          qualityIssues: item.qualityStatus === 'damaged',
-          damageDescription: item.qualityStatus === 'damaged' ? item.notes : undefined
-        }))
-      });
+      // Sichere Warehouse-Payload-Erstellung ohne Non-Null-Assertion
+      const basePayload: any = {
+        orderId: order.id,
+        deliveryDate,
+        notes,
+        deliveryNoteNumber,
+        deliveryPersonName,
+        status: 'processing' as const,
+        items: orderItems.map(item => ({
+          orderItemId: item.id,
+          productId: item.productId,
+          productName: item.productName,
+          quantityOrdered: item.quantity,
+          quantityReceived: item.receivedQuantity,
+          qualityStatus: item.qualityStatus,
+          warehouseId: item.warehouseId || globalWarehouseId,
+          expiryDate: item.mhd,
+          batchNumber: item.batchNumber,
+          supplierBatchNumber: item.supplierBatchNumber,
+          locationInWarehouse: item.locationInWarehouse,
+          damageDescription: item.damageDescription,
+          notes: item.notes
+        })),
+        overallQuality: orderItems.every(item => item.qualityStatus === 'good') ? 'good' : 'acceptable',
+        requiresFollowUp: orderItems.some(item => item.qualityStatus === 'damaged' || item.qualityStatus === 'rejected')
+      };
+      
+      // Nur warehouseId hinzufügen wenn global warehouse definiert ist
+      if (globalWarehouseId) {
+        basePayload.warehouseId = globalWarehouseId;
+      }
+      
+      // Zusätzliche Validierung vor API-Call
+      const itemsWithoutWarehouse = orderItems.filter(item => !item.warehouseId && !globalWarehouseId);
+      if (itemsWithoutWarehouse.length > 0) {
+        throw new Error(`Lager fehlt für ${itemsWithoutWarehouse.length} Position(en)`);
+      }
+      
+      return processOrderReceipt(order.id, basePayload);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/orders/${id}`] });
       toast({
         title: "Wareneingang erfasst",
-        description: "Der Wareneingang wurde erfolgreich erfasst."
+        description: "Der Wareneingang wurde erfolgreich verarbeitet."
       });
       navigate(`/bestellungen/${id}`);
     },
     onError: (error) => {
       toast({
-        title: "Fehler",
-        description: `Fehler beim Erfassen des Wareneingangs: ${(error as Error).message}`,
+        title: "Fehler beim Speichern",
+        description: `${error instanceof Error ? error.message : 'Unbekannter Fehler'}`,
         variant: "destructive"
       });
     }
   });
   
-  // Update item quantity
-  const handleQuantityChange = (itemId: number, quantity: number) => {
+  // Item-Handler
+  const updateItem = (itemId: number, updates: Partial<OrderItem>) => {
     setOrderItems(items => 
       items.map(item => 
-        item.id === itemId 
-          ? { 
-              ...item, 
-              receivedQuantity: quantity,
-              qualityStatus: quantity === 0 ? "missing" : item.qualityStatus
-            } 
-          : item
+        item.id === itemId ? { ...item, ...updates } : item
       )
     );
   };
   
-  // Update item quality status
-  const handleQualityChange = (itemId: number, status: string) => {
-    setOrderItems(items => 
-      items.map(item => 
-        item.id === itemId 
-          ? { ...item, qualityStatus: status } 
-          : item
-      )
-    );
-  };
-  
-  // Handle item issue report
-  const openIssueDialog = (item: any) => {
+  const openItemEditDialog = (item: OrderItem) => {
     setSelectedItem(item);
-    setIssueNotes(item.notes || "");
-    setPhotoUploaded(false);
-    setShowIssueDialog(true);
+    setShowItemEditDialog(true);
   };
   
-  // Öffnen des Bearbeitungsdialogs für eine Bestellposition
-  const openEditDialog = (item: any) => {
-    setSelectedItem(item);
-    setEditQuantity(item.receivedQuantity || 0);
-    setEditNotes(item.notes || "");
-    setShowEditDialog(true);
-  };
-  
-  // Speichern der bearbeiteten Bestellposition
-  const saveEditedItem = () => {
+  const saveItemEdit = () => {
     if (!selectedItem) return;
     
-    setOrderItems(items => 
-      items.map(item => 
-        item.id === selectedItem.id 
-          ? { 
-              ...item, 
-              receivedQuantity: editQuantity,
-              notes: editNotes,
-              qualityStatus: editQuantity === 0 ? "missing" : item.qualityStatus
-            } 
-          : item
-      )
-    );
-    
-    setShowEditDialog(false);
+    updateItem(selectedItem.id, selectedItem);
+    setShowItemEditDialog(false);
     toast({
       title: "Position aktualisiert",
-      description: "Die Bestellposition wurde erfolgreich aktualisiert."
+      description: `${selectedItem.productName} wurde erfolgreich aktualisiert.`
     });
   };
   
-  // Save issue report
-  const saveIssueReport = () => {
-    if (!selectedItem) return;
-    
-    setOrderItems(items => 
-      items.map(item => 
-        item.id === selectedItem.id 
-          ? { ...item, notes: issueNotes } 
-          : item
-      )
-    );
-    
-    setShowIssueDialog(false);
-    toast({
-      title: "Problem erfasst",
-      description: "Das Problem wurde erfasst und wird bei der Qualitätsprüfung berücksichtigt."
-    });
-  };
-  
-  // Submit receipt
-  const submitReceipt = () => {
-    if (!confirmComplete) {
+  // Bulk Edit Handler
+  const openBulkEditDialog = () => {
+    if (selectedItems.length === 0) {
       toast({
-        title: "Bestätigung erforderlich",
-        description: "Bitte bestätigen Sie, dass alle Artikel überprüft wurden.",
+        title: "Keine Positionen ausgewählt",
+        description: "Bitte wählen Sie mindestens eine Position aus.",
         variant: "destructive"
       });
       return;
     }
-    
-    // Statistics for receipt
-    const totalReceived = orderItems.reduce((sum, item) => sum + (item.receivedQuantity || 0), 0);
-    const totalOrdered = orderItems.reduce((sum, item) => sum + item.quantity, 0);
-    const hasIssues = orderItems.some(item => 
-      item.qualityStatus === "damaged" || 
-      item.qualityStatus === "missing" || 
-      (item.receivedQuantity || 0) !== item.quantity
-    );
-    
-    // Sicherheitscheck: Nur fortfahren, wenn wir einen gültigen order haben
-    if (!order || !order.id) {
-      toast({
-        title: "Fehler",
-        description: "Bestelldaten nicht verfügbar. Bitte laden Sie die Seite neu.",
-        variant: "destructive"
-      });
-      return;
-    }
-    
-    const receiptData = {
-      orderId: order.id,
-      receiptDate: new Date().toISOString(),
-      receiptStatus: hasIssues ? "partially_accepted" : "accepted",
-      notes: notes,
-      totalReceived,
-      totalOrdered,
-      items: orderItems.map(item => ({
-        orderItemId: item.id,
-        productId: item.productId,
-        receivedQuantity: item.receivedQuantity,
-        qualityStatus: item.qualityStatus,
-        notes: item.notes
-      }))
-    };
-    
-    receiptMutation.mutate(receiptData);
+    setShowBulkEditDialog(true);
   };
   
-  // Echte Foto-Upload-Funktion
-  const handlePhotoUpload = () => {
-    // Erstellen Sie ein verstecktes Fileinput-Element
-    const fileInput = document.createElement('input');
-    fileInput.type = 'file';
-    fileInput.accept = 'image/*';
-    fileInput.style.display = 'none';
-    
-    // Fügen Sie es zum DOM hinzu
-    document.body.appendChild(fileInput);
-    
-    // Event-Handler für Dateiauswahl
-    fileInput.onchange = async (e) => {
-      const target = e.target as HTMLInputElement;
-      if (target.files && target.files.length > 0) {
-        const file = target.files[0];
-        
-        // Hier würde normalerweise der Upload-Code stehen
-        // Für diesen Prototyp simulieren wir den Upload
-        toast({
-          title: "Foto wird hochgeladen",
-          description: `${file.name} wird verarbeitet...`,
-        });
-        
-        // Simulierte Verzögerung
-        setTimeout(() => {
-          setPhotoUploaded(true);
-          toast({
-            title: "Foto hochgeladen",
-            description: `${file.name} wurde erfolgreich hochgeladen.`
-          });
-        }, 1500);
+  const applyBulkEdit = (warehouseId?: number, mhd?: string) => {
+    selectedItems.forEach(itemId => {
+      const updates: Partial<OrderItem> = {};
+      if (warehouseId) updates.warehouseId = warehouseId;
+      if (mhd) {
+        updates.mhd = mhd;
+        updates.batchNumber = generateBatchNumber();
       }
-      
-      // Entfernen Sie das Element aus dem DOM
-      document.body.removeChild(fileInput);
-    };
+      updateItem(itemId, updates);
+    });
     
-    // Trigger click event
-    fileInput.click();
+    setShowBulkEditDialog(false);
+    setSelectedItems([]);
+    toast({
+      title: "Bulk-Update angewendet",
+      description: `${selectedItems.length} Positionen wurden aktualisiert.`
+    });
   };
   
-  // Handle back button
-  const handleBack = () => {
-    navigate(`/bestellungen/${id}`);
-  };
-  
-  // Determine status for item
-  const getItemStatus = (item: any) => {
-    if (!item.receivedQuantity) return "missing";
-    if (item.receivedQuantity < item.quantity) return "partial";
-    if (item.qualityStatus === "damaged") return "damaged";
-    return "good";
-  };
-  
-  // Get status badge for item
-  const getStatusBadge = (item: any) => {
-    const status = getItemStatus(item);
+  // Photo Upload Handler - DISABLED until backend support
+  const handlePhotoUpload = async (itemId: number) => {
+    toast({
+      title: "Foto-Upload nicht verfügbar",
+      description: "Die Foto-Upload-Funktion wird in einer zukünftigen Version verfügbar sein.",
+      variant: "destructive"
+    });
     
+    // TODO: Implement real photo upload when backend is ready
+    // setIsUploadingPhoto(true);
+    // 
+    // const fileInput = document.createElement('input');
+    // fileInput.type = 'file';
+    // fileInput.accept = 'image/*';
+    // fileInput.onchange = async (e) => {
+    //   const target = e.target as HTMLInputElement;
+    //   if (target.files && target.files.length > 0) {
+    //     const file = target.files[0];
+    //     
+    //     try {
+    //       // Real implementation: upload to server
+    //       const formData = new FormData();
+    //       formData.append('photo', file);
+    //       formData.append('itemId', itemId.toString());
+    //       
+    //       const response = await fetch('/api/photos/upload', {
+    //         method: 'POST',
+    //         body: formData
+    //       });
+    //       
+    //       if (!response.ok) throw new Error('Upload failed');
+    //       
+    //       const result = await response.json();
+    //       
+    //       updateItem(itemId, {
+    //         photos: [...(orderItems.find(i => i.id === itemId)?.photos || []), result.photoUrl]
+    //       });
+    //       
+    //       toast({
+    //         title: "Foto hochgeladen",
+    //         description: `Qualitätsfoto für ${orderItems.find(i => i.id === itemId)?.productName} wurde hinzugefügt.`
+    //       });
+    //     } catch (error) {
+    //       toast({
+    //         title: "Upload-Fehler",
+    //         description: "Das Foto konnte nicht hochgeladen werden.",
+    //         variant: "destructive"
+    //       });
+    //     } finally {
+    //       setIsUploadingPhoto(false);
+    //     }
+    //   }
+    // };
+    // 
+    // fileInput.click();
+  };
+  
+  // Submit Handler
+  const handleSubmit = async () => {
+    if (!canSubmit) {
+      toast({
+        title: "Formular unvollständig",
+        description: "Bitte beheben Sie alle Validierungsfehler vor dem Speichern.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    // Check für MHD-Warnungen
+    const criticalMhd = orderItems.filter(item => {
+      if (!item.mhd) return false;
+      const mhdDate = new Date(item.mhd);
+      const warningDate = new Date();
+      warningDate.setDate(warningDate.getDate() + 3);
+      return isBefore(mhdDate, warningDate);
+    });
+    
+    if (criticalMhd.length > 0 && !showMhdWarningDialog) {
+      setShowMhdWarningDialog(true);
+      return;
+    }
+    
+    receiptMutation.mutate({});
+  };
+  
+  // Status Badge Helper
+  const getQualityBadge = (status: string) => {
     switch (status) {
-      case "good":
-        return <Badge variant="outline" className="bg-green-100 text-green-800">In Ordnung</Badge>;
-      case "partial":
-        return <Badge variant="outline" className="bg-yellow-100 text-yellow-800">Teillieferung ({item.receivedQuantity}/{item.quantity})</Badge>;
-      case "damaged":
-        return <Badge variant="outline" className="bg-red-100 text-red-800">Beschädigt</Badge>;
-      case "missing":
-        return <Badge variant="outline" className="bg-red-100 text-red-800">Fehlend</Badge>;
+      case 'good':
+        return <Badge className="bg-green-100 text-green-800 hover:bg-green-100" data-testid={`status-good`}>Gut</Badge>;
+      case 'damaged':
+        return <Badge className="bg-red-100 text-red-800 hover:bg-red-100" data-testid={`status-damaged`}>Beschädigt</Badge>;
+      case 'partial':
+        return <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100" data-testid={`status-partial`}>Teilweise</Badge>;
+      case 'rejected':
+        return <Badge className="bg-gray-100 text-gray-800 hover:bg-gray-100" data-testid={`status-rejected`}>Abgelehnt</Badge>;
       default:
         return <Badge variant="outline">Unbekannt</Badge>;
     }
   };
   
   // Loading state
-  if (isLoading) {
+  if (orderLoading) {
     return (
-      <div className="container py-6 flex flex-col items-center justify-center min-h-[50vh]">
+      <div className="container py-6 flex flex-col items-center justify-center min-h-[50vh]" data-testid="loading-state">
         <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
         <p className="text-muted-foreground">Bestelldetails werden geladen...</p>
       </div>
@@ -473,10 +597,15 @@ export default function OrderReceipt() {
   }
   
   // Error state
-  if (error || !order) {
+  if (orderError || !order) {
     return (
-      <div className="container py-6">
-        <Button variant="outline" className="mb-4" onClick={handleBack}>
+      <div className="container py-6" data-testid="error-state">
+        <Button 
+          variant="outline" 
+          className="mb-4" 
+          onClick={() => navigate(`/bestellungen/${id}`)}
+          data-testid="button-back-error"
+        >
           <ArrowLeft className="mr-2 h-4 w-4" />
           Zurück zur Bestellung
         </Button>
@@ -493,7 +622,7 @@ export default function OrderReceipt() {
           </CardHeader>
           <CardContent>
             <p className="text-sm text-red-700">
-              {error instanceof Error ? error.message : "Ein unbekannter Fehler ist aufgetreten."}
+              {orderError instanceof Error ? orderError.message : "Ein unbekannter Fehler ist aufgetreten."}
             </p>
           </CardContent>
           <CardFooter>
@@ -506,459 +635,696 @@ export default function OrderReceipt() {
     );
   }
   
+  // Calculate summary statistics
+  const totalOrdered = orderItems.reduce((sum, item) => sum + item.quantity, 0);
+  const totalReceived = orderItems.reduce((sum, item) => sum + item.receivedQuantity, 0);
+  const totalValue = orderItems.reduce((sum, item) => sum + (item.receivedQuantity * item.unitPrice), 0);
+  const completionPercentage = totalOrdered > 0 ? Math.round((totalReceived / totalOrdered) * 100) : 0;
+  const hasErrors = validationErrors.filter(e => e.severity === 'error').length > 0;
+  const hasWarnings = validationErrors.filter(e => e.severity === 'warning').length > 0;
+  
   return (
-    <div className="container py-6 space-y-6">
-      {/* Header */}
+    <div className="container py-6 space-y-6" data-testid="order-receipt-page">
+      {/* Header Section */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="icon" onClick={handleBack}>
+          <Button 
+            variant="outline" 
+            size="icon" 
+            onClick={() => navigate(`/bestellungen/${id}`)}
+            data-testid="button-back"
+          >
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
-            <h1 className="text-2xl font-bold">Wareneingang für Bestellung #{order.orderNumber}</h1>
+            <h1 className="text-2xl font-bold" data-testid="page-title">
+              Wareneingang für Bestellung #{order.orderNumber}
+            </h1>
             <p className="text-muted-foreground flex items-center gap-2">
-              <Calendar className="h-4 w-4" />
-              {formatDate(order.expectedDeliveryDate)} {formatTime(order.expectedDeliveryDate)}
+              <Building2 className="h-4 w-4" />
+              {order.supplierName}
+              {order.warehouseName && (
+                <>
+                  <Separator orientation="vertical" className="h-4" />
+                  <Warehouse className="h-4 w-4" />
+                  {order.warehouseName}
+                </>
+              )}
             </p>
           </div>
         </div>
+        
+        {/* Status and Progress */}
+        <div className="flex items-center gap-4">
+          <div className="text-right">
+            <div className="text-sm text-muted-foreground">Fortschritt</div>
+            <div className="flex items-center gap-2">
+              <Progress value={completionPercentage} className="w-20" data-testid="progress-bar" />
+              <span className="text-sm font-medium" data-testid="progress-percentage">{completionPercentage}%</span>
+            </div>
+          </div>
+          {hasErrors && (
+            <Badge variant="outline" className="bg-red-100 text-red-800" data-testid="badge-errors">
+              <AlertCircle className="w-3 h-3 mr-1" />
+              {validationErrors.filter(e => e.severity === 'error').length} Fehler
+            </Badge>
+          )}
+          {hasWarnings && (
+            <Badge variant="outline" className="bg-yellow-100 text-yellow-800" data-testid="badge-warnings">
+              <AlertTriangle className="w-3 h-3 mr-1" />
+              {validationErrors.filter(e => e.severity === 'warning').length} Warnungen
+            </Badge>
+          )}
+        </div>
       </div>
       
-      {/* Main content */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="md:col-span-2">
+      {/* Main Form */}
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        
+        {/* Left Column - Form Controls */}
+        <Card className="lg:col-span-1">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Package className="h-5 w-5" />
-              <span>Wareneingang prüfen</span>
+              <Calendar className="h-5 w-5" />
+              Wareneingang-Details
             </CardTitle>
-            <CardDescription>
-              Überprüfen Sie die gelieferten Artikel und erfassen Sie Mengen und Qualität
-            </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-6">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[40%]">Produkt</TableHead>
-                  <TableHead>Bestellt</TableHead>
-                  <TableHead>Erhalten</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Aktion</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {orderItems.map((item) => (
-                  <TableRow key={item.id} className="cursor-pointer hover:bg-muted/50" onClick={() => openEditDialog(item)}>
-                    <TableCell className="font-medium">
-                      {item.productName}
-                      {item.sku && (
-                        <div className="text-xs text-muted-foreground">
-                          SKU: {item.sku}{item.supplierSku ? ` | Lieferanten-Nr: ${item.supplierSku}` : ''}
-                        </div>
-                      )}
-                      {item.notes && (
-                        <div className="text-xs italic text-amber-600 mt-1">{item.notes}</div>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {item.quantity} {item.unit}
-                    </TableCell>
-                    <TableCell onClick={(e) => e.stopPropagation()}>
-                      <Input
-                        type="number"
-                        value={item.receivedQuantity || 0}
-                        onChange={(e) => handleQuantityChange(item.id, parseInt(e.target.value) || 0)}
-                        className="w-20"
-                        min="0"
-                      />
-                    </TableCell>
-                    <TableCell>
-                      {getStatusBadge(item)}
-                    </TableCell>
-                    <TableCell className="text-right space-x-1" onClick={(e) => e.stopPropagation()}>
-                      <Button 
-                        variant="ghost" 
-                        size="sm"
-                        onClick={(e) => { e.stopPropagation(); handleQualityChange(item.id, "good"); }}
-                        className={item.qualityStatus === "good" ? "bg-green-100 text-green-800" : ""}
-                      >
-                        <CheckCircle2 className="h-4 w-4" />
-                      </Button>
-                      <Button 
-                        variant="ghost" 
-                        size="sm"
-                        onClick={(e) => { e.stopPropagation(); handleQualityChange(item.id, "damaged"); }}
-                        className={item.qualityStatus === "damaged" ? "bg-red-100 text-red-800" : ""}
-                      >
-                        <AlertTriangle className="h-4 w-4" />
-                      </Button>
-                      <Button 
-                        variant="ghost" 
-                        size="sm"
-                        onClick={(e) => { e.stopPropagation(); openIssueDialog(item); }}
-                      >
-                        <Info className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+          <CardContent className="space-y-4">
+            {/* Lieferdatum - MANDATORY */}
+            <div className="space-y-2">
+              <Label htmlFor="delivery-date" className="text-sm font-medium">
+                Lieferdatum *
+              </Label>
+              <Input
+                id="delivery-date"
+                type="date"
+                value={deliveryDate}
+                onChange={(e) => setDeliveryDate(e.target.value)}
+                className={validationErrors.some(e => e.field === 'deliveryDate' && e.severity === 'error') ? 'border-red-500' : ''}
+                required
+                data-testid="input-delivery-date"
+              />
+              {validationErrors.filter(e => e.field === 'deliveryDate').map((error, idx) => (
+                <p key={idx} className={`text-xs ${error.severity === 'error' ? 'text-red-600' : 'text-yellow-600'}`}>
+                  {error.message}
+                </p>
+              ))}
+            </div>
             
-            {/* Total summary */}
-            <div className="rounded-md border p-4 bg-muted/30">
-              <div className="flex justify-between items-center">
-                <div className="space-y-1.5">
-                  <div className="text-sm">
-                    <span className="font-medium">Gesamtmenge bestellt:</span>{' '}
-                    {orderItems.reduce((sum, item) => sum + item.quantity, 0)} Artikel
-                  </div>
-                  <div className="text-sm">
-                    <span className="font-medium">Gesamtmenge erhalten:</span>{' '}
-                    {orderItems.reduce((sum, item) => sum + (item.receivedQuantity || 0), 0)} Artikel
-                  </div>
-                </div>
-                <div>
-                  {orderItems.reduce((sum, item) => sum + (item.receivedQuantity || 0), 0) === 
-                   orderItems.reduce((sum, item) => sum + item.quantity, 0) && 
-                   !orderItems.some(item => item.qualityStatus === "damaged") ? (
-                    <Badge className="bg-green-100 text-green-800 px-3 py-1 text-base">
-                      <CheckCircle2 className="h-4 w-4 mr-1.5" />
-                      Vollständig erhalten
-                    </Badge>
-                  ) : (
-                    <Badge className="bg-yellow-100 text-yellow-800 px-3 py-1 text-base">
-                      <AlertTriangle className="h-4 w-4 mr-1.5" />
-                      Unvollständige Lieferung
-                    </Badge>
-                  )}
-                </div>
-              </div>
+            {/* Global Warehouse Selection */}
+            <div className="space-y-2">
+              <Label htmlFor="global-warehouse" className="text-sm font-medium">
+                Globales Ziellager
+              </Label>
+              <Select 
+                value={globalWarehouseId?.toString() || ""} 
+                onValueChange={(value) => setGlobalWarehouseId(value ? Number(value) : null)}
+              >
+                <SelectTrigger data-testid="select-global-warehouse">
+                  <SelectValue placeholder="Lager auswählen" />
+                </SelectTrigger>
+                <SelectContent>
+                  {warehouses.map((warehouse: any) => (
+                    <SelectItem key={warehouse.id} value={warehouse.id.toString()}>
+                      {warehouse.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Wird für alle Positionen ohne spezifisches Lager verwendet
+              </p>
+            </div>
+            
+            {/* Delivery Note Number */}
+            <div className="space-y-2">
+              <Label htmlFor="delivery-note" className="text-sm font-medium">
+                Lieferschein-Nr.
+              </Label>
+              <Input
+                id="delivery-note"
+                value={deliveryNoteNumber}
+                onChange={(e) => setDeliveryNoteNumber(e.target.value)}
+                placeholder="LS-2025-001"
+                data-testid="input-delivery-note-number"
+              />
+            </div>
+            
+            {/* Delivery Person */}
+            <div className="space-y-2">
+              <Label htmlFor="delivery-person" className="text-sm font-medium">
+                Auslieferer
+              </Label>
+              <Input
+                id="delivery-person"
+                value={deliveryPersonName}
+                onChange={(e) => setDeliveryPersonName(e.target.value)}
+                placeholder="Name des Auslieferers"
+                data-testid="input-delivery-person"
+              />
             </div>
             
             {/* Notes */}
             <div className="space-y-2">
-              <Label htmlFor="notes">Anmerkungen zum Wareneingang</Label>
+              <Label htmlFor="notes" className="text-sm font-medium">
+                Notizen
+              </Label>
               <Textarea
                 id="notes"
-                placeholder="Anmerkungen zur gesamten Lieferung..."
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                className="min-h-24"
+                placeholder="Zusätzliche Bemerkungen zum Wareneingang..."
+                rows={3}
+                data-testid="textarea-notes"
               />
-            </div>
-            
-            {/* Confirmation */}
-            <div className="flex items-start space-x-2 mt-6">
-              <Checkbox
-                id="confirm-complete"
-                checked={confirmComplete}
-                onCheckedChange={(checked) => setConfirmComplete(checked as boolean)}
-              />
-              <div className="grid gap-1.5 leading-none">
-                <Label
-                  htmlFor="confirm-complete"
-                  className="leading-normal"
-                >
-                  Ich bestätige, dass ich alle Artikel überprüft habe und die eingegebenen Daten korrekt sind.
-                </Label>
-                <p className="text-sm text-muted-foreground">
-                  Diese Aktion kann nicht rückgängig gemacht werden.
-                </p>
-              </div>
             </div>
           </CardContent>
-          <CardFooter className="flex justify-between border-t pt-6">
-            <Button variant="outline" onClick={handleBack}>
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Zurück
-            </Button>
-            <Button 
-              onClick={submitReceipt} 
-              disabled={receiptMutation.isPending || !confirmComplete}
-            >
-              {receiptMutation.isPending ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <ClipboardCheck className="h-4 w-4 mr-2" />
-              )}
-              Wareneingang abschließen
-            </Button>
-          </CardFooter>
         </Card>
         
-        {/* Side panel */}
-        <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Building2 className="h-5 w-5" />
-                <span>Lieferdetails</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
+        {/* Right Column - Items Table */}
+        <Card className="lg:col-span-3">
+          <CardHeader>
+            <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-sm font-medium text-muted-foreground mb-1">Lieferant</h3>
-                <p className="font-medium">{order.supplierName}</p>
+                <CardTitle className="flex items-center gap-2">
+                  <Package className="h-5 w-5" />
+                  Artikel erfassen ({orderItems.length} Positionen)
+                </CardTitle>
+                <CardDescription>
+                  Mengen, Qualität, MHD und Lagerorte für jeden Artikel erfassen
+                </CardDescription>
               </div>
               
-              <Separator />
-              
-              <div>
-                <h3 className="text-sm font-medium text-muted-foreground mb-1">Lieferdatum</h3>
-                <p>{formatDate(order.expectedDeliveryDate)} {formatTime(order.expectedDeliveryDate)}</p>
+              {/* Bulk Actions */}
+              <div className="flex items-center gap-2">
+                {selectedItems.length > 0 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={openBulkEditDialog}
+                    data-testid="button-bulk-edit"
+                  >
+                    <Edit2 className="h-4 w-4 mr-2" />
+                    Bulk-Edit ({selectedItems.length})
+                  </Button>
+                )}
               </div>
-              
-              <Separator />
-              
-              <div>
-                <h3 className="text-sm font-medium text-muted-foreground mb-1">Lieferort</h3>
-                <p className="font-medium">{order.warehouseName}</p>
-                <p className="text-sm text-muted-foreground">Hauptstraße 123, 01307 Dresden</p>
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Camera className="h-5 w-5" />
-                <span>Liefernachweis</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <Button 
-                variant="outline" 
-                className="w-full"
-                onClick={handlePhotoUpload}
-              >
-                <Upload className="h-4 w-4 mr-2" />
-                Fotos hochladen
-              </Button>
-              
-              <div className="text-sm text-muted-foreground">
-                Laden Sie Fotos der Lieferung hoch, um Probleme zu dokumentieren.
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Info className="h-5 w-5" />
-                <span>Hilfe & Hinweise</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3 text-sm">
-                <p>
-                  <span className="font-medium">Mengen prüfen:</span> Überprüfen Sie, ob die gelieferte Menge mit der bestellten Menge übereinstimmt.
-                </p>
-                <p>
-                  <span className="font-medium">Qualität prüfen:</span> Markieren Sie Artikel als "Beschädigt", wenn sie nicht den Qualitätsstandards entsprechen.
-                </p>
-                <p>
-                  <span className="font-medium">Probleme melden:</span> Nutzen Sie das Info-Symbol, um detaillierte Probleme zu erfassen.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[40px]">
+                      <Checkbox
+                        checked={selectedItems.length === orderItems.length && orderItems.length > 0}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setSelectedItems(orderItems.map(item => item.id));
+                          } else {
+                            setSelectedItems([]);
+                          }
+                        }}
+                        data-testid="checkbox-select-all"
+                      />
+                    </TableHead>
+                    <TableHead>Artikel</TableHead>
+                    <TableHead>Bestellt</TableHead>
+                    <TableHead>Erhalten</TableHead>
+                    <TableHead>MHD</TableHead>
+                    <TableHead>Lager</TableHead>
+                    <TableHead>Qualität</TableHead>
+                    <TableHead className="text-right">Aktionen</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {orderItems.map((item) => (
+                    <TableRow key={item.id} className={selectedItems.includes(item.id) ? 'bg-muted/50' : ''}>
+                      <TableCell>
+                        <Checkbox
+                          checked={selectedItems.includes(item.id)}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              setSelectedItems([...selectedItems, item.id]);
+                            } else {
+                              setSelectedItems(selectedItems.filter(id => id !== item.id));
+                            }
+                          }}
+                          data-testid={`checkbox-select-item-${item.id}`}
+                        />
+                      </TableCell>
+                      
+                      <TableCell>
+                        <div className="font-medium">{item.productName}</div>
+                        <div className="text-sm text-muted-foreground">
+                          {item.sku && `SKU: ${item.sku}`}
+                          {item.supplierSku && ` | Lief.: ${item.supplierSku}`}
+                        </div>
+                        {item.notes && (
+                          <div className="text-xs italic text-amber-600 mt-1">{item.notes}</div>
+                        )}
+                      </TableCell>
+                      
+                      <TableCell>
+                        {item.quantity} {item.unit}
+                        <div className="text-sm text-muted-foreground">
+                          à {formatCurrency(item.unitPrice)}
+                        </div>
+                      </TableCell>
+                      
+                      <TableCell>
+                        <Input
+                          type="number"
+                          value={item.receivedQuantity}
+                          onChange={(e) => updateItem(item.id, { 
+                            receivedQuantity: Number(e.target.value) || 0 
+                          })}
+                          className="w-20"
+                          min="0"
+                          data-testid={`input-received-quantity-${item.id}`}
+                        />
+                        <div className="text-xs text-muted-foreground mt-1">
+                          {item.unit}
+                        </div>
+                      </TableCell>
+                      
+                      <TableCell>
+                        {item.requiresMhd ? (
+                          <div className="space-y-1">
+                            <Input
+                              type="date"
+                              value={item.mhd || ''}
+                              onChange={(e) => updateItem(item.id, { mhd: e.target.value })}
+                              className={`w-36 text-xs ${
+                                validationErrors.some(e => e.field === `item_${item.id}_mhd` && e.severity === 'error') 
+                                ? 'border-red-500' : ''
+                              }`}
+                              data-testid={`input-mhd-${item.id}`}
+                            />
+                            {item.mhd && (
+                              <div className="text-xs text-muted-foreground">
+                                {formatDate(item.mhd)}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <Badge variant="outline" className="text-xs">Nicht erforderlich</Badge>
+                        )}
+                      </TableCell>
+                      
+                      <TableCell>
+                        <Select 
+                          value={item.warehouseId?.toString() || globalWarehouseId?.toString() || ""}
+                          onValueChange={(value) => updateItem(item.id, { 
+                            warehouseId: value ? Number(value) : undefined 
+                          })}
+                        >
+                          <SelectTrigger className="w-32" data-testid={`select-warehouse-${item.id}`}>
+                            <SelectValue placeholder="Lager" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {warehouses.map((warehouse: any) => (
+                              <SelectItem key={warehouse.id} value={warehouse.id.toString()}>
+                                {warehouse.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </TableCell>
+                      
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          {getQualityBadge(item.qualityStatus)}
+                          {/* Photo badges hidden until backend support is ready */}
+                          {/* {item.photos && item.photos.length > 0 && (
+                            <Badge variant="outline" className="text-xs">
+                              <Camera className="w-3 h-3 mr-1" />
+                              {item.photos.length}
+                            </Badge>
+                          )} */}
+                        </div>
+                      </TableCell>
+                      
+                      <TableCell className="text-right">
+                        <div className="flex items-center gap-1 justify-end">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => openItemEditDialog(item)}
+                            data-testid={`button-edit-item-${item.id}`}
+                          >
+                            <Edit2 className="h-4 w-4" />
+                          </Button>
+                          {/* Photo upload button hidden until backend support is ready */}
+                          {/* <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handlePhotoUpload(item.id)}
+                            disabled={isUploadingPhoto}
+                            data-testid={`button-photo-${item.id}`}
+                          >
+                            {isUploadingPhoto ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Camera className="h-4 w-4" />
+                            )}
+                          </Button> */}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
       </div>
       
-      {/* Issue Dialog */}
-      <Dialog open={showIssueDialog} onOpenChange={setShowIssueDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Problem melden</DialogTitle>
-            <DialogDescription>
-              {selectedItem && (
-                `Erfassen Sie Details zu Problemen mit "${selectedItem.productName}"`
-              )}
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <Label htmlFor="issue-description">Problembeschreibung</Label>
-              <Textarea
-                id="issue-description"
-                placeholder="Beschreiben Sie das Problem mit dem Artikel..."
-                value={issueNotes}
-                onChange={(e) => setIssueNotes(e.target.value)}
-                className="min-h-24"
-              />
+      {/* Summary Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Clipboard className="h-5 w-5" />
+            Zusammenfassung
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+            <div className="text-center">
+              <div className="text-2xl font-bold text-blue-600" data-testid="summary-total-ordered">{totalOrdered}</div>
+              <div className="text-sm text-muted-foreground">Bestellt</div>
             </div>
-            
-            <div className="space-y-2">
-              <Label>Fotos hinzufügen</Label>
-              <div className="border-2 border-dashed rounded-md p-4 text-center">
-                {photoUploaded ? (
-                  <div className="flex flex-col items-center space-y-2">
-                    <CheckCircle2 className="h-8 w-8 text-green-500" />
-                    <p className="text-sm font-medium">Foto erfolgreich hochgeladen</p>
-                    <Button 
-                      variant="ghost" 
-                      size="sm"
-                      onClick={() => setPhotoUploaded(false)}
-                    >
-                      <X className="h-4 w-4 mr-2" />
-                      Entfernen
-                    </Button>
-                  </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-green-600" data-testid="summary-total-received">{totalReceived}</div>
+              <div className="text-sm text-muted-foreground">Erhalten</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-purple-600" data-testid="summary-total-value">{formatCurrency(totalValue)}</div>
+              <div className="text-sm text-muted-foreground">Warenwert</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-indigo-600" data-testid="summary-completion">{completionPercentage}%</div>
+              <div className="text-sm text-muted-foreground">Vollständigkeit</div>
+            </div>
+          </div>
+          
+          {/* Validation Messages */}
+          {validationErrors.length > 0 && (
+            <div className="space-y-2 mb-4">
+              {validationErrors.map((error, idx) => (
+                <div 
+                  key={idx} 
+                  className={`flex items-center gap-2 text-sm p-2 rounded ${
+                    error.severity === 'error' ? 'bg-red-50 text-red-700' :
+                    error.severity === 'warning' ? 'bg-yellow-50 text-yellow-700' :
+                    'bg-blue-50 text-blue-700'
+                  }`}
+                  data-testid={`validation-message-${idx}`}
+                >
+                  {error.severity === 'error' && <AlertCircle className="h-4 w-4" />}
+                  {error.severity === 'warning' && <AlertTriangle className="h-4 w-4" />}
+                  {error.severity === 'info' && <FileText className="h-4 w-4" />}
+                  {error.message}
+                </div>
+              ))}
+            </div>
+          )}
+          
+          <div className="flex items-center justify-between">
+            <div className="text-sm text-muted-foreground">
+              Letztes Update: {formatDateTime(new Date().toISOString())}
+            </div>
+            <div className="flex items-center gap-2">
+              <Button 
+                variant="outline" 
+                onClick={() => navigate(`/bestellungen/${id}`)}
+                data-testid="button-cancel"
+              >
+                <X className="mr-2 h-4 w-4" />
+                Abbrechen
+              </Button>
+              <Button 
+                onClick={handleSubmit}
+                disabled={!canSubmit || receiptMutation.isPending || !deliveryDate}
+                className="min-w-[120px]"
+                data-testid="button-submit"
+              >
+                {receiptMutation.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Speichere...
+                  </>
                 ) : (
-                  <div className="flex flex-col items-center space-y-2">
-                    <Camera className="h-8 w-8 text-muted-foreground" />
-                    <p className="text-sm text-muted-foreground">Klicken Sie, um ein Foto hochzuladen</p>
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={handlePhotoUpload}
-                    >
-                      <Plus className="h-4 w-4 mr-2" />
-                      Foto hinzufügen
-                    </Button>
-                  </div>
+                  <>
+                    <Save className="mr-2 h-4 w-4" />
+                    Wareneingang erfassen
+                  </>
                 )}
-              </div>
+              </Button>
             </div>
           </div>
-          
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button
-              variant="outline"
-              onClick={() => setShowIssueDialog(false)}
-            >
-              Abbrechen
-            </Button>
-            <Button onClick={saveIssueReport}>
-              Problem speichern
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        </CardContent>
+      </Card>
       
-      {/* Edit Item Dialog */}
-      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        <DialogContent>
+      {/* Item Edit Dialog */}
+      <Dialog open={showItemEditDialog} onOpenChange={setShowItemEditDialog}>
+        <DialogContent className="max-w-2xl" data-testid="dialog-item-edit">
           <DialogHeader>
-            <DialogTitle>Bestellposition bearbeiten</DialogTitle>
+            <DialogTitle>
+              Position bearbeiten: {selectedItem?.productName}
+            </DialogTitle>
             <DialogDescription>
-              {selectedItem && (
-                `Bearbeiten Sie die Details für "${selectedItem.productName}"`
-              )}
+              Detaillierte Angaben für diese Position anpassen
             </DialogDescription>
           </DialogHeader>
           
-          <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <Label htmlFor="edit-quantity">Erhaltene Menge</Label>
-              <div className="flex items-center space-x-2">
+          {selectedItem && (
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Erhaltene Menge</Label>
                 <Input
-                  id="edit-quantity"
                   type="number"
-                  value={editQuantity}
-                  onChange={(e) => setEditQuantity(parseInt(e.target.value) || 0)}
+                  value={selectedItem.receivedQuantity}
+                  onChange={(e) => setSelectedItem({
+                    ...selectedItem,
+                    receivedQuantity: Number(e.target.value) || 0
+                  })}
                   min="0"
+                  data-testid="input-edit-received-quantity"
                 />
-                {selectedItem && (
-                  <span className="text-sm text-muted-foreground">
-                    von {selectedItem?.quantity} {selectedItem?.unit || 'Stk.'}
-                  </span>
-                )}
+              </div>
+              
+              <div className="space-y-2">
+                <Label>Qualitätsstatus</Label>
+                <Select
+                  value={selectedItem.qualityStatus}
+                  onValueChange={(value: any) => setSelectedItem({
+                    ...selectedItem,
+                    qualityStatus: value
+                  })}
+                >
+                  <SelectTrigger data-testid="select-edit-quality-status">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="good">Gut</SelectItem>
+                    <SelectItem value="damaged">Beschädigt</SelectItem>
+                    <SelectItem value="partial">Teilweise</SelectItem>
+                    <SelectItem value="rejected">Abgelehnt</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              {selectedItem.requiresMhd && (
+                <div className="space-y-2">
+                  <Label>Mindesthaltbarkeitsdatum</Label>
+                  <Input
+                    type="date"
+                    value={selectedItem.mhd || ''}
+                    onChange={(e) => setSelectedItem({
+                      ...selectedItem,
+                      mhd: e.target.value
+                    })}
+                    data-testid="input-edit-mhd"
+                  />
+                </div>
+              )}
+              
+              <div className="space-y-2">
+                <Label>Chargennummer</Label>
+                <Input
+                  value={selectedItem.batchNumber || ''}
+                  onChange={(e) => setSelectedItem({
+                    ...selectedItem,
+                    batchNumber: e.target.value
+                  })}
+                  placeholder="Automatisch generiert"
+                  data-testid="input-edit-batch-number"
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label>Lagerplatz</Label>
+                <Input
+                  value={selectedItem.locationInWarehouse || ''}
+                  onChange={(e) => setSelectedItem({
+                    ...selectedItem,
+                    locationInWarehouse: e.target.value
+                  })}
+                  placeholder="z.B. Regal A1, Fach 3"
+                  data-testid="input-edit-location"
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label>Lieferanten-Charge</Label>
+                <Input
+                  value={selectedItem.supplierBatchNumber || ''}
+                  onChange={(e) => setSelectedItem({
+                    ...selectedItem,
+                    supplierBatchNumber: e.target.value
+                  })}
+                  placeholder="Charge des Lieferanten"
+                  data-testid="input-edit-supplier-batch"
+                />
+              </div>
+              
+              {selectedItem.qualityStatus === 'damaged' && (
+                <div className="col-span-2 space-y-2">
+                  <Label>Schadensbeschreibung</Label>
+                  <Textarea
+                    value={selectedItem.damageDescription || ''}
+                    onChange={(e) => setSelectedItem({
+                      ...selectedItem,
+                      damageDescription: e.target.value
+                    })}
+                    placeholder="Detaillierte Beschreibung des Schadens..."
+                    rows={3}
+                    data-testid="textarea-edit-damage-description"
+                  />
+                </div>
+              )}
+              
+              <div className="col-span-2 space-y-2">
+                <Label>Notizen</Label>
+                <Textarea
+                  value={selectedItem.notes || ''}
+                  onChange={(e) => setSelectedItem({
+                    ...selectedItem,
+                    notes: e.target.value
+                  })}
+                  placeholder="Zusätzliche Notizen zu dieser Position..."
+                  rows={2}
+                  data-testid="textarea-edit-notes"
+                />
               </div>
             </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="edit-product">Produkt</Label>
-              <div className="flex items-center space-x-2">
-                <select 
-                  className="w-full p-2 border rounded-md" 
-                  value={selectedItem?.productId}
-                  onChange={(e) => {
-                    const newProductId = parseInt(e.target.value);
-                    const product = products.find((p: any) => p.id === newProductId);
-                    if (product && selectedItem) {
-                      setOrderItems(items => 
-                        items.map(item => 
-                          item.id === selectedItem.id 
-                            ? { 
-                                ...item, 
-                                productId: product.id,
-                                productName: product.productName || product.name
-                              } 
-                            : item
-                        )
-                      );
-                    }
-                  }}
-                >
-                  <option value={selectedItem?.productId}>{selectedItem?.productName}</option>
-                  {products
-                    .filter((p: any) => p.id !== selectedItem?.productId)
-                    .map((product: any) => (
-                      <option key={product.id} value={product.id}>
-                        {product.productName || product.name}
-                      </option>
-                    ))}
-                </select>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="edit-notes">Anmerkungen</Label>
-              <Textarea
-                id="edit-notes"
-                placeholder="Anmerkungen zur Bestellposition..."
-                value={editNotes}
-                onChange={(e) => setEditNotes(e.target.value)}
-                className="min-h-24"
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <Label>Qualitätsstatus</Label>
-              <div className="flex space-x-2">
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => { 
-                    selectedItem && handleQualityChange(selectedItem.id, "good");
-                  }}
-                  className={selectedItem?.qualityStatus === "good" ? "bg-green-100 text-green-800" : ""}
-                >
-                  <CheckCircle2 className="h-4 w-4 mr-2" />
-                  In Ordnung
-                </Button>
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => { 
-                    selectedItem && handleQualityChange(selectedItem.id, "damaged");
-                  }}
-                  className={selectedItem?.qualityStatus === "damaged" ? "bg-red-100 text-red-800" : ""}
-                >
-                  <AlertTriangle className="h-4 w-4 mr-2" />
-                  Beschädigt
-                </Button>
-              </div>
-            </div>
-          </div>
+          )}
           
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button
-              variant="outline"
-              onClick={() => setShowEditDialog(false)}
-            >
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowItemEditDialog(false)} data-testid="button-cancel-edit">
               Abbrechen
             </Button>
-            <Button onClick={saveEditedItem}>
+            <Button onClick={saveItemEdit} data-testid="button-save-edit">
+              <Save className="mr-2 h-4 w-4" />
               Speichern
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      
+      {/* Bulk Edit Dialog */}
+      <Dialog open={showBulkEditDialog} onOpenChange={setShowBulkEditDialog}>
+        <DialogContent data-testid="dialog-bulk-edit">
+          <DialogHeader>
+            <DialogTitle>
+              Bulk-Bearbeitung ({selectedItems.length} Positionen)
+            </DialogTitle>
+            <DialogDescription>
+              Änderungen auf mehrere Positionen gleichzeitig anwenden
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Lager für alle ausgewählten Positionen</Label>
+              <Select onValueChange={(value) => applyBulkEdit(Number(value))}>
+                <SelectTrigger data-testid="select-bulk-warehouse">
+                  <SelectValue placeholder="Lager auswählen" />
+                </SelectTrigger>
+                <SelectContent>
+                  {warehouses.map((warehouse: any) => (
+                    <SelectItem key={warehouse.id} value={warehouse.id.toString()}>
+                      {warehouse.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="space-y-2">
+              <Label>MHD für alle ausgewählten Positionen</Label>
+              <Input
+                type="date"
+                onChange={(e) => applyBulkEdit(undefined, e.target.value)}
+                data-testid="input-bulk-mhd"
+              />
+              <p className="text-xs text-muted-foreground">
+                Nur für MHD-pflichtige Produkte relevant
+              </p>
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowBulkEditDialog(false)}>
+              Abbrechen
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* MHD Warning Dialog */}
+      <AlertDialog open={showMhdWarningDialog} onOpenChange={setShowMhdWarningDialog}>
+        <AlertDialogContent data-testid="dialog-mhd-warning">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-500" />
+              MHD-Warnung
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Einige Artikel haben kritische Mindesthaltbarkeitsdaten:
+              <ul className="mt-2 space-y-1">
+                {orderItems
+                  .filter(item => {
+                    if (!item.mhd) return false;
+                    const mhdDate = new Date(item.mhd);
+                    const warningDate = new Date();
+                    warningDate.setDate(warningDate.getDate() + 3);
+                    return isBefore(mhdDate, warningDate);
+                  })
+                  .map(item => (
+                    <li key={item.id} className="text-sm">
+                      <strong>{item.productName}</strong>: MHD {formatDate(item.mhd!)}
+                    </li>
+                  ))}
+              </ul>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setShowMhdWarningDialog(false);
+                receiptMutation.mutate({});
+              }}
+              data-testid="button-confirm-mhd-warning"
+            >
+              Trotzdem fortfahren
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
