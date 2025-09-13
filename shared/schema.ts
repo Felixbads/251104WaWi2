@@ -305,6 +305,15 @@ export type GoodsReceiptBatchCreate = z.infer<typeof goodsReceiptBatchCreateSche
 export type GoodsReceiptInventoryUpdate = z.infer<typeof goodsReceiptInventoryUpdateSchema>;
 export type CompleteGoodsReceipt = z.infer<typeof completeGoodsReceiptSchema>;
 
+// Insert schemas for form usage
+export const insertGoodsReceiptDataSchema = createInsertSchema(goodsReceiptDataSchema).omit({
+  status: true,
+  processedBy: true,
+  processedAt: true,
+});
+
+export type InsertGoodsReceiptData = z.infer<typeof insertGoodsReceiptDataSchema>;
+
 // Schema für historische Synchronisierungsoptionen
 export const historicalSyncOptionsSchema = z.object({
   startDate: z.string().or(z.date()).optional(),
