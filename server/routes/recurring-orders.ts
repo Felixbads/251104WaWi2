@@ -27,8 +27,8 @@ import nodemailer from 'nodemailer';
 
 // Services initialisieren
 const scheduler = new RecurringOrderScheduler();
-const db = new DatabaseStorage();
-const goodsReceiptService = new GoodsReceiptService(db);
+const storage = new DatabaseStorage();
+const goodsReceiptService = new GoodsReceiptService(storage);
 
 // Export scheduler instance für Server-Initialisierung
 export function getRecurringOrderSchedulerInstance() {
@@ -289,11 +289,11 @@ router.post('/test-execution', async (req: Request, res: Response) => {
       // Ausführung protokollieren
       await db.insert(recurringOrderExecutions).values({
         recurringOrderId: order.id,
-        executionDate: new Date(),
+        scheduledDate: new Date().toISOString().split('T')[0], // Date in YYYY-MM-DD format
+        executedAt: new Date(),
         orderId: createdOrder.id,
-        orderNumber: testOrderNumber,
-        status: 'completed',
-        itemsCreated: orderItems.length,
+        status: 'success',
+        executionType: 'manual',
         notes: `Test-Ausführung erfolgreich - Bestellung ${testOrderNumber} erstellt`
       });
 
@@ -368,11 +368,11 @@ router.post('/', async (req: Request, res: Response) => {
 
     // Nächstes Ausführungsdatum berechnen
     const nextExecutionDate = calculateNextExecutionDate(
+      req.body.startDate || new Date().toISOString(),
       interval,
       intervalValue,
       req.body.weekday || 'monday',
-      req.body.dayOfMonth || 1,
-      req.body.startDate ? new Date(req.body.startDate) : new Date()
+      req.body.dayOfMonth || 1
     );
 
     // Wiederkehrende Bestellung erstellen
@@ -648,11 +648,11 @@ router.put('/:id', async (req: Request, res: Response) => {
       body.dayOfMonth !== existingOrder.dayOfMonth
     ) {
       nextExecutionDate = calculateNextExecutionDate(
+        body.startDate || new Date().toISOString(),
         body.interval || 'weekly',
         body.intervalValue || 1,
         body.weekday || 'monday',
-        body.dayOfMonth || 1,
-        body.startDate ? new Date(body.startDate) : new Date()
+        body.dayOfMonth || 1
       );
     }
 
@@ -682,8 +682,8 @@ router.put('/:id', async (req: Request, res: Response) => {
         intervalValue: body.intervalValue || existingOrder.intervalValue,
         weekday: body.weekday || existingOrder.weekday,
         dayOfMonth: body.dayOfMonth || existingOrder.dayOfMonth,
-        startDate: body.startDate ? new Date(body.startDate) : existingOrder.startDate,
-        endDate: body.endDate ? new Date(body.endDate) : existingOrder.endDate,
+        startDate: body.startDate ? body.startDate : existingOrder.startDate,
+        endDate: body.endDate ? body.endDate : existingOrder.endDate,
         nextExecutionDate,
         isActive: body.isActive !== undefined ? body.isActive : existingOrder.isActive,
         priority: body.priority || existingOrder.priority,
