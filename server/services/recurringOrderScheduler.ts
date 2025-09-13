@@ -150,7 +150,7 @@ class RecurringOrderScheduler {
         .innerJoin(recurringOrders, eq(recurringOrderExecutions.recurringOrderId, recurringOrders.id))
         .where(
           and(
-            eq(recurringOrderExecutions.scheduledDate, yesterdayStr),
+            eq(recurringOrderExecutions.executionDate, yesterdayStr),
             eq(recurringOrderExecutions.status, 'pending'),
             eq(recurringOrders.isActive, true)
           )
@@ -184,11 +184,9 @@ class RecurringOrderScheduler {
         .insert(recurringOrderExecutions)
         .values({
           recurringOrderId: recurringOrder.id,
-          scheduledDate: new Date().toISOString().split('T')[0],
-          executedAt: new Date(),
+          executionDate: new Date().toISOString().split('T')[0],
           status: 'pending',
-          executionType,
-          retryCount: executionType === 'retry' ? 1 : 0
+          executionType: executionType === 'retry' ? 'retry' : 'auto'
         })
         .returning();
 

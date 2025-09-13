@@ -3556,46 +3556,17 @@ export type RecurringOrderItem = typeof recurringOrderItems.$inferSelect;
 // Ausführungsprotokoll für wiederkehrende Bestellungen
 export const recurringOrderExecutions = pgTable("recurring_order_executions", {
   id: serial("id").primaryKey(),
-  
-  // Referenzen
   recurringOrderId: integer("recurring_order_id").notNull().references(() => recurringOrders.id),
-  orderId: integer("order_id").references(() => orders.id), // Generierte Bestellung (kann null sein bei Fehlern)
-  
-  // Ausführung
-  scheduledDate: date("scheduled_date").notNull(), // Geplantes Datum der Ausführung
-  executedAt: timestamp("executed_at"), // Tatsächlicher Ausführungszeitpunkt
-  nextScheduledDate: date("next_scheduled_date"), // Nächster geplanter Ausführungstermin
-  
-  // Status
-  status: text("status").notNull().default("pending"), // "pending", "success", "failed", "skipped"
-  executionType: text("execution_type").default("automatic"), // "automatic", "manual", "retry"
-  
-  // Ergebnis
-  success: boolean("success").default(false), // War die Ausführung erfolgreich
-  errorMessage: text("error_message"), // Fehlermeldung bei gescheiterten Ausführungen
-  orderNumber: text("order_number"), // Bestellnummer der generierten Bestellung
-  
-  // Statistiken
-  itemCount: integer("item_count").default(0), // Anzahl der Bestellpositionen
-  totalAmount: real("total_amount").default(0), // Gesamtbetrag der generierten Bestellung
-  
-  // Verarbeitung
-  processingDurationMs: integer("processing_duration_ms"), // Verarbeitungsdauer in Millisekunden
-  retryCount: integer("retry_count").default(0), // Anzahl der Wiederholungsversuche
-  
-  // Metadaten
-  metadata: text("metadata"), // JSON-Metadaten (für erweiterte Informationen)
-  notes: text("notes"), // Notizen zur Ausführung
-  
-  // Audit
+  executionDate: date("execution_date").notNull(),
+  itemsCount: integer("items_count").default(0),
+  status: text("status").default("pending").notNull(),
+  executionType: text("execution_type").default("auto").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
 export const insertRecurringOrderExecutionSchema = createInsertSchema(recurringOrderExecutions).omit({
   id: true,
   createdAt: true,
-  updatedAt: true,
 });
 
 export type InsertRecurringOrderExecution = z.infer<typeof insertRecurringOrderExecutionSchema>;
@@ -3639,10 +3610,7 @@ export const recurringOrderExecutionRelations = relations(recurringOrderExecutio
     fields: [recurringOrderExecutions.recurringOrderId],
     references: [recurringOrders.id],
   }),
-  order: one(orders, {
-    fields: [recurringOrderExecutions.orderId],
-    references: [orders.id],
-  }),
+  // Note: orderId relation removed temporarily as orderId field doesn't exist in table
 }));
 
 // ==========================================

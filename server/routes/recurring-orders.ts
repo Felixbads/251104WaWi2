@@ -64,18 +64,12 @@ router.get('/health', async (req: Request, res: Response) => {
       .orderBy(asc(recurringOrders.nextExecutionDate))
       .limit(5);
 
-    // Letzte Ausführungen abrufen - Use raw SQL to avoid schema mismatch
-    const recentExecutions = await db.execute(sql`
-      SELECT 
-        id, 
-        recurring_order_id as "recurringOrderId", 
-        status, 
-        created_at as "createdAt", 
-        items_count 
-      FROM recurring_order_executions 
-      ORDER BY created_at DESC 
-      LIMIT 5
-    `);
+    // Letzte Ausführungen abrufen
+    const recentExecutions = await db
+      .select()
+      .from(recurringOrderExecutions)
+      .orderBy(desc(recurringOrderExecutions.createdAt))
+      .limit(5);
 
     return res.json({
       success: true,
@@ -96,12 +90,12 @@ router.get('/health', async (req: Request, res: Response) => {
         orderType: order.orderType,
         supplierName: order.supplierName
       })),
-      recentActivity: recentExecutions.rows.map((exec: any) => ({
+      recentActivity: recentExecutions.map((exec: any) => ({
         id: exec.id,
         recurringOrderId: exec.recurringOrderId,
         status: exec.status,
         createdAt: exec.createdAt,
-        executionTime: exec.items_count || 0
+        executionTime: exec.itemsCount || 0
       })),
       timestamp: new Date().toISOString(),
       note: "Scheduler läuft täglich um 6:00 Uhr (Europe/Berlin)"
@@ -764,7 +758,7 @@ router.get('/:id(\\d+)', async (req: Request, res: Response) => {
       .select()
       .from(recurringOrderExecutions)
       .where(eq(recurringOrderExecutions.recurringOrderId, parseInt(id)))
-      .orderBy(desc(recurringOrderExecutions.scheduledDate))
+      .orderBy(desc(recurringOrderExecutions.executionDate))
       .limit(10);
 
     res.json({
@@ -978,7 +972,7 @@ router.get('/:id/executions', async (req: Request, res: Response) => {
       .select()
       .from(recurringOrderExecutions)
       .where(eq(recurringOrderExecutions.recurringOrderId, parseInt(id)))
-      .orderBy(desc(recurringOrderExecutions.scheduledDate))
+      .orderBy(desc(recurringOrderExecutions.executionDate))
       .limit(parseInt(limit as string))
       .offset(parseInt(offset as string));
 
@@ -1073,16 +1067,16 @@ router.get('/dashboard/stats', async (req: Request, res: Response) => {
         id: recurringOrderExecutions.id,
         recurringOrderId: recurringOrderExecutions.recurringOrderId,
         status: recurringOrderExecutions.status,
-        executedAt: recurringOrderExecutions.executedAt,
-        orderNumber: recurringOrderExecutions.orderNumber,
-        totalAmount: recurringOrderExecutions.totalAmount,
-        success: recurringOrderExecutions.success
+        executionDate: recurringOrderExecutions.executionDate,
+        itemsCount: recurringOrderExecutions.itemsCount,
+        executionType: recurringOrderExecutions.executionType,
+        createdAt: recurringOrderExecutions.createdAt
       })
       .from(recurringOrderExecutions)
       .where(
-        gte(recurringOrderExecutions.scheduledDate, lastWeek.toISOString().split('T')[0])
+        gte(recurringOrderExecutions.executionDate, lastWeek.toISOString().split('T')[0])
       )
-      .orderBy(desc(recurringOrderExecutions.executedAt))
+      .orderBy(desc(recurringOrderExecutions.createdAt))
       .limit(10);
 
     res.json({
@@ -1656,10 +1650,10 @@ router.get('/failed-executions', async (req: Request, res: Response) => {
         id: recurringOrderExecutions.id,
         recurringOrderId: recurringOrderExecutions.recurringOrderId,
         recurringOrderName: recurringOrders.name,
-        scheduledDate: recurringOrderExecutions.scheduledDate,
-        executedAt: recurringOrderExecutions.executedAt,
-        errorMessage: recurringOrderExecutions.errorMessage,
-        retryCount: recurringOrderExecutions.retryCount,
+        scheduledDate: recurringOrderExecutions.executionDate,
+        executedAt: recurringOrderExecutions.createdAt,
+        errorMessage: recurringOrderExecutions.status,
+        retryCount: recurringOrderExecutions.itemsCount,
         supplierName: recurringOrders.supplierName,
         warehouseName: recurringOrders.warehouseName
       })
@@ -1667,11 +1661,11 @@ router.get('/failed-executions', async (req: Request, res: Response) => {
       .innerJoin(recurringOrders, eq(recurringOrderExecutions.recurringOrderId, recurringOrders.id))
       .where(
         and(
-          eq(recurringOrderExecutions.success, false),
-          gte(recurringOrderExecutions.scheduledDate, cutoffDate.toISOString().split('T')[0])
+          eq(recurringOrderExecutions.status, false),
+          gte(recurringOrderExecutions.executionDate, cutoffDate.toISOString().split('T')[0])
         )
       )
-      .orderBy(desc(recurringOrderExecutions.scheduledDate))
+      .orderBy(desc(recurringOrderExecutions.executionDate))
       .limit(50);
 
     res.json({
