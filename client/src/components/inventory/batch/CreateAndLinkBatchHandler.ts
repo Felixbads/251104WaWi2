@@ -15,15 +15,20 @@ import { invalidateInventoryCache } from '../../../lib/invalidateInventoryCache'
 
 interface ProductBatch {
   id: number;
-  productId: number;
   batchNumber: string;
+  productId: number;
   warehouseId: number;
-  expiryDate: string | null;
   initialQuantity: number;
   currentQuantity: number;
-  notes?: string | null;
-  createdAt?: string;
+  expiryDate: string | null;
+  manufacturingDate?: string | null;
+  receivedDate?: string | null;
+  notes?: string;
+  productName?: string;
   status?: string;
+  locationInWarehouse?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 interface InventoryCountItem {
@@ -42,7 +47,7 @@ interface CreateAndLinkBatchOptions {
   batchNumber: string;
   expiryDate: string | null;
   quantity?: number;
-  notes?: string | null;
+  notes?: string;
   queryClient: QueryClient;
   toast?: any; // Toast-Typ entfernt wegen fehlender Typdefinition
   onSuccess?: (batch: ProductBatch) => void;
@@ -137,7 +142,7 @@ export async function createAndLinkBatch({
   batchNumber,
   expiryDate,
   quantity = 0,
-  notes = null,
+  notes,
   queryClient,
   toast,
   onSuccess

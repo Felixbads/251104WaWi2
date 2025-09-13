@@ -13556,3 +13556,41 @@ DATA: {
   "machineName": "Berggishübel"
 }
 
+[2025-09-13T09:31:22.665Z] [MovementsAPI] Warenbewegungen für Lager ID 10 abrufen mit neuem Service, Limit: 1000, Offset: 0
+
+[2025-09-13T09:31:22.666Z] [WarehouseMovements] Fetching movements for warehouse ID: 10, limit: 1000, offset: 0
+
+[2025-09-13T09:31:22.666Z] [SQL] Query: getWarehouseMovements
+DATA: {
+  "sql": "\n      SELECT \n        im.id,\n        im.product_id,\n        p.product_name,\n        im.quantity,\n        im.movement_type,\n        im.source_warehouse_id,\n        im.destination_warehouse_id,\n        im.machine_id,\n        im.reference_type,\n        im.reference_id,\n        im.notes,\n        im.performed_at,\n        im.performed_by,\n        im.previous_stock,\n        im.current_stock,\n        m.machine_name\n      FROM \n        inventory_movements im\n      JOIN \n        products p ON im.product_id = p.id\n      LEFT JOIN \n        machines m ON im.machine_id = m.id\n      WHERE \n        (im.source_warehouse_id = $1) OR\n        (im.destination_warehouse_id = $1)\n      ORDER BY \n        im.performed_at DESC\n      LIMIT $2 OFFSET $3\n    ",
+  "params": [
+    10,
+    1000,
+    0
+  ]
+}
+
+[2025-09-13T09:31:23.579Z] [WarehouseMovements] Found 568 movements for warehouse 10
+
+[2025-09-13T09:31:23.579Z] [MovementsAPI] Warenbewegungen für Lager 10 geladen: 568 Einträge gefunden
+
+[2025-09-13T09:31:23.579Z] [MovementsAPI] Beispiel-Eintrag:
+DATA: {
+  "id": 1019,
+  "productId": 34,
+  "productName": "Nationalpark-Knacker Paar ([Wild] Fleischerei Dünnebier, Bad Schandau)",
+  "quantity": -1,
+  "movementType": "REFILL",
+  "sourceWarehouseId": 10,
+  "destinationWarehouseId": null,
+  "machineId": 12,
+  "referenceType": "refill",
+  "referenceId": "1963",
+  "notes": "Refill-Entnahme: 1 Nationalpark-Knacker Paar ([Wild] Fleischerei Dünnebier, Bad Schandau) für Automat Berggishübel (Befüller: Armand Mathy)",
+  "performedAt": "2025-08-29T13:57:52.000Z",
+  "performedBy": null,
+  "previousStock": null,
+  "currentStock": null,
+  "machineName": "Berggishübel"
+}
+

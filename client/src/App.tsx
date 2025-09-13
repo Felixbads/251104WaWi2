@@ -510,22 +510,28 @@ function AuthenticatedRouter() {
 
         {/* Inventur-Detailseite */}
         <Route path="/inventur/:id">
-          <ApprovedUserRoute>
-            <InventurDetailSimplePage />
-          </ApprovedUserRoute>
+          {(params) => (
+            <ApprovedUserRoute>
+              <InventurDetailSimplePage params={params} />
+            </ApprovedUserRoute>
+          )}
         </Route>
         
         <Route path="/inventur/:id/complex">
-          <ApprovedUserRoute>
-            <InventurDetailNewPage />
-          </ApprovedUserRoute>
+          {(params) => (
+            <ApprovedUserRoute>
+              <InventurDetailNewPage params={params} />
+            </ApprovedUserRoute>
+          )}
         </Route>
 
         {/* Neue verbesserte Inventur-Detailseite - VEREINFACHT! */}
         <Route path="/inventur-detail/:id">
-          <ApprovedUserRoute>
-            <InventurDetailSimplePage />
-          </ApprovedUserRoute>
+          {(params) => (
+            <ApprovedUserRoute>
+              <InventurDetailSimplePage params={params} />
+            </ApprovedUserRoute>
+          )}
         </Route>
 
         {/* Nur Admin kann die Auswertungsseite sehen */}
@@ -559,11 +565,11 @@ function AuthenticatedRouter() {
           </ApprovedUserRoute>
         </Route>
 
-        <Route path="/umsatz-ergebnis-uebersicht" component={props => (
+        <Route path="/umsatz-ergebnis-uebersicht">
           <ApprovedUserRoute>
-            <UmsatzErgebnisUebersicht {...props} />
+            <UmsatzErgebnisUebersicht />
           </ApprovedUserRoute>
-        )} />
+        </Route>
 
         <Route path="/wirtschaftlichkeit-alt">
           <ApprovedUserRoute>
@@ -757,11 +763,11 @@ function AuthenticatedRouter() {
         </Route>
 
         {/* Umsatz- und Ergebnisübersicht */}
-        <Route path="/umsatz-ergebnis-uebersicht" component={props => (
+        <Route path="/umsatz-ergebnis-uebersicht">
           <ApprovedUserRoute>
-            <UmsatzErgebnisUebersicht {...props} />
+            <UmsatzErgebnisUebersicht />
           </ApprovedUserRoute>
-        )} />
+        </Route>
 
         {/* Supplier Portal Route entfernt - bereits oben registriert */}
 

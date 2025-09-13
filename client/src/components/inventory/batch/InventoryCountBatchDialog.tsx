@@ -33,13 +33,20 @@ import { Badge } from '@/components/ui/badge';
 
 interface ProductBatch {
   id: number;
-  productId: number;
   batchNumber: string;
-  expiryDate: string | null;
-  createdAt?: string;
-  currentQuantity: number;
+  productId: number;
   warehouseId: number;
+  initialQuantity: number;
+  currentQuantity: number;
+  expiryDate: string | null;
+  manufacturingDate?: string | null;
+  receivedDate?: string | null;
+  notes?: string;
+  productName?: string;
   status?: string;
+  locationInWarehouse?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 interface InventoryCountItem {

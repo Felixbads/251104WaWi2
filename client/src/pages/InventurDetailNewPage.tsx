@@ -74,7 +74,7 @@ interface ProductBatch {
   expiryDate: string | null;
   manufacturingDate?: string | null;
   receivedDate?: string | null;
-  notes?: string | null;
+  notes?: string;
   productName?: string;
   status?: string;
   locationInWarehouse?: string;
@@ -335,6 +335,17 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
     }
   }, [editedCounts, editedNotes, packageCounts, individualCounts, localStorageKey]);
   
+  // Lade Inventurdaten - muss vor useEffect stehen, der inventurData verwendet
+  const { 
+    data: inventurData,
+    isLoading: isLoadingInventur,
+    refetch: refetchInventur
+  } = useQuery<InventoryCount>({
+    queryKey: [`/api/inventory-counts/${id}`],
+    staleTime: 10 * 1000,
+    enabled: !!id
+  });
+
   // Load product batches when items are expanded
   useEffect(() => {
     if (!inventurData?.items) return;
@@ -353,17 +364,6 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
       }
     });
   }, [expandedItems, inventurData?.items, productBatches]);
-
-  // Lade Inventurdaten
-  const { 
-    data: inventurData,
-    isLoading: isLoadingInventur,
-    refetch: refetchInventur
-  } = useQuery<InventoryCount>({
-    queryKey: [`/api/inventory-counts/${id}`],
-    staleTime: 10 * 1000,
-    enabled: !!id
-  });
 
   // Lade Lagerdaten
   const {
