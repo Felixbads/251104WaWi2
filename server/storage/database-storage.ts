@@ -92,11 +92,57 @@ function mapMachineSchemaToInterface(dbMachine: Machine): IMachine {
   };
 }
 
+function mapSupplierSchemaToInterface(dbSupplier: Supplier): import('../storage').Supplier {
+  return {
+    id: dbSupplier.id,
+    name: dbSupplier.name,
+    contactPerson: dbSupplier.contactPerson || undefined,
+    email: dbSupplier.email || undefined,
+    phone: dbSupplier.phone || undefined,
+    address: dbSupplier.address || undefined,
+    city: dbSupplier.city || undefined,
+    postalCode: dbSupplier.postalCode || undefined,
+    country: dbSupplier.country || undefined,
+    notes: dbSupplier.notes || undefined,
+    isActive: dbSupplier.status === 'active',
+    createdAt: dbSupplier.createdAt || undefined,
+    updatedAt: dbSupplier.updatedAt || undefined,
+    showPricesInOrders: dbSupplier.showPricesInOrders || false
+  };
+}
+
+function mapPurchaseConditionSchemaToInterface(dbCondition: PurchaseCondition): import('../storage').PurchaseCondition {
+  return {
+    id: dbCondition.id,
+    supplierId: dbCondition.supplierId,
+    productId: dbCondition.productId || undefined,
+    packageTypeId: dbCondition.packagingQuantity || undefined,
+    unitPrice: dbCondition.unitPrice,
+    currency: 'EUR', // Default currency since not stored in current schema
+    minQuantity: dbCondition.minQuantity || undefined,
+    maxQuantity: undefined, // Not available in current schema
+    validFrom: dbCondition.validFrom || undefined,
+    validUntil: dbCondition.validTo || undefined,
+    leadTime: dbCondition.leadTime || undefined,
+    paymentTerms: undefined, // Not available in current schema
+    discountType: undefined, // Not available in current schema  
+    discountValue: undefined, // Not available in current schema
+    depositPerUnit: dbCondition.depositPerUnit || undefined,
+    minQuantityUnit: dbCondition.minQuantityUnit || undefined,
+    isActive: true, // Default to active since not stored in current schema
+    notes: dbCondition.notes || undefined,
+    createdAt: dbCondition.createdAt || undefined,
+    updatedAt: dbCondition.updatedAt || undefined
+  };
+}
+
 /**
  * DatabaseStorage class that implements the IStorage interface
  * with PostgreSQL using the Neon database connection
  */
 export class DatabaseStorage implements IStorage {
+  // Expose drizzle instance for services that need direct access
+  public readonly drizzle = db;
   /**
    * Execute a raw SQL query
    */

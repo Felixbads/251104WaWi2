@@ -5,7 +5,7 @@
  * mit MHD-Integration und Lagerbestandsführung
  */
 
-import { DatabaseClient } from '../storage/database-storage';
+import { DatabaseStorage } from '../storage/database-storage';
 import { orders, orderItems, inventoryBatches, inventoryItems } from '../../shared/schema';
 import { eq, and } from 'drizzle-orm';
 import { v4 as uuidv4 } from 'uuid';
@@ -41,10 +41,10 @@ interface GoodsReceiptWithDocuments {
 }
 
 class GoodsReceiptService {
-  private db: DatabaseClient;
+  private db: DatabaseStorage;
   private deliveryNoteService: DeliveryNoteUploadService;
 
-  constructor(db: DatabaseClient) {
+  constructor(db: DatabaseStorage) {
     this.db = db;
     this.deliveryNoteService = new DeliveryNoteUploadService(db);
   }

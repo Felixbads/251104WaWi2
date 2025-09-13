@@ -17,7 +17,7 @@ export const pool = new Pool({
   min: 1, // Keep minimum connections alive
   idleTimeoutMillis: 60000, // 60 seconds idle timeout
   connectionTimeoutMillis: 20000, // 20 seconds connection timeout (increased for Neon)
-  acquireTimeoutMillis: 30000, // 30 seconds acquire timeout
+  // Note: acquireTimeoutMillis is not a valid PoolConfig property - removed
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
   // Additional Neon-specific optimizations
   keepAlive: true,
