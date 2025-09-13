@@ -149,7 +149,7 @@ router.post('/:orderId/send-email', async (req: Request, res: Response) => {
     
     // Configure SMTP transporter
     const nodemailer = require('nodemailer');
-    const transporter = nodemailer.createTransporter({
+    const transporter = nodemailer.createTransport({
       host: process.env.SMTP_HOST || 'mail.proviantomat.de',
       port: parseInt(process.env.SMTP_PORT || '587'),
       secure: false,

@@ -8,6 +8,9 @@ import multer from 'multer';
 import { DatabaseStorage } from '../storage/database-storage';
 import GoodsReceiptService from '../services/goodsReceiptService';
 import DeliveryNoteUploadService from '../services/deliveryNoteUploadService';
+import { goodsReceiptDataSchema } from '../../shared/schema';
+import { orders, orderItems } from '../../shared/schema';
+import { eq } from 'drizzle-orm';
 
 const router = Router();
 
@@ -248,6 +251,140 @@ router.delete('/delivery-notes/:noteId', async (req: Request, res: Response) => 
 });
 
 /**
+ * POST /api/goods-receipt/:orderId/process
+ * Einfacher Wareneingang ohne Dokumente - mit korrekter Per-Item-Verarbeitung
+ */
+router.post('/:orderId/process', async (req: Request, res: Response) => {
+  try {
+    const orderId = parseInt(req.params.orderId);
+    
+    if (isNaN(orderId)) {
+      return sendError(res, 400, 'Ungültige Bestell-ID');
+    }
+
+    // Parse und validiere Wareneingang-Daten
+    let goodsReceiptData;
+    
+    if (req.body.goodsReceiptData) {
+      try {
+        const parsedData = JSON.parse(req.body.goodsReceiptData);
+        goodsReceiptData = goodsReceiptDataSchema.parse(parsedData);
+      } catch (error) {
+        console.error('[GOODS_RECEIPT] Error parsing/validating goodsReceiptData:', error);
+        return sendError(res, 400, `Ungültige Wareneingang-Daten: ${error instanceof Error ? error.message : 'Validation failed'}`);
+      }
+    } else {
+      // Legacy format support
+      try {
+        goodsReceiptData = goodsReceiptDataSchema.parse({
+          items: req.body.items || [],
+          notes: req.body.receiptNote || req.body.notes || ''
+        });
+      } catch (error) {
+        console.error('[GOODS_RECEIPT] Error validating legacy format:', error);
+        return sendError(res, 400, `Ungültige Wareneingang-Daten: ${error instanceof Error ? error.message : 'Validation failed'}`);
+      }
+    }
+
+    if (goodsReceiptData.items.length === 0) {
+      return sendError(res, 400, 'Keine Wareneingang-Items angegeben');
+    }
+
+    console.log(`📦 Wareneingang für Bestellung ${orderId} - verarbeite ${goodsReceiptData.items.length} Items`);
+
+    const db = new DatabaseStorage();
+    
+    // Verwende Transaktion für konsistente Updates
+    const result = await db.drizzle.transaction(async (tx) => {
+      // 1. Hole aktuelle Bestelldaten zur Validierung
+      const [order] = await tx
+        .select()
+        .from(orders)
+        .where(eq(orders.id, orderId));
+
+      if (!order) {
+        throw new Error(`Bestellung ${orderId} nicht gefunden`);
+      }
+
+      // 2. Validiere alle orderItemIds existieren in dieser Bestellung
+      const orderItemIds = goodsReceiptData.items.map(item => item.orderItemId);
+      const existingItems = await tx
+        .select({ id: orderItems.id, quantity: orderItems.quantity })
+        .from(orderItems)
+        .where(
+          eq(orderItems.orderId, orderId)
+        );
+
+      const existingItemIds = existingItems.map(item => item.id);
+      const invalidItemIds = orderItemIds.filter(id => !existingItemIds.includes(id));
+      
+      if (invalidItemIds.length > 0) {
+        throw new Error(`Ungültige orderItemIds für Bestellung ${orderId}: ${invalidItemIds.join(', ')}`);
+      }
+
+      let itemsProcessed = 0;
+      let allItemsComplete = true;
+
+      // 3. Update jedes Item INDIVIDUELL mit seinen eigenen Daten
+      for (const item of goodsReceiptData.items) {
+        if (item.quantityReceived < 0) {
+          console.warn(`⚠️ Negative Menge für Item ${item.orderItemId}: ${item.quantityReceived}`);
+          continue;
+        }
+
+        // Status basierend auf Mengenvergleich
+        const itemStatus = item.quantityReceived >= item.quantityOrdered ? 'completed' : 'partial';
+        
+        if (itemStatus !== 'completed') {
+          allItemsComplete = false;
+        }
+
+        await tx
+          .update(orderItems)
+          .set({ 
+            status: itemStatus,
+            quantityDelivered: item.quantityReceived
+          })
+          .where(eq(orderItems.id, item.orderItemId));
+
+        itemsProcessed++;
+        console.log(`✅ Item ${item.orderItemId}: ${item.quantityReceived}/${item.quantityOrdered} (${itemStatus})`);
+      }
+
+      // 4. Update Bestellstatus basierend auf Items
+      const orderStatus = allItemsComplete ? 'received' : 'partially_received';
+      
+      await tx
+        .update(orders)
+        .set({ 
+          status: orderStatus,
+          actualDeliveryDate: new Date()
+        })
+        .where(eq(orders.id, orderId));
+
+      return {
+        success: true,
+        orderId: orderId,
+        orderNumber: order.orderNumber || `ORDER-${orderId}`,
+        itemsProcessed,
+        batchesCreated: 0, // Simple mode - keine Batches
+        totalValue: 0, // Simple mode - kein Warenwert
+        allItemsComplete,
+        orderStatus,
+        message: `Wareneingang erfolgreich verarbeitet (${itemsProcessed} Items, Status: ${orderStatus})`
+      };
+    });
+    
+    console.log(`✅ Wareneingang für Bestellung ${orderId} erfolgreich - ${result.itemsProcessed} Items verarbeitet`);
+    sendSuccess(res, result, 'Wareneingang erfolgreich verarbeitet');
+    
+  } catch (error) {
+    console.error('[GOODS_RECEIPT_API] Process error:', error);
+    sendError(res, 500, `Serverfehler bei der Verarbeitung: ${error instanceof Error ? error.message : 'Unbekannter Fehler'}`);
+  }
+});
+
+/**
  * POST /api/goods-receipt/:orderId/process-with-documents
  * Wareneingang mit Lieferscheinen verarbeiten
  */
@@ -262,8 +399,24 @@ router.post('/:orderId/process-with-documents', upload.array('deliveryNotes', 5)
     const files = req.files as Express.Multer.File[] || [];
     
     // Wareneingang-Items aus Request Body parsen
-    const goodsReceiptItems = JSON.parse(req.body.items || '[]');
-    const receiptNote = req.body.receiptNote || '';
+    // Frontend sendet goodsReceiptData als JSON string
+    let goodsReceiptItems = [];
+    let receiptNote = '';
+    
+    if (req.body.goodsReceiptData) {
+      try {
+        const goodsReceiptData = JSON.parse(req.body.goodsReceiptData);
+        goodsReceiptItems = goodsReceiptData.items || [];
+        receiptNote = goodsReceiptData.notes || '';
+      } catch (error) {
+        console.error('[GOODS_RECEIPT] Error parsing goodsReceiptData:', error);
+        return sendError(res, 400, 'Ungültige Wareneingang-Daten');
+      }
+    } else {
+      // Fallback für direktes Format
+      goodsReceiptItems = JSON.parse(req.body.items || '[]');
+      receiptNote = req.body.receiptNote || '';
+    }
     
     // Metadaten für Lieferscheine
     const metadata = {

@@ -37,6 +37,150 @@ export function getRecurringOrderSchedulerInstance() {
 
 const router = Router();
 
+// ================================ HEALTH CHECK ENDPOINTS ================================
+
+// GET /api/recurring-orders/health - Scheduler Status und Health
+router.get('/health', async (req: Request, res: Response) => {
+  try {
+    const schedulerStatus = scheduler.getStatus();
+    
+    // Anzahl der aktiven wiederkehrenden Bestellungen abrufen
+    const activeOrdersCount = await db
+      .select({ count: sql`count(*)` })
+      .from(recurringOrders)
+      .where(eq(recurringOrders.isActive, true));
+    
+    // Nächste fällige Bestellungen abrufen
+    const today = new Date().toISOString().split('T')[0];
+    const nextDueOrders = await db
+      .select()
+      .from(recurringOrders)
+      .where(
+        and(
+          eq(recurringOrders.isActive, true),
+          gte(recurringOrders.nextExecutionDate, today)
+        )
+      )
+      .orderBy(asc(recurringOrders.nextExecutionDate))
+      .limit(5);
+
+    // Letzte Ausführungen abrufen - Use raw SQL to avoid schema mismatch
+    const recentExecutions = await db.execute(sql`
+      SELECT 
+        id, 
+        recurring_order_id as "recurringOrderId", 
+        status, 
+        created_at as "createdAt", 
+        items_count 
+      FROM recurring_order_executions 
+      ORDER BY created_at DESC 
+      LIMIT 5
+    `);
+
+    return res.json({
+      success: true,
+      scheduler: {
+        ...schedulerStatus,
+        uptime: process.uptime(),
+        pid: process.pid
+      },
+      statistics: {
+        activeOrders: parseInt(activeOrdersCount[0]?.count?.toString() || '0'),
+        nextDueOrders: nextDueOrders.length,
+        recentExecutions: recentExecutions.length
+      },
+      nextScheduled: nextDueOrders.map(order => ({
+        id: order.id,
+        name: order.name,
+        nextExecution: order.nextExecutionDate,
+        orderType: order.orderType,
+        supplierName: order.supplierName
+      })),
+      recentActivity: recentExecutions.rows.map((exec: any) => ({
+        id: exec.id,
+        recurringOrderId: exec.recurringOrderId,
+        status: exec.status,
+        createdAt: exec.createdAt,
+        executionTime: exec.items_count || 0
+      })),
+      timestamp: new Date().toISOString(),
+      note: "Scheduler läuft täglich um 6:00 Uhr (Europe/Berlin)"
+    });
+
+  } catch (error) {
+    console.error('❌ Health Check Fehler:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Health Check fehlgeschlagen',
+      details: error instanceof Error ? error.message : 'Unbekannter Fehler',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// GET /api/recurring-orders/smtp-health - SMTP Connectivity Check
+router.get('/smtp-health', async (req: Request, res: Response) => {
+  try {
+    const smtpConfig = {
+      host: process.env.SMTP_HOST,
+      port: parseInt(process.env.SMTP_PORT || '587'),
+      user: process.env.SMTP_USER,
+      hasPassword: !!process.env.SMTP_PASS,
+      secure: process.env.SMTP_PORT === '465'
+    };
+
+    // SMTP-Verbindung testen ohne E-Mail zu senden
+    const transporter = nodemailer.createTransport({
+      host: smtpConfig.host,
+      port: smtpConfig.port,
+      secure: smtpConfig.secure,
+      auth: {
+        user: smtpConfig.user,
+        pass: process.env.SMTP_PASS
+      },
+      // Timeout für schnellere Fehlerbehandlung
+      connectionTimeout: 10000,
+      greetingTimeout: 5000,
+      socketTimeout: 10000
+    });
+
+    // Verbindung verifizieren
+    await transporter.verify();
+
+    return res.json({
+      success: true,
+      status: 'SMTP connection healthy',
+      config: smtpConfig,
+      connectionTest: 'passed',
+      timestamp: new Date().toISOString(),
+      note: 'SMTP-Server ist erreichbar und Authentication erfolgreich'
+    });
+
+  } catch (smtpError: any) {
+    console.error('❌ SMTP Health Check fehlgeschlagen:', smtpError);
+    
+    return res.status(503).json({
+      success: false,
+      status: 'SMTP connection failed',
+      error: {
+        message: smtpError?.message || 'SMTP-Verbindung fehlgeschlagen',
+        code: smtpError?.code,
+        command: smtpError?.command,
+        response: smtpError?.response
+      },
+      config: {
+        host: process.env.SMTP_HOST,
+        port: process.env.SMTP_PORT,
+        user: process.env.SMTP_USER,
+        hasPassword: !!process.env.SMTP_PASS,
+        secure: process.env.SMTP_PORT === '465'
+      },
+      timestamp: new Date().toISOString(),
+      note: 'SMTP-Konfiguration prüfen oder admin@warenwirtschaft.de kontaktieren'
+    });
+  }
+});
+
 // ================================ TEST-FUNKTIONALITÄTEN ================================
 
 // POST /api/recurring-orders/test-email - Test-E-Mail versenden
@@ -94,7 +238,7 @@ router.post('/test-email', async (req: Request, res: Response) => {
     console.log(`📧 Test-E-Mail würde an ${recipientEmail} gesendet werden:`);
     console.log(testEmailContent);
 
-    // ECHTER E-MAIL-SERVICE IMPLEMENTIERT
+    // ECHTER E-MAIL-SERVICE IMPLEMENTIERT - Mit korrektem Error Handling
     try {      
       // SMTP-Transporter konfigurieren
       const transporter = nodemailer.createTransport({
@@ -132,6 +276,19 @@ router.post('/test-email', async (req: Request, res: Response) => {
         response: result.response
       });
       
+      // NUR bei erfolgreichem Versand success=true
+      return res.json({
+        success: true,
+        message: `Test-E-Mail für wiederkehrende Bestellung "${order.name}" wurde erfolgreich an ${recipientEmail} gesendet`,
+        emailContent: testEmailContent,
+        emailResult: {
+          messageId: result.messageId,
+          accepted: result.accepted,
+          rejected: result.rejected
+        },
+        note: "E-Mail wurde über SMTP versandt - prüfen Sie Ihren Posteingang (auch Spam-Ordner)"
+      });
+      
     } catch (emailError: any) {
       console.error('❌ E-Mail-Fehler:', emailError);
       console.error('❌ Fehler-Details:', {
@@ -140,16 +297,27 @@ router.post('/test-email', async (req: Request, res: Response) => {
         command: emailError?.command,
         response: emailError?.response
       });
-      // Fallback auf Console-Log wenn E-Mail fehlschlägt
-      console.log(`📧 E-Mail-Fallback - würde an ${recipientEmail} gesendet werden`);
+      
+      // KORREKT: Bei E-Mail-Fehler 5xx Status mit Details zurückgeben
+      return res.status(500).json({
+        success: false,
+        error: 'E-Mail konnte nicht gesendet werden',
+        details: {
+          message: emailError?.message || 'Unbekannter SMTP-Fehler',
+          code: emailError?.code,
+          command: emailError?.command,
+          response: emailError?.response
+        },
+        smtpConfig: {
+          host: process.env.SMTP_HOST,
+          port: process.env.SMTP_PORT,
+          user: process.env.SMTP_USER,
+          hasPassword: !!process.env.SMTP_PASS,
+          secure: process.env.SMTP_PORT === '465'
+        },
+        note: 'SMTP-Konfiguration prüfen oder admin@warenwirtschaft.de kontaktieren'
+      });
     }
-
-    return res.json({
-      success: true,
-      message: `Test-E-Mail für wiederkehrende Bestellung "${order.name}" wurde erfolgreich an ${recipientEmail} gesendet`,
-      emailContent: testEmailContent,
-      note: "E-Mail wurde über SMTP versandt - prüfen Sie Ihren Posteingang (auch Spam-Ordner)"
-    });
 
   } catch (error) {
     console.error('Fehler beim Versenden der Test-E-Mail:', error);
@@ -288,12 +456,13 @@ router.post('/test-execution', async (req: Request, res: Response) => {
 
       // Ausführung protokollieren
       await db.insert(recurringOrderExecutions).values({
-        recurringOrderId: order.id,
-        scheduledDate: new Date().toISOString().split('T')[0], // Date in YYYY-MM-DD format
-        executedAt: new Date(),
-        orderId: createdOrder.id,
+        recurring_order_id: order.id,
+        execution_date: new Date(), // Use actual column name from database
+        order_id: createdOrder.id,
         status: 'success',
-        executionType: 'manual',
+        execution_type: 'manual',
+        items_count: orderItems.length,
+        total_amount: 0,
         notes: `Test-Ausführung erfolgreich - Bestellung ${testOrderNumber} erstellt`
       });
 
@@ -548,7 +717,8 @@ router.get('/', async (req: Request, res: Response) => {
 });
 
 // GET /api/recurring-orders/:id - Einzelne wiederkehrende Bestellung mit Items abrufen
-router.get('/:id', async (req: Request, res: Response) => {
+// WICHTIG: Diese Route muss nach den spezifischen Routen (/health, /smtp-health, etc.) stehen
+router.get('/:id(\\d+)', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     
@@ -647,13 +817,14 @@ router.put('/:id', async (req: Request, res: Response) => {
       body.weekday !== existingOrder.weekday ||
       body.dayOfMonth !== existingOrder.dayOfMonth
     ) {
-      nextExecutionDate = calculateNextExecutionDate(
+      const calculatedDate = calculateNextExecutionDate(
         body.startDate || new Date().toISOString(),
         body.interval || 'weekly',
         body.intervalValue || 1,
         body.weekday || 'monday',
         body.dayOfMonth || 1
       );
+      nextExecutionDate = typeof calculatedDate === 'string' ? calculatedDate : calculatedDate.toISOString().split('T')[0];
     }
 
     // Lieferanten- und Lager-Namen aktualisieren
@@ -1307,7 +1478,7 @@ router.post('/test-forecast', async (req: Request, res: Response) => {
     console.log(`🔮 Prognose-Test für ${productIds.length} ausgewählte Produkte:`, productIds);
 
     // Lade Produktdaten für bessere Ausgabe
-    const products = await db
+    const productData = await db
       .select({ id: products.id, name: products.name })
       .from(products)
       .where(sql`id = ANY(${productIds})`);
@@ -1315,7 +1486,7 @@ router.post('/test-forecast', async (req: Request, res: Response) => {
     // Simuliere Prognose-Berechnung (vereinfacht)
     const forecastResults = [];
     for (const productId of productIds) {
-      const product = products.find(p => p.id === productId);
+      const product = productData.find((p: any) => p.id === productId);
       
       // Hole historische Verkaufsdaten
       const historicalData = await db.execute(sql`
@@ -1424,7 +1595,7 @@ router.post('/test-execution', async (req: Request, res: Response) => {
     });
 
     simulatedOrder.totalAmount = totalAmount;
-    simulatedOrder.items = processedItems;
+    simulatedOrder.items = processedItems as any;
 
     // Prognose-Integration testen wenn aktiviert
     let forecastInfo = null;

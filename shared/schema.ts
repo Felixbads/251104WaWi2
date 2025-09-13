@@ -73,6 +73,26 @@ export const insertVendonWatermarkSchema = createInsertSchema(vendonWatermarks).
 export type InsertVendonWatermark = z.infer<typeof insertVendonWatermarkSchema>;
 export type VendonWatermark = typeof vendonWatermarks.$inferSelect;
 
+// Goods Receipt Validation Schemas
+export const goodsReceiptItemSchema = z.object({
+  orderItemId: z.number(),
+  productId: z.number(),
+  productName: z.string(),
+  quantityOrdered: z.number(),
+  quantityReceived: z.number().min(0),
+  expiryDate: z.string().optional(),
+  batchNumber: z.string().optional(),
+  notes: z.string().optional()
+});
+
+export const goodsReceiptDataSchema = z.object({
+  items: z.array(goodsReceiptItemSchema).min(1, "At least one item is required"),
+  notes: z.string().optional()
+});
+
+export type GoodsReceiptItem = z.infer<typeof goodsReceiptItemSchema>;
+export type GoodsReceiptData = z.infer<typeof goodsReceiptDataSchema>;
+
 // Schema für historische Synchronisierungsoptionen
 export const historicalSyncOptionsSchema = z.object({
   startDate: z.string().or(z.date()).optional(),

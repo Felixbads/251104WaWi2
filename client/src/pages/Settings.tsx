@@ -10,17 +10,19 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { 
   AlertCircle, Save, RefreshCw, Database, Key, 
-  Bell, User, Clock, Shield, Cog, Mail
+  Bell, User, Clock, Shield, Cog, Mail, Menu
 } from "lucide-react";
 import DatabaseViewer from "@/components/settings/DatabaseViewer";
 import DatabaseManager from "@/pages/DatabaseManager";
 import EmailNotificationsSettings from "@/components/email/EmailNotificationsSettings";
+import MobileMenu from "@/components/layout/MobileMenu";
 import { useToast } from "@/hooks/use-toast";
 
 export default function Settings() {
   const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
   const [activeTab, setActiveTab] = useState("api");
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
   
   // API Connection Settings (these would normally come from API/storage)
   const [apiSettings, setApiSettings] = useState({
@@ -132,12 +134,32 @@ export default function Settings() {
     }, 2000);
   };
 
+  // Handle mobile menu toggle
+  const toggleMobileMenu = () => {
+    setShowMobileMenu(!showMobileMenu);
+  };
+
   return (
     <div className="space-y-6">
+      {/* Mobile Menu Overlay */}
+      <MobileMenu
+        isOpen={showMobileMenu}
+        onClose={toggleMobileMenu}
+      />
+
       {/* Einheitliche Filter- und Aktionsleiste */}
       <div className="w-full flex flex-col md:flex-row gap-3 mb-6">
-        {/* Linke Seite: Nichts oder Titel */}
+        {/* Linke Seite: Mobile Menu Button + Titel */}
         <div className="flex-grow flex items-center">
+          {/* Mobile Menu Button - nur auf mobile sichtbar */}
+          <button
+            onClick={toggleMobileMenu}
+            className="md:hidden p-2 rounded-lg text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800 transition-colors duration-200 mr-3 min-h-[44px] min-w-[44px] flex items-center justify-center"
+            data-testid="button-mobile-menu"
+            aria-label="Menü öffnen"
+          >
+            <Menu className="h-6 w-6" />
+          </button>
           <h1 className="text-xl font-semibold">Einstellungen</h1>
         </div>
         
