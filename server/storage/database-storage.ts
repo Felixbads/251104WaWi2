@@ -35,7 +35,62 @@ import {
   pagePermissions, type PagePermission, type InsertPagePermission,
   machineDailyStats, type MachineDailyStats, type InsertMachineDailyStats
 } from "@shared/schema";
-import { IStorage } from "../storage";
+import { IStorage, User as IUser, MachineDailyStats as IMachineDailyStats, Machine as IMachine } from "../storage";
+
+// Type mapping functions to transform database schema types to interface types
+function mapUserSchemaToInterface(dbUser: User): IUser {
+  return {
+    id: dbUser.id,
+    username: dbUser.username,
+    email: dbUser.email || '',
+    role: dbUser.role || '',
+    isApproved: dbUser.approved || false,
+    createdAt: dbUser.createdAt || new Date(),
+    lastLoginAt: undefined
+  };
+}
+
+function mapMachineStatsSchemaToInterface(dbStats: MachineDailyStats): IMachineDailyStats {
+  return {
+    todayTransactions: dbStats.todayTransactions || 0,
+    todayRevenue: dbStats.todayRevenue || 0,
+    lastSale: dbStats.lastSaleDatetime ? {
+      datetime: dbStats.lastSaleDatetime instanceof Date ? dbStats.lastSaleDatetime.toISOString() : dbStats.lastSaleDatetime,
+      productName: dbStats.lastSaleProductName || undefined,
+      amount: dbStats.lastSaleAmount || undefined
+    } : null,
+    lastCashlessSale: dbStats.lastCashlessSaleDatetime ? {
+      datetime: dbStats.lastCashlessSaleDatetime instanceof Date ? dbStats.lastCashlessSaleDatetime.toISOString() : dbStats.lastCashlessSaleDatetime,
+      productName: dbStats.lastCashlessSaleProductName || undefined,
+      amount: dbStats.lastCashlessSaleAmount || undefined
+    } : null,
+    lastAlcoholSale: dbStats.lastAlcoholSaleDatetime ? {
+      datetime: dbStats.lastAlcoholSaleDatetime instanceof Date ? dbStats.lastAlcoholSaleDatetime.toISOString() : dbStats.lastAlcoholSaleDatetime,
+      productName: dbStats.lastAlcoholSaleProductName || undefined,
+      amount: undefined // No amount field in schema for alcohol sales
+    } : null,
+    alcoholSales: {
+      today: dbStats.alcoholTransactions || 0,
+      weekAvg: dbStats.weeklyAvgTransactions || 0,
+      monthAvg: dbStats.monthlyAvgTransactions || 0
+    }
+  };
+}
+
+function mapMachineSchemaToInterface(dbMachine: Machine): IMachine {
+  return {
+    id: dbMachine.id,
+    vendonId: dbMachine.vendonId,
+    name: dbMachine.machineName,
+    location: dbMachine.locationId ? `Location ${dbMachine.locationId}` : undefined,
+    warehouseId: undefined, // Not available in current schema
+    isActive: dbMachine.status === 'active',
+    lastMaintenance: undefined, // Not available in current schema
+    notes: dbMachine.description || undefined,
+    createdAt: dbMachine.createdAt || undefined,
+    updatedAt: dbMachine.updatedAt || undefined
+  };
+}
 
 /**
  * DatabaseStorage class that implements the IStorage interface
@@ -153,58 +208,77 @@ export class DatabaseStorage implements IStorage {
   }
 
   // User operations
-  async getUserById(id: number): Promise<User | undefined> {
+  async getUserById(id: number): Promise<IUser | undefined> {
     const [user] = await db.select().from(users).where(eq(users.id, id));
-    return user;
+    return user ? mapUserSchemaToInterface(user) : undefined;
   }
 
-  async getUser(id: number): Promise<User | undefined> {
+  async getUser(id: number): Promise<IUser | undefined> {
     return this.getUserById(id);
   }
 
-  async getUserByUsername(username: string): Promise<User | undefined> {
+  async getUserByUsername(username: string): Promise<IUser | undefined> {
     const [user] = await db.select().from(users).where(eq(users.username, username));
-    return user;
+    return user ? mapUserSchemaToInterface(user) : undefined;
   }
 
-  async getUserByEmail(email: string): Promise<User | undefined> {
+  async getUserByEmail(email: string): Promise<IUser | undefined> {
     const [user] = await db.select().from(users).where(eq(users.email, email));
-    return user;
+    return user ? mapUserSchemaToInterface(user) : undefined;
   }
 
-  async createUser(insertUser: InsertUser): Promise<User> {
-    const [user] = await db.insert(users).values(insertUser).returning();
-    return user;
+  async createUser(user: Omit<IUser, 'id' | 'createdAt' | 'lastLoginAt'>): Promise<IUser> {
+    const insertUser: InsertUser = {
+      username: user.username,
+      email: user.email || null,
+      password: '', // This will need to be set by the caller
+      role: user.role || null
+    };
+    
+    // Insert user with basic data, then update approved status if needed
+    const [newUser] = await db.insert(users).values(insertUser).returning();
+    
+    // If approved status needs to be set, update it separately
+    if (user.isApproved) {
+      await db.update(users)
+        .set({ approved: user.isApproved })
+        .where(eq(users.id, newUser.id));
+      newUser.approved = user.isApproved;
+    }
+    
+    return mapUserSchemaToInterface(newUser);
   }
 
-  async getUsers(): Promise<User[]> {
-    return await db.select({
-      id: users.id,
-      username: users.username,
-      email: users.email,
-      password: users.password,
-      role: users.role,
-      approved: users.approved,
-      approvedBy: users.approvedBy,
-      approvedAt: users.approvedAt,
-      createdAt: users.createdAt,
-      updatedAt: users.updatedAt
-    }).from(users).orderBy(desc(users.createdAt));
+  async getUsers(): Promise<IUser[]> {
+    const dbUsers = await db.select().from(users).orderBy(desc(users.createdAt));
+    return dbUsers.map(mapUserSchemaToInterface);
   }
 
-  async listUsers(): Promise<User[]> {
+  async listUsers(): Promise<IUser[]> {
     return this.getUsers();
   }
 
-  async updateUser(id: number, updateData: Partial<InsertUser>): Promise<User | undefined> {
-    const [user] = await db.update(users)
+  async updateUser(id: number, updates: Partial<IUser>): Promise<IUser> {
+    // Transform interface updates to database schema updates
+    const updateData: any = {};
+    if (updates.username !== undefined) updateData.username = updates.username;
+    if (updates.email !== undefined) updateData.email = updates.email;
+    if (updates.role !== undefined) updateData.role = updates.role;
+    if (updates.isApproved !== undefined) updateData.approved = updates.isApproved;
+    
+    const [updatedUser] = await db.update(users)
       .set({
         ...updateData,
         updatedAt: new Date()
       })
       .where(eq(users.id, id))
       .returning();
-    return user;
+    
+    if (!updatedUser) {
+      throw new Error(`User with ID ${id} not found`);
+    }
+    
+    return mapUserSchemaToInterface(updatedUser);
   }
 
   async deleteUser(id: number): Promise<void> {
@@ -259,8 +333,7 @@ export class DatabaseStorage implements IStorage {
     const [updatedLog] = await db
       .update(syncLogs)
       .set({
-        ...updateData,
-        updatedAt: new Date()
+        ...updateData
       })
       .where(eq(syncLogs.id, id))
       .returning();
@@ -273,27 +346,40 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getSyncLogs(options?: { limit?: number; offset?: number; syncType?: string; syncStatus?: string }): Promise<SyncLog[]> {
-    let query = db.select().from(syncLogs);
-    
-    if (options?.syncType) {
-      query = query.where(eq(syncLogs.syncType, options.syncType));
+    try {
+      // Build query step by step to avoid Drizzle type issues
+      const baseQuery = db.select().from(syncLogs);
+      
+      // Apply filters if provided
+      let finalQuery = baseQuery;
+      
+      if (options?.syncType && options?.syncStatus) {
+        finalQuery = baseQuery.where(and(
+          eq(syncLogs.syncType, options.syncType),
+          eq(syncLogs.syncStatus, options.syncStatus)
+        ));
+      } else if (options?.syncType) {
+        finalQuery = baseQuery.where(eq(syncLogs.syncType, options.syncType));
+      } else if (options?.syncStatus) {
+        finalQuery = baseQuery.where(eq(syncLogs.syncStatus, options.syncStatus));
+      }
+      
+      // Apply ordering and pagination
+      finalQuery = finalQuery.orderBy(desc(syncLogs.startDate));
+      
+      if (options?.limit) {
+        finalQuery = finalQuery.limit(options.limit);
+      }
+      
+      if (options?.offset) {
+        finalQuery = finalQuery.offset(options.offset);
+      }
+      
+      return await finalQuery;
+    } catch (error) {
+      console.error("Error fetching sync logs:", error);
+      return [];
     }
-    
-    if (options?.syncStatus) {
-      query = query.where(eq(syncLogs.syncStatus, options.syncStatus));
-    }
-    
-    query = query.orderBy(desc(syncLogs.startDate));
-    
-    if (options?.limit) {
-      query = query.limit(options.limit);
-    }
-    
-    if (options?.offset) {
-      query = query.offset(options.offset);
-    }
-    
-    return await query;
   }
 
   // Weather related operations
@@ -459,7 +545,7 @@ export class DatabaseStorage implements IStorage {
 
 
   // Persistent Machine Daily Stats methods for efficient KPI display
-  async getMachineDailyStats(machineId: number, date?: string): Promise<MachineDailyStats | null> {
+  async getMachineDailyStats(machineId: number, date?: string): Promise<IMachineDailyStats | null> {
     try {
       const targetDate = date || new Date().toISOString().split('T')[0];
       
@@ -477,14 +563,14 @@ export class DatabaseStorage implements IStorage {
         return await this.calculateAndStoreDailyStats(machineId, targetDate);
       }
       
-      return result[0];
+      return mapMachineStatsSchemaToInterface(result[0]);
     } catch (error) {
       console.error("Error fetching machine daily stats:", error);
       return null;
     }
   }
 
-  async getBulkMachineDailyStats(machineIds: number[], date?: string): Promise<MachineDailyStats[]> {
+  async getBulkMachineDailyStats(machineIds: number[], date?: string): Promise<IMachineDailyStats[]> {
     try {
       const targetDate = date || new Date().toISOString().split('T')[0];
       
@@ -503,18 +589,65 @@ export class DatabaseStorage implements IStorage {
       for (const machineId of missingMachineIds) {
         const calculated = await this.calculateAndStoreDailyStats(machineId, targetDate);
         if (calculated) {
-          result.push(calculated);
+          // Add the calculated stats as interface type
+          const statsToAdd = {
+            ...calculated,
+            machineId, // Ensure we have machineId since calculated may be interface type
+            date: targetDate // Ensure date field for mapping
+          };
+          // We need to construct a database record to add to result
+          const fakeDbRecord: MachineDailyStats = {
+            id: 0,
+            machineId,
+            date: targetDate,
+            todayTransactions: calculated.todayTransactions,
+            todayRevenue: calculated.todayRevenue,
+            todayProfit: 0,
+            lastSaleDatetime: calculated.lastSale?.datetime ? new Date(calculated.lastSale.datetime) : null,
+            lastSaleProductName: calculated.lastSale?.productName || null,
+            lastSaleAmount: calculated.lastSale?.amount || null,
+            lastCashlessSaleDatetime: calculated.lastCashlessSale?.datetime ? new Date(calculated.lastCashlessSale.datetime) : null,
+            lastCashlessSaleProductName: calculated.lastCashlessSale?.productName || null,
+            lastCashlessSaleAmount: calculated.lastCashlessSale?.amount || null,
+            cashlessTransactions: 0,
+            cashlessRevenue: 0,
+            alcoholTransactions: 0,
+            alcoholRevenue: 0,
+            lastAlcoholSaleDatetime: calculated.lastAlcoholSale?.datetime ? new Date(calculated.lastAlcoholSale.datetime) : null,
+            lastAlcoholSaleProductName: calculated.lastAlcoholSale?.productName || null,
+            weeklyAvgTransactions: 0,
+            weeklyAvgRevenue: 0,
+            monthlyAvgTransactions: 0,
+            monthlyAvgRevenue: 0,
+            todayAlcoholSales: calculated.alcoholSales?.today || null,
+            weekAvgAlcoholSales: calculated.alcoholSales?.weekAvg || null,
+            monthAvgAlcoholSales: calculated.alcoholSales?.monthAvg || null,
+            lastSaleTime: calculated.lastSale?.datetime || null,
+            lastProductName: calculated.lastSale?.productName || null,
+            lastAmount: calculated.lastSale?.amount || null,
+            lastCashlessTime: calculated.lastCashlessSale?.datetime || null,
+            lastCashlessProduct: calculated.lastCashlessSale?.productName || null,
+            lastCashlessAmount: calculated.lastCashlessSale?.amount || null,
+            lastAlcoholTime: calculated.lastAlcoholSale?.datetime || null,
+            lastAlcoholProduct: calculated.lastAlcoholSale?.productName || null,
+            cashlessStatus: null,
+            alcoholStatus: null,
+            calculationSource: null,
+            createdAt: new Date(),
+            updatedAt: new Date()
+          };
+          result.push(fakeDbRecord);
         }
       }
       
-      return result;
+      return result.map(mapMachineStatsSchemaToInterface);
     } catch (error) {
       console.error("Error fetching bulk machine daily stats:", error);
       return [];
     }
   }
 
-  async upsertMachineDailyStats(stats: InsertMachineDailyStats): Promise<MachineDailyStats> {
+  async upsertMachineDailyStats(stats: InsertMachineDailyStats): Promise<IMachineDailyStats> {
     try {
       const result = await db
         .insert(machineDailyStats)
@@ -531,14 +664,14 @@ export class DatabaseStorage implements IStorage {
         })
         .returning();
       
-      return result[0];
+      return mapMachineStatsSchemaToInterface(result[0]);
     } catch (error) {
       console.error("Error upserting machine daily stats:", error);
       throw error;
     }
   }
 
-  async calculateAndStoreDailyStats(machineId: number, date: string): Promise<MachineDailyStats> {
+  async calculateAndStoreDailyStats(machineId: number, date: string): Promise<IMachineDailyStats> {
     try {
       const startDate = new Date(date + 'T00:00:00.000Z');
       const endDate = new Date(date + 'T23:59:59.999Z');
@@ -643,7 +776,8 @@ export class DatabaseStorage implements IStorage {
         calculationSource: 'batch'
       };
       
-      return await this.upsertMachineDailyStats(statsData);
+      const dbResult = await this.upsertMachineDailyStats(statsData);
+      return dbResult; // upsertMachineDailyStats now returns IMachineDailyStats
     } catch (error) {
       console.error("Error calculating and storing daily stats:", error);
       throw error;
@@ -730,16 +864,8 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  /**
-   * Get transaction count for sync status
-   */
-  async getTransactionCount(): Promise<number> {
-    const result = await db.select({ count: count() }).from(transactions);
-    return parseInt(result[0]?.count?.toString() || '0');
-  }
 
   // Core stub methods for IStorage interface compatibility (removed duplicate implementations)
-  async listUsers(): Promise<any[]> { return []; }
   
   async getProducts(): Promise<any[]> { return []; }
   async getProductById(id: number): Promise<any | undefined> { return undefined; }

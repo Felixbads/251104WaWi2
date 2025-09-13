@@ -418,7 +418,7 @@ class EnhancedVendonApiClient {
     console.log(`📊 Transactions params:`, params);
     
     try {
-      const result = await this.makeRequest<any[]>('/stats/vends', params);
+      const result = await this.makeRequest<any>('/stats/vends', params);
       
       // Extra Debug für Transaktionen
       console.log(`📊 Transactions Response Type: ${typeof result}`);
@@ -427,17 +427,17 @@ class EnhancedVendonApiClient {
         console.error('❌ Transactions API returned non-array:', result);
         console.error('Type:', typeof result);
         if (typeof result === 'string') {
-          console.error('String content (first 500 chars):', result.substring(0, 500));
+          console.error('String content (first 500 chars):', (result as string).substring(0, 500));
         }
         // Versuche trotzdem zu konvertieren
-        if (typeof result === 'object' && result?.result && Array.isArray(result.result)) {
+        if (typeof result === 'object' && result && 'result' in result && Array.isArray(result.result)) {
           console.log('🔧 Konvertiere object.result zu Array');
           return result.result;
         }
         throw new Error('Transactions API did not return an array');
       }
       console.log(`✅ Transactions: ${result.length} Einträge erhalten`);
-      return result;
+      return result as any[];
     } catch (error) {
       console.error('❌ Fehler in getTransactions:', error);
       throw error;
