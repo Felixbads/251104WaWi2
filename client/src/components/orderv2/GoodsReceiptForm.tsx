@@ -779,6 +779,7 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
                           value={currentPackageCount}
                           onChange={(e) => handleReceivedPackageCountChange(item.id, e.target.value)}
                           className="w-12 h-6 text-center px-1 text-xs"
+                          data-testid={`input-package-count-${item.id}`}
                         />
                         <Button
                           type="button"
@@ -813,6 +814,7 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
                           className={`w-14 h-6 text-center px-1 text-xs ${
                             (currentTotalQuantity || 0) !== item.orderedQuantity ? "border-amber-500" : ""
                           }`}
+                          data-testid={`input-total-quantity-${item.id}`}
                         />
                         <Button
                           type="button"
@@ -887,6 +889,7 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
           onClick={handleSubmit}
           disabled={isSubmitting}
           className="w-full sm:w-auto"
+          data-testid="button-submit-goods-receipt"
         >
           {isSubmitting ? (
             <>
