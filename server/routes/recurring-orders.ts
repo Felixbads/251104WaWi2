@@ -22,11 +22,13 @@ import { eq, desc, asc, and, sql, isNull, or, gte, lte } from 'drizzle-orm';
 import { z } from 'zod';
 import RecurringOrderScheduler from '../services/recurringOrderScheduler';
 import GoodsReceiptService from '../services/goodsReceiptService';
+import { DatabaseStorage } from '../storage/database-storage';
 import nodemailer from 'nodemailer';
 
 // Services initialisieren
 const scheduler = new RecurringOrderScheduler();
-// const goodsReceiptService = new GoodsReceiptService();
+const db = new DatabaseStorage();
+const goodsReceiptService = new GoodsReceiptService(db);
 
 // Export scheduler instance für Server-Initialisierung
 export function getRecurringOrderSchedulerInstance() {

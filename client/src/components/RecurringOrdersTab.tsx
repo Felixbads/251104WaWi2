@@ -70,7 +70,16 @@ export default function RecurringOrdersTab() {
 
   const { data: warehouses = [] } = useQuery({
     queryKey: ['/api/warehouses'],
-    queryFn: () => apiRequest('/api/warehouses', undefined, 'GET').then(res => Array.isArray(res) ? res : [])
+    queryFn: () => apiRequest('/api/warehouses', undefined, 'GET').then(res => {
+      // Handle both array and {data: [], meta: {}} response formats
+      if (Array.isArray(res)) {
+        return res;
+      }
+      if (res && Array.isArray(res.data)) {
+        return res.data;
+      }
+      return [];
+    })
   });
 
   // Query für ausstehende Wareneingänge
