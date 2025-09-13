@@ -154,7 +154,7 @@ export default function Settings() {
           {/* Mobile Menu Button - nur auf mobile sichtbar */}
           <button
             onClick={toggleMobileMenu}
-            className="md:hidden p-2 rounded-lg text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800 transition-colors duration-200 mr-3 min-h-[44px] min-w-[44px] flex items-center justify-center"
+            className="md:hidden p-2 rounded-lg bg-red-600 text-white hover:bg-red-700 active:bg-red-800 transition-colors duration-200 mr-3 min-h-[44px] min-w-[44px] flex items-center justify-center shadow-md border border-red-700"
             data-testid="button-mobile-menu"
             aria-label="Menü öffnen"
           >
