@@ -457,18 +457,6 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  /**
-   * Get machine by vendon ID
-   */
-  async getMachineByVendonId(vendonId: string): Promise<any | undefined> {
-    try {
-      const result = await db.select().from(machines).where(eq(machines.vendonId, vendonId)).limit(1);
-      return result[0];
-    } catch (error) {
-      console.error("Error fetching machine by vendon ID:", error);
-      return undefined;
-    }
-  }
 
   // Persistent Machine Daily Stats methods for efficient KPI display
   async getMachineDailyStats(machineId: number, date?: string): Promise<MachineDailyStats | null> {

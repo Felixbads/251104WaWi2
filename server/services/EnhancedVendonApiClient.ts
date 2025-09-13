@@ -535,4 +535,7 @@ export function getEnhancedVendonApiClientInstance(config?: Partial<ApiClientCon
   return enhancedApiClientInstance;
 }
 
+// Backward-compatible export alias for existing imports
+export const getVendonApiClient = getEnhancedVendonApiClientInstance;
+
 export { EnhancedVendonApiClient };
