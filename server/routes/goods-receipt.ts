@@ -475,6 +475,175 @@ router.get('/statistics', async (req: Request, res: Response) => {
   }
 });
 
+// ========================================
+// NEW ENHANCED GOODS RECEIPT ROUTES
+// ========================================
+
+/**
+ * POST /api/goods-receipt/:orderId/process-enhanced
+ * Erweiterte Wareneingangs-Verarbeitung mit allen neuen Features
+ * - Lieferdatum (deliveryDate) Validierung
+ * - MHD pro Item mit Batch-Erstellung
+ * - Lagerauswahl (warehouseId)
+ * - Erweiterte Qualitätskontrolle
+ */
+router.post('/:orderId/process-enhanced', async (req: Request, res: Response) => {
+  try {
+    const orderId = parseInt(req.params.orderId);
+    
+    if (isNaN(orderId)) {
+      return sendError(res, 400, 'Ungültige Bestell-ID');
+    }
+
+    console.log(`📦 [ENHANCED] Erweiterte Wareneingangs-Verarbeitung für Bestellung ${orderId}`);
+
+    // Validiere und parse Request Body mit goodsReceiptDataSchema
+    let goodsReceiptData;
+    try {
+      // Erwarte vollständige goodsReceiptData im Request Body
+      goodsReceiptData = goodsReceiptDataSchema.parse({
+        orderId,
+        ...req.body
+      });
+    } catch (error) {
+      console.error('[ENHANCED_GOODS_RECEIPT] Validierungsfehler:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Ungültige Wareneingang-Daten';
+      return sendError(res, 400, `Validierungsfehler: ${errorMessage}`);
+    }
+
+    console.log(`📦 Verarbeite ${goodsReceiptData.items.length} Artikel für Lager ${goodsReceiptData.warehouseId}`);
+    console.log(`📅 Lieferdatum: ${goodsReceiptData.deliveryDate}`);
+
+    const db = new DatabaseStorage();
+    const goodsReceiptService = new GoodsReceiptService(db);
+    
+    // Verwende neue processEnhancedGoodsReceipt Methode
+    const result = await goodsReceiptService.processEnhancedGoodsReceipt(goodsReceiptData);
+    
+    if (result.success) {
+      console.log(`✅ Erweiterte Verarbeitung erfolgreich: ${result.itemsProcessed} Items, ${result.batchesCreated} Batches erstellt`);
+      sendSuccess(res, result, 'Erweiterte Wareneingangs-Verarbeitung erfolgreich abgeschlossen');
+    } else {
+      console.error(`❌ Erweiterte Verarbeitung fehlgeschlagen: ${result.errorMessage}`);
+      sendError(res, 400, result.errorMessage || 'Erweiterte Verarbeitung fehlgeschlagen');
+    }
+  } catch (error) {
+    console.error('[ENHANCED_GOODS_RECEIPT_API] Unerwarteter Fehler:', error);
+    sendError(res, 500, `Serverfehler bei der erweiterten Verarbeitung: ${error instanceof Error ? error.message : 'Unbekannter Fehler'}`);
+  }
+});
+
+/**
+ * GET /api/goods-receipt/:orderId/warehouses
+ * Verfügbare Lager für eine Bestellung abrufen
+ */
+router.get('/:orderId/warehouses', async (req: Request, res: Response) => {
+  try {
+    const orderId = parseInt(req.params.orderId);
+    
+    if (isNaN(orderId)) {
+      return sendError(res, 400, 'Ungültige Bestell-ID');
+    }
+
+    console.log(`🏬 Lade verfügbare Lager für Bestellung ${orderId}`);
+
+    const db = new DatabaseStorage();
+    const goodsReceiptService = new GoodsReceiptService(db);
+    
+    const warehouses = await goodsReceiptService.getWarehousesForOrder(orderId);
+    
+    console.log(`✅ ${warehouses.length} verfügbare Lager gefunden`);
+    sendSuccess(res, warehouses, `${warehouses.length} verfügbare Lager gefunden`);
+  } catch (error) {
+    console.error('[GOODS_RECEIPT_API] Fehler beim Laden der Lager:', error);
+    sendError(res, 500, 'Fehler beim Laden der verfügbaren Lager');
+  }
+});
+
+/**
+ * POST /api/goods-receipt/:orderId/validate
+ * Validierung der Wareneingangs-Daten vor dem Speichern
+ * Prüft Schema-Validität, MHD-Regeln, Lager-Verfügbarkeit etc.
+ */
+router.post('/:orderId/validate', async (req: Request, res: Response) => {
+  try {
+    const orderId = parseInt(req.params.orderId);
+    
+    if (isNaN(orderId)) {
+      return sendError(res, 400, 'Ungültige Bestell-ID');
+    }
+
+    console.log(`🔍 Validiere Wareneingangs-Daten für Bestellung ${orderId}`);
+
+    const db = new DatabaseStorage();
+    const goodsReceiptService = new GoodsReceiptService(db);
+    
+    // Erweitere Request Body mit orderId für Validierung
+    const dataToValidate = {
+      orderId,
+      ...req.body
+    };
+    
+    const validationResult = await goodsReceiptService.validateGoodsReceiptData(dataToValidate);
+    
+    if (validationResult.isValid) {
+      console.log(`✅ Validierung erfolgreich für Bestellung ${orderId}`);
+      sendSuccess(res, {
+        valid: true,
+        data: validationResult.validatedData,
+        warnings: validationResult.warnings
+      }, 'Wareneingangs-Daten sind gültig');
+    } else {
+      console.log(`⚠️ Validierung fehlgeschlagen für Bestellung ${orderId}: ${validationResult.errors.length} Fehler`);
+      res.status(400).json({
+        success: false,
+        valid: false,
+        errors: validationResult.errors,
+        warnings: validationResult.warnings,
+        message: `Validierung fehlgeschlagen: ${validationResult.errors.length} Fehler gefunden`
+      });
+    }
+  } catch (error) {
+    console.error('[GOODS_RECEIPT_API] Validierungsfehler:', error);
+    sendError(res, 500, 'Serverfehler bei der Validierung');
+  }
+});
+
+/**
+ * GET /api/goods-receipt/:orderId/enhanced-details
+ * Erweiterte Wareneingang-Details mit allen neuen Features
+ * - Lieferschein-Informationen
+ * - Verfügbare Lager
+ * - MHD-Tracking
+ * - Qualitätsbewertungen
+ */
+router.get('/:orderId/enhanced-details', async (req: Request, res: Response) => {
+  try {
+    const orderId = parseInt(req.params.orderId);
+    
+    if (isNaN(orderId)) {
+      return sendError(res, 400, 'Ungültige Bestell-ID');
+    }
+
+    console.log(`📋 Lade erweiterte Wareneingang-Details für Bestellung ${orderId}`);
+
+    const db = new DatabaseStorage();
+    const goodsReceiptService = new GoodsReceiptService(db);
+    
+    const enhancedDetails = await goodsReceiptService.getEnhancedGoodsReceiptDetails(orderId);
+    
+    console.log(`✅ Erweiterte Details geladen für Bestellung ${orderId}`);
+    sendSuccess(res, enhancedDetails, 'Erweiterte Wareneingang-Details erfolgreich geladen');
+  } catch (error) {
+    console.error('[GOODS_RECEIPT_API] Fehler beim Laden der erweiterten Details:', error);
+    sendError(res, 500, 'Fehler beim Laden der erweiterten Wareneingang-Details');
+  }
+});
+
+// ========================================
+// ERROR HANDLER (MUST BE LAST)
+// ========================================
+
 /**
  * Error Handler für Multer
  */
