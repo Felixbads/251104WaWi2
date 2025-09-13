@@ -52,18 +52,20 @@ export default function MobileMenu({ isOpen, onClose }: MobileMenuProps) {
           </h3>
           <nav className="space-y-1">
             {menuItems.overview.map((item, index) => (
-              <Link href={item.path} onClick={handleLinkClick} key={index}>
-                <div
-                  className={`flex items-center px-6 py-4 text-base font-medium cursor-pointer transition-all duration-200 min-h-[48px] ${
-                    isActive(item.path)
-                      ? "text-white bg-red-900/80 border-l-4 border-white shadow-lg"
-                      : "text-white/95 hover:bg-red-700/80 hover:text-white hover:shadow-md active:bg-red-900"
-                  }`}
-                  data-testid={`link-${item.title.toLowerCase().replace(/\s+/g, '-')}`}
-                >
-                  <span className="flex-shrink-0">{item.icon}</span>
-                  <span className="ml-1">{item.title}</span>
-                </div>
+              <Link 
+                href={item.path} 
+                onClick={handleLinkClick} 
+                key={index}
+                className={`flex items-center px-6 py-4 text-base font-medium cursor-pointer transition-all duration-200 min-h-[48px] focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-red-800 ${
+                  isActive(item.path)
+                    ? "text-white bg-red-900/80 border-l-4 border-white shadow-lg"
+                    : "text-white/95 hover:bg-red-700/80 hover:text-white hover:shadow-md active:bg-red-900"
+                }`}
+                data-testid={`link-${item.title.toLowerCase().replace(/\s+/g, '-')}`}
+                aria-current={isActive(item.path) ? "page" : undefined}
+              >
+                <span className="flex-shrink-0">{item.icon}</span>
+                <span className="ml-1">{item.title}</span>
               </Link>
             ))}
           </nav>
@@ -76,18 +78,20 @@ export default function MobileMenu({ isOpen, onClose }: MobileMenuProps) {
           </h3>
           <nav className="space-y-1">
             {menuItems.storage.map((item, index) => (
-              <Link href={item.path} onClick={handleLinkClick} key={index}>
-                <div
-                  className={`flex items-center px-6 py-4 text-base font-medium cursor-pointer transition-all duration-200 min-h-[48px] ${
-                    isActive(item.path)
-                      ? "text-white bg-red-900/80 border-l-4 border-white shadow-lg"
-                      : "text-white/95 hover:bg-red-700/80 hover:text-white hover:shadow-md active:bg-red-900"
-                  }`}
-                  data-testid={`link-${item.title.toLowerCase().replace(/\s+/g, '-')}`}
-                >
-                  <span className="flex-shrink-0">{item.icon}</span>
-                  <span className="ml-1">{item.title}</span>
-                </div>
+              <Link 
+                href={item.path} 
+                onClick={handleLinkClick} 
+                key={index}
+                className={`flex items-center px-6 py-4 text-base font-medium cursor-pointer transition-all duration-200 min-h-[48px] focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-red-800 ${
+                  isActive(item.path)
+                    ? "text-white bg-red-900/80 border-l-4 border-white shadow-lg"
+                    : "text-white/95 hover:bg-red-700/80 hover:text-white hover:shadow-md active:bg-red-900"
+                }`}
+                data-testid={`link-${item.title.toLowerCase().replace(/\s+/g, '-')}`}
+                aria-current={isActive(item.path) ? "page" : undefined}
+              >
+                <span className="flex-shrink-0">{item.icon}</span>
+                <span className="ml-1">{item.title}</span>
               </Link>
             ))}
           </nav>
@@ -101,10 +105,10 @@ export default function MobileMenu({ isOpen, onClose }: MobileMenuProps) {
             </h3>
             <nav className="space-y-1">
               {menuItems.management.map((item, index) => (
-                <Link href={item.path === "/bestellungen" ? "/bestellungen/neu-v2" : item.path} onClick={handleLinkClick} key={index}>
+                <Link href={item.path === "/bestellungen" ? "/bestellungen/neu" : item.path} onClick={handleLinkClick} key={index}>
                   <div
                     className={`flex items-center px-6 py-4 text-base font-medium cursor-pointer transition-all duration-200 min-h-[48px] ${
-                      isActive(item.path === "/bestellungen" ? "/bestellungen/neu-v2" : item.path)
+                      isActive(item.path === "/bestellungen" ? "/bestellungen/neu" : item.path)
                         ? "text-white bg-red-900/80 border-l-4 border-white shadow-lg"
                         : "text-white/95 hover:bg-red-700/80 hover:text-white hover:shadow-md active:bg-red-900"
                     }`}
@@ -126,18 +130,20 @@ export default function MobileMenu({ isOpen, onClose }: MobileMenuProps) {
           </h3>
           <nav className="space-y-1">
             {menuItems.analysis.map((item, index) => (
-              <Link href={item.path} onClick={handleLinkClick} key={index}>
-                <div
-                  className={`flex items-center px-6 py-4 text-base font-medium cursor-pointer transition-all duration-200 min-h-[48px] ${
-                    isActive(item.path)
-                      ? "text-white bg-red-900/80 border-l-4 border-white shadow-lg"
-                      : "text-white/95 hover:bg-red-700/80 hover:text-white hover:shadow-md active:bg-red-900"
-                  }`}
-                  data-testid={`link-${item.title.toLowerCase().replace(/\s+/g, '-')}`}
-                >
-                  <span className="flex-shrink-0">{item.icon}</span>
-                  <span className="ml-1">{item.title}</span>
-                </div>
+              <Link 
+                href={item.path} 
+                onClick={handleLinkClick} 
+                key={index}
+                className={`flex items-center px-6 py-4 text-base font-medium cursor-pointer transition-all duration-200 min-h-[48px] focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-red-800 ${
+                  isActive(item.path)
+                    ? "text-white bg-red-900/80 border-l-4 border-white shadow-lg"
+                    : "text-white/95 hover:bg-red-700/80 hover:text-white hover:shadow-md active:bg-red-900"
+                }`}
+                data-testid={`link-${item.title.toLowerCase().replace(/\s+/g, '-')}`}
+                aria-current={isActive(item.path) ? "page" : undefined}
+              >
+                <span className="flex-shrink-0">{item.icon}</span>
+                <span className="ml-1">{item.title}</span>
               </Link>
             ))}
           </nav>
@@ -150,18 +156,20 @@ export default function MobileMenu({ isOpen, onClose }: MobileMenuProps) {
           </h3>
           <nav className="space-y-1">
             {menuItems.system.map((item, index) => (
-              <Link href={item.path} onClick={handleLinkClick} key={index}>
-                <div
-                  className={`flex items-center px-6 py-4 text-base font-medium cursor-pointer transition-all duration-200 min-h-[48px] ${
-                    isActive(item.path)
-                      ? "text-white bg-red-900/80 border-l-4 border-white shadow-lg"
-                      : "text-white/95 hover:bg-red-700/80 hover:text-white hover:shadow-md active:bg-red-900"
-                  }`}
-                  data-testid={`link-${item.title.toLowerCase().replace(/\s+/g, '-')}`}
-                >
-                  <span className="flex-shrink-0">{item.icon}</span>
-                  <span className="ml-1">{item.title}</span>
-                </div>
+              <Link 
+                href={item.path} 
+                onClick={handleLinkClick} 
+                key={index}
+                className={`flex items-center px-6 py-4 text-base font-medium cursor-pointer transition-all duration-200 min-h-[48px] focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-red-800 ${
+                  isActive(item.path)
+                    ? "text-white bg-red-900/80 border-l-4 border-white shadow-lg"
+                    : "text-white/95 hover:bg-red-700/80 hover:text-white hover:shadow-md active:bg-red-900"
+                }`}
+                data-testid={`link-${item.title.toLowerCase().replace(/\s+/g, '-')}`}
+                aria-current={isActive(item.path) ? "page" : undefined}
+              >
+                <span className="flex-shrink-0">{item.icon}</span>
+                <span className="ml-1">{item.title}</span>
               </Link>
             ))}
           </nav>

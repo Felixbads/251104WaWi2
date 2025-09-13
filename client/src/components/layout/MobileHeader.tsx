@@ -7,26 +7,37 @@ interface MobileHeaderProps {
 
 export default function MobileHeader({ pageTitle, onMenuToggle }: MobileHeaderProps) {
   return (
-    <header className="bg-white shadow-sm px-4 py-2 flex flex-col md:hidden">
+    <header className="bg-white dark:bg-gray-900 shadow-md border-b border-gray-200 dark:border-gray-700 px-4 py-3 flex flex-col md:hidden sticky top-0 z-50">
       {/* Erste Zeile: Menü und Logo */}
-      <div className="flex items-center space-x-3 mb-2">
-        <button
-          onClick={onMenuToggle}
-          className="p-2 rounded-md text-gray-500 hover:bg-gray-100"
-        >
-          <Menu className="h-6 w-6" />
-        </button>
-        <div className="flex items-center">
-          <div className="h-8 w-8 bg-primary rounded-md flex items-center justify-center">
-            <ShoppingBag className="h-5 w-5 text-white" />
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center space-x-4">
+          {/* Verbesserter Hamburger-Button mit größerer Touch-Target */}
+          <button
+            onClick={onMenuToggle}
+            className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 active:bg-gray-200 dark:active:bg-gray-700 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+            aria-label="Menü öffnen"
+            data-testid="button-menu-toggle"
+          >
+            <Menu className="h-6 w-6" />
+          </button>
+          
+          {/* Verbessertes Logo und Branding */}
+          <div className="flex items-center">
+            <div className="h-10 w-10 bg-gradient-to-br from-primary to-primary/80 rounded-lg flex items-center justify-center shadow-sm">
+              <ShoppingBag className="h-6 w-6 text-white" />
+            </div>
+            <span className="ml-3 font-bold text-xl text-gray-900 dark:text-white tracking-tight">
+              Proviantomat
+            </span>
           </div>
-          <span className="ml-2 font-semibold text-lg">Proviantomat</span>
         </div>
       </div>
       
-      {/* Zweite Zeile: Seitentitel */}
-      <div className="pb-1">
-        <h1 className="text-xl font-semibold text-gray-800">{pageTitle}</h1>
+      {/* Zweite Zeile: Prominenter Seitentitel */}
+      <div className="border-t border-gray-100 dark:border-gray-800 pt-2">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white leading-tight" data-testid="text-page-title">
+          {pageTitle}
+        </h1>
       </div>
     </header>
   );
