@@ -4,6 +4,96 @@ import { z } from "zod";
 import { sql } from "drizzle-orm";
 import { relations } from "drizzle-orm";
 
+// ========================================
+// FUNDAMENTAL TABLES (Referenced by others)
+// ========================================
+
+// Users table - Must be defined first as it's referenced by many other tables
+export const users = pgTable("users", {
+  id: serial("id").primaryKey(),
+  username: text("username").notNull().unique(),
+  password: text("password").notNull(),
+  email: text("email").unique(),
+  role: text("role").default("user"),
+  approved: boolean("approved").default(false), // Standardmäßig nicht freigeschaltet
+  approvedBy: integer("approved_by"),
+  approvedAt: timestamp("approved_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertUserSchema = createInsertSchema(users).omit({
+  id: true,
+  approved: true,
+  approvedBy: true,
+  approvedAt: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertUser = z.infer<typeof insertUserSchema>;
+export type User = typeof users.$inferSelect;
+
+// Locations table - Must be defined before machines
+export const locations = pgTable("locations", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  address: text("address"),
+  city: text("city"),
+  postalCode: text("postal_code"),
+  country: text("country"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertLocationSchema = createInsertSchema(locations).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertLocation = z.infer<typeof insertLocationSchema>;
+export type Location = typeof locations.$inferSelect;
+
+// Machines table - Must be defined before tables that reference it
+export const machines = pgTable("machines", {
+  id: serial("id").primaryKey(),
+  vendonId: text("vendon_id").notNull().unique(),
+  machineName: text("machine_name").notNull(),
+  machineType: text("machine_type"),
+  status: text("status"),
+  model: text("model"),
+  serialNumber: text("serial_number"),
+  telemetryUnitId: integer("telemetry_unit_id"),
+  power: boolean("power"),
+  powerStatus: text("power_status"),
+  currency: text("currency"),
+  description: text("description"),
+  lastSync: timestamp("last_sync"),
+  additionalData: text("additional_data"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  locationId: integer("location_id").references(() => locations.id),
+  locationName: text("location_name"),
+  locationAddress: text("location_address"),
+  lastPing: timestamp("last_ping"),
+  lastVend: timestamp("last_vend"),
+  extraData: text("extra_data"),
+});
+
+export const insertMachineSchema = createInsertSchema(machines).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertMachine = z.infer<typeof insertMachineSchema>;
+export type Machine = typeof machines.$inferSelect;
+
+// ========================================
+// OTHER TABLES
+// ========================================
+
 // Sync-Locks Tabelle für den Synchronisierungs-Sperrmechanismus
 export const syncLocks = pgTable("sync_locks", {
   id: serial("id").primaryKey(),
@@ -690,31 +780,6 @@ export const insertSupplierEmailTemplateSchema = createInsertSchema(supplierEmai
 export type InsertSupplierEmailTemplate = z.infer<typeof insertSupplierEmailTemplateSchema>;
 export type SupplierEmailTemplate = typeof supplierEmailTemplates.$inferSelect;
 
-// Users table
-export const users = pgTable("users", {
-  id: serial("id").primaryKey(),
-  username: text("username").notNull().unique(),
-  password: text("password").notNull(),
-  email: text("email").unique(),
-  role: text("role").default("user"),
-  approved: boolean("approved").default(false), // Standardmäßig nicht freigeschaltet
-  approvedBy: integer("approved_by"),
-  approvedAt: timestamp("approved_at"),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
-
-export const insertUserSchema = createInsertSchema(users).omit({
-  id: true,
-  approved: true,
-  approvedBy: true,
-  approvedAt: true,
-  createdAt: true,
-  updatedAt: true,
-});
-
-export type InsertUser = z.infer<typeof insertUserSchema>;
-export type User = typeof users.$inferSelect;
 
 // Page Permissions table for controlling access to app pages by role
 export const pagePermissions = pgTable("page_permissions", {
@@ -744,61 +809,7 @@ export type PagePermission = typeof pagePermissions.$inferSelect;
 
 // Wir verwenden ein In-Memory Token-Store statt einer Token-Tabelle für vereinfachte Implementierung
 
-// Locations table
-export const locations = pgTable("locations", {
-  id: serial("id").primaryKey(),
-  name: text("name").notNull(),
-  address: text("address"),
-  city: text("city"),
-  postalCode: text("postal_code"),
-  country: text("country"),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
 
-export const insertLocationSchema = createInsertSchema(locations).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-});
-
-export type InsertLocation = z.infer<typeof insertLocationSchema>;
-export type Location = typeof locations.$inferSelect;
-
-// Machines table based on vendon_machines
-export const machines = pgTable("machines", {
-  id: serial("id").primaryKey(),
-  vendonId: text("vendon_id").notNull().unique(),
-  machineName: text("machine_name").notNull(),
-  machineType: text("machine_type"),
-  status: text("status"),
-  model: text("model"),
-  serialNumber: text("serial_number"),
-  telemetryUnitId: integer("telemetry_unit_id"),
-  power: boolean("power"),
-  powerStatus: text("power_status"),
-  currency: text("currency"),
-  description: text("description"),
-  lastSync: timestamp("last_sync"),
-  additionalData: text("additional_data"),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-  locationId: integer("location_id").references(() => locations.id),
-  locationName: text("location_name"),
-  locationAddress: text("location_address"),
-  lastPing: timestamp("last_ping"),
-  lastVend: timestamp("last_vend"),
-  extraData: text("extra_data"),
-});
-
-export const insertMachineSchema = createInsertSchema(machines).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-});
-
-export type InsertMachine = z.infer<typeof insertMachineSchema>;
-export type Machine = typeof machines.$inferSelect;
 
 // Package Types table - Standardisierte Gebindearten
 export const packageTypes = pgTable("package_types", {
