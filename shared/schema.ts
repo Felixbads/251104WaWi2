@@ -305,11 +305,9 @@ export type GoodsReceiptBatchCreate = z.infer<typeof goodsReceiptBatchCreateSche
 export type GoodsReceiptInventoryUpdate = z.infer<typeof goodsReceiptInventoryUpdateSchema>;
 export type CompleteGoodsReceipt = z.infer<typeof completeGoodsReceiptSchema>;
 
-// Insert schemas for form usage
-export const insertGoodsReceiptDataSchema = createInsertSchema(goodsReceiptDataSchema).omit({
-  status: true,
-  processedBy: true,
-  processedAt: true,
+// Insert schemas for form usage - goodsReceiptDataSchema is already a Zod schema
+export const insertGoodsReceiptDataSchema = goodsReceiptDataSchema.omit({
+  // Remove any fields that shouldn't be in the insert form
 });
 
 export type InsertGoodsReceiptData = z.infer<typeof insertGoodsReceiptDataSchema>;

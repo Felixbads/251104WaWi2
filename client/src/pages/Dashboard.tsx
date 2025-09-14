@@ -503,7 +503,7 @@ export default function Dashboard() {
             {/* Enhanced Incoming Goods Tile - ANKLICKBAR */}
             <Card 
               className="cursor-pointer hover:shadow-md transition-all duration-200"
-              onClick={() => setLocation('/bestellungen/workflow?step=overview')}
+              onClick={() => setLocation('/bestellungen')}
             >
               <CardHeader>
                 <CardTitle className="flex items-center text-lg">
@@ -524,11 +524,12 @@ export default function Dashboard() {
                       <div 
                         key={index} 
                         className="flex items-center justify-between p-3 bg-orange-50 rounded-lg border hover:bg-orange-100 cursor-pointer transition-colors"
-                        onClick={() => {
-                          // Navigation zur Bestellungsdetailansicht
-                          setLocation(`/bestellungen/workflow?step=viewOrder&orderId=${(order as any).id}`);
+                        onClick={(e) => {
+                          e.stopPropagation(); // Verhindert die Auslösung des Card onClick
+                          // Navigation zur Wareneingang-Seite der spezifischen Bestellung
+                          setLocation(`/bestellungen/${(order as any).id}/wareneingang`);
                         }}
-                        title={`Klicken um Bestellungsdetails für ${(order as any).orderNumber} anzuzeigen`}
+                        title={`Klicken um Wareneingang für ${(order as any).orderNumber || 'Bestellung'} zu erfassen`}
                       >
                         <div className="flex-1">
                           <div className="flex items-center justify-between mb-1">
@@ -551,7 +552,10 @@ export default function Dashboard() {
                     <Button 
                       variant="outline" 
                       className="w-full mt-3"
-                      onClick={() => setLocation('/bestellungen/workflow?step=overview')}
+                      onClick={(e) => {
+                        e.stopPropagation(); // Verhindert die Auslösung des Card onClick
+                        setLocation('/bestellungen');
+                      }}
                     >
                       Alle Bestellungen anzeigen
                       <ChevronRight className="h-4 w-4 ml-2" />
