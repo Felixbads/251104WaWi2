@@ -500,7 +500,7 @@ export default function Dashboard() {
           {/* Left Column - Full width on mobile, 2/3 on desktop */}
           <div className="lg:col-span-2 space-y-6">
             
-            {/* Enhanced Incoming Goods Tile - ANKLICKBAR */}
+            {/* Enhanced Order Management Tile - ANKLICKBAR */}
             <Card 
               className="cursor-pointer hover:shadow-md transition-all duration-200"
               onClick={() => setLocation('/bestellungen')}
@@ -508,10 +508,10 @@ export default function Dashboard() {
               <CardHeader>
                 <CardTitle className="flex items-center text-lg">
                   <Truck className="h-5 w-5 mr-2 text-orange-500" />
-                  Wareneingang
+                  Aktuelle Bestellungen
                   <ChevronRight className="h-4 w-4 text-gray-400 ml-auto" />
                 </CardTitle>
-                <CardDescription>Anstehende und verspätete Lieferungen</CardDescription>
+                <CardDescription>Bestellungen zum Versenden und Verwalten</CardDescription>
               </CardHeader>
               <CardContent>
                 {isLoadingOpenOrders ? (
@@ -526,10 +526,10 @@ export default function Dashboard() {
                         className="flex items-center justify-between p-3 bg-orange-50 rounded-lg border hover:bg-orange-100 cursor-pointer transition-colors"
                         onClick={(e) => {
                           e.stopPropagation(); // Verhindert die Auslösung des Card onClick
-                          // Navigation zur Wareneingang-Seite der spezifischen Bestellung
-                          setLocation(`/bestellungen/${(order as any).id}/wareneingang`);
+                          // Navigation zum Bestellversand-Workflow
+                          setLocation(`/bestellungen/workflow?step=sendOrder&orderId=${(order as any).id}`);
                         }}
-                        title={`Klicken um Wareneingang für ${(order as any).orderNumber || 'Bestellung'} zu erfassen`}
+                        title={`Klicken um Bestellung ${(order as any).orderNumber || 'Bestellung'} zu versenden`}
                       >
                         <div className="flex-1">
                           <div className="flex items-center justify-between mb-1">
