@@ -2,34 +2,57 @@ import nodemailer from 'nodemailer';
 import fs from 'fs';
 import path from 'path';
 
-// Load SMTP configuration from .env.smtp file
+// HTML escape function to prevent XSS and template injection
+function escapeHtml(unsafe: string | number | undefined | null): string {
+  if (unsafe === null || unsafe === undefined) return '';
+  return String(unsafe)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+// Load SMTP configuration from .env.smtp file with robust parsing
 const envSmtpPath = path.join(process.cwd(), '.env.smtp');
 if (fs.existsSync(envSmtpPath)) {
   const envSmtpContent = fs.readFileSync(envSmtpPath, 'utf8');
   const envLines = envSmtpContent.split('\n');
   
   envLines.forEach(line => {
-    const [key, value] = line.split('=');
-    if (key && value && !process.env[key]) {
-      process.env[key] = value;
+    // Skip comments and empty lines
+    const trimmedLine = line.trim();
+    if (!trimmedLine || trimmedLine.startsWith('#') || trimmedLine.startsWith('//')) {
+      return;
+    }
+    
+    // Handle lines with = in the value by splitting only on first =
+    const equalIndex = trimmedLine.indexOf('=');
+    if (equalIndex > 0) {
+      const key = trimmedLine.substring(0, equalIndex).trim();
+      const value = trimmedLine.substring(equalIndex + 1).trim().replace(/^["']|["']$/g, ''); // Remove quotes
+      if (key && value && !process.env[key]) {
+        process.env[key] = value;
+      }
     }
   });
 }
 
-// Create nodemailer transporter
+// Create nodemailer transporter with secure configuration
+const smtpPort = parseInt(process.env.SMTP_PORT || '587');
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
-  port: parseInt(process.env.SMTP_PORT || '587'),
-  secure: false, // Port 587 braucht STARTTLS, nicht SSL
+  port: smtpPort,
+  secure: smtpPort === 465, // true for 465 (SSL), false for 587 (STARTTLS)
   auth: {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
   },
   tls: {
-    rejectUnauthorized: false,
-    minVersion: 'TLSv1'
+    rejectUnauthorized: process.env.NODE_ENV === 'production', // Only reject in production
+    minVersion: 'TLSv1.2' // Use modern TLS version
   },
-  requireTLS: true
+  requireTLS: smtpPort !== 465 // Require STARTTLS for non-SSL ports
 });
 
 export interface Attachment {
@@ -128,11 +151,11 @@ export function generateDefaultEmailTemplate(orderData: any): string {
         <div class="content">
           <div class="order-details">
             <h3>Bestelldetails</h3>
-            <p><strong>Bestellnummer:</strong> ${order.orderNumber || order.id}</p>
-            <p><strong>Bestelldatum:</strong> ${formatOrderDate(new Date(order.orderDate))}</p>
-            <p><strong>Gewünschter Liefertermin:</strong> ${order.expectedDeliveryDate ? formatOrderDate(new Date(order.expectedDeliveryDate)) : 'Nicht angegeben'}</p>
-            <p><strong>Lieferort:</strong> ${warehouse?.name || 'Nicht angegeben'}</p>
-            ${order.comments ? `<p><strong>Kommentare:</strong> ${order.comments}</p>` : ''}
+            <p><strong>Bestellnummer:</strong> ${escapeHtml(order.orderNumber || order.id)}</p>
+            <p><strong>Bestelldatum:</strong> ${escapeHtml(formatOrderDate(new Date(order.orderDate)))}</p>
+            <p><strong>Gewünschter Liefertermin:</strong> ${escapeHtml(order.expectedDeliveryDate ? formatOrderDate(new Date(order.expectedDeliveryDate)) : 'Nicht angegeben')}</p>
+            <p><strong>Lieferort:</strong> ${escapeHtml(warehouse?.name || 'Nicht angegeben')}</p>
+            ${order.comments ? `<p><strong>Kommentare:</strong> ${escapeHtml(order.comments)}</p>` : ''}
           </div>
 
           <h3>Bestellte Artikel</h3>
@@ -149,18 +172,18 @@ export function generateDefaultEmailTemplate(orderData: any): string {
             <tbody>
               ${orderItems.map((item: any) => `
                 <tr>
-                  <td>${item.productName || 'Unbekanntes Produkt'}</td>
-                  <td>${item.quantity}</td>
-                  <td>${item.packageSize || '-'}</td>
-                  <td>${item.unitPrice?.toFixed(2) || '0.00'} €</td>
-                  <td>${item.totalPrice?.toFixed(2) || '0.00'} €</td>
+                  <td>${escapeHtml(item.productName || 'Unbekanntes Produkt')}</td>
+                  <td>${escapeHtml(item.quantity)}</td>
+                  <td>${escapeHtml(item.packageSize || '-')}</td>
+                  <td>${escapeHtml(item.unitPrice?.toFixed(2) || '0.00')} €</td>
+                  <td>${escapeHtml(item.totalPrice?.toFixed(2) || '0.00')} €</td>
                 </tr>
               `).join('')}
             </tbody>
           </table>
 
           <div class="order-details">
-            <p><strong>Gesamtsumme:</strong> ${order.totalAmount?.toFixed(2) || '0.00'} €</p>
+            <p><strong>Gesamtsumme:</strong> ${escapeHtml(order.totalAmount?.toFixed(2) || '0.00')} €</p>
           </div>
         </div>
 

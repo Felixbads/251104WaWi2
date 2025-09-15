@@ -14,6 +14,17 @@ import nodemailer from 'nodemailer';
 import { weeklyOperationsAnalysisService } from './weeklyOperationsAnalysisService';
 import type { WeeklyOperationsSummary } from './weeklyOperationsAnalysisService';
 
+// HTML escape function to prevent XSS and template injection
+function escapeHtml(unsafe: string | number | undefined | null): string {
+  if (unsafe === null || unsafe === undefined) return '';
+  return String(unsafe)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 interface WeeklyReportData {
   weekStart: string;
   weekEnd: string;
@@ -57,18 +68,20 @@ class WeeklyReportService {
     
     if (smtpConfigured) {
       try {
+        const smtpPort = parseInt(process.env.SMTP_PORT || '587');
         this.transporter = nodemailer.createTransport({
           host: process.env.SMTP_HOST,
-          port: parseInt(process.env.SMTP_PORT || '587'),
-          secure: false,
-          requireTLS: true,
+          port: smtpPort,
+          secure: smtpPort === 465, // true for 465, false for other ports
+          requireTLS: smtpPort !== 465, // require STARTTLS for non-SSL ports
           auth: {
             user: process.env.SMTP_USER,
             pass: process.env.SMTP_PASS,
           },
           tls: {
-            rejectUnauthorized: false,
-            servername: process.env.SMTP_HOST
+            rejectUnauthorized: process.env.NODE_ENV === 'production',
+            servername: process.env.SMTP_HOST,
+            minVersion: 'TLSv1.2'
           }
         });
         console.log('📧 Weekly Report SMTP-Transporter initialisiert');
@@ -485,12 +498,12 @@ class WeeklyReportService {
                 <tbody>
                     ${ops.refillDetails.slice(0, 10).map(refill => `
                     <tr>
-                        <td><strong>${refill.machineName}</strong></td>
-                        <td>${new Date(refill.refillDate).toLocaleDateString('de-DE')}</td>
-                        <td>${refill.performedBy || 'Unbekannt'}</td>
-                        <td class="${refill.roi > 0 ? 'positive' : 'negative'}">${refill.roi.toFixed(1)}%</td>
-                        <td>€${refill.estimatedRevenuePotential.toFixed(2)}</td>
-                        <td>€${refill.fixCost}</td>
+                        <td><strong>${escapeHtml(refill.machineName)}</strong></td>
+                        <td>${escapeHtml(new Date(refill.refillDate).toLocaleDateString('de-DE'))}</td>
+                        <td>${escapeHtml(refill.performedBy) || 'Unbekannt'}</td>
+                        <td class="${refill.roi > 0 ? 'positive' : 'negative'}">${escapeHtml(refill.roi.toFixed(1))}%</td>
+                        <td>€${escapeHtml(refill.estimatedRevenuePotential.toFixed(2))}</td>
+                        <td>€${escapeHtml(refill.fixCost)}</td>
                     </tr>
                     `).join('')}
                 </tbody>
@@ -513,9 +526,9 @@ class WeeklyReportService {
                 <tbody>
                     ${data.plannedDeliveries.map(delivery => `
                     <tr>
-                        <td><strong>${delivery.supplierName}</strong></td>
-                        <td>${delivery.plannedDate}</td>
-                        <td>${delivery.products.join(', ') || 'Siehe Bestelldetails'}</td>
+                        <td><strong>${escapeHtml(delivery.supplierName)}</strong></td>
+                        <td>${escapeHtml(delivery.plannedDate)}</td>
+                        <td>${escapeHtml(delivery.products.join(', ')) || 'Siehe Bestelldetails'}</td>
                     </tr>
                     `).join('')}
                 </tbody>
@@ -540,11 +553,11 @@ class WeeklyReportService {
                 <tbody>
                     ${data.criticalReorders.map(item => `
                     <tr>
-                        <td><strong>${item.productName}</strong></td>
-                        <td>${item.currentStock}</td>
-                        <td>${item.forecast14Days}</td>
-                        <td class="${item.difference > 0 ? 'positive' : 'negative'}">${item.difference > 0 ? '+' : ''}${item.difference}</td>
-                        <td class="status-${item.status}">
+                        <td><strong>${escapeHtml(item.productName)}</strong></td>
+                        <td>${escapeHtml(item.currentStock)}</td>
+                        <td>${escapeHtml(item.forecast14Days)}</td>
+                        <td class="${item.difference > 0 ? 'positive' : 'negative'}">${item.difference > 0 ? '+' : ''}${escapeHtml(item.difference)}</td>
+                        <td class="status-${escapeHtml(item.status)}">
                             ${item.status === 'critical' ? '🔴 Sofort nachbestellen' : '🟠 Engpass droht'}
                         </td>
                     </tr>
@@ -572,10 +585,10 @@ class WeeklyReportService {
                 <tbody>
                     ${data.expiringProducts.map(item => `
                     <tr>
-                        <td><strong>${item.productName}</strong></td>
-                        <td class="status-warning">${item.expiryDate}</td>
-                        <td>${item.quantity}</td>
-                        <td>${item.location}</td>
+                        <td><strong>${escapeHtml(item.productName)}</strong></td>
+                        <td class="status-warning">${escapeHtml(item.expiryDate)}</td>
+                        <td>${escapeHtml(item.quantity)}</td>
+                        <td>${escapeHtml(item.location)}</td>
                     </tr>
                     `).join('')}
                 </tbody>
@@ -588,9 +601,9 @@ class WeeklyReportService {
             <h3><span class="icon">🎯</span> Optimierungsempfehlungen</h3>
             ${ops.optimizationRecommendations.map(rec => `
             <div class="recommendation-item">
-                <strong>${rec.title}</strong><br>
-                ${rec.description}<br>
-                <small><strong>Erwartete Auswirkung:</strong> ${rec.expectedImpact}</small>
+                <strong>${escapeHtml(rec.title)}</strong><br>
+                ${escapeHtml(rec.description)}<br>
+                <small><strong>Erwartete Auswirkung:</strong> ${escapeHtml(rec.expectedImpact)}</small>
             </div>
             `).join('')}
         </div>
@@ -610,7 +623,7 @@ class WeeklyReportService {
   /**
    * Versendet den umfassenden wöchentlichen Bericht mit Betriebsanalyse
    */
-  async sendComprehensiveWeeklyReport(recipientEmail: string = 'felix@proviantomat.de'): Promise<{ success: boolean; message: string; error?: string; data?: WeeklyReportData }> {
+  async sendComprehensiveWeeklyReport(recipientEmail: string): Promise<{ success: boolean; message: string; error?: string; data?: WeeklyReportData }> {
     try {
       console.log('📧 Beginne Erstellung des umfassenden wöchentlichen Berichts...');
       
@@ -618,12 +631,11 @@ class WeeklyReportService {
       const htmlContent = this.generateEmailContent(data);
       
       if (!this.transporter) {
-        // Fallback: Zeige den E-Mail-Inhalt für Testing
-        console.log('📧 SMTP nicht verfügbar - zeige E-Mail-Inhalt für Debugging');
+        console.error('❌ SMTP nicht verfügbar - E-Mail kann nicht versendet werden');
         return {
-          success: true,
-          message: `Umfassender Wochenbericht für ${recipientEmail} generiert (SMTP nicht verfügbar)`,
-          error: 'SMTP nicht konfiguriert - E-Mail wurde nur generiert',
+          success: false,
+          message: `SMTP-Konfiguration fehlt - E-Mail kann nicht an ${recipientEmail} gesendet werden`,
+          error: 'SMTP nicht konfiguriert. Bitte SMTP_HOST, SMTP_USER und SMTP_PASS in den Umgebungsvariablen konfigurieren.',
           data: data
         };
       }
@@ -657,7 +669,7 @@ class WeeklyReportService {
   /**
    * Versendet den standard wöchentlichen Bericht (für Kompatibilität)
    */
-  async sendWeeklyReport(recipientEmail: string = 'felix@proviantomat.de'): Promise<{ success: boolean; message: string; error?: string }> {
+  async sendWeeklyReport(recipientEmail: string): Promise<{ success: boolean; message: string; error?: string }> {
     try {
       console.log('📧 Beginne Erstellung des wöchentlichen Berichts...');
       
@@ -665,12 +677,11 @@ class WeeklyReportService {
       const htmlContent = this.generateEmailContent(data);
       
       if (!this.transporter) {
-        // Fallback: Simuliere E-Mail-Versand
-        console.log('📧 SMTP nicht verfügbar - simuliere E-Mail-Versand');
+        console.error('❌ SMTP nicht verfügbar - E-Mail kann nicht versendet werden');
         return {
-          success: true,
-          message: `Wöchentlicher Bericht simuliert für ${recipientEmail}`,
-          error: 'SMTP nicht konfiguriert - E-Mail wurde nur simuliert'
+          success: false,
+          message: `SMTP-Konfiguration fehlt - E-Mail kann nicht an ${recipientEmail} gesendet werden`,
+          error: 'SMTP nicht konfiguriert. Bitte SMTP_HOST, SMTP_USER und SMTP_PASS in den Umgebungsvariablen konfigurieren.'
         };
       }
 
