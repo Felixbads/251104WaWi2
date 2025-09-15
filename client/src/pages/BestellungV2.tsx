@@ -258,10 +258,13 @@ const BestellungV2: React.FC = () => {
     try {
       console.log(`Lade bestehende Bestellungsdaten für Bestellung ${orderIdToLoad}`);
       
+      const storedToken = localStorage.getItem('auth_token');
+      
       const response = await fetch(`/api/orders/${orderIdToLoad}`, {
         method: 'GET',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          ...(storedToken ? { 'Authorization': `Bearer ${storedToken}` } : {})
         }
       });
       
@@ -328,10 +331,13 @@ const BestellungV2: React.FC = () => {
       console.log(`Versuche Bestellpositionen zu laden für Bestellung ${orderIdToLoad} (Versuch ${retryCount + 1}/${maxRetries + 1})`);
       
       // API-Aufruf um alle Bestellpositionen zu laden
+      const storedToken = localStorage.getItem('auth_token');
+      
       const response = await fetch(`/api/orders/${orderIdToLoad}/items`, {
         method: 'GET',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          ...(storedToken ? { 'Authorization': `Bearer ${storedToken}` } : {})
         }
       }).then(res => {
         if (!res.ok) {

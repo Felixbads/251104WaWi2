@@ -1,0 +1,64 @@
+Kopieren
+Analyse fehlerhaft dargestellter Tab-Menüs
+Bei statischer Durchsicht des Frontend-Codes fallen mehrere Seiten auf, deren Tab-Menüs aufgrund starrer Grid-Layouts oder fehlender Overflow-Behandlung auf kleineren Bildschirmen nicht korrekt gerendert werden. Typische Symptome sind abgeschnittene Labels, Überlappungen oder fehlende horizontale Scrollbarkeit. Die folgenden Bereiche sollten überarbeitet werden:
+1. Einstellungen (client/src/pages/Settings.tsx)
+Das Tab-Menü nutzt ein festes Fünf-Spalten-Grid, was zu gequetschten Tabs führt.
+Vorgeschlagene Aufgabe
+Tab-Menü in Einstellungen responsiv machen
+
+Aufgabe starten
+2. E-Mail-Einstellungen (client/src/pages/MailSettings.tsx)
+Starres Zwei-Spalten-Grid ohne Mobilanpassung.
+Vorgeschlagene Aufgabe
+MailSettings-Tabs mobilfreundlich gestalten
+
+Aufgabe starten
+3. Standortdetail (client/src/pages/LocationDetail.tsx)
+Feste Grid-Aufteilung verhindert sauberes Umbruchverhalten.
+Vorgeschlagene Aufgabe
+Tabs in LocationDetail responsiv machen
+
+Aufgabe starten
+4. Lieferübersicht (client/src/pages/OrderDeliveryOverview.tsx)
+Drei-Spalten-Grid ohne horizontale Scrollbarkeit.
+Vorgeschlagene Aufgabe
+OrderDeliveryOverview-Tabs responsiv umgestalten
+
+Aufgabe starten
+5. Standortanalyse (client/src/pages/StandortAnalyse.tsx)
+Vier-Spalten-Grid mit langen Beschriftungen führt zu Überlappungen.
+Vorgeschlagene Aufgabe
+Standortanalyse-Tab-Menü optimieren
+
+Aufgabe starten
+6. Wirtschaftlichkeitsanalyse (client/src/pages/ProfitabilityAnalysis.tsx)
+Drei-Spalten-Grid ohne mobile Anpassung.
+Vorgeschlagene Aufgabe
+Tabs in ProfitabilityAnalysis mobilfreundlich machen
+
+Aufgabe starten
+7. Lagerdetail (client/src/pages/WarehouseDetail.tsx)
+Kein Overflow bei sechs Tabs; Inhalte können abgeschnitten sein.
+Vorgeschlagene Aufgabe
+WarehouseDetail-Tabs scrollbar machen
+
+Aufgabe starten
+8. Erweiterte Analyse (client/src/pages/AdvancedAnalysis.tsx)
+inline-flex ohne Wrap/Overflow; bei langen Labels Überlauf möglich.
+Vorgeschlagene Aufgabe
+AdvancedAnalysis-Tabs mit Overflow versehen
+
+Aufgabe starten
+9. Lieferantenübersicht (client/src/pages/Suppliers.tsx)
+Starres Zwei-Spalten-Grid, keine horizontale Scrollbarkeit.
+Vorgeschlagene Aufgabe
+Suppliers-Tab-Menü responsiv gestalten
+
+Aufgabe starten
+10. Weitere Komponenten mit grid-cols-*
+Ähnliche Muster tauchen in zahlreichen Komponenten (z.B. RecurringOrderDetails.tsx, PurchaseConditionsTab.tsx, SupplierEditDialog.tsx) auf. Ein allgemeines Audit und Refactoring ist ratsam.
+ (Beispiel)
+Vorgeschlagene Aufgabe
+Codebase-weites Audit aller Tab-Menüs
+
+Aufgabe starten
