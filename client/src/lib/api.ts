@@ -2287,14 +2287,71 @@ export async function getTopRemovedProducts(days: number = 7): Promise<TopRemove
   return apiRequest<TopRemovedProduct[]>('get', `/removed-products/top?days=${days}`);
 }
 
+// Dashboard Analytics Response Interfaces
+export interface RuecklauferProduct {
+  productName: string;
+  totalRemoved: number;
+  removalEvents: number;
+  avgCostPrice: number;
+  totalCostValue: number;
+}
+
+export interface RuecklauferLocation {
+  locationName: string;
+  machineId: number;
+  totalRemoved: number;
+  uniqueProducts: number;
+  totalCostValue: number;
+}
+
+export interface RuecklauferResponse {
+  success: boolean;
+  data: {
+    topProducts: RuecklauferProduct[];
+    topLocations: RuecklauferLocation[];
+    summary: {
+      totalCostValue: number;
+      totalRemovedItems: number;
+      totalLocations: number;
+      totalProducts: number;
+    };
+  };
+}
+
+export interface CriticalLocation {
+  locationName: string;
+  machineId: number;
+  alcoholProductCount?: number;
+  totalSales?: number;
+}
+
+export interface ExpiringProduct {
+  productName: string;
+  shelfLifeDays: number;
+  locationName: string;
+  currentStock: number;
+  expiryStatus: string;
+}
+
+export interface CriticalLocationsResponse {
+  success: boolean;
+  data: {
+    locationsWithoutAlcoholSales: CriticalLocation[];
+    locationsWithoutCardPayments: CriticalLocation[];
+    expiringProducts: ExpiringProduct[];
+    summary: {
+      totalCriticalLocations: number;
+      totalExpiringProducts: number;
+    };
+  };
+}
+
 // Dashboard Analytics APIs
-export const getDashboardRuecklaufer = async () => {
-  const response = await apiRequest('get', '/dashboard/ruecklaufer');
-  return response;
+export const getDashboardRuecklaufer = async (): Promise<RuecklauferResponse> => {
+  return apiRequest<RuecklauferResponse>('get', '/dashboard/ruecklaufer');
 };
 
-export const getDashboardCriticalLocations = async () => {
-  const response = await apiRequest('get', '/dashboard/critical-locations');
-  return response;
+export const getDashboardCriticalLocations = async (): Promise<CriticalLocationsResponse> => {
+  return apiRequest<CriticalLocationsResponse>('get', '/dashboard/critical-locations');
 };
 

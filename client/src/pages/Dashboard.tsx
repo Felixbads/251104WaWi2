@@ -42,7 +42,9 @@ import {
   getSyncStatus, 
   getOpenOrders,
   getDashboardRuecklaufer,
-  getDashboardCriticalLocations
+  getDashboardCriticalLocations,
+  RuecklauferResponse,
+  CriticalLocationsResponse
 } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -63,37 +65,7 @@ interface DBIProduct {
   dbi_delta_rel: number | null;
 }
 
-// Dashboard Analytics Interfaces
-interface RuecklauferProduct {
-  productName: string;
-  totalRemoved: number;
-  removalEvents: number;
-  avgCostPrice: number;
-  totalCostValue: number;
-}
-
-interface RuecklauferLocation {
-  locationName: string;
-  machineId: number;
-  totalRemoved: number;
-  uniqueProducts: number;
-  totalCostValue: number;
-}
-
-interface CriticalLocation {
-  locationName: string;
-  machineId: number;
-  alcoholProductCount?: number;
-  totalSales?: number;
-}
-
-interface ExpiringProduct {
-  productName: string;
-  shelfLifeDays: number;
-  locationName: string;
-  currentStock: number;
-  expiryStatus: string;
-}
+// Dashboard Analytics Interfaces are now imported from API
 
 interface DBIResponse {
   success: boolean;
@@ -159,14 +131,14 @@ export default function Dashboard() {
   });
 
   // Rückläufer-Analyse Daten
-  const { data: ruecklauferData, isLoading: isLoadingRuecklaufer } = useQuery({
+  const { data: ruecklauferData, isLoading: isLoadingRuecklaufer } = useQuery<RuecklauferResponse>({
     queryKey: ['/api/dashboard/ruecklaufer'],
     queryFn: () => getDashboardRuecklaufer(),
     refetchInterval: 300000 // 5 Minuten
   });
 
   // Kritische Standorte Daten
-  const { data: criticalLocationsData, isLoading: isLoadingCriticalLocations } = useQuery({
+  const { data: criticalLocationsData, isLoading: isLoadingCriticalLocations } = useQuery<CriticalLocationsResponse>({
     queryKey: ['/api/dashboard/critical-locations'],
     queryFn: () => getDashboardCriticalLocations(),
     refetchInterval: 300000 // 5 Minuten
@@ -187,13 +159,13 @@ export default function Dashboard() {
     refetchInterval: 30000
   });
 
-  const { data: weatherForecast, isLoading: isLoadingWeather } = useQuery({
+  const { data: weatherForecast, isLoading: isLoadingWeather } = useQuery<any>({
     queryKey: ["/api/weather/forecast"],
     staleTime: 30 * 60 * 1000
   });
 
   // Deutsche Schulferien-Daten (Phase 2 Dashboard-Erweiterung)
-  const { data: germanSchoolHolidays, isLoading: isLoadingHolidays } = useQuery({
+  const { data: germanSchoolHolidays, isLoading: isLoadingHolidays } = useQuery<any>({
     queryKey: ["/api/german-holidays/current-school-holidays"],
     staleTime: 60 * 60 * 1000, // 1 hour cache
     refetchInterval: 3600000, // 1 hour refresh
