@@ -4,6 +4,17 @@
  */
 import nodemailer from 'nodemailer';
 
+// HTML escape function to prevent XSS and template injection
+function escapeHtml(unsafe: string | number | undefined | null): string {
+  if (unsafe === null || unsafe === undefined) return '';
+  return String(unsafe)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 interface EmailParams {
   to: string;
   from?: string;
@@ -174,10 +185,10 @@ export async function notifyAdminsOfNewUser(user: {
         <div class="content">
           <div class="user-info">
             <h3>Benutzerinformationen:</h3>
-            <p><strong>Benutzername:</strong> ${user.username}</p>
-            <p><strong>E-Mail:</strong> ${user.email || 'Nicht angegeben'}</p>
-            <p><strong>Gewünschte Rolle:</strong> ${user.role || 'user'}</p>
-            <p><strong>Registrierung:</strong> ${user.createdAt.toLocaleString('de-DE')}</p>
+            <p><strong>Benutzername:</strong> ${escapeHtml(user.username)}</p>
+            <p><strong>E-Mail:</strong> ${escapeHtml(user.email || 'Nicht angegeben')}</p>
+            <p><strong>Gewünschte Rolle:</strong> ${escapeHtml(user.role || 'user')}</p>
+            <p><strong>Registrierung:</strong> ${escapeHtml(user.createdAt.toLocaleString('de-DE'))}</p>
           </div>
           
           <h3>Erforderliche Aktion:</h3>
@@ -208,10 +219,10 @@ export async function notifyAdminsOfNewUser(user: {
     Ein neuer Benutzer hat sich registriert und benötigt eine Admin-Freigabe:
     
     Benutzerinformationen:
-    - Benutzername: ${user.username}
-    - E-Mail: ${user.email || 'Nicht angegeben'}
-    - Gewünschte Rolle: ${user.role || 'user'}
-    - Registrierung: ${user.createdAt.toLocaleString('de-DE')}
+    - Benutzername: ${escapeHtml(user.username)}
+    - E-Mail: ${escapeHtml(user.email || 'Nicht angegeben')}
+    - Gewünschte Rolle: ${escapeHtml(user.role || 'user')}
+    - Registrierung: ${escapeHtml(user.createdAt.toLocaleString('de-DE'))}
     
     Erforderliche Aktion:
     Bitte loggen Sie sich in das Admin-Panel ein, um den neuen Benutzer zu überprüfen 
@@ -285,14 +296,14 @@ export async function notifyUserOfApprovalStatus(
           </div>
           
           <div class="content">
-            <p>Hallo <strong>${username}</strong>,</p>
+            <p>Hallo <strong>${escapeHtml(username)}</strong>,</p>
             
             <p>
               Ihr Account wurde von einem Administrator freigegeben und Sie können sich jetzt 
               in das Warenwirtschaftssystem einloggen.
             </p>
             
-            <p><strong>Ihre Benutzerrolle:</strong> ${role || 'Standardbenutzer'}</p>
+            <p><strong>Ihre Benutzerrolle:</strong> ${escapeHtml(role || 'Standardbenutzer')}</p>
             
             <div style="text-align: center;">
               <a href="${getAdminPanelUrl()}/login" class="login-btn">
@@ -318,12 +329,12 @@ export async function notifyUserOfApprovalStatus(
     textContent = `
       ✅ WILLKOMMEN IM WARENWIRTSCHAFTSSYSTEM!
       
-      Hallo ${username},
+      Hallo ${escapeHtml(username)},
       
       Ihr Account wurde von einem Administrator freigegeben und Sie können sich jetzt 
       in das Warenwirtschaftssystem einloggen.
       
-      Ihre Benutzerrolle: ${role || 'Standardbenutzer'}
+      Ihre Benutzerrolle: ${escapeHtml(role || 'Standardbenutzer')}
       
       Login: ${getAdminPanelUrl()}/login
       
@@ -356,7 +367,7 @@ export async function notifyUserOfApprovalStatus(
           </div>
           
           <div class="content">
-            <p>Hallo <strong>${username}</strong>,</p>
+            <p>Hallo <strong>${escapeHtml(username)}</strong>,</p>
             
             <p>
               Leider wurde Ihre Registrierungsanfrage für das Warenwirtschaftssystem 
@@ -381,7 +392,7 @@ export async function notifyUserOfApprovalStatus(
     textContent = `
       ❌ ACCOUNT NICHT FREIGEGEBEN
       
-      Hallo ${username},
+      Hallo ${escapeHtml(username)},
       
       Leider wurde Ihre Registrierungsanfrage für das Warenwirtschaftssystem 
       nicht genehmigt.
@@ -419,7 +430,7 @@ export async function sendRecurringOrderEmail(
   const subject = `📦 Neue Bestellung: ${orderDetails.orderName} (${orderDetails.orderNumber})`;
   
   const itemsList = orderDetails.items
-    .map(item => `<li>${item.productName} - ${item.quantity} ${item.unit}</li>`)
+    .map(item => `<li>${escapeHtml(item.productName)} - ${escapeHtml(item.quantity)} ${escapeHtml(item.unit)}</li>`)
     .join('');
   
   const htmlContent = `
@@ -456,10 +467,10 @@ export async function sendRecurringOrderEmail(
         <div class="content">
           <div class="order-info">
             <h3>Bestelldetails:</h3>
-            <p><strong>Bestellname:</strong> ${orderDetails.orderName}</p>
-            <p><strong>Bestellnummer:</strong> ${orderDetails.orderNumber}</p>
-            <p><strong>Lieferant:</strong> ${orderDetails.supplierName}</p>
-            ${orderDetails.totalAmount ? `<p><strong>Gesamtwert:</strong> ${orderDetails.totalAmount.toFixed(2)} €</p>` : ''}
+            <p><strong>Bestellname:</strong> ${escapeHtml(orderDetails.orderName)}</p>
+            <p><strong>Bestellnummer:</strong> ${escapeHtml(orderDetails.orderNumber)}</p>
+            <p><strong>Lieferant:</strong> ${escapeHtml(orderDetails.supplierName)}</p>
+            ${orderDetails.totalAmount ? `<p><strong>Gesamtwert:</strong> ${escapeHtml(orderDetails.totalAmount.toFixed(2))} €</p>` : ''}
             
             <h4>Bestellpositionen:</h4>
             <ul>${itemsList}</ul>

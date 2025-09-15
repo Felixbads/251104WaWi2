@@ -106,11 +106,11 @@ class WeeklyReportService {
     let operationsAnalysis: WeeklyOperationsSummary | undefined;
     try {
       console.log(`🔄 Lade umfassende Betriebsanalyse für die Woche...`);
-      operationsAnalysis = await weeklyOperationsAnalysisService.generateWeeklyAnalysis(
+      operationsAnalysis = await weeklyOperationsAnalysisService.generateWeeklySummary(
         weekStart, 
         weekEnd
       );
-      console.log(`✅ Betriebsanalyse geladen: ${operationsAnalysis.refillSummary.totalRefills} Befüllungen analysiert`);
+      console.log(`✅ Betriebsanalyse geladen: ${operationsAnalysis?.refillSummary.totalRefills || 0} Befüllungen analysiert`);
     } catch (error) {
       console.error(`❌ Fehler beim Laden der Betriebsanalyse:`, error);
     }
@@ -452,7 +452,7 @@ class WeeklyReportService {
                     <div class="metric-label">Netto-Betriebsergebnis</div>
                 </div>
                 <div class="metric-card">
-                    <div class="metric-value">${((ops.economicAnalysis?.keyMetrics?.profitMargin || 0) * 100).toFixed(1)}%</div>
+                    <div class="metric-value">${ops.economicAnalysis?.refillEfficiency?.averageROI ? (ops.economicAnalysis.refillEfficiency.averageROI * 100).toFixed(1) : '0.0'}%</div>
                     <div class="metric-label">Gewinnmarge</div>
                 </div>
                 <div class="metric-card">
@@ -601,9 +601,9 @@ class WeeklyReportService {
             <h3><span class="icon">🎯</span> Optimierungsempfehlungen</h3>
             ${ops.optimizationRecommendations.map(rec => `
             <div class="recommendation-item">
-                <strong>${escapeHtml(rec.title)}</strong><br>
-                ${escapeHtml(rec.description)}<br>
-                <small><strong>Erwartete Auswirkung:</strong> ${escapeHtml(rec.expectedImpact)}</small>
+                <strong>${escapeHtml(rec.recommendation)}</strong><br>
+                ${escapeHtml(rec.expectedBenefit)}<br>
+                <small><strong>Erwartete Auswirkung:</strong> Kosteneinsparung: €${escapeHtml(rec.estimatedImpact.costSavings || 0)}, Umsatzsteigerung: €${escapeHtml(rec.estimatedImpact.revenueIncrease || 0)}</small>
             </div>
             `).join('')}
         </div>

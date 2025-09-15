@@ -10,7 +10,15 @@ const router = Router();
 // POST /api/weekly-report/send - Wöchentlichen Bericht manuell senden
 router.post('/send', async (req: Request, res: Response) => {
   try {
-    const { recipientEmail = 'felix@proviantomat.de' } = req.body;
+    const { recipientEmail } = req.body;
+    
+    if (!recipientEmail) {
+      return res.status(400).json({
+        success: false,
+        message: 'Empfänger-E-Mail-Adresse ist erforderlich',
+        error: 'Bitte geben Sie eine gültige E-Mail-Adresse an'
+      });
+    }
     
     console.log(`📧 Manueller Versand des wöchentlichen Berichts an ${recipientEmail}`);
     
@@ -41,7 +49,15 @@ router.post('/send', async (req: Request, res: Response) => {
 // POST /api/weekly-report/test-email - Test-E-Mail senden
 router.post('/test-email', async (req: Request, res: Response) => {
   try {
-    const { recipientEmail = 'felix@proviantomat.de' } = req.body;
+    const { recipientEmail } = req.body;
+    
+    if (!recipientEmail) {
+      return res.status(400).json({
+        success: false,
+        message: 'Empfänger-E-Mail-Adresse ist erforderlich',
+        error: 'Bitte geben Sie eine gültige E-Mail-Adresse an'
+      });
+    }
     
     console.log(`📧 Versende Test-E-Mail an ${recipientEmail}`);
     
