@@ -291,7 +291,7 @@ const OrdersOverviewPage: React.FC = () => {
           break;
         case 'goods-receipt':
           // Für versendete Bestellungen: zum Wareneingang
-          navigate(`/bestellungen/workflow?step=goodsReceipt&orderId=${order.id}`);
+          navigate(`/bestellungen/${order.id}/wareneingang`);
           break;
         default:
           // Für abgeschlossene/stornierte Bestellungen: zur Übersicht
