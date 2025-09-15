@@ -561,10 +561,10 @@ const OrdersOverview: React.FC<OrdersOverviewProps> = ({
                           // Statusbasierte Navigation direkt implementiert
                           if (order.status === 'draft') {
                             window.location.href = `/bestellungen/workflow?step=sendOrder&orderId=${order.id}`;
-                          } else if (order.status === 'sent') {
-                            window.location.href = `/bestellungen/workflow?step=goodsReceipt&orderId=${order.id}`;
+                          } else if (order.status === 'sent' || order.status === 'partially_received') {
+                            window.location.href = `/bestellungen/${order.id}/wareneingang`;
                           } else {
-                            window.location.href = `/bestellungen/workflow?step=viewOrder&orderId=${order.id}`;
+                            window.location.href = `/bestellungen/${order.id}`;
                           }
                         }}
                       >

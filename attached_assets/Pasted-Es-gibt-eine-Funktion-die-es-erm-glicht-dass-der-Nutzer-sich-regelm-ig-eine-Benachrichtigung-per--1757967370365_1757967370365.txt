@@ -1,0 +1,44 @@
+Es gibt eine Funktion, die es ermöglicht, dass der Nutzer sich regelmäßig eine Benachrichtigung per E-Mail zukommen lässt, mit der Übersicht über verschiedene Faktoren. Teste bitte aus, ob das funktioniert. Zeige mir alle Probleme auf, die bei dem Versand der E-Mail passieren könnten.
+Kopieren
+Review Summary
+The weekly report email feature (server/services/weeklyReportService.ts) and shared utility (server/utils/emailService.ts) expose several potential issues that could prevent correct or secure delivery of notification emails.
+1. Insecure SMTP configuration and compatibility risks
+initializeTransporter disables certificate checks and always sets secure: false, which can cause failed connections (e.g., on port 465) and exposes the connection to man‑in‑the‑middle attacks
+Vorgeschlagene Aufgabe
+Strengthen SMTP security and compatibility
+
+Aufgabe starten
+2. Misleading success when SMTP is missing
+When no transporter is configured, sendWeeklyReport returns success: true even though the email is only “simulated,” which hides configuration errors
+Vorgeschlagene Aufgabe
+Return explicit failure if SMTP is absent
+
+Aufgabe starten
+3. Hard-coded default recipient
+sendWeeklyReport defaults to felix@proviantomat.de, risking unintended emails if no address is provided
+Vorgeschlagene Aufgabe
+Remove hard-coded default recipient
+
+Aufgabe starten
+4. Unsanitized dynamic content in email templates
+Product names and other data are interpolated directly into HTML without escaping, allowing malformed or malicious content to break the email layout
+Vorgeschlagene Aufgabe
+Escape dynamic values in report templates
+
+Aufgabe starten
+5. Outdated TLS version in shared email utility
+The shared sendEmail utility enforces minVersion: 'TLSv1', which is obsolete and weak, undermining transport security
+Vorgeschlagene Aufgabe
+Update TLS version requirement
+
+Aufgabe starten
+6. Fragile manual parsing of .env.smtp
+SMTP credentials are loaded by manually splitting lines on '=', which fails for values containing = or comments, leading to missing or incorrect configuration
+Vorgeschlagene Aufgabe
+Use robust env loader for SMTP settings
+
+Aufgabe starten
+Testing
+⚠️ No runtime tests or email dispatches executed (read‑only environment).
+Notes
+Manual execution is required to confirm SMTP connectivity and template rendering once fixes are applied.

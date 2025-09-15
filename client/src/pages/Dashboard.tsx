@@ -498,8 +498,12 @@ export default function Dashboard() {
                         className="flex items-center justify-between p-3 bg-orange-50 rounded-lg border hover:bg-orange-100 cursor-pointer transition-colors"
                         onClick={(e) => {
                           e.stopPropagation(); // Verhindert die Auslösung des Card onClick
-                          // Navigation zum Bestellversand-Workflow
-                          setLocation(`/bestellungen/workflow?step=sendOrder&orderId=${(order as any).id}`);
+                          // Navigation basierend auf Bestellstatus
+                          if ((order as any).status === 'sent' || (order as any).status === 'partially_received') {
+                            setLocation(`/bestellungen/${(order as any).id}/wareneingang`);
+                          } else {
+                            setLocation(`/bestellungen/${(order as any).id}`);
+                          }
                         }}
                         title={`Klicken um Bestellung ${(order as any).orderNumber || 'Bestellung'} zu versenden`}
                       >
