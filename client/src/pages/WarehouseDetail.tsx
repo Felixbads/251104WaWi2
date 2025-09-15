@@ -609,7 +609,7 @@ export default function WarehouseDetail() {
       
       {/* Tabs für verschiedene Bereiche */}
       <Tabs value={activeTab} onValueChange={handleTabChange}>
-        <TabsList className="mb-4">
+        <TabsList className="mb-4 overflow-x-auto scrollbar-hide flex justify-start w-full">
           <TabsTrigger value="overview">
             <Building2 className="h-4 w-4 mr-2" />
             Übersicht

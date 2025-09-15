@@ -201,7 +201,7 @@ export default function StandortAnalyse() {
 
           {/* Produktanalyse Tabs */}
           <Tabs defaultValue="overview" className="w-full">
-            <TabsList className="grid w-full grid-cols-4">
+            <TabsList className="grid w-full grid-cols-2 md:grid-cols-4">
               <TabsTrigger value="overview">Produktübersicht</TabsTrigger>
               <TabsTrigger value="costs">Kostenanalyse</TabsTrigger>
               <TabsTrigger value="trends">Wochentrends</TabsTrigger>

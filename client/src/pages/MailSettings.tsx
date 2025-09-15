@@ -21,7 +21,7 @@ const MailSettings: React.FC = () => {
         onValueChange={setActiveTab} 
         className="w-full"
       >
-        <TabsList className="grid w-full grid-cols-2 mb-6">
+        <TabsList className="grid w-full grid-cols-1 sm:grid-cols-2 mb-6">
           <TabsTrigger value="server">
             <Settings className="mr-2 h-4 w-4" />
             Server-Einstellungen

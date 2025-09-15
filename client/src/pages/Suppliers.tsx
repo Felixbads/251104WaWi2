@@ -163,7 +163,7 @@ export default function Suppliers() {
 
         {/* Navigation Tabs */}
         <Tabs defaultValue="overview" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 h-9 sm:h-10">
+          <TabsList className="grid w-full grid-cols-1 sm:grid-cols-2 h-9 sm:h-10">
             <TabsTrigger value="overview" className="flex gap-1 sm:gap-2 items-center text-xs sm:text-sm">
               <Building2 className="h-3 w-3 sm:h-4 sm:w-4" />
               <span className="hidden sm:inline">Übersicht</span>

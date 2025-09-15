@@ -190,7 +190,7 @@ export default function Settings() {
       <Card>
         <CardContent className="pt-6">
           <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value)} className="space-y-4">
-            <TabsList className="grid w-full grid-cols-6">
+            <TabsList className="grid w-full grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
               <TabsTrigger value="api" className="flex items-center">
                 <Key className="h-4 w-4 mr-2" />
                 API-Verbindung

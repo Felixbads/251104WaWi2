@@ -342,7 +342,7 @@ export default function ProfitabilityAnalysis() {
 
       {/* Tabs für Wirtschaftlichkeitsauswertung */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-1 sm:grid-cols-3">
           <TabsTrigger value="overview">Übersicht</TabsTrigger>
           <TabsTrigger value="details">Details</TabsTrigger>
           <TabsTrigger value="location-costs">Standortkosten</TabsTrigger>

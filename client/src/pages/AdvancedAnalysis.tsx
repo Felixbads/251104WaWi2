@@ -58,7 +58,7 @@ export default function AdvancedAnalysis() {
       <Card>
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <CardHeader className="pb-3">
-            <TabsList className="w-full justify-start">
+            <TabsList className="w-full overflow-x-auto scrollbar-hide flex justify-start">
               <TabsTrigger value="product-performance">Produktleistung</TabsTrigger>
               <TabsTrigger value="removed-products">Entfernte Produkte</TabsTrigger>
               <TabsTrigger value="event-frequency">Ereignisanalyse</TabsTrigger>
