@@ -26,53 +26,24 @@ router.get('/email/test-config', async (req, res) => {
   }
 });
 
-// Fallback route to handle existing frontend calls
+// DEPRECATED - Umleitung auf orders-email-working.ts
 router.post('/orders/:id/send-email', async (req, res) => {
-  console.log('[EnhancedEmailRoute] Handling order email send request for order:', req.params.id);
-  console.log('[EnhancedEmailRoute] Request body:', req.body);
+  console.log('[EnhancedEmailRoute] DEPRECATED - Redirecting to orders-email-working.ts for order:', req.params.id);
   
-  try {
-    const { id } = req.params;
-    const orderId = parseInt(id);
-    const { to, subject, content, supplierEmail, cc, bcc } = req.body;
-
-    console.log('[EnhancedEmailRoute] Attempting to send email with enhanced service...');
-    
-    // Use the enhanced email service to send the email with correct parameters
-    const result = await emailService.sendEmail(
-      to || supplierEmail,
-      subject || `Bestellung - Order ${orderId}`,
-      content || 'Bestelldetails werden verarbeitet...',
-      process.env.SMTP_FROM || 'einkauf@proviantomat.de',
-      cc,
-      bcc
-    );
-
-    console.log('[EnhancedEmailRoute] Email send result:', result);
-
-    if (result.success) {
-      res.json({
-        success: true,
-        message: 'E-Mail erfolgreich gesendet',
-        messageId: result.messageId,
-        method: result.method
-      });
-    } else {
-      console.error('[EnhancedEmailRoute] Email send failed:', result.error);
-      res.status(500).json({
-        success: false,
-        error: 'E-Mail konnte nicht gesendet werden',
-        details: result.error || 'Unbekannter Fehler bei der E-Mail-Übertragung'
-      });
-    }
-  } catch (error: any) {
-    console.error('[EnhancedEmailRoute] Exception in order email send:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Fehler beim Senden der E-Mail',
-      details: error.message || 'Unbekannter Serverfehler'
-    });
-  }
+  // Umleitung auf sichere orders-email-working.ts Route
+  const { id } = req.params;
+  
+  // Construct redirect URL to new secure endpoint
+  const redirectUrl = `/api/orders-email-working/${id}/send-email-working`;
+  
+  console.log(`[EnhancedEmailRoute] Redirecting to: ${redirectUrl}`);
+  
+  res.status(301).json({
+    success: false,
+    error: 'Diese Route ist veraltet. Bitte verwenden Sie die sichere orders-email-working API.',
+    redirect: redirectUrl,
+    message: 'Automatische Umleitung auf sichere E-Mail-API erforderlich'
+  });
 });
 
 // Verbesserte Bestell-E-Mail-Route (Enhanced endpoint)

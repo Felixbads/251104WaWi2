@@ -5,6 +5,7 @@ import { orders, orderItems, suppliers } from '../../shared/schema';
 import { eq } from 'drizzle-orm';
 import { createOrderPdf } from '../services/pdfService';
 import { rawDb } from '../db';
+import { createSecureSmtpConfig, validateSmtpEnvironment } from '../utils/secureSmtpConfig';
 
 const router = Router();
 
@@ -15,22 +16,19 @@ interface Attachment {
   contentType: string;
 }
 
-// Working email service with corrected SMTP configuration
+// SICHERER E-Mail-Service mit zentraler Konfiguration
 function createEmailTransporter() {
-  return createTransport({
-    host: process.env.SMTP_HOST,
-    port: parseInt(process.env.SMTP_PORT || '587'),
-    secure: false, // Use STARTTLS instead of SSL
-    requireTLS: true,
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
-    },
-    tls: {
-      rejectUnauthorized: false,
-      servername: process.env.SMTP_HOST
-    }
-  });
+  // Validiere SMTP-Umgebung vor Erstellung des Transporters
+  const validation = validateSmtpEnvironment();
+  if (!validation.isValid) {
+    console.error('[WorkingOrderEmail] SMTP-Validierung fehlgeschlagen:', validation.errors);
+    throw new Error(`SMTP-Konfiguration ungültig: ${validation.errors.join(', ')}`);
+  }
+
+  const secureConfig = createSecureSmtpConfig();
+  console.log(`[WorkingOrderEmail] Erstelle sicheren SMTP-Transporter (TLS-Validierung: ${secureConfig.tls.rejectUnauthorized})`);
+  
+  return createTransport(secureConfig);
 }
 
 // Format currency as Euro
@@ -707,7 +705,33 @@ router.post('/:orderId/send-email-working', async (req: Request, res: Response) 
       }));
     }
     
-    console.log('[WorkingOrderEmail] Sending email...');
+    // !! KRITISCHE VALIDIERUNG VOR E-MAIL-VERSAND !!
+    console.log('[WorkingOrderEmail] Validiere Portal-Link-Konsistenz vor E-Mail-Versand...');
+    const validationResult = validatePortalLinkConsistency(
+      emailContent, 
+      includePortalLink !== false, 
+      portalLink
+    );
+    
+    if (!validationResult.isValid) {
+      console.error('[WorkingOrderEmail] Portal-Link-Konsistenz-Validierung fehlgeschlagen:', validationResult.issues);
+      return res.status(400).json({
+        success: false,
+        error: 'Portal-Link Konsistenz-Fehler',
+        details: validationResult.issues,
+        validationFailed: true,
+        message: 'Die E-Mail-Inhalte sind nicht konsistent mit den Portal-Link-Einstellungen. Bitte überprüfen Sie die Konfiguration.'
+      });
+    }
+    
+    // Verwende korrigierten Content falls verfügbar
+    if (validationResult.correctedContent) {
+      emailContent = validationResult.correctedContent;
+      mailOptions.html = emailContent;
+      console.log('[WorkingOrderEmail] Portal-Link-Konsistenz korrigiert - verwende bereinigten Content');
+    }
+    
+    console.log('[WorkingOrderEmail] Portal-Link-Konsistenz-Validierung bestanden - Sending email...');
     const result = await transporter.sendMail(mailOptions);
     
     console.log(`[WorkingOrderEmail] Email sent successfully, Message ID: ${result.messageId}`);

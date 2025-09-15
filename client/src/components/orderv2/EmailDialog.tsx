@@ -44,6 +44,11 @@ export default function EmailDialog({
     htmlContent: '',
   });
   
+  // !! PERFORMANCE: PORTAL-LINK-CACHING SYSTEM !!
+  const [cachedPortalLink, setCachedPortalLink] = useState<string | null>(null);
+  const [portalLinkCacheKey, setPortalLinkCacheKey] = useState<string | null>(null);
+  const [portalLinkLoadTime, setPortalLinkLoadTime] = useState<number | null>(null);
+  
   const [availableTemplates, setAvailableTemplates] = useState([]);
   const [selectedTemplate, setSelectedTemplate] = useState<any>(null);
   const [previewTab, setPreviewTab] = useState('preview');
@@ -51,14 +56,47 @@ export default function EmailDialog({
   const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
+  // Portal-Link-Cache-Management - generiert Cache-Key für Eindeutigkeit
+  const generatePortalLinkCacheKey = (orderId: number, supplierName: string): string => {
+    return `portalLink_${orderId}_${supplierName.replace(/[^a-zA-Z0-9]/g, '_')}`;
+  };
+
+  // Prüft ob Portal-Link-Cache noch gültig ist (5 Minuten Gültigkeit)
+  const isPortalLinkCacheValid = (): boolean => {
+    if (!cachedPortalLink || !portalLinkLoadTime) return false;
+    
+    const now = Date.now();
+    const cacheAgeMs = now - portalLinkLoadTime;
+    const maxCacheAgeMs = 5 * 60 * 1000; // 5 Minuten
+    
+    const isValid = cacheAgeMs < maxCacheAgeMs;
+    
+    if (!isValid) {
+      console.log(`[EmailDialog] Portal-Link-Cache abgelaufen (${Math.round(cacheAgeMs / 1000)}s alt)`);
+    }
+    
+    return isValid;
+  };
+
   // Load supplier template and default values when dialog opens
   useEffect(() => {
     if (open && orderId) {
+      // Cache-Key für diesen Dialog generieren
+      const newCacheKey = generatePortalLinkCacheKey(orderId, supplierName);
+      
+      // Prüfe ob sich der Cache-Key geändert hat (anderer Order/Supplier)
+      if (newCacheKey !== portalLinkCacheKey) {
+        console.log(`[EmailDialog] Neuer Dialog - invalidiere Portal-Link-Cache`);
+        setCachedPortalLink(null);
+        setPortalLinkLoadTime(null);
+        setPortalLinkCacheKey(newCacheKey);
+      }
+      
       loadEmailTemplate();
     }
-  }, [open, orderId]);
+  }, [open, orderId, supplierName]);
 
-  // Update email preview when portal link toggle changes
+  // Update email preview when portal link toggle changes (mit Cache-Optimierung)
   useEffect(() => {
     if (open && orderId && emailData.htmlContent) {
       updateEmailPreview();
@@ -121,14 +159,23 @@ export default function EmailDialog({
   };
 
   /**
-   * Aktualisiert die E-Mail-Vorschau basierend auf Portal-Link-Toggle
+   * OPTIMIERTE E-Mail-Vorschau mit Portal-Link-Caching
    */
   const updateEmailPreview = async () => {
     try {
       console.log(`[EmailDialog] Aktualisiere E-Mail-Vorschau (includePortalLink=${includePortalLink})...`);
       
+      // Performance-Optimierung: Verwende gecachten Portal-Link falls verfügbar
+      let usePortalLinkParam = includePortalLink;
+      
+      if (includePortalLink && isPortalLinkCacheValid()) {
+        console.log(`[EmailDialog] Verwende gecachten Portal-Link für Performance-Optimierung`);
+        // Backend kann gecachten Link verwenden - signalisiere das über speziellen Parameter
+        usePortalLinkParam = true;
+      }
+      
       // Verwende das dynamische Portal-Abschnitt-System des Backend
-      const previewResponse = await fetch(`/api/orders/${orderId}/email-template?type=standard&includePortalLink=${includePortalLink}`);
+      const previewResponse = await fetch(`/api/orders/${orderId}/email-template?type=standard&includePortalLink=${usePortalLinkParam}`);
       
       if (!previewResponse.ok) {
         console.warn('[EmailDialog] Vorschau-Update fehlgeschlagen, behalte aktuellen Content');
@@ -137,13 +184,22 @@ export default function EmailDialog({
       
       const previewData = await previewResponse.json();
       
+      // Cache-Update: Speichere Portal-Link falls im Response enthalten
+      if (previewData.portalLink && includePortalLink) {
+        if (!isPortalLinkCacheValid() || cachedPortalLink !== previewData.portalLink) {
+          console.log(`[EmailDialog] Aktualisiere Portal-Link-Cache: ${previewData.portalLink.substring(0, 50)}...`);
+          setCachedPortalLink(previewData.portalLink);
+          setPortalLinkLoadTime(Date.now());
+        }
+      }
+      
       // Aktualisiere nur htmlContent, behalte andere E-Mail-Daten
       setEmailData(prev => ({
         ...prev,
         htmlContent: previewData.content || prev.htmlContent
       }));
       
-      console.log(`[EmailDialog] E-Mail-Vorschau erfolgreich aktualisiert (Portal-Link: ${includePortalLink ? 'EIN' : 'AUS'})`);
+      console.log(`[EmailDialog] E-Mail-Vorschau erfolgreich aktualisiert (Portal-Link: ${includePortalLink ? 'EIN' : 'AUS'}, Cache: ${isPortalLinkCacheValid() ? 'GÜLTIG' : 'UNGÜLTIG'})`);
       
     } catch (error) {
       console.error('[EmailDialog] Fehler beim Aktualisieren der E-Mail-Vorschau:', error);

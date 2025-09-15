@@ -4,6 +4,7 @@ import { orders, orderItems, suppliers } from '../../shared/schema';
 import { db } from '../db';
 import { rawDb } from '../db';
 import { eq } from 'drizzle-orm';
+import { createSecureSmtpConfig, validateSmtpEnvironment } from './secureSmtpConfig';
 
 // Mail-Service-Konfiguration
 interface EmailConfig {
@@ -45,26 +46,23 @@ class EnhancedEmailService {
       }
     }
 
-    // Nodemailer initialisieren
+    // Nodemailer mit sicherem SMTP initialisieren
     if (this.config.usesNodemailer) {
       try {
-        this.transporter = createTransport({
-          host: process.env.SMTP_HOST,
-          port: parseInt(process.env.SMTP_PORT || '587'),
-          secure: false, // Use STARTTLS instead of SSL
-          requireTLS: true,
-          auth: {
-            user: process.env.SMTP_USER,
-            pass: process.env.SMTP_PASS,
-          },
-          tls: {
-            rejectUnauthorized: false,
-            servername: process.env.SMTP_HOST
-          }
-        });
-        console.log('[EnhancedEmailService] Nodemailer konfiguriert');
+        // Validiere SMTP-Umgebung
+        const validation = validateSmtpEnvironment();
+        if (!validation.isValid) {
+          console.error('[EnhancedEmailService] SMTP-Validierung fehlgeschlagen:', validation.errors);
+          this.config.usesNodemailer = false; // Deaktiviere bei ungültiger Konfiguration
+          return;
+        }
+
+        const secureConfig = createSecureSmtpConfig();
+        this.transporter = createTransport(secureConfig);
+        console.log(`[EnhancedEmailService] Sicherer Nodemailer konfiguriert (TLS-Validierung: ${secureConfig.tls.rejectUnauthorized})`);
       } catch (error) {
-        console.error('[EnhancedEmailService] Nodemailer-Initialisierung fehlgeschlagen:', error);
+        console.error('[EnhancedEmailService] Sichere Nodemailer-Initialisierung fehlgeschlagen:', error);
+        this.config.usesNodemailer = false;
       }
     }
   }

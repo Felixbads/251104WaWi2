@@ -1,8 +1,9 @@
 /**
- * SMTP-BASIERTER E-MAIL-SERVICE FÜR ADMIN-BENACHRICHTIGUNGEN
- * Ersetzt SendGrid API durch server-basiertes SMTP für vollständige Kontrolle
+ * SICHERER SMTP-BASIERTER E-MAIL-SERVICE FÜR ADMIN-BENACHRICHTIGUNGEN
+ * Verwendet zentrale sichere TLS-Konfiguration
  */
 import nodemailer from 'nodemailer';
+import { createSecureSmtpConfig, validateSmtpEnvironment, getSmtpSecurityStatus } from '../utils/secureSmtpConfig';
 
 // HTML escape function to prevent XSS and template injection
 function escapeHtml(unsafe: string | number | undefined | null): string {
@@ -24,32 +25,35 @@ interface EmailParams {
 }
 
 /**
- * SMTP-Transporter erstellen mit Umgebungsvariablen
+ * SICHERER SMTP-Transporter mit validierter TLS-Konfiguration
  */
 function createSMTPTransporter() {
-  const smtpConfig = {
-    host: process.env.SMTP_HOST || 'localhost',
-    port: parseInt(process.env.SMTP_PORT || '587'),
-    secure: process.env.SMTP_PORT === '465', // true für 465, false für andere Ports
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS
-    },
-    // Zusätzliche Sicherheitsoptionen
-    tls: {
-      rejectUnauthorized: false // Für lokale/interne SMTP-Server
-    }
-  };
+  // Validiere SMTP-Umgebung vor Erstellung
+  const validation = validateSmtpEnvironment();
+  if (!validation.isValid) {
+    console.error('📧 SMTP-Validierung fehlgeschlagen:', validation.errors);
+    throw new Error(`SMTP-Konfiguration ungültig: ${validation.errors.join(', ')}`);
+  }
 
-  console.log('📧 SMTP-Konfiguration initialisiert:', {
-    host: smtpConfig.host,
-    port: smtpConfig.port,
-    secure: smtpConfig.secure,
-    user: smtpConfig.auth.user,
-    hasPassword: !!smtpConfig.auth.pass
+  const secureConfig = createSecureSmtpConfig();
+  const securityStatus = getSmtpSecurityStatus();
+  
+  console.log('📧 Sichere SMTP-Konfiguration initialisiert:', {
+    host: secureConfig.host,
+    port: secureConfig.port,
+    secure: secureConfig.secure,
+    user: secureConfig.auth.user,
+    hasPassword: !!secureConfig.auth.pass,
+    tlsValidation: secureConfig.tls.rejectUnauthorized,
+    environment: securityStatus.environment,
+    isSecure: securityStatus.isSecure
   });
 
-  return nodemailer.createTransport(smtpConfig);
+  if (securityStatus.recommendations.length > 0) {
+    console.warn('📧 SMTP-Sicherheitsempfehlungen:', securityStatus.recommendations);
+  }
+
+  return nodemailer.createTransport(secureConfig);
 }
 
 /**

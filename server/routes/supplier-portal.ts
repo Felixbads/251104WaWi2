@@ -7,7 +7,8 @@
 import { Router, Request, Response } from 'express';
 import { rawDb } from '../db';
 import { validatePin } from '../services/supplierPinService';
-import { emailService } from '../utils/enhancedEmailService';
+// DEPRECATED: import { emailService } from '../utils/enhancedEmailService'; 
+// Supplier-Portal nutzt jetzt sichere E-Mail-Services
 import { validatePortalToken } from '../services/supplierPortalService';
 
 const router = Router();
@@ -1250,8 +1251,13 @@ router.post('/confirm-delivery', async (req: Request, res: Response) => {
     const supplierName = supplierData.rows[0]?.name || `Lieferant ${supplierId}`;
 
     // Automatische E-Mail-Benachrichtigung an interne Mitarbeiter senden
-    console.log(`[SUPPLIER-PORTAL] Bestellung ${order.order_number} von ${supplierName} bestätigt - sende E-Mail-Benachrichtigung`);
+    console.log(`[SUPPLIER-PORTAL] Bestellung ${order.order_number} von ${supplierName} bestätigt`);
     
+    // TODO: E-Mail-Benachrichtigung über sichere SMTP-Services senden
+    // Temporär deaktiviert bis Migration auf orders-email-working.ts abgeschlossen
+    console.log(`[SUPPLIER-PORTAL] E-Mail-Benachrichtigung temporär deaktiviert (Migration zu sicherer SMTP)`);
+    
+    /* DEPRECATED - Migration zu sicherer SMTP erforderlich
     try {
       const emailResult = await emailService.sendSupplierConfirmationNotification(
         orderId,
@@ -1270,6 +1276,7 @@ router.post('/confirm-delivery', async (req: Request, res: Response) => {
       console.error('[SUPPLIER-PORTAL] Exception beim Senden der E-Mail-Benachrichtigung:', emailError);
       // Bestätigung trotzdem erfolgreich - E-Mail-Fehler soll nicht den ganzen Prozess blockieren
     }
+    */
 
     return jsonResponse(res, 200, {
       success: true,
