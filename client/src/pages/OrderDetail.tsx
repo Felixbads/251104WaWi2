@@ -36,7 +36,12 @@ import {
   Send,
   Loader2,
   AlertTriangle,
+  Trash2,
 } from "lucide-react";
+
+// API Functions
+import { deleteOrder } from "@/lib/api";
+import { orderKeys } from "@/lib/queryKeys";
 
 // Formatierung des Status
 const formatStatus = (status: string) => {
@@ -190,6 +195,27 @@ export default function OrderDetail() {
     }
   });
 
+  // Delete Order Mutation (nur für Entwürfe)
+  const deleteOrderMutation = useMutation({
+    mutationFn: deleteOrder,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: orderKeys.lists() });
+      toast({
+        title: "Bestellung gelöscht",
+        description: "Die Entwurfs-Bestellung wurde erfolgreich gelöscht."
+      });
+      // Zurück zur Übersicht nach dem Löschen
+      navigate('/bestellungen');
+    },
+    onError: (error: any) => {
+      toast({
+        variant: "destructive",
+        title: "Fehler",
+        description: error?.message || "Die Bestellung konnte nicht gelöscht werden."
+      });
+    }
+  });
+
   const handleBack = () => {
     navigate("/bestellungen");
   };
@@ -279,6 +305,31 @@ export default function OrderDetail() {
             )}
             Kopieren
           </Button>
+          
+          {/* Delete button nur für Entwürfe */}
+          {order.status === 'draft' && (
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => {
+                const confirmDelete = window.confirm(
+                  `Möchten Sie die Entwurfs-Bestellung "${order.orderNumber || order.order_number || 'Unbekannt'}" wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.`
+                );
+                if (confirmDelete) {
+                  deleteOrderMutation.mutate(Number(id));
+                }
+              }}
+              disabled={deleteOrderMutation.isPending}
+              className="gap-2 text-red-600 hover:text-red-700 border-red-200 hover:border-red-300"
+            >
+              {deleteOrderMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2 className="h-4 w-4" />
+              )}
+              Löschen
+            </Button>
+          )}
         </div>
       </div>
 

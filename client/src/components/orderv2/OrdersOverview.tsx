@@ -19,11 +19,13 @@ import {
   Send,
   Truck,
   ShoppingBag,
-  Mail
+  Mail,
+  Trash2
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { orderKeys } from '@/lib/queryKeys';
+import { deleteOrder } from '@/lib/api';
 
 import {
   Table,
@@ -187,6 +189,25 @@ const OrdersOverview: React.FC<OrdersOverviewProps> = ({
   const markAsSentMutation = useMutation({
     mutationFn: async ({ id, sentDate }: { id: number, sentDate: Date }) => {
       return changeStatusMutation.mutateAsync({ id, status: 'sent', sentDate });
+    }
+  });
+  
+  // Mutation zum Löschen von Entwurfs-Bestellungen
+  const deleteOrderMutation = useMutation({
+    mutationFn: deleteOrder,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: orderKeys.lists() });
+      toast({
+        title: "Bestellung gelöscht",
+        description: "Die Entwurfs-Bestellung wurde erfolgreich gelöscht."
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        variant: "destructive",
+        title: "Fehler",
+        description: error?.message || "Die Bestellung konnte nicht gelöscht werden."
+      });
     }
   });
   
@@ -636,13 +657,30 @@ const OrdersOverview: React.FC<OrdersOverviewProps> = ({
                               
                               {/* Status-abhängige Aktionen im Dropdown-Menü */}
                               {order.status === 'draft' && (
-                                <DropdownMenuItem
-                                  className="cursor-pointer"
-                                  onClick={(e) => handleChangeStatus(order.id, 'sent', e)}
-                                >
-                                  <Send className="mr-2 h-4 w-4" />
-                                  <span>Als „Versendet" markieren</span>
-                                </DropdownMenuItem>
+                                <>
+                                  <DropdownMenuItem
+                                    className="cursor-pointer"
+                                    onClick={(e) => handleChangeStatus(order.id, 'sent', e)}
+                                  >
+                                    <Send className="mr-2 h-4 w-4" />
+                                    <span>Als „Versendet" markieren</span>
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    className="cursor-pointer text-red-600 hover:text-red-700"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      const confirmDelete = window.confirm(
+                                        `Möchten Sie die Entwurfs-Bestellung "${order.order_number || 'Unbekannt'}" wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.`
+                                      );
+                                      if (confirmDelete) {
+                                        deleteOrderMutation.mutate(order.id);
+                                      }
+                                    }}
+                                  >
+                                    <Trash2 className="mr-2 h-4 w-4" />
+                                    <span>Löschen</span>
+                                  </DropdownMenuItem>
+                                </>
                               )}
                               
                               {order.status === 'sent' && (
