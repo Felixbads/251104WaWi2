@@ -150,68 +150,7 @@ DRINGENDE Bestellpositionen:
   return content;
 }
 
-/**
- * Holt den access_token für einen Lieferanten und generiert sicheren Portal-Link
- * VERWENDET JETZT ZENTRALEN SERVICE
- */
-export async function getSupplierPortalLink(supplierId: number, orderNumber?: string): Promise<string> {
-  try {
-    // Validiere supplierId
-    if (!supplierId || supplierId <= 0) {
-      console.warn('[OrderEmailUtils] Ungültige Lieferanten-ID:', supplierId);
-      return '';
-    }
-
-    // Verwende zentralen Service für Portal-Link-Generierung
-    const result = await createSupplierPortalLink({
-      supplierId,
-      orderNumber,
-      validUntilDays: 365 // Lange Gültigkeit für Portal-Zugang
-    });
-
-    if (!result.success || !result.portalUrl) {
-      console.warn(`[OrderEmailUtils] Portal-Link-Generierung fehlgeschlagen für Lieferant ${supplierId}:`, result.error);
-      return '';
-    }
-
-    console.log(`[OrderEmailUtils] Portal-Link erfolgreich generiert für Lieferant ${supplierId}`);
-    return result.portalUrl;
-    
-  } catch (error) {
-    console.error('[OrderEmailUtils] Fehler beim Abrufen des Portal-Links:', error);
-    return '';
-  }
-}
-
-/**
- * Ermittelt sichere Basis-URL
- */
-function getSecureBaseUrl(): string {
-  // Production URL hat Priorität
-  if (process.env.PRODUCTION_DOMAIN) {
-    return `https://${process.env.PRODUCTION_DOMAIN}`;
-  }
-  
-  // Development URL falls verfügbar
-  if (process.env.REPLIT_DEV_DOMAIN) {
-    return `https://${process.env.REPLIT_DEV_DOMAIN}`;
-  }
-  
-  // Fallback auf Standard-Domain
-  return 'https://www.proviantomat.de';
-}
-
-/**
- * Validiert URL-Format
- */
-function isValidUrl(url: string): boolean {
-  try {
-    const urlObj = new URL(url);
-    return urlObj.protocol === 'https:' && urlObj.hostname.length > 0;
-  } catch {
-    return false;
-  }
-}
+// REMOVED: Portal-Link-Funktionen (jetzt in orders-email-working.ts zentralisiert)
 
 /**
  * Erstellt eine E-Mail-Vorlage für eine Bestellung
@@ -442,11 +381,27 @@ export async function createAndSendOrderEmail(
       }
     }
 
-    // 3. Portal-Link für Lieferanten generieren
+    // 3. Portal-Link für Lieferanten generieren (verwende zentralen Service)
     let portalLink = '';
     if (order.supplierId) {
-      portalLink = await getSupplierPortalLink(order.supplierId);
-      console.log(`[createAndSendOrderEmail] Portal-Link für Lieferant ${order.supplierId}: ${portalLink ? 'Generiert' : 'Nicht verfügbar'}`);
+      try {
+        // Portal-Link-Generierung durch zentralen Service
+        const { createSupplierPortalLink } = await import('../services/supplierPortalService');
+        const result = await createSupplierPortalLink({
+          supplierId: order.supplierId,
+          orderNumber: order.orderNumber,
+          validUntilDays: 365
+        });
+        
+        if (result.success && result.portalUrl) {
+          portalLink = result.portalUrl;
+          console.log(`[createAndSendOrderEmail] Portal-Link für Lieferant ${order.supplierId}: Generiert`);
+        } else {
+          console.log(`[createAndSendOrderEmail] Portal-Link für Lieferant ${order.supplierId}: Nicht verfügbar`);
+        }
+      } catch (error) {
+        console.error('[createAndSendOrderEmail] Fehler beim Generieren des Portal-Links:', error);
+      }
     }
 
     // 4. E-Mail-Inhalt erstellen (entweder angepasst oder aus Vorlage)

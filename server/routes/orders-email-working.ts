@@ -248,6 +248,204 @@ function escapeHtml(unsafe: string): string {
     .replace(/'/g, '&#039;');
 }
 
+/**
+ * DYNAMISCHES PORTAL-ABSCHNITT-SYSTEM
+ * Separiert Portal-Abschnitte aus E-Mail-Templates zur dynamischen Verwaltung
+ */
+
+interface PortalSectionData {
+  baseTemplate: string;
+  portalSections: string[];
+  placeholders: string[];
+}
+
+/**
+ * Identifiziert und separiert Portal-Abschnitte aus einem E-Mail-Template
+ */
+function separatePortalSections(template: string): PortalSectionData {
+  console.log('[PortalSeparation] Starte Portal-Abschnitt-Separierung...');
+  
+  const portalSections: string[] = [];
+  const placeholders: string[] = [];
+  let baseTemplate = template;
+  
+  // Portal-Keywords für Identifikation
+  const portalKeywords = [
+    'Portal', 'Lieferantenportal', '🔗', '🚚', 'online bestätigen', 
+    'Zum Lieferantenportal', 'portal', 'portal-', 'portalUrl'
+  ];
+  
+  // Regex-Pattern für Portal-Abschnitte
+  const portalPatterns = [
+    // Div mit Portal-Styling (background-color: #f0f9ff, border: solid #0891b2)
+    /<div[^>]*(?:background-color:\s*#f0f9ff|border:[^>]*#0891b2)[^>]*>[\s\S]*?<\/div>/gi,
+    // Div mit Portal-Klassen oder IDs
+    /<div[^>]*(?:class|id)="[^"]*portal[^"]*"[^>]*>[\s\S]*?<\/div>/gi,
+    // Links zu Portal-URLs
+    /<a[^>]*href="[^"]*(?:lieferant|portal)[^"]*"[^>]*>[\s\S]*?<\/a>/gi,
+    // Abschnitte mit Portal-Keywords
+    /<div[^>]*>[\s\S]*?(?:Portal|Lieferantenportal|🔗|🚚)[\s\S]*?<\/div>/gi
+  ];
+  
+  // Portal-Abschnitte durch Patterns identifizieren
+  portalPatterns.forEach((pattern, index) => {
+    const matches = template.match(pattern);
+    if (matches) {
+      matches.forEach((match, matchIndex) => {
+        const placeholderName = `{{portalSection_${index}_${matchIndex}}}`;
+        
+        // Prüfe ob es wirklich Portal-Keywords enthält
+        const containsPortalKeyword = portalKeywords.some(keyword => 
+          match.toLowerCase().includes(keyword.toLowerCase())
+        );
+        
+        if (containsPortalKeyword) {
+          portalSections.push(match);
+          placeholders.push(placeholderName);
+          
+          // Ersetze Portal-Abschnitt durch Platzhalter
+          baseTemplate = baseTemplate.replace(match, placeholderName);
+          
+          console.log(`[PortalSeparation] Portal-Abschnitt gefunden (Pattern ${index}):`, match.substring(0, 100) + '...');
+        }
+      });
+    }
+  });
+  
+  // Fallback: Spezifischer Portal-Abschnitt aus createOrderEmailTemplate
+  if (portalSections.length === 0) {
+    // Suche nach dem spezifischen Portal-Abschnitt aus der bestehenden Template-Funktion
+    const specificPortalPattern = /\$\{portalLink && isValidUrl\(portalLink\)[\s\S]*?\$\{escapeHtml\(portalLink\)\}[\s\S]*?\`\s*:\s*''\}/g;
+    const match = template.match(specificPortalPattern);
+    
+    if (match && match[0]) {
+      const portalSection = match[0];
+      const placeholderName = '{{portalLinkSection}}';
+      
+      portalSections.push(portalSection);
+      placeholders.push(placeholderName);
+      baseTemplate = baseTemplate.replace(portalSection, placeholderName);
+      
+      console.log('[PortalSeparation] Spezifischer Portal-Abschnitt gefunden und separiert');
+    }
+  }
+  
+  console.log(`[PortalSeparation] Separierung abgeschlossen: ${portalSections.length} Portal-Abschnitte gefunden`);
+  
+  return {
+    baseTemplate,
+    portalSections,
+    placeholders
+  };
+}
+
+/**
+ * Reassembliert E-Mail-Content basierend auf Portal-Link-Präferenz
+ */
+function reassembleEmailContent(
+  baseTemplate: string, 
+  portalSections: string[], 
+  placeholders: string[],
+  includePortalLink: boolean,
+  portalLink: string = ''
+): string {
+  console.log(`[PortalReassemble] Starte Reassemblierung (includePortalLink=${includePortalLink})`);
+  
+  let reassembledContent = baseTemplate;
+  
+  if (includePortalLink && portalLink && isValidUrl(portalLink)) {
+    // Portal-Link aktiviert und gültiger Link vorhanden - Portal-Abschnitte einfügen
+    console.log('[PortalReassemble] Portal-Link aktiviert - füge Portal-Abschnitte ein');
+    
+    placeholders.forEach((placeholder, index) => {
+      if (portalSections[index]) {
+        // Evaluiere Template-Strings in Portal-Abschnitten
+        let portalSection = portalSections[index];
+        
+        // Ersetze Portal-Link-Platzhalter
+        portalSection = portalSection.replace(/\$\{escapeHtml\(portalLink\)\}/g, escapeHtml(portalLink));
+        portalSection = portalSection.replace(/\$\{portalLink\}/g, portalLink);
+        
+        reassembledContent = reassembledContent.replace(placeholder, portalSection);
+        console.log(`[PortalReassemble] Portal-Abschnitt ${index + 1} eingefügt`);
+      }
+    });
+  } else {
+    // Portal-Link deaktiviert oder ungültig - alle Portal-Platzhalter entfernen
+    console.log('[PortalReassemble] Portal-Link deaktiviert - entferne alle Portal-Abschnitte');
+    
+    placeholders.forEach((placeholder) => {
+      reassembledContent = reassembledContent.replace(placeholder, '');
+    });
+  }
+  
+  // Bereinige überschüssige Leerzeilen und Whitespace
+  reassembledContent = reassembledContent
+    .replace(/\n\s*\n\s*\n/g, '\n\n') // Mehrfache Leerzeilen reduzieren
+    .replace(/\s{2,}/g, ' ') // Mehrfache Leerzeichen reduzieren
+    .trim();
+  
+  console.log('[PortalReassemble] Reassemblierung abgeschlossen');
+  
+  return reassembledContent;
+}
+
+/**
+ * Validiert Portal-Link-Konsistenz vor E-Mail-Versand
+ */
+function validatePortalLinkConsistency(
+  emailContent: string,
+  includePortalLink: boolean,
+  portalLink: string
+): { isValid: boolean; issues: string[]; correctedContent?: string } {
+  console.log('[PortalValidation] Starte Portal-Link-Konsistenz-Validierung...');
+  
+  const issues: string[] = [];
+  
+  // Prüfe Portal-Content im E-Mail-Content
+  const hasPortalContent = [
+    'Portal', 'Lieferantenportal', '🔗', '🚚', 'online bestätigen',
+    'portal', 'Zum Lieferantenportal'
+  ].some(keyword => emailContent.toLowerCase().includes(keyword.toLowerCase()));
+  
+  // Prüfe Portal-Links in Content
+  const hasPortalLinks = /href="[^"]*(?:lieferant|portal)[^"]*"/gi.test(emailContent);
+  
+  // Validierung 1: Portal-Link aktiviert, aber kein Portal-Content
+  if (includePortalLink && !hasPortalContent && !hasPortalLinks) {
+    issues.push('Portal-Link ist aktiviert, aber kein Portal-Content im E-Mail gefunden');
+  }
+  
+  // Validierung 2: Portal-Link deaktiviert, aber Portal-Content vorhanden
+  if (!includePortalLink && (hasPortalContent || hasPortalLinks)) {
+    issues.push('Portal-Link ist deaktiviert, aber Portal-Content im E-Mail gefunden');
+  }
+  
+  // Validierung 3: Portal-Link aktiviert, aber ungültiger Link
+  if (includePortalLink && portalLink && !isValidUrl(portalLink)) {
+    issues.push(`Portal-Link aktiviert, aber URL ist ungültig: ${portalLink}`);
+  }
+  
+  // Validierung 4: Portal-Link aktiviert, aber kein Link verfügbar
+  if (includePortalLink && !portalLink) {
+    issues.push('Portal-Link ist aktiviert, aber kein Portal-Link verfügbar');
+  }
+  
+  const isValid = issues.length === 0;
+  
+  console.log(`[PortalValidation] Validierung abgeschlossen: ${isValid ? 'BESTANDEN' : 'FEHLGESCHLAGEN'}`);
+  if (!isValid) {
+    console.log('[PortalValidation] Gefundene Probleme:', issues);
+  }
+  
+  return {
+    isValid,
+    issues,
+    // Korrektur könnte hier implementiert werden falls gewünscht
+    correctedContent: isValid ? undefined : emailContent
+  };
+}
+
 // Create email template for an order
 function createOrderEmailTemplate(order: any, supplier: any, portalLink: string = ''): string {
   const template = `

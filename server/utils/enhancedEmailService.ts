@@ -309,95 +309,7 @@ class EnhancedEmailService {
     return tableHtml;
   }
 
-  /**
-   * Holt den access_token für einen Lieferanten und generiert sicheren Portal-Link
-   */
-  async getSupplierPortalLink(supplierId: number): Promise<string> {
-    try {
-      // Validiere supplierId
-      if (!supplierId || supplierId <= 0) {
-        console.warn('[EnhancedEmailService] Ungültige Lieferanten-ID:', supplierId);
-        return '';
-      }
-
-      // Sichere Datenbankabfrage mit Validierung
-      const result = await rawDb.query(
-        'SELECT access_token, created_at, valid_until FROM supplier_access_pins WHERE supplier_id = $1 AND is_active = true ORDER BY created_at DESC LIMIT 1',
-        [supplierId]
-      );
-      
-      if (result.rows.length === 0) {
-        console.log(`[EnhancedEmailService] Kein aktiver Access-Token für Lieferant ${supplierId} gefunden`);
-        return '';
-      }
-
-      const tokenData = result.rows[0];
-      const accessToken = tokenData.access_token;
-      
-      // Validiere Access-Token Format
-      if (!accessToken || typeof accessToken !== 'string' || accessToken.length < 10) {
-        console.error('[EnhancedEmailService] Ungültiger Access-Token:', accessToken);
-        return '';
-      }
-
-      // Prüfe Token-Gültigkeit (falls valid_until gesetzt ist)
-      if (tokenData.valid_until) {
-        const expiresAt = new Date(tokenData.valid_until);
-        const now = new Date();
-        if (expiresAt <= now) {
-          console.warn(`[EnhancedEmailService] Access-Token für Lieferant ${supplierId} ist abgelaufen:`, expiresAt);
-          return '';
-        }
-      }
-
-      // Sichere URL-Generierung
-      const baseUrl = this.getSecureBaseUrl();
-      const portalUrl = `${baseUrl}/lieferant/${encodeURIComponent(accessToken)}`;
-      
-      // Validiere generierte URL
-      if (!this.isValidUrl(portalUrl)) {
-        console.error('[EnhancedEmailService] Generierte URL ist ungültig:', portalUrl);
-        return '';
-      }
-
-      console.log(`[EnhancedEmailService] Sicherer Portal-Link generiert für Lieferant ${supplierId}`);
-      return portalUrl;
-      
-    } catch (error) {
-      console.error('[EnhancedEmailService] Fehler beim Abrufen des Portal-Links:', error);
-      return '';
-    }
-  }
-
-  /**
-   * Ermittelt sichere Basis-URL
-   */
-  private getSecureBaseUrl(): string {
-    // Production URL hat Priorität
-    if (process.env.PRODUCTION_DOMAIN) {
-      return `https://${process.env.PRODUCTION_DOMAIN}`;
-    }
-    
-    // Development URL falls verfügbar
-    if (process.env.REPLIT_DEV_DOMAIN) {
-      return `https://${process.env.REPLIT_DEV_DOMAIN}`;
-    }
-    
-    // Fallback auf Standard-Domain
-    return 'https://www.proviantomat.de';
-  }
-
-  /**
-   * Validiert URL-Format
-   */
-  private isValidUrl(url: string): boolean {
-    try {
-      const urlObj = new URL(url);
-      return urlObj.protocol === 'https:' && urlObj.hostname.length > 0;
-    } catch {
-      return false;
-    }
-  }
+  // REMOVED: Portal-Link-Funktionen (jetzt in orders-email-working.ts zentralisiert)
 
   /**
    * Escapes HTML entities für sichere E-Mail-Darstellung
@@ -542,11 +454,27 @@ class EnhancedEmailService {
       
       console.log(`[EnhancedEmailService] ${items.length} Bestellpositionen gefunden`);
       
-      // 4. Portal-Link für Lieferanten generieren
+      // 4. Portal-Link für Lieferanten generieren (verwende zentralen Service)
       let portalLink = '';
       if (order.supplierId) {
-        portalLink = await this.getSupplierPortalLink(order.supplierId);
-        console.log(`[EnhancedEmailService] Portal-Link für Lieferant ${order.supplierId}: ${portalLink ? 'Generiert' : 'Nicht verfügbar'}`);
+        try {
+          // Portal-Link-Generierung durch zentralen Service
+          const { createSupplierPortalLink } = await import('../services/supplierPortalService');
+          const result = await createSupplierPortalLink({
+            supplierId: order.supplierId,
+            orderNumber: order.orderNumber,
+            validUntilDays: 365
+          });
+          
+          if (result.success && result.portalUrl) {
+            portalLink = result.portalUrl;
+            console.log(`[EnhancedEmailService] Portal-Link für Lieferant ${order.supplierId}: Generiert`);
+          } else {
+            console.log(`[EnhancedEmailService] Portal-Link für Lieferant ${order.supplierId}: Nicht verfügbar`);
+          }
+        } catch (error) {
+          console.error('[EnhancedEmailService] Fehler beim Generieren des Portal-Links:', error);
+        }
       }
 
       // 5. E-Mail-Inhalt erstellen

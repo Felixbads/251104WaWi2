@@ -58,6 +58,13 @@ export default function EmailDialog({
     }
   }, [open, orderId]);
 
+  // Update email preview when portal link toggle changes
+  useEffect(() => {
+    if (open && orderId && emailData.htmlContent) {
+      updateEmailPreview();
+    }
+  }, [includePortalLink]);
+
   const loadEmailTemplate = async () => {
     try {
       setIsLoading(true);
@@ -65,7 +72,7 @@ export default function EmailDialog({
       // Lade das neue 11-Punkte-Professionelle E-Mail-Template von der Backend-API
       console.log(`[EmailDialog] Lade professionelles Template für Bestellung ${orderId}...`);
       
-      const templateResponse = await fetch(`/api/orders/${orderId}/email-template?type=standard`);
+      const templateResponse = await fetch(`/api/orders/${orderId}/email-template?type=standard&includePortalLink=${includePortalLink}`);
       if (!templateResponse.ok) {
         throw new Error(`Template-API-Fehler: ${templateResponse.status}`);
       }
@@ -111,6 +118,45 @@ export default function EmailDialog({
     } finally {
       setIsLoading(false);
     }
+  };
+
+  /**
+   * Aktualisiert die E-Mail-Vorschau basierend auf Portal-Link-Toggle
+   */
+  const updateEmailPreview = async () => {
+    try {
+      console.log(`[EmailDialog] Aktualisiere E-Mail-Vorschau (includePortalLink=${includePortalLink})...`);
+      
+      // Verwende das dynamische Portal-Abschnitt-System des Backend
+      const previewResponse = await fetch(`/api/orders/${orderId}/email-template?type=standard&includePortalLink=${includePortalLink}`);
+      
+      if (!previewResponse.ok) {
+        console.warn('[EmailDialog] Vorschau-Update fehlgeschlagen, behalte aktuellen Content');
+        return;
+      }
+      
+      const previewData = await previewResponse.json();
+      
+      // Aktualisiere nur htmlContent, behalte andere E-Mail-Daten
+      setEmailData(prev => ({
+        ...prev,
+        htmlContent: previewData.content || prev.htmlContent
+      }));
+      
+      console.log(`[EmailDialog] E-Mail-Vorschau erfolgreich aktualisiert (Portal-Link: ${includePortalLink ? 'EIN' : 'AUS'})`);
+      
+    } catch (error) {
+      console.error('[EmailDialog] Fehler beim Aktualisieren der E-Mail-Vorschau:', error);
+    }
+  };
+
+  /**
+   * Erweiterte Portal-Link-Toggle-Handler mit sofortiger Vorschau-Aktualisierung
+   */
+  const handlePortalToggle = (checked: boolean) => {
+    console.log(`[EmailDialog] Portal-Link-Toggle: ${checked ? 'aktiviert' : 'deaktiviert'}`);
+    setIncludePortalLink(checked);
+    // useEffect wird automatisch updateEmailPreview() aufrufen
   };
 
   const handleSendEmail = async () => {
@@ -323,8 +369,9 @@ export default function EmailDialog({
               <Switch
                 id="portal-link"
                 checked={includePortalLink}
-                onCheckedChange={setIncludePortalLink}
+                onCheckedChange={handlePortalToggle}
                 disabled={isLoading}
+                data-testid="toggle-portal-link"
               />
               <Label htmlFor="portal-link" className="text-sm font-medium">
                 🔗 Portal-Link mitschicken
