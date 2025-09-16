@@ -104,8 +104,10 @@ export async function createSupplierPin(supplierId: number, orderId?: number, or
       };
     }
 
-    // Erstelle Access-URL
-    const baseUrl = process.env.BASE_URL || 'https://your-replit-app.replit.app';
+    // Erstelle Access-URL mit dynamischer Base-URL-Erkennung
+    const baseUrl = process.env.BASE_URL || 
+                   (process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : 
+                   'http://localhost:5000');
     const accessUrl = `${baseUrl}/lieferant/${accessToken}`;
 
     // Generiere QR-Code
@@ -292,7 +294,7 @@ export async function generatePinForEmail(supplierId: number, orderNumber: strin
       accessUrl: pinResult.data.accessUrl,
       qrCodeDataUrl: pinResult.data.qrCodeDataUrl,
       supplierName,
-      validUntil: pinResult.data.validUntil.toLocaleDateString('de-DE', {
+      validUntil: (pinResult.data.validUntil || new Date()).toLocaleDateString('de-DE', {
         year: 'numeric',
         month: '2-digit',
         day: '2-digit',

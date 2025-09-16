@@ -726,10 +726,10 @@ router.get('/admin/analytics/:supplierId', async (req: Request, res: Response) =
 
     const feedbackResult = await rawDb.query(feedbackQuery, [supplierId]);
 
-    // Get supplier portal access URL
+    // Get supplier portal access URL with dynamic base URL detection
     const baseUrl = process.env.BASE_URL || 
                    (process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : 
-                   'https://your-replit-app.replit.app');
+                   'http://localhost:5000');
     const activePins = pinsResult.rows;
     let portalUrl = null;
     
