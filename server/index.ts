@@ -940,7 +940,8 @@ app.get('/orders-data', (req, res) => {
     try {
       const orderId = parseInt(req.params.id);
       const templateType = req.query.type || 'standard';
-      console.log(`GET /api/orders/${orderId}/email-template - Generiere E-Mail-Vorlage...`);
+      const includePortalLink = req.query.includePortalLink === 'true';
+      console.log(`GET /api/orders/${orderId}/email-template - Generiere E-Mail-Vorlage (Portal-Link: ${includePortalLink})...`);
       
       // Bestellung mit vollständigen Lieferanten- und Lagerdaten laden
       const orderResult = await pool.query(`
@@ -996,9 +997,9 @@ app.get('/orders-data', (req, res) => {
         ORDER BY oi.id
       `, [orderId]);
       
-      // Portal-Link für Lieferanten generieren (wichtig für Template!)
+      // Portal-Link für Lieferanten generieren (nur wenn gewünscht!)
       let portalLink = '';
-      if (order.supplier_id) {
+      if (order.supplier_id && includePortalLink) {
         try {
           // Import der Portal-Link Funktion aus dem utils
           const { getSupplierPortalLink } = await import('./utils/orderEmailUtils');
