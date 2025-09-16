@@ -928,8 +928,8 @@ export default function Orders() {
                       // Navigation basierend auf dem Status der Bestellung
                       const handleRowClick = () => {
                         if (order.status === 'sent' || order.status === 'partially_received') {
-                          // Bei "gesendet" direkt zum Wareneingang
-                          setLocation(`/bestellungen/${order.id}/wareneingang`);
+                          // Bei "gesendet" zum neuen BestellungV2 Wareneingang-Workflow
+                          setLocation(`/bestellungen/neu?step=warehouseReceiptOfExistingOrder&orderId=${order.id}`);
                         } else {
                           // Für alle anderen Zustände zur Bestellübersicht (viewOrder)
                           setLocation(`/bestellungen/workflow?step=viewOrder&orderId=${order.id}`);

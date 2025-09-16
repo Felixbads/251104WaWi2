@@ -353,10 +353,9 @@ function AuthenticatedRouter() {
           </ApprovedUserRoute>
         </Route>
 
+        {/* Legacy Wareneingang Route - Redirect to new BestellungV2 workflow */}
         <Route path="/bestellungen/:id/wareneingang">
-          <ApprovedUserRoute>
-            <OrderReceipt />
-          </ApprovedUserRoute>
+          {({ id }) => <Redirect to={`/bestellungen/neu?step=warehouseReceiptOfExistingOrder&orderId=${id}`} />}
         </Route>
 
         {/* Removed static supplier portal route - use token-based access only */}

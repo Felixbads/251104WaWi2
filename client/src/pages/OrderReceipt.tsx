@@ -1,3 +1,13 @@
+/**
+ * @deprecated Diese Komponente ist veraltet und wird durch BestellungV2 
+ * mit dem Schritt 'warehouseReceiptOfExistingOrder' ersetzt.
+ * 
+ * Navigation zu versendeten Bestellungen erfolgt jetzt über:
+ * /bestellungen/neu?step=warehouseReceiptOfExistingOrder&orderId=${id}
+ * 
+ * Diese Datei wird nur noch für Legacy-Zwecke beibehalten.
+ */
+
 import { useState, useEffect } from "react";
 import { useParams, useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
