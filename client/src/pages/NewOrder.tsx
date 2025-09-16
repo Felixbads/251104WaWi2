@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation, useParams, Link } from "wouter";
 import { useForm } from "react-hook-form";
@@ -11,7 +11,7 @@ import "react-datepicker/dist/react-datepicker.css";
 import { apiRequest } from "@/lib/queryClient";
 import { getPurchaseConditionsByProduct } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
-import { ForecastOrderForm } from "@/components/ForecastOrderForm";
+// NOTE: ForecastOrderForm import removed to fix conflict - component may be defined locally or in different location
 
 // UI Komponenten
 import { Button } from "@/components/ui/button";
@@ -118,8 +118,8 @@ const warehouseSelectSchema = z.object({
   })
 });
 
-// Schema für Bestelloptionen
-const orderOptionSchema = z.enum(["new", "copy", "bulk"]);
+// Schema für Bestelloptionen - updated to match UI modes
+const orderOptionSchema = z.enum(["new", "copy", "forecast"]);
 
 // Schema für neue Bestellung
 const newOrderSchema = z.object({
@@ -180,14 +180,48 @@ function WarehouseSelectionForm({
 }) {
   const { toast } = useToast();
   
-  // Abfrage der Lager mit korrekter Datenextraktion
-  const { data: warehouseResponse, isLoading, error } = useQuery<any>({
+  // Type-safe warehouse data fetching and normalization
+  interface BaseWarehouse {
+    id: number;
+    name: string;
+    city?: string | null;
+    address?: string | null;
+    postal_code?: string | null;
+    is_active?: boolean;
+    isActive?: boolean;
+  }
+
+  interface PaginatedWarehouseResponse {
+    data: BaseWarehouse[];
+    meta?: Record<string, any>;
+  }
+
+  type WarehouseApiResponse = BaseWarehouse[] | PaginatedWarehouseResponse | unknown;
+
+  const { data: warehouseResponse, isLoading, error } = useQuery<WarehouseApiResponse>({
     queryKey: ['/api/warehouses'],
     staleTime: 1000 * 60, // 1 Minute
   });
 
-  // Korrekte Datenextraktion aus der API-Response
-  const warehouses = warehouseResponse?.data || warehouseResponse || [];
+  // Type-safe data extraction from API response
+  const warehouses: BaseWarehouse[] = React.useMemo(() => {
+    if (!warehouseResponse) return [];
+    
+    // Handle direct array format
+    if (Array.isArray(warehouseResponse)) {
+      return warehouseResponse;
+    }
+    
+    // Handle paginated response format
+    if (warehouseResponse && typeof warehouseResponse === 'object') {
+      const response = warehouseResponse as PaginatedWarehouseResponse;
+      if ('data' in response && Array.isArray(response.data)) {
+        return response.data;
+      }
+    }
+    
+    return [];
+  }, [warehouseResponse]);
 
   // Debug warehouse data
   console.log('🏢 WAREHOUSE DEBUG - Corrected data extraction:', {

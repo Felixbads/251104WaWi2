@@ -22,12 +22,37 @@ import { Input } from "@/components/ui/input";
 import { Building2, Search, CheckCircle2 } from 'lucide-react';
 import { Skeleton } from "@/components/ui/skeleton";
 
-interface Warehouse {
+// Comprehensive warehouse type definitions to handle different response formats
+interface BaseWarehouse {
   id: number;
+  name: string;
+  location?: string | null;
+  type?: string | null;
+  city?: string | null;
+  address?: string | null;
+  postal_code?: string | null;
+  postalCode?: string | null;
+  is_active?: boolean;
+  isActive?: boolean;
+}
+
+interface Warehouse extends BaseWarehouse {
   name: string;
   location: string;
   type: string;
 }
+
+// API response formats
+interface PaginatedWarehouseResponse {
+  data: BaseWarehouse[];
+  meta?: Record<string, any>;
+}
+
+interface SQLWarehouseResponse {
+  rows: BaseWarehouse[];
+}
+
+type WarehouseApiResponse = BaseWarehouse[] | PaginatedWarehouseResponse | SQLWarehouseResponse | unknown;
 
 interface WarehouseSelectorProps {
   selectedWarehouseId: number | null;
@@ -40,40 +65,52 @@ const WarehouseSelector: React.FC<WarehouseSelectorProps> = ({
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   
-  // Fetch warehouses
-  const { data: warehousesData, isLoading, error } = useQuery({
+  // Fetch warehouses with proper typing
+  const { data: warehousesData, isLoading, error } = useQuery<WarehouseApiResponse>({
     queryKey: ['/api/warehouses'],
+    staleTime: 1000 * 60, // 1 minute
   });
   
-  // Normalisiere das Datenformat aus dem direkten SQL-Zugriff
-  const warehouses = React.useMemo(() => {
+  // Type-safe warehouse data normalization
+  const warehouses = React.useMemo((): Warehouse[] => {
     if (!warehousesData) return [];
     
-    // Prüfe auf verschiedene Datenformate und normalisiere
+    const normalizeWarehouse = (w: BaseWarehouse): Warehouse => ({
+      id: w.id,
+      name: w.name || '',
+      location: w.location || w.city || '',
+      type: w.type || '',
+      city: w.city,
+      address: w.address,
+      postal_code: w.postal_code || w.postalCode,
+      is_active: w.is_active ?? w.isActive ?? true
+    });
+    
+    // Handle direct array format
     if (Array.isArray(warehousesData)) {
-      return warehousesData.map(w => ({
-        id: w.id,
-        name: w.name || '',
-        location: w.location || '',
-        type: w.type || ''
-      }));
+      return warehousesData.map(normalizeWarehouse);
     }
     
-    // Wenn wir ein Objekt mit rows bekommen
-    if (warehousesData.rows && Array.isArray(warehousesData.rows)) {
-      return warehousesData.rows.map(w => ({
-        id: w.id,
-        name: w.name || '',
-        location: w.location || '',
-        type: w.type || ''
-      }));
+    // Handle paginated response format { data: [], meta: {} }
+    if (warehousesData && typeof warehousesData === 'object') {
+      const response = warehousesData as PaginatedWarehouseResponse | SQLWarehouseResponse;
+      
+      // Check for data property (paginated format)
+      if ('data' in response && Array.isArray(response.data)) {
+        return response.data.map(normalizeWarehouse);
+      }
+      
+      // Check for rows property (SQL result format)
+      if ('rows' in response && Array.isArray(response.rows)) {
+        return response.rows.map(normalizeWarehouse);
+      }
     }
     
     return [];
   }, [warehousesData]);
   
-  // Filter warehouses based on search query
-  const filteredWarehouses = warehouses.filter(warehouse => 
+  // Type-safe warehouse filtering
+  const filteredWarehouses = warehouses.filter((warehouse: Warehouse) => 
     warehouse.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     (warehouse.location && warehouse.location.toLowerCase().includes(searchQuery.toLowerCase())) ||
     (warehouse.type && warehouse.type.toLowerCase().includes(searchQuery.toLowerCase()))
@@ -118,7 +155,7 @@ const WarehouseSelector: React.FC<WarehouseSelectorProps> = ({
             </TableHeader>
             <TableBody>
               {filteredWarehouses && filteredWarehouses.length > 0 ? (
-                filteredWarehouses.map((warehouse) => (
+                filteredWarehouses.map((warehouse: Warehouse) => (
                   <TableRow 
                     key={warehouse.id} 
                     className={`cursor-pointer hover:bg-muted/50 ${selectedWarehouseId === warehouse.id ? 'bg-primary/10' : ''}`}
