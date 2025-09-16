@@ -31,8 +31,8 @@ const NavItem = ({ href, icon, label, isActive }: {
       </div>
       <span 
         className={`
-          text-xs mt-0.5 font-medium leading-tight text-center
-          ${isActive ? 'text-white font-semibold' : 'text-gray-600 dark:text-gray-300'}
+          text-sm mt-0.5 font-medium leading-tight text-center
+          ${isActive ? 'text-white font-semibold' : 'text-gray-700 dark:text-gray-300'}
         `}
       >
         {label}
@@ -91,7 +91,7 @@ export default function MobileFooter() {
               icon={React.cloneElement(
                 item.icon as React.ReactElement, 
                 { 
-                  className: `h-6 w-6 transition-all duration-200 ${
+                  className: `h-7 w-7 transition-all duration-200 ${
                     isActive(item.path) ? 'drop-shadow-sm' : ''
                   }`
                 }

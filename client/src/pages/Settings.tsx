@@ -190,29 +190,47 @@ export default function Settings() {
       <Card>
         <CardContent className="pt-6">
           <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value)} className="space-y-4">
-            <TabsList className="grid w-full grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
-              <TabsTrigger value="api" className="flex items-center">
-                <Key className="h-4 w-4 mr-2" />
+            <TabsList className="flex w-full overflow-x-auto h-auto gap-2">
+              <TabsTrigger
+                value="api"
+                className="flex flex-col items-center flex-shrink-0 whitespace-nowrap px-3 py-2"
+              >
+                <Key className="h-4 w-4 mb-1" />
                 API-Verbindung
               </TabsTrigger>
-              <TabsTrigger value="sync" className="flex items-center">
-                <RefreshCw className="h-4 w-4 mr-2" />
+              <TabsTrigger
+                value="sync"
+                className="flex flex-col items-center flex-shrink-0 whitespace-nowrap px-3 py-2"
+              >
+                <RefreshCw className="h-4 w-4 mb-1" />
                 Synchronisation
               </TabsTrigger>
-              <TabsTrigger value="notifications" className="flex items-center">
-                <Bell className="h-4 w-4 mr-2" />
+              <TabsTrigger
+                value="notifications"
+                className="flex flex-col items-center flex-shrink-0 whitespace-nowrap px-3 py-2"
+              >
+                <Bell className="h-4 w-4 mb-1" />
                 Benachrichtigungen
               </TabsTrigger>
-              <TabsTrigger value="email" className="flex items-center">
-                <Mail className="h-4 w-4 mr-2" />
+              <TabsTrigger
+                value="email"
+                className="flex flex-col items-center flex-shrink-0 whitespace-nowrap px-3 py-2"
+              >
+                <Mail className="h-4 w-4 mb-1" />
                 Mail-Benachrichtigungen
               </TabsTrigger>
-              <TabsTrigger value="database" className="flex items-center">
-                <Database className="h-4 w-4 mr-2" />
+              <TabsTrigger
+                value="database"
+                className="flex flex-col items-center flex-shrink-0 whitespace-nowrap px-3 py-2"
+              >
+                <Database className="h-4 w-4 mb-1" />
                 Datenbank-Viewer
               </TabsTrigger>
-              <TabsTrigger value="backup" className="flex items-center">
-                <Database className="h-4 w-4 mr-2" />
+              <TabsTrigger
+                value="backup"
+                className="flex flex-col items-center flex-shrink-0 whitespace-nowrap px-3 py-2"
+              >
+                <Database className="h-4 w-4 mb-1" />
                 Datenbank-Manager
               </TabsTrigger>
             </TabsList>

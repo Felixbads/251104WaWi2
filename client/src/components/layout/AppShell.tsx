@@ -317,8 +317,8 @@ export default function AppShell({ children }: AppShellProps) {
         </div>
       </main>
 
-      {/* Mobile Bottom Navigation */}
-      <MobileFooter />
+      {/* Mobile Bottom Navigation - nur anzeigen wenn Hamburger-Menü geschlossen ist */}
+      {!showMobileMenu && <MobileFooter />}
     </div>
   );
 }
