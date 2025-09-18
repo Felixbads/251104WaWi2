@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { warehouseStorage } from "../warehouse3.storage";
-import { db } from "../db";
+import { db, pool } from "../db"; // CRITICAL FIX 1: Import both db and pool
 import { z } from "zod";
 import { insertWarehouseSchema, insertMachineWarehouseAssignmentSchema, 
          insertProductInventorySchema, insertProductBatchSchema, 
@@ -11,7 +11,64 @@ import { products } from "../../shared/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { productBatches, inventoryMovements, warehouses } from "../../shared/warehouse3.schema";
 
+// ---- NEUE FIFO-SERVICE INTEGRATION ----
+import { 
+  receiptTransaction, 
+  fifoDepleteTransaction,
+  receiptTransactionSchema,
+  fifoDepleteSchema,
+  type ReceiptTransaction,
+  type FifoDeplete,
+  type ReceiptResult,
+  type FifoResult
+} from "../services/inventoryTransactions.js";
+
+import { MhdFifoService } from "../services/mhdFifoService.js";
+
 const router = Router();
+
+// ---- HELPER FUNCTIONS FOR RETRY LOGIC ----
+
+// CRITICAL FIX 5: Helper function for bounded retry logic on transaction conflicts
+const executeWithRetry = async <T>(
+  operation: () => Promise<T>,
+  maxRetries: number = 3,
+  operationName: string = "operation"
+): Promise<T> => {
+  let attempts = 0;
+  
+  while (attempts < maxRetries) {
+    try {
+      return await operation();
+    } catch (error) {
+      attempts++;
+      
+      // Check for retryable transaction conflicts
+      const isRetryable = error.message?.includes('transaction deadlock') ||
+                         error.message?.includes('serialization_failure') ||
+                         error.message?.includes('TRANSACTION_CONFLICT') ||
+                         error.message?.includes('could not serialize access');
+      
+      if (isRetryable && attempts < maxRetries) {
+        console.log(`[WAREHOUSE3] ${operationName} failed on attempt ${attempts}, retrying... Error: ${error.message}`);
+        // Exponential backoff: wait longer on each retry
+        await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempts) * 1000));
+        continue;
+      }
+      
+      // Not retryable or max retries reached
+      throw error;
+    }
+  }
+  
+  throw new Error(`${operationName} failed after ${maxRetries} attempts`);
+};
+
+// ---- SERVICE INSTANCES ----
+
+// CRITICAL FIX 1: MhdFifoService-Instanz für FIFO-Berechnungen
+// Fix: Use pool instead of db - Service expects pg Pool, not Drizzle instance
+const mhdFifoService = new MhdFifoService(pool);
 
 // ---- HELPER FUNCTIONS ----
 
@@ -33,6 +90,132 @@ const handleServerError = (error: any, res: any) => {
     message: "Serverfehler",
     error: error.message,
   });
+};
+
+// Handler für erfolgreiche Receipt-Transaktionen
+const handleReceiptSuccess = (result: ReceiptResult, res: any) => {
+  return res.status(201).json({
+    success: true,
+    message: "Wareneingang erfolgreich verarbeitet",
+    result: {
+      orderId: result.orderId,
+      orderStatus: result.orderStatus,
+      processedLines: result.processedLines,
+      totalQuantityReceived: result.totalQuantityReceived,
+      batchesCreated: result.batchesCreated,
+      movementsCreated: result.movementsCreated,
+      warnings: result.warnings || []
+    }
+  });
+};
+
+// Handler für erfolgreiche FIFO-Entnahmen
+const handleFifoSuccess = (result: FifoResult, res: any) => {
+  return res.json({
+    success: true,
+    message: "FIFO-Entnahme erfolgreich verarbeitet",
+    result: {
+      totalDepleted: result.totalDepleted,
+      batchesProcessed: result.batchesProcessed,
+      movements: result.movements,
+      remainingQuantity: result.remainingQuantity
+    }
+  });
+};
+
+// CRITICAL FIX 2: Erweiterte Error-Handler für FIFO-spezifische Fehler
+// Fix: Correct parameter order for easier usage
+const handleFifoError = (error: any, res: any, operation: string = "operation") => {
+  console.error(`[WAREHOUSE3] FIFO ${operation} failed:`, error);
+  
+  // Spezifische FIFO-Fehlererkennung
+  if (error.message?.includes('insufficient stock')) {
+    return res.status(400).json({
+      success: false,
+      message: "Unzureichender Lagerbestand für FIFO-Entnahme",
+      error: error.message,
+      code: "INSUFFICIENT_STOCK"
+    });
+  }
+  
+  if (error.message?.includes('batch not found')) {
+    return res.status(404).json({
+      success: false,
+      message: "Charge für FIFO-Verarbeitung nicht gefunden",
+      error: error.message,
+      code: "BATCH_NOT_FOUND"
+    });
+  }
+  
+  if (error.message?.includes('product not found')) {
+    return res.status(404).json({
+      success: false,
+      message: "Produkt für FIFO-Verarbeitung nicht gefunden",
+      error: error.message,
+      code: "PRODUCT_NOT_FOUND"
+    });
+  }
+  
+  if (error.message?.includes('warehouse not found')) {
+    return res.status(404).json({
+      success: false,
+      message: "Lager für FIFO-Verarbeitung nicht gefunden",
+      error: error.message,
+      code: "WAREHOUSE_NOT_FOUND"
+    });
+  }
+  
+  if (error.message?.includes('transaction deadlock') || error.message?.includes('serialization_failure')) {
+    return res.status(409).json({
+      success: false,
+      message: "Transaktion fehlgeschlagen due to concurrent access. Bitte erneut versuchen.",
+      error: "Concurrent transaction conflict",
+      code: "TRANSACTION_CONFLICT",
+      retryable: true
+    });
+  }
+  
+  // Standard-Fehlerbehandlung
+  return res.status(500).json({
+    success: false,
+    message: `FIFO ${operation} fehlgeschlagen`,
+    error: error.message || "Unbekannter FIFO-Fehler",
+    code: "FIFO_ERROR"
+  });
+};
+
+// Handler für Database-Constraint-Violations
+const handleConstraintError = (error: any, res: any) => {
+  console.error("[WAREHOUSE3] Database constraint violation:", error);
+  
+  if (error.message?.includes('foreign key constraint')) {
+    return res.status(400).json({
+      success: false,
+      message: "Referenzfehler: Verknüpfte Daten nicht gefunden",
+      error: "Foreign key constraint violation",
+      code: "REFERENCE_ERROR"
+    });
+  }
+  
+  if (error.message?.includes('unique constraint')) {
+    return res.status(409).json({
+      success: false,
+      message: "Eindeutigkeitsfehler: Daten bereits vorhanden",
+      error: "Unique constraint violation",
+      code: "DUPLICATE_ERROR"
+    });
+  }
+  
+  if (error.message?.includes('check constraint')) {
+    return res.status(400).json({
+      success: false,
+      message: "Validierungsfehler: Ungültige Datenwerte",
+      error: "Check constraint violation",
+      code: "VALIDATION_ERROR"
+    });
+  }
+  
+  return handleServerError(error, res);
 };
 
 // ---- WAREHOUSE ROUTES ----
@@ -142,6 +325,235 @@ router.delete("/warehouses/:id", async (req, res) => {
       message: success ? "Lager erfolgreich gelöscht" : "Lager konnte nicht gelöscht werden",
     });
   } catch (error) {
+    return handleServerError(error, res);
+  }
+});
+
+// ---- RECEIPT (WARENEINGANG) ROUTES ----
+
+// CRITICAL FIX 5: Wareneingang verarbeiten - MODERNE FIFO-SERVICE INTEGRATION mit Retry Logic
+router.post("/warehouses/:warehouseId/receipts", async (req, res) => {
+  try {
+    const warehouseId = parseInt(req.params.warehouseId);
+    if (isNaN(warehouseId)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Ungültige Lager-ID" 
+      });
+    }
+    
+    // Überprüfen, ob das Lager existiert
+    const existingWarehouse = await warehouseStorage.getWarehouse(warehouseId);
+    if (!existingWarehouse) {
+      return res.status(404).json({ 
+        success: false, 
+        message: "Lager nicht gefunden" 
+      });
+    }
+    
+    // Request-Body mit Lager-ID ergänzen
+    const transactionData = {
+      ...req.body,
+      warehouseId
+    };
+    
+    try {
+      // Validierung mit receiptTransactionSchema
+      const validatedData = receiptTransactionSchema.parse(transactionData);
+      
+      console.log(`[WAREHOUSE3] Processing receipt for warehouse ${warehouseId}, order ${validatedData.orderId}`);
+      
+      // CRITICAL FIX 5: Receipt-Transaktion mit Retry Logic für Transaction Conflicts
+      const result = await executeWithRetry(
+        () => receiptTransaction(db, validatedData),
+        3,
+        "receipt transaction"
+      );
+      
+      if (!result.success) {
+        return res.status(400).json({
+          success: false,
+          message: "Wareneingang konnte nicht verarbeitet werden",
+          errors: result.errors || ["Unbekannter Fehler bei der Verarbeitung"]
+        });
+      }
+      
+      console.log(`[WAREHOUSE3] Receipt processed successfully: ${result.processedLines} lines, ${result.batchesCreated} batches created`);
+      
+      return handleReceiptSuccess(result, res);
+      
+    } catch (validationError) {
+      if (validationError instanceof z.ZodError) {
+        return handleValidationError(validationError, res);
+      }
+      throw validationError;
+    }
+    
+  } catch (error) {
+    // CRITICAL FIX 2: Use proper FIFO error handling for receipt operations
+    return handleFifoError(error, res, "receipt processing");
+  }
+});
+
+// CRITICAL FIX 5: FIFO-basierte Entnahme verarbeiten mit Retry Logic
+router.post("/warehouses/:warehouseId/fifo-depletion", async (req, res) => {
+  try {
+    const warehouseId = parseInt(req.params.warehouseId);
+    if (isNaN(warehouseId)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Ungültige Lager-ID" 
+      });
+    }
+    
+    // Überprüfen, ob das Lager existiert
+    const existingWarehouse = await warehouseStorage.getWarehouse(warehouseId);
+    if (!existingWarehouse) {
+      return res.status(404).json({ 
+        success: false, 
+        message: "Lager nicht gefunden" 
+      });
+    }
+    
+    // Request-Body mit Lager-ID ergänzen
+    const depleteData = {
+      ...req.body,
+      warehouseId
+    };
+    
+    try {
+      // Validierung mit fifoDepleteSchema
+      const validatedData = fifoDepleteSchema.parse(depleteData);
+      
+      console.log(`[WAREHOUSE3] Processing FIFO depletion for warehouse ${warehouseId}, product ${validatedData.productId}, quantity ${validatedData.quantityToDeplete}`);
+      
+      // CRITICAL FIX 5: FIFO-Entnahme mit Retry Logic für Transaction Conflicts
+      const result = await executeWithRetry(
+        () => fifoDepleteTransaction(db, validatedData),
+        3,
+        "FIFO depletion transaction"
+      );
+      
+      if (!result.success) {
+        return res.status(400).json({
+          success: false,
+          message: "FIFO-Entnahme konnte nicht verarbeitet werden",
+          errors: result.errors || ["Unbekannter Fehler bei der FIFO-Entnahme"]
+        });
+      }
+      
+      console.log(`[WAREHOUSE3] FIFO depletion processed successfully: ${result.totalDepleted} depleted from ${result.batchesProcessed.length} batches`);
+      
+      return handleFifoSuccess(result, res);
+      
+    } catch (validationError) {
+      if (validationError instanceof z.ZodError) {
+        return handleValidationError(validationError, res);
+      }
+      throw validationError;
+    }
+    
+  } catch (error) {
+    // CRITICAL FIX 2: Use proper FIFO error handling instead of generic server error
+    return handleFifoError(error, res, "FIFO depletion");
+  }
+});
+
+// CRITICAL FIX 5: MHD-FIFO Transfer für Refill-Prozesse mit Retry Logic
+router.post("/warehouses/:warehouseId/mhd-transfer", async (req, res) => {
+  try {
+    const warehouseId = parseInt(req.params.warehouseId);
+    if (isNaN(warehouseId)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Ungültige Lager-ID" 
+      });
+    }
+    
+    // Validierung der Eingabedaten
+    const schema = z.object({
+      machineId: z.number().positive("Automaten-ID muss positiv sein"),
+      productId: z.string().min(1, "Produkt-ID ist erforderlich"),
+      quantityAdded: z.number().positive("Hinzugefügte Menge muss positiv sein"),
+      stockId: z.number().positive("Stock-ID ist erforderlich")
+    });
+    
+    const { machineId, productId, quantityAdded, stockId } = schema.parse(req.body);
+    
+    console.log(`[WAREHOUSE3] Processing MHD transfer from warehouse ${warehouseId} to machine ${machineId} for product ${productId}`);
+    
+    // CRITICAL FIX 5: MHD-FIFO Transfer mit Retry Logic für Transaction Conflicts
+    const transfers = await executeWithRetry(
+      () => mhdFifoService.transferMhdFromWarehouse(
+        machineId,
+        productId,
+        quantityAdded,
+        warehouseId,
+        stockId
+      ),
+      3,
+      "MHD-FIFO transfer"
+    );
+    
+    return res.json({
+      success: true,
+      message: "MHD-Transfer erfolgreich durchgeführt",
+      transfers,
+      totalQuantity: quantityAdded,
+      batchesUsed: transfers.length
+    });
+    
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return handleValidationError(error, res);
+    }
+    // CRITICAL FIX 2 & 4: Use proper FIFO error handling for MHD transfers
+    return handleFifoError(error, res, "MHD transfer");
+  }
+});
+
+// Ablaufende Produkte abfragen (MHD-Überwachung)
+router.get("/warehouses/:warehouseId/expiring-products", async (req, res) => {
+  try {
+    const warehouseId = parseInt(req.params.warehouseId);
+    if (isNaN(warehouseId)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Ungültige Lager-ID" 
+      });
+    }
+    
+    const daysAhead = req.query.daysAhead ? parseInt(req.query.daysAhead.toString()) : 7;
+    
+    // Direkte Datenbankabfrage für ablaufende Produkte im Lager
+    const result = await db.execute(sql`
+      SELECT 
+        pb.id as batch_id,
+        pb.batch_number,
+        pb.expiry_date,
+        pb.current_quantity,
+        p.id as product_id,
+        p.product_name,
+        p.sku,
+        DATE_PART('day', pb.expiry_date - CURRENT_DATE) as days_until_expiry
+      FROM product_batches pb
+      JOIN products p ON pb.product_id = p.id
+      WHERE pb.warehouse_id = ${warehouseId}
+        AND pb.expiry_date IS NOT NULL
+        AND pb.expiry_date <= CURRENT_DATE + INTERVAL '${daysAhead} days'
+        AND pb.current_quantity > 0
+        AND pb.status = 'active'
+      ORDER BY pb.expiry_date ASC, p.product_name ASC
+    `);
+    
+    return res.json({
+      expiringProducts: result.rows,
+      daysAhead,
+      totalBatches: result.rows.length
+    });
+    
+  } catch (error) {
+    console.error("[WAREHOUSE3] Failed to fetch expiring products:", error);
     return handleServerError(error, res);
   }
 });
@@ -385,7 +797,7 @@ router.post("/warehouses/:warehouseId/inventory", async (req, res) => {
   }
 });
 
-// Produktbestand manuell anpassen
+// Produktbestand manuell anpassen - MODERNE FIFO-SERVICE INTEGRATION
 router.post("/warehouses/:warehouseId/inventory/:productId/adjust", async (req, res) => {
   try {
     const warehouseId = parseInt(req.params.warehouseId);
@@ -398,62 +810,148 @@ router.post("/warehouses/:warehouseId/inventory/:productId/adjust", async (req, 
       });
     }
     
-    // Validierung der Eingabe
-    const schema = z.object({
-      quantityChange: z.number(),
-      reason: z.string(),
-      notes: z.string().optional(),
-      batchId: z.number().optional(),
-      performedBy: z.number().optional()
-    });
-    
-    const { quantityChange, reason, notes, batchId, performedBy } = schema.parse(req.body);
-    
-    // Bewegungstyp basierend auf der Quantität
-    const movementType = quantityChange >= 0 ? "IN" : "OUT";
-    
-    // Inventarbewegung erstellen
-    const movementData = {
-      sourceType: movementType === "IN" ? "supplier" : "warehouse",
-      sourceId: movementType === "IN" ? null : warehouseId,
-      destinationType: movementType === "IN" ? "warehouse" : "disposal",
-      destinationId: movementType === "IN" ? warehouseId : null,
-      productId,
-      batchId,
-      quantity: Math.abs(quantityChange),
-      movementType,
-      referenceType: "ADJUST",
-      referenceId: null,
-      reason,
-      notes,
-      performedBy
-    };
-    
-    // Bewegung in der Datenbank erstellen
-    const movement = await warehouseStorage.createInventoryMovement(movementData);
-    
-    // Bestand aktualisieren
-    const updatedInventory = await warehouseStorage.updateProductStock(
-      warehouseId, 
-      productId, 
-      quantityChange
-    );
-    
-    // Batch-Bestand aktualisieren, falls anwendbar
-    if (batchId) {
-      await warehouseStorage.updateBatchStock(batchId, quantityChange);
+    // Überprüfen, ob das Lager existiert
+    const existingWarehouse = await warehouseStorage.getWarehouse(warehouseId);
+    if (!existingWarehouse) {
+      return res.status(404).json({ 
+        success: false, 
+        message: "Lager nicht gefunden" 
+      });
     }
     
-    return res.json({
-      success: true,
-      message: "Produktbestand erfolgreich angepasst",
-      inventory: updatedInventory,
-      movement
+    // Validierung der Eingabe
+    const schema = z.object({
+      quantityChange: z.number().refine(val => val !== 0, "Quantitätsänderung darf nicht 0 sein"),
+      reason: z.string().min(1, "Grund ist erforderlich"),
+      notes: z.string().optional(),
+      performedBy: z.number().positive("Benutzer-ID ist erforderlich")
     });
+    
+    const { quantityChange, reason, notes, performedBy } = schema.parse(req.body);
+    
+    console.log(`[WAREHOUSE3] Processing inventory adjustment for warehouse ${warehouseId}, product ${productId}, change: ${quantityChange}`);
+    
+    if (quantityChange > 0) {
+      // **POSITIVER ADJUSTMENT: Receipt-Transaction verwenden**
+      // Erstelle synthetische Receipt-Daten für positive Anpassungen
+      const adjustmentData: ReceiptTransaction = {
+        orderId: -1, // Synthetic order ID for adjustments
+        warehouseId,
+        deliveryDate: new Date().toISOString().split('T')[0],
+        receiptLines: [{
+          orderItemId: -1, // Synthetic order item ID
+          productId,
+          productName: `Adjustment for Product ${productId}`,
+          quantityOrdered: quantityChange,
+          quantityReceived: quantityChange,
+          batchNumber: `ADJ-${Date.now()}-${productId}`, // Synthetic batch
+          expiryDate: '2099-12-31', // Far future for adjustment batches
+          qualityStatus: 'good',
+          notes: notes || reason
+        }],
+        notes: `Manual adjustment: ${reason}`,
+        processedBy: performedBy,
+        overallQuality: 'good',
+        requiresFollowUp: false
+      };
+      
+      try {
+        // Receipt-Transaktion verwenden für positive Anpassungen
+        const result = await receiptTransaction(db, adjustmentData);
+        
+        if (!result.success) {
+          return res.status(400).json({
+            success: false,
+            message: "Positive Bestandsanpassung konnte nicht verarbeitet werden",
+            errors: result.errors || ["Unbekannter Fehler bei der Anpassung"]
+          });
+        }
+        
+        console.log(`[WAREHOUSE3] Positive adjustment processed: ${result.totalQuantityReceived} units added`);
+        
+        return res.json({
+          success: true,
+          message: "Positive Bestandsanpassung erfolgreich verarbeitet",
+          adjustment: {
+            quantityChange,
+            type: 'INCREASE',
+            reason,
+            notes,
+            result: {
+              batchesCreated: result.batchesCreated,
+              movementsCreated: result.movementsCreated,
+              totalQuantityAdjusted: result.totalQuantityReceived
+            }
+          }
+        });
+        
+      } catch (validationError) {
+        console.error("[WAREHOUSE3] Positive adjustment validation failed:", validationError);
+        return res.status(400).json({
+          success: false,
+          message: "Validierungsfehler bei positiver Anpassung",
+          error: validationError.message
+        });
+      }
+      
+    } else {
+      // **NEGATIVER ADJUSTMENT: FIFO-Depletion verwenden**
+      const depleteData: FifoDeplete = {
+        warehouseId,
+        productId,
+        quantityToDeplete: Math.abs(quantityChange),
+        movementType: "ADJUSTMENT",
+        referenceType: "ADJUSTMENT",
+        notes: `Manual adjustment: ${reason}${notes ? ` - ${notes}` : ''}`,
+        performedBy
+      };
+      
+      try {
+        // FIFO-Entnahme verwenden für negative Anpassungen
+        const result = await fifoDepleteTransaction(db, depleteData);
+        
+        if (!result.success) {
+          return res.status(400).json({
+            success: false,
+            message: "Negative Bestandsanpassung konnte nicht verarbeitet werden",
+            errors: result.errors || ["Unbekannter Fehler bei der FIFO-Entnahme"]
+          });
+        }
+        
+        console.log(`[WAREHOUSE3] Negative adjustment processed: ${result.totalDepleted} units depleted from ${result.batchesProcessed.length} batches`);
+        
+        return res.json({
+          success: true,
+          message: "Negative Bestandsanpassung erfolgreich verarbeitet",
+          adjustment: {
+            quantityChange,
+            type: 'DECREASE',
+            reason,
+            notes,
+            result: {
+              totalQuantityDepleted: result.totalDepleted,
+              batchesProcessed: result.batchesProcessed,
+              movements: result.movements,
+              remainingQuantity: result.remainingQuantity
+            }
+          }
+        });
+        
+      } catch (validationError) {
+        console.error("[WAREHOUSE3] Negative adjustment validation failed:", validationError);
+        return res.status(400).json({
+          success: false,
+          message: "Validierungsfehler bei negativer Anpassung",
+          error: validationError.message
+        });
+      }
+    }
+    
   } catch (error) {
     if (error instanceof z.ZodError) {
       return handleValidationError(error, res);
     }
+    console.error("[WAREHOUSE3] Inventory adjustment failed:", error);
     return handleServerError(error, res);
   }
 });
@@ -794,32 +1292,94 @@ router.post("/warehouses/:warehouseId/movements", async (req, res) => {
     // Warenbewegung erstellen
     const newMovement = await warehouseStorage.createInventoryMovement(validatedData);
     
-    // Bestand aktualisieren
+    // **MODERNE FIFO-SERVICE INTEGRATION für Bestandsanpassungen**
+    
+    // Bei Ausgängen (OUT/TRANSFER Quelle): FIFO-Entnahme verwenden
     if (validatedData.sourceType === "warehouse" && validatedData.sourceId) {
-      // Bei Ausgang den Bestand reduzieren
-      await warehouseStorage.updateProductStock(
-        validatedData.sourceId, 
-        validatedData.productId, 
-        -validatedData.quantity
-      );
+      console.log(`[WAREHOUSE3] Processing FIFO depletion for movement: ${validatedData.quantity} units from warehouse ${validatedData.sourceId}`);
       
-      // Batch-Bestand aktualisieren, falls anwendbar
-      if (validatedData.batchId) {
-        await warehouseStorage.updateBatchStock(validatedData.batchId, -validatedData.quantity);
+      const depleteData: FifoDeplete = {
+        warehouseId: validatedData.sourceId,
+        productId: validatedData.productId,
+        quantityToDeplete: validatedData.quantity,
+        movementType: validatedData.movementType as "OUT" | "TRANSFER" | "ADJUSTMENT",
+        referenceType: validatedData.referenceType as "REFILL" | "TRANSFER" | "ADJUSTMENT" | "MANUAL",
+        referenceId: validatedData.referenceId || undefined,
+        notes: validatedData.notes || undefined,
+        performedBy: validatedData.performedBy || 1, // Default user if not provided
+        destinationWarehouseId: validatedData.destinationType === "warehouse" ? validatedData.destinationId : undefined
+      };
+      
+      try {
+        const fifoResult = await fifoDepleteTransaction(db, depleteData);
+        
+        if (!fifoResult.success) {
+          return res.status(400).json({
+            success: false,
+            message: "FIFO-Entnahme für Warenbewegung fehlgeschlagen",
+            errors: fifoResult.errors || ["Unbekannter FIFO-Fehler"]
+          });
+        }
+        
+        console.log(`[WAREHOUSE3] FIFO depletion successful: ${fifoResult.totalDepleted} units from ${fifoResult.batchesProcessed.length} batches`);
+        
+      } catch (fifoError) {
+        // CRITICAL FIX 2: Use correct parameter order
+        return handleFifoError(fifoError, res, "depletion");
       }
     }
     
-    if (validatedData.destinationType === "warehouse" && validatedData.destinationId) {
-      // Bei Eingang den Bestand erhöhen
-      await warehouseStorage.updateProductStock(
-        validatedData.destinationId, 
-        validatedData.productId, 
-        validatedData.quantity
-      );
+    // Bei Eingängen (IN/TRANSFER Ziel): Vereinfachte Receipt-Transaktion verwenden
+    if (validatedData.destinationType === "warehouse" && validatedData.destinationId && validatedData.movementType !== "TRANSFER") {
+      console.log(`[WAREHOUSE3] Processing receipt for movement: ${validatedData.quantity} units to warehouse ${validatedData.destinationId}`);
       
-      // Bei Transfers für das Ziel keinen Batch-Bestand anpassen, 
-      // da die Charge bereits im Quell-Lager aktualisiert wurde
+      // Für einfache Eingänge (nicht Transfers) erstelle synthetische Receipt-Daten
+      const receiptData: ReceiptTransaction = {
+        orderId: -2, // Synthetic order ID for movements
+        warehouseId: validatedData.destinationId,
+        deliveryDate: new Date().toISOString().split('T')[0],
+        receiptLines: [{
+          orderItemId: -2, // Synthetic order item ID
+          productId: validatedData.productId,
+          productName: `Movement Receipt for Product ${validatedData.productId}`,
+          quantityOrdered: validatedData.quantity,
+          quantityReceived: validatedData.quantity,
+          batchNumber: `MOV-${Date.now()}-${validatedData.productId}`, // Synthetic batch
+          expiryDate: '2099-12-31', // Far future for movement batches
+          qualityStatus: 'good',
+          notes: validatedData.notes || `Movement: ${validatedData.referenceType}`
+        }],
+        notes: `Movement receipt: ${validatedData.referenceType}${validatedData.referenceId ? ` - ${validatedData.referenceId}` : ''}`,
+        processedBy: validatedData.performedBy || 1,
+        overallQuality: 'good',
+        requiresFollowUp: false
+      };
+      
+      try {
+        const receiptResult = await receiptTransaction(db, receiptData);
+        
+        if (!receiptResult.success) {
+          return res.status(400).json({
+            success: false,
+            message: "Receipt-Verarbeitung für Warenbewegung fehlgeschlagen",
+            errors: receiptResult.errors || ["Unbekannter Receipt-Fehler"]
+          });
+        }
+        
+        console.log(`[WAREHOUSE3] Receipt processing successful: ${receiptResult.totalQuantityReceived} units received`);
+        
+      } catch (receiptError) {
+        console.error("[WAREHOUSE3] Receipt processing failed:", receiptError);
+        return res.status(500).json({
+          success: false,
+          message: "Receipt-Verarbeitung fehlgeschlagen",
+          error: receiptError.message
+        });
+      }
     }
+    
+    // Hinweis: Bei TRANSFER-Operationen wird nur die Quelle mit FIFO verarbeitet
+    // Das Ziel erhält automatisch die korrekten Batches durch die Transfer-Logik
     
     return res.status(201).json({
       success: true,
