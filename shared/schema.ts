@@ -1,7 +1,7 @@
 import { pgTable, text, serial, integer, boolean, timestamp, real, doublePrecision, unique, primaryKey, date, varchar, time, jsonb, index, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
-import { sql } from "drizzle-orm";
+import { sql, eq, gt } from "drizzle-orm";
 import { relations } from "drizzle-orm";
 
 // ========================================
@@ -2631,6 +2631,10 @@ export const orders = pgTable("orders", {
   lastModifiedById: integer("last_modified_by_id").references(() => users.id), // Zuletzt geändert von (Benutzer-ID)
   lastModifiedByName: text("last_modified_by_name"), // Zuletzt geändert von (Name)
   
+  // CRITICAL FIX 1: Standard audit trail fields
+  lastModifiedBy: integer('last_modified_by').references(() => users.id),
+  lastModifiedAt: timestamp('last_modified_at').defaultNow(),
+  
   // Notizen und Kommentare
   notes: text("notes"), // Notizen zur Bestellung
   internalNotes: text("internal_notes"), // Interne Notizen
@@ -2679,6 +2683,11 @@ export const orders = pgTable("orders", {
   
   // SECURITY: Idempotency-Schlüssel für sichere, deduplizierte Bestellerstellung
   idempotencyKey: text("idempotency_key").unique(), // Unique constraint für Idempotenz-Check (verhindert SQL-Injection)
+  
+  // FIFO-Audit-Trail-Spalten
+  deletedAt: timestamp("deleted_at"), // Soft-Delete für FIFO-Compliance
+  deletedBy: integer("deleted_by").references(() => users.id), // Gelöscht von
+  version: integer("version").default(1).notNull(), // Optimistic Locking für kritische FIFO-Updates
 }, (table) => {
   return {
     // CRITICAL FIX: Explicit UNIQUE index on order_number (HÖCHSTE PRIORITÄT)
@@ -2860,6 +2869,18 @@ export const orderItems = pgTable("order_items", {
     productIdIdx: index().on(table.productId),
     // Composite index for order + product queries (commonly used together)
     orderProductIdx: index().on(table.orderId, table.productId),
+    // FIFO-relevante Indizes für Order Items
+    orderItemsFifoIdx: index('idx_order_items_fifo')
+      .on(table.productId, table.quantity, table.createdAt),
+    // Index für FIFO-Delivery-Status-Tracking
+    orderItemsDeliveryIdx: index('idx_order_items_delivery')
+      .on(table.productId, table.status, table.quantityDelivered),
+    // Performance-Index für Package-basierte FIFO-Queries
+    orderItemsPackageIdx: index('idx_order_items_package')
+      .on(table.productId, table.packageCount, table.packageQuantity),
+    // Index für Maschinen-spezifische FIFO-Zuordnungen
+    orderItemsMachineIdx: index('idx_order_items_machine')
+      .on(table.targetMachineId, table.productId, table.status),
   };
 });
 
@@ -3098,7 +3119,21 @@ export const inventoryItems = pgTable("inventory_items", {
 }, (table) => {
   return {
     // Eindeutiger Index für Lager + Produkt Kombination
-    uniqueProductWarehouse: unique().on(table.warehouseId, table.productId)
+    uniqueProductWarehouse: unique().on(table.warehouseId, table.productId),
+    // FIFO-Performance-Indizes für Inventory Items
+    inventoryItemsProductIdx: index('idx_inventory_items_product')
+      .on(table.productId, table.quantity),
+    inventoryItemsWarehouseIdx: index('idx_inventory_items_warehouse')
+      .on(table.warehouseId, table.status),
+    inventoryItemsReorderIdx: index('idx_inventory_items_reorder')
+      .on(table.productId, table.reorderPoint, table.quantity),
+    // Index für Low-Stock-Alerts (FIFO-relevant)
+    inventoryItemsLowStockIdx: index('idx_inventory_items_low_stock')
+      .on(table.warehouseId, table.productId)
+      .where(sql`${table.quantity} <= ${table.reorderPoint}`),
+    // Performance-Index für Bestandsstatusabfragen
+    inventoryItemsStatusIdx: index('idx_inventory_items_status')
+      .on(table.status, table.warehouseId, table.productId),
   };
 });
 
@@ -3144,9 +3179,34 @@ export const productBatches = pgTable("product_batches", {
   createdBy: integer("created_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+  
+  // FIFO-Audit-Trail-Spalten
+  lastModifiedBy: integer("last_modified_by").references(() => users.id),
+  lastModifiedAt: timestamp("last_modified_at").defaultNow(),
+  
+  // Soft-Delete für FIFO-Compliance
+  deletedAt: timestamp("deleted_at"),
+  deletedBy: integer("deleted_by").references(() => users.id),
+  
+  // Optimistic Locking für kritische FIFO-Updates
+  version: integer("version").default(1).notNull(),
 }, (table) => {
   return {
     batchProductWarehouseIdx: unique().on(table.batchNumber, table.productId, table.warehouseId),
+    // FIFO-Performance-Indizes für optimale Batch-Queries
+    productBatchesFifoIdx: index('idx_product_batches_fifo')
+      .on(table.productId, table.expiryDate, table.createdAt),
+    // Partielle Indizes für bessere Performance bei aktiven Chargen
+    productBatchesActiveIdx: index('idx_product_batches_active')
+      .on(table.productId, table.status)
+      .where(eq(table.status, 'active')),
+    // Index für FIFO-Expiry-Rotation (älteste Chargen zuerst)
+    productBatchesExpiryIdx: index('idx_product_batches_expiry')
+      .on(table.warehouseId, table.productId, table.expiryDate, table.receivedDate),
+    // Performance-Index für Bestandsabfragen (CRITICAL FIX 3: Using gt() for better type safety)
+    productBatchesQuantityIdx: index('idx_product_batches_quantity')
+      .on(table.productId, table.currentQuantity)
+      .where(gt(table.currentQuantity, 0)),
   };
 });
 
@@ -3261,8 +3321,36 @@ export const inventoryMovements = pgTable("inventory_movements", {
   previousStock: integer("previous_stock"), // Bestand vor der Bewegung
   currentStock: integer("current_stock"),   // Bestand nach der Bewegung
   
+  // FIFO-Audit-Trail-Spalten (CRITICAL FIX 2: Removed processedBy - services use performedBy)
+  lastModifiedBy: integer("last_modified_by").references(() => users.id),
+  lastModifiedAt: timestamp("last_modified_at").defaultNow(),
+  
+  // Soft-Delete für FIFO-Compliance
+  deletedAt: timestamp("deleted_at"),
+  deletedBy: integer("deleted_by").references(() => users.id),
+  
+  // Optimistic Locking für kritische FIFO-Updates
+  version: integer("version").default(1).notNull(),
+  
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => {
+  return {
+    // FIFO-Performance-Indizes für optimale Movement-Queries
+    inventoryMovementsProductIdx: index('idx_inventory_movements_product')
+      .on(table.productId, table.performedAt),
+    inventoryMovementsBatchIdx: index('idx_inventory_movements_batch')
+      .on(table.batchId, table.movementType),
+    // Composite-Index für FIFO-Bewegungshistorie
+    inventoryMovementsFifoIdx: index('idx_inventory_movements_fifo')
+      .on(table.productId, table.batchId, table.expiryDate, table.performedAt),
+    // Index für Warehouse-zu-Warehouse Transfers
+    inventoryMovementsTransferIdx: index('idx_inventory_movements_transfer')
+      .on(table.sourceWarehouseId, table.destinationWarehouseId, table.performedAt),
+    // Performance-Index für Movement-Type-Queries
+    inventoryMovementsTypeIdx: index('idx_inventory_movements_type')
+      .on(table.movementType, table.status, table.performedAt),
+  };
 });
 
 export const insertInventoryMovementSchema = createInsertSchema(inventoryMovements).omit({
