@@ -1,6 +1,8 @@
 import { Router } from "express";
 import { warehouseStorage } from "../warehouse3.storage";
 import { db, pool } from "../db"; // CRITICAL FIX 1: Import both db and pool
+// SECURITY FIX: Import authentication and audit middleware
+import { authenticateUser, requireWarehouseAccess, auditLog, requireRole } from "../middleware/auth";
 import { z } from "zod";
 import { insertWarehouseSchema, insertMachineWarehouseAssignmentSchema, 
          insertProductInventorySchema, insertProductBatchSchema, 
@@ -14,7 +16,7 @@ import { productBatches, inventoryMovements, warehouses } from "../../shared/war
 // ---- NEUE FIFO-SERVICE INTEGRATION ----
 import { 
   receiptTransaction, 
-  fifoDepleteTransaction,
+  fifoDeplete,
   receiptTransactionSchema,
   fifoDepleteSchema,
   type ReceiptTransaction,
@@ -221,7 +223,12 @@ const handleConstraintError = (error: any, res: any) => {
 // ---- WAREHOUSE ROUTES ----
 
 // Alle Lager abrufen
-router.get("/warehouses", async (req, res) => {
+router.get("/warehouses", 
+  authenticateUser, 
+  requireWarehouseAccess(), 
+  requireRole(['admin', 'manager', 'employee']), 
+  auditLog('WAREHOUSE_LIST', 'WAREHOUSE_READ'), 
+  async (req, res) => {
   try {
     const warehouses = await warehouseStorage.getWarehouses();
     return res.json(warehouses);
@@ -231,7 +238,12 @@ router.get("/warehouses", async (req, res) => {
 });
 
 // Einzelnes Lager abrufen
-router.get("/warehouses/:id", async (req, res) => {
+router.get("/warehouses/:id", 
+  authenticateUser, 
+  requireWarehouseAccess(), 
+  requireRole(['admin', 'manager', 'employee']), 
+  auditLog('WAREHOUSE_VIEW', 'WAREHOUSE_READ'), 
+  async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     if (isNaN(id)) {
@@ -250,7 +262,12 @@ router.get("/warehouses/:id", async (req, res) => {
 });
 
 // Neues Lager erstellen
-router.post("/warehouses", async (req, res) => {
+router.post("/warehouses", 
+  authenticateUser, 
+  requireWarehouseAccess(), 
+  requireRole(['admin', 'manager']), 
+  auditLog('WAREHOUSE_CREATE', 'WAREHOUSE_WRITE'), 
+  async (req, res) => {
   try {
     // Validierung
     const validatedData = insertWarehouseSchema.parse(req.body);
@@ -272,7 +289,12 @@ router.post("/warehouses", async (req, res) => {
 });
 
 // Lager aktualisieren
-router.put("/warehouses/:id", async (req, res) => {
+router.put("/warehouses/:id", 
+  authenticateUser, 
+  requireWarehouseAccess(), 
+  requireRole(['admin', 'manager']), 
+  auditLog('WAREHOUSE_UPDATE', 'WAREHOUSE_WRITE'), 
+  async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     if (isNaN(id)) {
@@ -305,7 +327,12 @@ router.put("/warehouses/:id", async (req, res) => {
 });
 
 // Lager löschen
-router.delete("/warehouses/:id", async (req, res) => {
+router.delete("/warehouses/:id", 
+  authenticateUser, 
+  requireWarehouseAccess(), 
+  requireRole(['admin']), 
+  auditLog('WAREHOUSE_DELETE', 'WAREHOUSE_DELETE'), 
+  async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     if (isNaN(id)) {
@@ -332,7 +359,12 @@ router.delete("/warehouses/:id", async (req, res) => {
 // ---- RECEIPT (WARENEINGANG) ROUTES ----
 
 // CRITICAL FIX 5: Wareneingang verarbeiten - MODERNE FIFO-SERVICE INTEGRATION mit Retry Logic
-router.post("/warehouses/:warehouseId/receipts", async (req, res) => {
+// SECURITY FIX: Add authentication, warehouse access control, and audit logging
+router.post("/warehouses/:warehouseId/receipts", 
+  authenticateUser, 
+  requireWarehouseAccess(), 
+  auditLog('WAREHOUSE_RECEIPT', 'FIFO_OPERATION'), 
+  async (req, res) => {
   try {
     const warehouseId = parseInt(req.params.warehouseId);
     if (isNaN(warehouseId)) {
@@ -396,7 +428,12 @@ router.post("/warehouses/:warehouseId/receipts", async (req, res) => {
 });
 
 // CRITICAL FIX 5: FIFO-basierte Entnahme verarbeiten mit Retry Logic
-router.post("/warehouses/:warehouseId/fifo-depletion", async (req, res) => {
+// SECURITY FIX: Add authentication, warehouse access control, and audit logging
+router.post("/warehouses/:warehouseId/fifo-depletion", 
+  authenticateUser, 
+  requireWarehouseAccess(), 
+  auditLog('WAREHOUSE_FIFO_DEPLETION', 'FIFO_OPERATION'), 
+  async (req, res) => {
   try {
     const warehouseId = parseInt(req.params.warehouseId);
     if (isNaN(warehouseId)) {
@@ -460,7 +497,12 @@ router.post("/warehouses/:warehouseId/fifo-depletion", async (req, res) => {
 });
 
 // CRITICAL FIX 5: MHD-FIFO Transfer für Refill-Prozesse mit Retry Logic
-router.post("/warehouses/:warehouseId/mhd-transfer", async (req, res) => {
+router.post("/warehouses/:warehouseId/mhd-transfer", 
+  authenticateUser, 
+  requireWarehouseAccess(), 
+  requireRole(['admin', 'manager']), 
+  auditLog('WAREHOUSE_MHD_TRANSFER', 'WAREHOUSE_WRITE'), 
+  async (req, res) => {
   try {
     const warehouseId = parseInt(req.params.warehouseId);
     if (isNaN(warehouseId)) {
@@ -513,7 +555,12 @@ router.post("/warehouses/:warehouseId/mhd-transfer", async (req, res) => {
 });
 
 // Ablaufende Produkte abfragen (MHD-Überwachung)
-router.get("/warehouses/:warehouseId/expiring-products", async (req, res) => {
+router.get("/warehouses/:warehouseId/expiring-products", 
+  authenticateUser, 
+  requireWarehouseAccess(), 
+  requireRole(['admin', 'manager', 'employee']), 
+  auditLog('WAREHOUSE_EXPIRING_PRODUCTS', 'WAREHOUSE_READ'), 
+  async (req, res) => {
   try {
     const warehouseId = parseInt(req.params.warehouseId);
     if (isNaN(warehouseId)) {
@@ -561,7 +608,12 @@ router.get("/warehouses/:warehouseId/expiring-products", async (req, res) => {
 // ---- MACHINE-WAREHOUSE ASSIGNMENT ROUTES ----
 
 // Automaten einem Lager zuordnen
-router.post("/warehouses/:warehouseId/machines", async (req, res) => {
+router.post("/warehouses/:warehouseId/machines", 
+  authenticateUser, 
+  requireWarehouseAccess(), 
+  requireRole(['admin', 'manager']), 
+  auditLog('WAREHOUSE_MACHINE_ASSIGN', 'WAREHOUSE_WRITE'), 
+  async (req, res) => {
   try {
     const warehouseId = parseInt(req.params.warehouseId);
     if (isNaN(warehouseId)) {
@@ -600,7 +652,12 @@ router.post("/warehouses/:warehouseId/machines", async (req, res) => {
 });
 
 // Automatenzuordnung zu einem Lager aufheben
-router.delete("/warehouses/:warehouseId/machines/:machineId", async (req, res) => {
+router.delete("/warehouses/:warehouseId/machines/:machineId", 
+  authenticateUser, 
+  requireWarehouseAccess(), 
+  requireRole(['admin']), 
+  auditLog('WAREHOUSE_MACHINE_UNASSIGN', 'WAREHOUSE_DELETE'), 
+  async (req, res) => {
   try {
     const warehouseId = parseInt(req.params.warehouseId);
     const machineId = parseInt(req.params.machineId);
@@ -626,7 +683,12 @@ router.delete("/warehouses/:warehouseId/machines/:machineId", async (req, res) =
 });
 
 // Zugeordnete Automaten für ein Lager abrufen
-router.get("/warehouses/:warehouseId/machines", async (req, res) => {
+router.get("/warehouses/:warehouseId/machines", 
+  authenticateUser, 
+  requireWarehouseAccess(), 
+  requireRole(['admin', 'manager', 'employee']), 
+  auditLog('WAREHOUSE_MACHINES_LIST', 'WAREHOUSE_READ'), 
+  async (req, res) => {
   try {
     const warehouseId = parseInt(req.params.warehouseId);
     if (isNaN(warehouseId)) {
@@ -644,7 +706,12 @@ router.get("/warehouses/:warehouseId/machines", async (req, res) => {
 // ---- INVENTORY MANAGEMENT ROUTES ----
 
 // Produktbestand eines Lagers abrufen
-router.get("/warehouses/:warehouseId/inventory", async (req, res) => {
+router.get("/warehouses/:warehouseId/inventory", 
+  authenticateUser, 
+  requireWarehouseAccess(), 
+  requireRole(['admin', 'manager', 'employee']), 
+  auditLog('WAREHOUSE_INVENTORY', 'WAREHOUSE_READ'), 
+  async (req, res) => {
   try {
     const warehouseId = parseInt(req.params.warehouseId);
     if (isNaN(warehouseId)) {
@@ -959,7 +1026,12 @@ router.post("/warehouses/:warehouseId/inventory/:productId/adjust", async (req, 
 // ---- BATCH MANAGEMENT ROUTES ----
 
 // Chargen für ein Produkt in einem Lager abrufen
-router.get("/warehouses/:warehouseId/batches", async (req, res) => {
+router.get("/warehouses/:warehouseId/batches", 
+  authenticateUser, 
+  requireWarehouseAccess(), 
+  requireRole(['admin', 'manager', 'employee']), 
+  auditLog('WAREHOUSE_BATCHES_LIST', 'WAREHOUSE_READ'), 
+  async (req, res) => {
   try {
     const warehouseId = parseInt(req.params.warehouseId);
     if (isNaN(warehouseId)) {
@@ -983,7 +1055,12 @@ router.get("/warehouses/:warehouseId/batches", async (req, res) => {
 });
 
 // Charge anlegen
-router.post("/warehouses/:warehouseId/batches", async (req, res) => {
+router.post("/warehouses/:warehouseId/batches", 
+  authenticateUser, 
+  requireWarehouseAccess(), 
+  requireRole(['admin', 'manager']), 
+  auditLog('WAREHOUSE_BATCH_CREATE', 'WAREHOUSE_WRITE'), 
+  async (req, res) => {
   try {
     const warehouseId = parseInt(req.params.warehouseId);
     if (isNaN(warehouseId)) {
@@ -1022,7 +1099,12 @@ router.post("/warehouses/:warehouseId/batches", async (req, res) => {
 });
 
 // Charge aktualisieren
-router.put("/warehouses/:warehouseId/batches/:batchId", async (req, res) => {
+router.put("/warehouses/:warehouseId/batches/:batchId", 
+  authenticateUser, 
+  requireWarehouseAccess(), 
+  requireRole(['admin', 'manager']), 
+  auditLog('WAREHOUSE_BATCH_UPDATE', 'WAREHOUSE_WRITE'), 
+  async (req, res) => {
   try {
     const warehouseId = parseInt(req.params.warehouseId);
     const batchId = parseInt(req.params.batchId);
@@ -1066,7 +1148,12 @@ router.put("/warehouses/:warehouseId/batches/:batchId", async (req, res) => {
 
 // Warenbewegungen eines Lagers abrufen
 // Warenbewegungen für ein bestimmtes Produkt abrufen
-router.get("/inventory/movements", async (req, res) => {
+router.get("/inventory/movements", 
+  authenticateUser, 
+  requireWarehouseAccess(), 
+  requireRole(['admin', 'manager', 'employee']), 
+  auditLog('INVENTORY_MOVEMENTS_LIST', 'WAREHOUSE_READ'), 
+  async (req, res) => {
   try {
     const productId = req.query.productId ? parseInt(req.query.productId.toString()) : undefined;
     const warehouseId = req.query.warehouseId ? parseInt(req.query.warehouseId.toString()) : undefined;
@@ -1094,7 +1181,12 @@ router.get("/inventory/movements", async (req, res) => {
 });
 
 // Alle Warenbewegungen eines Lagers abrufen
-router.get("/warehouses/:warehouseId/movements", async (req, res) => {
+router.get("/warehouses/:warehouseId/movements", 
+  authenticateUser, 
+  requireWarehouseAccess(), 
+  requireRole(['admin', 'manager', 'employee']), 
+  auditLog('WAREHOUSE_MOVEMENTS_LIST', 'WAREHOUSE_READ'), 
+  async (req, res) => {
   try {
     const warehouseId = parseInt(req.params.warehouseId);
     console.log(`[DEBUG ROUTE] Warehouse movements requested for warehouse: ${warehouseId}`);
@@ -1162,7 +1254,12 @@ router.get("/warehouses/:warehouseId/movements", async (req, res) => {
 });
 
 // TEMPORÄRE ROUTE: Direkte Refill-Abfrage für Lager 10 (Bahnhof)
-router.get("/warehouses/10/refills", async (req, res) => {
+router.get("/warehouses/10/refills", 
+  authenticateUser, 
+  requireWarehouseAccess(), 
+  requireRole(['admin', 'manager', 'employee']), 
+  auditLog('WAREHOUSE_REFILLS_SPECIFIC', 'WAREHOUSE_READ'), 
+  async (req, res) => {
   try {
     console.log(`[DEBUG] Temporary refill route for warehouse 10`);
     
@@ -1230,7 +1327,12 @@ router.get("/warehouses/10/refills", async (req, res) => {
 });
 
 // Eine neue Warenbewegung erstellen
-router.post("/warehouses/:warehouseId/movements", async (req, res) => {
+router.post("/warehouses/:warehouseId/movements", 
+  authenticateUser, 
+  requireWarehouseAccess(), 
+  requireRole(['admin', 'manager']), 
+  auditLog('WAREHOUSE_MOVEMENT_CREATE', 'WAREHOUSE_WRITE'), 
+  async (req, res) => {
   try {
     const warehouseId = parseInt(req.params.warehouseId);
     if (isNaN(warehouseId)) {
@@ -1397,7 +1499,12 @@ router.post("/warehouses/:warehouseId/movements", async (req, res) => {
 // ---- INVENTORY COUNT ROUTES ----
 
 // Inventuren eines Lagers abrufen
-router.get("/warehouses/:warehouseId/counts", async (req, res) => {
+router.get("/warehouses/:warehouseId/counts", 
+  authenticateUser, 
+  requireWarehouseAccess(), 
+  requireRole(['admin', 'manager', 'employee']), 
+  auditLog('WAREHOUSE_COUNTS_LIST', 'WAREHOUSE_READ'), 
+  async (req, res) => {
   try {
     const warehouseId = parseInt(req.params.warehouseId);
     if (isNaN(warehouseId)) {
@@ -1422,7 +1529,12 @@ router.get("/warehouses/:warehouseId/counts", async (req, res) => {
 });
 
 // Inventur erstellen
-router.post("/warehouses/:warehouseId/counts", async (req, res) => {
+router.post("/warehouses/:warehouseId/counts", 
+  authenticateUser, 
+  requireWarehouseAccess(), 
+  requireRole(['admin', 'manager']), 
+  auditLog('WAREHOUSE_COUNT_CREATE', 'WAREHOUSE_WRITE'), 
+  async (req, res) => {
   try {
     const warehouseId = parseInt(req.params.warehouseId);
     if (isNaN(warehouseId)) {
@@ -1461,7 +1573,12 @@ router.post("/warehouses/:warehouseId/counts", async (req, res) => {
 });
 
 // Inventur aktualisieren
-router.put("/warehouses/:warehouseId/counts/:countId", async (req, res) => {
+router.put("/warehouses/:warehouseId/counts/:countId", 
+  authenticateUser, 
+  requireWarehouseAccess(), 
+  requireRole(['admin', 'manager']), 
+  auditLog('WAREHOUSE_COUNT_UPDATE', 'WAREHOUSE_WRITE'), 
+  async (req, res) => {
   try {
     const warehouseId = parseInt(req.params.warehouseId);
     const countId = parseInt(req.params.countId);
@@ -1502,7 +1619,12 @@ router.put("/warehouses/:warehouseId/counts/:countId", async (req, res) => {
 });
 
 // Detaillierte Informationen zu einer Inventur abrufen
-router.get("/warehouses/:warehouseId/counts/:countId", async (req, res) => {
+router.get("/warehouses/:warehouseId/counts/:countId", 
+  authenticateUser, 
+  requireWarehouseAccess(), 
+  requireRole(['admin', 'manager', 'employee']), 
+  auditLog('WAREHOUSE_COUNT_VIEW', 'WAREHOUSE_READ'), 
+  async (req, res) => {
   try {
     const warehouseId = parseInt(req.params.warehouseId);
     const countId = parseInt(req.params.countId);
@@ -1536,7 +1658,12 @@ router.get("/warehouses/:warehouseId/counts/:countId", async (req, res) => {
 });
 
 // Zählelement zu einer Inventur hinzufügen
-router.post("/warehouses/:warehouseId/counts/:countId/items", async (req, res) => {
+router.post("/warehouses/:warehouseId/counts/:countId/items", 
+  authenticateUser, 
+  requireWarehouseAccess(), 
+  requireRole(['admin', 'manager']), 
+  auditLog('WAREHOUSE_COUNT_ITEM_CREATE', 'WAREHOUSE_WRITE'), 
+  async (req, res) => {
   try {
     const warehouseId = parseInt(req.params.warehouseId);
     const countId = parseInt(req.params.countId);
@@ -1603,7 +1730,12 @@ router.post("/warehouses/:warehouseId/counts/:countId/items", async (req, res) =
 });
 
 // Zählelement aktualisieren
-router.put("/warehouses/:warehouseId/counts/:countId/items/:itemId", async (req, res) => {
+router.put("/warehouses/:warehouseId/counts/:countId/items/:itemId", 
+  authenticateUser, 
+  requireWarehouseAccess(), 
+  requireRole(['admin', 'manager']), 
+  auditLog('WAREHOUSE_COUNT_ITEM_UPDATE', 'WAREHOUSE_WRITE'), 
+  async (req, res) => {
   try {
     const warehouseId = parseInt(req.params.warehouseId);
     const countId = parseInt(req.params.countId);
@@ -1651,7 +1783,12 @@ router.put("/warehouses/:warehouseId/counts/:countId/items/:itemId", async (req,
 // ---- REFILL TRACKING ROUTES ----
 
 // Refills eines Lagers abrufen
-router.get("/warehouses/:warehouseId/refills", async (req, res) => {
+router.get("/warehouses/:warehouseId/refills", 
+  authenticateUser, 
+  requireWarehouseAccess(), 
+  requireRole(['admin', 'manager', 'employee']), 
+  auditLog('WAREHOUSE_REFILLS_LIST', 'WAREHOUSE_READ'), 
+  async (req, res) => {
   try {
     const warehouseId = parseInt(req.params.warehouseId);
     if (isNaN(warehouseId)) {
@@ -1716,7 +1853,12 @@ router.post("/warehouses/:warehouseId/refills", async (req, res) => {
 });
 
 // Detaillierte Informationen zu einem Refill abrufen
-router.get("/warehouses/:warehouseId/refills/:refillId", async (req, res) => {
+router.get("/warehouses/:warehouseId/refills/:refillId", 
+  authenticateUser, 
+  requireWarehouseAccess(), 
+  requireRole(['admin', 'manager', 'employee']), 
+  auditLog('WAREHOUSE_REFILL_VIEW', 'WAREHOUSE_READ'), 
+  async (req, res) => {
   try {
     const warehouseId = parseInt(req.params.warehouseId);
     const refillId = parseInt(req.params.refillId);
@@ -1904,7 +2046,12 @@ router.post("/warehouses/:warehouseId/reconcile", async (req, res) => {
 // ---- ERWEITERTE PRODUKTSUCHE ROUTES ----
 
 // Produktsuche über alle oder spezifische Lager
-router.get("/search/products", async (req, res) => {
+router.get("/search/products", 
+  authenticateUser, 
+  requireWarehouseAccess(), 
+  requireRole(['admin', 'manager', 'employee']), 
+  auditLog('PRODUCT_SEARCH', 'WAREHOUSE_READ'), 
+  async (req, res) => {
   try {
     const filters: any = {};
     
@@ -1984,7 +2131,12 @@ router.get("/search/products", async (req, res) => {
 });
 
 // Alle verfügbaren Produktkategorien abrufen
-router.get("/categories", async (req, res) => {
+router.get("/categories", 
+  authenticateUser, 
+  requireWarehouseAccess(), 
+  requireRole(['admin', 'manager', 'employee']), 
+  auditLog('CATEGORIES_LIST', 'WAREHOUSE_READ'), 
+  async (req, res) => {
   try {
     let warehouseId: number | undefined;
     
@@ -2012,7 +2164,12 @@ router.get("/categories", async (req, res) => {
 });
 
 // Kategorien für ein spezifisches Lager abrufen
-router.get("/warehouses/:warehouseId/categories", async (req, res) => {
+router.get("/warehouses/:warehouseId/categories", 
+  authenticateUser, 
+  requireWarehouseAccess(), 
+  requireRole(['admin', 'manager', 'employee']), 
+  auditLog('WAREHOUSE_CATEGORIES_LIST', 'WAREHOUSE_READ'), 
+  async (req, res) => {
   try {
     const warehouseId = parseInt(req.params.warehouseId);
     if (isNaN(warehouseId)) {
@@ -2042,7 +2199,12 @@ router.get("/warehouses/:warehouseId/categories", async (req, res) => {
 });
 
 // ULTRA-VEREINFACHTE LÖSUNG: Zeige nur Refill-Movements ohne komplexe Joins
-router.get("/warehouses/:warehouseId/movements-fixed", async (req, res) => {
+router.get("/warehouses/:warehouseId/movements-fixed", 
+  authenticateUser, 
+  requireWarehouseAccess(), 
+  requireRole(['admin', 'manager', 'employee']), 
+  auditLog('WAREHOUSE_MOVEMENTS_FIXED', 'WAREHOUSE_READ'), 
+  async (req, res) => {
   try {
     const warehouseId = parseInt(req.params.warehouseId);
     console.log(`[DEBUG-SIMPLE] Refill movements for warehouse: ${warehouseId}`);

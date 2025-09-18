@@ -6,6 +6,8 @@
 import { Router, Request, Response } from 'express';
 import multer from 'multer';
 import { DatabaseStorage } from '../storage/database-storage';
+// SECURITY FIX: Import authentication and audit middleware
+import { authenticateUser, auditLog, requireRole } from '../middleware/auth';
 import GoodsReceiptService from '../services/goodsReceiptService';
 import DeliveryNoteUploadService from '../services/deliveryNoteUploadService';
 import { goodsReceiptDataSchema } from '../../shared/schema';
@@ -58,7 +60,11 @@ const sendSuccess = (res: Response, data: any, message?: string) => {
  * GET /api/goods-receipt/:orderId
  * Holt Wareneingang-Details inklusive Lieferscheine
  */
-router.get('/:orderId', async (req: Request, res: Response) => {
+// SECURITY FIX: Add authentication and audit logging
+router.get('/:orderId', 
+  authenticateUser, 
+  auditLog('GOODS_RECEIPT_VIEW', 'GOODS_RECEIPT_READ'), 
+  async (req: Request, res: Response) => {
   try {
     const orderId = parseInt(req.params.orderId);
     
@@ -82,7 +88,12 @@ router.get('/:orderId', async (req: Request, res: Response) => {
  * POST /api/goods-receipt/:orderId/upload-delivery-note
  * Upload eines einzelnen Lieferscheins
  */
-router.post('/:orderId/upload-delivery-note', upload.single('deliveryNote'), async (req: Request, res: Response) => {
+// SECURITY FIX: Add authentication and audit logging for file upload
+router.post('/:orderId/upload-delivery-note', 
+  authenticateUser, 
+  auditLog('DELIVERY_NOTE_UPLOAD', 'GOODS_RECEIPT_WRITE'), 
+  upload.single('deliveryNote'), 
+  async (req: Request, res: Response) => {
   try {
     const orderId = parseInt(req.params.orderId);
     
@@ -135,7 +146,12 @@ router.post('/:orderId/upload-delivery-note', upload.single('deliveryNote'), asy
  * POST /api/goods-receipt/:orderId/upload-multiple-delivery-notes
  * Upload mehrerer Lieferscheine gleichzeitig
  */
-router.post('/:orderId/upload-multiple-delivery-notes', upload.array('deliveryNotes', 5), async (req: Request, res: Response) => {
+// SECURITY FIX: Add authentication and audit logging for multiple file upload
+router.post('/:orderId/upload-multiple-delivery-notes', 
+  authenticateUser, 
+  auditLog('MULTIPLE_DELIVERY_NOTES_UPLOAD', 'GOODS_RECEIPT_WRITE'), 
+  upload.array('deliveryNotes', 5), 
+  async (req: Request, res: Response) => {
   try {
     const orderId = parseInt(req.params.orderId);
     
@@ -200,7 +216,11 @@ router.post('/:orderId/upload-multiple-delivery-notes', upload.array('deliveryNo
  * GET /api/goods-receipt/:orderId/delivery-notes
  * Alle Lieferscheine einer Bestellung abrufen
  */
-router.get('/:orderId/delivery-notes', async (req: Request, res: Response) => {
+// SECURITY FIX: Add authentication and audit logging
+router.get('/:orderId/delivery-notes', 
+  authenticateUser, 
+  auditLog('DELIVERY_NOTES_LIST', 'GOODS_RECEIPT_READ'), 
+  async (req: Request, res: Response) => {
   try {
     const orderId = parseInt(req.params.orderId);
     
@@ -224,7 +244,11 @@ router.get('/:orderId/delivery-notes', async (req: Request, res: Response) => {
  * DELETE /api/goods-receipt/delivery-notes/:noteId
  * Lieferschein löschen
  */
-router.delete('/delivery-notes/:noteId', async (req: Request, res: Response) => {
+// SECURITY FIX: Add authentication and audit logging for delete operations
+router.delete('/delivery-notes/:noteId', 
+  authenticateUser, 
+  auditLog('DELIVERY_NOTE_DELETE', 'GOODS_RECEIPT_DELETE'), 
+  async (req: Request, res: Response) => {
   try {
     const noteId = parseInt(req.params.noteId);
     
@@ -254,7 +278,11 @@ router.delete('/delivery-notes/:noteId', async (req: Request, res: Response) => 
  * POST /api/goods-receipt/:orderId/process
  * Einfacher Wareneingang ohne Dokumente - mit korrekter Per-Item-Verarbeitung
  */
-router.post('/:orderId/process', async (req: Request, res: Response) => {
+router.post('/:orderId/process', 
+  authenticateUser, 
+  requireRole(['admin', 'manager']), 
+  auditLog('GOODS_RECEIPT_PROCESS', 'GOODS_RECEIPT_WRITE'), 
+  async (req: Request, res: Response) => {
   try {
     const orderId = parseInt(req.params.orderId);
     
@@ -388,7 +416,12 @@ router.post('/:orderId/process', async (req: Request, res: Response) => {
  * POST /api/goods-receipt/:orderId/process-with-documents
  * Wareneingang mit Lieferscheinen verarbeiten
  */
-router.post('/:orderId/process-with-documents', upload.array('deliveryNotes', 5), async (req: Request, res: Response) => {
+router.post('/:orderId/process-with-documents', 
+  authenticateUser, 
+  requireRole(['admin', 'manager']), 
+  auditLog('GOODS_RECEIPT_PROCESS_WITH_DOCUMENTS', 'GOODS_RECEIPT_WRITE'), 
+  upload.array('deliveryNotes', 5), 
+  async (req: Request, res: Response) => {
   try {
     const orderId = parseInt(req.params.orderId);
     
@@ -461,7 +494,11 @@ router.post('/:orderId/process-with-documents', upload.array('deliveryNotes', 5)
  * GET /api/goods-receipt/statistics
  * Upload-Statistiken abrufen
  */
-router.get('/statistics', async (req: Request, res: Response) => {
+router.get('/statistics', 
+  authenticateUser, 
+  requireRole(['admin', 'manager', 'employee']), 
+  auditLog('GOODS_RECEIPT_STATISTICS', 'GOODS_RECEIPT_READ'), 
+  async (req: Request, res: Response) => {
   try {
     const db = new DatabaseStorage();
     const deliveryNoteService = new DeliveryNoteUploadService(db);
@@ -487,7 +524,11 @@ router.get('/statistics', async (req: Request, res: Response) => {
  * - Lagerauswahl (warehouseId)
  * - Erweiterte Qualitätskontrolle
  */
-router.post('/:orderId/process-enhanced', async (req: Request, res: Response) => {
+router.post('/:orderId/process-enhanced', 
+  authenticateUser, 
+  requireRole(['admin', 'manager']), 
+  auditLog('GOODS_RECEIPT_PROCESS_ENHANCED', 'GOODS_RECEIPT_WRITE'), 
+  async (req: Request, res: Response) => {
   try {
     const orderId = parseInt(req.params.orderId);
     
@@ -537,7 +578,11 @@ router.post('/:orderId/process-enhanced', async (req: Request, res: Response) =>
  * GET /api/goods-receipt/:orderId/warehouses
  * Verfügbare Lager für eine Bestellung abrufen
  */
-router.get('/:orderId/warehouses', async (req: Request, res: Response) => {
+router.get('/:orderId/warehouses', 
+  authenticateUser, 
+  requireRole(['admin', 'manager', 'employee']), 
+  auditLog('GOODS_RECEIPT_WAREHOUSES', 'GOODS_RECEIPT_READ'), 
+  async (req: Request, res: Response) => {
   try {
     const orderId = parseInt(req.params.orderId);
     
@@ -565,7 +610,11 @@ router.get('/:orderId/warehouses', async (req: Request, res: Response) => {
  * Validierung der Wareneingangs-Daten vor dem Speichern
  * Prüft Schema-Validität, MHD-Regeln, Lager-Verfügbarkeit etc.
  */
-router.post('/:orderId/validate', async (req: Request, res: Response) => {
+router.post('/:orderId/validate', 
+  authenticateUser, 
+  requireRole(['admin', 'manager', 'employee']), 
+  auditLog('GOODS_RECEIPT_VALIDATE', 'GOODS_RECEIPT_READ'), 
+  async (req: Request, res: Response) => {
   try {
     const orderId = parseInt(req.params.orderId);
     
@@ -617,7 +666,11 @@ router.post('/:orderId/validate', async (req: Request, res: Response) => {
  * - MHD-Tracking
  * - Qualitätsbewertungen
  */
-router.get('/:orderId/enhanced-details', async (req: Request, res: Response) => {
+router.get('/:orderId/enhanced-details', 
+  authenticateUser, 
+  requireRole(['admin', 'manager', 'employee']), 
+  auditLog('GOODS_RECEIPT_ENHANCED_DETAILS', 'GOODS_RECEIPT_READ'), 
+  async (req: Request, res: Response) => {
   try {
     const orderId = parseInt(req.params.orderId);
     

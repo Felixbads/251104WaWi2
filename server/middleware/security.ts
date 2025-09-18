@@ -108,6 +108,44 @@ export const ordersApiRateLimit = rateLimit({
   }
 });
 
+// SECURITY FIX: Rate limiting für Warehouse Operations
+export const warehouseApiRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 50, // 50 warehouse operations per 15 minutes
+  message: {
+    error: 'Rate limit exceeded for warehouse operations',
+    retryAfter: '15 minutes'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (req: Request, res: Response) => {
+    logger.warn({ ip: req.ip, path: req.path }, 'Rate limit exceeded for warehouse operations');
+    res.status(429).json({
+      error: 'Rate limit exceeded for warehouse operations',
+      retryAfter: '15 minutes'
+    });
+  }
+});
+
+// SECURITY FIX: Rate limiting für Goods Receipt Operations
+export const goodsReceiptRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 30, // 30 goods receipt operations per 15 minutes
+  message: {
+    error: 'Rate limit exceeded for goods receipt operations',
+    retryAfter: '15 minutes'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (req: Request, res: Response) => {
+    logger.warn({ ip: req.ip, path: req.path }, 'Rate limit exceeded for goods receipt operations');
+    res.status(429).json({
+      error: 'Rate limit exceeded for goods receipt operations',
+      retryAfter: '15 minutes'
+    });
+  }
+});
+
 // Strict CORS configuration - only allow specific origins
 const allowedOrigins = [
   'http://localhost:5000',
@@ -214,7 +252,11 @@ export function applySecurityMiddleware(app: Express): void {
   app.use('/api/supplier-portal', supplierPortalRateLimit);
   app.use('/api/orders', ordersApiRateLimit);
   
-  logger.info('Security middleware applied: helmet, CORS, rate limiting (pino-http disabled - using observability logger)');
+  // SECURITY FIX: Apply warehouse and goods-receipt rate limiting
+  app.use('/api/warehouse3', warehouseApiRateLimit);
+  app.use('/api/goods-receipt', goodsReceiptRateLimit);
+  
+  logger.info('Security middleware applied: helmet, CORS, rate limiting including warehouse operations (pino-http disabled - using observability logger)');
 }
 
 export { logger };

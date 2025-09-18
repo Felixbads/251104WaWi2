@@ -1,6 +1,8 @@
 import { Router, Request, Response } from 'express';
 import { storage } from '../storage';
 import { db } from '../db';
+// SECURITY FIX: Import authentication and audit middleware
+import { authenticateUser, auditLog, requireRole } from '../middleware/auth';
 import { and, asc, desc, eq, gte, ilike, inArray, isNull, lt, or, sql, lte, not } from 'drizzle-orm';
 import { 
   orders, 
@@ -27,8 +29,11 @@ function sendEmail(to: string, from: string, subject: string, html: string) {
 
 const router = Router();
 
-// Dashboard endpoint für verschickte aber noch nicht gelieferte Bestellungen
-router.get('/dashboard/open', async (req: Request, res: Response) => {
+// SECURITY FIX: Dashboard endpoint mit Authentication und Audit Logging
+router.get('/dashboard/open', 
+  authenticateUser, 
+  auditLog('ORDERS_DASHBOARD_ACCESS', 'ORDERS_READ'), 
+  async (req: Request, res: Response) => {
   try {
     const limit = parseInt(req.query.limit as string) || 5;
     
@@ -230,8 +235,12 @@ function createOrderItemsTable(items: any[]): string {
   return tableHtml;
 }
 
-// Alle Bestellungen abrufen
-router.get('/', async (req: Request, res: Response) => {
+// SECURITY FIX: Alle Bestellungen abrufen - Requires employee+ role
+router.get('/', 
+  authenticateUser, 
+  requireRole(['admin', 'manager', 'employee']), 
+  auditLog('ORDERS_LIST', 'ORDERS_READ'), 
+  async (req: Request, res: Response) => {
   // Header zur Sicherstellung der richtigen Antwortformatierung
   res.setHeader('Content-Type', 'application/json');
   
@@ -360,8 +369,12 @@ router.get('/', async (req: Request, res: Response) => {
   }
 });
 
-// Bulk order creation route (must be before /orders route)
-router.post('/bulk', async (req: Request, res: Response) => {
+// SECURITY FIX: Bulk order creation route - Requires manager+ role (CRITICAL)
+router.post('/bulk', 
+  authenticateUser, 
+  requireRole(['admin', 'manager']), 
+  auditLog('ORDERS_BULK_CREATE', 'ORDERS_WRITE'), 
+  async (req: Request, res: Response) => {
   try {
     const {
       supplierId,
@@ -530,7 +543,12 @@ router.post('/bulk', async (req: Request, res: Response) => {
 });
 
 // Bestellung erstellen
-router.post('/orders', async (req: Request, res: Response) => {
+// SECURITY FIX: Create order - Requires employee+ role
+router.post('/orders', 
+  authenticateUser, 
+  requireRole(['admin', 'manager', 'employee']), 
+  auditLog('ORDERS_CREATE', 'ORDERS_WRITE'), 
+  async (req: Request, res: Response) => {
   try {
     console.log("Neue Bestellung erhalten mit Daten:", JSON.stringify(req.body).substring(0, 200));
     
@@ -792,7 +810,12 @@ router.post('/orders', async (req: Request, res: Response) => {
 });
 
 // Bestellung abrufen - VEREINFACHT
-router.get('/:id', async (req: Request, res: Response) => {
+// SECURITY FIX: Get single order - Requires employee+ role
+router.get('/:id', 
+  authenticateUser, 
+  requireRole(['admin', 'manager', 'employee']), 
+  auditLog('ORDERS_GET', 'ORDERS_READ'), 
+  async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const orderId = parseInt(id);
@@ -833,7 +856,12 @@ router.get('/:id', async (req: Request, res: Response) => {
 
 
 // Bestellpositionen abrufen
-router.get('/:id/items', async (req: Request, res: Response) => {
+// SECURITY FIX: Get order items - Requires employee+ role
+router.get('/:id/items', 
+  authenticateUser, 
+  requireRole(['admin', 'manager', 'employee']), 
+  auditLog('ORDERS_ITEMS_GET', 'ORDERS_READ'), 
+  async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const orderId = parseInt(id);
@@ -862,7 +890,12 @@ router.get('/:id/items', async (req: Request, res: Response) => {
 });
 
 // Bestellung kopieren/duplizieren
-router.post('/orders/:id/copy', async (req: Request, res: Response) => {
+// SECURITY FIX: Copy order - Requires manager+ role
+router.post('/orders/:id/copy', 
+  authenticateUser, 
+  requireRole(['admin', 'manager']), 
+  auditLog('ORDERS_COPY', 'ORDERS_WRITE'), 
+  async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const sourceOrderId = parseInt(id);
@@ -985,7 +1018,12 @@ router.post('/orders/:id/copy', async (req: Request, res: Response) => {
 });
 
 // Bestellung aktualisieren (PUT für Frontend)
-router.put('/:id', async (req: Request, res: Response) => {
+// SECURITY FIX: Update order - Requires manager+ role
+router.put('/:id', 
+  authenticateUser, 
+  requireRole(['admin', 'manager']), 
+  auditLog('ORDERS_UPDATE', 'ORDERS_WRITE'), 
+  async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const orderId = parseInt(id);
@@ -1089,7 +1127,12 @@ router.put('/:id', async (req: Request, res: Response) => {
 });
 
 // Neue Position zu Bestellung hinzufügen
-router.post('/:id/items', async (req: Request, res: Response) => {
+// SECURITY FIX: Add items to order - Requires manager+ role
+router.post('/:id/items', 
+  authenticateUser, 
+  requireRole(['admin', 'manager']), 
+  auditLog('ORDERS_ITEMS_ADD', 'ORDERS_WRITE'), 
+  async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const orderId = parseInt(id);
@@ -1149,7 +1192,12 @@ router.post('/:id/items', async (req: Request, res: Response) => {
 });
 
 // Bestellposition aktualisieren
-router.put('/:orderId/items/:itemId', async (req: Request, res: Response) => {
+// SECURITY FIX: Update order item - Requires manager+ role
+router.put('/:orderId/items/:itemId', 
+  authenticateUser, 
+  requireRole(['admin', 'manager']), 
+  auditLog('ORDERS_ITEM_UPDATE', 'ORDERS_WRITE'), 
+  async (req: Request, res: Response) => {
   try {
     const { orderId, itemId } = req.params;
     const orderIdNum = parseInt(orderId);
@@ -1195,7 +1243,12 @@ router.put('/:orderId/items/:itemId', async (req: Request, res: Response) => {
 });
 
 // Bestellposition löschen
-router.delete('/:orderId/items/:itemId', async (req: Request, res: Response) => {
+// SECURITY FIX: Delete order item - Requires manager+ role
+router.delete('/:orderId/items/:itemId', 
+  authenticateUser, 
+  requireRole(['admin', 'manager']), 
+  auditLog('ORDERS_ITEM_DELETE', 'ORDERS_DELETE'), 
+  async (req: Request, res: Response) => {
   try {
     const { orderId, itemId } = req.params;
     const orderIdNum = parseInt(orderId);
@@ -1230,7 +1283,12 @@ router.delete('/:orderId/items/:itemId', async (req: Request, res: Response) => 
 });
 
 // BULK UPDATE für Bestellpositionen - KRITISCHE FEHLENDE ROUTE
-router.put('/:id/items', async (req: Request, res: Response) => {
+// SECURITY FIX: Update all items - Requires manager+ role
+router.put('/:id/items', 
+  authenticateUser, 
+  requireRole(['admin', 'manager']), 
+  auditLog('ORDERS_ITEMS_UPDATE_ALL', 'ORDERS_WRITE'), 
+  async (req: Request, res: Response) => {
   try {
     const orderId = parseInt(req.params.id);
     const { items } = req.body;
@@ -1323,7 +1381,12 @@ router.put('/:id/items', async (req: Request, res: Response) => {
 });
 
 // Bestellung aktualisieren (PATCH für Legacy)
-router.patch('/orders/:id', async (req: Request, res: Response) => {
+// SECURITY FIX: Patch order - Requires manager+ role
+router.patch('/orders/:id', 
+  authenticateUser, 
+  requireRole(['admin', 'manager']), 
+  auditLog('ORDERS_PATCH', 'ORDERS_WRITE'), 
+  async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const orderId = parseInt(id);
@@ -1514,7 +1577,12 @@ router.patch('/orders/:id', async (req: Request, res: Response) => {
 });
 
 // Bestellung löschen
-router.delete('/orders/:id', async (req: Request, res: Response) => {
+// SECURITY FIX: Delete order - Requires ADMIN role only (MOST CRITICAL)
+router.delete('/orders/:id', 
+  authenticateUser, 
+  requireRole(['admin']), 
+  auditLog('ORDERS_DELETE', 'ORDERS_DELETE'), 
+  async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const orderId = parseInt(id);
@@ -1562,7 +1630,12 @@ router.delete('/orders/:id', async (req: Request, res: Response) => {
 });
 
 // E-Mail-Vorlage für eine Bestellung abrufen
-router.get('/orders/:id/email-template', async (req: Request, res: Response) => {
+// SECURITY FIX: Get email template - Requires employee+ role
+router.get('/orders/:id/email-template', 
+  authenticateUser, 
+  requireRole(['admin', 'manager', 'employee']), 
+  auditLog('ORDERS_EMAIL_TEMPLATE', 'ORDERS_READ'), 
+  async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const orderId = parseInt(id);
@@ -1663,7 +1736,12 @@ router.get('/orders/:id/email-template', async (req: Request, res: Response) => 
 // Conflicting email route removed - using complete email fix instead
 
 // Bestellstatus ändern (neuer Endpunkt)
-router.patch('/orders/:id/status', async (req: Request, res: Response) => {
+// SECURITY FIX: Update order status - Requires employee+ role
+router.patch('/orders/:id/status', 
+  authenticateUser, 
+  requireRole(['admin', 'manager', 'employee']), 
+  auditLog('ORDERS_STATUS_UPDATE', 'ORDERS_WRITE'), 
+  async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const orderId = parseInt(id);
@@ -1713,7 +1791,12 @@ router.patch('/orders/:id/status', async (req: Request, res: Response) => {
 });
 
 // Bestellung als gesendet markieren
-router.post('/orders/:id/mark-sent', async (req: Request, res: Response) => {
+// SECURITY FIX: Mark order as sent - Requires manager+ role  
+router.post('/orders/:id/mark-sent', 
+  authenticateUser, 
+  requireRole(['admin', 'manager']), 
+  auditLog('ORDERS_MARK_SENT', 'ORDERS_WRITE'), 
+  async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const orderId = parseInt(id);
@@ -1798,7 +1881,12 @@ router.post('/orders/:id/mark-sent', async (req: Request, res: Response) => {
   }
 });
 
-router.post('/orders/:id/receipt', async (req: Request, res: Response) => {
+// SECURITY FIX: Receive order - Requires employee+ role (CRITICAL)
+router.post('/orders/:id/receipt', 
+  authenticateUser, 
+  requireRole(['admin', 'manager', 'employee']), 
+  auditLog('ORDERS_RECEIPT', 'ORDERS_WRITE'), 
+  async (req: Request, res: Response) => {
   try {
     const orderId = parseInt(req.params.id);
     if (isNaN(orderId)) {
