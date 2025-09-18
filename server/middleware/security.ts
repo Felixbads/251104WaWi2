@@ -146,20 +146,25 @@ export const goodsReceiptRateLimit = rateLimit({
   }
 });
 
+// Development environment detection
+const isDev = process.env.NODE_ENV !== 'production';
+const localOriginRegex = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
+
 // Strict CORS configuration - only allow specific origins
 const allowedOrigins = [
   'http://localhost:5000',
   'http://localhost:3000',
   'https://*.replit.app',
-  'https://*.replit.dev',
-  // Explicit current Replit development origin
-  'https://0882af2d-5e2d-4c19-9208-930be7887108-00-1xybeskgjqft9.sisko.replit.dev'
+  'https://*.replit.dev'
 ];
 
 export const corsConfig = cors({
   origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
     // Allow requests with no origin (mobile apps, postman, etc.)
     if (!origin) return callback(null, true);
+    
+    // Allow localhost/127.0.0.1 during development (for testing/screenshots)
+    if (isDev && localOriginRegex.test(origin)) return callback(null, true);
     
     // Check if origin matches allowed patterns
     const isAllowed = allowedOrigins.some(allowedOrigin => {
@@ -203,12 +208,13 @@ export const helmetConfig = helmet({
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
       imgSrc: ["'self'", "data:", "https:"],
-      scriptSrc: ["'self'"],
-      connectSrc: ["'self'"],
+      scriptSrc: isDev ? ["'self'", "'unsafe-inline'", "'unsafe-eval'"] : ["'self'"],
+      connectSrc: ["'self'", "ws:", "wss:"],
       frameSrc: ["'none'"],
       objectSrc: ["'none'"],
       mediaSrc: ["'self'"],
-      manifestSrc: ["'self'"]
+      manifestSrc: ["'self'"],
+      workerSrc: ["'self'", "blob:"]
     }
   },
   crossOriginEmbedderPolicy: false, // Disable for compatibility
