@@ -113,7 +113,9 @@ const allowedOrigins = [
   'http://localhost:5000',
   'http://localhost:3000',
   'https://*.replit.app',
-  'https://*.replit.dev'
+  'https://*.replit.dev',
+  // Explicit current Replit development origin
+  'https://0882af2d-5e2d-4c19-9208-930be7887108-00-1xybeskgjqft9.sisko.replit.dev'
 ];
 
 export const corsConfig = cors({
@@ -124,17 +126,21 @@ export const corsConfig = cors({
     // Check if origin matches allowed patterns
     const isAllowed = allowedOrigins.some(allowedOrigin => {
       if (allowedOrigin.includes('*')) {
-        // Handle wildcard domains
-        const pattern = allowedOrigin.replace('*.', '');
-        return origin.endsWith(pattern);
+        // Handle wildcard domains - improved pattern matching
+        const pattern = allowedOrigin.replace('https://*.', '').replace('http://*.', '');
+        const originDomain = origin.replace(/^https?:\/\//, '');
+        const matches = originDomain.endsWith('.' + pattern) || originDomain === pattern;
+        logger.debug({ origin, pattern, originDomain, matches }, 'CORS wildcard pattern check');
+        return matches;
       }
       return origin === allowedOrigin;
     });
     
     if (isAllowed) {
+      logger.debug({ origin }, 'CORS: Origin allowed');
       callback(null, true);
     } else {
-      logger.warn({ origin, ip: 'unknown' }, 'CORS: Origin not allowed');
+      logger.warn({ origin, allowedOrigins }, 'CORS: Origin not allowed');
       callback(new Error('Not allowed by CORS policy'));
     }
   },

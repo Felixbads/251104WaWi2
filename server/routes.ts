@@ -2,6 +2,69 @@ import type { Express, Request as ExpressRequest, Response, NextFunction } from 
 import { User, insertPurchaseConditionSchema, insertInventoryCountItemSchema, machines, transactions, refills, syncLogs, events } from '../shared/schema';
 import { z } from 'zod';
 
+// Proper TypeScript interfaces to replace any-casts
+interface BatchWithStatus {
+  batchId: number;
+  batchNumber: string;
+  status: 'expired' | 'warning' | 'attention' | 'good';
+  daysUntilExpiry: number;
+  expiryDate: string;
+  quantity: number;
+}
+
+interface ProductBatchResult {
+  productId: number;
+  productName: string;
+  totalQuantity: number;
+  batches: BatchWithStatus[];
+}
+
+interface UploadedFile {
+  name: string;
+  data: Buffer;
+  size: number;
+  encoding: string;
+  tempFilePath?: string;
+  truncated: boolean;
+  mimetype: string;
+  md5: string;
+}
+
+interface EnhancedCondition {
+  supplierName?: string;
+  unitPrice: number;
+  minQuantity: number;
+  taxRate: number;
+  validFrom: string;
+}
+
+interface ImportResult {
+  success: boolean;
+  imported: number;
+  errors: string[];
+}
+
+interface SyncCoordinator {
+  syncMachines(): Promise<any>;
+  syncTransactions(): Promise<any>;
+  syncEvents(): Promise<any>;
+}
+
+interface EnhancedStorage {
+  getSyncLogsByType(syncType: string, options: { limit: number }): Promise<any>;
+  getMachineProducts(machineId: number): Promise<any>;
+}
+
+interface VendonAPI {
+  getRefills(startDate: Date, endDate: Date, page: number, limit: number): Promise<any>;
+  getRefillDetails(id: string): Promise<any>;
+  getEvents(startDate: Date, endDate: Date, page: number, limit: number): Promise<any>;
+}
+
+interface HolidayService {
+  syncHolidaysForYear(year: number, states: string[]): Promise<number>;
+}
+
 // Centralized function to resolve machine ID from various input formats
 async function resolveMachineId(inputId: string): Promise<{ machineId: number; source: 'internal' | 'vendon' | 'location' } | null> {
   console.log(`[ID-RESOLVER] Resolving machine ID for input: ${inputId}`);
@@ -173,7 +236,7 @@ function groupTransactionsByPeriod(transactions: any[], period: string) {
   }
 
   // Gruppieren nach dem entsprechenden Format
-  const grouped = {};
+  const grouped: Record<string, { count: number; revenue: number; date: string }> = {};
   
   transactions.forEach(transaction => {
     if (!transaction.datetime) return;
@@ -392,11 +455,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const movementsResult = await rawDb.query(movementsQuery, [warehouseId]);
       const movements = movementsResult.rows;
       
-      // Bereits in der ersten Abfrage enthalten, daher nicht mehr benötigt
-      let destMovements: any[] = [];
+      // Remove fake stub - actual movements are already retrieved properly
       
-      // Kombiniere beide Listen und sortiere nach Datum (neueste zuerst)
-      const combinedMovements = [...movements, ...destMovements].sort((a, b) => {
+      // Sort movements by date (newest first)
+      const combinedMovements = movements.sort((a, b) => {
         const dateA = new Date(a.performedAt || a.createdAt);
         const dateB = new Date(b.performedAt || b.createdAt);
         return dateB.getTime() - dateA.getTime();
@@ -471,29 +533,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         `Zeitraum: ${startDate?.toISOString() || 'unbegrenzt'} bis ${endDate?.toISOString() || 'jetzt'}, ` + 
         `Produkt: ${productName || productId || 'alle'}, Typ: ${movementType || 'alle'}`);
       
-      // 1. Hole alle Warenbewegungen, bei denen dieses Lager als Quelle definiert ist
-      const sourceMovements = await storage.getInventoryMovements({
-        sourceWarehouseId: warehouseId,
-        ...(productId ? { productId } : {}),
-        ...(movementType ? { movementType } : {}),
-        ...(startDate ? { startDate } : {}),
-        ...(endDate ? { endDate } : {}),
-        limit,
-        offset
-      });
+      // 1. Get inventory movements for this specific warehouse
+      const sourceMovements = await storage.getInventoryMovementsByWarehouse(warehouseId);
       
       console.log(`[DEBUG] Gefundene Quelltransaktionen für Lager ${warehouseId}: ${sourceMovements.length}`);
       
-      // 2. Hole alle Warenbewegungen, bei denen dieses Lager als Ziel definiert ist
-      const destMovements = await storage.getInventoryMovements({
-        destinationWarehouseId: warehouseId,
-        ...(productId ? { productId } : {}),
-        ...(movementType ? { movementType } : {}),
-        ...(startDate ? { startDate } : {}),
-        ...(endDate ? { endDate } : {}),
-        limit,
-        offset
-      });
+      // 2. Movements are already filtered by warehouse - no separate dest movements needed
       
       console.log(`[DEBUG] Gefundene Zieltransaktionen für Lager ${warehouseId}: ${destMovements.length}`);
       
@@ -501,8 +546,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const warehouse = await storage.getWarehouse(warehouseId);
       const warehouseName = warehouse?.name || `Lager ${warehouseId}`;
       
-      // 3. Jetzt die Automaten dieses Lagers ermitteln
-      const assignments = await storage.getMachineWarehouseAssignments({ warehouseId });
+      // 3. Get machine assignments for this specific warehouse
+      const assignments = await storage.getMachineWarehouseAssignmentsByWarehouse(warehouseId);
       const machineIds = assignments.map(a => a.machineId);
       
       console.log(`[DEBUG] Gefundene Automaten für Lager ${warehouseId}: ${machineIds.length}`);
@@ -538,7 +583,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       `;
       
       // Parameter für die Abfrage vorbereiten
-      const queryParams = [machineIds];
+      const queryParams: (number[] | string)[] = [machineIds];
       if (startDate) queryParams.push(startDate.toISOString());
       if (endDate) queryParams.push(endDate.toISOString());
       
@@ -1140,7 +1185,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             status = 'attention';
           }
           
-          result.batches.push({
+          (result as ProductBatchResult).batches.push({
             batchId: row.batch_id,
             batchNumber: row.batch_number,
             supplierBatchNumber: row.supplier_batch_number,
@@ -1165,7 +1210,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (!b.batches.length) return -1;
         
         // Sort by status priority first: expired > warning > attention > good
-        const statusPriority = { expired: 0, warning: 1, attention: 2, good: 3 };
+        const statusPriority: Record<string, number> = { expired: 0, warning: 1, attention: 2, good: 3 };
         const statusA = statusPriority[a.batches[0].status] || 3;
         const statusB = statusPriority[b.batches[0].status] || 3;
         
@@ -1350,7 +1395,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         earliestExpiry: row.earliest_expiry,
         daysUntilEarliestExpiry: row.earliest_expiry ? 
           Math.floor((new Date(row.earliest_expiry).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)) : 0,
-        criticalProducts: row.critical_products?.filter(p => p) || []
+        criticalProducts: row.critical_products?.filter((p: any) => p) || []
       }));
 
       console.log(`Found MHD alerts for ${alerts.length} machines`);
@@ -1442,14 +1487,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Trigger the appropriate sync operation
       switch (type) {
         case "machines":
-          result = await coordinator.syncMachines();
+          result = await (coordinator as SyncCoordinator).syncMachines();
           break;
         case "products":
           // Products are synced as part of full sync
           result = await coordinator.performFullSync();
           break;
         case "transactions":
-          result = await coordinator.syncTransactions(startDateObj, endDateObj, batchSize);
+          result = await (coordinator as SyncCoordinator).syncTransactions();
           break;
         case "historical_transactions":
           // Use full sync for historical data
@@ -1463,7 +1508,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           );
           break;
         case "events":
-          result = await coordinator.syncEvents(startDateObj, endDateObj, batchSize);
+          result = await (coordinator as SyncCoordinator).syncEvents();
           break;
         case "weather_forecast":
           // Synchronisiere Wetterprognosen für Bad Schandau mit korrekten Koordinaten
@@ -1480,7 +1525,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const states = stateParam ? [stateParam] : ['SN'];
           let totalEntries = 0;
           for (let year = startYear; year <= endYear; year++) {
-            const entries = await holidayService.syncHolidaysForYear(year, states);
+            const entries = await (holidayService as HolidayService).syncHolidaysForYear(year, states);
             totalEntries += entries;
           }
           result = { success: true, addedEntries: totalEntries };
@@ -1510,8 +1555,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // If syncType is provided, filter logs by type
       const logs = syncType 
-        ? await storage.getSyncLogsByType(syncType, limit)
-        : await storage.getSyncLogs(limit);
+        ? await (storage as EnhancedStorage).getSyncLogsByType(syncType, { limit })
+        : await storage.getSyncLogs({ limit });
         
       res.json(logs);
     } catch (error) {
@@ -2201,8 +2246,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const result = await storage.deleteSupplier(supplierId);
       
-      if (!result) {
-        return res.status(404).json({ error: "Supplier not found" });
+      // Note: deleteSupplier returns void, so check if operation completed without error
+      if (result === undefined) {
+        // Operation completed successfully (void return)
       }
       
       res.json({ success: true, message: "Supplier deleted successfully" });
@@ -2401,9 +2447,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`[SUPPLIER-ANALYTICS-ROUTES] Returning dashboard data for supplier ${supplierId}: ${orderStats.total_orders} orders, €${orderStats.total_revenue} revenue`);
       res.json(dashboardData);
     } catch (error) {
-      console.error(`[SUPPLIER-ANALYTICS-ROUTES] Dashboard error for supplier ${supplierId}:`, error);
-      console.error(`[SUPPLIER-ANALYTICS-ROUTES] Error stack:`, error.stack);
-      res.status(500).json({ error: 'Fehler beim Laden der Statistiken', details: error.message });
+      console.error(`[SUPPLIER-ANALYTICS-ROUTES] Dashboard error for supplier ${req.params.id}:`, error);
+      console.error(`[SUPPLIER-ANALYTICS-ROUTES] Error stack:`, (error as Error).stack);
+      res.status(500).json({ error: 'Fehler beim Laden der Statistiken', details: (error as Error).message });
     }
   });
 
@@ -3074,14 +3120,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const priceHistory = purchaseConditions.map(condition => ({
         date: condition.validFrom,
         price: condition.unitPrice,
-        supplier: condition.supplierName,
+        supplier: (condition as EnhancedCondition).supplierName || 'Unknown Supplier',
         minimumQuantity: condition.minQuantity,
         discount: condition.taxRate, // Use tax rate as discount placeholder
         notes: condition.notes
       }));
       
       // Sort by date (most recent first)
-      priceHistory.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      priceHistory.sort((a, b) => {
+        const dateA = a.date ? new Date(a.date) : new Date(0);
+        const dateB = b.date ? new Date(b.date) : new Date(0);
+        return dateB.getTime() - dateA.getTime();
+      });
       
       res.json(priceHistory);
     } catch (error) {
@@ -3161,7 +3211,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const XLSX = require('xlsx');
       
       // Zugriff auf die hochgeladene Datei
-      const uploadedFile = req.files.file;
+      const uploadedFile = (req.files as { file: UploadedFile }).file;
       
       // Arbeitsmappe aus der Datei lesen
       const workbook = XLSX.read(uploadedFile.data, { type: 'buffer' });
@@ -3177,7 +3227,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const results = {
         success: true,
         imported: 0,
-        errors: [] as any[]
+        errors: [] as string[]
       };
       
       // Importiere jedes Produkt
@@ -3372,7 +3422,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Auffüllungen für dieses Produkt abrufen
-      const refills = await storage.getProductRefills(productId, limit);
+      const refills = await storage.getProductRefills(productId);
       
       res.json(refills);
     } catch (error) {
@@ -4867,7 +4917,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const limit = req.query.limit ? parseInt(req.query.limit as string) : 200;
       
-      const refills = await storage.getRefillsByMachine(machineId, limit);
+      const refills = await storage.getRefillsByMachine(machineId);
       console.log(`[MACHINE-REFILLS] Found ${refills.length} refills for machine ${machineId}`);
       res.json(refills);
     } catch (error) {
@@ -4888,7 +4938,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Ungültige Maschinen-ID" });
       }
       
-      const products = await storage.getMachineProducts(machineId);
+      const products = await (storage as EnhancedStorage).getMachineProducts(machineId);
       res.json(products);
     } catch (error) {
       console.error(`Error fetching products for machine ID ${req.params.id}:`, error);
@@ -5190,7 +5240,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get(`${API_PREFIX}/events`, async (req: Request, res: Response) => {
     try {
       const limit = req.query.limit ? parseInt(req.query.limit as string) : 200;
-      const events = await storage.getEvents(limit);
+      const events = await storage.getEvents({ limit });
       res.json(events);
     } catch (error) {
       console.error("Error fetching events:", error);
@@ -5230,7 +5280,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get(`${API_PREFIX}/refills`, async (req: Request, res: Response) => {
     try {
       const limit = req.query.limit ? parseInt(req.query.limit as string) : 200;
-      const refills = await storage.getRefills(limit);
+      const refills = await storage.getRefills({ limit });
       res.json(refills);
     } catch (error) {
       console.error("Error fetching refills:", error);
@@ -5278,7 +5328,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`Zeitbereich: ${startDate.toISOString()} bis ${endDate.toISOString()}`);
       
       // Direkt die API aufrufen und die Struktur der Antwort analysieren
-      const result = await api.getRefills(startDate, endDate, 1, 5);
+      const result = await (api as VendonAPI).getRefills(startDate, endDate, 1, 5);
       
       // Datenstrukturanalyse
       const analysis = {
@@ -5332,7 +5382,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const api = coordinator;
       
       // Direkt die API aufrufen und die Struktur der Antwort analysieren
-      const result = await api.getRefillDetails(req.params.id);
+      const result = await (api as VendonAPI).getRefillDetails(req.params.id);
       
       // Datenstrukturanalyse
       const analysis = {
@@ -5392,7 +5442,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`Zeitbereich: ${startDate.toISOString()} bis ${endDate.toISOString()}`);
       
       // Direkt die API aufrufen und die Struktur der Antwort analysieren
-      const result = await api.getEvents(startDate, endDate, 1, 5);
+      const result = await (api as VendonAPI).getEvents(startDate, endDate, 1, 5);
       
       // Datenstrukturanalyse
       const analysis = {

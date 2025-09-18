@@ -2720,16 +2720,31 @@ export const orderValidationSchema = z.object({
   
   // Enhanced validation für Order-Creation 
   orderItems: z.array(z.object({
-    productId: z.number().positive("Produkt-ID muss positiv sein").optional(),
+    productId: z.union([
+      z.number().positive("Produkt-ID muss positiv sein"),
+      z.string().transform(val => {
+        const parsed = parseInt(val, 10);
+        if (isNaN(parsed) || parsed <= 0) {
+          throw new Error("Ungültige Produkt-ID");
+        }
+        return parsed;
+      })
+    ]),
     productName: z.string().min(1, "Produktname ist erforderlich"),
-    quantity: z.number().min(1, "Menge muss mindestens 1 sein"),
+    quantity: z.union([
+      z.number().min(1, "Menge muss mindestens 1 sein"),
+      z.string().transform(val => {
+        const parsed = parseInt(val, 10);
+        if (isNaN(parsed) || parsed < 1) {
+          throw new Error("Ungültige Menge");
+        }
+        return parsed;
+      })
+    ]),
     unitPrice: z.union([
       z.number().min(0, "Einzelpreis muss mindestens 0 sein"),
-      z.string().transform(val => {
+      z.string().regex(/^[0-9]+(\.[0-9]+)?$/, "Ungültiger Preis").transform(val => {
         const parsed = parseFloat(val);
-        if (isNaN(parsed)) {
-          throw new Error("Ungültiger Preis");
-        }
         return parsed;
       })
     ]).refine(val => val >= 0, "Einzelpreis muss mindestens 0 sein"),
@@ -2739,8 +2754,26 @@ export const orderValidationSchema = z.object({
   })).min(1, "Mindestens ein Artikel muss bestellt werden"),
   
   // Pflichtfelder
-  supplierId: z.number().positive("Lieferant muss ausgewählt werden"),
-  warehouseId: z.number().positive("Lager muss ausgewählt werden").optional(),
+  supplierId: z.union([
+    z.number().positive("Lieferant muss ausgewählt werden"),
+    z.string().transform(val => {
+      const parsed = parseInt(val, 10);
+      if (isNaN(parsed) || parsed <= 0) {
+        throw new Error("Ungültige Lieferant-ID");
+      }
+      return parsed;
+    })
+  ]),
+  warehouseId: z.union([
+    z.number().positive("Lager muss ausgewählt werden"),
+    z.string().transform(val => {
+      const parsed = parseInt(val, 10);
+      if (isNaN(parsed) || parsed <= 0) {
+        throw new Error("Ungültige Lager-ID");
+      }
+      return parsed;
+    })
+  ]).optional(),
   
   // Status validation
   status: z.enum(["open", "ordered", "partial", "delivered", "canceled"]).default("open"),
