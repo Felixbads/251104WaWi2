@@ -1,0 +1,52 @@
+Summary
+Die Backend-Authentifizierung ist mit einem fest verdrahteten Demo-Admin, einem rein flüchtigen Token-Store und fehlenden Sicherheits-Middlewares ausgeliefert, wodurch jede Sitzung ohne Persistenz oder Revocation verläuft.
+Im Supplier-Portal werden Access- und Session-Tokens protokolliert bzw. mit Math.random erzeugt, während zentrale Helfer wie validateSession und der Datenbank-Pool fehlen – das führt zu 500ern im Info-Tab, zu nicht geladenen Kennzahlen sowie zu massiver Tenant-Risiko- und Performance-Problematik durch N+1-Abfragen.
+Die Orders-Landschaft ist inkonsistent: /save-order-direct erzeugt zufällige Bestellnummern ohne Eindeutigkeitsprüfung, orders_v4 zählt nur Tagesbestellungen und das Frontend fälscht bei HTML-Antworten Bestellobjekte – es fehlt eine zentrale Validierung per Zod/Drizzle, eine DB-Constraint auf order_number sowie ein belastbarer Fehlerpfad im API-Wrapper.
+Detaillierte Befunde & Maßnahmen
+1. Authentifizierung & Sicherheit
+Demo-Login & Token-Store: loginUser akzeptiert weiterhin Admin/Admin123 und legt Token 30 Tage lang in einem In-Memory-Record ab – nach einem Neustart bleiben Sessions gültig, es gibt keine Sperrlisten und keine Rotationen.
+Fix: Demo-Zugang über Feature-Flag deaktivieren oder hinter .env-Guard verstecken und konsequent auf DB-/Redis-gestützte Session-Tables umstellen (Token-ID + hashed secret + revoked_at). Ergänzend Refresh-/Access-Token-Rotation mit serverseitiger Invalidierung.
+Security Middleware: In index.ts werden nur JSON-Parser und ein Logging-Wrapper registriert; helmet, strikte cors, express-rate-limit oder IP-Filter fehlen komplett.
+Fix: Vor allen Routen helmet(), eine cors-Whitelist (z. B. auf App-Domain), Rate Limiter (z. B. 100 req/15 min für Auth/Supplier-Portal) und eine generische csrf-Absicherung (Double-Submit/Origin-Check bei fetch).
+Supplier-Portal Tokens: /authenticate schreibt Access-Tokens ins Log und generiert Session-Tokens via Math.random, die in der DB ohne Rotation landen; permanente Zugänge laufen bis 2030.
+Fix: Logging entfernen, Session-Token mit crypto.randomBytes erzeugen, beim Login rotieren, Sessions auf ≤12 h begrenzen und Access-Tokens (z. B. 64 Byte) per „one-time-token → short-lived session token“ Flow austauschen.
+2. Orders-API & Datenfluss
+Endpoint-Divergenz: /save-order-direct erzeugt Bestellungen im Alleingang (Random-Nummern, kaum Validierung) und dupliziert Geschäftslogik außerhalb von Orders-V4.
+Fix: /save-order-direct entfernen oder intern auf /api/orders-v4/create mappen; Eingaben per gemeinsamem z.object oder createInsertSchema validieren.
+Fehlende Eindeutigkeit: orders besitzt keine Unique-Constraint auf order_number, wodurch Doppelnummern möglich sind.
+Fix: Drizzle-Migration ALTER TABLE orders ADD CONSTRAINT orders_order_number_key UNIQUE (order_number); plus generierende SQL-Funktion, die bei Konflikt neu zählt.
+Frontend verschleiert Fehler: Der API-Wrapper baut bei HTML-Antworten Fake-Bestellungen zusammen – echte 500er werden unterdrückt.
+Fix: Stattdessen Fehler werfen (throw new Error) und den Aufrufer sauber JSON-parsen lassen; HTML sollte 500 + klaren Fehler zurückgeben.
+3. Supplier-Portal Bugs
+500er im Info-Tab & fehlender Kopfbereich: validateSession und pool werden verwendet, aber nie importiert oder implementiert – Requests landen im Catch und das Frontend bleibt leer.
+Fix: Helper validateSession(sessionToken) im Service kapseln (mit rawDb/pool) und oben importieren; Fehler-Response standardisieren.
+Tenant-Scoping & Performance: Orders-Endpoint zieht pro Bestellung eine eigene order_items Query (50+ roundtrips) und filtert nur über WHERE supplier_id = $1 – für Analytics/Exports existieren sogar Admin-Routen ohne Auth-Gate.
+Fix: Items via WHERE order_id = ANY($1) in einem Rutsch laden oder serverseitiges JSON Aggregat; Admin-Pfade nur hinter interner Auth freischalten.
+Frontend-State: SupplierPortalNew ruft fünf fetch-Calls ohne React-Query ab, Cache oder Error-Retry fehlen; Query-Client-Kontext wird im MainRouter erneut mit demselben Client injiziert.
+Fix: Eigenen QueryClient für Portal erzeugen (z. B. new QueryClient({defaultOptions...})) und Daten via useQuery holen, damit Retry/Refetch steuerbar sind.
+4. Architektur & State-Management
+Globale Query Defaults: queryClient deaktiviert refetchOnMount/Focus global und setzt staleTime auf 5 Minuten, selbst für kritische Portal-Daten.
+Fix: Policies nach Ressourcen staffeln (staleTime 0–30 s für Bestellungen, Minuten für Stammdaten), Portal-Client trennen.
+API-Logging: Responses werden per JSON.stringify in den Server-Logs gespeichert – dadurch landen personenbezogene Daten in Klartext.
+Fix: Auf Pino mit Masking (z. B. pino-http mit redaction) wechseln und Zugriffstoken auslassen.
+5. Tests & Observability
+package.json enthält weder Test- noch Lint-/CI-Skripte; Sentry/Tracing und Health-/Readiness-Endpoints fehlen (außer einer Inter-App-Variante).
+Fix: Jest/Vitest + Supertest Suites für Auth/Orders/Supplier-Portal, Playwright-E2E-Flow, GitHub Actions Pipeline (install → lint → typecheck → test). Endpunkte /healthz (leichtgewichtiger Check) und /readyz (DB + Redis) sowie Sentry SDK und strukturierte JSON-Logs einführen.
+6. Performance & Datenbank
+Tabellen wie orders, order_items, warehouse_stock besitzen keinerlei Indizes; zahlreiche Admin-/Debug-Routen arbeiten mit SELECT *, was bei großen Tabellen ineffizient ist.
+Fix: Indizes auf orders(supplier_id), orders(status), order_items(order_id), warehouse_stock(warehouse_id, product_id) anlegen und Debug-Routen absichern bzw. zielgerichtete Projektionen nutzen.
+Do-First (0–2 Tage)
+Auth-Härtung: Demo-Login entfernen, persistente Token-Tabelle + Revocation einführen, Sicherheits-Middleware (helmet, cors, rate-limit) aktivieren.
+Supplier-Portal stabilisieren: validateSession implementieren/importieren, Session-Token kryptografisch generieren & rotieren, Admin-Routen absichern, Logging ausdünnen.
+Orders vereinheitlichen: /save-order-direct deaktivieren oder auf Orders-V4 routen, order_number-Unique-Constraint & zentrale Zod-Validierung ergänzen, API-Wrapper Fehlerpfad korrigieren.
+Do-Next (3–7 Tage)
+Portal-Frontend auf dedizierte QueryClients und useQuery-Hooks umbauen; staleTime & Refetch-Strategien pro Ressource definieren.
+Supplier-Daten PATCH/PATCH-Route ergänzen (mit Validierung), damit E-Mail & Profiländerungen gespeichert werden können.
+Backend-Tests mit Supertest & Playwright-E2E-Flows implementieren; GitHub Actions Pipeline hinzufügen.
+Pino-Logger + Sentry integrieren, /healthz & /readyz Endpoints liefern und DB-Indizes über Drizzle-Migrationen setzen.
+SELECT-* Debug-Routen abschotten oder entfernen; nur minimal benötigte Felder projizieren.
+Definition of Done
+Demo-Zugang deaktiviert, Tokens persistent & rotierbar, Security-Middleware aktiv.
+Supplier-Portal-Endpoints geben valide JSON-Antworten inkl. Tenant-Scoping, Portal-UI zeigt Stammdaten/Orders ohne 500er & ohne Fremddaten.
+Einheitlicher Orders-Endpunkt mit serverseitig eindeutigem order_number und gemeinsamer Zod-Validierung; Frontend wirft Fehlermeldungen bei Serverfehlern.
+Tests (API + E2E) laufen grün in CI, Logging erfolgt strukturiert, Health/Readiness-Checks verfügbar, relevante Tabellen indiziert
