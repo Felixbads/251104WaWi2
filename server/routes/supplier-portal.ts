@@ -74,8 +74,9 @@ router.get('/test', (req: Request, res: Response) => {
  */
 router.post('/authenticate', async (req: Request, res: Response) => {
   try {
+    // SECURITY FIX: Don't log req.body as it contains sensitive accessToken
     console.log('[SUPPLIER-PORTAL] Authentication request received:', {
-      body: req.body,
+      hasAccessToken: !!req.body?.accessToken,
       headers: req.headers['content-type'],
       url: req.url
     });

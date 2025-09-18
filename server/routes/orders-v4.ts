@@ -89,54 +89,15 @@ router.post('/create', async (req, res) => {
       }
     }
     
-    // Bestellnummer generieren mit Unique-Constraint-Behandlung
-    let orderNumber;
-    let orderCreationAttempts = 0;
-    const maxAttempts = 5;
-    
-    while (!orderNumber && orderCreationAttempts < maxAttempts) {
-      const today = new Date().toISOString().split('T')[0].replace(/-/g, '');
-      const orderNumberQuery = `
-        SELECT COUNT(*) as count 
-        FROM orders 
-        WHERE order_number LIKE 'ORD-${today}-%'
-      `;
-      const orderNumberResult = await client.query(orderNumberQuery);
-      const orderCount = parseInt(orderNumberResult.rows[0].count) + 1;
-      const candidateOrderNumber = `ORD-${today}-${orderCount.toString().padStart(3, '0')}`;
-      
-      // Prüfe ob order_number bereits existiert (für Unique-Constraint)
-      const duplicateCheckQuery = `
-        SELECT id FROM orders WHERE order_number = $1 LIMIT 1
-      `;
-      const duplicateResult = await client.query(duplicateCheckQuery, [candidateOrderNumber]);
-      
-      if (duplicateResult.rows.length === 0) {
-        orderNumber = candidateOrderNumber;
-        logOrderProcess('ORDER_NUMBER_GENERATED', { orderNumber, attempt: orderCreationAttempts + 1 });
-      } else {
-        orderCreationAttempts++;
-        logOrderProcess('ORDER_NUMBER_COLLISION', { 
-          candidateOrderNumber, 
-          attempt: orderCreationAttempts,
-          willRetry: orderCreationAttempts < maxAttempts 
-        });
-        
-        if (orderCreationAttempts >= maxAttempts) {
-          throw new Error(`Fehler beim Generieren einer eindeutigen Bestellnummer nach ${maxAttempts} Versuchen`);
-        }
-        
-        // Kurz warten bei Kollision
-        await new Promise(resolve => setTimeout(resolve, 100));
-      }
-    }
-    
-    logOrderProcess('ORDER_NUMBER_GENERATED', { orderNumber });
+    // CRITICAL FIX: ATOMIC ORDER NUMBER GENERATION using DB sequence (Option A - PREFERRED)
+    // Eliminates race conditions through atomic sequence generation
+    // ARCHITECT MANDATED: This prevents concurrent requests from getting same order_number
     
     // Gesamtbetrag berechnen
     let totalAmount = 0;
     for (const item of orderItems) {
-      totalAmount += (parseFloat(item.unitPrice) || 0) * (parseInt(item.quantity) || 0);
+      // Schema now handles type conversion, so unitPrice and quantity are guaranteed to be numbers
+      totalAmount += (item.unitPrice || 0) * (item.quantity || 0);
     }
     
     logOrderProcess('TOTAL_CALCULATED', { totalAmount, itemCount: orderItems.length });
@@ -144,23 +105,27 @@ router.post('/create', async (req, res) => {
     // SECURITY FIX: Idempotency-Key in dedicated column (nicht in notes)
     let finalNotes = notes || '';
     
-    // Bestellung erstellen mit Unique-Constraint-Behandlung und Idempotency-Key
-    // CRITICAL FIX: ON CONFLICT (idempotency_key) für Race Condition Protection
+    // CRITICAL FIX: ARCHITECT MANDATED - ON CONFLICT(idempotency_key) DO NOTHING
+    // This prevents order mixing and ensures proper idempotency
+    // ATOMIC order generation with DB sequence prevents order_number conflicts
     const orderQuery = `
       INSERT INTO orders (
         order_number, warehouse_id, supplier_id, order_date, 
         expected_delivery_date, total_amount, status, notes, idempotency_key
-      ) VALUES ($1, $2, $3, NOW(), $4, $5, 'open', $6, $7)
+      ) VALUES (
+        'ORD-' || TO_CHAR(NOW(), 'YYYYMMDD') || '-' || LPAD(nextval('order_daily_counter')::text, 3, '0'),
+        $1, $2, NOW(), $3, $4, 'open', $5, $6
+      )
       ON CONFLICT (idempotency_key) DO NOTHING
       RETURNING id, order_number, status, total_amount
     `;
     
     try {
       const orderResult = await client.query(orderQuery, [
-        orderNumber, warehouseId, supplierId, expectedDeliveryDate, totalAmount, finalNotes, idempotencyKey
+        warehouseId, supplierId, expectedDeliveryDate, totalAmount, finalNotes, idempotencyKey
       ]);
       
-      // CRITICAL FIX: Handle case where ON CONFLICT DO NOTHING returns no rows
+      // CRITICAL FIX: Handle case where ON CONFLICT(idempotency_key) DO NOTHING returns no rows
       if (orderResult.rows.length === 0) {
         // Idempotency key already exists, fetch the existing order
         const existingOrderQuery = `
@@ -192,10 +157,11 @@ router.post('/create', async (req, res) => {
       }
       
       const newOrder = orderResult.rows[0];
-      logOrderProcess('ORDER_CREATED', { 
+      logOrderProcess('ORDER_CREATED_ATOMIC', { 
         orderId: newOrder.id, 
         orderNumber: newOrder.order_number,
-        totalAmount: newOrder.total_amount 
+        totalAmount: newOrder.total_amount,
+        generationMethod: 'DB_SEQUENCE_ATOMIC'
       }, newOrder.id);
       
       // Bestellpositionen erstellen
@@ -241,14 +207,14 @@ router.post('/create', async (req, res) => {
       // Spezielle Behandlung für Unique-Constraint-Verletzung
       if (dbError.code === '23505' && dbError.constraint?.includes('order_number')) {
         logOrderProcess('UNIQUE_CONSTRAINT_VIOLATION', { 
-          orderNumber, 
+          constraint: dbError.constraint,
           error: dbError.message 
         });
         
         await client.query('ROLLBACK');
         return res.status(422).json({
           error: 'Duplicate Order Number',
-          message: `Bestellnummer ${orderNumber} existiert bereits`,
+          message: 'Bestellnummer bereits vorhanden - bitte erneut versuchen',
           code: 'DUPLICATE_ORDER_NUMBER'
         });
       }
