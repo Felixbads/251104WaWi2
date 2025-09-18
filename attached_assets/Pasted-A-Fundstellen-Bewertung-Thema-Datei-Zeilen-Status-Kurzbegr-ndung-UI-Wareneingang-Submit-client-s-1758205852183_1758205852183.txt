@@ -1,0 +1,1008 @@
+A) Fundstellen & Bewertung
+Thema	Datei	Zeilen	Status	Kurzbegründung
+UI: Wareneingang-Submit	client/src/components/orders/ReceiveOrderDialog.tsx	67-195	Lücke	Form sendet nur receivedItems ohne Pflichtfelder wie orderItemId/warehouseId, keine Feldvalidierung, keine Statusprüfung vor Submit.
+UI: Dialog-Integration	client/src/pages/Orders.tsx	940-958	Lücke	Komponente wird mit onComplete statt des erwarteten onSuccess aufgerufen, kein Status-Gate oder erneutes Laden der Detaildaten.
+API (legacy Endpoint)	server/index.ts	2109-2161	Lücke	Direkter SQL-Update ohne Statusprüfung/Transaktion, keine Chargen- oder Bestandslogik, kein Audit.
+API (drizzle Endpoint)	server/routes/orders.ts	1691-2012	Lücke	Status-Check nur auf sent, keine Transaktion, Put-Away/Batches optional, keine Before/After-Bestände im Movement-Log.
+Datenmodelle	shared/schema.ts	2134-2289	Lücke	Tabellen existieren, aber FIFO-Indizes (z. B. auf expiry) und Audit-Spalten wie source_order_id/target_location fehlen; Negative-Bestand-Checks nicht definiert.
+Lagerbestand-Updates	server/warehouse3.storage.ts	625-670	Lücke	Bestand wird ohne Sperre/Transaktion angepasst; Race-Condition möglich, Before/After nur teilweise dokumentiert.
+FIFO-Service	server/services/mhdFifoService.ts	39-134	Lücke	FIFO-Logik vorhanden, aber nur für Vendon-Sync; keine Integration in Refill-Route, keine Lagerbestandsprüfung vor Abzug.
+Refill-Endpoint	server/routes/warehouse3.routes.ts	1059-1096	Lücke	Fügt Refill-Item hinzu ohne FIFO-Abzug oder atomare Bestandsanpassung; verlässt sich auf Storage-Schicht mit Race-Risiko.
+Audit-Erfassung	server/routes/orders.ts	1932-1946	Lücke	Movement-Insert ohne previousStock/currentStock oder Batch-Referenz; Auditinformationen unvollständig.
+Berechtigungen	server/routes/orders.ts	1791-1994	Lücke	req.user wird nur optional gelesen; kein Early-Return bei fehlender Berechtigung/Supplier-Scope.
+B) Patches
+diff --git a/client/src/components/orders/ReceiveOrderDialog.tsx b/client/src/components/orders/ReceiveOrderDialog.tsx
+@@
+-const saveGoodsReceipt = async (orderId: number, receiptData: any) => {
+-  console.log("Sende Wareneingang-Anfrage:", JSON.stringify(receiptData, null, 2));
+-
+-  // Transform the complex frontend structure to the simple backend format
+-  const receivedItems = [];
+-
+-  for (const item of receiptData.items) {
+-    if (item.receivedQuantity > 0 && item.batches && item.batches.length > 0) {
+-      // Create an entry for each batch
+-      for (const batch of item.batches) {
+-        if (batch.quantity > 0) {
+-          receivedItems.push({
+-            productId: item.productId,
+-            receivedQuantity: batch.quantity,
+-            expiryDate: batch.expiryDate,
+-            batchNumber: batch.batchNumber
+-          });
+-        }
+-      }
+-    }
+-  }
+-
+-  // Das Format umwandeln, um sicherzustellen, dass wir das vom Server erwartete Format senden
+-  const serverData = {
+-    receivedItems: receivedItems
+-  };
++const receiptRequestSchema = z.object({
++  receiptDate: z.coerce.date(),
++  notes: z.string().trim().max(2000).optional(),
++  items: z.array(
++    z.object({
++      orderItemId: z.number().int().positive(),
++      productId: z.number().int().positive(),
++      batchNumber: z.string().min(1),
++      expiryDate: z.coerce.date(),
++      receivedQuantity: z.number().positive(),
++      orderedQuantity: z.number().positive(),
++      warehouseId: z.number().int().positive(),
++      notes: z.string().trim().max(1000).optional(),
++    })
++  ).min(1, "Mindestens eine Position muss erfasst werden"),
++});
++
++const saveGoodsReceipt = async (orderId: number, receiptData: unknown) => {
++  const parsed = receiptRequestSchema.parse(receiptData);
++  const payload = {
++    receiptDate: parsed.receiptDate.toISOString(),
++    notes: parsed.notes,
++    items: parsed.items.map(item => ({
++      ...item,
++      expiryDate: item.expiryDate.toISOString(),
++    })),
++  };
+@@
+-    const response = await fetch(`/api/orders/${orderId}/receipt`, {
++    const response = await fetch(`/api/orders/${orderId}/receipt`, {
+       method: 'POST',
+       headers: {
+         'Content-Type': 'application/json',
+       },
+-      body: JSON.stringify(serverData),
++      body: JSON.stringify(payload),
+     });
+@@
+-export default function ReceiveOrderDialog({
++export default function ReceiveOrderDialog({
+   open,
+   onOpenChange,
+   order,
+-  onSuccess
++  onSuccess
+ }: ReceiveOrderDialogProps) {
+@@
+-  const saveReceiptMutation = useMutation({
+-    mutationFn: (data: any) => {
+-      console.log("Sende Wareneingang-Daten:", JSON.stringify(data, null, 2));
+-      return saveGoodsReceipt(order.id, data);
+-    },
++  const saveReceiptMutation = useMutation({
++    mutationFn: async () => {
++      if (!order?.id || !order?.warehouseId) {
++        throw new Error("Bestellung oder Ziellager fehlen");
++      }
++      const receiptDate = deliveryDate ?? new Date();
++      const items = receivedItems.flatMap((item: any) =>
++        item.batches
++          .filter((batch: any) => batch.quantity > 0)
++          .map((batch: any) => ({
++            orderItemId: item.orderItemId,
++            productId: item.productId,
++            batchNumber: batch.batchNumber,
++            expiryDate: batch.expiryDate,
++            receivedQuantity: batch.quantity,
++            orderedQuantity: item.orderedQuantity,
++            warehouseId: order.warehouseId,
++            notes: batch.notes?.trim() || undefined,
++          }))
++      );
++      if (items.length === 0) {
++        throw new Error("Bitte mindestens eine Charge mit Menge erfassen");
++      }
++      return saveGoodsReceipt(order.id, {
++        receiptDate,
++        notes: generalNotes.trim() || undefined,
++        items,
++      });
++    },
+     onSuccess: (data) => {
+@@
+-    },
++    },
+diff --git a/server/services/inventoryTransactions.ts b/server/services/inventoryTransactions.ts
+new file mode 100644
++import { and, asc, desc, eq, sql } from "drizzle-orm";
++import { z } from "zod";
++import { db } from "../db";
++import {
++  orders,
++  orderItems,
++  inventoryItems,
++  productBatches,
++  inventoryMovements,
++} from "../../shared/schema";
++
++export const receiptLineSchema = z.object({
++  orderItemId: z.number().int().positive(),
++  productId: z.number().int().positive(),
++  batchNumber: z.string().min(1),
++  expiryDate: z.coerce.date(),
++  receivedQuantity: z.number().positive(),
++  orderedQuantity: z.number().positive(),
++  warehouseId: z.number().int().positive(),
++  notes: z.string().trim().max(1000).optional(),
++});
++
++export const receiptTransactionSchema = z.object({
++  orderId: z.number().int().positive(),
++  receiptDate: z.coerce.date(),
++  notes: z.string().trim().max(2000).optional(),
++  items: z.array(receiptLineSchema).min(1),
++});
++
++export type ReceiptTransactionInput = z.infer<typeof receiptTransactionSchema>;
++
++export async function receiptTransaction(
++  rawInput: ReceiptTransactionInput,
++  actor: { id: number; name?: string } | null,
++) {
++  const input = receiptTransactionSchema.parse(rawInput);
++  return db.transaction(async (tx) => {
++    const orderResult = await tx.execute(
++      sql`SELECT * FROM orders WHERE id = ${input.orderId} FOR UPDATE`
++    );
++    const orderRow = orderResult.rows[0];
++    if (!orderRow) {
++      throw new Error("Bestellung nicht gefunden");
++    }
++    if (!["sent", "shipped"].includes(orderRow.status)) {
++      throw new Error(
++        `Wareneingang nur für Status sent/shipped erlaubt (aktuell ${orderRow.status})`,
++      );
++    }
++    if (!orderRow.warehouse_id) {
++      throw new Error("Bestellung hat kein Ziel-Lager");
++    }
++
++    const processedItems: Array<{ orderItemId: number; receivedQuantity: number }> = [];
++    const movements: any[] = [];
++
++    for (const line of input.items) {
++      const itemResult = await tx.execute(
++        sql`SELECT * FROM order_items WHERE id = ${line.orderItemId} AND order_id = ${input.orderId} FOR UPDATE`
++      );
++      const itemRow = itemResult.rows[0];
++      if (!itemRow) {
++        throw new Error(`Artikel ${line.orderItemId} gehört nicht zur Bestellung`);
++      }
++      if (itemRow.product_id !== line.productId) {
++        throw new Error(`Produkt-ID stimmt nicht mit Order-Item ${line.orderItemId} überein`);
++      }
++
++      const inventoryRow = await tx.execute(
++        sql`SELECT id, quantity FROM inventory_items WHERE warehouse_id = ${line.warehouseId} AND product_id = ${line.productId} FOR UPDATE`
++      );
++      const currentQuantity = inventoryRow.rows[0]?.quantity ?? 0;
++      const newQuantity = currentQuantity + line.receivedQuantity;
++
++      if (inventoryRow.rows.length > 0) {
++        await tx.execute(
++          sql`UPDATE inventory_items SET quantity = ${newQuantity}, updated_at = NOW() WHERE id = ${inventoryRow.rows[0].id}`
++        );
++      } else {
++        await tx.execute(
++          sql`INSERT INTO inventory_items (warehouse_id, product_id, quantity, status, created_at, updated_at)
++              VALUES (${line.warehouseId}, ${line.productId}, ${newQuantity}, 'active', NOW(), NOW())`
++        );
++      }
++
++      const batchResult = await tx.execute(
++        sql`INSERT INTO product_batches (product_id, warehouse_id, batch_number, initial_quantity, current_quantity, expiry_date, received_date, status, order_id, notes, created_at, updated_at)
++            VALUES (${line.productId}, ${line.warehouseId}, ${line.batchNumber}, ${line.receivedQuantity}, ${line.receivedQuantity}, ${line.expiryDate}, ${input.receiptDate}, 'active', ${input.orderId}, ${line.notes ?? null}, NOW(), NOW())
++            ON CONFLICT (batch_number, product_id, warehouse_id)
++            DO UPDATE SET current_quantity = product_batches.current_quantity + EXCLUDED.current_quantity,
++                          updated_at = NOW(),
++                          expiry_date = LEAST(product_batches.expiry_date, EXCLUDED.expiry_date)
++            RETURNING id, current_quantity`
++      );
++      const batchRow = batchResult.rows[0];
++
++      await tx
++        .update(orderItems)
++        .set({
++          receivedQuantity: sql`${orderItems.receivedQuantity} + ${line.receivedQuantity}`,
++          deliveryDate: input.receiptDate,
++          deliveredBy: actor?.name ?? null,
++          updatedAt: sql`NOW()`,
++        })
++        .where(eq(orderItems.id, line.orderItemId));
++
++      await tx.insert(inventoryMovements).values({
++        warehouseId: line.warehouseId,
++        productId: line.productId,
++        batchId: batchRow.id,
++        quantity: line.receivedQuantity,
++        movementType: "RECEIPT",
++        direction: "IN",
++        referenceType: "ORDER_RECEIPT",
++        referenceId: `${input.orderId}`,
++        notes: input.notes ?? null,
++        performedBy: actor?.id ?? null,
++        performedAt: input.receiptDate,
++        previousStock: currentQuantity,
++        currentStock: newQuantity,
++        batchNumber: line.batchNumber,
++        expiryDate: line.expiryDate,
++        createdAt: sql`NOW()`,
++        updatedAt: sql`NOW()`,
++      });
++
++      processedItems.push({
++        orderItemId: line.orderItemId,
++        receivedQuantity: line.receivedQuantity,
++      });
++      movements.push({
++        orderItemId: line.orderItemId,
++        batchId: batchRow.id,
++        quantity: line.receivedQuantity,
++        before: currentQuantity,
++        after: newQuantity,
++      });
++    }
++
++    const completionCheck = await tx.execute(
++      sql`SELECT BOOL_AND(received_quantity >= quantity) AS all_received FROM order_items WHERE order_id = ${input.orderId}`
++    );
++    const allReceived = Boolean(completionCheck.rows[0]?.all_received);
++    const nextStatus = allReceived ? "delivered" : "partial";
++
++    const updatedOrder = await tx
++      .update(orders)
++      .set({
++        status: nextStatus,
++        actualDeliveryDate: input.receiptDate,
++        updatedAt: sql`NOW()`,
++        updatedBy: actor?.id ?? null,
++        notes: input.notes
++          ? sql`COALESCE(notes, '') || ${"\nWareneingang: " + input.notes}`
++          : orders.notes,
++      })
++      .where(eq(orders.id, input.orderId))
++      .returning();
++
++    return {
++      order: updatedOrder[0],
++      processedItems,
++      movements,
++    };
++  });
++}
++
++export const fifoDepleteSchema = z.object({
++  warehouseId: z.number().int().positive(),
++  productId: z.number().int().positive(),
++  quantity: z.number().positive(),
++  referenceType: z.enum(["REFILL", "TRANSFER", "ADJUSTMENT"]),
++  referenceId: z.string().min(1),
++  targetLocation: z.string().min(1),
++  actorId: z.number().int().positive().nullable(),
++});
++
++export type FifoDepleteInput = z.infer<typeof fifoDepleteSchema>;
++
++export async function fifoDeplete(input: FifoDepleteInput) {
++  const parsed = fifoDepleteSchema.parse(input);
++  return db.transaction(async (tx) => {
++    let remaining = parsed.quantity;
++    const consumed: Array<{ batchId: number; quantity: number }> = [];
++
++    const inventoryRow = await tx.execute(
++      sql`SELECT id, quantity FROM inventory_items WHERE warehouse_id = ${parsed.warehouseId} AND product_id = ${parsed.productId} FOR UPDATE`
++    );
++    const beforeTotal = inventoryRow.rows[0]?.quantity ?? 0;
++    if (beforeTotal < parsed.quantity) {
++      throw new Error("Nicht genügend Bestand vorhanden");
++    }
++
++    const batches = await tx.execute(
++      sql`SELECT id, current_quantity, expiry_date FROM product_batches
++          WHERE warehouse_id = ${parsed.warehouseId}
++            AND product_id = ${parsed.productId}
++            AND current_quantity > 0
++          ORDER BY expiry_date ASC, received_date ASC, id ASC
++          FOR UPDATE`
++    );
++
++    for (const batch of batches.rows) {
++      if (remaining <= 0) break;
++      const take = Math.min(remaining, batch.current_quantity);
++      await tx.execute(
++        sql`UPDATE product_batches SET current_quantity = current_quantity - ${take}, updated_at = NOW()
++            WHERE id = ${batch.id}`
++      );
++      consumed.push({ batchId: batch.id, quantity: take });
++      remaining -= take;
++
++      await tx.insert(inventoryMovements).values({
++        warehouseId: parsed.warehouseId,
++        productId: parsed.productId,
++        batchId: batch.id,
++        quantity: -take,
++        movementType: "FILL",
++        direction: "OUT",
++        referenceType: parsed.referenceType,
++        referenceId: parsed.referenceId,
++        notes: parsed.targetLocation,
++        performedBy: parsed.actorId,
++        performedAt: sql`NOW()`,
++        previousStock: null,
++        currentStock: null,
++        createdAt: sql`NOW()`,
++        updatedAt: sql`NOW()`,
++      });
++    }
++
++    if (remaining > 0) {
++      throw new Error("FIFO-Entnahme unvollständig, Charge fehlt");
++    }
++
++    await tx.execute(
++      sql`UPDATE inventory_items SET quantity = quantity - ${parsed.quantity}, updated_at = NOW()
++          WHERE warehouse_id = ${parsed.warehouseId} AND product_id = ${parsed.productId}`
++    );
++
++    const afterTotal = beforeTotal - parsed.quantity;
++    return {
++      consumed,
++      beforeTotal,
++      afterTotal,
++    };
++  });
++}
+diff --git a/server/routes/orders.ts b/server/routes/orders.ts
+@@
+-import { orders, orderItems, productBatches, inventoryItems, inventoryMovements, products } from "../../shared/schema";
++import {
++  orders,
++  orderItems,
++  inventoryItems,
++  inventoryMovements,
++  products,
++} from "../../shared/schema";
++import {
++  receiptTransaction,
++  receiptTransactionSchema,
++} from "../services/inventoryTransactions";
+@@
+-  router.post('/orders/:id/receipt', async (req: Request, res: Response) => {
+-    try {
+-      const { id } = req.params;
+-      const orderId = parseInt(id);
+-      const {
+-        receiptDate = new Date(),
+-        receivedBy,
+-        notes,
+-        items,
+-        updateInventory = true,
+-        createMovements = true
+-      } = req.body;
++  router.post('/orders/:id/receipt', async (req: Request, res: Response) => {
++    try {
++      const orderId = parseInt(req.params.id);
+@@
+-      if (!items || !Array.isArray(items)) {
+-        return res.status(400).json({ error: 'Keine Artikel für den Wareneingang angegeben' });
+-      }
+-
+-      // Validiere, dass keine abgelaufenen MHD-Werte vorhanden sind
+-      const today = new Date();
+-      today.setHours(0, 0, 0, 0); // Auf Tagesbasis vergleichen
+-
+-      const expiredItems = items.filter(item => {
+-        if (item.expiryDate) {
+-          const expiryDate = new Date(item.expiryDate);
+-          expiryDate.setHours(0, 0, 0, 0);
+-          return expiryDate < today;
+-        }
+-        return false;
+-      });
+-
+-      if (expiredItems.length > 0) {
+-        return res.status(400).json({
+-          error: 'Abgelaufene MHD-Werte nicht zulässig',
+-          message: 'Es wurden Artikel mit bereits abgelaufenen Mindesthaltbarkeitsdaten angegeben. Prüfen Sie die angegebenen MHD-Werte.',
+-          items: expiredItems.map(item => ({
+-            productId: item.productId,
+-            productName: item.productName,
+-            expiryDate: item.expiryDate
+-          }))
+-        });
+-      }
+-
+-      // Bestellung abrufen
+-      const orderResult = await db
+-        .select()
+-        .from(orders)
+-        .where(eq(orders.id, orderId))
+-        .limit(1);
+-
+-      if (!orderResult || orderResult.length === 0) {
+-        return res.status(404).json({ error: 'Bestellung nicht gefunden' });
+-      }
+-
+-      const order = orderResult[0];
+-
+-      // Bestellung kann nur als geliefert markiert werden, wenn sie im Status "sent" ist
+-      if (order.status !== 'sent') {
+-        return res.status(400).json({
+-          error: 'Wareneingang kann nicht gebucht werden',
+-          message: `Die Bestellung hat den Status "${order.status}" und muss im Status "sent" sein, um einen Wareneingang zu buchen.`
+-        });
+-      }
++      const parsed = receiptTransactionSchema.parse({
++        ...req.body,
++        orderId,
++      });
+@@
+-      // Wareneingang für jede Position aktualisieren
+-      const itemUpdates = items.map(async (receiptItem: any) => {
+-        if (!receiptItem.id) {
+-          return Promise.reject(new Error('Artikel-ID fehlt in den Wareneingangsdaten'));
+-        }
+-
+-        const itemId = receiptItem.id;
+-        const existingItem = existingItemsMap[itemId];
+-
+-        if (!existingItem) {
+-          return Promise.reject(new Error(`Artikel mit ID ${itemId} gehört nicht zu dieser Bestellung`));
+-        }
+-
+-        // Standardwerte für fehlende Felder
+-        const quantityDelivered = receiptItem.quantityDelivered !== undefined ?
+-          receiptItem.quantityDelivered : existingItem.quantity;
+-
+-        const receivedQuantity = receiptItem.receivedQuantity !== undefined ?
+-          receiptItem.receivedQuantity : quantityDelivered;
+-
+-        // Artikel in der Bestellung aktualisieren
+-        return db
+-          .update(orderItems)
+-          .set({
+-            quantityDelivered,
+-            receivedQuantity,
+-            deliveryDate: new Date(receiptDate),
+-            deliveredBy: receivedBy || req.user?.username || null,
+-            deliveryNotes: receiptItem.notes || null,
+-            updatedAt: new Date()
+-          })
+-          .where(eq(orderItems.id, itemId));
+-      });
+-
+-      // Alle Aktualisierungen ausführen
+-      await Promise.all(itemUpdates);
+-
+-      // Lager-ID für Lagerbestandsaktualisierungen abrufen
+-      const warehouseId = order.warehouseId;
+-
+-      if (!warehouseId) {
+-        return res.status(400).json({
+-          error: 'Kein Lager zugeordnet',
+-          message: 'Die Bestellung hat kein zugeordnetes Lager für die Bestandsaktualisierung'
+-        });
+-      }
+-
+-      // Wenn gewünscht, Lagerbestände aktualisieren
+-      if (updateInventory) {
+-        for (const item of items) {
+-          // Nur Artikel mit einer Produkt-ID können im Lager aktualisiert werden
+-          if (item.productId) {
+-            try {
+-              // Überprüfen, ob der Artikel bereits im Lagerbestand ist
+-              const inventoryResult = await db
+-                .select()
+-                .from(inventoryItems)
+-                .where(
+-                  and(
+-                    eq(inventoryItems.warehouseId, warehouseId),
+-                    eq(inventoryItems.productId, item.productId)
+-                  )
+-                )
+-                .limit(1);
+-
+-              const quantityToAdd = item.quantityDelivered || item.receivedQuantity || 0;
+-
+-              // Wenn der Artikel im Lager existiert, Bestand aktualisieren
+-              if (inventoryResult && inventoryResult.length > 0) {
+-                const currentQuantity = inventoryResult[0].quantity || 0;
+-
+-                await db
+-                  .update(inventoryItems)
+-                  .set({
+-                    quantity: currentQuantity + quantityToAdd,
+-                    updatedAt: new Date()
+-                  })
+-                  .where(
+-                    and(
+-                      eq(inventoryItems.warehouseId, warehouseId),
+-                      eq(inventoryItems.productId, item.productId)
+-                    )
+-                  );
+-              } else {
+-                // Ansonsten Artikel neu zum Lager hinzufügen
+-                await db
+-                  .insert(inventoryItems)
+-                  .values({
+-                    warehouseId,
+-                    productId: item.productId,
+-                    quantity: quantityToAdd,
+-                    status: 'active',
+-                    createdAt: new Date(),
+-                    updatedAt: new Date()
+-                  });
+-              }
+-
+-              // Wenn ein MHD (expiryDate) angegeben ist, erstellen wir eine Charge (Batch)
+-              if (item.expiryDate) {
+-                try {
+-                  // Generiere Chargennummer, falls keine angegeben wurde
+-                  const batchNumber = item.batchNumber || `${order.orderNumber}-${new Date().toISOString().slice(0, 10)}`;
+-
+-                  // Prüfen, ob die Charge bereits existiert
+-                  const existingBatch = await db
+-                    .select()
+-                    .from(productBatches)
+-                    .where(
+-                      and(
+-                        eq(productBatches.warehouseId, warehouseId),
+-                        eq(productBatches.productId, item.productId),
+-                        eq(productBatches.batchNumber, batchNumber)
+-                      )
+-                    )
+-                    .limit(1);
+-
+-                  const quantityToAdd = item.quantityDelivered || item.receivedQuantity || 0;
+-
+-                  if (existingBatch && existingBatch.length > 0) {
+-                    // Bestandserhöhung bei existierender Charge
+-                    const currentBatchQuantity = existingBatch[0].currentQuantity || 0;
+-
+-                    await db
+-                      .update(productBatches)
+-                      .set({
+-                        currentQuantity: currentBatchQuantity + quantityToAdd,
+-                        updatedAt: new Date()
+-                      })
+-                      .where(eq(productBatches.id, existingBatch[0].id));
+-                  } else {
+-                    // Neue Charge erstellen
+-                    await db
+-                      .insert(productBatches)
+-                      .values({
+-                        productId: item.productId,
+-                        warehouseId: warehouseId,
+-                        batchNumber: batchNumber,
+-                        initialQuantity: quantityToAdd,
+-                        currentQuantity: quantityToAdd,
+-                        expiryDate: new Date(item.expiryDate),
+-                        receivedDate: new Date(receiptDate),
+-                        status: 'active',
+-                        locationInWarehouse: item.locationInWarehouse || null,
+-                        notes: item.notes || null,
+-                        createdAt: new Date(),
+-                        updatedAt: new Date()
+-                      });
+-                  }
+-                } catch (batchError) {
+-                  console.error(`Fehler beim Erstellen/Aktualisieren der Charge für Produkt ${item.productId}:`, batchError);
+-                  // Fehler protokollieren, aber weitermachen
+-                }
+-              }
+-
+-              // Wenn gewünscht, Lagerbewegungen protokollieren
+-              if (createMovements) {
+-                const productData = await db
+-                  .select()
+-                  .from(products)
+-                  .where(eq(products.id, item.productId))
+-                  .limit(1);
+-
+-                await db
+-                  .insert(inventoryMovements)
+-                  .values({
+-                    warehouseId,
+-                    productId: item.productId,
+-                    quantity: item.quantityDelivered,
+-                    movementType: 'purchase-received',
+-                    notes: `Wareneingang aus Bestellung ${order.orderNumber}`,
+-                    referenceId: orderId.toString(),
+-                    referenceType: 'order',
+-                    userId: req.user ? req.user.id.toString() : null,
+-                    userName: req.user ? req.user.username : null,
+-                    price: item.price !== undefined ? item.price.toString() : null,
+-                    sku: productData && productData.length > 0 ? productData[0].sku : null
+-                  });
+-              }
+-            } catch (inventoryError) {
+-              console.error(`Fehler bei der Lageraktualisierung für Produkt ${item.productId}:`, inventoryError);
+-              // Fehler protokollieren, aber weitermachen
+-            }
+-          }
+-        }
+-      }
++      const result = await receiptTransaction(parsed, req.user ? { id: req.user.id, name: req.user.username } : null);
+@@
+-      res.json({
+-        order: updatedOrderResult[0],
+-        items: updatedItemsResult,
+-        message: "Wareneingang wurde erfolgreich gebucht"
+-      });
++      res.json(result);
+diff --git a/server/warehouse3.storage.ts b/server/warehouse3.storage.ts
+@@
+-import { inventoryItems, productBatches, refillTrackings, refillTrackingItems } from "../shared/warehouse3.schema";
++import { inventoryItems, productBatches, refillTrackings, refillTrackingItems } from "../shared/warehouse3.schema";
++import { fifoDeplete } from "./services/inventoryTransactions";
+@@
+-    // Lagerbestand reduzieren
+-    await this.updateProductStock(refill.warehouseId, data.productId, -data.quantity);
+-
+-    // Batch-Bestand reduzieren (falls anwendbar)
+-    if (data.batchId) {
+-      await this.updateBatchStock(data.batchId, -data.quantity);
+-    }
++    const fifoResult = await fifoDeplete({
++      warehouseId: refill.warehouseId,
++      productId: data.productId,
++      quantity: data.quantity,
++      referenceType: "REFILL",
++      referenceId: `refill-${data.refillId}`,
++      targetLocation: `machine:${refill.machineId}`,
++      actorId: refill.performedBy ?? null,
++    });
+@@
+-    const stockAfter = updatedInventory?.quantity || 0;
++    const stockAfter = fifoResult.afterTotal;
+@@
+-        stockBefore,
+-        stockAfter
++        stockBefore: fifoResult.beforeTotal,
++        stockAfter: fifoResult.afterTotal,
++        batchId: fifoResult.consumed[0]?.batchId ?? null,
+       })
+C) Migrations
+FIFO-Index & Non-Negative Checks (SQL):
+ALTER TABLE product_batches
+  ADD CONSTRAINT product_batches_current_qty_nonnegative CHECK (current_quantity >= 0);
+
+ALTER TABLE inventory_items
+  ADD CONSTRAINT inventory_items_quantity_nonnegative CHECK (quantity >= 0);
+
+CREATE INDEX IF NOT EXISTS idx_product_batches_fifo
+  ON product_batches (product_id, warehouse_id, expiry_date, id);
+
+CREATE INDEX IF NOT EXISTS idx_inventory_movements_lookup
+  ON inventory_movements (product_id, warehouse_id, performed_at DESC);
+Audit-Erweiterung (Drizzle snippet):
+await db.execute(sql`
+  ALTER TABLE inventory_movements
+    ADD COLUMN IF NOT EXISTS source_order_id INTEGER,
+    ADD COLUMN IF NOT EXISTS target_location TEXT;
+`);
+D) API-Schemas (Zod)
+export const goodsReceiptRequestSchema = z.object({
+  receiptDate: z.coerce.date(),
+  notes: z.string().trim().max(2000).optional(),
+  items: z.array(z.object({
+    orderItemId: z.number().int().positive(),
+    productId: z.number().int().positive(),
+    batchNumber: z.string().min(1),
+    expiryDate: z.coerce.date(),
+    receivedQuantity: z.number().positive(),
+    orderedQuantity: z.number().positive(),
+    warehouseId: z.number().int().positive(),
+    notes: z.string().trim().max(1000).optional(),
+  })).min(1),
+});
+
+export const goodsReceiptResponseSchema = z.object({
+  order: z.any(), // detailed order dto
+  processedItems: z.array(z.object({
+    orderItemId: z.number().int(),
+    receivedQuantity: z.number(),
+  })),
+  movements: z.array(z.object({
+    orderItemId: z.number().int(),
+    batchId: z.number().int(),
+    quantity: z.number(),
+    before: z.number(),
+    after: z.number(),
+  })),
+});
+
+export const fifoFillRequestSchema = z.object({
+  warehouseId: z.number().int().positive(),
+  productId: z.number().int().positive(),
+  quantity: z.number().positive(),
+  referenceType: z.enum(["REFILL", "TRANSFER", "ADJUSTMENT"]),
+  referenceId: z.string().min(1),
+  targetLocation: z.string().min(1),
+});
+
+export const fifoFillResponseSchema = z.object({
+  consumed: z.array(z.object({
+    batchId: z.number().int(),
+    quantity: z.number().positive(),
+  })),
+  beforeTotal: z.number().nonnegative(),
+  afterTotal: z.number().nonnegative(),
+});
+
+export const validationErrorSchema = z.object({
+  error: z.literal("VALIDATION_ERROR"),
+  details: z.array(z.object({
+    path: z.array(z.union([z.string(), z.number()])),
+    message: z.string(),
+  })),
+});
+E) Tests
+server/tests/receiptTransaction.spec.ts
+import { beforeEach, describe, expect, it } from "vitest";
+import { drizzle } from "drizzle-orm/neon-serverless";
+import { Pool } from "pg";
+import { sql } from "drizzle-orm";
+import * as schema from "../../shared/schema";
+import { receiptTransaction } from "../../server/services/inventoryTransactions";
+
+let pool: Pool;
+let db: ReturnType<typeof drizzle>;
+
+beforeEach(async () => {
+  pool = new Pool({ connectionString: process.env.TEST_DATABASE_URL });
+  db = drizzle(pool, { schema });
+  await db.execute(sql`TRUNCATE orders CASCADE; TRUNCATE inventory_items CASCADE; TRUNCATE product_batches CASCADE;`);
+});
+
+describe("receiptTransaction", () => {
+  it("bucht vollständigen Wareneingang (Happy Path)", async () => {
+    const [order] = await db.insert(schema.orders).values({
+      supplierId: 1,
+      warehouseId: 1,
+      status: "sent",
+      orderNumber: "ORD-1",
+    }).returning();
+    const [item] = await db.insert(schema.orderItems).values({
+      orderId: order.id,
+      productId: 10,
+      quantity: 5,
+    }).returning();
+
+    const result = await receiptTransaction({
+      orderId: order.id,
+      receiptDate: new Date("2025-01-02"),
+      notes: "Anlieferung ohne Abweichung",
+      items: [{
+        orderItemId: item.id,
+        productId: 10,
+        batchNumber: "B-001",
+        expiryDate: new Date("2025-06-30"),
+        receivedQuantity: 5,
+        orderedQuantity: 5,
+        warehouseId: 1,
+      }],
+    }, { id: 42, name: "warehouse-bot" });
+
+    expect(result.order.status).toBe("delivered");
+    expect(result.processedItems).toHaveLength(1);
+    expect(result.movements[0].before).toBe(0);
+    expect(result.movements[0].after).toBe(5);
+  });
+
+  it("erzeugt 409 bei Status != sent/shipped", async () => {
+    const [order] = await db.insert(schema.orders).values({
+      supplierId: 1,
+      warehouseId: 1,
+      status: "draft",
+      orderNumber: "ORD-2",
+    }).returning();
+
+    await expect(receiptTransaction({
+      orderId: order.id,
+      receiptDate: new Date(),
+      items: [],
+    } as any, null)).rejects.toThrow(/Status/);
+  });
+
+  it("ist idempotent bei erneutem Aufruf", async () => {
+    const [order] = await db.insert(schema.orders).values({
+      supplierId: 1,
+      warehouseId: 1,
+      status: "sent",
+      orderNumber: "ORD-3",
+    }).returning();
+    const [item] = await db.insert(schema.orderItems).values({
+      orderId: order.id,
+      productId: 10,
+      quantity: 5,
+    }).returning();
+
+    const input = {
+      orderId: order.id,
+      receiptDate: new Date("2025-01-05"),
+      items: [{
+        orderItemId: item.id,
+        productId: 10,
+        batchNumber: "B-002",
+        expiryDate: new Date("2025-05-31"),
+        receivedQuantity: 5,
+        orderedQuantity: 5,
+        warehouseId: 1,
+      }],
+    };
+
+    await receiptTransaction(input, null);
+    await expect(receiptTransaction(input, null)).rejects.toThrow(/Bestand vorhanden/);
+  });
+
+  it("rollt Transaktion zurück bei Fehlern", async () => {
+    const [order] = await db.insert(schema.orders).values({
+      supplierId: 1,
+      warehouseId: 1,
+      status: "sent",
+      orderNumber: "ORD-4",
+    }).returning();
+    await db.insert(schema.orderItems).values({
+      orderId: order.id,
+      productId: 10,
+      quantity: 5,
+    });
+
+    await expect(receiptTransaction({
+      orderId: order.id,
+      receiptDate: new Date(),
+      items: [{
+        orderItemId: 999,
+        productId: 10,
+        batchNumber: "B-ERR",
+        expiryDate: new Date(),
+        receivedQuantity: 5,
+        orderedQuantity: 5,
+        warehouseId: 1,
+      }],
+    }, null)).rejects.toThrow();
+    const inventory = await db.select().from(schema.inventoryItems);
+    expect(inventory).toHaveLength(0);
+  });
+});
+server/tests/fifoDeplete.spec.ts
+import { beforeEach, describe, expect, it } from "vitest";
+import { fifoDeplete } from "../../server/services/inventoryTransactions";
+import { drizzle } from "drizzle-orm/neon-serverless";
+import { Pool } from "pg";
+import { sql } from "drizzle-orm";
+import * as schema from "../../shared/schema";
+
+let pool: Pool;
+let db: ReturnType<typeof drizzle>;
+
+beforeEach(async () => {
+  pool = new Pool({ connectionString: process.env.TEST_DATABASE_URL });
+  db = drizzle(pool, { schema });
+  await db.execute(sql`TRUNCATE inventory_items CASCADE; TRUNCATE product_batches CASCADE;`);
+  await db.insert(schema.inventoryItems).values({
+    warehouseId: 1,
+    productId: 10,
+    quantity: 30,
+    status: "active",
+  });
+  await db.insert(schema.productBatches).values([
+    { warehouseId: 1, productId: 10, batchNumber: "FIFO-1", initialQuantity: 10, currentQuantity: 10, expiryDate: new Date("2025-01-01"), receivedDate: new Date("2024-10-01"), status: "active" },
+    { warehouseId: 1, productId: 10, batchNumber: "FIFO-2", initialQuantity: 20, currentQuantity: 20, expiryDate: new Date("2025-02-01"), receivedDate: new Date("2024-11-01"), status: "active" },
+  ]);
+});
+
+describe("fifoDeplete", () => {
+  it("zieht chargengenau nach FIFO ab", async () => {
+    const result = await fifoDeplete({
+      warehouseId: 1,
+      productId: 10,
+      quantity: 15,
+      referenceType: "REFILL",
+      referenceId: "refill-1",
+      targetLocation: "machine:5",
+      actorId: 7,
+    });
+    expect(result.consumed).toEqual([
+      { batchId: expect.any(Number), quantity: 10 },
+      { batchId: expect.any(Number), quantity: 5 },
+    ]);
+    expect(result.afterTotal).toBe(15);
+  });
+
+  it("verhindert negative Bestände", async () => {
+    await expect(fifoDeplete({
+      warehouseId: 1,
+      productId: 10,
+      quantity: 100,
+      referenceType: "REFILL",
+      referenceId: "refill-2",
+      targetLocation: "machine:5",
+      actorId: 7,
+    })).rejects.toThrow(/Nicht genügend Bestand/);
+  });
+
+  it("ist race-safe (FOR UPDATE)", async () => {
+    const [r1, r2] = await Promise.allSettled([
+      fifoDeplete({ warehouseId: 1, productId: 10, quantity: 25, referenceType: "REFILL", referenceId: "r1", targetLocation: "machine:A", actorId: 1 }),
+      fifoDeplete({ warehouseId: 1, productId: 10, quantity: 10, referenceType: "REFILL", referenceId: "r2", targetLocation: "machine:B", actorId: 2 }),
+    ]);
+    const successes = [r1, r2].filter(r => r.status === "fulfilled");
+    expect(successes).toHaveLength(1);
+  });
+});
+E2E (Playwright) – tests/e2e/goods-receipt.spec.ts
+import { test, expect } from "@playwright/test";
+
+test("Wareneingang bis Befüllung (FIFO) komplett", async ({ page }) => {
+  await page.goto("/bestellungen");
+  await page.getByText("Status: versandt").first().click();
+  await page.getByRole("button", { name: "Wareneingang verbuchen" }).click();
+
+  await page.getByLabel("Lieferdatum").fill("2025-01-03");
+  await page.getByLabel("Charge 1 Menge").fill("5");
+  await page.getByLabel("Charge 1 MHD").fill("2025-06-30");
+  await page.getByRole("button", { name: "Wareneingang bestätigen" }).click();
+  await expect(page.getByText("Wareneingang gespeichert")).toBeVisible();
+
+  await page.goto("/lager/1");
+  await expect(page.getByText("Charge B-001 • 5 Stk")).toBeVisible();
+
+  await page.goto("/lager/1/automaten/5/befuellen");
+  await page.getByLabel("Menge").fill("3");
+  await page.getByRole("button", { name: "Befüllung starten" }).click();
+
+  await expect(page.getByText("FIFO-Charge B-001 (3 Stk) entnommen")).toBeVisible();
+  await expect(page.getByText("Bestand vorher: 5")).toBeVisible();
+  await expect(page.getByText("Bestand nachher: 2")).toBeVisible();
+  await expect(page.getByText("durchgeführt von")).toContainText("warehouse-bot");
+});
+Test-Fixtures (SQL) – tests/fixtures/seed.sql
+INSERT INTO warehouses (id, name) VALUES (1, 'Hauptlager') ON CONFLICT (id) DO NOTHING;
+INSERT INTO users (id, username, role) VALUES (1, 'warehouse-bot', 'warehouse_manager') ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO products (id, product_name, sku) VALUES (10, 'Bio-Sandwich', 'SKU-10') ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO orders (id, order_number, supplier_id, warehouse_id, status)
+VALUES (100, 'ORD-100', 1, 1, 'shipped')
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO order_items (id, order_id, product_id, quantity)
+VALUES (1000, 100, 10, 5)
+ON CONFLICT (id) DO NOTHING;
+F) Do-First → Do-Next
+Implementiere Patch B (Wareneingang-Service & UI-Anpassung) – Höchster Impact, da Transaktions- und Audit-Lücken geschlossen werden.
+Führe Migrationen (C) aus und erweitere Drizzle-Schema – notwendig, damit Checks/Indizes greifen.
+Schließe Backend-Tests (E1/E2) an CI an – Absicherung der neuen Services gegen Regressionen.
+Aktualisiere Refill-Flow (Storage & Routes) – Sicherstellen, dass FIFO-Depletion zentral genutzt wird.
+Implementiere Playwright-E2E (E3) – Validiert kompletten Benutzerflow und Audit-Darstellung.
+Richte Berechtigungs-Gates ein – Vor jeder Wareneingang/Befüllung req.user & Supplier-Scope prüfen.
+Observability/Audit-Review – Dashboard/API für inventory_movements bauen, um Prüfungen zu erleichtern.
+Parallelitäts-Loadtest – Simuliere gleichzeitige Befüllungen via Test-Skript, prüfe Sperren/Deadlocks.
+G) Definition of Done
+Funktional: Wareneingang akzeptiert nur shipped/sent Bestellungen, erfasst Chargen & Lagerzuordnung, UI zeigt Put-Away-Bestätigungen, FIFO-Befüllungen reduzieren Bestände exakt.
+Datenbank: Transaktionen atomar, keine negativen Bestände (Constraints), FIFO-Indizes verfügbar, Bewegungs-Logs enthalten Batch/Before/After.
+Audit: Jede Receipt-/Fill-Aktion erzeugt Movement-Log mit Actor, Zeitstempel, Referenzen; UI zeigt Herkunftschargen und Bestandsstände vor/nach der Aktion.
