@@ -106,6 +106,7 @@ import {
   CalendarDays,
   Loader2,
   PackageCheck,
+  PackageOpen,
 } from "lucide-react";
 
 // API und Formulare
@@ -697,8 +698,6 @@ export default function Orders() {
         location: filters.location === 'all' ? undefined : filters.location,
         dateFrom: filters.dateFrom ? format(filters.dateFrom, 'yyyy-MM-dd') : undefined,
         dateTo: filters.dateTo ? format(filters.dateTo, 'yyyy-MM-dd') : undefined,
-        paymentStatus: filters.paymentStatus === 'all' ? undefined : filters.paymentStatus,
-        priority: filters.priority === 'all' ? undefined : filters.priority,
         search: filters.search || undefined
       });
     }
@@ -871,20 +870,20 @@ export default function Orders() {
                         <div className="grid grid-cols-2 gap-2 text-sm">
                           <div>
                             <span className="text-muted-foreground">Datum:</span>
-                            <p className="font-medium">{formatDate(order.orderDate)}</p>
+                            <p className="font-medium">{formatDate(order.orderDate || order.createdAt)}</p>
                           </div>
                           <div>
                             <span className="text-muted-foreground">Liefertermin:</span>
-                            <p className={`font-medium ${order.isOverdue ? 'text-red-600' : ''}`}>
+                            <p className="font-medium">
                               {formatDate(order.expectedDeliveryDate) || "TBD"}
                             </p>
                           </div>
                         </div>
                         
-                        {order.totalAmountNet && (
+                        {order.totalAmount && (
                           <div className="mt-3 pt-2 border-t">
                             <span className="text-sm text-muted-foreground">Gesamt: </span>
-                            <span className="font-semibold">{formatCurrency(order.totalAmountNet)}</span>
+                            <span className="font-semibold">{formatCurrency(order.totalAmount)}</span>
                           </div>
                         )}
                       </Card>
@@ -950,8 +949,8 @@ export default function Orders() {
                             <OrderStatusBadge status={order.status} />
                           </TableCell>
                           <TableCell>
-                            {order.orderDate && isValid(parseISO(order.orderDate)) 
-                              ? format(parseISO(order.orderDate), 'dd.MM.yyyy')
+                            {(order.orderDate || order.createdAt) && isValid(parseISO(order.orderDate || order.createdAt)) 
+                              ? format(parseISO(order.orderDate || order.createdAt), 'dd.MM.yyyy')
                               : '-'}
                           </TableCell>
                           <TableCell>
@@ -967,12 +966,7 @@ export default function Orders() {
                               >
                                 {priorityMap[order.priority as keyof typeof priorityMap]?.label || order.priority}
                               </Badge>
-                              <CopyOrderButton 
-                                orderId={order.id} 
-                                orderNumber={order.orderNumber}
-                                size="sm"
-                                variant="ghost"
-                              />
+                              {/* CopyOrderButton component not available */}
                             </div>
                           </TableCell>
                         </TableRow>
@@ -1009,27 +1003,6 @@ export default function Orders() {
       
       {/* Dialog: Bestellungsdetails */}
       <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
-      
-      {/* Dialog: Wareneingang erfassen */}
-      <ReceiveOrderDialog 
-        open={isGoodsReceiptOpen} 
-        onOpenChange={setIsGoodsReceiptOpen}
-        order={selectedOrderForReceipt}
-        onComplete={(updatedOrder) => {
-          // In der echten Implementierung würde hier die API aktualisiert
-          toast({
-            title: "Wareneingang erfasst",
-            description: `Der Wareneingang für Bestellung ${updatedOrder.orderNumber} wurde erfolgreich erfasst.`,
-          });
-          
-          // Bestellungen neu laden
-          queryClient.invalidateQueries({ queryKey: ['/api/orders'] });
-          
-          // Dialog schließen
-          setIsGoodsReceiptOpen(false);
-          setSelectedOrderForReceipt(null);
-        }}
-      />
         {selectedOrder && (
           <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden flex flex-col">
             <DialogHeader>
@@ -1040,7 +1013,7 @@ export default function Orders() {
                 <OrderStatusBadge status={selectedOrder.status} />
               </div>
               <DialogDescription>
-                {formatDate(selectedOrder.orderDate)} | {selectedOrder.supplierName} | {selectedOrder.locationName}
+                {formatDate(selectedOrder.orderDate || selectedOrder.createdAt)} | {selectedOrder.supplierName}
               </DialogDescription>
             </DialogHeader>
             
@@ -1354,8 +1327,8 @@ export default function Orders() {
                   <div className="space-y-4">
                     <h3 className="text-lg font-medium">Status-Historie</h3>
                     <div className="relative border-l-2 border-gray-200 ml-4 pl-6 space-y-6">
-                      {selectedOrder.statusHistory && selectedOrder.statusHistory.length > 0 ? (
-                        selectedOrder.statusHistory.map((event, index) => (
+                      {selectedOrder.statusHistory && Array.isArray(selectedOrder.statusHistory) && selectedOrder.statusHistory.length > 0 ? (
+                        selectedOrder.statusHistory.map((event: any, index: number) => (
                           <div key={index} className="relative">
                             <div className="absolute -left-10 mt-1 w-4 h-4 rounded-full bg-primary"></div>
                             <div className="mb-1 flex items-center justify-between">
@@ -1460,6 +1433,27 @@ export default function Orders() {
           </DialogContent>
         )}
       </Dialog>
+      
+      {/* Dialog: Wareneingang erfassen */}
+      <ReceiveOrderDialog 
+        open={isGoodsReceiptOpen} 
+        onOpenChange={setIsGoodsReceiptOpen}
+        order={selectedOrderForReceipt}
+        onSuccess={(updatedOrder) => {
+          // In der echten Implementierung würde hier die API aktualisiert
+          toast({
+            title: "Wareneingang erfasst",
+            description: `Der Wareneingang für Bestellung ${updatedOrder.orderNumber} wurde erfolgreich erfasst.`,
+          });
+          
+          // Bestellungen neu laden
+          queryClient.invalidateQueries({ queryKey: ['/api/orders'] });
+          
+          // Dialog schließen
+          setIsGoodsReceiptOpen(false);
+          setSelectedOrderForReceipt(null);
+        }}
+      />
       
       {/* Dialog: Neue Bestellung */}
       <Dialog open={isNewOrderOpen} onOpenChange={setIsNewOrderOpen}>
