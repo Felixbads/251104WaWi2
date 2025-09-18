@@ -4,6 +4,8 @@ import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { startAutomaticSync } from "./scheduler";
 import { applySecurityMiddleware, logger } from "./middleware/security";
+import { applyObservabilityMiddleware, observabilityLogger } from "./middleware/observability";
+import { metricsHandler, serviceDiscoveryHandler } from "./middleware/metrics";
 // REPLACED: import { stableVendonScheduler } from "./services/stableVendonScheduler";
 import { autoStartUnifiedSystem } from "./services/vendonSyncMigration";
 import { reconcileWarehouseProducts } from "./services/warehouseReconciliation";
@@ -90,6 +92,9 @@ const app = express();
 // SECURITY: Apply security middleware BEFORE any other middleware
 applySecurityMiddleware(app);
 
+// OBSERVABILITY: Apply observability middleware after security
+applyObservabilityMiddleware(app);
+
 // Session Store Setup - Create a standard pg Pool for session store
 const sessionPool = new PgPool({
   connectionString: process.env.DATABASE_URL,
@@ -141,12 +146,18 @@ app.use((req, res, next) => {
 
 // Optimized location status route with authentic database data will be registered below
 
+// CRITICAL SECURITY FIX: Metrics endpoints moved behind authentication (see below)
+
 // INTER-APP API ENDPOINTS - MUST BE FIRST TO BYPASS ALL MIDDLEWARE
 // Health Check für externe Apps (OHNE Authentifizierung)
 app.get('/api/inter-app/health', async (req, res) => {
   try {
     res.setHeader('Content-Type', 'application/json');
-    console.log('[INTER-APP] Health check request received');
+    observabilityLogger.info({ 
+      type: 'inter_app_health_check',
+      requestId: (req as any).requestId,
+      ip: req.ip 
+    }, '[INTER-APP] Health check request received');
     
     const dbTest = await pool.query('SELECT 1 as test');
     
@@ -156,15 +167,21 @@ app.get('/api/inter-app/health', async (req, res) => {
       database: 'connected',
       timestamp: new Date().toISOString(),
       version: '1.0.0',
-      message: 'Wawi-Proviantomat API verfügbar'
+      message: 'Wawi-Proviantomat API verfügbar',
+      requestId: (req as any).requestId
     });
   } catch (error) {
-    console.error('[INTER-APP] Health Check Fehler:', error);
+    observabilityLogger.error({
+      type: 'inter_app_health_check_error',
+      requestId: (req as any).requestId,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    }, '[INTER-APP] Health Check Fehler');
     res.status(500).json({
       success: false,
       status: 'unhealthy',
       error: 'Datenbankverbindung fehlgeschlagen',
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      requestId: (req as any).requestId
     });
   }
 });
@@ -195,6 +212,11 @@ app.use('/api', (req, res, next) => {
   return replitAuthMiddleware(req, res, next);
 });
 logger.info('Global API authentication middleware applied');
+
+// SECURITY FIX: Metrics endpoints now protected behind authentication
+app.get('/api/metrics', metricsHandler);
+app.get('/api/service-discovery', serviceDiscoveryHandler);
+logger.info('Protected metrics endpoints mounted: /api/metrics, /api/service-discovery');
 
 // Mount enhanced inter-app API routes (MIT Authentifizierung)
 app.use('/api/inter-app', interAppApiRouter);
@@ -3741,6 +3763,35 @@ app.get('/orders-data', (req, res) => {
       });
     }
   });
+
+  // CRITICAL SECURITY FIX: Block old public metrics endpoints before Vite catch-all
+  app.get('/metrics', (req, res) => {
+    logger.warn({ 
+      requestId: (req as any).requestId,
+      ip: req.ip,
+      userAgent: req.headers['user-agent']
+    }, 'SECURITY: Blocked access to old public metrics endpoint');
+    res.status(404).json({ 
+      error: 'Endpoint moved', 
+      message: 'Metrics endpoint requires authentication. Use /api/metrics with proper authentication.',
+      requestId: (req as any).requestId
+    });
+  });
+  
+  app.get('/service-discovery', (req, res) => {
+    logger.warn({ 
+      requestId: (req as any).requestId,
+      ip: req.ip,
+      userAgent: req.headers['user-agent']
+    }, 'SECURITY: Blocked access to old public service-discovery endpoint');
+    res.status(404).json({ 
+      error: 'Endpoint moved', 
+      message: 'Service discovery endpoint requires authentication. Use /api/service-discovery with proper authentication.',
+      requestId: (req as any).requestId
+    });
+  });
+  
+  logger.info('SECURITY: Old public metrics endpoints blocked - redirecting to protected endpoints');
 
   // importantly only setup vite in development and after
   // setting up all the other routes so the catch-all route

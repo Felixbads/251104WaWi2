@@ -199,15 +199,16 @@ export function applySecurityMiddleware(app: Express): void {
   // Apply CORS with strict origin checking
   app.use(corsConfig);
   
-  // Apply structured logging with sensitive data redaction
-  app.use(httpLogger);
+  // SECURITY FIX: Disable pino-http request logging to prevent duplicates
+  // Observability logger handles request logging with enhanced features
+  // app.use(httpLogger); // DISABLED - prevents duplicate logs
   
   // Apply rate limiting to specific routes
   app.use('/api/auth', authRateLimit);
   app.use('/api/supplier-portal', supplierPortalRateLimit);
   app.use('/api/orders', ordersApiRateLimit);
   
-  logger.info('Security middleware applied: helmet, CORS, rate limiting, and structured logging');
+  logger.info('Security middleware applied: helmet, CORS, rate limiting (pino-http disabled - using observability logger)');
 }
 
 export { logger };
