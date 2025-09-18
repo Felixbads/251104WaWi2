@@ -665,7 +665,7 @@ export class DatabaseStorage implements IStorage {
             weeklyAvgRevenue: 0,
             monthlyAvgTransactions: 0,
             monthlyAvgRevenue: 0,
-            todayAlcoholSales: calculated.alcoholSales?.today || null,
+            alcoholTransactions: calculated.alcoholSales?.today || 0,
             weekAvgAlcoholSales: calculated.alcoholSales?.weekAvg || null,
             monthAvgAlcoholSales: calculated.alcoholSales?.monthAvg || null,
             lastSaleTime: calculated.lastSale?.datetime || null,
@@ -1279,30 +1279,6 @@ export class DatabaseStorage implements IStorage {
     } catch (error) {
       console.error(`Error fetching machine by vendon_id ${vendonId}:`, error);
       return undefined;
-    }
-  }
-  async createMachine(machine: any): Promise<any> { 
-    try {
-      // Check if machine with vendonId already exists
-      const existing = await this.getMachineByVendonId(machine.vendonId);
-      if (existing) {
-        console.log(`Machine with vendon_id ${machine.vendonId} already exists, returning existing machine`);
-        return existing;
-      }
-      
-      const result = await db.insert(machines).values(machine).returning();
-      return result[0];
-    } catch (error) {
-      // If it's a unique constraint violation, try to get the existing machine
-      if (error.code === '23505' && error.constraint === 'unique_vendon_id') {
-        const existing = await this.getMachineByVendonId(machine.vendonId);
-        if (existing) {
-          console.log(`Machine with vendon_id ${machine.vendonId} found after unique constraint error`);
-          return existing;
-        }
-      }
-      console.error(`Error creating machine with vendon_id ${machine.vendonId}:`, error);
-      throw error;
     }
   }
   // Machine CRUD methods implemented above - removing duplicates
@@ -2034,33 +2010,22 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  // Admin user seed function
+  // SECURITY HARDENED: No automatic admin creation
+  // Admin users must be created manually with secure credentials
   async ensureAdminUserExists(): Promise<User> {
     try {
-      // Check if Admin user exists
-      let adminUser = await this.getUserByUsername('Admin');
+      // Check if any admin user exists
+      const adminUser = await this.getUserByUsername('Admin');
       
       if (!adminUser) {
-        console.log('Creating default Admin user...');
-        const bcrypt = require('bcryptjs');
-        const hashedPassword = await bcrypt.hash('admin123', 10);
-        
-        adminUser = await this.createUser({
-          username: 'Admin',
-          email: 'admin@example.com',
-          password: hashedPassword,
-          role: 'admin',
-          approved: true,
-          approvedBy: null,
-          approvedAt: new Date()
-        });
-        
-        console.log('✅ Default Admin user created successfully');
+        console.warn('⚠️ No admin user found. Admin users must be created manually for security.');
+        console.warn('⚠️ Use the user management interface or database tools to create admin accounts.');
+        throw new Error('No admin user available. Manual admin creation required.');
       }
       
       return adminUser;
     } catch (error) {
-      console.error("Error ensuring admin user exists:", error);
+      console.error("Error checking admin user:", error);
       throw error;
     }
   }

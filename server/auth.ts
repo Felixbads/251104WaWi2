@@ -3,14 +3,26 @@
  */
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import { db } from './db';
 import { users, insertUserSchema } from '../shared/schema';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { notifyAdminsOfNewUser, notifyUserOfApprovalStatus } from './services/emailService';
 
-// JWT-Konfiguration
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-fallback-secret-change-in-production';
+// Mandatory environment variable checks - no fallbacks allowed
+if (!process.env.JWT_SECRET) {
+  console.error('❌ FATAL: JWT_SECRET environment variable is required');
+  process.exit(1);
+}
+
+if (!process.env.SESSION_SECRET) {
+  console.error('❌ FATAL: SESSION_SECRET environment variable is required');
+  process.exit(1);
+}
+
+// JWT-Konfiguration with mandatory secrets
+const JWT_SECRET = process.env.JWT_SECRET;
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '30d';
 
 // JWT Token-Interface
@@ -20,11 +32,6 @@ interface JWTPayload {
   role: string;
   iat?: number;
   exp?: number;
-}
-
-// Warnung bei unsicherem Fallback-Secret
-if (!process.env.JWT_SECRET) {
-  console.warn('⚠️ WARNUNG: JWT_SECRET ist nicht gesetzt. Verwende Fallback-Secret für Entwicklung.');
 }
 
 // Validierungsschemas
@@ -70,7 +77,7 @@ export async function registerUser(userData: z.infer<typeof registerSchema>) {
         try {
           await notifyAdminsOfNewUser({
             username: userDataToInsert.username,
-            email: userDataToInsert.email ? userDataToInsert.email : undefined,
+            email: userDataToInsert.email || undefined,
             role: userDataToInsert.role,
             createdAt: new Date()
           });
@@ -284,10 +291,16 @@ export function invalidateToken(token: string) {
 }
 
 /**
- * Generiert ein JWT-Token
+ * Generiert ein JWT-Token mit sicherer Zufallskomponente
  */
 function generateJWTToken(payload: Omit<JWTPayload, 'iat' | 'exp'>) {
-  return jwt.sign(payload, JWT_SECRET, {
+  // Add secure random component for additional entropy
+  const securePayload = {
+    ...payload,
+    jti: crypto.randomBytes(16).toString('hex') // JWT ID for uniqueness
+  };
+  
+  return jwt.sign(securePayload, JWT_SECRET, {
     expiresIn: JWT_EXPIRES_IN,
     issuer: 'vending-system',
     subject: payload.userId.toString()

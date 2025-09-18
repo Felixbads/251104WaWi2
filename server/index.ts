@@ -3,6 +3,7 @@ import path from "path";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { startAutomaticSync } from "./scheduler";
+import { applySecurityMiddleware, logger } from "./middleware/security";
 // REPLACED: import { stableVendonScheduler } from "./services/stableVendonScheduler";
 import { autoStartUnifiedSystem } from "./services/vendonSyncMigration";
 import { reconcileWarehouseProducts } from "./services/warehouseReconciliation";
@@ -86,6 +87,9 @@ import weeklyRefillTemplatesRouter from './routes/weekly-refill-templates';
 
 const app = express();
 
+// SECURITY: Apply security middleware BEFORE any other middleware
+applySecurityMiddleware(app);
+
 // Session Store Setup - Create a standard pg Pool for session store
 const sessionPool = new PgPool({
   connectionString: process.env.DATABASE_URL,
@@ -96,30 +100,31 @@ const sessionPool = new PgPool({
 
 const PgSession = connectPgSimple(session);
 
-// Session Configuration
+// Mandatory environment variable checks - Security hardening
+if (!process.env.SESSION_SECRET) {
+  console.error('❌ FATAL: SESSION_SECRET environment variable is required');
+  process.exit(1);
+}
+
+// Session Configuration with enhanced security
 app.use(session({
   store: new PgSession({
     pool: sessionPool, // Use standard pg Pool for session store
     tableName: 'session', // Session table name
     createTableIfMissing: true,
   }),
-  secret: process.env.SESSION_SECRET || 'dev-fallback-session-secret-change-in-production',
+  secret: process.env.SESSION_SECRET,
   name: 'sessionId',
   resave: false,
   saveUninitialized: false,
   cookie: {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
+    sameSite: 'strict', // Enhanced security
     maxAge: 8 * 60 * 60 * 1000, // 8 hours
   },
   rolling: true, // Reset expiration on activity
 }));
-
-// WARNING: Display session secret warning if not set
-if (!process.env.SESSION_SECRET) {
-  console.warn('⚠️ WARNUNG: SESSION_SECRET ist nicht gesetzt. Verwende Fallback-Secret für Entwicklung.');
-}
 
 // DEBUG: Portal-Route-Logging vor allen anderen Middlewares
 app.use((req, res, next) => {
@@ -180,15 +185,15 @@ app.use('/api', (req, res, next) => {
   const isPublicRoute = publicRoutes.some(route => req.path.startsWith(route));
   
   if (isPublicRoute) {
-    console.log(`[AUTH] Public route accessed: ${req.path}`);
+    logger.info({ path: req.path }, 'Public route accessed');
     return next();
   }
   
   // Apply authentication for all other API routes
-  console.log(`[AUTH] Protected route accessed: ${req.path}`);
+  logger.info({ path: req.path }, 'Protected route accessed');
   return replitAuthMiddleware(req, res, next);
 });
-console.log('[SERVER] Global API authentication middleware applied');
+logger.info('Global API authentication middleware applied');
 
 // Mount enhanced inter-app API routes (MIT Authentifizierung)
 app.use('/api/inter-app', interAppApiRouter);
@@ -1306,8 +1311,8 @@ app.get('/orders-data', (req, res) => {
   
   // FINAL EMAIL FIX - Direct endpoint to bypass all routing conflicts
   app.post('/api/send-email-simple/:id', async (req, res) => {
-    console.log(`[DirectEmailFix] ROUTE HIT - /api/send-email-simple/${req.params.id}`);
-    console.log(`[DirectEmailFix] Request body:`, req.body);
+    logger.info({ orderId: req.params.id }, 'Direct email fix route accessed');
+    // Body logging removed for security - may contain sensitive data
     
     try {
       const orderId = parseInt(req.params.id);
@@ -2189,9 +2194,8 @@ app.get('/orders-data', (req, res) => {
 
   // Direct email endpoint that bypasses all routing conflicts
   app.post('/email-send-direct/:orderId', async (req, res) => {
-    console.log('[DirectEmailBypass] Direct email route hit - bypassing all middleware');
-    console.log('[DirectEmailBypass] Order ID:', req.params.orderId);
-    console.log('[DirectEmailBypass] Request body:', JSON.stringify(req.body, null, 2));
+    logger.info({ orderId: req.params.orderId }, 'Direct email bypass route accessed');
+    // Request body logging removed for security
     
     try {
       const orderId = parseInt(req.params.orderId);
@@ -2651,7 +2655,8 @@ app.get('/orders-data', (req, res) => {
   // Direkte Bestellerstellungs-API (Workaround für HTML-Response-Problem)
   app.post('/api/orders-direct', async (req, res) => {
     try {
-      console.log("Direkte Bestellerstellung mit Daten:", JSON.stringify(req.body).substring(0, 200));
+      logger.info('Direct order creation endpoint accessed');
+      // Request body logging removed for security
       
       res.setHeader('Content-Type', 'application/json');
       
@@ -3592,10 +3597,8 @@ app.get('/orders-data', (req, res) => {
   // COMPREHENSIVE PHOTO UPLOAD WITH IMAGE PROCESSING
   app.post('/api/photos/upload', async (req, res) => {
     try {
-      console.log('Photo upload request received');
-      console.log('Files:', req.files);
-      console.log('Body:', req.body);
-      console.log('Content-Type:', req.headers['content-type']);
+      logger.info('Photo upload request received');
+      // Files and body logging removed for security
       
       if (!req.files) {
         return res.status(400).json({

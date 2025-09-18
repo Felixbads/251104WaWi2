@@ -131,7 +131,7 @@ import emailNotificationsRouter from './routes/email-notifications-simple';
 import warehouseRefillsRouter from './routes/warehouse-refills';
 
 // Hilfsfunktion zum Gruppieren der Transaktionen nach Zeitraum
-function groupTransactionsByPeriod(transactions, period) {
+function groupTransactionsByPeriod(transactions: any[], period: string) {
   // Sicherstellen, dass transactions ein Array ist
   if (!Array.isArray(transactions) || transactions.length === 0) {
     return [];
@@ -1409,7 +1409,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get sync status
   app.get(`${API_PREFIX}/sync/status`, async (_req: Request, res: Response) => {
     try {
-      const status = await vendonSync.getSyncStatus();
+      const { getUnifiedSyncCoordinator } = await import('./services/unifiedVendonSyncCoordinator');
+      const coordinator = getUnifiedSyncCoordinator();
+      const status = await coordinator.getSyncStatus();
       res.json(status);
     } catch (error) {
       console.error("Error fetching sync status:", error);
@@ -1433,32 +1435,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const startDateObj = startDate ? new Date(startDate) : undefined;
       const endDateObj = endDate ? new Date(endDate) : undefined;
 
+      // Get coordinator instance
+      const { getUnifiedSyncCoordinator } = await import('./services/unifiedVendonSyncCoordinator');
+      const coordinator = getUnifiedSyncCoordinator();
+      
       // Trigger the appropriate sync operation
       switch (type) {
         case "machines":
-          result = await vendonSync.syncMachines();
+          result = await coordinator.syncMachines();
           break;
         case "products":
-          result = await vendonSync.syncProducts();
+          // Products are synced as part of full sync
+          result = await coordinator.performFullSync();
           break;
         case "transactions":
-          result = await vendonSync.syncTransactions(startDateObj, endDateObj, batchSize);
+          result = await coordinator.syncTransactions(startDateObj, endDateObj, batchSize);
           break;
         case "historical_transactions":
-          // Ruft historische Transaktionen seit Januar 2023 in Monatsblöcken ab
-          result = await vendonSync.syncHistoricalTransactions(batchSize, 10000);
+          // Use full sync for historical data
+          result = await coordinator.performFullSync();
           break;
         case "refills":
           // ✅ FIXED: Use UnifiedVendonSyncCoordinator for refill sync - BLOCKING ISSUE RESOLVED!
-          const { getUnifiedSyncCoordinator } = await import('./services/unifiedVendonSyncCoordinator');
-          const coordinator = getUnifiedSyncCoordinator();
           result = await coordinator.syncRefills(
             startDateObj || new Date(Date.now() - 8 * 24 * 60 * 60 * 1000), 
             endDateObj || new Date()
           );
           break;
         case "events":
-          result = await vendonSync.syncEvents(startDateObj, endDateObj, batchSize);
+          result = await coordinator.syncEvents(startDateObj, endDateObj, batchSize);
           break;
         case "weather_forecast":
           // Synchronisiere Wetterprognosen für Bad Schandau mit korrekten Koordinaten
@@ -1481,7 +1486,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           result = { success: true, addedEntries: totalEntries };
           break;
         case "all":
-          result = await vendonSync.syncAll();
+          result = await coordinator.performFullSync();
           break;
         default:
           return res.status(400).json({ error: `Unknown sync type: ${type}` });
@@ -5261,7 +5266,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get(`${API_PREFIX}/debug/refills`, async (_req: Request, res: Response) => {
     try {
       console.log("Debug-Endpunkt für Refills aufgerufen");
-      const api = vendonSync.getApi();
+      const { getUnifiedSyncCoordinator } = await import('./services/unifiedVendonSyncCoordinator');
+      const coordinator = getUnifiedSyncCoordinator();
+      const api = coordinator;
       
       // Letzter Monat bis heute als Standarddatum
       const startDate = new Date();
@@ -5320,7 +5327,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get(`${API_PREFIX}/debug/refill/:id/details`, async (req: Request, res: Response) => {
     try {
       console.log(`Debug-Endpunkt für Refill-Details aufgerufen, ID: ${req.params.id}`);
-      const api = vendonSync.getApi();
+      const { getUnifiedSyncCoordinator } = await import('./services/unifiedVendonSyncCoordinator');
+      const coordinator = getUnifiedSyncCoordinator();
+      const api = coordinator;
       
       // Direkt die API aufrufen und die Struktur der Antwort analysieren
       const result = await api.getRefillDetails(req.params.id);
@@ -5371,7 +5380,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get(`${API_PREFIX}/debug/events`, async (_req: Request, res: Response) => {
     try {
       console.log("Debug-Endpunkt für Events aufgerufen");
-      const api = vendonSync.getApi();
+      const { getUnifiedSyncCoordinator } = await import('./services/unifiedVendonSyncCoordinator');
+      const coordinator = getUnifiedSyncCoordinator();
+      const api = coordinator;
       
       // Letzter Monat bis heute als Standarddatum
       const startDate = new Date();
