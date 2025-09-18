@@ -112,49 +112,41 @@ async function handleResponse(res: Response) {
     // HTML-Erkennung
     const isHtmlResponse = text?.trim().startsWith('<!DOCTYPE html>') || text?.trim().startsWith('<html');
     
-    // Wenn es eine HTML-Antwort ist und ein Order-POST-Request
-    if (isHtmlResponse && isOrderPostRequest) {
-      console.warn("HTML-Antwort für Order-Request erhalten - erstelle neue Bestellung");
+    // FIXED: Keine Fake-Orders mehr bei HTML-Responses - werfe Error bei Non-JSON-Responses
+    if (isHtmlResponse) {
+      console.error("HTML-Antwort von API erhalten - Server-seitiger Fehler:", {
+        url: res.url,
+        status: res.status,
+        statusText: res.statusText,
+        htmlPreview: text?.substring(0, 200)
+      });
       
-      // Generiere eine formatierte Bestellnummer mit aktuellem Datum
-      const now = new Date();
-      const year = now.getFullYear();
-      const month = String(now.getMonth() + 1).padStart(2, '0');
-      const day = String(now.getDate()).padStart(2, '0');
-      const randomDigits = Math.floor(Math.random() * 9000) + 1000;
-      
-      // Bestellnummer im Format ORD-JJJJMMTT-XXXX
-      const formattedOrderNumber = `ORD-${year}${month}${day}-${randomDigits}`;
-      
-      // Erstelle eine gut formatierte Ersatzantwort, die wie eine echte Bestellung aussieht
-      return {
-        id: Date.now(), // Eindeutige ID basierend auf Zeitstempel
-        orderNumber: formattedOrderNumber,
-        status: 'draft',
-        orderDate: now.toISOString(),
-        expectedDeliveryDate: null,
-        createdAt: now.toISOString(),
-        updatedAt: now.toISOString(),
-        message: 'Bestellung erfolgreich erstellt'
-      };
+      // Werfe Error statt Fake-Bestellung zu erstellen
+      throw new Error(`Server returned HTML instead of JSON. Status: ${res.status} ${res.statusText}. This indicates a server-side error that needs to be fixed.`);
     }
     
+    // Check if response is JSON by Content-Type header
+    const contentType = res.headers.get('content-type');
+    if (!contentType?.includes('application/json')) {
+      throw new Error(`Expected JSON response, got ${contentType}. This indicates a server-side error.`);
+    }
+
     // Normale JSON-Verarbeitung
     if (text && text.trim()) {
       try {
         return JSON.parse(text);
       } catch (parseError) {
-        console.warn("Fehler beim JSON-Parsen:", parseError);
-        return {};
+        console.error("JSON-Parse-Fehler bei vermeintlich korrekter JSON-Antwort:", parseError);
+        throw new Error(`Failed to parse JSON response: ${parseError instanceof Error ? parseError.message : 'Unknown parse error'}`);
       }
     } else {
       console.warn("Leere API-Antwort erhalten");
       return {};
     }
   } catch (e) {
-    console.warn("Fehler beim Abrufen der API-Antwort:", e);
-    // Bei Parsing-Fehler leeres Objekt zurückgeben statt zu scheitern
-    return {};
+    console.error("SECURITY: Fehler beim Abrufen der API-Antwort - Error wird propagiert:", e);
+    // SECURITY FIX: Werfe Error weiter, keine Maskierung mit leeren Objekten
+    throw new Error(`Failed to parse API response: ${e instanceof Error ? e.message : 'Unknown error'}`);
   }
 }
 

@@ -1,5 +1,7 @@
 import express from 'express';
 import { pool } from '../db';
+import { orderValidationSchema, insertOrderItemSchema } from '../../shared/schema';
+import { ZodError } from 'zod';
 
 const router = express.Router();
 
@@ -10,104 +12,249 @@ function logOrderProcess(step: string, data: any, orderId?: number) {
   console.log(logMessage);
 }
 
-// 1. Neue Bestellung erstellen
+// 1. Neue Bestellung erstellen mit zentraler Validierung und Idempotenz
 router.post('/create', async (req, res) => {
   const client = await pool.connect();
+  
+  // Explizit Content-Type setzen für API-Responses
+  res.setHeader('Content-Type', 'application/json');
   
   try {
     logOrderProcess('START_ORDER_CREATION', { body: req.body });
     
-    const { warehouseId, supplierId, orderItems, expectedDeliveryDate, notes = '' } = req.body;
-    
-    // Validierung
-    if (!warehouseId || !supplierId) {
-      logOrderProcess('VALIDATION_ERROR', { error: 'Missing warehouse or supplier' });
-      return res.status(400).json({ error: 'Lager und Lieferant sind erforderlich' });
+    // Zentrale Zod-Validierung
+    let validatedData;
+    try {
+      validatedData = orderValidationSchema.parse(req.body);
+    } catch (error) {
+      if (error instanceof ZodError) {
+        logOrderProcess('ZOD_VALIDATION_ERROR', { 
+          errors: error.errors,
+          receivedData: req.body 
+        });
+        
+        return res.status(422).json({
+          error: 'Validation Error',
+          message: 'Die übermittelten Daten sind ungültig',
+          details: error.errors.map(err => ({
+            field: err.path.join('.'),
+            message: err.message,
+            code: err.code
+          }))
+        });
+      }
+      throw error;
     }
-    
-    if (!orderItems || !Array.isArray(orderItems) || orderItems.length === 0) {
-      logOrderProcess('VALIDATION_ERROR', { error: 'No order items' });
-      return res.status(400).json({ error: 'Mindestens ein Artikel muss bestellt werden' });
-    }
+
+    const { 
+      supplierId, 
+      warehouseId, 
+      orderItems, 
+      expectedDeliveryDate, 
+      notes = '',
+      idempotencyKey 
+    } = validatedData;
+
+    logOrderProcess('DATA_VALIDATED', { supplierId, warehouseId, itemCount: orderItems.length });
     
     await client.query('BEGIN');
     logOrderProcess('TRANSACTION_STARTED', { warehouseId, supplierId });
+
+    // SECURITY FIX: Idempotenz-Check mit parametrisierter Query (verhindert SQL-Injection)
+    if (idempotencyKey) {
+      const existingOrderQuery = `
+        SELECT id, order_number, status, total_amount
+        FROM orders 
+        WHERE idempotency_key = $1
+        LIMIT 1
+      `;
+      
+      const existingOrderResult = await client.query(existingOrderQuery, [idempotencyKey]);
+      
+      if (existingOrderResult.rows.length > 0) {
+        const existingOrder = existingOrderResult.rows[0];
+        logOrderProcess('IDEMPOTENCY_HIT', { 
+          idempotencyKey,
+          existingOrderId: existingOrder.id,
+          orderNumber: existingOrder.order_number 
+        });
+        
+        await client.query('COMMIT');
+        return res.status(200).json({
+          success: true,
+          order: existingOrder,
+          message: `Bestellung bereits vorhanden (Idempotenz): ${existingOrder.order_number}`,
+          idempotent: true
+        });
+      }
+    }
     
-    // Bestellnummer generieren
-    const today = new Date().toISOString().split('T')[0].replace(/-/g, '');
-    const orderNumberQuery = `
-      SELECT COUNT(*) as count 
-      FROM orders 
-      WHERE order_number LIKE 'ORD-${today}-%'
-    `;
-    const orderNumberResult = await client.query(orderNumberQuery);
-    const orderCount = parseInt(orderNumberResult.rows[0].count) + 1;
-    const orderNumber = `ORD-${today}-${orderCount.toString().padStart(3, '0')}`;
+    // Bestellnummer generieren mit Unique-Constraint-Behandlung
+    let orderNumber;
+    let orderCreationAttempts = 0;
+    const maxAttempts = 5;
+    
+    while (!orderNumber && orderCreationAttempts < maxAttempts) {
+      const today = new Date().toISOString().split('T')[0].replace(/-/g, '');
+      const orderNumberQuery = `
+        SELECT COUNT(*) as count 
+        FROM orders 
+        WHERE order_number LIKE 'ORD-${today}-%'
+      `;
+      const orderNumberResult = await client.query(orderNumberQuery);
+      const orderCount = parseInt(orderNumberResult.rows[0].count) + 1;
+      const candidateOrderNumber = `ORD-${today}-${orderCount.toString().padStart(3, '0')}`;
+      
+      // Prüfe ob order_number bereits existiert (für Unique-Constraint)
+      const duplicateCheckQuery = `
+        SELECT id FROM orders WHERE order_number = $1 LIMIT 1
+      `;
+      const duplicateResult = await client.query(duplicateCheckQuery, [candidateOrderNumber]);
+      
+      if (duplicateResult.rows.length === 0) {
+        orderNumber = candidateOrderNumber;
+        logOrderProcess('ORDER_NUMBER_GENERATED', { orderNumber, attempt: orderCreationAttempts + 1 });
+      } else {
+        orderCreationAttempts++;
+        logOrderProcess('ORDER_NUMBER_COLLISION', { 
+          candidateOrderNumber, 
+          attempt: orderCreationAttempts,
+          willRetry: orderCreationAttempts < maxAttempts 
+        });
+        
+        if (orderCreationAttempts >= maxAttempts) {
+          throw new Error(`Fehler beim Generieren einer eindeutigen Bestellnummer nach ${maxAttempts} Versuchen`);
+        }
+        
+        // Kurz warten bei Kollision
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+    }
     
     logOrderProcess('ORDER_NUMBER_GENERATED', { orderNumber });
     
     // Gesamtbetrag berechnen
     let totalAmount = 0;
     for (const item of orderItems) {
-      totalAmount += (parseFloat(item.price) || 0) * (parseInt(item.quantity) || 0);
+      totalAmount += (parseFloat(item.unitPrice) || 0) * (parseInt(item.quantity) || 0);
     }
     
     logOrderProcess('TOTAL_CALCULATED', { totalAmount, itemCount: orderItems.length });
     
-    // Bestellung erstellen
+    // SECURITY FIX: Idempotency-Key in dedicated column (nicht in notes)
+    let finalNotes = notes || '';
+    
+    // Bestellung erstellen mit Unique-Constraint-Behandlung und Idempotency-Key
+    // CRITICAL FIX: ON CONFLICT (idempotency_key) für Race Condition Protection
     const orderQuery = `
       INSERT INTO orders (
         order_number, warehouse_id, supplier_id, order_date, 
-        expected_delivery_date, total_amount, status, notes
-      ) VALUES ($1, $2, $3, NOW(), $4, $5, 'draft', $6)
-      RETURNING id, order_number
+        expected_delivery_date, total_amount, status, notes, idempotency_key
+      ) VALUES ($1, $2, $3, NOW(), $4, $5, 'open', $6, $7)
+      ON CONFLICT (idempotency_key) DO NOTHING
+      RETURNING id, order_number, status, total_amount
     `;
     
-    const orderResult = await client.query(orderQuery, [
-      orderNumber, warehouseId, supplierId, expectedDeliveryDate, totalAmount, notes
-    ]);
-    
-    const orderId = orderResult.rows[0].id;
-    logOrderProcess('ORDER_CREATED', { orderId, orderNumber }, orderId);
-    
-    // Bestellpositionen erstellen
-    for (const item of orderItems) {
-      const itemQuery = `
-        INSERT INTO order_items (
-          order_id, product_id, quantity, unit_price, 
-          total_price, product_name, unit
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7)
-      `;
-      
-      const itemPrice = parseFloat(item.price) || 0;
-      const itemQuantity = parseInt(item.quantity) || 0;
-      const itemTotal = itemPrice * itemQuantity;
-      
-      await client.query(itemQuery, [
-        orderId, item.productId, itemQuantity, itemPrice, 
-        itemTotal, item.productName, item.unit || 'stk'
+    try {
+      const orderResult = await client.query(orderQuery, [
+        orderNumber, warehouseId, supplierId, expectedDeliveryDate, totalAmount, finalNotes, idempotencyKey
       ]);
       
-      logOrderProcess('ORDER_ITEM_CREATED', { 
-        productId: item.productId, 
-        productName: item.productName,
-        quantity: itemQuantity,
-        price: itemPrice 
-      }, orderId);
-    }
-    
-    await client.query('COMMIT');
-    logOrderProcess('ORDER_COMPLETED', { orderId, orderNumber, totalAmount }, orderId);
-    
-    res.json({
-      success: true,
-      order: {
-        id: orderId,
-        orderNumber: orderNumber,
-        totalAmount: totalAmount,
-        status: 'draft'
+      // CRITICAL FIX: Handle case where ON CONFLICT DO NOTHING returns no rows
+      if (orderResult.rows.length === 0) {
+        // Idempotency key already exists, fetch the existing order
+        const existingOrderQuery = `
+          SELECT id, order_number, status, total_amount
+          FROM orders 
+          WHERE idempotency_key = $1
+          LIMIT 1
+        `;
+        const existingOrderResult = await client.query(existingOrderQuery, [idempotencyKey]);
+        
+        if (existingOrderResult.rows.length > 0) {
+          const existingOrder = existingOrderResult.rows[0];
+          logOrderProcess('IDEMPOTENCY_CONFLICT_RESOLVED', { 
+            idempotencyKey,
+            existingOrderId: existingOrder.id,
+            orderNumber: existingOrder.order_number 
+          });
+          
+          await client.query('COMMIT');
+          return res.status(200).json({
+            success: true,
+            order: existingOrder,
+            message: `Bestellung bereits vorhanden (Idempotenz): ${existingOrder.order_number}`,
+            idempotent: true
+          });
+        } else {
+          throw new Error('Failed to create order and could not find existing order with idempotency key');
+        }
       }
-    });
+      
+      const newOrder = orderResult.rows[0];
+      logOrderProcess('ORDER_CREATED', { 
+        orderId: newOrder.id, 
+        orderNumber: newOrder.order_number,
+        totalAmount: newOrder.total_amount 
+      }, newOrder.id);
+      
+      // Bestellpositionen erstellen
+      for (const item of orderItems) {
+        const itemQuery = `
+          INSERT INTO order_items (
+            order_id, product_id, quantity, unit_price, 
+            total_price, product_name, unit
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+        `;
+        
+        const itemPrice = parseFloat(item.unitPrice) || 0;
+        const itemQuantity = parseInt(item.quantity) || 0;
+        const itemTotal = itemPrice * itemQuantity;
+        
+        await client.query(itemQuery, [
+          newOrder.id, item.productId, itemQuantity, itemPrice, 
+          itemTotal, item.productName, item.unit || 'stk'
+        ]);
+        
+        logOrderProcess('ORDER_ITEM_CREATED', { 
+          productId: item.productId, 
+          productName: item.productName,
+          quantity: itemQuantity,
+          price: itemPrice 
+        }, newOrder.id);
+      }
+      
+      await client.query('COMMIT');
+      logOrderProcess('ORDER_COMPLETED', { 
+        orderId: newOrder.id, 
+        orderNumber: newOrder.order_number, 
+        totalAmount: newOrder.total_amount 
+      }, newOrder.id);
+      
+      return res.status(201).json({
+        success: true,
+        order: newOrder,
+        message: `Bestellung ${newOrder.order_number} erfolgreich erstellt`
+      });
+      
+    } catch (dbError: any) {
+      // Spezielle Behandlung für Unique-Constraint-Verletzung
+      if (dbError.code === '23505' && dbError.constraint?.includes('order_number')) {
+        logOrderProcess('UNIQUE_CONSTRAINT_VIOLATION', { 
+          orderNumber, 
+          error: dbError.message 
+        });
+        
+        await client.query('ROLLBACK');
+        return res.status(422).json({
+          error: 'Duplicate Order Number',
+          message: `Bestellnummer ${orderNumber} existiert bereits`,
+          code: 'DUPLICATE_ORDER_NUMBER'
+        });
+      }
+      throw dbError; // Andere DB-Fehler weiterleiten
+    }
+    // This block was moved inside the try block above to prevent duplication
     
   } catch (error) {
     await client.query('ROLLBACK');

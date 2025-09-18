@@ -8,8 +8,35 @@ const router = express.Router();
 // Authentifizierung für alle Routen aktivieren
 router.use(isAuthenticated);
 
-// Direkter Endpunkt zum Speichern von Bestellungen
+// DEPRECATED: Legacy endpoint - wird durch /api/orders/v4 ersetzt
 router.post('/save-order-direct', async (req, res) => {
+  // Log für Legacy-Verwendung
+  console.log('[DEPRECATED] /save-order-direct verwendet:', {
+    ip: req.ip,
+    userAgent: req.get('User-Agent'),
+    timestamp: new Date().toISOString(),
+    body: req.body
+  });
+
+  // 410 Gone Response mit Migration-Information
+  return res.status(410).json({
+    error: 'Endpoint deprecated',
+    message: 'Der Endpoint /save-order-direct ist veraltet und wurde deaktiviert.',
+    migrationInfo: {
+      newEndpoint: '/api/orders/v4/create',
+      documentation: 'Verwenden Sie den neuen orders-v4 Endpoint für Bestellungen',
+      changes: [
+        'Zentrale Validierung mit Zod-Schema',
+        'Unique-Constraint für order_number',
+        'Idempotente Requests unterstützt',
+        'Verbesserte Error-Handling'
+      ]
+    },
+    deprecatedSince: '2025-09-18',
+    removalDate: '2025-10-18'
+  });
+
+  // Der restliche Code bleibt als Backup, aber wird nicht mehr ausgeführt
   try {
     const { 
       warehouseId, 

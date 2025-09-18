@@ -2581,13 +2581,13 @@ export const orders = pgTable("orders", {
   id: serial("id").primaryKey(),
   
   // Allgemeine Bestellinformationen
-  orderNumber: text("order_number").notNull(), // Bestellnummer (z.B. ORD-YYYY-MM-DD-XXXX)
+  orderNumber: text("order_number").notNull().unique(), // Bestellnummer (z.B. ORD-YYYY-MM-DD-XXXX) - UNIQUE constraint
   supplierId: integer("supplier_id").references(() => suppliers.id), // Lieferant
   supplierName: text("supplier_name"), // Name des Lieferanten (für Redundanz)
   
   // Ziel & Empfänger
-  locationId: integer("location_id").references(() => locations.id), // Ziel-Lagerstandort
-  locationName: text("location_name"), // Name des Standorts (für Redundanz)
+  warehouseId: integer("warehouse_id").references(() => warehouses.id), // Ziel-Lager
+  warehouseName: text("warehouse_name"), // Name des Lagers (für Redundanz)
   deliveryLocation: text("delivery_location"), // Überschreibbarer Lieferort (aus Stammdaten übernommen, aber änderbar)
   
   // Status und Termine
@@ -2660,6 +2660,9 @@ export const orders = pgTable("orders", {
   deliveryNoteUploaded: boolean("delivery_note_uploaded").default(false), // Wurde ein Lieferschein hochgeladen?
   deliveryNoteCount: integer("delivery_note_count").default(0), // Anzahl hochgeladener Lieferscheine
   lastDeliveryNoteUpload: timestamp("last_delivery_note_upload"), // Zeitpunkt des letzten Lieferschein-Uploads
+  
+  // SECURITY: Idempotency-Schlüssel für sichere, deduplizierte Bestellerstellung
+  idempotencyKey: text("idempotency_key").unique(), // Unique constraint für Idempotenz-Check (verhindert SQL-Injection)
 });
 
 export const insertOrderSchema = createInsertSchema(orders).omit({
@@ -2669,7 +2672,47 @@ export const insertOrderSchema = createInsertSchema(orders).omit({
   totalAmount: true // wird aus den Positionen berechnet
 });
 
+// Zentrale Orders-Validierungs-Schema für beide Frontend und Backend
+export const orderValidationSchema = insertOrderSchema.extend({
+  // Idempotenz-Unterstützung
+  idempotencyKey: z.string().optional(),
+  
+  // Enhanced validation für Order-Creation 
+  orderItems: z.array(z.object({
+    productId: z.number().positive("Produkt-ID muss positiv sein").optional(),
+    productName: z.string().min(1, "Produktname ist erforderlich"),
+    quantity: z.number().min(1, "Menge muss mindestens 1 sein"),
+    unitPrice: z.number().min(0, "Einzelpreis muss mindestens 0 sein"),
+    unit: z.string().default("stk"),
+    packageCount: z.number().min(1).default(1),
+    packageQuantity: z.number().min(1).default(1),
+  })).min(1, "Mindestens ein Artikel muss bestellt werden"),
+  
+  // Pflichtfelder
+  supplierId: z.number().positive("Lieferant muss ausgewählt werden"),
+  warehouseId: z.number().positive("Lager muss ausgewählt werden").optional(),
+  
+  // Status validation
+  status: z.enum(["open", "ordered", "partial", "delivered", "canceled"]).default("open"),
+  
+  // Datums-Validierung
+  expectedDeliveryDate: z.union([
+    z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Datum muss im Format YYYY-MM-DD sein"),
+    z.date()
+  ]).transform((val) => {
+    if (typeof val === 'string') {
+      const date = new Date(val);
+      if (isNaN(date.getTime())) {
+        throw new Error("Ungültiges Lieferdatum");
+      }
+      return val;
+    }
+    return val.toISOString().split('T')[0];
+  }).optional(),
+});
+
 export type InsertOrder = z.infer<typeof insertOrderSchema>;
+export type OrderValidation = z.infer<typeof orderValidationSchema>;
 export type Order = typeof orders.$inferSelect;
 
 // Bestellpositionen-Tabelle
@@ -2796,9 +2839,9 @@ export const orderRelations = relations(orders, ({ many, one }) => ({
     fields: [orders.supplierId],
     references: [suppliers.id],
   }),
-  location: one(locations, {
-    fields: [orders.locationId],
-    references: [locations.id],
+  warehouse: one(warehouses, {
+    fields: [orders.warehouseId],
+    references: [warehouses.id],
   }),
   creator: one(users, {
     fields: [orders.createdById],
@@ -2892,9 +2935,9 @@ export const orderRelationsExtended = relations(orders, ({ many, one }) => ({
     fields: [orders.supplierId],
     references: [suppliers.id],
   }),
-  location: one(locations, {
-    fields: [orders.locationId],
-    references: [locations.id],
+  warehouse: one(warehouses, {
+    fields: [orders.warehouseId],
+    references: [warehouses.id],
   }),
   creator: one(users, {
     fields: [orders.createdById],

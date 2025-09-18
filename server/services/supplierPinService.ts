@@ -7,10 +7,13 @@ import * as qrcode from 'qrcode';
 import crypto from 'crypto';
 
 /**
- * Generiert einen 4-stelligen PIN-Code
+ * Generiert einen sicheren 4-stelligen PIN-Code mit crypto.randomBytes
  */
 export function generatePinCode(): string {
-  return Math.floor(1000 + Math.random() * 9000).toString();
+  // Sichere PIN-Generierung mit crypto.randomBytes
+  const bytes = crypto.randomBytes(2);
+  const pin = (bytes.readUInt16BE(0) % 9000) + 1000;
+  return pin.toString();
 }
 
 /**

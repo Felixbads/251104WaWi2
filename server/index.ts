@@ -171,6 +171,7 @@ app.get('/api/inter-app/health', async (req, res) => {
 
 // SECURITY: Import unified authentication system
 import authRouter from './routes/auth';
+import { replitAuthMiddleware } from './auth/replit-auth';
 
 // Public routes that don't need authentication
 const publicRoutes = [

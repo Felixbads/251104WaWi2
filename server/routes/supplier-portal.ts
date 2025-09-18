@@ -5,11 +5,12 @@
  */
 
 import { Router, Request, Response } from 'express';
-import { rawDb } from '../db';
+import { rawDb, pool } from '../db';
 import { validatePin } from '../services/supplierPinService';
 // DEPRECATED: import { emailService } from '../utils/enhancedEmailService'; 
 // Supplier-Portal nutzt jetzt sichere E-Mail-Services
 import { validatePortalToken } from '../services/supplierPortalService';
+import crypto from 'crypto';
 
 const router = Router();
 
@@ -18,6 +19,45 @@ const jsonResponse = (res: Response, statusCode: number = 200, data: any) => {
   res.setHeader('Content-Type', 'application/json');
   res.status(statusCode).json(data);
 };
+
+/**
+ * Validates a supplier session token
+ * Returns the supplier ID if valid, null if invalid
+ */
+async function validateSession(sessionToken: string): Promise<{ supplierId: number; supplierName?: string } | null> {
+  try {
+    if (!sessionToken) {
+      return null;
+    }
+
+    const result = await rawDb.query(
+      `SELECT sp.supplier_id, sp.session_expires_at, s.name as supplier_name
+       FROM supplier_access_pins sp
+       LEFT JOIN suppliers s ON sp.supplier_id = s.id
+       WHERE sp.session_token = $1 AND sp.is_active = true`,
+      [sessionToken]
+    );
+
+    if (result.rows.length === 0) {
+      return null;
+    }
+
+    const session = result.rows[0];
+    
+    // Check if session has expired
+    if (new Date(session.session_expires_at) < new Date()) {
+      return null;
+    }
+
+    return {
+      supplierId: session.supplier_id,
+      supplierName: session.supplier_name
+    };
+  } catch (error) {
+    console.error('[SUPPLIER-PORTAL] validateSession error:', error);
+    return null;
+  }
+}
 
 /**
  * Simple test endpoint
@@ -50,7 +90,7 @@ router.post('/authenticate', async (req: Request, res: Response) => {
       });
     }
 
-    console.log('[SUPPLIER-PORTAL] Access token found:', accessToken.substring(0, 10) + '...');
+    console.log('[SUPPLIER-PORTAL] Access token received for authentication');
 
     // Verwende zentralen Validierungsservice
     const validation = await validatePortalToken(accessToken);
@@ -66,8 +106,8 @@ router.post('/authenticate', async (req: Request, res: Response) => {
     console.log('[SUPPLIER-PORTAL] Token ist gültig, führe Authentifizierung durch');
 
     // Generiere sicheres Session Token mit crypto.randomBytes
-    const sessionToken = require('crypto').randomBytes(32).toString('hex');
-    const sessionExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 Stunden
+    const sessionToken = crypto.randomBytes(32).toString('hex');
+    const sessionExpiry = new Date(Date.now() + 12 * 60 * 60 * 1000); // 12 Stunden (Security Requirement)
 
     // Update PIN mit Session-Token und Ablaufzeit
     await rawDb.query(
@@ -111,38 +151,20 @@ router.get('/supplier-data', async (req: Request, res: Response) => {
       });
     }
 
-    console.log('[SUPPLIER-PORTAL] Session Token gefunden:', sessionToken.substring(0, 10) + '...');
+    console.log('[SUPPLIER-PORTAL] Session token received for validation');
 
-    // Extract supplier ID from session token
-    const sessionCheck = await rawDb.query(
-      `SELECT sp.supplier_id, sp.session_expires_at 
-       FROM supplier_access_pins sp 
-       WHERE sp.session_token = $1 AND sp.is_active = true`,
-      [sessionToken]
-    );
-
-    console.log('[SUPPLIER-PORTAL] Session Check Ergebnis:', sessionCheck.rows);
-
-    if (sessionCheck.rows.length === 0) {
-      console.log('[SUPPLIER-PORTAL] Session nicht gefunden oder inaktiv');
+    // Use validateSession helper function
+    const validatedSession = await validateSession(sessionToken);
+    if (!validatedSession) {
+      console.log('[SUPPLIER-PORTAL] Session validation failed');
       return res.status(401).json({
         success: false,
-        error: 'Ungültige Session'
+        error: 'Ungültige oder abgelaufene Session'
       });
     }
-
-    const session = sessionCheck.rows[0];
-    const supplierId = session.supplier_id;
-
-    console.log('[SUPPLIER-PORTAL] Supplier ID aus Session extrahiert:', supplierId);
     
-    if (new Date(session.session_expires_at) < new Date()) {
-      console.log('[SUPPLIER-PORTAL] Session abgelaufen');
-      return res.status(401).json({
-        success: false,
-        error: 'Session abgelaufen'
-      });
-    }
+    const supplierId = validatedSession.supplierId;
+    console.log('[SUPPLIER-PORTAL] Supplier ID aus Session extrahiert:', supplierId);
 
     // Get supplier data
     console.log('[SUPPLIER-PORTAL] Lade Supplier-Daten für ID:', supplierId);
@@ -212,26 +234,12 @@ router.get('/supplier/:supplierId', async (req: Request, res: Response) => {
       });
     }
 
-    // Verify session token
-    const sessionCheck = await rawDb.query(
-      `SELECT sp.supplier_id, sp.session_expires_at 
-       FROM supplier_access_pins sp 
-       WHERE sp.session_token = $1 AND sp.supplier_id = $2 AND sp.is_active = true`,
-      [sessionToken, supplierId]
-    );
-
-    if (sessionCheck.rows.length === 0) {
+    // Use validateSession helper function with tenant scoping
+    const validatedSession = await validateSession(sessionToken);
+    if (!validatedSession || validatedSession.supplierId !== supplierId) {
       return res.status(401).json({
         success: false,
-        error: 'Ungültige Session'
-      });
-    }
-
-    const session = sessionCheck.rows[0];
-    if (new Date(session.session_expires_at) < new Date()) {
-      return res.status(401).json({
-        success: false,
-        error: 'Session abgelaufen'
+        error: 'Ungültige Session oder unzureichende Berechtigung'
       });
     }
 
@@ -298,30 +306,16 @@ router.get('/products', async (req: Request, res: Response) => {
       });
     }
 
-    // Extract supplier ID from session token
-    const sessionCheck = await rawDb.query(
-      `SELECT sp.supplier_id, sp.session_expires_at 
-       FROM supplier_access_pins sp 
-       WHERE sp.session_token = $1 AND sp.is_active = true`,
-      [sessionToken]
-    );
-
-    if (sessionCheck.rows.length === 0) {
+    // Use validateSession helper function
+    const validatedSession = await validateSession(sessionToken);
+    if (!validatedSession) {
       return res.status(401).json({
         success: false,
-        error: 'Ungültige Session'
+        error: 'Ungültige oder abgelaufene Session'
       });
     }
-
-    const session = sessionCheck.rows[0];
-    const supplierId = session.supplier_id;
     
-    if (new Date(session.session_expires_at) < new Date()) {
-      return res.status(401).json({
-        success: false,
-        error: 'Session abgelaufen'
-      });
-    }
+    const supplierId = validatedSession.supplierId;
 
     // Get products for this supplier
     const productsQuery = `
@@ -384,18 +378,12 @@ router.get('/supplier/:supplierId/products', async (req: Request, res: Response)
       });
     }
 
-    // Verify session token
-    const sessionCheck = await rawDb.query(
-      `SELECT sp.supplier_id FROM supplier_access_pins sp 
-       WHERE sp.session_token = $1 AND sp.supplier_id = $2 AND sp.is_active = true 
-       AND sp.session_expires_at > NOW()`,
-      [sessionToken, supplierId]
-    );
-
-    if (sessionCheck.rows.length === 0) {
+    // Use validateSession helper function with tenant scoping
+    const validatedSession = await validateSession(sessionToken);
+    if (!validatedSession || validatedSession.supplierId !== supplierId) {
       return res.status(401).json({
         success: false,
-        error: 'Ungültige oder abgelaufene Session'
+        error: 'Ungültige Session oder unzureichende Berechtigung'
       });
     }
 
@@ -485,7 +473,7 @@ router.get('/orders', async (req: Request, res: Response) => {
       });
     }
 
-    // Get orders for this supplier
+    // Get orders with items in a single optimized query to fix N+1 problem
     const ordersQuery = `
       SELECT 
         o.id,
@@ -507,12 +495,15 @@ router.get('/orders', async (req: Request, res: Response) => {
     `;
 
     const ordersResult = await rawDb.query(ordersQuery, [supplierId]);
-
-    // Get order items for each order
-    const ordersWithItems = [];
-    for (const order of ordersResult.rows) {
+    const orderIds = ordersResult.rows.map(order => order.id);
+    
+    let orderItems = [];
+    
+    // Bulk load all order items in one query if we have orders
+    if (orderIds.length > 0) {
       const itemsQuery = `
         SELECT 
+          oi.order_id as "orderId",
           oi.id,
           oi.product_name as "productName",
           oi.quantity,
@@ -524,16 +515,19 @@ router.get('/orders', async (req: Request, res: Response) => {
           p.supplier_sku as "supplierSku"
         FROM order_items oi
         LEFT JOIN products p ON oi.product_id = p.id
-        WHERE oi.order_id = $1
+        WHERE oi.order_id = ANY($1)
+        ORDER BY oi.product_name
       `;
 
-      const itemsResult = await rawDb.query(itemsQuery, [order.id]);
-      
-      ordersWithItems.push({
-        ...order,
-        items: itemsResult.rows
-      });
+      const itemsResult = await rawDb.query(itemsQuery, [orderIds]);
+      orderItems = itemsResult.rows;
     }
+    
+    // Group items by order
+    const ordersWithItems = ordersResult.rows.map(order => ({
+      ...order,
+      items: orderItems.filter(item => item.orderId === order.id)
+    }));
 
     res.json({
       success: true,
@@ -568,18 +562,12 @@ router.get('/supplier/:supplierId/orders', async (req: Request, res: Response) =
       });
     }
 
-    // Verify session token
-    const sessionCheck = await rawDb.query(
-      `SELECT sp.supplier_id FROM supplier_access_pins sp 
-       WHERE sp.session_token = $1 AND sp.supplier_id = $2 AND sp.is_active = true 
-       AND sp.session_expires_at > NOW()`,
-      [sessionToken, supplierId]
-    );
-
-    if (sessionCheck.rows.length === 0) {
+    // Use validateSession helper function with tenant scoping
+    const validatedSession = await validateSession(sessionToken);
+    if (!validatedSession || validatedSession.supplierId !== supplierId) {
       return res.status(401).json({
         success: false,
-        error: 'Ungültige oder abgelaufene Session'
+        error: 'Ungültige Session oder unzureichende Berechtigung'
       });
     }
 

@@ -6248,6 +6248,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Registriere Bestellungs-Routen
   app.use(`${API_PREFIX}/orders`, ordersRouter);
+  
+  // Import and register orders-v4 router CRITICAL FIX - Route Registration Issue Fixed
+  const ordersV4Router = (await import('./routes/orders-v4')).default;
+  app.use(`${API_PREFIX}/orders-v4`, ordersV4Router);
+  console.log('[SERVER] CRITICAL FIX: Orders-v4 router mounted at /api/orders-v4 - Route Registration Complete');
+  
   app.use(`${API_PREFIX}/bulk-orders`, bulkOrdersRouter);
   
   // Order Items API für Produkthinzufügung in Detailansicht
