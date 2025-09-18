@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { storage } from '../storage';
 import { db } from '../db';
-import { and, asc, desc, eq, gte, ilike, inArray, isNull, lt, or, sql, lte } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, ilike, inArray, isNull, lt, or, sql, lte, not } from 'drizzle-orm';
 import { 
   orders, 
   orderItems,
@@ -16,6 +16,7 @@ import {
 } from '../../shared/schema';
 import { format, addWeeks } from 'date-fns';
 import { createAndSendOrderEmail } from '../utils/orderEmailUtils';
+import { receiptTransaction, receiptTransactionSchema } from '../services/inventoryTransactions';
 // Direkte sendEmail Funktion anstelle des Imports
 function sendEmail(to: string, from: string, subject: string, html: string) {
   // Einfache E-Mail-Sende-Funktion
@@ -60,10 +61,10 @@ router.get('/dashboard/open', async (req: Request, res: Response) => {
         // Noch nicht vollständig geliefert (actualDeliveryDate ist null)
         isNull(orders.actualDeliveryDate),
         // Ausschließen von bereits abgeschlossenen Bestellungen
-        or(
-          orders.status !== 'received',
-          orders.status !== 'completed',
-          orders.status !== 'cancelled'
+        and(
+          not(eq(orders.status, 'received')),
+          not(eq(orders.status, 'completed')),
+          not(eq(orders.status, 'cancelled'))
         )
       ))
       .orderBy(desc(orders.createdAt), asc(orders.expectedDeliveryDate))
@@ -261,43 +262,46 @@ router.get('/', async (req: Request, res: Response) => {
     //   }
     // }
     
-    // Erstelle die Basisabfrage für die Zählung und die eigentliche Datenabfrage
-    let countQuery = db.select({ count: sql`count(*)` }).from(orders);
-    let query = db.select().from(orders);
-
+    // Erstelle die Filter-Bedingungen
+    const whereConditions: any[] = [];
+    
     // Status-Filter hinzufügen, wenn definiert
     if (statusFilter) {
-      countQuery = countQuery.where(eq(orders.status, statusFilter));
-      query = query.where(eq(orders.status, statusFilter));
+      whereConditions.push(eq(orders.status, statusFilter));
     }
     
     // Supplier-Filter hinzufügen, wenn definiert
     if (supplierId) {
       const supplierIdNum = parseInt(supplierId);
       if (!isNaN(supplierIdNum)) {
-        countQuery = countQuery.where(eq(orders.supplierId, supplierIdNum));
-        query = query.where(eq(orders.supplierId, supplierIdNum));
+        whereConditions.push(eq(orders.supplierId, supplierIdNum));
       }
     }
     
     // Suchfilter hinzufügen, wenn definiert
     if (searchTerm) {
-      const searchFilter = or(
+      whereConditions.push(or(
         ilike(orders.orderNumber, `%${searchTerm}%`),
         ilike(orders.supplierName, `%${searchTerm}%`)
-      );
-      countQuery = countQuery.where(searchFilter);
-      query = query.where(searchFilter);
+      ));
     }
     
     // Benutzerberechtigungen hinzufügen, falls nötig
     if (userConstraints.length > 0) {
-      countQuery = countQuery.where(or(...userConstraints));
-      query = query.where(or(...userConstraints));
+      whereConditions.push(or(...userConstraints));
     }
+
+    // Erstelle die Abfragen mit allen Bedingungen kombiniert
+    const countQuery = whereConditions.length > 0 
+      ? db.select({ count: sql`count(*)` }).from(orders).where(and(...whereConditions))
+      : db.select({ count: sql`count(*)` }).from(orders);
+      
+    // Erstelle die Hauptabfrage mit Sortierung und Paginierung
+    const baseQuery = whereConditions.length > 0 
+      ? db.select().from(orders).where(and(...whereConditions))
+      : db.select().from(orders);
     
-    // Sortierung und Paginierung für die Hauptabfrage
-    query = query
+    const query = baseQuery
       .orderBy(sortField === 'id' ? orders.id : 
                sortField === 'orderDate' ? orders.orderDate : 
                sortField === 'expectedDeliveryDate' ? orders.expectedDeliveryDate : 
@@ -443,11 +447,11 @@ router.post('/bulk', async (req: Request, res: Response) => {
     const insertedOrder = await db
       .insert(orders)
       .values({
-        orderNumber,
+        order_number: orderNumber,
         supplierId,
         supplierName: supplier.name,
         locationId: warehouseId || null,
-        locationName: warehouse?.name || null,
+        warehouseName: warehouse?.name || null,
         status: 'draft',
         priority,
         expectedDeliveryDate: expectedDeliveryDate ? new Date(expectedDeliveryDate) : null,
@@ -664,11 +668,11 @@ router.post('/orders', async (req: Request, res: Response) => {
       const insertedOrder = await db
         .insert(orders)
         .values({
-          orderNumber,
+          order_number: orderNumber,
           supplierId,
           supplierName: supplierName,
           locationId: warehouseId,
-          locationName: locationName,
+          warehouseName: locationName,
           status: 'draft', // Entwurf
           orderDate: new Date(),
                 // Verwende das zuvor validierte und konvertierte Datum
@@ -893,12 +897,12 @@ router.post('/orders/:id/copy', async (req: Request, res: Response) => {
       const latestOrderQuery = await db
         .select()
         .from(orders)
-        .where(ilike(orders.orderNumber, `ORD-${dateString}-%`))
+        .where(ilike(orders.order_number, `ORD-${dateString}-%`))
         .orderBy(desc(orders.orderNumber))
         .limit(1);
       
       if (latestOrderQuery.length > 0) {
-        const latestOrderNumber = latestOrderQuery[0].orderNumber;
+        const latestOrderNumber = latestOrderQuery[0].order_number;
         const match = latestOrderNumber.match(/ORD-\d{8}-(\d+)/);
         if (match) {
           sequenceNumber = parseInt(match[1]) + 1;
@@ -912,11 +916,11 @@ router.post('/orders/:id/copy', async (req: Request, res: Response) => {
     
     // Neue Bestellung erstellen
     const newOrderData = {
-      orderNumber: newOrderNumber,
+      order_number: newOrderNumber,
       warehouseId: sourceOrder[0].warehouseId,
       supplierId: sourceOrder[0].supplierId,
       supplierName: sourceOrder[0].supplierName,
-      locationName: sourceOrder[0].locationName,
+      warehouseName: sourceOrder[0].warehouseName,
       status: 'draft',
       orderDate: today,
       expectedDeliveryDate: sourceOrder[0].expectedDeliveryDate,
@@ -933,7 +937,7 @@ router.post('/orders/:id/copy', async (req: Request, res: Response) => {
     // Bestellpositionen kopieren
     if (sourceItems.length > 0) {
       const newItemsData = sourceItems.map(item => ({
-        orderId: newOrder.id,
+        order_id: newOrder.id,
         productId: item.productId,
         productName: item.productName,
         sku: item.sku,
@@ -1078,8 +1082,8 @@ router.put('/:id', async (req: Request, res: Response) => {
     console.error('Error type:', typeof error);
     console.error('Error message:', error instanceof Error ? error.message : String(error));
     console.error('Error stack:', error instanceof Error ? error.stack : 'No stack');
-    console.error('Order ID:', id);
-    console.error('Update data received:', JSON.stringify(updateData, null, 2));
+    console.error('Order ID:', orderId);
+    console.error('Update data received:', JSON.stringify(req.body, null, 2));
     res.status(500).json({ error: 'Fehler beim Aktualisieren der Bestellung', details: error instanceof Error ? error.message : String(error) });
   }
 });
@@ -1112,7 +1116,7 @@ router.post('/:id/items', async (req: Request, res: Response) => {
     const newItem = await db
       .insert(orderItems)
       .values({
-        orderId,
+        order_id: orderId,
         productId: itemData.product_id || itemData.productId || null,
         productName: itemData.product_name || itemData.productName || 'Unbenanntes Produkt',
         quantity: itemData.quantity || 1,
@@ -1124,7 +1128,6 @@ router.post('/:id/items', async (req: Request, res: Response) => {
         packageInfo: itemData.package_info || itemData.packageInfo || null,
         vatRate: itemData.vat_rate || itemData.vatRate || 19,
         vatAmount: ((itemData.quantity || 1) * (itemData.unit_price || itemData.unitPrice || 0)) * (itemData.vat_rate || itemData.vatRate || 19) / 100,
-        netAmount: ((itemData.quantity || 1) * (itemData.unit_price || itemData.unitPrice || 0)) - (((itemData.quantity || 1) * (itemData.unit_price || itemData.unitPrice || 0)) * (itemData.vat_rate || itemData.vatRate || 19) / 100),
         grossAmount: (itemData.quantity || 1) * (itemData.unit_price || itemData.unitPrice || 0)
       })
       .returning();
@@ -1256,7 +1259,7 @@ router.put('/:id/items', async (req: Request, res: Response) => {
           const newItem = await db
             .insert(orderItems)
             .values({
-              orderId,
+              order_id: orderId,
               productId: productId || null,
               productName: productName || 'Unbenanntes Produkt',
               quantity: quantity || 1,
@@ -1265,7 +1268,6 @@ router.put('/:id/items', async (req: Request, res: Response) => {
               totalPrice: totalPrice || (quantity || 1) * (unitPrice || 0),
               vatRate: 19,
               vatAmount: ((quantity || 1) * (unitPrice || 0)) * 19 / 100,
-              netAmount: ((quantity || 1) * (unitPrice || 0)) - (((quantity || 1) * (unitPrice || 0)) * 19 / 100),
               grossAmount: (quantity || 1) * (unitPrice || 0)
             })
             .returning();
@@ -1359,11 +1361,11 @@ router.patch('/orders/:id', async (req: Request, res: Response) => {
     };
     
     // Benutzerinformation für die Aktualisierung
-    if (req.user) {
-      updates.updatedBy = req.user.id;
-      updates.updatedByName = req.user.username;
-      updates.updatedByEmail = req.user.email;
-      updates.updatedByRole = req.user.role;
+    if ((req as any).user) {
+      updates.updatedBy = (req as any).user.id;
+      updates.updatedByName = (req as any).user.username;
+      updates.updatedByEmail = (req as any).user.email;
+      updates.updatedByRole = (req as any).user.role;
     }
     
     // Status-Historie aktualisieren, falls ein neuer Status gesetzt wird
@@ -1388,8 +1390,8 @@ router.patch('/orders/:id', async (req: Request, res: Response) => {
       const newStatusEntry = {
         status: updateData.status,
         timestamp: new Date().toISOString(),
-        userId: req.user?.id || null,
-        userName: req.user?.username || null,
+        userId: (req as any).user?.id || null,
+        userName: (req as any).user?.username || null,
         note: updateData.statusNote || `Status geändert von ${existingOrder.status} auf ${updateData.status}`
       };
       
@@ -1447,7 +1449,7 @@ router.patch('/orders/:id', async (req: Request, res: Response) => {
           const newItem = await db
             .insert(orderItems)
             .values({
-              orderId,
+              order_id: orderId,
               productId: item.productId || null,
               productName: item.productName || 'Unbenanntes Produkt',
               quantity: item.quantity || 1,
@@ -1796,332 +1798,53 @@ router.post('/orders/:id/mark-sent', async (req: Request, res: Response) => {
   }
 });
 
-// Wareneingang für eine Bestellung buchen
 router.post('/orders/:id/receipt', async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
-    const orderId = parseInt(id);
-    const { 
-      receiptDate = new Date(),
-      receivedBy,
-      notes,
-      items,
-      updateInventory = true,
-      createMovements = true
-    } = req.body;
-    
+    const orderId = parseInt(req.params.id);
     if (isNaN(orderId)) {
-      return res.status(400).json({ error: 'Ungültige Bestellungs-ID' });
-    }
-    
-    if (!items || !Array.isArray(items)) {
-      return res.status(400).json({ error: 'Keine Artikel für den Wareneingang angegeben' });
-    }
-    
-    // Validiere, dass keine abgelaufenen MHD-Werte vorhanden sind
-    const today = new Date();
-    today.setHours(0, 0, 0, 0); // Auf Tagesbasis vergleichen
-    
-    const expiredItems = items.filter(item => {
-      if (item.expiryDate) {
-        const expiryDate = new Date(item.expiryDate);
-        expiryDate.setHours(0, 0, 0, 0);
-        return expiryDate < today;
-      }
-      return false;
-    });
-    
-    if (expiredItems.length > 0) {
-      return res.status(400).json({
-        error: 'Abgelaufene MHD-Werte nicht zulässig',
-        message: 'Es wurden Artikel mit bereits abgelaufenen Mindesthaltbarkeitsdaten angegeben. Prüfen Sie die angegebenen MHD-Werte.',
-        items: expiredItems.map(item => ({
-          productId: item.productId,
-          productName: item.productName,
-          expiryDate: item.expiryDate
-        }))
-      });
-    }
-    
-    // Bestellung abrufen
-    const orderResult = await db
-      .select()
-      .from(orders)
-      .where(eq(orders.id, orderId))
-      .limit(1);
-    
-    if (!orderResult || orderResult.length === 0) {
-      return res.status(404).json({ error: 'Bestellung nicht gefunden' });
-    }
-    
-    const order = orderResult[0];
-    
-    // Bestellung kann nur als geliefert markiert werden, wenn sie im Status "sent" ist
-    if (order.status !== 'sent') {
-      return res.status(400).json({
-        error: 'Wareneingang kann nicht gebucht werden',
-        message: `Die Bestellung hat den Status "${order.status}" und muss im Status "sent" sein, um einen Wareneingang zu buchen.`
-      });
-    }
-    
-    // Existierende Bestellpositionen abrufen
-    const existingItemsResult = await db
-      .select()
-      .from(orderItems)
-      .where(eq(orderItems.orderId, orderId));
-    
-    const existingItems = existingItemsResult || [];
-    const existingItemsMap = existingItems.reduce((map, item) => {
-      map[item.id] = item;
-      return map;
-    }, {});
-    
-    // Wareneingang für jede Position aktualisieren
-    const itemUpdates = items.map(async (receiptItem: any) => {
-      if (!receiptItem.id) {
-        return Promise.reject(new Error('Artikel-ID fehlt in den Wareneingangsdaten'));
-      }
-      
-      const itemId = receiptItem.id;
-      const existingItem = existingItemsMap[itemId];
-      
-      if (!existingItem) {
-        return Promise.reject(new Error(`Artikel mit ID ${itemId} gehört nicht zu dieser Bestellung`));
-      }
-      
-      // Standardwerte für fehlende Felder
-      const quantityDelivered = receiptItem.quantityDelivered !== undefined ? 
-        receiptItem.quantityDelivered : existingItem.quantity;
-      
-      const receivedQuantity = receiptItem.receivedQuantity !== undefined ? 
-        receiptItem.receivedQuantity : quantityDelivered;
-      
-      // Artikel in der Bestellung aktualisieren
-      return db
-        .update(orderItems)
-        .set({
-          quantityDelivered,
-          receivedQuantity,
-          deliveryDate: new Date(receiptDate),
-          deliveredBy: receivedBy || req.user?.username || null,
-          deliveryNotes: receiptItem.notes || null,
-          updatedAt: new Date()
-        })
-        .where(eq(orderItems.id, itemId));
-    });
-    
-    // Alle Aktualisierungen ausführen
-    await Promise.all(itemUpdates);
-    
-    // Lager-ID für Lagerbestandsaktualisierungen abrufen
-    const warehouseId = order.warehouseId;
-    
-    if (!warehouseId) {
       return res.status(400).json({ 
-        error: 'Kein Lager zugeordnet',
-        message: 'Die Bestellung hat kein zugeordnetes Lager für die Bestandsaktualisierung'
+        error: 'Ungültige Bestellungs-ID'
       });
     }
-    
-    // Wenn gewünscht, Lagerbestände aktualisieren
-    if (updateInventory) {
-      for (const item of items) {
-        // Nur Artikel mit einer Produkt-ID können im Lager aktualisiert werden
-        if (item.productId) {
-          try {
-            // Überprüfen, ob der Artikel bereits im Lagerbestand ist
-            const inventoryResult = await db
-              .select()
-              .from(inventoryItems)
-              .where(
-                and(
-                  eq(inventoryItems.warehouseId, warehouseId),
-                  eq(inventoryItems.productId, item.productId)
-                )
-              )
-              .limit(1);
-            
-            const quantityToAdd = item.quantityDelivered || item.receivedQuantity || 0;
-            
-            // Wenn der Artikel im Lager existiert, Bestand aktualisieren
-            if (inventoryResult && inventoryResult.length > 0) {
-              const currentQuantity = inventoryResult[0].quantity || 0;
-              
-              await db
-                .update(inventoryItems)
-                .set({
-                  quantity: currentQuantity + quantityToAdd,
-                  updatedAt: new Date()
-                })
-                .where(
-                  and(
-                    eq(inventoryItems.warehouseId, warehouseId),
-                    eq(inventoryItems.productId, item.productId)
-                  )
-                );
-            } else {
-              // Ansonsten Artikel neu zum Lager hinzufügen
-              await db
-                .insert(inventoryItems)
-                .values({
-                  warehouseId,
-                  productId: item.productId,
-                  quantity: quantityToAdd,
-                  status: 'active',
-                  createdAt: new Date(),
-                  updatedAt: new Date()
-                });
-            }
-            
-            // Wenn ein MHD (expiryDate) angegeben ist, erstellen wir eine Charge (Batch)
-            if (item.expiryDate) {
-              try {
-                // Generiere Chargennummer, falls keine angegeben wurde
-                const batchNumber = item.batchNumber || `${order.orderNumber}-${new Date().toISOString().slice(0, 10)}`;
-                
-                // Prüfen, ob die Charge bereits existiert
-                const existingBatch = await db
-                  .select()
-                  .from(productBatches)
-                  .where(
-                    and(
-                      eq(productBatches.warehouseId, warehouseId),
-                      eq(productBatches.productId, item.productId),
-                      eq(productBatches.batchNumber, batchNumber)
-                    )
-                  )
-                  .limit(1);
-                
-                const quantityToAdd = item.quantityDelivered || item.receivedQuantity || 0;
-                
-                if (existingBatch && existingBatch.length > 0) {
-                  // Bestandserhöhung bei existierender Charge
-                  const currentBatchQuantity = existingBatch[0].currentQuantity || 0;
-                  
-                  await db
-                    .update(productBatches)
-                    .set({
-                      currentQuantity: currentBatchQuantity + quantityToAdd,
-                      updatedAt: new Date()
-                    })
-                    .where(eq(productBatches.id, existingBatch[0].id));
-                } else {
-                  // Neue Charge erstellen
-                  await db
-                    .insert(productBatches)
-                    .values({
-                      productId: item.productId,
-                      warehouseId: warehouseId,
-                      batchNumber: batchNumber,
-                      initialQuantity: quantityToAdd,
-                      currentQuantity: quantityToAdd,
-                      expiryDate: new Date(item.expiryDate),
-                      receivedDate: new Date(receiptDate),
-                      status: 'active',
-                      locationInWarehouse: item.locationInWarehouse || null,
-                      notes: item.notes || null,
-                      createdAt: new Date(),
-                      updatedAt: new Date()
-                    });
-                }
-              } catch (batchError) {
-                console.error(`Fehler beim Erstellen/Aktualisieren der Charge für Produkt ${item.productId}:`, batchError);
-                // Fehler protokollieren, aber weitermachen
-              }
-            }
-            
-            // Wenn gewünscht, Lagerbewegungen protokollieren
-            if (createMovements) {
-              const productData = await db
-                .select()
-                .from(products)
-                .where(eq(products.id, item.productId))
-                .limit(1);
-              
-              await db
-                .insert(inventoryMovements)
-                .values({
-                  warehouseId,
-                  productId: item.productId,
-                  quantity: item.quantityDelivered,
-                  movementType: 'purchase-received',
-                  notes: `Wareneingang aus Bestellung ${order.orderNumber}`,
-                  referenceId: orderId.toString(),
-                  referenceType: 'order',
-                  userId: req.user ? req.user.id.toString() : null,
-                  userName: req.user ? req.user.username : null,
-                  price: item.price !== undefined ? item.price.toString() : null,
-                  sku: productData && productData.length > 0 ? productData[0].sku : null
-                });
-            }
-          } catch (inventoryError) {
-            console.error(`Fehler bei der Lageraktualisierung für Produkt ${item.productId}:`, inventoryError);
-            // Fehler protokollieren, aber weitermachen
-          }
-        }
-      }
+
+    // User-Authentication prüfen
+    if (!(req as any).user) {
+      return res.status(401).json({ error: 'Authentication required' });
     }
-    
-    // Statushistorie aktualisieren
-    let currentHistory = [];
-    try {
-      if (order.statusHistory) {
-        if (typeof order.statusHistory === 'string') {
-          currentHistory = JSON.parse(order.statusHistory);
-        } else if (Array.isArray(order.statusHistory)) {
-          currentHistory = order.statusHistory;
-        }
-      }
-    } catch (e) {
-      console.error('Fehler beim Parsen der Statushistorie:', e);
-      currentHistory = [];
-    }
-    
-    // Neuen Statuseintrag erstellen
-    const newStatusEntry = {
-      status: "delivered",
-      timestamp: new Date().toISOString(),
-      userId: req.user?.id || null,
-      userName: req.user?.username || null,
-      note: notes || "Wareneingang gebucht"
-    };
-    
-    // Bestellung als geliefert markieren
-    const updatedOrderResult = await db
-      .update(orders)
-      .set({
-        status: 'delivered',
-        deliveryDate: new Date(receiptDate),
-        receivedBy: receivedBy || req.user?.username || null,
-        notes: notes ? (order.notes ? `${order.notes}\n\nWareneingang: ${notes}` : notes) : order.notes,
-        statusHistory: JSON.stringify([...currentHistory, newStatusEntry]),
-        updatedAt: new Date(),
-        updatedBy: req.user?.id || null,
-        updatedByName: req.user?.username || null,
-        updatedByEmail: req.user?.email || null,
-        updatedByRole: req.user?.role || null
-      })
-      .where(eq(orders.id, orderId))
-      .returning();
-    
-    if (!updatedOrderResult || updatedOrderResult.length === 0) {
-      return res.status(500).json({ error: 'Fehler beim Aktualisieren der Bestellung' });
-    }
-    
-    // Aktualisierte Bestellpositionen abrufen
-    const updatedItemsResult = await db
-      .select()
-      .from(orderItems)
-      .where(eq(orderItems.orderId, orderId));
-    
-    res.json({
-      order: updatedOrderResult[0],
-      items: updatedItemsResult,
-      message: "Wareneingang wurde erfolgreich gebucht"
+
+    // Schema-Validierung mit receiptTransactionSchema
+    const parsed = receiptTransactionSchema.parse({ 
+      ...req.body, 
+      orderId,
+      processedBy: (req as any).user.id 
     });
+
+    // Service-Call
+    const result = await receiptTransaction(db, parsed);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Wareneingang erfolgreich gebucht',
+      data: result
+    });
+
   } catch (error) {
-    console.error('Fehler beim Buchen des Wareneingangs:', error);
-    res.status(500).json({ error: 'Fehler beim Buchen des Wareneingangs' });
+    // Spezifische Error-Behandlung
+    if (error.name === 'ZodError') {
+      return res.status(400).json({ 
+        error: 'Validierungsfehler', 
+        details: error.errors 
+      });
+    }
+    if (error.message.includes('nicht gefunden')) {
+      return res.status(404).json({ error: error.message });
+    }
+    if (error.message.includes('Status') || error.message.includes('erlaubt')) {
+      return res.status(409).json({ error: error.message });
+    }
+    
+    console.error('Receipt error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
