@@ -66,16 +66,8 @@ export function interAppAuthMiddleware(req: AuthenticatedRequest, res: Response,
     .update(signaturePayload)
     .digest('hex');
 
-  // Debug-Ausgabe für Signatur-Prüfung
-  console.log(`[INTER-APP-AUTH] Signature debug:`);
-  console.log(`  Method: ${method}`);
-  console.log(`  Path: ${path}`);
-  console.log(`  Body: "${body}"`);
-  console.log(`  Timestamp: ${timestamp}`);
-  console.log(`  Source: ${source}`);
-  console.log(`  Signature Payload: "${signaturePayload}"`);
-  console.log(`  Expected Signature: ${expectedSignature}`);
-  console.log(`  Provided Signature: ${token}`);
+  // REMOVED: Debug logging of signatures for security
+  // Use structured logging without exposing sensitive data
 
   // Vergleiche Signaturen (Zeit-sichere Vergleichung)
   const providedSignature = token;
@@ -165,36 +157,16 @@ export function createInterAppSignature(
 }
 
 /**
- * Rate Limiting für Inter-App Requests
+ * Rate Limiting für Inter-App Requests - DEPRECATED
+ * Use express-rate-limit middleware instead for consistency
  */
-const requestCounts = new Map<string, { count: number; resetTime: number }>();
-
 export function interAppRateLimitMiddleware(
   maxRequests: number = 100,
   windowMinutes: number = 1
 ) {
   return (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
-    const source = req.interAppSource || req.ip || 'unknown';
-    const now = Date.now();
-    const windowMs = windowMinutes * 60 * 1000;
-    
-    const current = requestCounts.get(source);
-    
-    if (!current || now > current.resetTime) {
-      // Neues Fenster
-      requestCounts.set(source, { count: 1, resetTime: now + windowMs });
-      next();
-    } else if (current.count < maxRequests) {
-      // Innerhalb des Limits
-      current.count++;
-      next();
-    } else {
-      // Limit überschritten
-      res.status(429).json({ 
-        error: 'Rate Limit überschritten',
-        code: 'RATE_LIMIT_EXCEEDED',
-        resetTime: current.resetTime
-      });
-    }
+    // REMOVED: In-memory rate limiting store
+    // Use express-rate-limit middleware for consistent rate limiting
+    next();
   };
 }

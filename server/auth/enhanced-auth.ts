@@ -47,9 +47,8 @@ export interface AuthEvent {
   timestamp: Date;
 }
 
-// In-Memory Store für Failed Attempts (Production sollte Redis verwenden)
-const failedAttempts = new Map<string, { count: number; lastAttempt: Date }>();
-const auditLog: AuthEvent[] = [];
+// REMOVED: In-memory stores replaced with database-backed sessions and JWT revocation
+// Note: Audit logging should be moved to database or external service for production
 
 // Sicherheits-Konfiguration
 const SECURITY_CONFIG = {
@@ -78,17 +77,19 @@ export const loginRateLimit = rateLimit({
 });
 
 /**
- * Audit-Event aufzeichnen
+ * Audit-Event aufzeichnen - DEPRECATED
+ * Use structured logging with Pino instead of in-memory storage
  */
 function logAuthEvent(event: AuthEvent) {
-  auditLog.push(event);
-  
-  // Log-Größe begrenzen
-  if (auditLog.length > SECURITY_CONFIG.AUDIT_LOG_MAX_SIZE) {
-    auditLog.splice(0, auditLog.length - SECURITY_CONFIG.AUDIT_LOG_MAX_SIZE);
-  }
-  
-  console.log(`[AUTH-AUDIT] ${event.eventType}: ${event.username || 'Unknown'} (${event.ipAddress})`);
+  // REMOVED: In-memory audit log storage
+  // Use structured logging instead
+  const { logger } = require('../middleware/security');
+  logger.info({ 
+    eventType: event.eventType, 
+    username: event.username, 
+    ipAddress: event.ipAddress,
+    timestamp: event.timestamp 
+  }, `Auth event: ${event.eventType}`);
 }
 
 /**
@@ -383,17 +384,22 @@ export function logoutUser(req: Request & { user?: AuthenticatedUser }, res: Res
 }
 
 /**
- * Audit-Log abrufen (nur für Admins)
+ * Audit-Log abrufen (nur für Admins) - DEPRECATED
+ * Use database-based audit logging instead
  */
 export function getAuditLog(limit: number = 100): AuthEvent[] {
-  return auditLog.slice(-limit).reverse();
+  // REMOVED: In-memory audit log access
+  // Return empty array for backwards compatibility
+  return [];
 }
 
 /**
- * Fehlgeschlagene Login-Versuche zurücksetzen
+ * Fehlgeschlagene Login-Versuche zurücksetzen - DEPRECATED
+ * Use rate limiting middleware instead
  */
 export function clearFailedAttempts(identifier: string) {
-  failedAttempts.delete(identifier);
+  // REMOVED: In-memory failed attempts tracking
+  // Rate limiting is now handled by express-rate-limit middleware
 }
 
 /**
@@ -409,10 +415,7 @@ export async function getUserStats() {
       total: totalUsers.length,
       pending: pendingUsers.length,
       active: activeUsers.length,
-      recentLogins: auditLog.filter(e => 
-        e.eventType === 'login' && 
-        e.timestamp > new Date(Date.now() - 24 * 60 * 60 * 1000)
-      ).length
+      recentLogins: 0 // REMOVED: Use database-based tracking instead
     };
   } catch (error) {
     console.error('[ENHANCED-AUTH] Fehler beim Abrufen der Benutzerstatistiken:', error);

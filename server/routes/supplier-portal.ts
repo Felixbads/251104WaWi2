@@ -65,8 +65,8 @@ router.post('/authenticate', async (req: Request, res: Response) => {
 
     console.log('[SUPPLIER-PORTAL] Token ist gültig, führe Authentifizierung durch');
 
-    // Generiere einfaches Session Token (mit Math.random für Kompatibilität)
-    const sessionToken = Math.random().toString(36).substring(2) + Math.random().toString(36).substring(2) + Math.random().toString(36).substring(2);
+    // Generiere sicheres Session Token mit crypto.randomBytes
+    const sessionToken = require('crypto').randomBytes(32).toString('hex');
     const sessionExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 Stunden
 
     // Update PIN mit Session-Token und Ablaufzeit

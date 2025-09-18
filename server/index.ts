@@ -169,8 +169,8 @@ app.get('/api/inter-app/health', async (req, res) => {
   }
 });
 
-// SECURITY: Add global authentication for all API routes except public ones
-import { replitAuthMiddleware } from './auth/replit-auth';
+// SECURITY: Import unified authentication system
+import authRouter from './routes/auth';
 
 // Public routes that don't need authentication
 const publicRoutes = [
@@ -1703,6 +1703,10 @@ app.get('/orders-data', (req, res) => {
   // Mount inventory-api router for alternative endpoint
   app.use('/api/inventory-api', inventoryApiRouter);
   console.log('[SERVER] Inventory API router mounted at /api/inventory-api');
+
+  // Mount auth routes FIRST for unified authentication system
+  app.use('/api/auth', authRouter);
+  console.log('[SERVER] Unified authentication routes mounted at /api/auth');
 
   // Mount supplier portal router FIRST to prevent Vite middleware conflicts
   const supplierPortalRouter = (await import('./routes/supplier-portal')).default;
