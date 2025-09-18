@@ -3,6 +3,7 @@ import { useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { format, addMonths, isValid } from "date-fns";
 import { de } from "date-fns/locale";
+import { z } from "zod";
 
 // UI Komponenten
 import {
@@ -63,43 +64,116 @@ import {
   Mail
 } from "lucide-react";
 
-// API-Funktion zum Speichern des Wareneingangs
-const saveGoodsReceipt = async (orderId: number, receiptData: any) => {
+// Zod-Schema für Wareneingang-Validierung
+const receiptRequestSchema = z.object({
+  receiptDate: z.coerce.date(),
+  notes: z.string().trim().max(2000).optional(),
+  items: z.array(
+    z.object({
+      orderItemId: z.number().int().positive(),
+      productId: z.number().int().positive(),
+      batchNumber: z.string().min(1),
+      expiryDate: z.coerce.date(),
+      receivedQuantity: z.number().positive(),
+      orderedQuantity: z.number().positive(),
+      warehouseId: z.number().int().positive(),
+      notes: z.string().trim().max(1000).optional(),
+    })
+  ).min(1, "Mindestens eine Position muss erfasst werden"),
+});
+
+// TypeScript-Typen basierend auf Zod-Schema
+type ReceiptRequest = z.infer<typeof receiptRequestSchema>;
+type ReceiptItem = ReceiptRequest['items'][0];
+
+// Frontend-spezifische Typen für bessere Typisierung
+interface BatchData {
+  quantity: number;
+  expiryDate: Date;
+  batchNumber: string;
+  lotNumber: string;
+  supplierReference: string;
+}
+
+interface ReceivedItemData {
+  orderItemId: number;
+  productId: number;
+  productName: string;
+  orderedQuantity: number;
+  receivedQuantity: number;
+  notes: string;
+  batches: BatchData[];
+}
+
+interface OrderData {
+  id: number;
+  orderNumber: string;
+  supplierName: string;
+  orderDate: string;
+  warehouseId: number;
+  orderItems: Array<{
+    id: number;
+    productId: number;
+    productName: string;
+    quantity: number;
+  }>;
+}
+
+// API-Funktion zum Speichern des Wareneingangs (Backend-kompatibel mit receiptTransactionSchema)
+const saveGoodsReceipt = async (orderId: number, receiptData: any, order: OrderData) => {
   console.log("Sende Wareneingang-Anfrage:", JSON.stringify(receiptData, null, 2));
   
-  // Transform the complex frontend structure to the simple backend format
-  const receivedItems = [];
-  
-  for (const item of receiptData.items) {
-    if (item.receivedQuantity > 0 && item.batches && item.batches.length > 0) {
-      // Create an entry for each batch
-      for (const batch of item.batches) {
-        if (batch.quantity > 0) {
-          receivedItems.push({
-            productId: item.productId,
-            receivedQuantity: batch.quantity,
-            expiryDate: batch.expiryDate,
-            batchNumber: batch.batchNumber
-          });
-        }
-      }
-    }
-  }
-  
-  // Das Format umwandeln, um sicherzustellen, dass wir das vom Server erwartete Format senden
-  const serverData = {
-    receivedItems: receivedItems
-  };
-  
-  console.log("Transformed server data:", JSON.stringify(serverData, null, 2));
-
   try {
+    // **KRITISCHER FIX**: Korrekte Payload-Struktur für Backend
+    const payload = {
+      orderId: orderId,
+      warehouseId: order.warehouseId, // order-property verwenden
+      deliveryDate: receiptData.receiptDate ? 
+        receiptData.receiptDate.toISOString().split('T')[0] : // YYYY-MM-DD Format
+        new Date().toISOString().split('T')[0],
+      receiptLines: receiptData.items.flatMap((item: ReceivedItemData) => 
+        item.batches
+          .filter(batch => batch.quantity > 0) // Nur Batches mit Menge > 0
+          .map(batch => ({
+            orderItemId: item.orderItemId,
+            productId: item.productId,
+            productName: item.productName, // HINZUFÜGEN: Erforderlich vom Backend
+            quantityOrdered: item.orderedQuantity, // HINZUFÜGEN: Erforderlich vom Backend
+            quantityReceived: batch.quantity,
+            batchNumber: batch.batchNumber || `BATCH-${orderId}-${item.productId}`,
+            expiryDate: batch.expiryDate ? 
+              batch.expiryDate.toISOString().split('T')[0] : // YYYY-MM-DD Format
+              undefined,
+            notes: item.notes?.trim() || "",
+            qualityStatus: (batch as any).qualityStatus || 'good' // HINZUFÜGEN: Default 'good'
+          }))
+      ).filter((line: any) => line.quantityReceived > 0), // Nur Linien mit Menge > 0
+      notes: receiptData.notes?.trim() || "",
+      processedBy: 1 // TODO: Aktuellen Benutzer verwenden
+    };
+    
+    console.log("Backend-kompatible Payload:", JSON.stringify(payload, null, 2));
+    
+    // Validierung vor API-Call
+    if (!payload.orderId) {
+      throw new Error("Bestellung nicht gefunden");
+    }
+    
+    if (!payload.warehouseId) {
+      throw new Error("Ziellager nicht definiert");
+    }
+    
+    if (payload.receiptLines.length === 0) {
+      throw new Error("Mindestens eine Position mit Liefermenge muss erfasst werden");
+    }
+    
+    // API-Call mit korrigierter Payload-Struktur
     const response = await fetch(`/api/orders/${orderId}/receipt`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(serverData),
+      body: JSON.stringify(payload), // Korrekte Backend-Struktur senden
     });
 
     if (!response.ok) {
@@ -111,6 +185,7 @@ const saveGoodsReceipt = async (orderId: number, receiptData: any) => {
     const result = await response.json();
     console.log("Erfolgreiche Server-Antwort:", result);
     return result;
+    
   } catch (error: any) {
     console.error("Fehler beim API-Aufruf:", error);
     throw error;
@@ -120,7 +195,7 @@ const saveGoodsReceipt = async (orderId: number, receiptData: any) => {
 interface ReceiveOrderDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  order: any;
+  order: OrderData;
   onSuccess: (updatedOrder: any) => void;
 }
 
@@ -136,7 +211,7 @@ export default function ReceiveOrderDialog({
   const [activeTab, setActiveTab] = useState<string>("quantities");
   
   // State für empfangene Waren
-  const [receivedItems, setReceivedItems] = useState(() => {
+  const [receivedItems, setReceivedItems] = useState<ReceivedItemData[]>(() => {
     try {
       // Sicherstellen, dass orderItems ein Array ist
       const itemsArray = Array.isArray(order?.orderItems) ? order.orderItems : [];
@@ -177,11 +252,53 @@ export default function ReceiveOrderDialog({
   // Alle Mengen auf einmal setzen oder zurücksetzen
   const [receiveAll, setReceiveAll] = useState(true);
   
-  // Mutation zum Speichern des Wareneingangs
+  // Mutation zum Speichern des Wareneingangs (überarbeitet mit Validierung)
   const saveReceiptMutation = useMutation({
     mutationFn: (data: any) => {
       console.log("Sende Wareneingang-Daten:", JSON.stringify(data, null, 2));
-      return saveGoodsReceipt(order.id, data);
+      
+      // Validierung vor API-Call
+      if (!order?.id) {
+        throw new Error("Bestellung nicht gefunden");
+      }
+      
+      if (!order?.warehouseId) {
+        throw new Error("Ziellager nicht definiert");
+      }
+      
+      // Prüfen, ob mindestens eine Position mit Menge vorhanden ist
+      const itemsWithQuantity = data.items?.filter((item: any) => 
+        item.receivedQuantity > 0 && 
+        item.batches && 
+        item.batches.length > 0 &&
+        item.batches.some((batch: any) => batch.quantity > 0)
+      ) || [];
+      
+      if (itemsWithQuantity.length === 0) {
+        throw new Error("Mindestens eine Position mit Liefermenge muss erfasst werden");
+      }
+      
+      // Validierung der Batch-Mengen
+      for (const item of itemsWithQuantity) {
+        const totalBatchQuantity = item.batches.reduce((acc: number, batch: any) => acc + (batch.quantity || 0), 0);
+        if (Math.abs(totalBatchQuantity - item.receivedQuantity) > 0.001) {
+          throw new Error(`Die Summe der Batch-Mengen für "${item.productName}" muss der Gesamtmenge entsprechen`);
+        }
+        
+        // Validierung der Pflichtfelder für jeden Batch
+        for (const batch of item.batches) {
+          if (batch.quantity > 0) {
+            if (!batch.batchNumber?.trim()) {
+              throw new Error(`Chargennummer fehlt für "${item.productName}"`);
+            }
+            if (!batch.expiryDate) {
+              throw new Error(`Mindesthaltbarkeitsdatum fehlt für "${item.productName}"`);
+            }
+          }
+        }
+      }
+      
+      return saveGoodsReceipt(order.id, data, order);
     },
     onSuccess: (data) => {
       toast({
@@ -223,9 +340,9 @@ export default function ReceiveOrderDialog({
   };
   
   // Hilfsfunktion: Batch-Wert aktualisieren
-  const updateBatchValue = (itemIndex: number, batchIndex: number, field: string, value: any) => {
+  const updateBatchValue = (itemIndex: number, batchIndex: number, field: keyof BatchData, value: any) => {
     const newItems = [...receivedItems];
-    newItems[itemIndex].batches[batchIndex][field] = value;
+    (newItems[itemIndex].batches[batchIndex] as any)[field] = value;
     setReceivedItems(newItems);
   };
   
@@ -289,63 +406,20 @@ export default function ReceiveOrderDialog({
     }
   };
   
-  // Wareneingang speichern
+  // Wareneingang speichern (vereinfacht, da Validierung in Mutation erfolgt)
   const handleSaveReceipt = () => {
-    // Prüfen, ob mindestens ein Artikel eine Liefermenge > 0 hat
-    const itemsWithQuantity = receivedItems.filter((item: any) => 
-      item.receivedQuantity > 0 && 
-      item.batches && 
-      item.batches.length > 0
-    );
-    
-    if (itemsWithQuantity.length === 0) {
-      toast({
-        title: "Fehler beim Speichern",
-        description: "Keine Liefermengen angegeben. Bitte geben Sie mindestens eine Liefermenge ein.",
-        variant: "destructive"
-      });
-      return;
-    }
-    
-    // Prüfen, ob die Mengen stimmen
-    const itemsWithInvalidQuantities = itemsWithQuantity.filter((item: any) => {
-      const totalBatchQuantity = item.batches.reduce((acc: number, batch: any) => acc + (batch.quantity || 0), 0);
-      return Math.abs(totalBatchQuantity - item.receivedQuantity) > 0.001; // Kleine Toleranz für Rundungsfehler
-    });
-    
-    if (itemsWithInvalidQuantities.length > 0) {
-      toast({
-        title: "Ungültige Mengen",
-        description: "Die Summe der Batch-Mengen muss der Gesamtmenge entsprechen.",
-        variant: "destructive"
-      });
-      return;
-    }
-    
-    // Daten für API zusammenstellen
+    // Daten für Mutation zusammenstellen
     const receiptData = {
       orderId: order.id,
       warehouseId: order.warehouseId,
-      notes: generalNotes,
-      items: itemsWithQuantity.map((item: any) => ({
-        ...item,
-        batches: item.batches.map((batch: any) => ({
-          ...batch,
-          quantity: batch.quantity || 0,
-          expiryDate: batch.expiryDate ? 
-            // Prüfen, ob das Datum gültig ist, bevor wir es formatieren
-            (isValid(batch.expiryDate) ? batch.expiryDate.toISOString() : 
-              // Fallback: Aktuelles Datum + 3 Monate
-              addMonths(new Date(), 3).toISOString()
-            ) : null
-        }))
-      })),
-      receiptDate: new Date().toISOString()
+      notes: generalNotes.trim(),
+      items: receivedItems,
+      receiptDate: new Date()
     };
     
     console.log("Sende Wareneingang-Daten:", JSON.stringify(receiptData, null, 2));
     
-    // Mutation ausführen
+    // Mutation ausführen (enthält alle Validierung)
     saveReceiptMutation.mutate(receiptData);
   };
   
