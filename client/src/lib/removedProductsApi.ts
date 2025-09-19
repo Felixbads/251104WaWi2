@@ -4,7 +4,8 @@ import { apiRequest } from "./queryClient";
  * Interface für die Parameter der Abfrage von entfernten Produkten
  */
 export interface RemovedProductsParams {
-  machineId?: string;
+  machineId?: number;
+  productName?: string;
   startDate?: string;
   endDate?: string;
   limit?: number;
@@ -33,7 +34,7 @@ export interface RemovedProductsResponse {
     productName: string;
     removed: number;
     machineName: string;
-    machineId: string;
+    machineId: number;
   }[];
   analytics: RemovedProductsSummary;
 }
@@ -44,17 +45,15 @@ export interface RemovedProductsResponse {
  * @returns RemovedProductsResponse mit Produkten und Analysen
  */
 export async function getRemovedProducts(params: RemovedProductsParams): Promise<RemovedProductsResponse> {
-  const queryParams = new URLSearchParams();
+  const queryParams: any = {};
   
-  if (params.machineId) queryParams.append('machineId', params.machineId);
-  if (params.startDate) queryParams.append('startDate', params.startDate);
-  if (params.endDate) queryParams.append('endDate', params.endDate);
-  if (params.limit) queryParams.append('limit', params.limit.toString());
+  if (params.machineId) queryParams.machineId = params.machineId;
+  if (params.productName) queryParams.productName = params.productName;
+  if (params.startDate) queryParams.startDate = params.startDate;
+  if (params.endDate) queryParams.endDate = params.endDate;
+  if (params.limit) queryParams.limit = params.limit;
   
-  const url = `/api/removed-products${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
-  
-  const response = await apiRequest(url);
-  return response.json();
+  return apiRequest('/removed-products', queryParams, 'GET');
 }
 
 /**
@@ -63,16 +62,14 @@ export async function getRemovedProducts(params: RemovedProductsParams): Promise
  * @returns Zusammenfassung der entfernten Produkte
  */
 export async function getRemovedProductsSummary(params: RemovedProductsParams): Promise<RemovedProductsSummary> {
-  const queryParams = new URLSearchParams();
+  const queryParams: any = {};
   
-  if (params.machineId) queryParams.append('machineId', params.machineId);
-  if (params.startDate) queryParams.append('startDate', params.startDate);
-  if (params.endDate) queryParams.append('endDate', params.endDate);
+  if (params.machineId) queryParams.machineId = params.machineId;
+  if (params.productName) queryParams.productName = params.productName;
+  if (params.startDate) queryParams.startDate = params.startDate;
+  if (params.endDate) queryParams.endDate = params.endDate;
   
-  const url = `/api/removed-products/summary${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
-  
-  const response = await apiRequest(url);
-  return response.json();
+  return apiRequest('/removed-products/summary', queryParams, 'GET');
 }
 
 /**
@@ -82,15 +79,27 @@ export async function getRemovedProductsSummary(params: RemovedProductsParams): 
  * @returns Blob mit den exportierten Daten
  */
 export async function exportRemovedProducts(params: RemovedProductsParams, format: 'csv' | 'excel'): Promise<Blob> {
-  const queryParams = new URLSearchParams();
+  const queryParams: any = {};
   
-  if (params.machineId) queryParams.append('machineId', params.machineId);
-  if (params.startDate) queryParams.append('startDate', params.startDate);
-  if (params.endDate) queryParams.append('endDate', params.endDate);
-  queryParams.append('format', format);
+  if (params.machineId) queryParams.machineId = params.machineId;
+  if (params.productName) queryParams.productName = params.productName;
+  if (params.startDate) queryParams.startDate = params.startDate;
+  if (params.endDate) queryParams.endDate = params.endDate;
+  queryParams.format = format;
   
-  const url = `/api/removed-products/export${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+  // For blob downloads, we need to handle the response differently
+  const token = localStorage.getItem('auth_token');
+  const queryString = new URLSearchParams(queryParams).toString();
+  const response = await fetch(`/api/removed-products/export?${queryString}`, {
+    method: 'GET',
+    headers: {
+      'Authorization': token ? `Bearer ${token}` : ''
+    }
+  });
   
-  const response = await apiRequest(url);
+  if (!response.ok) {
+    throw new Error(`Export failed: ${response.statusText}`);
+  }
+  
   return response.blob();
 }

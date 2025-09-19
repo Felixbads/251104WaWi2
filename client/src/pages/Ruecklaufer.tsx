@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowDown, Clock, TrendingDown, Download, Filter, BarChart3, AlertTriangle, Database } from "lucide-react";
 import PageHeader from "@/components/layout/PageHeader";
@@ -74,31 +74,19 @@ const getRemovedProducts = async (params: {
   machineId?: number;
   productName?: string;
 }) => {
-  const searchParams = new URLSearchParams();
-  if (params.limit) searchParams.append('limit', params.limit.toString());
-  if (params.offset) searchParams.append('offset', params.offset.toString());
-  if (params.startDate) searchParams.append('startDate', params.startDate);
-  if (params.endDate) searchParams.append('endDate', params.endDate);
-  if (params.machineId) searchParams.append('machineId', params.machineId.toString());
-  if (params.productName) searchParams.append('productName', params.productName);
-
-  return apiRequest(`/api/removed-products?${searchParams.toString()}`);
+  return apiRequest('/removed-products', params, 'GET');
 };
 
 const getProductRemovalStats = async (productName: string, days: number = 30) => {
-  return apiRequest(`/api/removed-products/stats/${encodeURIComponent(productName)}?days=${days}`);
+  return apiRequest(`/removed-products/stats/${encodeURIComponent(productName)}`, { days }, 'GET');
 };
 
 const getTopRemovedProducts = async (days: number = 30, limit: number = 20) => {
-  return apiRequest(`/api/removed-products/top?days=${days}&limit=${limit}`, {
-    method: 'POST'
-  });
+  return apiRequest('/removed-products/top', { days, limit }, 'GET');
 };
 
 const getLocationTrends = async (days: number = 30, limit: number = 50): Promise<LocationTrend[]> => {
-  return apiRequest(`/api/removed-products/location-trends?days=${days}&limit=${limit}`, {
-    method: 'POST'
-  });
+  return apiRequest('/removed-products/location-trends', { days, limit }, 'GET');
 };
 
 const exportRemovedProducts = async (params: any) => {
@@ -109,8 +97,9 @@ const exportRemovedProducts = async (params: any) => {
 
   const response = await fetch(`/api/removed-products/export?${searchParams.toString()}`, {
     headers: {
-      'Authorization': `Bearer ${localStorage.getItem('token')}`,
+      'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
     },
+    credentials: 'include',
   });
 
   if (!response.ok) {
@@ -134,6 +123,13 @@ export default function Ruecklaufer() {
   const [filterMachine, setFilterMachine] = useState<string>("");
   const [filterProduct, setFilterProduct] = useState<string>("");
   const [activeTab, setActiveTab] = useState("overview");
+
+  // Calculate current range based on dateRange
+  const currentRange = useMemo(() => {
+    const end = startOfDay(new Date());
+    const start = startOfDay(subDays(end, dateRange));
+    return { start, end };
+  }, [dateRange]);
 
   // Fetch top entfernte Produkte
   const { data: topProducts, isLoading: isLoadingTop } = useQuery({
@@ -244,7 +240,7 @@ export default function Ruecklaufer() {
             Häufigste Rückläufer basierend auf Einkaufspreisen.
             <br />
             <span className="text-sm text-muted-foreground font-medium">
-              Zeitraum: Letzte {dateRange} Tage
+              Zeitraum: {format(currentRange.start, 'dd.MM.yyyy', { locale: de })} - {format(currentRange.end, 'dd.MM.yyyy', { locale: de })}
             </span>
           </CardDescription>
         </CardHeader>
@@ -312,10 +308,7 @@ export default function Ruecklaufer() {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => {
-                            // Navigate to new page with product details
-                            window.open(`/ruecklaufer/details/${encodeURIComponent(product.productName)}`, '_blank');
-                          }}
+                          onClick={() => setSelectedProduct(product.productName)}
                           className="flex items-center gap-1"
                         >
                           <BarChart3 className="h-3 w-3" />
@@ -523,7 +516,7 @@ export default function Ruecklaufer() {
             Welche Produkte werden an welchen Standorten übermäßig entfernt - zeigt Überschuss-Probleme basierend auf Einkaufspreisen.
             <br />
             <span className="text-sm text-muted-foreground font-medium">
-              Zeitraum: Letzte {dateRange} Tage
+              Zeitraum: {format(currentRange.start, 'dd.MM.yyyy', { locale: de })} - {format(currentRange.end, 'dd.MM.yyyy', { locale: de })}
             </span>
           </CardDescription>
         </CardHeader>

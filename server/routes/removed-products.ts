@@ -22,7 +22,7 @@ router.get('/', async (req, res) => {
         FROM refill_details rd
         INNER JOIN refills r ON rd.refill_id = r.id
         WHERE rd.removed > 0 
-          AND r.datetime >= NOW() - INTERVAL '${days} days'
+          AND r.datetime >= NOW() - make_interval(days => $1)
         ORDER BY rd.refill_id, rd.product_name, r.datetime DESC
       )
       SELECT 
@@ -39,7 +39,7 @@ router.get('/', async (req, res) => {
       ORDER BY "totalRemoved" DESC, dr.machine_name
     `;
     
-    const result = await pool.query(query);
+    const result = await pool.query(query, [days]);
     
     // Format die Daten für das Dashboard
     const items = result.rows.map(row => ({
@@ -92,7 +92,7 @@ router.get('/', async (req, res) => {
 });
 
 // Top entfernte Produkte API mit Kostenanalyse (machine-specific)
-router.post('/top', async (req, res) => {
+router.get('/top', async (req, res) => {
   try {
     const days = parseInt(req.query.days as string) || 30;
     const limit = parseInt(req.query.limit as string) || 20;
@@ -104,7 +104,7 @@ router.post('/top', async (req, res) => {
     let query, queryParams;
     
     if (machineId) {
-      // Machine-spezifische Top-Produkte
+      // Machine-spezifische Top-Produkte mit verbesserter Kostenberechnung
       console.log(`[TOP-API] Machine-spezifische Top-Produkte für Maschine ${machineId}`);
       query = `
         WITH machine_filter AS (
@@ -115,10 +115,13 @@ router.post('/top', async (req, res) => {
           SUM(rd.removed) as "totalRemoved",
           COUNT(*) as "removalsCount",
           MAX(r.datetime) as "lastRemoved",
-          2.0 as "avgPurchasePrice",
-          SUM(rd.removed * 2.0) as "estimatedLoss"
+          COALESCE(AVG(pc.unit_price), AVG(t.price), 0) as "avgPurchasePrice",
+          SUM(rd.removed * COALESCE(pc.unit_price, t.price, 0)) as "estimatedLoss"
         FROM refill_details rd
         INNER JOIN refills r ON rd.refill_id = r.id
+        LEFT JOIN products p ON rd.product_name = p.product_name
+        LEFT JOIN purchase_conditions pc ON p.id = pc.product_id AND pc.is_preferred = true  
+        LEFT JOIN transactions t ON rd.product_name = t.product_name
         WHERE rd.removed > 0
           AND r.datetime >= NOW() - make_interval(days => $3)
           AND r.machine_id IN (SELECT id FROM machine_filter)
@@ -128,25 +131,20 @@ router.post('/top', async (req, res) => {
       `;
       queryParams = [limit, machineId, days];
     } else {
-      // System-weite Top-Produkte
+      // System-weite Top-Produkte mit verbesserter Kostenberechnung
       query = `
         SELECT 
           rd.product_name as "productName",
           SUM(rd.removed) as "totalRemoved",
           COUNT(*) as "removalsCount",
           MAX(r.datetime) as "lastRemoved",
-          AVG(COALESCE(pc.unit_price, 2.0)) as "avgPurchasePrice",
-          SUM(rd.removed * COALESCE(pc.unit_price, 2.0)) as "estimatedLoss"
+          COALESCE(AVG(pc.unit_price), AVG(t.price), 0) as "avgPurchasePrice",
+          SUM(rd.removed * COALESCE(pc.unit_price, t.price, 0)) as "estimatedLoss"
         FROM refill_details rd
         INNER JOIN refills r ON rd.refill_id = r.id
         LEFT JOIN products p ON rd.product_name = p.product_name
-        LEFT JOIN LATERAL (
-          SELECT unit_price
-          FROM purchase_conditions pc_sub 
-          WHERE pc_sub.product_id = p.id 
-          ORDER BY pc_sub.is_preferred DESC, pc_sub.unit_price ASC 
-          LIMIT 1
-        ) pc ON true
+        LEFT JOIN purchase_conditions pc ON p.id = pc.product_id AND pc.is_preferred = true  
+        LEFT JOIN transactions t ON rd.product_name = t.product_name
         WHERE rd.removed > 0
           AND r.datetime >= NOW() - make_interval(days => $2)
         GROUP BY rd.product_name
@@ -173,12 +171,12 @@ router.post('/top', async (req, res) => {
     
   } catch (error) {
     console.error('Fehler beim Abrufen der Top entfernten Produkte:', error);
-    res.status(500).json({ error: 'Fehler beim Abrufen der Daten', details: error.message });
+    res.status(500).json({ error: 'Fehler beim Abrufen der Daten', details: error instanceof Error ? error.message : String(error) });
   }
 });
 
 // Detaillierte Statistiken für ein spezifisches Produkt
-router.post('/stats/:productName', async (req, res) => {
+router.get('/stats/:productName', async (req, res) => {
   try {
     const productName = decodeURIComponent(req.params.productName);
     const days = parseInt(req.query.days as string) || 30;
@@ -197,14 +195,14 @@ router.post('/stats/:productName', async (req, res) => {
         SUM(rd.removed * COALESCE(t.price, 0)) as "estimatedLoss"
       FROM refill_details rd
       INNER JOIN refills r ON rd.refill_id = r.id
-
+      LEFT JOIN transactions t ON rd.product_name = t.product_name AND r.machine_id = t.machine_id
       WHERE rd.removed > 0 
         AND rd.product_name = $1
-        AND r.datetime >= NOW() - INTERVAL '${days} days'
+        AND r.datetime >= NOW() - make_interval(days => $2)
       GROUP BY rd.product_name
     `;
     
-    const statsResult = await pool.query(statsQuery, [productName]);
+    const statsResult = await pool.query(statsQuery, [productName, days]);
     console.log(`[RemovedProducts] Stats query returned ${statsResult.rows.length} rows`);
     
     if (statsResult.rows.length === 0) {
@@ -235,15 +233,15 @@ router.post('/stats/:productName', async (req, res) => {
         SUM(rd.removed * COALESCE(t.price, 0)) as "machineLoss"
       FROM refill_details rd
       INNER JOIN refills r ON rd.refill_id = r.id
- AND r.machine_id = t.machine_id
+      LEFT JOIN transactions t ON rd.product_name = t.product_name AND r.machine_id = t.machine_id
       WHERE rd.removed > 0 
         AND rd.product_name = $1
-        AND r.datetime >= NOW() - INTERVAL '${days} days'
+        AND r.datetime >= NOW() - make_interval(days => $2)
       GROUP BY r.machine_id, r.machine_name
       ORDER BY "removedCount" DESC
     `;
     
-    const machinesResult = await pool.query(machinesQuery, [productName]);
+    const machinesResult = await pool.query(machinesQuery, [productName, days]);
     console.log(`[RemovedProducts] Machines query returned ${machinesResult.rows.length} machines`);
     
     // Zeitverlaufs-Daten (tagesweise)
@@ -256,12 +254,12 @@ router.post('/stats/:productName', async (req, res) => {
       INNER JOIN refills r ON rd.refill_id = r.id
       WHERE rd.removed > 0 
         AND rd.product_name = $1
-        AND r.datetime >= NOW() - INTERVAL '${days} days'
+        AND r.datetime >= NOW() - make_interval(days => $2)
       GROUP BY DATE(r.datetime)
       ORDER BY "date"
     `;
     
-    const timelineResult = await pool.query(timelineQuery, [productName]);
+    const timelineResult = await pool.query(timelineQuery, [productName, days]);
     console.log(`[RemovedProducts] Timeline query returned ${timelineResult.rows.length} timeline entries`);
     
     const response = {
@@ -311,10 +309,10 @@ router.get('/export', async (req, res) => {
       FROM refill_details rd
       INNER JOIN refills r ON rd.refill_id = r.id
       WHERE rd.removed > 0 
-        AND r.datetime >= NOW() - INTERVAL '${days} days'
+        AND r.datetime >= NOW() - make_interval(days => $1)
     `;
     
-    const params: any[] = [];
+    const params: any[] = [days];
     
     if (productName) {
       query += ` AND rd.product_name = $${params.length + 1}`;
@@ -358,7 +356,7 @@ router.get('/export', async (req, res) => {
 });
 
 // CORRECTED Standort-Trends API - REALISTIC removal data calculation
-router.post('/location-trends', async (req, res) => {
+router.get('/location-trends', async (req, res) => {
   try {
     const days = parseInt(req.query.days as string) || 30;
     const limit = parseInt(req.query.limit as string) || 50;
@@ -378,7 +376,7 @@ router.post('/location-trends', async (req, res) => {
         FROM refill_details rd
         INNER JOIN refills r ON rd.refill_id = r.id
         WHERE rd.removed > 0 
-          AND r.datetime >= NOW() - INTERVAL '${days} days'
+          AND r.datetime >= NOW() - make_interval(days => $1)
         ORDER BY rd.refill_id, rd.product_name, r.datetime DESC
       )
       SELECT 
@@ -398,7 +396,7 @@ router.post('/location-trends', async (req, res) => {
       ORDER BY dr.machine_name, "totalRemoved" DESC
     `;
     
-    const result = await pool.query(query);
+    const result = await pool.query(query, [days]);
     
     // REALISTIC sales data for comparison (last 3 months only)
     const salesQuery = `
