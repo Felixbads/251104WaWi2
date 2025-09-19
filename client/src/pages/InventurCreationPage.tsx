@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useLocation } from 'wouter';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import {
   Card,
@@ -27,6 +27,7 @@ export default function InventurCreationPage() {
   const [selectedWarehouseId, setSelectedWarehouseId] = useState<number | null>(null);
   const { toast } = useToast();
   const [, navigate] = useLocation();
+  const queryClient = useQueryClient();
 
   // Lager-Daten abfragen
   const { data: warehouses = [], isLoading } = useQuery<Warehouse[]>({
@@ -54,6 +55,8 @@ export default function InventurCreationPage() {
         title: "Inventur erstellt",
         description: `Inventur für ${data.warehouseName} wurde erstellt.`,
       });
+      // Cache invalidieren vor der Navigation
+      queryClient.invalidateQueries({ queryKey: ['/api/inventory-counts'] });
       navigate(`/inventur-detail/${data.id}`);
     },
     onError: () => {

@@ -104,11 +104,6 @@ export default function InventurListe() {
     return inventur.warehouseId?.toString() === warehouseFilter;
   });
 
-  // Inventurdetails anzeigen
-  const openInventurDetail = (id: number) => {
-    setLocation(`/inventur/${id}`);
-  };
-  
   // Inventurdetailseite mit der neuen verbesserten Version öffnen
   const openNewInventurDetail = (id: number) => {
     setLocation(`/inventur-detail/${id}`);
