@@ -159,11 +159,15 @@ export default function SupplierPortalNew({ orderId, accessToken: propsAccessTok
   const [, params] = useRoute('/lieferant/:accessToken');
   const [, paramsWithOrder] = useRoute('/lieferant/:accessToken/bestellung/:orderId');
   const accessToken = propsAccessToken || params?.accessToken || paramsWithOrder?.accessToken || '';
+  
+  // Extract orderId from URL parameters and combine with prop orderId
+  const routeOrderId = paramsWithOrder?.orderId;
+  const finalOrderId = orderId || routeOrderId;
 
   const [isLoading, setIsLoading] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [sessionToken, setSessionToken] = useState<string>('');
-  const [activeTab, setActiveTab] = useState(orderId ? 'lieferungen' : 'stammdaten');
+  const [activeTab, setActiveTab] = useState(finalOrderId ? 'lieferungen' : 'stammdaten');
   
   // Data states
   const [supplierData, setSupplierData] = useState<SupplierData | null>(null);
@@ -198,12 +202,13 @@ export default function SupplierPortalNew({ orderId, accessToken: propsAccessTok
         setIsAuthenticated(true);
         await loadAllData(newSessionToken);
         
-        // If orderId is provided, navigate to orders tab
-        if (orderId) {
+        // If orderId is provided (from props or URL), navigate to orders tab
+        if (finalOrderId) {
           setActiveTab('lieferungen');
+          const orderSource = routeOrderId ? 'per E-Mail-Link' : 'direkt';
           toast({
             title: "Erfolgreich angemeldet",
-            description: `Bestellung ${orderId} wird angezeigt`
+            description: `Bestellung ${finalOrderId} wird ${orderSource} angezeigt`
           });
         } else {
           toast({
@@ -384,26 +389,46 @@ export default function SupplierPortalNew({ orderId, accessToken: propsAccessTok
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="flex flex-col sm:grid sm:grid-cols-3 lg:grid-cols-5 w-full gap-2 h-auto p-2">
-            <TabsTrigger value="stammdaten" className="flex items-center justify-center space-x-1 sm:space-x-2 w-full">
-              <Building2 className="h-4 w-4" />
-              <span className="text-xs sm:text-sm">Stammdaten</span>
+          <TabsList className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 w-full gap-1 sm:gap-2 h-auto p-2 bg-muted">
+            <TabsTrigger 
+              value="stammdaten" 
+              className="flex flex-col sm:flex-row items-center justify-center space-y-1 sm:space-y-0 sm:space-x-2 w-full p-3 min-h-[60px] sm:min-h-[48px] data-[state=active]:bg-background data-[state=active]:text-foreground"
+              data-testid="tab-stammdaten"
+            >
+              <Building2 className="h-5 w-5 sm:h-4 sm:w-4" />
+              <span className="text-xs sm:text-sm font-medium">Stammdaten</span>
             </TabsTrigger>
-            <TabsTrigger value="produkte" className="flex items-center justify-center space-x-1 sm:space-x-2 w-full">
-              <Package className="h-4 w-4" />
-              <span className="text-xs sm:text-sm">Produkte</span>
+            <TabsTrigger 
+              value="produkte" 
+              className="flex flex-col sm:flex-row items-center justify-center space-y-1 sm:space-y-0 sm:space-x-2 w-full p-3 min-h-[60px] sm:min-h-[48px] data-[state=active]:bg-background data-[state=active]:text-foreground"
+              data-testid="tab-produkte"
+            >
+              <Package className="h-5 w-5 sm:h-4 sm:w-4" />
+              <span className="text-xs sm:text-sm font-medium">Produkte</span>
             </TabsTrigger>
-            <TabsTrigger value="einkaufsbedingungen" className="flex items-center justify-center space-x-1 sm:space-x-2 w-full">
-              <DollarSign className="h-4 w-4" />
-              <span className="text-xs sm:text-sm">Einkauf</span>
+            <TabsTrigger 
+              value="einkaufsbedingungen" 
+              className="flex flex-col sm:flex-row items-center justify-center space-y-1 sm:space-y-0 sm:space-x-2 w-full p-3 min-h-[60px] sm:min-h-[48px] data-[state=active]:bg-background data-[state=active]:text-foreground"
+              data-testid="tab-einkauf"
+            >
+              <DollarSign className="h-5 w-5 sm:h-4 sm:w-4" />
+              <span className="text-xs sm:text-sm font-medium">Einkauf</span>
             </TabsTrigger>
-            <TabsTrigger value="bestellungen" className="flex items-center justify-center space-x-1 sm:space-x-2 w-full">
-              <ShoppingCart className="h-4 w-4" />
-              <span className="text-xs sm:text-sm">Bestellungen</span>
+            <TabsTrigger 
+              value="bestellungen" 
+              className="flex flex-col sm:flex-row items-center justify-center space-y-1 sm:space-y-0 sm:space-x-2 w-full p-3 min-h-[60px] sm:min-h-[48px] data-[state=active]:bg-background data-[state=active]:text-foreground"
+              data-testid="tab-bestellungen"
+            >
+              <ShoppingCart className="h-5 w-5 sm:h-4 sm:w-4" />
+              <span className="text-xs sm:text-sm font-medium">Bestellungen</span>
             </TabsTrigger>
-            <TabsTrigger value="lieferungen" className="flex items-center justify-center space-x-1 sm:space-x-2 w-full">
-              <List className="h-4 w-4" />
-              <span className="text-xs sm:text-sm">Lieferungen</span>
+            <TabsTrigger 
+              value="lieferungen" 
+              className="flex flex-col sm:flex-row items-center justify-center space-y-1 sm:space-y-0 sm:space-x-2 w-full p-3 min-h-[60px] sm:min-h-[48px] data-[state=active]:bg-background data-[state=active]:text-foreground"
+              data-testid="tab-lieferungen"
+            >
+              <List className="h-5 w-5 sm:h-4 sm:w-4" />
+              <span className="text-xs sm:text-sm font-medium">Lieferungen</span>
             </TabsTrigger>
           </TabsList>
 
@@ -860,7 +885,14 @@ export default function SupplierPortalNew({ orderId, accessToken: propsAccessTok
               <CardContent>
                 <div className="space-y-4">
                   {orders.filter(o => ['pending', 'confirmed', 'ordered'].includes(o.status)).map((order) => (
-                    <Card key={order.id} className={orderId && order.id === parseInt(orderId) ? 'border-blue-500 border-2' : ''}>
+                    <Card 
+                      key={order.id} 
+                      className={finalOrderId && order.id === parseInt(finalOrderId) 
+                        ? 'border-blue-500 border-2 bg-blue-50/50 shadow-lg' 
+                        : ''
+                      }
+                      data-testid={`order-card-${order.id}`}
+                    >
                       <CardHeader>
                         <div className="flex justify-between items-start">
                           <div>
@@ -877,65 +909,123 @@ export default function SupplierPortalNew({ orderId, accessToken: propsAccessTok
                           </Badge>
                         </div>
                       </CardHeader>
-                      <CardContent className="space-y-4">
+                      <CardContent className="space-y-6">
                         {/* Liefertermin-Bestätigung */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                           <div>
-                            <Label htmlFor={`delivery-date-${order.id}`}>
-                              Bestätigter Liefertermin
+                            <Label htmlFor={`delivery-date-${order.id}`} className="text-sm font-medium">
+                              Bestätigter Liefertermin *
                             </Label>
                             <Input
                               id={`delivery-date-${order.id}`}
                               type="date"
                               defaultValue={order.expectedDeliveryDate?.split('T')[0] || ''}
-                              className="mt-1"
+                              className="mt-2 h-12 text-base"
+                              data-testid={`input-delivery-date-${order.id}`}
+                              required
                             />
                           </div>
                           <div>
-                            <Label htmlFor={`delivery-time-${order.id}`}>
+                            <Label htmlFor={`delivery-time-${order.id}`} className="text-sm font-medium">
                               Voraussichtliche Lieferzeit
                             </Label>
                             <Input
                               id={`delivery-time-${order.id}`}
                               type="time"
                               placeholder="z.B. 14:00"
-                              className="mt-1"
+                              className="mt-2 h-12 text-base"
+                              data-testid={`input-delivery-time-${order.id}`}
                             />
                           </div>
                         </div>
 
+                        {/* Bestellpositionen und Mengen */}
+                        <div className="space-y-3">
+                          <Label className="text-sm font-medium">Bestellpositionen bestätigen</Label>
+                          <div className="border rounded-lg overflow-hidden">
+                            <div className="bg-gray-50 px-4 py-3 border-b">
+                              <div className="grid grid-cols-3 gap-4 text-xs font-medium text-gray-600 uppercase tracking-wide">
+                                <div>Artikel</div>
+                                <div className="text-center">Bestellt</div>
+                                <div className="text-center">Lieferbar</div>
+                              </div>
+                            </div>
+                            <div className="divide-y">
+                              {orderItems
+                                .filter(item => item.orderId === order.id)
+                                .map((item) => (
+                                <div key={item.id} className="px-4 py-3">
+                                  <div className="grid grid-cols-3 gap-4 items-center">
+                                    <div>
+                                      <div className="font-medium text-sm">{item.productName}</div>
+                                      <div className="text-xs text-gray-500">
+                                        SKU: {item.supplierSku || item.sku || 'N/A'}
+                                      </div>
+                                    </div>
+                                    <div className="text-center">
+                                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-800">
+                                        {item.quantity} {item.unit || 'Stk'}
+                                      </span>
+                                    </div>
+                                    <div className="text-center">
+                                      <Input
+                                        type="number"
+                                        defaultValue={item.quantity}
+                                        min="0"
+                                        max={item.quantity}
+                                        className="w-20 h-10 text-center text-sm"
+                                        data-testid={`input-quantity-${item.id}`}
+                                      />
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                          {orderItems.filter(item => item.orderId === order.id).length === 0 && (
+                            <div className="text-center py-4 text-gray-500 text-sm">
+                              Keine Bestellpositionen gefunden
+                            </div>
+                          )}
+                        </div>
+
                         {/* Kommentare */}
                         <div>
-                          <Label htmlFor={`comments-${order.id}`}>
+                          <Label htmlFor={`comments-${order.id}`} className="text-sm font-medium">
                             Kommentare / Abweichungen
                           </Label>
                           <Textarea
                             id={`comments-${order.id}`}
                             placeholder="Bitte teilen Sie uns eventuelle Abweichungen oder wichtige Informationen mit..."
-                            className="mt-1"
+                            className="mt-2 min-h-[80px] text-base"
                             rows={3}
+                            data-testid={`textarea-comments-${order.id}`}
                           />
                         </div>
 
                         {/* Aktionen */}
-                        <div className="flex gap-2">
+                        <div className="flex flex-col sm:flex-row gap-3 pt-2">
                           <Button 
                             variant="default" 
-                            className="flex-1"
+                            className="flex-1 h-12 text-base font-medium"
                             onClick={() => {
                               toast({
                                 title: "Lieferung bestätigt",
                                 description: `Bestellung ${order.orderNumber} wurde erfolgreich bestätigt.`
                               });
                             }}
+                            data-testid={`button-confirm-delivery-${order.id}`}
                           >
                             <Check className="h-4 w-4 mr-2" />
                             Lieferung bestätigen
                           </Button>
                           <Button 
                             variant="outline"
+                            className="h-12 text-base font-medium"
                             onClick={() => setActiveTab('bestellungen')}
+                            data-testid={`button-show-details-${order.id}`}
                           >
+                            <FileText className="h-4 w-4 mr-2" />
                             Details anzeigen
                           </Button>
                         </div>
