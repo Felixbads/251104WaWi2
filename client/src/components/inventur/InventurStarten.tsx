@@ -96,8 +96,10 @@ export default function InventurStarten({ onInventurGestartet }: InventurStarten
     },
   });
   
-  // Aktive (nicht archivierte) Lager filtern
-  const activeWarehouses = warehouses.filter((warehouse: Warehouse) => !warehouse.archived);
+  // Aktive (nicht archivierte) Lager filtern - defensive Programmierung
+  const activeWarehouses = Array.isArray(warehouses) 
+    ? warehouses.filter((warehouse: Warehouse) => !warehouse.archived)
+    : [];
   
   // Handler für das Starten einer Inventur
   const handleStartInventur = () => {
@@ -145,7 +147,7 @@ export default function InventurStarten({ onInventurGestartet }: InventurStarten
               </SelectTrigger>
               <SelectContent>
                 {activeWarehouses.length === 0 ? (
-                  <SelectItem value="" disabled>Keine Lager verfügbar</SelectItem>
+                  <SelectItem value="no-warehouses" disabled>Keine Lager verfügbar</SelectItem>
                 ) : (
                   activeWarehouses.map((warehouse: Warehouse) => (
                     <SelectItem key={warehouse.id} value={warehouse.id.toString()}>
