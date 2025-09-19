@@ -221,30 +221,39 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
 
   // Lade Inventurelemente
   const {
-    data: inventurItems = [] as InventoryCountItem[],
+    data: inventurItems = [],
     isLoading: isLoadingItems,
     refetch: refetchInventurItems,
-    error: inventurItemsError
+    error: inventurItemsError,
+    isSuccess: isInventurItemsSuccess,
+    isError: isInventurItemsError
   } = useQuery<InventoryCountItem[]>({
     queryKey: [`/api/inventory-counts/${id}/items`],
     staleTime: 5 * 1000, // 5 Sekunden Cache
     enabled: !!id,
     retry: 3, // Bei Fehlern maximal 3 Versuche
     retryDelay: 1000, // 1 Sekunde zwischen den Versuchen
-    onSuccess: (data: InventoryCountItem[]) => {
-      console.log(`Inventurelemente geladen: ${data?.length || 0} Produkte`);
-    },
-    onError: (error: any) => {
-      console.error('Fehler beim Laden der Inventurelemente:', error);
+  });
+
+  // useEffect für Inventurelemente Success/Error Handling
+  useEffect(() => {
+    if (isInventurItemsSuccess && inventurItems) {
+      console.log(`Inventurelemente geladen: ${inventurItems?.length || 0} Produkte`);
+    }
+  }, [isInventurItemsSuccess, inventurItems]);
+
+  useEffect(() => {
+    if (isInventurItemsError && inventurItemsError) {
+      console.error('Fehler beim Laden der Inventurelemente:', inventurItemsError);
       // Automatischer Wiederverbindungsversuch bei 401 Unauthorized
-      if (error?.response?.status === 401) {
+      if ((inventurItemsError as any)?.response?.status === 401) {
         console.log('Authentifizierungsfehler beim Laden der Inventurpositionen. Versuche erneut...');
         setTimeout(() => {
           refetchInventurItems();
         }, 2000);
       }
     }
-  });
+  }, [isInventurItemsError, inventurItemsError, refetchInventurItems]);
 
   // Lade verfügbare Lagerprodukte für Hinzufügung
   const {
@@ -685,15 +694,21 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
 
   // Lade verfügbare Batches für ein Produkt
   const {
+    data: batchesData,
     isLoading: isLoadingBatches,
-    refetch: fetchProductBatches
+    refetch: fetchProductBatches,
+    isSuccess: isBatchesSuccess
   } = useQuery<ProductBatch[]>({
     queryKey: [`/api/inventory-counts/${id}/product-batches/${selectedItem?.productId || 0}`],
     enabled: false, // Manuell auslösen, wenn ein Produkt ausgewählt wird
-    onSuccess: (data) => {
-      setAvailableBatches(data || []);
-    }
   });
+
+  // useEffect für Batch Success Handling
+  useEffect(() => {
+    if (isBatchesSuccess && batchesData) {
+      setAvailableBatches(batchesData || []);
+    }
+  }, [isBatchesSuccess, batchesData]);
 
   // Mutation zum Aktualisieren der Batch eines Inventurelements
   const updateBatchMutation = useMutation({

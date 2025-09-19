@@ -38,13 +38,10 @@ export default function InventurStarten({ onInventurGestartet }: InventurStarten
   }
 
   // Lade verfügbare Lager
-  const { data: warehousesResponse, isLoading: isLoadingWarehouses } = useQuery({
+  const { data: warehouses = [], isLoading: isLoadingWarehouses } = useQuery<Warehouse[]>({
     queryKey: ['/api/warehouses'],
     staleTime: 5 * 60 * 1000, // 5 Minuten Cache
   });
-  
-  // Extract warehouses array from response
-  const warehouses: Warehouse[] = warehousesResponse?.data || [];
   
   // Mutation zum Starten einer neuen Inventur
   const startInventurMutation = useMutation({
