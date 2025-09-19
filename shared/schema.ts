@@ -2602,8 +2602,8 @@ export const orders = pgTable("orders", {
   supplierName: text("supplier_name"), // Name des Lieferanten (für Redundanz)
   
   // Ziel & Empfänger
-  warehouseId: integer("warehouse_id").references(() => warehouses.id), // Ziel-Lager
-  warehouseName: text("warehouse_name"), // Name des Lagers (für Redundanz)
+  locationId: integer("location_id").references(() => warehouses.id), // Ziel-Lager
+  locationName: text("location_name"), // Name des Lagers (für Redundanz)
   deliveryLocation: text("delivery_location"), // Überschreibbarer Lieferort (aus Stammdaten übernommen, aber änderbar)
   
   // Status und Termine
@@ -2631,9 +2631,6 @@ export const orders = pgTable("orders", {
   lastModifiedById: integer("last_modified_by_id").references(() => users.id), // Zuletzt geändert von (Benutzer-ID)
   lastModifiedByName: text("last_modified_by_name"), // Zuletzt geändert von (Name)
   
-  // CRITICAL FIX 1: Standard audit trail fields
-  lastModifiedBy: integer('last_modified_by').references(() => users.id),
-  lastModifiedAt: timestamp('last_modified_at').defaultNow(),
   
   // Notizen und Kommentare
   notes: text("notes"), // Notizen zur Bestellung
@@ -2683,11 +2680,6 @@ export const orders = pgTable("orders", {
   
   // SECURITY: Idempotency-Schlüssel für sichere, deduplizierte Bestellerstellung
   idempotencyKey: text("idempotency_key").unique(), // Unique constraint für Idempotenz-Check (verhindert SQL-Injection)
-  
-  // FIFO-Audit-Trail-Spalten
-  deletedAt: timestamp("deleted_at"), // Soft-Delete für FIFO-Compliance
-  deletedBy: integer("deleted_by").references(() => users.id), // Gelöscht von
-  version: integer("version").default(1).notNull(), // Optimistic Locking für kritische FIFO-Updates
 }, (table) => {
   return {
     // CRITICAL FIX: Explicit UNIQUE index on order_number (HÖCHSTE PRIORITÄT)
@@ -2698,7 +2690,7 @@ export const orders = pgTable("orders", {
     // Supplier-based queries (supplier-portal, order listings)
     supplierIdIdx: index().on(table.supplierId),
     // Warehouse-based queries (order management, logistics)
-    warehouseIdIdx: index().on(table.warehouseId), 
+    warehouseIdIdx: index().on(table.locationId), 
     // Status-based filtering (order lists, dashboards)
     statusIdx: index().on(table.status),
     // Date-based sorting and filtering (reporting, analytics)
@@ -2708,7 +2700,7 @@ export const orders = pgTable("orders", {
     // Composite index for common supplier + status filtering
     supplierStatusIdx: index().on(table.supplierId, table.status),
     // Composite index for warehouse + status filtering  
-    warehouseStatusIdx: index().on(table.warehouseId, table.status),
+    warehouseStatusIdx: index().on(table.locationId, table.status),
   };
 });
 
@@ -2957,7 +2949,7 @@ export const orderRelations = relations(orders, ({ many, one }) => ({
     references: [suppliers.id],
   }),
   warehouse: one(warehouses, {
-    fields: [orders.warehouseId],
+    fields: [orders.locationId],
     references: [warehouses.id],
   }),
   creator: one(users, {
@@ -3053,7 +3045,7 @@ export const orderRelationsExtended = relations(orders, ({ many, one }) => ({
     references: [suppliers.id],
   }),
   warehouse: one(warehouses, {
-    fields: [orders.warehouseId],
+    fields: [orders.locationId],
     references: [warehouses.id],
   }),
   creator: one(users, {
@@ -3179,14 +3171,6 @@ export const productBatches = pgTable("product_batches", {
   createdBy: integer("created_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-  
-  // FIFO-Audit-Trail-Spalten
-  lastModifiedBy: integer("last_modified_by").references(() => users.id),
-  lastModifiedAt: timestamp("last_modified_at").defaultNow(),
-  
-  // Soft-Delete für FIFO-Compliance
-  deletedAt: timestamp("deleted_at"),
-  deletedBy: integer("deleted_by").references(() => users.id),
   
   // Optimistic Locking für kritische FIFO-Updates
   version: integer("version").default(1).notNull(),
@@ -3321,9 +3305,6 @@ export const inventoryMovements = pgTable("inventory_movements", {
   previousStock: integer("previous_stock"), // Bestand vor der Bewegung
   currentStock: integer("current_stock"),   // Bestand nach der Bewegung
   
-  // FIFO-Audit-Trail-Spalten (CRITICAL FIX 2: Removed processedBy - services use performedBy)
-  lastModifiedBy: integer("last_modified_by").references(() => users.id),
-  lastModifiedAt: timestamp("last_modified_at").defaultNow(),
   
   // Soft-Delete für FIFO-Compliance
   deletedAt: timestamp("deleted_at"),

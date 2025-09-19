@@ -43,6 +43,12 @@ interface CartItem {
   forecastQuantity?: number;
   comment?: string;
   expectedMHD?: string;
+  sku?: string;
+  supplierSku?: string;
+  packageCount?: number;
+  packageQuantity?: number;
+  packageTypeName?: string;
+  baseUnitName?: string;
 }
 
 interface OrderingState {
@@ -129,13 +135,22 @@ export default function EnhancedOrderingProcess({
   // Fetch products for selected supplier
   const { data: products, isLoading: productsLoading } = useQuery<Product[]>({
     queryKey: ['/api/suppliers', orderingState.selectedSupplier, 'products'],
+    queryFn: async () => {
+      if (!orderingState.selectedSupplier) throw new Error('No supplier selected');
+      const response = await fetch(`/api/suppliers/${orderingState.selectedSupplier}/products`);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch products: ${response.statusText}`);
+      }
+      const result = await response.json();
+      return result.data || result; // Handle both wrapped and direct response formats
+    },
     enabled: orderingState.selectedSupplier !== null
   });
 
   // Create order mutation
   const createOrderMutation = useMutation({
     mutationFn: async (orderData: any) => {
-      return apiRequest('/api/orders/enhanced', {
+      return apiRequest('/api/orders-direct', {
         method: 'POST',
         body: JSON.stringify(orderData)
       });
@@ -146,6 +161,8 @@ export default function EnhancedOrderingProcess({
         description: "Die Bestellung wurde erfolgreich angelegt und kann jetzt versendet werden."
       });
       queryClient.invalidateQueries({ queryKey: ['/api/orders'] });
+      // Call the success callback to navigate
+      onOrderSuccess();
       // Reset state
       setOrderingState({
         selectedWarehouse: null,
@@ -256,32 +273,19 @@ export default function EnhancedOrderingProcess({
     const orderData = {
       warehouseId: orderingState.selectedWarehouse,
       supplierId: orderingState.selectedSupplier,
-      orderMode: orderingState.orderMode,
-      deliveryLocation: orderingState.deliveryLocation,
-      notes: orderingState.notes,
-      expectedDeliveryDate: orderingState.expectedDeliveryDate,
-      showPricesInEmail: orderingState.showPricesInEmail,
-      forecastPeriodDays: orderingState.forecastPeriodDays,
-      cartData: JSON.stringify(orderingState.cart),
+      expectedDeliveryDate: orderingState.expectedDeliveryDate || null,
+      priority: 'normal',
+      notes: orderingState.notes || '',
+      deliveryType: '',
+      deliveryAddress: orderingState.deliveryLocation || '',
+      pickupLocation: '',
       items: orderingState.cart.map(item => ({
         productId: item.productId,
-        productName: item.productName,
         quantity: item.quantity,
-        unitPrice: item.unitPrice,
-        totalPrice: item.totalPrice,
-        unit: item.unit,
-        itemComment: item.comment,
-        expectedMHD: item.expectedMHD,
-        // Package information
-        sku: item.sku || null,
-        supplierSku: item.supplierSku || null,
-        orderArticleNumber: item.sku || null,
-        packageCount: item.packageCount || null,
-        packageQuantity: item.packageQuantity || null,
-        packageTypeName: item.packageTypeName || null,
-        baseUnitName: item.baseUnitName || null
-      })),
-      totalAmount: orderTotal
+        price: item.unitPrice,
+        unit: item.unit || 'stk',
+        productName: item.productName
+      }))
     };
     
     createOrderMutation.mutate(orderData);

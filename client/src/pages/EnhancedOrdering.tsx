@@ -72,10 +72,10 @@ export default function EnhancedOrdering() {
     }
   }, [suppliers, warehouses, selectedSupplier, selectedWarehouse]);
 
-  const handleOrderSuccess = (orderId: number) => {
-    console.log('Order created successfully:', orderId);
-    // Navigate to order details or orders list
-    setLocation(`/orders/${orderId}`);
+  const handleOrderSuccess = () => {
+    console.log('Order created successfully');
+    // Navigate to orders list
+    setLocation('/orders');
   };
 
   const handleStartOrdering = () => {
@@ -220,7 +220,7 @@ export default function EnhancedOrdering() {
               </div>
             ) : (
               <div className="space-y-3">
-                {warehouses.map((warehouse) => (
+                {warehouses.map((warehouse: Warehouse) => (
                   <div
                     key={warehouse.id}
                     className={`p-4 border rounded-lg cursor-pointer transition-all ${
@@ -275,7 +275,7 @@ export default function EnhancedOrdering() {
               </div>
             ) : (
               <div className="space-y-3">
-                {suppliers.map((supplier) => (
+                {suppliers.map((supplier: Supplier) => (
                   <div
                     key={supplier.id}
                     className={`p-4 border rounded-lg cursor-pointer transition-all ${
