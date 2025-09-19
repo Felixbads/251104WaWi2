@@ -54,7 +54,7 @@ export default function InventurCreationPage() {
         title: "Inventur erstellt",
         description: `Inventur für ${data.warehouseName} wurde erstellt.`,
       });
-      navigate(`/inventur/${data.id}`);
+      navigate(`/inventur-detail/${data.id}`);
     },
     onError: () => {
       toast({
