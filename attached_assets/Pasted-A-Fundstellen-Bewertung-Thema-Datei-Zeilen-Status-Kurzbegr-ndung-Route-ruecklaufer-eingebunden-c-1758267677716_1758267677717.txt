@@ -1,0 +1,513 @@
+A) Fundstellen & Bewertung
+Thema	Datei	Zeilen	Status	Kurzbegründung
+Route /ruecklaufer eingebunden	client/src/App.tsx	399-408	OK	Geschützte Route zeigt auf Ruecklaufer-Seitenkomponenten.
+Navigationseintrag	client/src/components/layout/AppShell.tsx	22-40	OK	Seiteneintrag „Rückläufer“ ist im Lager-Menü verfügbar.
+API-Aufrufe & Export	client/src/pages/Ruecklaufer.tsx	67-173	Lücke	apiRequest nutzt Default-POST und baut Query-Strings manuell; Export zieht Token aus localStorage['token'] statt auth_token. GET-Endpunkte werden so verfehlt.
+UI-Zustand / Selektion	client/src/pages/Ruecklaufer.tsx	129-225, 475-479	Lücke	dateRange ist Zahl, UI erwartet .from/.to; selectedProduct wird nie auf einen Produktnamen gesetzt, nur zurückgesetzt – Detailpanel bleibt tot, getRemovedProducts ungenutzt.
+Detailseite Datenabruf	client/src/pages/RuecklauferDetails.tsx	37-119	Lücke	apiRequest-Default ist POST, Route existiert nur als GET im alten Stack → Glückstreffer via parallel POST-Route, aber Zeit-/Preisfelder ohne TZ-Normalisierung.
+Helper @/lib/api	client/src/lib/api.ts	2090-2153	Lücke	Parameterreihenfolge falsch: 'get' wird als URL gesendet; alle Consumer schlagen fehl.
+Helper @/lib/removedProductsApi	client/src/lib/removedProductsApi.ts	46-93	Lücke	Rückgabewert von apiRequest wird nochmals via .json() geparst; Request-Methode bleibt POST.
+Produkt-/Maschinen-Tabs	client/src/components/products/RemovedProductsTab.tsx	39-74	Lücke	Nutzen oben fehlerhafte Helper → Requests landen auf ungültigen URLs.
+Warenentnahme	client/src/pages/WarenentnahmePage.tsx	459-509	Lücke	Gleiche Helper-Probleme, Export erwartet Blob von apiRequest (liefert JSON).
+Dashboard-Widget	client/src/pages/Dashboard.tsx	458-463	Lücke	Erwartet analytics.byProduct, erhält aber durch vorrangige Route nur {items,...}.
+Backend-Liste /api/removed-products	server/routes.ts	3797-3882	OK	Liefert gefilterte Liste aus refill_details inkl. Operator/Position.
+Backend /removed-products/top	server/routes.ts	3988-4015	Lücke	Liefert keine Einkaufspreise/Verluste; Query im neuen Router (POST) wäre reichhaltiger, greift aber nicht wegen Routingreihenfolge.
+Standort-Trends	server/routes/removed-products.ts	233-345	OK	Aggregiert Verluste/Verkäufe; jedoch nur über POST-Route erreichbar.
+Vendon-Client & Mapping	server/services/vendonSync.ts	24-73, 494-525, 1744-1857	Lücke	Richtiger Endpoint & Auth, aber Zeitzonen werden nicht nach Europe/Berlin normalisiert; removed wird gespeichert, Bestandsbewegung/Charge fehlen.
+Sync-Trigger	server/routes/sync.ts	270-301	OK	POST /api/sync/vendon/refills stößt Refillsync mit Zeitparametern an.
+Schema & Lagerbewegung	shared/schema.ts	661-693, 1155	FEHLT	refill_details speichert removed, aber movement_type kennt kein RETURN; kein FIFO/Charge-Follow-up.
+B) Endpoint-Spezifikation
+Vendon Refills
+Endpoint: GET https://cloud.vendon.net/rest/v1.8.0/refills
+Query-Parameter: from_timestamp, to_timestamp, offset, limit (Sekunden seit Epoch). Optionaler Geräte-Filter nicht implementiert.
+Auth: Header Authorization: Token <API_KEY>; Fallback-Key hart kodiert (Risiko).
+Beispiel-Request:
+GET /rest/v1.8.0/refills?from_timestamp=1716943200&to_timestamp=1719548800&offset=0&limit=500 HTTP/1.1
+Host: cloud.vendon.net
+Authorization: Token ****0VoB
+Accept: application/json
+Refill Details
+Endpoint: GET https://cloud.vendon.net/rest/v1.8.0/refills/{refill_id} liefert Array oder Objekt mit added, removed, name, stock_id usw.
+Mapping Vendon → intern → UI
+Vendon-Feld	DB-Feld (refills/refill_details)	API-Ausgabe	Frontend-Feld
+refill_date (Unix s)	refills.datetime (JS Date)	/api/removed-products → datetime	Anzeige/Tooltip (format, formatDistanceToNow)
+relation_name	refills.machine_name	machineName	Tabellenköpfe/Trends
+refiller	refills.operator	operator	Export-Spalte, Tabellen-Footer (andere Seiten)
+name	refill_details.product_name	productName	Tabellen, Badges
+removed	refill_details.removed	removed / totalRemoved	Kennzahlen & Charts
+added	refill_details.added; Netto quantity = added - removed	nicht exponiert	(Derzeit ungenutzt)
+stock_id	refill_details.vendon_product_id	vendonProductId	(Anzeige anderer Tabs)
+price (aus Verkäufen)	via Join transactions.price	avgSalePrice/estimatedLoss in Stats	Detailkarten, Verlust-Anzeigen (nur via POST-Route)
+Backend-Zusammenfassung
+/api/removed-products (GET) filtert refill_details nach Datum, Maschine, Produkt; kein Paginierungs-Header.
+/api/removed-products/top (POST) liefert Rangliste, aber ohne Kostenfelder (s.u.).
+/api/removed-products/stats/:productName (POST im neuen Router) liefert Summen, Maschinen-Breakdown, Timeline.
+/api/removed-products/location-trends (POST) kombiniert Entnahmen mit Umsatzdaten.
+Zeitzone
+Alle SQL-Filter arbeiten mit NOW() bzw. rohen Timestamps; es gibt keine explizite Konvertierung auf Europe/Berlin, UI rendert Browser-Locale.
+C) Patches
+Ruecklaufer-Page API & UI korrigieren
+Ziel: GET-Aufrufe korrekt absetzen, Datumsanzeige fixen, Detailauswahl aktivieren, Export mit richtigem Token.
+Diff:
+diff --git a/client/src/pages/Ruecklaufer.tsx b/client/src/pages/Ruecklaufer.tsx
+@@
+-import React, { useState } from "react";
++import React, { useMemo, useState } from "react";
+@@
+-const getRemovedProducts = async (params: {
+-  limit?: number;
+-  offset?: number;
+-  startDate?: string;
+-  endDate?: string;
+-  machineId?: number;
+-  productName?: string;
+-}) => {
+-  const searchParams = new URLSearchParams();
+-  ...
+-  return apiRequest(`/api/removed-products?${searchParams.toString()}`);
+-};
++const getRemovedProducts = (params: {
++  limit?: number;
++  offset?: number;
++  startDate?: string;
++  endDate?: string;
++  machineId?: number;
++  productName?: string;
++}) => apiRequest('/api/removed-products', params, 'GET');
+@@
+-const getProductRemovalStats = async (productName: string, days: number = 30) => {
+-  return apiRequest(`/api/removed-products/stats/${encodeURIComponent(productName)}?days=${days}`);
+-};
++const getProductRemovalStats = (productName: string, days = 30) =>
++  apiRequest(
++    `/api/removed-products/stats/${encodeURIComponent(productName)}`,
++    { days },
++    'GET'
++  );
+@@
+-const getTopRemovedProducts = async (days: number = 30, limit: number = 20) => {
+-  return apiRequest(`/api/removed-products/top?days=${days}&limit=${limit}`, {
+-    method: 'POST'
+-  });
+-};
++const getTopRemovedProducts = (days = 30, limit = 20) =>
++  apiRequest(`/api/removed-products/top?days=${days}&limit=${limit}`, undefined, 'POST');
+@@
+-const getLocationTrends = async (days: number = 30, limit: number = 50): Promise<LocationTrend[]> => {
+-  return apiRequest(`/api/removed-products/location-trends?days=${days}&limit=${limit}`, {
+-    method: 'POST'
+-  });
+-};
++const getLocationTrends = (days = 30, limit = 50): Promise<LocationTrend[]> =>
++  apiRequest(`/api/removed-products/location-trends?days=${days}&limit=${limit}`, undefined, 'POST');
+@@
+-const exportRemovedProducts = async (params: any) => {
++const exportRemovedProducts = async (params: any) => {
+...
+-  const response = await fetch(`/api/removed-products/export?${searchParams.toString()}`, {
+-    headers: {
+-      'Authorization': `Bearer ${localStorage.getItem('token')}`,
+-    },
+-  });
++  const token = localStorage.getItem('auth_token');
++  const response = await fetch(`/api/removed-products/export?${searchParams.toString()}`, {
++    headers: token ? { Authorization: `Bearer ${token}` } : {},
++    credentials: 'include',
++  });
+@@
+-  const [dateRange, setDateRange] = useState(30);
++  const [dateRange, setDateRange] = useState<number>(30);
++  const currentRange = useMemo(() => {
++    const end = startOfDay(new Date());
++    const start = subDays(end, Math.max(0, dateRange - 1));
++    return { start, end };
++  }, [dateRange]);
+@@
+-            Zeitraum: {dateRange.from ? format(dateRange.from, 'dd.MM.yyyy', { locale: de }) : ''}
+-            {dateRange.to && ` - ${format(dateRange.to, 'dd.MM.yyyy', { locale: de })}`}
++            Zeitraum: {format(currentRange.start, 'dd.MM.yyyy', { locale: de })} -{' '}
++            {format(currentRange.end, 'dd.MM.yyyy', { locale: de })}
+@@
+-                        <Button
+-                          variant="outline"
+-                          size="sm"
+-                          onClick={() => {
+-                            // Navigate to new page with product details
+-                            window.open(`/ruecklaufer/details/${encodeURIComponent(product.productName)}`, '_blank');
+-                          }}
++                        <Button
++                          variant="outline"
++                          size="sm"
++                          onClick={() => setSelectedProduct(product.productName)}
+@@
+-            Zeitraum: {dateRange.from ? format(dateRange.from, 'dd.MM.yyyy', { locale: de }) : ''}
+-            {dateRange.to && ` - ${format(dateRange.to, 'dd.MM.yyyy', { locale: de })}`}
++            Zeitraum: {format(currentRange.start, 'dd.MM.yyyy', { locale: de })} -{' '}
++            {format(currentRange.end, 'dd.MM.yyyy', { locale: de })}
+Vorgeschlagene Aufgabe
+Rueckläufer-Frontend-Aufrufe reparieren
+
+Aufgabe starten
+API-Helper korrigieren (@/lib/api)
+Diff:
+diff --git a/client/src/lib/api.ts b/client/src/lib/api.ts
+@@
+-  return apiRequest<RemovedProductsResponse>('get', `/removed-products?${queryParams.toString()}`);
++  const query: Record<string, string> = {};
++  if (params?.productName) query.productName = params.productName;
++  if (params?.machineId) query.machineId = params.machineId.toString();
++  if (params?.startDate) query.startDate = params.startDate;
++  if (params?.endDate) query.endDate = params.endDate;
++  if (params?.page) query.page = params.page.toString();
++  if (params?.limit) query.limit = params.limit.toString();
++
++  return apiRequest<RemovedProductsResponse>('/removed-products', query, 'GET');
+}
+@@
+-  return apiRequest<RemovedProductsResponse>('get', `/products/${productId}/removed?${queryParams.toString()}`);
++  return apiRequest<RemovedProductsResponse>(
++    `/products/${productId}/removed`,
++    query,
++    'GET'
++  );
+@@
+-  return apiRequest<RemovedProductsResponse>('get', `/machines/${machineId}/removed-products?${queryParams.toString()}`);
++  return apiRequest<RemovedProductsResponse>(
++    `/machines/${machineId}/removed-products`,
++    query,
++    'GET'
++  );
+@@
+-  return apiRequest<TopRemovedProduct[]>('get', `/removed-products/top?days=${days}`);
++  return apiRequest<TopRemovedProduct[]>('/removed-products/top', { days: days.toString() }, 'GET');
+Vorgeschlagene Aufgabe
+API-Helper für Rückläufer reparieren
+
+Aufgabe starten
+@/lib/removedProductsApi modernisieren
+Diff:
+diff --git a/client/src/lib/removedProductsApi.ts b/client/src/lib/removedProductsApi.ts
+@@
+-export interface RemovedProductsParams {
+-  machineId?: string;
+-  startDate?: string;
+-  endDate?: string;
+-  limit?: number;
+-}
++export interface RemovedProductsParams {
++  machineId?: string;
++  productName?: string;
++  startDate?: string;
++  endDate?: string;
++  page?: number;
++  limit?: number;
++}
+@@
+-  const url = `/api/removed-products${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+-
+-  const response = await apiRequest(url);
+-  return response.json();
++  return apiRequest(
++    '/api/removed-products',
++    Object.fromEntries(queryParams),
++    'GET'
++  );
+}
+@@
+-  const response = await apiRequest(url);
+-  return response.json();
++  return apiRequest(
++    '/api/removed-products/summary',
++    Object.fromEntries(queryParams),
++    'GET'
++  );
+}
+@@
+-  const response = await apiRequest(url);
+-  return response.blob();
++  const token = localStorage.getItem('auth_token');
++  const response = await fetch(url, {
++    headers: token ? { Authorization: `Bearer ${token}` } : {},
++    credentials: 'include'
++  });
++  if (!response.ok) throw new Error('Export fehlgeschlagen');
++  return response.blob();
+}
+Vorgeschlagene Aufgabe
+removedProductsApi konsolidieren
+
+Aufgabe starten
+Top-Rückläufer-Route um Kosten anreichern
+Diff:
+diff --git a/server/routes.ts b/server/routes.ts
+@@
+-    const query = `
+-      SELECT
+-        rd.product_name as "productName",
+-        SUM(rd.removed) as "totalRemoved",
+-        COUNT(*) as "removalsCount",
+-        MAX(r.datetime) as "lastRemoved"
+-      FROM refill_details rd
+-      INNER JOIN refills r ON rd.refill_id = r.id
+-      WHERE rd.removed > 0
+-        AND r.datetime >= NOW() - INTERVAL '${days} days'
+-      GROUP BY rd.product_name
+-      ORDER BY "totalRemoved" DESC
+-      LIMIT $1
+-    `;
+-
+-    const result = await pool.query(query, [limit]);
+-
+-    res.json(result.rows);
++    const query = `
++      SELECT
++        rd.product_name as "productName",
++        SUM(rd.removed) as "totalRemoved",
++        COUNT(*) as "removalsCount",
++        MAX(r.datetime) as "lastRemoved",
++        COALESCE(AVG(pc.unit_price), AVG(t.price), 0) as "avgPurchasePrice",
++        SUM(rd.removed * COALESCE(pc.unit_price, t.price, 0)) as "estimatedLoss"
++      FROM refill_details rd
++      INNER JOIN refills r ON rd.refill_id = r.id
++      LEFT JOIN products p ON rd.product_name = p.product_name
++      LEFT JOIN purchase_conditions pc ON p.id = pc.product_id AND pc.is_preferred = true
++      LEFT JOIN transactions t ON rd.product_name = t.product_name
++      WHERE rd.removed > 0
++        AND r.datetime >= NOW() - INTERVAL '${days} days'
++      GROUP BY rd.product_name
++      ORDER BY "totalRemoved" DESC
++      LIMIT $1
++    `;
++
++    const result = await pool.query(query, [limit]);
++    const response = result.rows.map((row, index) => ({
++      rank: index + 1,
++      productName: row.productName,
++      totalRemoved: Number(row.totalRemoved),
++      removalsCount: Number(row.removalsCount),
++      lastRemoved: row.lastRemoved,
++      avgPurchasePrice: row.avgPurchasePrice ? Number(row.avgPurchasePrice) : 0,
++      estimatedLoss: row.estimatedLoss ? Number(row.estimatedLoss) : 0
++    }));
++
++    res.json(response);
+Vorgeschlagene Aufgabe
+Top-Rückläufer Backend anreichern
+
+Aufgabe starten
+D) Tests
+Server-Integration (server/__tests__/removedProducts.integration.test.ts)
+import request from 'supertest';
+import express from 'express';
+import removedProductsRouter from '../routes/removed-products';
+import { pool } from '../db';
+
+jest.mock('../db', () => ({
+  pool: { query: jest.fn() }
+}));
+
+const app = express();
+app.use(express.json());
+app.use('/api/removed-products', removedProductsRouter);
+
+describe('removed-products router', () => {
+  beforeEach(() => {
+    (pool.query as jest.Mock).mockReset();
+  });
+
+  it('returns ranked products with loss metrics', async () => {
+    (pool.query as jest.Mock).mockResolvedValueOnce({
+      rows: [{
+        productName: 'Apfel',
+        totalRemoved: '6',
+        removalsCount: '3',
+        lastRemoved: '2024-06-18T10:00:00.000Z',
+        avgPurchasePrice: '1.2',
+        estimatedLoss: '7.2'
+      }]
+    });
+
+    const res = await request(app)
+      .post('/api/removed-products/top?days=30&limit=5')
+      .expect(200);
+
+    expect(res.body[0]).toMatchObject({
+      productName: 'Apfel',
+      totalRemoved: 6,
+      avgPurchasePrice: 1.2,
+      estimatedLoss: 7.2
+    });
+  });
+
+  it('handles empty stats gracefully', async () => {
+    (pool.query as jest.Mock).mockResolvedValueOnce({ rows: [] });
+    const res = await request(app)
+      .post('/api/removed-products/top?days=7&limit=5')
+      .expect(200);
+    expect(res.body).toEqual([]);
+  });
+
+  it('maps location trends pagination', async () => {
+    (pool.query as jest.Mock)
+      .mockResolvedValueOnce({
+        rows: [{
+          locationName: 'Zentrale',
+          productName: 'Banane',
+          totalRemoved: '4',
+          removalEvents: '2',
+          avgPerEvent: '2',
+          avgPurchasePrice: '0.5',
+          locationLoss: '2',
+          rankAtLocation: '1'
+        }]
+      })
+      .mockResolvedValueOnce({ rows: [] });
+
+    const res = await request(app)
+      .post('/api/removed-products/location-trends?days=30&limit=10')
+      .expect(200);
+
+    expect(res.body[0].products[0]).toMatchObject({
+      productName: 'Banane',
+      totalRemoved: 4,
+      locationLoss: 2
+    });
+  });
+});
+Frontend (React Testing Library, client/src/pages/__tests__/Ruecklaufer.test.tsx)
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import Ruecklaufer from '../Ruecklaufer';
+import { apiRequest } from '@/lib/queryClient';
+
+jest.mock('@/lib/queryClient');
+const mockedApi = apiRequest as jest.Mock;
+
+const topPayload = [{
+  rank: 1,
+  productName: 'Apfel',
+  totalRemoved: 6,
+  removalsCount: 3,
+  lastRemoved: '2024-06-18T10:00:00.000Z',
+  avgPurchasePrice: 1.2,
+  estimatedLoss: 7.2
+}];
+
+const trendsPayload = [{
+  locationName: 'HQ',
+  totalRemovedAtLocation: 4,
+  totalLossAtLocation: 2,
+  products: [{
+    productName: 'Banane',
+    totalRemoved: 4,
+    removalEvents: 2,
+    avgPerEvent: 2,
+    avgPurchasePrice: 0.5,
+    locationLoss: 2,
+    rankAtLocation: 1,
+    salesAnalysis: { avgWeeklySales: 1, totalMonthlySales: 4, totalMonthsWithData: 2, monthlySalesData: [] }
+  }]
+}];
+
+beforeEach(() => {
+  mockedApi.mockReset();
+  mockedApi.mockImplementation((url: string) => {
+    if (url.startsWith('/api/removed-products/top')) return Promise.resolve(topPayload);
+    if (url.startsWith('/api/removed-products/location-trends')) return Promise.resolve(trendsPayload);
+    if (url.startsWith('/api/removed-products/stats')) {
+      return Promise.resolve({
+        productName: 'Apfel',
+        totalRemoved: 6,
+        removalsCount: 3,
+        avgPerRemoval: 2,
+        avgSalePrice: 2.5,
+        estimatedLoss: 7.2,
+        lastRemoved: '2024-06-18T10:00:00.000Z',
+        machines: [],
+        timeline: []
+      });
+    }
+    return Promise.resolve([]);
+  });
+});
+
+it('renders top list and allows switching period', async () => {
+  render(<Ruecklaufer />);
+
+  await waitFor(() => expect(screen.getByText(/Top 20 Entfernte Produkte/)).toBeInTheDocument());
+  expect(screen.getByText('#1')).toBeInTheDocument();
+  expect(screen.getByText('€7.20')).toBeInTheDocument();
+
+  fireEvent.mouseDown(screen.getByRole('combobox'));
+  fireEvent.click(screen.getByText('Letzte 14 Tage'));
+  await waitFor(() =>
+    expect(mockedApi).toHaveBeenCalledWith('/api/removed-products/top?days=14&limit=20', undefined, 'POST')
+  );
+});
+
+it('opens inline detail panel when selecting a product', async () => {
+  render(<Ruecklaufer />);
+  await waitFor(() => screen.getByText('Apfel'));
+
+  fireEvent.click(screen.getByRole('button', { name: /Details/i }));
+  await waitFor(() => expect(screen.getByText(/Detailanalyse: Apfel/)).toBeInTheDocument());
+});
+E2E (Playwright, tests/e2e/ruecklaufer.spec.ts)
+import { test, expect } from '@playwright/test';
+
+test('Rueckläufer filter synchronisation', async ({ page }) => {
+  await page.route('**/api/removed-products/top**', route =>
+    route.fulfill({
+      status: 200,
+      body: JSON.stringify([{
+        rank: 1,
+        productName: 'Apfel',
+        totalRemoved: 6,
+        removalsCount: 3,
+        lastRemoved: '2024-06-18T10:00:00.000Z',
+        avgPurchasePrice: 1.2,
+        estimatedLoss: 7.2
+      }]),
+      headers: { 'content-type': 'application/json' }
+    })
+  );
+
+  await page.route('**/api/removed-products/location-trends**', route =>
+    route.fulfill({
+      status: 200,
+      body: JSON.stringify([]),
+      headers: { 'content-type': 'application/json' }
+    })
+  );
+
+  await page.goto('/ruecklaufer');
+
+  await expect(page.getByText('Top 20 Entfernte Produkte')).toBeVisible();
+  await expect(page.getByText('Apfel')).toBeVisible();
+
+  await page.getByRole('combobox').click();
+  await page.getByText('Letzte 7 Tage').click();
+
+  await expect(page.getByText(/Zeitraum: .* - .*/)).toContainText('Letzte 7 Tage');
+});
+E) Nutzungsliste
+client/src/pages/Ruecklaufer.tsx – KPI-, Trend- und (geplante) Detailanalyse für Rückläufer.
+client/src/pages/RuecklauferDetails.tsx – Produkt-spezifische Detailseite inkl. Verlustschätzung.
+client/src/components/layout/AppShell.tsx – Menüeintrag „Rückläufer“.
+client/src/components/TopRemovedProductsTile.tsx – Dashboard-Kachel mit Rangliste.
+client/src/components/TopRemovedProductsTileStandalone.tsx – Eigenständige Auswertung inkl. Fallback-UI.
+client/src/components/products/RemovedProductsTab.tsx – Produktdetail-Tabs mit Export & Statistik.
+client/src/components/machines/RemovedProductsMachineTab.tsx – Maschinen-spezifische Auswertung inklusive Export.
+client/src/pages/WarenentnahmePage.tsx – „Entnahme“-Sektion nutzt Rückläufer für Planungen.
+client/src/pages/Dashboard.tsx – Dashboard lädt Rückläufer-Kennzahlen (derzeit ungenutzt).
+client/src/pages/AdvancedAnalysis.tsx & client/src/components/analysis/RemovedProductsTab.tsx – Erweiterte Analysen/Exports auf Basis von /api/statistics/removed-products.
+Backend REST: server/routes.ts (/api/removed-products, /removed-products/top) und server/routes/removed-products.ts (Stats, Location-Trends, Export).
+Analytics: server/routes/statistics.ts liefert Maschinen-/Produkt-KPIs für Rückläufer.
+F) Risiken & Do-First → Do-Next
+Do-First 1 – Repariere alle Frontend-Helper (@/lib/api, @/lib/removedProductsApi) und die Ruecklaufer-Seite, damit Requests wieder GET/JSON-konform laufen; sonst schlagen sämtliche Tabellen/Exports fehl.
+Do-First 2 – Angleichung der Backend-Top-Route an die erwarteten Verlust-/Preisfelder, damit KPI-Karten nicht mehr undefined anzeigen.
+Do-First 3 – Einheitliches Auth-Handling (auth_token) & Entfernung des hardcodierten Vendon-API-Keys zur Absicherung.
+Do-Next 1 – Zeitzonen-Normalisierung auf Europe/Berlin (Sync & API), damit Auswertungen keine Sommerzeitfehler aufweisen.
+Do-Next 2 – Bestandsführung ergänzen: Rückläufer sollten Lagerbewegungen (movement_type='RETURN') inkl. FIFO/Charge auslösen; Schema unterstützt dies derzeit nicht.
+Do-Next 3 – Datenbankindizes für refill_details auf (refill_id), (product_name), (datetime) ergänzen, um Filter-/Trendabfragen performant zu halten (aktuell keine definiert).
+Do-Next 4 – UI-Bedienbarkeit erhöhen: Hauptliste der Rückläufer wieder aktivieren (derzeit fehlt Query-Verbrauch), Filterlogik anpassen (Produkt-/Automatenfilter ungenutzt).
+Hinweis: Ohne diese Korrekturen bleiben Rückläuferdaten inkonsistent, Kosten-KPIs fehlen und Lagerprozesse werden nicht angestoßen.
