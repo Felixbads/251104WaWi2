@@ -72,7 +72,7 @@ export default function InventurListe() {
 
   // Lade Inventurdaten
   const { data: inventurDaten = [], isLoading: isLoadingInventur } = useQuery<InventoryCount[]>({
-    queryKey: ['inventory-counts'],
+    queryKey: ['/api/inventory-counts'],
     queryFn: async () => {
       const response = await fetch('/api/inventory-counts');
       if (!response.ok) {
