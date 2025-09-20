@@ -304,7 +304,7 @@ import {
 } from "./auth";
 import { insertSupplierSchema } from "@shared/schema";
 import vendonRoutes from "./routes/vendon";
-import enhancedAuthRoutes from "./routes/enhanced-auth-routes";
+// Enhanced auth routes disabled - using standard auth
 import productDisposalsRoutes from "./routes/productDisposals";
 import inventoryTransfersRoutes from "./routes/inventoryTransfers";
 import exportImportRoutes from "./routes/exportImport";
@@ -6079,7 +6079,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use(`${API_PREFIX}/enhanced-vendon-import`, enhancedVendonImportRoutes);
   
   // Enhanced Authentication Routes
-  app.use(`${API_PREFIX}/enhanced-auth`, enhancedAuthRoutes);
+  // Enhanced auth routes disabled - using standard auth
+  // app.use(`${API_PREFIX}/enhanced-auth`, enhancedAuthRoutes);
   app.use(`${API_PREFIX}/events`, eventsRouter);
   app.use(`${API_PREFIX}/comprehensive-data`, comprehensiveDataRouter);
   app.use(`${API_PREFIX}/weather`, weatherRouter);
