@@ -156,6 +156,9 @@ interface MHDEntry {
   expiryDate: string;
   quantity: number;
   status: 'good' | 'attention' | 'warning' | 'expired';
+  batchNumber?: string;
+  daysUntilExpiry?: number;
+  incomingDate?: string;
 }
 
 interface RefillTemplate {
@@ -1243,6 +1246,7 @@ export default function AutomatDetail() {
                       <TableHead>Produkt</TableHead>
                       <TableHead>MHD</TableHead>
                       <TableHead>Menge</TableHead>
+                      <TableHead>Charge</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Aktionen</TableHead>
                     </TableRow>
@@ -1253,6 +1257,7 @@ export default function AutomatDetail() {
                         <TableCell>{entry.productName}</TableCell>
                         <TableCell>{formatDateOnly(entry.expiryDate)}</TableCell>
                         <TableCell>{entry.quantity}</TableCell>
+                        <TableCell>{entry.batchNumber || '-'}</TableCell>
                         <TableCell>
                           <Badge 
                             variant={
@@ -1278,7 +1283,7 @@ export default function AutomatDetail() {
                       </TableRow>
                     )) || (
                       <TableRow>
-                        <TableCell colSpan={5} className="text-center text-muted-foreground">
+                        <TableCell colSpan={6} className="text-center text-muted-foreground">
                           Keine MHD-Einträge gefunden
                         </TableCell>
                       </TableRow>

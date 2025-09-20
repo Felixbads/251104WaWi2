@@ -1300,16 +1300,17 @@ router.get('/:id/mhd', async (req, res) => {
             batchInfo.batches.forEach(batch => {
               const daysUntilExpiry = Math.ceil((new Date(batch.expiryDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
               
-              let mhdStatus = 'ok';
+              let mhdStatus = 'good';
               if (daysUntilExpiry < 0) mhdStatus = 'expired';
-              else if (daysUntilExpiry <= 7) mhdStatus = 'critical';
+              else if (daysUntilExpiry <= 7) mhdStatus = 'attention';
               else if (daysUntilExpiry <= 30) mhdStatus = 'warning';
               
               mhdEntries.push({
+                id: batch.batchId || Date.now() + Math.random(), // Generate unique ID for frontend
                 productName: product.name,
-                mhd: new Date(batch.expiryDate).toISOString().split('T')[0], // Format: YYYY-MM-DD
-                menge: batch.allocatedQuantity,
-                status: mhdStatus,
+                expiryDate: new Date(batch.expiryDate).toISOString().split('T')[0], // Format: YYYY-MM-DD
+                quantity: batch.allocatedQuantity,
+                status: mhdStatus, // Status is now directly compatible with frontend
                 batchNumber: batch.batchNumber,
                 daysUntilExpiry: daysUntilExpiry,
                 incomingDate: new Date(batch.incomingDate).toISOString().split('T')[0]
