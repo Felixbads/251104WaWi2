@@ -132,6 +132,7 @@ import OrdersOverviewPage from "@/pages/OrdersOverviewPage";
 import SupportTicket from "@/pages/SupportTicket";
 import VendonSync from "@/pages/admin/VendonSync";
 import VendonSyncDashboard from "@/pages/admin/VendonSyncDashboard";
+import Notifications from "@/pages/System/Notifications";
 import RecurringOrdersPage from "@/pages/RecurringOrdersPage";
 import Fuellstaende from "@/pages/Fuellstaende";
 import LocationDetail from "@/pages/LocationDetail";
@@ -758,6 +759,13 @@ function AuthenticatedRouter() {
         <Route path="/seitenfreigabe">
           <AdminRoute>
             <PagePermissions />
+          </AdminRoute>
+        </Route>
+
+        {/* Benachrichtigungssystem für Admins */}
+        <Route path="/system/benachrichtigungen">
+          <AdminRoute>
+            <Notifications />
           </AdminRoute>
         </Route>
 
