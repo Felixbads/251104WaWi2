@@ -58,113 +58,124 @@ router.get('/warehouse-inventory-batches/:warehouseId', async (req: AuthRequest,
   }
 });
 
+// Business error class for proper HTTP status handling
+class BusinessError extends Error {
+  constructor(message: string, public statusCode: number = 400) {
+    super(message);
+    this.name = 'BusinessError';
+  }
+}
+
 // POST - Perform refill from warehouse to machine
 router.post('/warehouse-refills', async (req: AuthRequest, res: Response) => {
-  const transaction = await rawDb.query('BEGIN');
-  
   try {
-    const { machineId, items } = req.body; // Remove warehouseId from request body
+    const { machineId: rawMachineId, items } = req.body; // Remove warehouseId from request body
     const userId = req.user?.id || 1; // Default to system user if not authenticated
     const userName = req.user?.username || req.user?.email || 'System';
     
-    if (!machineId || !items || items.length === 0) {
-      await rawDb.query('ROLLBACK');
-      return res.status(400).json({ error: 'Unvollständige Daten für Refill' });
+    // Fix: Type coercion and validation
+    const machineId = parseInt(rawMachineId);
+    
+    if (!machineId || !items || items.length === 0 || isNaN(machineId)) {
+      throw new BusinessError('Unvollständige Daten für Refill oder ungültige Maschinen-ID', 400);
     }
 
-    // TASK 7: Enforce warehouse from machine assignment, not URL parameter
-    const assignmentResult = await db
-      .select({ warehouseId: machineWarehouseAssignments.warehouseId })
-      .from(machineWarehouseAssignments)
-      .where(eq(machineWarehouseAssignments.machineId, machineId))
-      .limit(1);
+    // Use single Drizzle transaction for atomicity
+    const result = await db.transaction(async (tx) => {
+      // TASK 7: Enforce warehouse from machine assignment, not URL parameter
+      const assignmentResult = await tx
+        .select({ warehouseId: machineWarehouseAssignments.warehouseId })
+        .from(machineWarehouseAssignments)
+        .where(eq(machineWarehouseAssignments.machineId, machineId))
+        .limit(1);
 
-    if (assignmentResult.length === 0) {
-      await rawDb.query('ROLLBACK');
-      return res.status(400).json({ 
-        error: `Automat ${machineId} ist keinem Lager zugewiesen. Bitte kontaktieren Sie den Administrator.` 
-      });
-    }
-
-    const warehouseId = assignmentResult[0].warehouseId;
-
-    // Create refill record using warehouse3 refillTrackings schema
-    const refillResult = await db.insert(refillTrackings)
-      .values({
-        machineId,
-        warehouseId,
-        refillDate: new Date(),
-        status: 'completed',
-        notes: `Manual refill by ${userName}`,
-        performedBy: userId,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      })
-      .returning();
-
-    const refillId = refillResult[0].id;
-    const refillHistoryItems = [];
-
-    // Process each item
-    for (const item of items) {
-      const { productId, batchNumber, expiryDate, quantity } = item;
-
-      // Get current batch inventory using stockBatches (product_batches table)
-      const batchQuery = `
-        SELECT * FROM product_batches 
-        WHERE warehouse_id = $1 
-          AND product_id = $2 
-          AND batch_number = $3 
-          AND status = 'active'
-        LIMIT 1
-      `;
-      
-      const batchResult = await rawDb.query(batchQuery, [warehouseId, productId, batchNumber]);
-      
-      if (batchResult.rows.length === 0) {
-        await rawDb.query('ROLLBACK');
-        return res.status(400).json({ 
-          error: `Charge ${batchNumber} nicht im Lager gefunden` 
-        });
+      if (assignmentResult.length === 0) {
+        throw new BusinessError(`Automat ${machineId} ist keinem Lager zugewiesen. Bitte kontaktieren Sie den Administrator.`, 400);
       }
 
-      const batch = batchResult.rows[0];
-      const stockBefore = batch.current_quantity; // Fix: use current_quantity field
-      const stockAfter = stockBefore - quantity;
+      const warehouseId = assignmentResult[0].warehouseId;
 
-      if (stockAfter < 0) {
-        await rawDb.query('ROLLBACK');
-        return res.status(400).json({ 
-          error: `Nicht genügend Bestand für Charge ${batchNumber}. Verfügbar: ${stockBefore}, Angefordert: ${quantity}` 
-        });
-      }
-
-      // Update batch inventory using product_batches table
-      await rawDb.query(
-        `UPDATE product_batches 
-         SET current_quantity = $1, updated_at = NOW() 
-         WHERE id = $2`,
-        [stockAfter, batch.id]
-      );
-
-      // Create refill detail using warehouse3 refillTrackingItems schema
-      const refillDetailResult = await db.insert(refillTrackingItems)
+      // Create refill record using warehouse3 refillTrackings schema
+      const refillResult = await tx.insert(refillTrackings)
         .values({
-          refillId,
-          productId,
-          batchId: batch.id,
-          quantity,
-          stockBefore,
-          stockAfter,
+          machineId,
+          warehouseId,
+          refillDate: new Date(),
+          status: 'completed',
+          notes: `Manual refill by ${userName}`,
+          performedBy: userId,
           createdAt: new Date(),
           updatedAt: new Date()
         })
         .returning();
 
+      const refillId = refillResult[0].id;
+      const refillHistoryItems = [];
+
+      // Process each item
+      for (const item of items) {
+        const { productId, batchNumber, expiryDate, quantity } = item;
+        
+        // Validate item data
+        if (!productId || !batchNumber || !quantity || quantity <= 0) {
+          throw new BusinessError(`Ungültige Item-Daten: productId=${productId}, batchNumber=${batchNumber}, quantity=${quantity}`, 400);
+        }
+
+        // CONCURRENCY FIX: Use SELECT FOR UPDATE to prevent race conditions on inventory
+        // Get and lock current batch inventory for atomic update
+        const batchResult = await tx.execute(sql`
+          SELECT * FROM product_batches 
+          WHERE warehouse_id = ${warehouseId} 
+            AND product_id = ${productId} 
+            AND batch_number = ${batchNumber} 
+            AND status = 'active'
+          FOR UPDATE
+          LIMIT 1
+        `);
+        
+        if (batchResult.rows.length === 0) {
+          throw new BusinessError(`Charge ${batchNumber} nicht im Lager gefunden`, 404);
+        }
+
+        const batch = batchResult.rows[0];
+        const stockBefore = batch.current_quantity; // Fix: use current_quantity field
+        const stockAfter = stockBefore - quantity;
+
+        if (stockAfter < 0) {
+          throw new BusinessError(`Nicht genügend Bestand für Charge ${batchNumber}. Verfügbar: ${stockBefore}, Angefordert: ${quantity}`, 400);
+        }
+
+        // ATOMIC UPDATE: Update batch inventory with concurrency protection
+        const updateResult = await tx.execute(sql`
+          UPDATE product_batches 
+          SET current_quantity = ${stockAfter}, updated_at = NOW() 
+          WHERE id = ${batch.id} AND current_quantity = ${stockBefore}
+          RETURNING current_quantity
+        `);
+        
+        // Double-check atomic update succeeded (prevents lost updates)
+        if (updateResult.rows.length === 0) {
+          throw new BusinessError(`Concurrency-Konflikt bei Charge ${batchNumber}. Bitte erneut versuchen.`, 409);
+        }
+
+        // Create refill detail using warehouse3 refillTrackingItems schema
+        const refillDetailResult = await tx.insert(refillTrackingItems)
+          .values({
+            refillId,
+            productId,
+            batchId: batch.id,
+            quantity,
+            stockBefore,
+            stockAfter,
+            createdAt: new Date(),
+            updatedAt: new Date()
+          })
+          .returning();
+
       // Skip old refillBatchMovements - using stockMovements instead
 
-      // Create inventory movement record using warehouse3 stockMovements schema
-      await db.insert(stockMovements)
+        // Create inventory movement record using warehouse3 stockMovements schema
+        await tx.insert(stockMovements)
         .values({
           movementType: 'FILL',
           productId,
@@ -187,31 +198,42 @@ router.post('/warehouse-refills', async (req: AuthRequest, res: Response) => {
           updatedAt: new Date()
         });
 
-      // Add to history items for response
-      refillHistoryItems.push({
-        productName: item.productName,
-        quantity,
-        batchNumber,
-        expiryDate,
-        stockBefore,
-        stockAfter
-      });
-    }
+        // Add to history items for response
+        refillHistoryItems.push({
+          productName: item.productName,
+          quantity,
+          batchNumber,
+          expiryDate,
+          stockBefore,
+          stockAfter
+        });
+      }
 
-    await rawDb.query('COMMIT');
-
-    res.json({
-      success: true,
-      refillId,
-      items: refillHistoryItems,
-      message: `Refill erfolgreich durchgeführt. ${items.length} Artikel transferiert.`
+      // Return success response data from transaction
+      return {
+        success: true,
+        refillId,
+        items: refillHistoryItems,
+        message: `Refill erfolgreich durchgeführt. ${items.length} Artikel transferiert.`
+      };
     });
 
+    // Send response with transaction result
+    res.json(result);
+
   } catch (error) {
-    await rawDb.query('ROLLBACK');
     console.error('Fehler beim Durchführen des Refills:', error);
+    
+    // Proper HTTP status handling for business vs system errors
+    if (error instanceof BusinessError) {
+      return res.status(error.statusCode).json({ 
+        error: error.message
+      });
+    }
+    
+    // System/unexpected errors get 500
     res.status(500).json({ 
-      error: 'Fehler beim Durchführen des Refills',
+      error: 'Unerwarteter Fehler beim Durchführen des Refills',
       details: error instanceof Error ? error.message : String(error)
     });
   }
