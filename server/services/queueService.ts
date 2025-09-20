@@ -28,8 +28,6 @@ export class QueueService {
       archiveCompletedAfterSeconds: 24 * 60 * 60,
       // Delete archived jobs after 7 days  
       deleteAfterHours: 7 * 24,
-      // Poll for jobs every 5 seconds
-      pollIntervalSeconds: 5,
       // Retry failed jobs with exponential backoff
       retryLimit: 3,
       retryDelay: 60,
@@ -56,36 +54,36 @@ export class QueueService {
 
     // Handler for checking and dispatching scheduled notifications
     await this.boss.work('dispatch-notifications', {
-      teamSize: 1, // Only one worker to avoid duplicate dispatches
-      teamConcurrency: 1
-    }, async (job) => {
+      batchSize: 1,
+    }, async (jobs) => {
+      const job = Array.isArray(jobs) ? jobs[0] : jobs;
       console.log('Processing dispatch-notifications job:', job.id);
       await this.processDispatchNotifications(job.data);
     });
 
     // Handler for processing event-based notifications
     await this.boss.work('process-events', {
-      teamSize: 2,
-      teamConcurrency: 5
-    }, async (job) => {
+      batchSize: 5,
+    }, async (jobs) => {
+      const job = Array.isArray(jobs) ? jobs[0] : jobs;
       console.log('Processing process-events job:', job.id);
       await this.processEventNotifications(job.data);
     });
 
     // Handler for sending individual emails
     await this.boss.work('send-email', {
-      teamSize: 3,
-      teamConcurrency: 10
-    }, async (job) => {
+      batchSize: 10,
+    }, async (jobs) => {
+      const job = Array.isArray(jobs) ? jobs[0] : jobs;
       console.log('Processing send-email job:', job.id);
       await this.processSendEmail(job.data);
     });
 
     // Handler for generating and sending reports
     await this.boss.work('generate-report', {
-      teamSize: 1,
-      teamConcurrency: 2
-    }, async (job) => {
+      batchSize: 2,
+    }, async (jobs) => {
+      const job = Array.isArray(jobs) ? jobs[0] : jobs;
       console.log('Processing generate-report job:', job.id);
       await this.processGenerateReport(job.data);
     });
@@ -133,7 +131,7 @@ export class QueueService {
     subject: string;
     templateName: string;
     templateData: Record<string, any>;
-  }): Promise<string> {
+  }): Promise<string | null> {
     if (!this.boss) throw new Error('Queue service not initialized');
 
     const jobId = await this.boss.send('send-email', data, {
@@ -157,7 +155,7 @@ export class QueueService {
       subscriptionId: number;
       email: string;
     }>;
-  }): Promise<string> {
+  }): Promise<string | null> {
     if (!this.boss) throw new Error('Queue service not initialized');
 
     const jobId = await this.boss.send('generate-report', data, {
@@ -302,7 +300,8 @@ export class QueueService {
         channel: 'email',
         recipient: data.recipient,
         subject: data.subject,
-        sentAt: new Date()
+        sentAt: new Date(),
+        retryCount: 0
       });
 
       console.log(`Email sent successfully to ${data.recipient}`);
@@ -320,7 +319,8 @@ export class QueueService {
         recipient: data.recipient,
         subject: data.subject,
         errorMessage: error instanceof Error ? error.message : 'Unknown error',
-        sentAt: new Date()
+        sentAt: new Date(),
+        retryCount: 0
       });
 
       throw error;
