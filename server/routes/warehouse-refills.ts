@@ -11,8 +11,13 @@ import {
 import { machines, products, users } from '@shared/schema';
 import { eq, and, gte, lte, desc, sql } from 'drizzle-orm';
 import { format } from 'date-fns';
+import { CentralizedInventoryMovement, createFillMovement } from '../services/centralizedInventoryMovement';
 
 const router = express.Router();
+
+// Initialize centralized inventory movement service
+const inventoryService = new CentralizedInventoryMovement(db, rawDb);
+
 
 interface AuthRequest extends Request {
   user?: any;
@@ -112,100 +117,48 @@ router.post('/warehouse-refills', async (req: AuthRequest, res: Response) => {
       const refillId = refillResult[0].id;
       const refillHistoryItems = [];
 
-      // Process each item
+      // Process each item using centralized FIFO inventory service
       for (const item of items) {
         const { productId, batchNumber, expiryDate, quantity } = item;
         
         // Validate item data
-        if (!productId || !batchNumber || !quantity || quantity <= 0) {
-          throw new BusinessError(`Ungültige Item-Daten: productId=${productId}, batchNumber=${batchNumber}, quantity=${quantity}`, 400);
+        if (!productId || !quantity || quantity <= 0) {
+          throw new BusinessError(`Ungültige Item-Daten: productId=${productId}, quantity=${quantity}`, 400);
         }
 
-        // CONCURRENCY FIX: Use SELECT FOR UPDATE to prevent race conditions on inventory
-        // Get and lock current batch inventory for atomic update
-        const batchResult = await tx.execute(sql`
-          SELECT * FROM product_batches 
-          WHERE warehouse_id = ${warehouseId} 
-            AND product_id = ${productId} 
-            AND batch_number = ${batchNumber} 
-            AND status = 'active'
-          FOR UPDATE
-          LIMIT 1
-        `);
-        
-        if (batchResult.rows.length === 0) {
-          throw new BusinessError(`Charge ${batchNumber} nicht im Lager gefunden`, 404);
-        }
-
-        const batch = batchResult.rows[0];
-        const stockBefore = batch.current_quantity; // Fix: use current_quantity field
-        const stockAfter = stockBefore - quantity;
-
-        if (stockAfter < 0) {
-          throw new BusinessError(`Nicht genügend Bestand für Charge ${batchNumber}. Verfügbar: ${stockBefore}, Angefordert: ${quantity}`, 400);
-        }
-
-        // ATOMIC UPDATE: Update batch inventory with concurrency protection
-        const updateResult = await tx.execute(sql`
-          UPDATE product_batches 
-          SET current_quantity = ${stockAfter}, updated_at = NOW() 
-          WHERE id = ${batch.id} AND current_quantity = ${stockBefore}
-          RETURNING current_quantity
-        `);
-        
-        // Double-check atomic update succeeded (prevents lost updates)
-        if (updateResult.rows.length === 0) {
-          throw new BusinessError(`Concurrency-Konflikt bei Charge ${batchNumber}. Bitte erneut versuchen.`, 409);
-        }
+        // Use centralized FIFO inventory service for movement
+        const movementResult = await createFillMovement(
+          productId,
+          warehouseId,
+          quantity,
+          userId,
+          machineId,
+          tx
+        );
 
         // Create refill detail using warehouse3 refillTrackingItems schema
         const refillDetailResult = await tx.insert(refillTrackingItems)
           .values({
             refillId,
             productId,
-            batchId: batch.id,
+            batchId: movementResult.batchesProcessed[0]?.batchId,
             quantity,
-            stockBefore,
-            stockAfter,
+            stockBefore: movementResult.movement.beforeQty,
+            stockAfter: movementResult.movement.afterQty,
             createdAt: new Date(),
             updatedAt: new Date()
           })
           .returning();
 
-      // Skip old refillBatchMovements - using stockMovements instead
-
-        // Create inventory movement record using warehouse3 stockMovements schema
-        await tx.insert(stockMovements)
-        .values({
-          movementType: 'FILL',
-          productId,
-          warehouseId, // Maps to source_warehouse_id field
-          batchId: batch.id,
-          qtyDelta: -quantity, // Maps to quantity field - negative for OUT movement
-          beforeQty: stockBefore, // Maps to previous_stock
-          afterQty: stockAfter, // Maps to current_stock
-          actorUserId: userId, // Maps to performed_by - REQUIRED per requirements
-          machineId,
-          occurredAt: new Date(), // Maps to performed_at
-          source: 'REFILL', // Maps to reference_type
-          direction: 'OUT',
-          referenceId: refillId.toString(),
-          status: 'completed',
-          notes: `Refill zum Automat ${machineId} durch ${userName}`,
-          batchNumber,
-          expiryDate: expiryDate, // Keep as string, not Date object
-          createdAt: new Date(),
-          updatedAt: new Date()
-        });
-
-        // Add to history items for response
+        // Add to history items for response with batch info from FIFO processing
+        const primaryBatch = movementResult.batchesProcessed[0];
         refillHistoryItems.push({
           productName: item.productName,
           quantity,
-          batchNumber,
-          expiryDate,
-          stockBefore,
-          stockAfter
+          batchNumber: primaryBatch?.batchNumber || batchNumber,
+          expiryDate: primaryBatch?.expiryDate || expiryDate,
+          stockBefore: movementResult.movement.beforeQty,
+          stockAfter: movementResult.movement.afterQty
         });
       }
 
@@ -355,120 +308,89 @@ router.get('/mhd-warnings', async (req: AuthRequest, res: Response) => {
 
 // POST - Link warehouse inventory to an existing Vendon refill
 router.post('/link-warehouse-to-refill', async (req: AuthRequest, res: Response) => {
-  const transaction = await rawDb.query('BEGIN');
-  
   try {
     const { refillId, warehouseId, items } = req.body;
     const userId = req.user?.id || 1;
     
     if (!refillId || !warehouseId || !items || items.length === 0) {
-      await rawDb.query('ROLLBACK');
       return res.status(400).json({ error: 'Unvollständige Daten für Warehouse-Refill-Verknüpfung' });
     }
 
-    // Verify refill exists
-    const refillCheck = await rawDb.query('SELECT * FROM refills WHERE id = $1', [refillId]);
-    if (refillCheck.rows.length === 0) {
-      await rawDb.query('ROLLBACK');
-      return res.status(404).json({ error: 'Refill nicht gefunden' });
-    }
-
-    const refill = refillCheck.rows[0];
-    const inventoryMovements = [];
-
-    // Process each item and create inventory movements
-    for (const item of items) {
-      const { productId, batchNumber, quantity } = item;
-
-      // Get current batch inventory
-      const batchQuery = `
-        SELECT * FROM product_batches 
-        WHERE warehouse_id = $1 
-          AND product_id = $2 
-          AND batch_number = $3 
-          AND status = 'active'
-        LIMIT 1
-      `;
-      
-      const batchResult = await rawDb.query(batchQuery, [warehouseId, productId, batchNumber]);
-      
-      if (batchResult.rows.length === 0) {
-        await rawDb.query('ROLLBACK');
-        return res.status(400).json({ 
-          error: `Charge ${batchNumber} nicht im Lager gefunden` 
-        });
+    // Use unified Drizzle transaction for atomicity
+    const result = await db.transaction(async (tx) => {
+      // Verify refill exists
+      const refillResult = await tx.execute(sql`SELECT * FROM refills WHERE id = ${refillId}`);
+      if (refillResult.rows.length === 0) {
+        throw new BusinessError('Refill nicht gefunden', 404);
       }
 
-      const batch = batchResult.rows[0];
-      const stockBefore = batch.current_quantity; // Fix: use current_quantity field
-      const stockAfter = stockBefore - quantity;
+      const refill = refillResult.rows[0];
+      const inventoryMovements = [];
 
-      if (stockAfter < 0) {
-        await rawDb.query('ROLLBACK');
-        return res.status(400).json({ 
-          error: `Nicht genügend Bestand für Charge ${batchNumber}. Verfügbar: ${stockBefore}, Angefordert: ${quantity}` 
-        });
-      }
+      // Process each item using centralized service (no manual batch updates)
+      for (const item of items) {
+        const { productId, batchNumber, quantity } = item;
+        
+        // Validate item data
+        if (!productId || !quantity || quantity <= 0) {
+          throw new BusinessError(`Ungültige Item-Daten: productId=${productId}, quantity=${quantity}`, 400);
+        }
 
-      // Update batch inventory
-      await rawDb.query(
-        `UPDATE product_batches 
-         SET current_quantity = $1, updated_at = NOW() 
-         WHERE id = $2`,
-        [stockAfter, batch.id]
-      );
-
-      // Create inventory movement record linked to the refill
-      const movementResult = await db.insert(stockMovements)
-        .values({
+        // Use centralized service - it handles FIFO, batch validation, and updates
+        const movementResult = await inventoryService.createInventoryMovement({
           movementType: 'FILL',
           productId,
-          warehouseId, // Use warehouseId (maps to source_warehouse_id)
-          batchId: batch.id,
-          qtyDelta: -quantity, // Maps to quantity field - negative for OUT movement
-          beforeQty: stockBefore, // Maps to previous_stock
-          afterQty: stockAfter, // Maps to current_stock
-          actorUserId: userId, // Maps to performed_by
+          warehouseId,
+          qtyDelta: -quantity,
+          actorUserId: userId,
           machineId: refill.machine_id,
-          occurredAt: new Date(refill.datetime * 1000), // Maps to performed_at
-          source: 'REFILL', // Maps to reference_type
+          occurredAt: new Date(refill.datetime * 1000),
+          source: 'REFILL',
           direction: 'OUT',
           referenceId: refillId.toString(),
           status: 'completed',
           notes: `Nachträgliche Zuordnung zu Refill ${refill.refill_number || refill.id} durch ${refill.operator}`,
           batchNumber,
-          expiryDate: batch.expiry_date, // Keep as string, not Date object
-          createdAt: new Date(),
-          updatedAt: new Date()
-        })
-        .returning();
+          expiryDate: item.expiryDate
+        }, tx);
 
-      inventoryMovements.push({
-        productId,
-        batchNumber,
-        quantity,
-        stockBefore,
-        stockAfter,
-        withdrawalTime: new Date(refill.datetime * 1000).toISOString()
-      });
-    }
+        inventoryMovements.push({
+          productId,
+          batchNumber: movementResult.batchesProcessed[0]?.batchNumber || batchNumber,
+          quantity,
+          stockBefore: movementResult.movement.beforeQty,
+          stockAfter: movementResult.movement.afterQty,
+          withdrawalTime: new Date(refill.datetime * 1000).toISOString()
+        });
+      }
 
-    await rawDb.query('COMMIT');
+      return {
+        refillId,
+        operator: refill.operator,
+        refillTime: new Date(refill.datetime * 1000).toISOString(),
+        inventoryMovements
+      };
+    });
 
     res.json({
       success: true,
-      refillId,
-      operator: refill.operator,
-      refillTime: new Date(refill.datetime * 1000).toISOString(),
-      inventoryMovements,
+      ...result,
       message: `Lagerentnahme erfolgreich zu Refill verknüpft. ${items.length} Artikel zugeordnet.`
     });
 
   } catch (error) {
-    await rawDb.query('ROLLBACK');
     console.error('Fehler beim Verknüpfen der Lagerentnahme:', error);
+    
+    // Proper HTTP status handling for business vs system errors
+    if (error instanceof BusinessError) {
+      return res.status(error.statusCode).json({ 
+        error: error.message
+      });
+    }
+    
+    // System/unexpected errors get 500
     res.status(500).json({ 
-      error: 'Fehler beim Verknüpfen der Lagerentnahme',
+      error: 'Unerwarteter Fehler beim Verknüpfen der Lagerentnahme',
       details: error instanceof Error ? error.message : String(error)
     });
   }
@@ -527,8 +449,6 @@ router.get('/unlinked-refills', async (req: AuthRequest, res: Response) => {
 
 // POST - Auto-assign existing refills to warehouse inventory (for demo/testing)
 router.post('/auto-assign-existing-refills', async (req: AuthRequest, res: Response) => {
-  const transaction = await rawDb.query('BEGIN');
-  
   try {
     // Get recent refills without inventory linkage
     const refillsQuery = `
@@ -556,7 +476,6 @@ router.post('/auto-assign-existing-refills', async (req: AuthRequest, res: Respo
     const refills = refillsResult.rows;
 
     if (refills.length === 0) {
-      await rawDb.query('ROLLBACK');
       return res.json({ 
         success: true, 
         message: 'Keine unverknüpften Refills gefunden',
@@ -618,53 +537,36 @@ router.post('/auto-assign-existing-refills', async (req: AuthRequest, res: Respo
 
         // Random quantity between 5-20 pieces
         const quantity = Math.floor(Math.random() * 16) + 5;
-        const stockBefore = availableBatch.current_quantity; // Fix: use current_quantity field
-        const stockAfter = Math.max(0, stockBefore - quantity);
 
-        // Update batch quantity
-        await rawDb.query(
-          `UPDATE product_batches 
-           SET current_quantity = $1, updated_at = NOW() 
-           WHERE id = $2`,
-          [stockAfter, availableBatch.id]
-        );
-
-        // Update our local batch tracking
-        availableBatch.current_quantity = stockAfter;
-
-        // Create inventory movement record
-        const movementResult = await db.insert(stockMovements)
-          .values({
+        try {
+          // Use centralized service - it handles FIFO, batch selection, and updates
+          const movementResult = await inventoryService.createInventoryMovement({
             movementType: 'FILL',
             productId: parseInt(productId),
-            warehouseId: 4, // Stolpen warehouse - maps to source_warehouse_id
-            batchId: availableBatch.id,
-            qtyDelta: -quantity, // Maps to quantity field - negative for OUT movement
-            beforeQty: stockBefore, // Maps to previous_stock
-            afterQty: stockAfter, // Maps to current_stock
-            actorUserId: 1, // System user - maps to performed_by
+            warehouseId: 4, // Stolpen warehouse
+            qtyDelta: -quantity,
+            actorUserId: 1, // System user
             machineId: refill.machine_id,
-            occurredAt: new Date(refill.datetime * 1000), // Maps to performed_at
-            source: 'REFILL', // Maps to reference_type
+            occurredAt: new Date(refill.datetime * 1000),
+            source: 'REFILL',
             direction: 'OUT',
             referenceId: refill.id.toString(),
             status: 'completed',
-            notes: `Automatische Zuordnung zu Refill ${refill.refill_number || refill.id} durch ${refill.operator}`,
-            batchNumber: availableBatch.batch_number,
-            expiryDate: availableBatch.expiry_date, // Keep as string, not Date object
-            createdAt: new Date(),
-            updatedAt: new Date()
-          })
-          .returning();
+            notes: `Automatische Zuordnung zu Refill ${refill.refill_number || refill.id} durch ${refill.operator}`
+          });
 
-        refillMovements.push({
-          productName: availableBatch.product_name,
-          batchNumber: availableBatch.batch_number,
-          quantity,
-          stockBefore,
-          stockAfter,
-          expiryDate: availableBatch.expiry_date
-        });
+          refillMovements.push({
+            productName: availableBatch.product_name,
+            batchNumber: movementResult.batchesProcessed[0]?.batchNumber || availableBatch.batch_number,
+            quantity,
+            stockBefore: movementResult.movement.beforeQty,
+            stockAfter: movementResult.movement.afterQty,
+            expiryDate: movementResult.batchesProcessed[0]?.expiryDate || availableBatch.expiry_date
+          });
+        } catch (movementError) {
+          console.warn(`Skipping product ${productId} for refill ${refill.id}: insufficient inventory`);
+          // Continue with next product if this one fails due to insufficient inventory
+        }
       }
 
       assignedRefills.push({
@@ -676,8 +578,6 @@ router.post('/auto-assign-existing-refills', async (req: AuthRequest, res: Respo
       });
     }
 
-    await rawDb.query('COMMIT');
-
     res.json({
       success: true,
       message: `${assignedRefills.length} Refills erfolgreich zu Lagerbeständen zugeordnet`,
@@ -686,10 +586,17 @@ router.post('/auto-assign-existing-refills', async (req: AuthRequest, res: Respo
     });
 
   } catch (error) {
-    await rawDb.query('ROLLBACK');
     console.error('Fehler bei der automatischen Refill-Zuordnung:', error);
+    
+    // Proper HTTP status handling for business vs system errors
+    if (error instanceof BusinessError) {
+      return res.status(error.statusCode).json({ 
+        error: error.message
+      });
+    }
+    
     res.status(500).json({ 
-      error: 'Fehler bei der automatischen Refill-Zuordnung',
+      error: 'Unerwarteter Fehler bei der automatischen Refill-Zuordnung',
       details: error instanceof Error ? error.message : String(error)
     });
   }
