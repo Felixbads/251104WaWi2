@@ -426,6 +426,16 @@ export class CentralizedInventoryMovement {
         movements.push(movement);
       }
       
+      // 4.5. COMPATIBILITY BRIDGE: Also write to legacy inventory_movements table
+      // This ensures frontend compatibility while transitioning to new system
+      await this.writeLegacyInventoryMovements(
+        validatedInput,
+        beforeQty, 
+        afterQty,
+        batchesProcessed.length > 0 ? batchesProcessed : null,
+        dbClient
+      );
+      
       // 5. CREATE MOVEMENT GROUP for logical grouping and audit trail
       const [movementGroup] = await dbClient
         .insert(movementGroups)
@@ -520,6 +530,152 @@ export class CentralizedInventoryMovement {
       // Never throw from failure logging - just log the meta-error
       console.error('[FAILURE_AUDIT] ❌ Failed to record movement attempt failure:', logError);
     }
+  }
+
+  /**
+   * COMPATIBILITY BRIDGE: Write to legacy inventory_movements table
+   * This ensures frontend works while we transition to new stockMovements system
+   */
+  private async writeLegacyInventoryMovements(
+    input: CreateMovementInput,
+    beforeQty: number,
+    afterQty: number,
+    batchesProcessed: BatchProcessResult[] | null,
+    dbClient: any
+  ): Promise<void> {
+    console.log(`[LEGACY_BRIDGE] Writing to inventory_movements table for compatibility`);
+    
+    try {
+      // Map movement types to legacy format
+      const legacyMovementType = this.mapToLegacyMovementType(input.movementType);
+      
+      // Base movement data for legacy table
+      const baseData = {
+        product_id: input.productId,
+        quantity: input.qtyDelta,
+        movement_type: legacyMovementType,
+        source_warehouse_id: input.qtyDelta < 0 ? input.warehouseId : null,
+        destination_warehouse_id: input.qtyDelta > 0 ? input.warehouseId : null,
+        machine_id: input.machineId || null,
+        reference_type: 'centralized_movement',
+        reference_id: input.correlationId,
+        notes: input.notes || `${input.movementType} movement via centralized service`,
+        performed_by: input.actorUserId,
+        performed_at: new Date(),
+        // CRITICAL: Set the missing stock tracking fields
+        previous_stock: beforeQty,
+        current_stock: afterQty,
+        // Enhanced audit fields
+        actor_username_snapshot: input.actorUsername,
+        actor_role_snapshot: input.actorRole,
+        correlation_id: input.correlationId,
+        initiated_by: input.initiatedBy || 'user',
+        schema_version: 2
+      };
+
+      if (batchesProcessed && batchesProcessed.length > 0) {
+        // Create one legacy movement per batch for detailed tracking
+        for (const batch of batchesProcessed) {
+          const batchMovementData = {
+            ...baseData,
+            quantity: input.qtyDelta < 0 ? -batch.quantityUsed : batch.quantityUsed,
+            batch_id: batch.batchId,
+            batch_number: batch.batchNumber,
+            expiry_date: new Date(batch.expiryDate),
+            previous_stock: batch.stockBefore,
+            current_stock: batch.stockAfter,
+            notes: `${baseData.notes} (Batch: ${batch.batchNumber})`
+          };
+
+          await dbClient.query(`
+            INSERT INTO inventory_movements (
+              product_id, quantity, movement_type, source_warehouse_id, 
+              destination_warehouse_id, machine_id, reference_type, reference_id,
+              notes, performed_by, performed_at, previous_stock, current_stock,
+              batch_id, batch_number, expiry_date, actor_username_snapshot,
+              actor_role_snapshot, correlation_id, initiated_by, schema_version
+            ) VALUES (
+              $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 
+              $14, $15, $16, $17, $18, $19, $20, $21
+            )
+          `, [
+            batchMovementData.product_id,
+            batchMovementData.quantity,
+            batchMovementData.movement_type,
+            batchMovementData.source_warehouse_id,
+            batchMovementData.destination_warehouse_id,
+            batchMovementData.machine_id,
+            batchMovementData.reference_type,
+            batchMovementData.reference_id,
+            batchMovementData.notes,
+            batchMovementData.performed_by,
+            batchMovementData.performed_at,
+            batchMovementData.previous_stock,
+            batchMovementData.current_stock,
+            batchMovementData.batch_id,
+            batchMovementData.batch_number,
+            batchMovementData.expiry_date,
+            batchMovementData.actor_username_snapshot,
+            batchMovementData.actor_role_snapshot,
+            batchMovementData.correlation_id,
+            batchMovementData.initiated_by,
+            batchMovementData.schema_version
+          ]);
+        }
+      } else {
+        // Single movement without batch details
+        await dbClient.query(`
+          INSERT INTO inventory_movements (
+            product_id, quantity, movement_type, source_warehouse_id,
+            destination_warehouse_id, machine_id, reference_type, reference_id,
+            notes, performed_by, performed_at, previous_stock, current_stock,
+            actor_username_snapshot, actor_role_snapshot, correlation_id,
+            initiated_by, schema_version
+          ) VALUES (
+            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
+            $14, $15, $16, $17, $18
+          )
+        `, [
+          baseData.product_id,
+          baseData.quantity,
+          baseData.movement_type,
+          baseData.source_warehouse_id,
+          baseData.destination_warehouse_id,
+          baseData.machine_id,
+          baseData.reference_type,
+          baseData.reference_id,
+          baseData.notes,
+          baseData.performed_by,
+          baseData.performed_at,
+          baseData.previous_stock,
+          baseData.current_stock,
+          baseData.actor_username_snapshot,
+          baseData.actor_role_snapshot,
+          baseData.correlation_id,
+          baseData.initiated_by,
+          baseData.schema_version
+        ]);
+      }
+      
+      console.log(`[LEGACY_BRIDGE] ✅ Successfully wrote legacy movements with stock tracking`);
+    } catch (error) {
+      console.error('[LEGACY_BRIDGE] ❌ Failed to write legacy movements:', error);
+      // Don't throw - this is a compatibility feature, not critical
+    }
+  }
+
+  /**
+   * Map new movement types to legacy format
+   */
+  private mapToLegacyMovementType(movementType: string): string {
+    const mapping: Record<string, string> = {
+      'FILL': 'REFILL',
+      'RECEIPT': 'IN', 
+      'ADJUST': 'ADJUSTMENT',
+      'TRANSFER': 'TRANSFER',
+      'EXPIRY': 'EXPIRY'
+    };
+    return mapping[movementType] || movementType;
   }
 
   /**
