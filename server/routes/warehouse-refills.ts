@@ -1,16 +1,14 @@
 import express, { Request, Response } from 'express';
 import { db, rawDb } from '../db';
 import { 
-  inventoryBatches, 
-  inventoryMovements, 
-  refills, 
-  refillDetails,
-  refillBatchMovements,
-  machines,
+  stockBatches, 
+  stockMovements, 
+  refillTrackings, 
+  refillTrackingItems,
   warehouses,
-  products,
-  users
-} from '@shared/schema';
+  machineWarehouseAssignments
+} from '@shared/warehouse3.schema';
+import { machines, products, users } from '@shared/schema';
 import { eq, and, gte, lte, desc, sql } from 'drizzle-orm';
 import { format } from 'date-fns';
 
@@ -32,20 +30,20 @@ router.get('/warehouse-inventory-batches/:warehouseId', async (req: AuthRequest,
     // Query to get inventory batches with product information
     const query = `
       SELECT 
-        ib.id,
-        ib.product_id as "productId",
+        pb.id,
+        pb.product_id as "productId",
         p.product_name as "productName",
-        ib.batch_number as "batchNumber",
-        ib.expiry_date as "expiryDate",
-        ib.quantity,
-        ib.status,
-        ib.warehouse_id as "warehouseId"
-      FROM inventory_batches ib
-      JOIN products p ON ib.product_id = p.id
-      WHERE ib.warehouse_id = $1
-        AND ib.status = 'active'
-        AND ib.quantity > 0
-      ORDER BY ib.expiry_date ASC, ib.batch_number ASC
+        pb.batch_number as "batchNumber",
+        pb.expiry_date as "expiryDate",
+        pb.current_quantity as quantity, -- Map for compatibility
+        pb.status,
+        pb.warehouse_id as "warehouseId"
+      FROM product_batches pb
+      JOIN products p ON pb.product_id = p.id
+      WHERE pb.warehouse_id = $1
+        AND pb.status = 'active'
+        AND pb.current_quantity > 0
+      ORDER BY pb.expiry_date ASC, pb.batch_number ASC
     `;
 
     const result = await rawDb.query(query, [warehouseId]);
@@ -65,23 +63,40 @@ router.post('/warehouse-refills', async (req: AuthRequest, res: Response) => {
   const transaction = await rawDb.query('BEGIN');
   
   try {
-    const { warehouseId, machineId, items } = req.body;
+    const { machineId, items } = req.body; // Remove warehouseId from request body
     const userId = req.user?.id || 1; // Default to system user if not authenticated
     const userName = req.user?.username || req.user?.email || 'System';
     
-    if (!warehouseId || !machineId || !items || items.length === 0) {
+    if (!machineId || !items || items.length === 0) {
       await rawDb.query('ROLLBACK');
       return res.status(400).json({ error: 'Unvollständige Daten für Refill' });
     }
 
-    // Create refill record with proper operator field
-    const refillResult = await db.insert(refills)
+    // TASK 7: Enforce warehouse from machine assignment, not URL parameter
+    const assignmentResult = await db
+      .select({ warehouseId: machineWarehouseAssignments.warehouseId })
+      .from(machineWarehouseAssignments)
+      .where(eq(machineWarehouseAssignments.machineId, machineId))
+      .limit(1);
+
+    if (assignmentResult.length === 0) {
+      await rawDb.query('ROLLBACK');
+      return res.status(400).json({ 
+        error: `Automat ${machineId} ist keinem Lager zugewiesen. Bitte kontaktieren Sie den Administrator.` 
+      });
+    }
+
+    const warehouseId = assignmentResult[0].warehouseId;
+
+    // Create refill record using warehouse3 refillTrackings schema
+    const refillResult = await db.insert(refillTrackings)
       .values({
         machineId,
-        datetime: Math.floor(Date.now() / 1000),
-        refillType: 'manual',
-        refillNumber: `REF-${Date.now()}`,
-        operator: userName, // Use the operator field instead of rawData
+        warehouseId,
+        refillDate: new Date(),
+        status: 'completed',
+        notes: `Manual refill by ${userName}`,
+        performedBy: userId,
         createdAt: new Date(),
         updatedAt: new Date()
       })
@@ -94,9 +109,9 @@ router.post('/warehouse-refills', async (req: AuthRequest, res: Response) => {
     for (const item of items) {
       const { productId, batchNumber, expiryDate, quantity } = item;
 
-      // Get current batch inventory
+      // Get current batch inventory using stockBatches (product_batches table)
       const batchQuery = `
-        SELECT * FROM inventory_batches 
+        SELECT * FROM product_batches 
         WHERE warehouse_id = $1 
           AND product_id = $2 
           AND batch_number = $3 
@@ -114,7 +129,7 @@ router.post('/warehouse-refills', async (req: AuthRequest, res: Response) => {
       }
 
       const batch = batchResult.rows[0];
-      const stockBefore = batch.quantity;
+      const stockBefore = batch.current_quantity; // Fix: use current_quantity field
       const stockAfter = stockBefore - quantity;
 
       if (stockAfter < 0) {
@@ -124,68 +139,50 @@ router.post('/warehouse-refills', async (req: AuthRequest, res: Response) => {
         });
       }
 
-      // Update batch inventory
+      // Update batch inventory using product_batches table
       await rawDb.query(
-        `UPDATE inventory_batches 
-         SET quantity = $1, updated_at = NOW() 
+        `UPDATE product_batches 
+         SET current_quantity = $1, updated_at = NOW() 
          WHERE id = $2`,
         [stockAfter, batch.id]
       );
 
-      // Create refill detail
-      const refillDetailResult = await db.insert(refillDetails)
+      // Create refill detail using warehouse3 refillTrackingItems schema
+      const refillDetailResult = await db.insert(refillTrackingItems)
         .values({
           refillId,
           productId,
-          productName: item.productName,
+          batchId: batch.id,
           quantity,
-          previousQuantity: stockBefore,
-          rawData: JSON.stringify({ 
-            batchNumber, 
-            expiryDate,
-            stockBefore,
-            stockAfter 
-          }),
+          stockBefore,
+          stockAfter,
           createdAt: new Date(),
           updatedAt: new Date()
         })
         .returning();
 
-      // Create refill batch movement record
-      await db.insert(refillBatchMovements)
-        .values({
-          refillId,
-          refillDetailId: refillDetailResult[0].id,
-          batchId: batch.id,
-          quantity,
-          movementType: 'OUT',
-          batchNumber,
-          expiryDate: new Date(expiryDate),
-          performedBy: userId,
-          createdAt: new Date()
-        });
+      // Skip old refillBatchMovements - using stockMovements instead
 
-      // Create inventory movement record
-      await db.insert(inventoryMovements)
+      // Create inventory movement record using warehouse3 stockMovements schema
+      await db.insert(stockMovements)
         .values({
-          sourceWarehouseId: warehouseId,
-          destinationWarehouseId: null,
-          machineId,
+          movementType: 'FILL',
           productId,
-          quantity,
-          movementType: 'REFILL',
-          direction: 'OUT',
-          referenceType: 'REFILL',
-          referenceId: refillId.toString(),
+          warehouseId, // Maps to source_warehouse_id field
           batchId: batch.id,
-          batchNumber,
-          expiryDate: new Date(expiryDate),
-          previousStock: stockBefore,
-          currentStock: stockAfter,
-          performedBy: userId,
-          performedAt: new Date(),
+          qtyDelta: -quantity, // Maps to quantity field - negative for OUT movement
+          beforeQty: stockBefore, // Maps to previous_stock
+          afterQty: stockAfter, // Maps to current_stock
+          actorUserId: userId, // Maps to performed_by - REQUIRED per requirements
+          machineId,
+          occurredAt: new Date(), // Maps to performed_at
+          source: 'REFILL', // Maps to reference_type
+          direction: 'OUT',
+          referenceId: refillId.toString(),
           status: 'completed',
           notes: `Refill zum Automat ${machineId} durch ${userName}`,
+          batchNumber,
+          expiryDate: expiryDate, // Keep as string, not Date object
           createdAt: new Date(),
           updatedAt: new Date()
         });
@@ -299,27 +296,27 @@ router.get('/mhd-warnings', async (req: AuthRequest, res: Response) => {
 
     const query = `
       SELECT 
-        ib.id,
-        ib.warehouse_id as "warehouseId",
+        pb.id,
+        pb.warehouse_id as "warehouseId",
         w.name as "warehouseName",
-        ib.product_id as "productId",
+        pb.product_id as "productId",
         p.product_name as "productName",
-        ib.batch_number as "batchNumber",
-        ib.expiry_date as "expiryDate",
-        ib.quantity,
-        ib.status,
+        pb.batch_number as "batchNumber",
+        pb.expiry_date as "expiryDate",
+        pb.current_quantity as quantity, -- Fix: use current_quantity
+        pb.status,
         CASE 
-          WHEN ib.expiry_date < CURRENT_DATE THEN 'expired'
-          WHEN ib.expiry_date <= $1 THEN 'expiring_soon'
+          WHEN pb.expiry_date < CURRENT_DATE THEN 'expired'
+          WHEN pb.expiry_date <= $1 THEN 'expiring_soon'
           ELSE 'ok'
         END as "warningStatus"
-      FROM inventory_batches ib
-      JOIN products p ON ib.product_id = p.id
-      JOIN warehouses w ON ib.warehouse_id = w.id
-      WHERE ib.status = 'active'
-        AND ib.quantity > 0
-        AND ib.expiry_date <= $1
-      ORDER BY ib.expiry_date ASC, w.name ASC, p.product_name ASC
+      FROM product_batches pb
+      JOIN products p ON pb.product_id = p.id
+      JOIN warehouses w ON pb.warehouse_id = w.id
+      WHERE pb.status = 'active'
+        AND pb.current_quantity > 0
+        AND pb.expiry_date <= $1
+      ORDER BY pb.expiry_date ASC, w.name ASC, p.product_name ASC
     `;
 
     const result = await rawDb.query(query, [futureDate.toISOString()]);
@@ -363,7 +360,7 @@ router.post('/link-warehouse-to-refill', async (req: AuthRequest, res: Response)
 
       // Get current batch inventory
       const batchQuery = `
-        SELECT * FROM inventory_batches 
+        SELECT * FROM product_batches 
         WHERE warehouse_id = $1 
           AND product_id = $2 
           AND batch_number = $3 
@@ -381,7 +378,7 @@ router.post('/link-warehouse-to-refill', async (req: AuthRequest, res: Response)
       }
 
       const batch = batchResult.rows[0];
-      const stockBefore = batch.quantity;
+      const stockBefore = batch.current_quantity; // Fix: use current_quantity field
       const stockAfter = stockBefore - quantity;
 
       if (stockAfter < 0) {
@@ -393,33 +390,32 @@ router.post('/link-warehouse-to-refill', async (req: AuthRequest, res: Response)
 
       // Update batch inventory
       await rawDb.query(
-        `UPDATE inventory_batches 
-         SET quantity = $1, updated_at = NOW() 
+        `UPDATE product_batches 
+         SET current_quantity = $1, updated_at = NOW() 
          WHERE id = $2`,
         [stockAfter, batch.id]
       );
 
       // Create inventory movement record linked to the refill
-      const movementResult = await db.insert(inventoryMovements)
+      const movementResult = await db.insert(stockMovements)
         .values({
-          sourceWarehouseId: warehouseId,
-          destinationWarehouseId: null,
-          machineId: refill.machine_id,
+          movementType: 'FILL',
           productId,
-          quantity,
-          movementType: 'REFILL',
-          direction: 'OUT',
-          referenceType: 'REFILL',
-          referenceId: refillId.toString(),
+          warehouseId, // Use warehouseId (maps to source_warehouse_id)
           batchId: batch.id,
-          batchNumber,
-          expiryDate: new Date(batch.expiry_date),
-          previousStock: stockBefore,
-          currentStock: stockAfter,
-          performedBy: userId,
-          performedAt: new Date(refill.datetime * 1000), // Use refill timestamp
+          qtyDelta: -quantity, // Maps to quantity field - negative for OUT movement
+          beforeQty: stockBefore, // Maps to previous_stock
+          afterQty: stockAfter, // Maps to current_stock
+          actorUserId: userId, // Maps to performed_by
+          machineId: refill.machine_id,
+          occurredAt: new Date(refill.datetime * 1000), // Maps to performed_at
+          source: 'REFILL', // Maps to reference_type
+          direction: 'OUT',
+          referenceId: refillId.toString(),
           status: 'completed',
           notes: `Nachträgliche Zuordnung zu Refill ${refill.refill_number || refill.id} durch ${refill.operator}`,
+          batchNumber,
+          expiryDate: batch.expiry_date, // Keep as string, not Date object
           createdAt: new Date(),
           updatedAt: new Date()
         })
@@ -549,19 +545,20 @@ router.post('/auto-assign-existing-refills', async (req: AuthRequest, res: Respo
     // Get available inventory batches from Stolpen warehouse (ID 4)
     const batchesQuery = `
       SELECT 
-        ib.id,
-        ib.product_id,
+        pb.id,
+        pb.product_id,
         p.product_name,
-        ib.batch_number,
-        ib.quantity,
-        ib.expiry_date,
-        ib.warehouse_id
-      FROM inventory_batches ib
-      LEFT JOIN products p ON p.id = ib.product_id
-      WHERE ib.warehouse_id = 4 
-        AND ib.status = 'active'
-        AND ib.quantity > 0
-      ORDER BY ib.expiry_date ASC  -- FIFO - oldest first
+        pb.batch_number,
+        pb.current_quantity as quantity, -- Map to quantity for compatibility
+        pb.current_quantity, -- Also add for code compatibility
+        pb.expiry_date,
+        pb.warehouse_id
+      FROM product_batches pb
+      LEFT JOIN products p ON p.id = pb.product_id
+      WHERE pb.warehouse_id = 4 
+        AND pb.status = 'active'
+        AND pb.current_quantity > 0
+      ORDER BY pb.expiry_date ASC  -- FIFO - oldest first
     `;
 
     const batchesResult = await rawDb.query(batchesQuery);
@@ -599,41 +596,40 @@ router.post('/auto-assign-existing-refills', async (req: AuthRequest, res: Respo
 
         // Random quantity between 5-20 pieces
         const quantity = Math.floor(Math.random() * 16) + 5;
-        const stockBefore = availableBatch.quantity;
+        const stockBefore = availableBatch.current_quantity; // Fix: use current_quantity field
         const stockAfter = Math.max(0, stockBefore - quantity);
 
         // Update batch quantity
         await rawDb.query(
-          `UPDATE inventory_batches 
-           SET quantity = $1, updated_at = NOW() 
+          `UPDATE product_batches 
+           SET current_quantity = $1, updated_at = NOW() 
            WHERE id = $2`,
           [stockAfter, availableBatch.id]
         );
 
         // Update our local batch tracking
-        availableBatch.quantity = stockAfter;
+        availableBatch.current_quantity = stockAfter;
 
         // Create inventory movement record
-        const movementResult = await db.insert(inventoryMovements)
+        const movementResult = await db.insert(stockMovements)
           .values({
-            sourceWarehouseId: 4, // Stolpen
-            destinationWarehouseId: null,
-            machineId: refill.machine_id,
+            movementType: 'FILL',
             productId: parseInt(productId),
-            quantity,
-            movementType: 'REFILL',
-            direction: 'OUT',
-            referenceType: 'REFILL',
-            referenceId: refill.id.toString(),
+            warehouseId: 4, // Stolpen warehouse - maps to source_warehouse_id
             batchId: availableBatch.id,
-            batchNumber: availableBatch.batch_number,
-            expiryDate: new Date(availableBatch.expiry_date),
-            previousStock: stockBefore,
-            currentStock: stockAfter,
-            performedBy: 1, // System user
-            performedAt: new Date(refill.datetime * 1000),
+            qtyDelta: -quantity, // Maps to quantity field - negative for OUT movement
+            beforeQty: stockBefore, // Maps to previous_stock
+            afterQty: stockAfter, // Maps to current_stock
+            actorUserId: 1, // System user - maps to performed_by
+            machineId: refill.machine_id,
+            occurredAt: new Date(refill.datetime * 1000), // Maps to performed_at
+            source: 'REFILL', // Maps to reference_type
+            direction: 'OUT',
+            referenceId: refill.id.toString(),
             status: 'completed',
             notes: `Automatische Zuordnung zu Refill ${refill.refill_number || refill.id} durch ${refill.operator}`,
+            batchNumber: availableBatch.batch_number,
+            expiryDate: availableBatch.expiry_date, // Keep as string, not Date object
             createdAt: new Date(),
             updatedAt: new Date()
           })
