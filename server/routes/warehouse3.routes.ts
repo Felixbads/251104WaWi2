@@ -5,13 +5,13 @@ import { db, pool } from "../db"; // CRITICAL FIX 1: Import both db and pool
 import { authenticateUser, requireWarehouseAccess, auditLog, requireRole } from "../middleware/auth";
 import { z } from "zod";
 import { insertWarehouseSchema, insertMachineWarehouseAssignmentSchema, 
-         insertProductInventorySchema, insertProductBatchSchema, 
-         insertInventoryMovementSchema, insertInventoryCountSchema,
+         insertProductInventorySchema, insertStockBatchSchema, 
+         insertStockMovementSchema, insertInventoryCountSchema,
          insertInventoryCountItemSchema, insertRefillTrackingSchema, 
          insertRefillTrackingItemSchema } from "../../shared/warehouse3.schema";
 import { products } from "../../shared/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
-import { productBatches, inventoryMovements, warehouses } from "../../shared/warehouse3.schema";
+import { stockBatches, stockMovements, warehouses, machineWarehouseAssignments } from "../../shared/warehouse3.schema";
 
 // ---- NEUE FIFO-SERVICE INTEGRATION ----
 import { 

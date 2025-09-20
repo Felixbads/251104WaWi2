@@ -1,5 +1,6 @@
 import type { Express, Request as ExpressRequest, Response, NextFunction } from "express";
-import { User, insertPurchaseConditionSchema, insertInventoryCountItemSchema, machines, transactions, refills, syncLogs, events } from '../shared/schema';
+import { User, insertPurchaseConditionSchema, machines, transactions, refills, syncLogs, events } from '../shared/schema';
+import { insertInventoryCountItemSchema } from '../shared/warehouse3.schema';
 import { z } from 'zod';
 
 // Proper TypeScript interfaces to replace any-casts
