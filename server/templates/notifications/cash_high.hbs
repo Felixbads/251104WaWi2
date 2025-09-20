@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hoher Bargeldbestand - {{machineName}}</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .header {
+            background-color: #ffc107;
+            color: #212529;
+            padding: 20px;
+            border-radius: 5px;
+            text-align: center;
+        }
+        .content {
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .warning {
+            background-color: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 15px 0;
+        }
+        .machine-info {
+            background-color: white;
+            padding: 15px;
+            border-radius: 5px;
+            border-left: 4px solid #ffc107;
+        }
+        .cash-details {
+            background-color: #e8f5e8;
+            padding: 15px;
+            border-radius: 5px;
+            border: 1px solid #c3e6cb;
+        }
+        .footer {
+            text-align: center;
+            font-size: 12px;
+            color: #666;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+        }
+        .security-notice {
+            background-color: #dc3545;
+            color: white;
+            padding: 15px;
+            border-radius: 5px;
+            text-align: center;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>💰 Hoher Bargeldbestand</h1>
+        <p>Leerung empfohlen</p>
+    </div>
+
+    <div class="content">
+        <div class="warning">
+            <strong>⚠️ Hinweis:</strong> Der Bargeldbestand an einem Automaten ist hoch und sollte geleert werden.
+        </div>
+
+        <div class="machine-info">
+            <h3>Automaten-Details:</h3>
+            <p><strong>Automat:</strong> {{machineName}}</p>
+            <p><strong>Standort:</strong> {{location}}</p>
+            <p><strong>Vendon ID:</strong> {{vendonId}}</p>
+            <p><strong>Zeitpunkt:</strong> {{formatDate timestamp "DD.MM.YYYY HH:mm"}}</p>
+        </div>
+
+        <div class="cash-details">
+            <h3>💵 Bargeld-Details:</h3>
+            <p><strong>Aktueller Bestand:</strong> {{currentCash}} €</p>
+            <p><strong>Schwellenwert:</strong> {{maxThreshold}} €</p>
+            <p><strong>Überschreitung:</strong> {{#if (gt currentCash maxThreshold)}}{{subtract currentCash maxThreshold}} €{{else}}Kein Überschuss{{/if}}</p>
+            <p><strong>Letzte Leerung:</strong> {{#if lastCollection}}{{formatDate lastCollection "DD.MM.YYYY HH:mm"}}{{else}}Unbekannt{{/if}}</p>
+        </div>
+
+        {{#if (gte currentCash securityThreshold)}}
+        <div class="security-notice">
+            🔒 SICHERHEITSRISIKO - Sofortige Leerung erforderlich!
+        </div>
+        {{/if}}
+
+        <h3>📋 Empfohlene Maßnahmen:</h3>
+        <ul>
+            <li>Bargeldleerung innerhalb der nächsten 24 Stunden planen</li>
+            <li>Servicetechniker für Kassenleerung kontaktieren</li>
+            <li>Sicherheitsprotokoll bei hohen Beträgen befolgen</li>
+            <li>Leerungsprotokoll aktualisieren nach erfolgter Leerung</li>
+            {{#if (gte currentCash securityThreshold)}}
+            <li><strong>Priorität: Sofortige Leerung wegen Sicherheitsrisiko</strong></li>
+            {{/if}}
+        </ul>
+
+        {{#if dailyRevenue}}
+        <div class="cash-details">
+            <h3>📊 Umsatz-Information:</h3>
+            <p><strong>Tagesumsatz:</strong> {{dailyRevenue}} €</p>
+            <p><strong>Wochenumsatz:</strong> {{weeklyRevenue}} €</p>
+        </div>
+        {{/if}}
+    </div>
+
+    <div class="footer">
+        <p>Diese Benachrichtigung wurde automatisch vom Proviantomat-System generiert.</p>
+        <p>Zeitpunkt der Benachrichtigung: {{formatDate sentAt "DD.MM.YYYY HH:mm"}} (Europe/Berlin)</p>
+    </div>
+</body>
+</html>

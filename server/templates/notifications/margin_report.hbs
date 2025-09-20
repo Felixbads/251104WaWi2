@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deckungsbeitrags-Analyse - {{formatDate reportDate "DD.MM.YYYY"}}</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .header {
+            background-color: #6f42c1;
+            color: white;
+            padding: 25px;
+            border-radius: 5px;
+            text-align: center;
+        }
+        .content {
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .kpi-box {
+            background-color: white;
+            padding: 20px;
+            border-radius: 5px;
+            border-left: 4px solid #6f42c1;
+            text-align: center;
+        }
+        .kpi-number {
+            font-size: 24px;
+            font-weight: bold;
+            color: #6f42c1;
+        }
+        .kpi-label {
+            font-size: 14px;
+            color: #666;
+            margin-top: 5px;
+        }
+        .positive { color: #28a745; }
+        .negative { color: #dc3545; }
+        .neutral { color: #6c757d; }
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+            background-color: white;
+        }
+        .table th,
+        .table td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: left;
+        }
+        .table th {
+            background-color: #6f42c1;
+            color: white;
+        }
+        .margin-high {
+            background-color: #d4edda !important;
+            font-weight: bold;
+        }
+        .margin-medium {
+            background-color: #fff3cd !important;
+        }
+        .margin-low {
+            background-color: #f8d7da !important;
+        }
+        .footer {
+            text-align: center;
+            font-size: 12px;
+            color: #666;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+        }
+        .section {
+            background-color: white;
+            padding: 20px;
+            border-radius: 5px;
+            margin: 15px 0;
+        }
+        .alert {
+            padding: 15px;
+            border-radius: 5px;
+            margin: 15px 0;
+        }
+        .alert-success {
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        .alert-warning {
+            background-color: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+        }
+        .alert-danger {
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background-color: #e9ecef;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 5px 0;
+        }
+        .progress-fill {
+            height: 100%;
+            transition: width 0.3s ease;
+        }
+        .progress-high { background-color: #28a745; }
+        .progress-medium { background-color: #ffc107; }
+        .progress-low { background-color: #dc3545; }
+        .margin-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 5px;
+        }
+        .indicator-high { background-color: #28a745; }
+        .indicator-medium { background-color: #ffc107; }
+        .indicator-low { background-color: #dc3545; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>💰 Deckungsbeitrags-Analyse</h1>
+        <p>Rentabilitätsbericht vom {{formatDate reportDate "DD.MM.YYYY"}}</p>
+    </div>
+
+    <div class="content">
+        <div class="kpi-grid">
+            <div class="kpi-box">
+                <div class="kpi-number">{{overallMargin}}%</div>
+                <div class="kpi-label">Gesamtmarge</div>
+            </div>
+            <div class="kpi-box">
+                <div class="kpi-number">{{totalMarginValue}} €</div>
+                <div class="kpi-label">Gesamtdeckungsbeitrag</div>
+            </div>
+            <div class="kpi-box">
+                <div class="kpi-number">{{averageMargin}}%</div>
+                <div class="kpi-label">Durchschnittsmarge</div>
+            </div>
+            <div class="kpi-box">
+                <div class="kpi-number">{{profitableProducts}}</div>
+                <div class="kpi-label">Profitable Produkte</div>
+            </div>
+        </div>
+
+        {{#if alerts}}
+        <div class="alert {{#if criticalMargins}}alert-danger{{else if lowMargins}}alert-warning{{else}}alert-success{{/if}}">
+            <h4>📊 Margin-Status:</h4>
+            <ul>
+                {{#each alerts}}
+                <li>{{this}}</li>
+                {{/each}}
+            </ul>
+        </div>
+        {{/if}}
+
+        <div class="section">
+            <h3>🏆 Top 15 Produkte nach Deckungsbeitrag</h3>
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Rang</th>
+                        <th>Produkt</th>
+                        <th>Verkaufspreis</th>
+                        <th>Einkaufspreis</th>
+                        <th>Marge</th>
+                        <th>DB/Stück</th>
+                        <th>Verkäufe</th>
+                        <th>Gesamt-DB</th>
+                        <th>Trend</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{#each topMarginProducts}}
+                    <tr class="{{#if (gte marginPercent 40)}}margin-high{{else if (gte marginPercent 20)}}margin-medium{{else}}margin-low{{/if}}">
+                        <td>{{add @index 1}}</td>
+                        <td>
+                            <span class="margin-indicator {{#if (gte marginPercent 40)}}indicator-high{{else if (gte marginPercent 20)}}indicator-medium{{else}}indicator-low{{/if}}"></span>
+                            {{productName}}
+                        </td>
+                        <td>{{sellingPrice}} €</td>
+                        <td>{{costPrice}} €</td>
+                        <td>{{marginPercent}}%</td>
+                        <td>{{marginPerUnit}} €</td>
+                        <td>{{unitsSold}}</td>
+                        <td>{{totalMargin}} €</td>
+                        <td class="{{#if (gt trend 0)}}positive{{else if (lt trend 0)}}negative{{else}}neutral{{/if}}">
+                            {{#if (gt trend 0)}}📈{{else if (lt trend 0)}}📉{{else}}➡️{{/if}}
+                        </td>
+                    </tr>
+                    {{/each}}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="section">
+            <h3>⚠️ Kritische Margen (unter 10%)</h3>
+            {{#if lowMarginProducts}}
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Produkt</th>
+                        <th>Verkaufspreis</th>
+                        <th>Einkaufspreis</th>
+                        <th>Aktuelle Marge</th>
+                        <th>Empfohlener Preis</th>
+                        <th>Verkäufe (7 Tage)</th>
+                        <th>Maßnahme</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{#each lowMarginProducts}}
+                    <tr class="margin-low">
+                        <td>{{productName}}</td>
+                        <td>{{sellingPrice}} €</td>
+                        <td>{{costPrice}} €</td>
+                        <td>{{marginPercent}}%</td>
+                        <td>{{recommendedPrice}} €</td>
+                        <td>{{recentSales}}</td>
+                        <td>
+                            {{#if (lt marginPercent 0)}}
+                                🔴 Verlust - Sofort überprüfen
+                            {{else if (lt marginPercent 5)}}
+                                🟠 Preisanpassung dringend
+                            {{else}}
+                                🟡 Preisüberprüfung
+                            {{/if}}
+                        </td>
+                    </tr>
+                    {{/each}}
+                </tbody>
+            </table>
+            {{else}}
+            <div class="alert alert-success">
+                ✅ Ausgezeichnet! Alle Produkte haben eine Marge von mindestens 10%.
+            </div>
+            {{/if}}
+        </div>
+
+        <div class="section">
+            <h3>📊 Margen-Verteilung nach Kategorien</h3>
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Kategorie</th>
+                        <th>Ø Marge</th>
+                        <th>Deckungsbeitrag</th>
+                        <th>Produktanzahl</th>
+                        <th>Umsatzanteil</th>
+                        <th>Bewertung</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{#each categoryMargins}}
+                    <tr>
+                        <td>{{categoryName}}</td>
+                        <td>{{averageMargin}}%</td>
+                        <td>{{totalContribution}} €</td>
+                        <td>{{productCount}}</td>
+                        <td>
+                            {{revenueShare}}%
+                            <div class="progress-bar">
+                                <div class="progress-fill progress-{{#if (gte averageMargin 30)}}high{{else if (gte averageMargin 15)}}medium{{else}}low{{/if}}" style="width: {{revenueShare}}%;"></div>
+                            </div>
+                        </td>
+                        <td>
+                            {{#if (gte averageMargin 30)}}
+                                ✅ Ausgezeichnet
+                            {{else if (gte averageMargin 15)}}
+                                ⚠️ Befriedigend
+                            {{else}}
+                                🔴 Verbesserung nötig
+                            {{/if}}
+                        </td>
+                    </tr>
+                    {{/each}}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="section">
+            <h3>🏪 Standort-Margen-Analyse</h3>
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Standort</th>
+                        <th>Ø Marge</th>
+                        <th>Gesamtdeckungsbeitrag</th>
+                        <th>Umsatz</th>
+                        <th>Beste Marge</th>
+                        <th>Schlechteste Marge</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{#each locationMargins}}
+                    <tr>
+                        <td>{{locationName}}</td>
+                        <td>{{averageMargin}}%</td>
+                        <td>{{totalContribution}} €</td>
+                        <td>{{revenue}} €</td>
+                        <td>{{bestMargin}}%</td>
+                        <td>{{worstMargin}}%</td>
+                        <td>
+                            {{#if (gte averageMargin 25)}}
+                                ✅ Sehr gut
+                            {{else if (gte averageMargin 15)}}
+                                ⚠️ OK
+                            {{else}}
+                                🔴 Optimierung nötig
+                            {{/if}}
+                        </td>
+                    </tr>
+                    {{/each}}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="section">
+            <h3>📈 Margen-Entwicklung (letzte 4 Wochen)</h3>
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Kalenderwoche</th>
+                        <th>Durchschnittsmarge</th>
+                        <th>Gesamtdeckungsbeitrag</th>
+                        <th>Veränderung</th>
+                        <th>Trend</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{#each weeklyTrend}}
+                    <tr {{#if isCurrent}}class="margin-high"{{/if}}>
+                        <td>KW {{weekNumber}}</td>
+                        <td>{{averageMargin}}%</td>
+                        <td>{{totalContribution}} €</td>
+                        <td class="{{#if (gt change 0)}}positive{{else if (lt change 0)}}negative{{else}}neutral{{/if}}">
+                            {{#if (gt change 0)}}+{{/if}}{{change}}%
+                        </td>
+                        <td>
+                            {{#if (gt change 2)}}
+                                📈 Stark steigend
+                            {{else if (gt change 0)}}
+                                📊 Leicht steigend
+                            {{else if (lt change -2)}}
+                                📉 Stark fallend
+                            {{else if (lt change 0)}}
+                                📊 Leicht fallend
+                            {{else}}
+                                ➡️ Stabil
+                            {{/if}}
+                        </td>
+                    </tr>
+                    {{/each}}
+                </tbody>
+            </table>
+        </div>
+
+        {{#if recommendations}}
+        <div class="section" style="border-left: 4px solid #ffc107;">
+            <h3>📋 Handlungsempfehlungen</h3>
+            <div class="alert alert-warning">
+                <h4>🎯 Prioritäre Maßnahmen:</h4>
+                <ul>
+                    {{#each recommendations.priority}}
+                    <li><strong>{{this}}</strong></li>
+                    {{/each}}
+                </ul>
+            </div>
+            <h4>💡 Weitere Optimierungen:</h4>
+            <ul>
+                {{#each recommendations.general}}
+                <li>{{this}}</li>
+                {{/each}}
+            </ul>
+        </div>
+        {{/if}}
+
+        <div class="section">
+            <h3>🎯 Zielmargen und Benchmarks</h3>
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Kategorie</th>
+                        <th>Ist-Marge</th>
+                        <th>Ziel-Marge</th>
+                        <th>Gap</th>
+                        <th>Potenzial</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{#each targetMargins}}
+                    <tr>
+                        <td>{{category}}</td>
+                        <td>{{currentMargin}}%</td>
+                        <td>{{targetMargin}}%</td>
+                        <td class="{{#if (gt gap 0)}}negative{{else}}positive{{/if}}">
+                            {{gap}}%
+                        </td>
+                        <td>{{potential}} €</td>
+                        <td>
+                            {{#if (gte currentMargin targetMargin)}}
+                                ✅ Ziel erreicht
+                            {{else if (gte currentMargin (subtract targetMargin 5))}}
+                                ⚠️ Nahe am Ziel
+                            {{else}}
+                                🔴 Verbesserung nötig
+                            {{/if}}
+                        </td>
+                    </tr>
+                    {{/each}}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="footer">
+        <p>Dieser Bericht wurde automatisch vom Proviantomat-System generiert.</p>
+        <p>Analysezeitraum: {{formatDate startDate "DD.MM.YYYY"}} - {{formatDate endDate "DD.MM.YYYY"}}</p>
+        <p>Generiert am: {{formatDate sentAt "DD.MM.YYYY HH:mm"}} (Europe/Berlin)</p>
+    </div>
+</body>
+</html>

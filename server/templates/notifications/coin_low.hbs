@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Niedriger Münzbestand - {{machineName}}</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .header {
+            background-color: #ff6b6b;
+            color: white;
+            padding: 20px;
+            border-radius: 5px;
+            text-align: center;
+        }
+        .content {
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .alert {
+            background-color: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 15px 0;
+        }
+        .machine-info {
+            background-color: white;
+            padding: 15px;
+            border-radius: 5px;
+            border-left: 4px solid #ff6b6b;
+        }
+        .footer {
+            text-align: center;
+            font-size: 12px;
+            color: #666;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+        }
+        .action-required {
+            background-color: #dc3545;
+            color: white;
+            padding: 15px;
+            border-radius: 5px;
+            text-align: center;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🪙 Niedriger Münzbestand</h1>
+        <p>Sofortige Aufmerksamkeit erforderlich</p>
+    </div>
+
+    <div class="content">
+        <div class="alert">
+            <strong>⚠️ Warnung:</strong> Der Münzbestand an einem Automaten ist kritisch niedrig!
+        </div>
+
+        <div class="machine-info">
+            <h3>Automaten-Details:</h3>
+            <p><strong>Automat:</strong> {{machineName}}</p>
+            <p><strong>Standort:</strong> {{location}}</p>
+            <p><strong>Vendon ID:</strong> {{vendonId}}</p>
+            <p><strong>Aktueller Münzbestand:</strong> {{currentCoins}} €</p>
+            <p><strong>Mindestbestand:</strong> {{minThreshold}} €</p>
+            <p><strong>Zeitpunkt:</strong> {{formatDate timestamp "DD.MM.YYYY HH:mm"}}</p>
+        </div>
+
+        <div class="action-required">
+            🚨 SOFORTIGE AKTION ERFORDERLICH 🚨<br>
+            Münzen nachfüllen, um Verkaufsausfälle zu vermeiden!
+        </div>
+
+        <h3>📋 Empfohlene Maßnahmen:</h3>
+        <ul>
+            <li>Sofortige Nachfüllung von Münzen planen</li>
+            <li>Servicetechniker kontaktieren</li>
+            <li>Münzbestand auf mindestens {{recommendedLevel}} € auffüllen</li>
+            <li>Überwachung erhöhen bis zur Nachfüllung</li>
+        </ul>
+
+        {{#if additionalInfo}}
+        <div class="alert">
+            <strong>Zusätzliche Information:</strong> {{additionalInfo}}
+        </div>
+        {{/if}}
+    </div>
+
+    <div class="footer">
+        <p>Diese Benachrichtigung wurde automatisch vom Proviantomat-System generiert.</p>
+        <p>Zeitpunkt der Benachrichtigung: {{formatDate sentAt "DD.MM.YYYY HH:mm"}} (Europe/Berlin)</p>
+    </div>
+</body>
+</html>

@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Niedriger Lagerbestand - {{machineName}}</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .header {
+            background-color: #fd7e14;
+            color: white;
+            padding: 20px;
+            border-radius: 5px;
+            text-align: center;
+        }
+        .content {
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .alert {
+            background-color: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 15px 0;
+        }
+        .machine-info {
+            background-color: white;
+            padding: 15px;
+            border-radius: 5px;
+            border-left: 4px solid #fd7e14;
+        }
+        .product-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+            background-color: white;
+        }
+        .product-table th,
+        .product-table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        .product-table th {
+            background-color: #fd7e14;
+            color: white;
+        }
+        .out-of-stock {
+            background-color: #f8d7da !important;
+            font-weight: bold;
+        }
+        .low-stock {
+            background-color: #fff3cd !important;
+        }
+        .footer {
+            text-align: center;
+            font-size: 12px;
+            color: #666;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+        }
+        .action-required {
+            background-color: #dc3545;
+            color: white;
+            padding: 15px;
+            border-radius: 5px;
+            text-align: center;
+            font-weight: bold;
+        }
+        .stats {
+            display: flex;
+            justify-content: space-between;
+            gap: 15px;
+            margin: 15px 0;
+        }
+        .stat-box {
+            background-color: white;
+            padding: 15px;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+            text-align: center;
+            flex: 1;
+        }
+        .stat-number {
+            font-size: 24px;
+            font-weight: bold;
+            color: #fd7e14;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📦 Niedriger Lagerbestand</h1>
+        <p>Nachfüllung erforderlich</p>
+    </div>
+
+    <div class="content">
+        <div class="alert">
+            <strong>⚠️ Warnung:</strong> Mehrere Produkte haben einen kritisch niedrigen Lagerbestand erreicht!
+        </div>
+
+        <div class="machine-info">
+            <h3>Automaten-Details:</h3>
+            <p><strong>Automat:</strong> {{machineName}}</p>
+            <p><strong>Standort:</strong> {{location}}</p>
+            <p><strong>Vendon ID:</strong> {{vendonId}}</p>
+            <p><strong>Prüfzeitpunkt:</strong> {{formatDate timestamp "DD.MM.YYYY HH:mm"}}</p>
+        </div>
+
+        <div class="stats">
+            <div class="stat-box">
+                <div class="stat-number">{{outOfStockCount}}</div>
+                <div>Ausverkauft</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-number">{{lowStockCount}}</div>
+                <div>Niedrig</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-number">{{totalProducts}}</div>
+                <div>Gesamt Produkte</div>
+            </div>
+        </div>
+
+        {{#if outOfStockProducts}}
+        <div class="action-required">
+            🚨 {{outOfStockCount}} Produkt(e) sind komplett ausverkauft!
+        </div>
+        {{/if}}
+
+        <h3>📊 Betroffene Produkte:</h3>
+        <table class="product-table">
+            <thead>
+                <tr>
+                    <th>Produkt</th>
+                    <th>Aktueller Bestand</th>
+                    <th>Mindestbestand</th>
+                    <th>Füllmenge</th>
+                    <th>Status</th>
+                    <th>Letzter Verkauf</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{#each products}}
+                <tr class="{{#if (eq currentStock 0)}}out-of-stock{{else}}{{#if (lte currentStock minStock)}}low-stock{{/if}}{{/if}}">
+                    <td>{{productName}}</td>
+                    <td>{{currentStock}} Stk.</td>
+                    <td>{{minStock}} Stk.</td>
+                    <td>{{maxCapacity}} Stk.</td>
+                    <td>
+                        {{#if (eq currentStock 0)}}
+                            🔴 AUSVERKAUFT
+                        {{else}}
+                            {{#if (lte currentStock minStock)}}
+                                🟡 NIEDRIG
+                            {{else}}
+                                🟢 OK
+                            {{/if}}
+                        {{/if}}
+                    </td>
+                    <td>{{#if lastSale}}{{formatDate lastSale "DD.MM.YYYY HH:mm"}}{{else}}Unbekannt{{/if}}</td>
+                </tr>
+                {{/each}}
+            </tbody>
+        </table>
+
+        <h3>📋 Empfohlene Maßnahmen:</h3>
+        <ul>
+            {{#if outOfStockProducts}}
+            <li><strong style="color: #dc3545;">PRIORITÄT: Ausverkaufte Produkte sofort nachfüllen!</strong></li>
+            {{/if}}
+            <li>Nachfüllung für alle betroffenen Produkte planen</li>
+            <li>Servicetechniker für Refill kontaktieren</li>
+            <li>Lagerbestand im Warenlager prüfen</li>
+            <li>Beliebte Produkte priorisieren</li>
+            <li>Mindestbestände überprüfen und ggf. anpassen</li>
+        </ul>
+
+        {{#if salesData}}
+        <div class="machine-info">
+            <h4>📈 Verkaufs-Statistiken (letzte 7 Tage):</h4>
+            <p><strong>Täglicher Durchschnittsumsatz:</strong> {{salesData.dailyAverage}} €</p>
+            <p><strong>Meistverkauftes Produkt:</strong> {{salesData.topProduct}}</p>
+            <p><strong>Verkaufsfrequenz:</strong> {{salesData.frequency}} Transaktionen/Tag</p>
+        </div>
+        {{/if}}
+
+        <div class="alert">
+            <h4>⏱️ Nächste Prüfung:</h4>
+            <p>Die nächste Bestandsprüfung erfolgt am {{formatDate nextCheck "DD.MM.YYYY HH:mm"}}.</p>
+            {{#if outOfStockProducts}}
+            <p><strong>Aufgrund ausverkaufter Produkte wird die Prüffrequenz erhöht.</strong></p>
+            {{/if}}
+        </div>
+
+        {{#if estimatedRevenueLoss}}
+        <div class="action-required">
+            💰 Geschätzter Umsatzverlust durch Ausverkäufe: {{estimatedRevenueLoss}} €/Tag
+        </div>
+        {{/if}}
+    </div>
+
+    <div class="footer">
+        <p>Diese Benachrichtigung wurde automatisch vom Proviantomat-System generiert.</p>
+        <p>Zeitpunkt der Benachrichtigung: {{formatDate sentAt "DD.MM.YYYY HH:mm"}} (Europe/Berlin)</p>
+    </div>
+</body>
+</html>

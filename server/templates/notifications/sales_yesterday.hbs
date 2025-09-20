@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Täglicher Verkaufsbericht - {{formatDate reportDate "DD.MM.YYYY"}}</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .header {
+            background-color: #17a2b8;
+            color: white;
+            padding: 20px;
+            border-radius: 5px;
+            text-align: center;
+        }
+        .content {
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .kpi-box {
+            background-color: white;
+            padding: 20px;
+            border-radius: 5px;
+            border-left: 4px solid #17a2b8;
+            text-align: center;
+        }
+        .kpi-number {
+            font-size: 24px;
+            font-weight: bold;
+            color: #17a2b8;
+        }
+        .kpi-label {
+            font-size: 14px;
+            color: #666;
+            margin-top: 5px;
+        }
+        .comparison {
+            font-size: 12px;
+            margin-top: 5px;
+        }
+        .positive { color: #28a745; }
+        .negative { color: #dc3545; }
+        .neutral { color: #6c757d; }
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+            background-color: white;
+        }
+        .table th,
+        .table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        .table th {
+            background-color: #17a2b8;
+            color: white;
+        }
+        .highlight {
+            background-color: #e7f3ff !important;
+            font-weight: bold;
+        }
+        .footer {
+            text-align: center;
+            font-size: 12px;
+            color: #666;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+        }
+        .section {
+            background-color: white;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 15px 0;
+        }
+        .chart-placeholder {
+            background-color: #f8f9fa;
+            border: 2px dashed #dee2e6;
+            padding: 20px;
+            text-align: center;
+            color: #6c757d;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📊 Täglicher Verkaufsbericht</h1>
+        <p>{{formatDate reportDate "DD.MM.YYYY"}} - Proviantomat Netzwerk</p>
+    </div>
+
+    <div class="content">
+        <div class="kpi-grid">
+            <div class="kpi-box">
+                <div class="kpi-number">{{totalRevenue}} €</div>
+                <div class="kpi-label">Gesamtumsatz</div>
+                <div class="comparison {{#if (gt revenueChange 0)}}positive{{else}}{{#if (lt revenueChange 0)}}negative{{else}}neutral{{/if}}{{/if}}">
+                    {{#if (gt revenueChange 0)}}+{{/if}}{{revenueChange}}% vs. Vortag
+                </div>
+            </div>
+            <div class="kpi-box">
+                <div class="kpi-number">{{totalTransactions}}</div>
+                <div class="kpi-label">Transaktionen</div>
+                <div class="comparison {{#if (gt transactionChange 0)}}positive{{else}}{{#if (lt transactionChange 0)}}negative{{else}}neutral{{/if}}{{/if}}">
+                    {{#if (gt transactionChange 0)}}+{{/if}}{{transactionChange}}% vs. Vortag
+                </div>
+            </div>
+            <div class="kpi-box">
+                <div class="kpi-number">{{averageTransaction}} €</div>
+                <div class="kpi-label">Ø Transaktionswert</div>
+                <div class="comparison {{#if (gt avgTransactionChange 0)}}positive{{else}}{{#if (lt avgTransactionChange 0)}}negative{{else}}neutral{{/if}}{{/if}}">
+                    {{#if (gt avgTransactionChange 0)}}+{{/if}}{{avgTransactionChange}}% vs. Vortag
+                </div>
+            </div>
+            <div class="kpi-box">
+                <div class="kpi-number">{{activeLocations}}</div>
+                <div class="kpi-label">Aktive Standorte</div>
+                <div class="comparison neutral">
+                    von {{totalLocations}} Standorten
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h3>🏆 Top 5 Standorte nach Umsatz</h3>
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Rang</th>
+                        <th>Standort</th>
+                        <th>Umsatz</th>
+                        <th>Transaktionen</th>
+                        <th>Ø Wert</th>
+                        <th>Veränderung</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{#each topLocations}}
+                    <tr {{#if (eq @index 0)}}class="highlight"{{/if}}>
+                        <td>{{add @index 1}}</td>
+                        <td>{{locationName}}</td>
+                        <td>{{revenue}} €</td>
+                        <td>{{transactions}}</td>
+                        <td>{{averageValue}} €</td>
+                        <td class="{{#if (gt changePercent 0)}}positive{{else}}{{#if (lt changePercent 0)}}negative{{else}}neutral{{/if}}{{/if}}">
+                            {{#if (gt changePercent 0)}}+{{/if}}{{changePercent}}%
+                        </td>
+                    </tr>
+                    {{/each}}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="section">
+            <h3>🥇 Top 5 Produkte nach Verkaufsmenge</h3>
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Rang</th>
+                        <th>Produkt</th>
+                        <th>Verkaufte Menge</th>
+                        <th>Umsatz</th>
+                        <th>Standorte</th>
+                        <th>Trend</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{#each topProducts}}
+                    <tr {{#if (eq @index 0)}}class="highlight"{{/if}}>
+                        <td>{{add @index 1}}</td>
+                        <td>{{productName}}</td>
+                        <td>{{quantity}} Stk.</td>
+                        <td>{{revenue}} €</td>
+                        <td>{{locations}}</td>
+                        <td class="{{#if (gt trend 0)}}positive{{else}}{{#if (lt trend 0)}}negative{{else}}neutral{{/if}}{{/if}}">
+                            {{#if (gt trend 0)}}📈{{else if (lt trend 0)}}📉{{else}}➡️{{/if}}
+                        </td>
+                    </tr>
+                    {{/each}}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="section">
+            <h3>⏰ Verkäufe nach Stunden</h3>
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Zeitraum</th>
+                        <th>Transaktionen</th>
+                        <th>Umsatz</th>
+                        <th>Anteil</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{#each hourlyData}}
+                    <tr {{#if (gte percentage 15)}}class="highlight"{{/if}}>
+                        <td>{{timeRange}}</td>
+                        <td>{{transactions}}</td>
+                        <td>{{revenue}} €</td>
+                        <td>{{percentage}}%</td>
+                    </tr>
+                    {{/each}}
+                </tbody>
+            </table>
+        </div>
+
+        {{#if alerts}}
+        <div class="section" style="border-left: 4px solid #dc3545;">
+            <h3>⚠️ Wichtige Hinweise</h3>
+            <ul>
+                {{#each alerts}}
+                <li>{{this}}</li>
+                {{/each}}
+            </ul>
+        </div>
+        {{/if}}
+
+        <div class="section">
+            <h3>💰 Zahlungsmethoden</h3>
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Zahlungsmethode</th>
+                        <th>Transaktionen</th>
+                        <th>Umsatz</th>
+                        <th>Anteil</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{#each paymentMethods}}
+                    <tr>
+                        <td>{{method}}</td>
+                        <td>{{transactions}}</td>
+                        <td>{{revenue}} €</td>
+                        <td>{{percentage}}%</td>
+                    </tr>
+                    {{/each}}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="section">
+            <h3>📈 Vergleich mit Vorwoche</h3>
+            <div class="kpi-grid">
+                <div class="kpi-box">
+                    <div class="kpi-number {{#if (gt weeklyRevenueChange 0)}}positive{{else if (lt weeklyRevenueChange 0)}}negative{{else}}neutral{{/if}}">
+                        {{#if (gt weeklyRevenueChange 0)}}+{{/if}}{{weeklyRevenueChange}}%
+                    </div>
+                    <div class="kpi-label">Umsatz vs. Vorwoche</div>
+                </div>
+                <div class="kpi-box">
+                    <div class="kpi-number {{#if (gt weeklyTransactionChange 0)}}positive{{else if (lt weeklyTransactionChange 0)}}negative{{else}}neutral{{/if}}">
+                        {{#if (gt weeklyTransactionChange 0)}}+{{/if}}{{weeklyTransactionChange}}%
+                    </div>
+                    <div class="kpi-label">Transaktionen vs. Vorwoche</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="footer">
+        <p>Dieser Bericht wurde automatisch vom Proviantomat-System generiert.</p>
+        <p>Berichtszeitraum: {{formatDate reportDate "DD.MM.YYYY"}} 00:00 - 23:59 (Europe/Berlin)</p>
+        <p>Generiert am: {{formatDate sentAt "DD.MM.YYYY HH:mm"}} (Europe/Berlin)</p>
+    </div>
+</body>
+</html>

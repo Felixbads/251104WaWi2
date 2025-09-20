@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wöchentliche Verkaufsprognose - KW {{forecastWeek}} {{year}}</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .header {
+            background-color: #20c997;
+            color: white;
+            padding: 25px;
+            border-radius: 5px;
+            text-align: center;
+        }
+        .content {
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .kpi-box {
+            background-color: white;
+            padding: 20px;
+            border-radius: 5px;
+            border-left: 4px solid #20c997;
+            text-align: center;
+        }
+        .kpi-number {
+            font-size: 24px;
+            font-weight: bold;
+            color: #20c997;
+        }
+        .kpi-label {
+            font-size: 14px;
+            color: #666;
+            margin-top: 5px;
+        }
+        .confidence {
+            font-size: 12px;
+            margin-top: 5px;
+            font-weight: bold;
+        }
+        .confidence-high { color: #28a745; }
+        .confidence-medium { color: #ffc107; }
+        .confidence-low { color: #dc3545; }
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+            background-color: white;
+        }
+        .table th,
+        .table td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: left;
+        }
+        .table th {
+            background-color: #20c997;
+            color: white;
+        }
+        .forecast-high {
+            background-color: #d1ecf1 !important;
+            font-weight: bold;
+        }
+        .forecast-medium {
+            background-color: #fff3cd !important;
+        }
+        .forecast-low {
+            background-color: #f8d7da !important;
+        }
+        .footer {
+            text-align: center;
+            font-size: 12px;
+            color: #666;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+        }
+        .section {
+            background-color: white;
+            padding: 20px;
+            border-radius: 5px;
+            margin: 15px 0;
+        }
+        .weather-info {
+            background-color: #e7f3ff;
+            padding: 15px;
+            border-radius: 5px;
+            border-left: 4px solid #007bff;
+            margin: 15px 0;
+        }
+        .alert {
+            padding: 15px;
+            border-radius: 5px;
+            margin: 15px 0;
+        }
+        .alert-info {
+            background-color: #d1ecf1;
+            border: 1px solid #bee5eb;
+            color: #0c5460;
+        }
+        .alert-warning {
+            background-color: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background-color: #e9ecef;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 5px 0;
+        }
+        .progress-fill {
+            height: 100%;
+            background-color: #20c997;
+            transition: width 0.3s ease;
+        }
+        .trend-up { color: #28a745; font-weight: bold; }
+        .trend-down { color: #dc3545; font-weight: bold; }
+        .trend-stable { color: #6c757d; }
+        .accuracy-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 5px;
+        }
+        .accuracy-high { background-color: #28a745; }
+        .accuracy-medium { background-color: #ffc107; }
+        .accuracy-low { background-color: #dc3545; }
+        .daily-forecast {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 10px;
+            margin: 15px 0;
+        }
+        .day-forecast {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            text-align: center;
+            border: 1px solid #dee2e6;
+        }
+        .day-forecast.weekend {
+            background-color: #fff3cd;
+            border-color: #ffc107;
+        }
+        .day-forecast.holiday {
+            background-color: #f8d7da;
+            border-color: #dc3545;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🔮 Wöchentliche Verkaufsprognose</h1>
+        <p>KW {{forecastWeek}} {{year}} ({{formatDate startDate "DD.MM."}} - {{formatDate endDate "DD.MM.YYYY"}})</p>
+        <p>Basierend auf KI-Analyse und historischen Daten</p>
+    </div>
+
+    <div class="content">
+        <div class="kpi-grid">
+            <div class="kpi-box">
+                <div class="kpi-number">{{forecastRevenue}} €</div>
+                <div class="kpi-label">Prognostizierter Umsatz</div>
+                <div class="confidence confidence-{{#if (gte revenueConfidence 80)}}high{{else if (gte revenueConfidence 60)}}medium{{else}}low{{/if}}">
+                    {{revenueConfidence}}% Konfidenz
+                </div>
+            </div>
+            <div class="kpi-box">
+                <div class="kpi-number">{{forecastTransactions}}</div>
+                <div class="kpi-label">Erwartete Transaktionen</div>
+                <div class="confidence confidence-{{#if (gte transactionConfidence 80)}}high{{else if (gte transactionConfidence 60)}}medium{{else}}low{{/if}}">
+                    {{transactionConfidence}}% Konfidenz
+                </div>
+            </div>
+            <div class="kpi-box">
+                <div class="kpi-number {{#if (gt forecastChange 0)}}trend-up{{else if (lt forecastChange 0)}}trend-down{{else}}trend-stable{{/if}}">
+                    {{#if (gt forecastChange 0)}}+{{/if}}{{forecastChange}}%
+                </div>
+                <div class="kpi-label">Veränderung vs. Vorwoche</div>
+                <div class="confidence neutral">
+                    {{#if (gt forecastChange 5)}}Starkes Wachstum erwartet{{else if (gt forecastChange 0)}}Moderates Wachstum{{else if (lt forecastChange -5)}}Starker Rückgang{{else if (lt forecastChange 0)}}Leichter Rückgang{{else}}Stabile Entwicklung{{/if}}
+                </div>
+            </div>
+            <div class="kpi-box">
+                <div class="kpi-number">{{modelAccuracy}}%</div>
+                <div class="kpi-label">Modell-Genauigkeit</div>
+                <div class="confidence confidence-{{#if (gte modelAccuracy 85)}}high{{else if (gte modelAccuracy 70)}}medium{{else}}low{{/if}}">
+                    Basis: {{historicalDataPoints}} Datenpunkte
+                </div>
+            </div>
+        </div>
+
+        {{#if weatherInfluence}}
+        <div class="weather-info">
+            <h4>🌤️ Wettereinfluss auf die Prognose:</h4>
+            <p><strong>Wettervorhersage:</strong> {{weather.description}}</p>
+            <p><strong>Temperatur:</strong> {{weather.avgTemp}}°C (Min: {{weather.minTemp}}°C, Max: {{weather.maxTemp}}°C)</p>
+            <p><strong>Niederschlag:</strong> {{weather.precipitation}}mm</p>
+            <p><strong>Einfluss auf Verkäufe:</strong> 
+                <span class="{{#if (gt weather.impact 0)}}trend-up{{else if (lt weather.impact 0)}}trend-down{{else}}trend-stable{{/if}}">
+                    {{#if (gt weather.impact 0)}}+{{weather.impact}}% (Förderlich){{else if (lt weather.impact 0)}}{{weather.impact}}% (Hemmend){{else}}Neutral{{/if}}
+                </span>
+            </p>
+        </div>
+        {{/if}}
+
+        <div class="section">
+            <h3>📅 Tägliche Prognose</h3>
+            <div class="daily-forecast">
+                {{#each dailyForecast}}
+                <div class="day-forecast {{#if isWeekend}}weekend{{/if}} {{#if isHoliday}}holiday{{/if}}">
+                    <div style="font-weight: bold;">{{dayName}}</div>
+                    <div style="font-size: 14px; color: #666;">{{formatDate date "DD.MM."}}</div>
+                    {{#if isHoliday}}
+                    <div style="font-size: 12px; color: #dc3545; margin: 5px 0;">🎉 {{holidayName}}</div>
+                    {{/if}}
+                    <div style="font-size: 18px; font-weight: bold; color: #20c997; margin: 5px 0;">{{forecastRevenue}} €</div>
+                    <div style="font-size: 12px;">{{forecastTransactions}} Trans.</div>
+                    <div style="font-size: 10px; color: #666;">±{{variance}}%</div>
+                </div>
+                {{/each}}
+            </div>
+        </div>
+
+        <div class="section">
+            <h3>🏪 Standort-Prognosen (Top 10)</h3>
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Standort</th>
+                        <th>Prognose</th>
+                        <th>Konfidenz</th>
+                        <th>Vs. Vorwoche</th>
+                        <th>Risikofaktoren</th>
+                        <th>Empfehlung</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{#each locationForecasts}}
+                    <tr class="{{#if (gte confidence 80)}}forecast-high{{else if (gte confidence 60)}}forecast-medium{{else}}forecast-low{{/if}}">
+                        <td>{{locationName}}</td>
+                        <td>{{forecastRevenue}} €</td>
+                        <td>
+                            <span class="accuracy-indicator accuracy-{{#if (gte confidence 80)}}high{{else if (gte confidence 60)}}medium{{else}}low{{/if}}"></span>
+                            {{confidence}}%
+                        </td>
+                        <td class="{{#if (gt change 0)}}trend-up{{else if (lt change 0)}}trend-down{{else}}trend-stable{{/if}}">
+                            {{#if (gt change 0)}}+{{/if}}{{change}}%
+                        </td>
+                        <td>
+                            {{#if riskFactors}}
+                                {{#each riskFactors}}
+                                    <span style="font-size: 11px;">{{this}}</span><br>
+                                {{/each}}
+                            {{else}}
+                                ✅ Gering
+                            {{/if}}
+                        </td>
+                        <td>
+                            {{#if (gte confidence 80)}}
+                                ✅ Standard-Befüllung
+                            {{else if (gte confidence 60)}}
+                                ⚠️ Vorsichtige Befüllung
+                            {{else}}
+                                🔍 Engmaschige Überwachung
+                            {{/if}}
+                        </td>
+                    </tr>
+                    {{/each}}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="section">
+            <h3>📦 Produkt-Nachfrage-Prognose</h3>
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Produkt</th>
+                        <th>Prognostizierte Menge</th>
+                        <th>Umsatzprognose</th>
+                        <th>Trend</th>
+                        <th>Saisonalität</th>
+                        <th>Lagerempfehlung</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{#each productForecasts}}
+                    <tr>
+                        <td>{{productName}}</td>
+                        <td>{{forecastQuantity}} Stk.</td>
+                        <td>{{forecastRevenue}} €</td>
+                        <td class="{{#if (gt trend 0)}}trend-up{{else if (lt trend 0)}}trend-down{{else}}trend-stable{{/if}}">
+                            {{#if (gt trend 0)}}📈 +{{trend}}%{{else if (lt trend 0)}}📉 {{trend}}%{{else}}➡️ Stabil{{/if}}
+                        </td>
+                        <td>
+                            {{#if seasonalFactor}}
+                                {{#if (gt seasonalFactor 1.1)}}
+                                    🔥 Saisonhoch
+                                {{else if (lt seasonalFactor 0.9)}}
+                                    ❄️ Saisontief
+                                {{else}}
+                                    📊 Normal
+                                {{/if}}
+                            {{else}}
+                                📊 Normal
+                            {{/if}}
+                        </td>
+                        <td>
+                            {{#if (gt trend 10)}}
+                                📈 Bestand erhöhen
+                            {{else if (lt trend -10)}}
+                                📉 Bestand reduzieren
+                            {{else}}
+                                ➡️ Aktueller Bestand OK
+                            {{/if}}
+                        </td>
+                    </tr>
+                    {{/each}}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="section">
+            <h3>🎯 Modell-Performance und Genauigkeit</h3>
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Zeitraum</th>
+                        <th>Prognose</th>
+                        <th>Ist-Wert</th>
+                        <th>Abweichung</th>
+                        <th>Genauigkeit</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{#each accuracyHistory}}
+                    <tr>
+                        <td>KW {{weekNumber}}</td>
+                        <td>{{forecast}} €</td>
+                        <td>{{actual}} €</td>
+                        <td class="{{#if (gt deviation 0)}}trend-up{{else if (lt deviation 0)}}trend-down{{else}}trend-stable{{/if}}">
+                            {{#if (gt deviation 0)}}+{{/if}}{{deviation}}%
+                        </td>
+                        <td>
+                            {{accuracy}}%
+                            <div class="progress-bar">
+                                <div class="progress-fill" style="width: {{accuracy}}%;"></div>
+                            </div>
+                        </td>
+                    </tr>
+                    {{/each}}
+                </tbody>
+            </table>
+        </div>
+
+        {{#if specialEvents}}
+        <div class="alert alert-info">
+            <h4>🎪 Besondere Ereignisse in der Prognosewoche:</h4>
+            <ul>
+                {{#each specialEvents}}
+                <li><strong>{{date}}:</strong> {{event}} - Erwarteter Einfluss: {{impact}}</li>
+                {{/each}}
+            </ul>
+        </div>
+        {{/if}}
+
+        {{#if alerts}}
+        <div class="alert alert-warning">
+            <h4>⚠️ Wichtige Hinweise zur Prognose:</h4>
+            <ul>
+                {{#each alerts}}
+                <li>{{this}}</li>
+                {{/each}}
+            </ul>
+        </div>
+        {{/if}}
+
+        <div class="section">
+            <h3>📊 Prognose-Einflussfaktoren</h3>
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Faktor</th>
+                        <th>Gewichtung</th>
+                        <th>Aktueller Wert</th>
+                        <th>Einfluss</th>
+                        <th>Kommentar</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{#each influenceFactors}}
+                    <tr>
+                        <td>{{factorName}}</td>
+                        <td>{{weight}}%</td>
+                        <td>{{currentValue}}</td>
+                        <td class="{{#if (gt influence 0)}}trend-up{{else if (lt influence 0)}}trend-down{{else}}trend-stable{{/if}}">
+                            {{#if (gt influence 0)}}+{{/if}}{{influence}}%
+                        </td>
+                        <td>{{comment}}</td>
+                    </tr>
+                    {{/each}}
+                </tbody>
+            </table>
+        </div>
+
+        {{#if recommendations}}
+        <div class="section" style="border-left: 4px solid #20c997;">
+            <h3>💡 Handlungsempfehlungen</h3>
+            
+            {{#if recommendations.immediate}}
+            <div class="alert alert-warning">
+                <h4>🚨 Sofortige Maßnahmen:</h4>
+                <ul>
+                    {{#each recommendations.immediate}}
+                    <li><strong>{{this}}</strong></li>
+                    {{/each}}
+                </ul>
+            </div>
+            {{/if}}
+
+            {{#if recommendations.restocking}}
+            <h4>📦 Nachfüll-Empfehlungen:</h4>
+            <ul>
+                {{#each recommendations.restocking}}
+                <li>{{this}}</li>
+                {{/each}}
+            </ul>
+            {{/if}}
+
+            {{#if recommendations.strategic}}
+            <h4>🎯 Strategische Empfehlungen:</h4>
+            <ul>
+                {{#each recommendations.strategic}}
+                <li>{{this}}</li>
+                {{/each}}
+            </ul>
+            {{/if}}
+        </div>
+        {{/if}}
+
+        <div class="section">
+            <h3>📈 Konfidenzintervall</h3>
+            <p><strong>Optimistisches Szenario (90%):</strong> {{optimisticRevenue}} €</p>
+            <p><strong>Realistisches Szenario (50%):</strong> {{realisticRevenue}} €</p>
+            <p><strong>Pessimistisches Szenario (10%):</strong> {{pessimisticRevenue}} €</p>
+            <p><strong>Standardabweichung:</strong> ±{{standardDeviation}} €</p>
+        </div>
+    </div>
+
+    <div class="footer">
+        <p>Diese Prognose wurde automatisch vom Proviantomat-KI-System generiert.</p>
+        <p>Prognosezeitraum: KW {{forecastWeek}} {{year}} ({{formatDate startDate "DD.MM.YYYY"}} - {{formatDate endDate "DD.MM.YYYY"}})</p>
+        <p>Modell: Prophet + Machine Learning | Trainingsdaten: {{trainingDataPoints}} Wochen</p>
+        <p>Generiert am: {{formatDate sentAt "DD.MM.YYYY HH:mm"}} (Europe/Berlin)</p>
+    </div>
+</body>
+</html>

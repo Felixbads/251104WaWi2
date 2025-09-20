@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MHD-Warnung - {{machineName}}</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .header {
+            background-color: #e74c3c;
+            color: white;
+            padding: 20px;
+            border-radius: 5px;
+            text-align: center;
+        }
+        .content {
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .alert {
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 15px 0;
+        }
+        .machine-info {
+            background-color: white;
+            padding: 15px;
+            border-radius: 5px;
+            border-left: 4px solid #e74c3c;
+        }
+        .product-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+            background-color: white;
+        }
+        .product-table th,
+        .product-table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        .product-table th {
+            background-color: #e74c3c;
+            color: white;
+        }
+        .critical {
+            background-color: #f8d7da !important;
+            font-weight: bold;
+        }
+        .warning {
+            background-color: #fff3cd !important;
+        }
+        .footer {
+            text-align: center;
+            font-size: 12px;
+            color: #666;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+        }
+        .priority {
+            background-color: #dc3545;
+            color: white;
+            padding: 15px;
+            border-radius: 5px;
+            text-align: center;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📅 MHD-Warnung</h1>
+        <p>Ablaufende Produkte gefunden</p>
+    </div>
+
+    <div class="content">
+        <div class="alert">
+            <strong>⚠️ Achtung:</strong> Es wurden Produkte mit bald ablaufendem Mindesthaltbarkeitsdatum gefunden!
+        </div>
+
+        <div class="machine-info">
+            <h3>Automaten-Details:</h3>
+            <p><strong>Automat:</strong> {{machineName}}</p>
+            <p><strong>Standort:</strong> {{location}}</p>
+            <p><strong>Vendon ID:</strong> {{vendonId}}</p>
+            <p><strong>Prüfzeitpunkt:</strong> {{formatDate timestamp "DD.MM.YYYY HH:mm"}}</p>
+        </div>
+
+        {{#if criticalProducts}}
+        <div class="priority">
+            🚨 KRITISCH - Sofortige Entnahme erforderlich!
+        </div>
+        {{/if}}
+
+        <h3>📦 Betroffene Produkte:</h3>
+        <table class="product-table">
+            <thead>
+                <tr>
+                    <th>Produkt</th>
+                    <th>MHD</th>
+                    <th>Menge</th>
+                    <th>Tage bis Ablauf</th>
+                    <th>Priorität</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{#each products}}
+                <tr class="{{#if (lte daysUntilExpiry 1)}}critical{{else}}{{#if (lte daysUntilExpiry 3)}}warning{{/if}}{{/if}}">
+                    <td>{{productName}}</td>
+                    <td>{{formatDate expiryDate "DD.MM.YYYY"}}</td>
+                    <td>{{quantity}} Stk.</td>
+                    <td>{{daysUntilExpiry}}</td>
+                    <td>
+                        {{#if (lte daysUntilExpiry 1)}}
+                            🔴 KRITISCH
+                        {{else}}
+                            {{#if (lte daysUntilExpiry 3)}}
+                                🟡 WARNUNG
+                            {{else}}
+                                🟢 BEOBACHTEN
+                            {{/if}}
+                        {{/if}}
+                    </td>
+                </tr>
+                {{/each}}
+            </tbody>
+        </table>
+
+        <h3>📋 Empfohlene Maßnahmen:</h3>
+        <ul>
+            {{#if criticalProducts}}
+            <li><strong style="color: #dc3545;">SOFORT: Kritische Produkte (≤1 Tag) entfernen!</strong></li>
+            {{/if}}
+            <li>Betroffene Produkte aus dem Automaten entfernen</li>
+            <li>FIFO-Prinzip bei der Befüllung beachten (First In, First Out)</li>
+            <li>Chargen-Management überprüfen</li>
+            <li>Liefertermine mit MHD abstimmen</li>
+            <li>Servicetechniker für Entnahme kontaktieren</li>
+        </ul>
+
+        <div class="alert">
+            <h4>🔍 Nächste Prüfung:</h4>
+            <p>Die nächste MHD-Prüfung erfolgt am {{formatDate nextCheck "DD.MM.YYYY HH:mm"}}.</p>
+            {{#if criticalProducts}}
+            <p><strong>Aufgrund kritischer Produkte wird die Prüffrequenz auf täglich erhöht.</strong></p>
+            {{/if}}
+        </div>
+
+        {{#if totalValue}}
+        <div class="machine-info">
+            <h4>💰 Warenwert der betroffenen Produkte:</h4>
+            <p><strong>Gesamtwert:</strong> {{totalValue}} €</p>
+            <p><strong>Potenzielle Verluste bei Verfall:</strong> {{totalValue}} €</p>
+        </div>
+        {{/if}}
+    </div>
+
+    <div class="footer">
+        <p>Diese Benachrichtigung wurde automatisch vom Proviantomat-System generiert.</p>
+        <p>Zeitpunkt der Benachrichtigung: {{formatDate sentAt "DD.MM.YYYY HH:mm"}} (Europe/Berlin)</p>
+    </div>
+</body>
+</html>
