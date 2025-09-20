@@ -1,38 +1,50 @@
 import express, { Request, Response } from 'express';
-import { db } from '../db';
+import { db, rawDb } from '../db';
 import { eq, and } from 'drizzle-orm';
-import { machineWarehouseAssignments } from '@shared/schema';
+import { machineWarehouseAssignments, warehouses } from '../../shared/warehouse3.schema';
+import { machines } from '../../shared/schema';
 import { reconcileWarehouseProducts } from '../services/warehouseReconciliation';
+import { replitAuthMiddleware } from '../auth/replit-auth';
 
 const router = express.Router();
+
+// Apply authentication middleware to all routes
+router.use(replitAuthMiddleware);
 
 // Get all machine-warehouse assignments
 router.get('/', async (req: Request, res: Response) => {
   try {
-    const assignments = await db.query.machineWarehouseAssignments.findMany({
-      with: {
-        machine: true,
-        warehouse: true
-      }
-    });
-
-    // Format the result to include machine and warehouse names
-    const formattedAssignments = assignments.map(assignment => ({
-      id: assignment.id,
-      machineId: assignment.machineId,
-      warehouseId: assignment.warehouseId,
-      isPrimary: assignment.isPrimary,
-      machineName: assignment.machine?.name || null,
-      warehouseName: assignment.warehouse?.name || null,
-      notes: assignment.notes
-    }));
-
-    res.json(formattedAssignments);
-  } catch (error) {
-    console.error('Failed to fetch machine-warehouse assignments:', error);
+    console.log('[MACHINE-WAREHOUSE-ASSIGNMENTS API] Fetching all assignments with camelCase normalization');
+    
+    // Use raw SQL with proper camelCase aliases for consistent response format
+    const result = await rawDb.query(`
+      SELECT 
+        mwa.id,
+        mwa.machine_id AS "machineId",
+        mwa.warehouse_id AS "warehouseId",
+        mwa.is_primary AS "isPrimary",
+        mwa.notes,
+        mwa.assigned_by AS "assignedBy",
+        mwa.assigned_at AS "assignedAt",
+        mwa.created_at AS "createdAt",
+        mwa.updated_at AS "updatedAt",
+        m.machine_name AS "machineName",
+        w.name AS "warehouseName"
+      FROM machine_warehouse_assignments mwa
+      LEFT JOIN machines m ON mwa.machine_id = m.id
+      LEFT JOIN warehouses w ON mwa.warehouse_id = w.id
+      WHERE 1=1
+      ORDER BY mwa.created_at DESC
+    `);
+    
+    console.log(`[MACHINE-WAREHOUSE-ASSIGNMENTS API] Returning ${result.rows.length} assignments`);
+    res.json(result.rows);
+    
+  } catch (error: any) {
+    console.error('[MACHINE-WAREHOUSE-ASSIGNMENTS API] Error fetching assignments:', error);
     res.status(500).json({ 
-      error: 'Failed to fetch machine-warehouse assignments',
-      details: (error as Error).message 
+      error: 'Fehler beim Abrufen der Lager-Zuweisungen',
+      message: error.message
     });
   }
 });

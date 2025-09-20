@@ -703,35 +703,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // GET /machine-warehouse-assignments - Automaten-Lager-Zuordnungen abrufen
-  app.get(`${API_PREFIX}/machine-warehouse-assignments`, async (req: Request, res: Response) => {
-    try {
-      const warehouseId = req.query.warehouseId ? parseInt(req.query.warehouseId as string) : undefined;
-      const machineId = req.query.machineId ? parseInt(req.query.machineId as string) : undefined;
-      
-      const assignmentsResult = await rawDb.query(`
-        SELECT 
-          mwa.*,
-          m.machine_name,
-          w.name as warehouse_name
-        FROM machine_warehouse_assignments mwa
-        LEFT JOIN machines m ON mwa.machine_id = m.id
-        LEFT JOIN warehouses w ON mwa.warehouse_id = w.id
-        WHERE 1=1
-        ${warehouseId ? 'AND mwa.warehouse_id = $1' : ''}
-        ${machineId ? `AND mwa.machine_id = $${warehouseId ? 2 : 1}` : ''}
-        ORDER BY mwa.created_at DESC
-      `, [warehouseId, machineId].filter(Boolean));
-      const assignments = assignmentsResult.rows;
-      res.json(assignments);
-    } catch (error) {
-      console.error("Error fetching machine-warehouse assignments:", error);
-      res.status(500).json({ 
-        error: "Failed to fetch machine-warehouse assignments", 
-        details: error instanceof Error ? error.message : String(error) 
-      });
-    }
-  });
+  // NOTE: machine-warehouse-assignments endpoint moved to dedicated router
+  // See: server/routes/machine-warehouse-assignments.ts
   
   // GET /inventory-counts - Inventurzählungen abrufen
   app.get(`${API_PREFIX}/inventory-counts`, async (req: Request, res: Response) => {
