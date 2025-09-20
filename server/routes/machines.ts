@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { db, rawDb } from '../db';
 import { eq, desc, and, gte, lte, count, sql } from 'drizzle-orm';
 import { machines, transactions, refills, events, locationCosts } from '../../shared/schema';
+import { machineWarehouseAssignments, warehouses } from '../../shared/warehouse3.schema';
 import { storage } from '../storage';
 import { VendonAPI } from '../services/vendonAPI';
 import { replitAuthMiddleware } from '../auth/replit-auth';
@@ -1967,6 +1968,106 @@ router.get('/:id/status', async (req, res) => {
     res.status(500).json({
       error: 'Fehler beim Abrufen der Status-Daten',
       message: errorMessage
+    });
+  }
+});
+
+/**
+ * GET /api/machines/:id/warehouse
+ * Get the primary warehouse assignment for a machine
+ */
+router.get('/:id/warehouse', async (req, res) => {
+  try {
+    const inputId = req.params.id;
+    console.log(`[MACHINES API] Fetching primary warehouse assignment for machine ID: ${inputId}`);
+
+    // Try to resolve machine ID using the existing resolver logic
+    let machineId: number;
+    let machine: any;
+
+    // First try as internal ID
+    const parsedId = parseInt(inputId);
+    if (!isNaN(parsedId)) {
+      const machineResult = await rawDb.query(
+        'SELECT * FROM machines WHERE id = $1 LIMIT 1',
+        [parsedId]
+      );
+      
+      if (machineResult.rows.length > 0) {
+        machine = machineResult.rows[0];
+        machineId = parsedId;
+      }
+    }
+
+    // If not found, try as vendon_id
+    if (!machine) {
+      const vendonResult = await rawDb.query(
+        'SELECT * FROM machines WHERE vendon_id = $1 LIMIT 1',
+        [inputId]
+      );
+      
+      if (vendonResult.rows.length > 0) {
+        machine = vendonResult.rows[0];
+        machineId = machine.id;
+      }
+    }
+
+    // If still not found, try as location_id
+    if (!machine && !isNaN(parsedId)) {
+      const locationResult = await rawDb.query(
+        'SELECT * FROM machines WHERE location_id = $1 LIMIT 1',
+        [parsedId]
+      );
+      
+      if (locationResult.rows.length > 0) {
+        machine = locationResult.rows[0];
+        machineId = machine.id;
+      }
+    }
+
+    if (!machine) {
+      return res.status(404).json({
+        error: 'Maschine nicht gefunden',
+        message: `Keine Maschine mit ID ${inputId} gefunden`
+      });
+    }
+
+    // Query for the primary warehouse assignment using camelCase SQL aliases
+    const assignmentResult = await rawDb.query(`
+      SELECT 
+        mwa.id,
+        mwa.machine_id AS "machineId",
+        mwa.warehouse_id AS "warehouseId", 
+        mwa.is_primary AS "isPrimary",
+        mwa.notes,
+        mwa.assigned_by AS "assignedBy",
+        mwa.assigned_at AS "assignedAt",
+        w.name AS "warehouseName",
+        w.description AS "warehouseDescription",
+        w.address AS "warehouseLocation"
+      FROM machine_warehouse_assignments mwa
+      INNER JOIN warehouses w ON mwa.warehouse_id = w.id
+      WHERE mwa.machine_id = $1 AND mwa.is_primary = true
+      LIMIT 1
+    `, [machineId]);
+
+    if (assignmentResult.rows.length === 0) {
+      return res.status(404).json({
+        error: 'Keine primäre Lager-Zuweisung gefunden',
+        message: `Keine primäre Lager-Zuweisung für Maschine ${machine.machine_name || inputId} gefunden`
+      });
+    }
+
+    const assignment = assignmentResult.rows[0];
+    console.log(`[MACHINES API] Primary warehouse assignment found for machine ${inputId}:`, assignment.warehouseName);
+    
+    res.json(assignment);
+
+  } catch (error: any) {
+    console.error(`[MACHINES API] Error fetching warehouse assignment for machine ${req.params.id}:`, error);
+    res.status(500).json({
+      error: 'Fehler beim Abrufen der Lager-Zuweisung',
+      message: error.message
     });
   }
 });
