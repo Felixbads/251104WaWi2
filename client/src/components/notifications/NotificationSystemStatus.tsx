@@ -64,16 +64,48 @@ export function NotificationSystemStatus() {
   const queryClient = useQueryClient();
 
   // Fetch system health
-  const { data: health, isLoading: healthLoading, refetch: refetchHealth } = useQuery({
-    queryKey: ['/api/notifications/system/health'],
+  const { data: systemStatus, isLoading: healthLoading, refetch: refetchHealth } = useQuery({
+    queryKey: ['/api/notifications/status'],
     refetchInterval: 10000, // Refresh every 10 seconds
   });
 
-  // Fetch queue metrics
-  const { data: queueMetrics, isLoading: queueLoading, refetch: refetchQueue } = useQuery({
-    queryKey: ['/api/notifications/system/queue-metrics'],
-    refetchInterval: 5000, // Refresh every 5 seconds
-  });
+  // Map the API response to the expected component structure
+  const health = systemStatus ? {
+    overall: systemStatus.system?.healthy ? 'healthy' : 'offline',
+    components: {
+      database: systemStatus.system?.healthy ? 'healthy' : 'offline',
+      queueSystem: systemStatus.system?.healthy && Object.values(systemStatus.queue || {}).every(count => count >= 0) ? 'healthy' : 'offline',
+      emailService: systemStatus.system?.healthy ? 'healthy' : 'offline',
+      triggers: systemStatus.system?.healthy ? 'healthy' : 'offline',
+    },
+    metrics: {
+      uptime: 0, // Not provided by current API
+      memoryUsage: 0,
+      cpuUsage: 0,
+      diskUsage: 0,
+    },
+    lastCheck: systemStatus.system?.timestamp || new Date().toISOString(),
+  } : null;
+
+  // Map queue metrics from the same status endpoint
+  const queueMetrics = systemStatus ? {
+    totalJobs: Object.values(systemStatus.queue || {}).reduce((sum: number, count: number) => sum + count, 0),
+    activeJobs: systemStatus.queue?.['process-events'] || 0,
+    pendingJobs: systemStatus.queue?.['dispatch-notifications'] || 0,
+    completedJobs: 0, // Not provided by current API
+    failedJobs: 0, // Not provided by current API
+    delayedJobs: systemStatus.queue?.['send-email'] || 0,
+    queues: Object.entries(systemStatus.queue || {}).map(([name, jobCount]) => ({
+      name: name === 'dispatch-notifications' ? 'Benachrichtigungen versenden' :
+            name === 'process-events' ? 'Events verarbeiten' :
+            name === 'send-email' ? 'E-Mails senden' :
+            name === 'generate-report' ? 'Berichte erstellen' : name,
+      jobCount: jobCount as number,
+      processing: 0, // Not provided by current API
+      failed: 0, // Not provided by current API
+    })),
+  } : null;
+  const queueLoading = healthLoading;
 
   // Fetch system configuration
   const { data: config, isLoading: configLoading } = useQuery({
@@ -203,7 +235,6 @@ export function NotificationSystemStatus() {
             size="sm" 
             onClick={() => {
               refetchHealth();
-              refetchQueue();
             }}
             data-testid="refresh-system-status-button"
           >

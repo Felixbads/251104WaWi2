@@ -3874,6 +3874,18 @@ app.get('/orders-data', (req, res) => {
       log('⚠️ Health Monitoring konnte nicht gestartet werden');
     }
 
+    // ✅ NOTIFICATION QUEUE SERVICE - Initialize notification system queue
+    try {
+      const { queueService } = await import('./services/queueService');
+      await queueService.initialize();
+      await queueService.scheduleDispatchJob();
+      await queueService.scheduleEventProcessingJob();
+      log('✅ Notification Queue Service activated');
+    } catch (error) {
+      console.error('❌ Error initializing Notification Queue Service:', error);
+      log('⚠️ Notification Queue Service could not be started - notification system will work in limited mode');
+    }
+
     // Start Supplier Analytics Cache Background Service  
     const supplierAnalyticsCache = SupplierAnalyticsCache.getInstance();
     log('⏸️ Supplier Analytics Cache temporarily disabled due to SQL parameter issue');
