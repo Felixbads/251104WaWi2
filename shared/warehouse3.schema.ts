@@ -2,39 +2,23 @@ import { pgTable, text, serial, integer, boolean, timestamp, real, date, unique,
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { relations } from "drizzle-orm";
+import { users, products, warehouses as mainWarehouses } from './schema';
 
 // ----- WAREHOUSE 3 SCHEMA -----
 // Vollständig überarbeitetes Schema für robuste Lagerverwaltung
+// Unified schema with stock_batches and stock_movements as required
 
-// Warehouse Table - Lager/Standorte
-export const warehouses = pgTable("warehouses_v3", {
-  id: serial("id").primaryKey(),
-  name: text("name").notNull(),
-  description: text("description"),
-  address: text("address"),
-  city: text("city"),
-  postalCode: text("postal_code"),
-  status: text("status").default("active"),
-  notes: text("notes"),
-  createdBy: integer("created_by"), // User ID
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
+// Use existing warehouses from main schema
+export { warehouses } from './schema';
 
-export const insertWarehouseSchema = createInsertSchema(warehouses).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-});
+// Re-export warehouse types from main schema for consistency
+export { insertWarehouseSchema, type InsertWarehouse, type Warehouse } from './schema';
 
-export type InsertWarehouse = z.infer<typeof insertWarehouseSchema>;
-export type Warehouse = typeof warehouses.$inferSelect;
-
-// Machine-Warehouse Assignments - Zuordnung von Automaten zu Lagern
-export const machineWarehouseAssignments = pgTable("machine_warehouse_assignments_v3", {
+// Machine-Warehouse Assignments - Maps to existing machine_warehouse_assignments table
+export const machineWarehouseAssignments = pgTable("machine_warehouse_assignments", {
   id: serial("id").primaryKey(),
   machineId: integer("machine_id").notNull(), // Referenz zur machines-Tabelle
-  warehouseId: integer("warehouse_id").notNull().references(() => warehouses.id),
+  warehouseId: integer("warehouse_id").notNull(),
   isPrimary: boolean("is_primary").default(true),
   assignedBy: integer("assigned_by"), // User ID
   assignedAt: timestamp("assigned_at").defaultNow(),
@@ -86,83 +70,89 @@ export const insertProductInventorySchema = createInsertSchema(productInventory)
 export type InsertProductInventory = z.infer<typeof insertProductInventorySchema>;
 export type ProductInventory = typeof productInventory.$inferSelect;
 
-// Product Batch Table - Chargenverwaltung
-export const productBatches = pgTable("product_batches_v3", {
+// Stock Batches - Maps to existing product_batches table with required fields for FIFO
+export const stockBatches = pgTable("product_batches", {
   id: serial("id").primaryKey(),
-  warehouseId: integer("warehouse_id").notNull().references(() => warehouses.id),
-  productId: integer("product_id").notNull(), // Referenz zur products-Tabelle
+  productId: integer("product_id").notNull(),
+  warehouseId: integer("warehouse_id").notNull(),
   batchNumber: text("batch_number").notNull(),
-  expiryDate: date("expiry_date"), // Mindesthaltbarkeitsdatum
+  supplierBatchNumber: text("supplier_batch_number"),
   initialQuantity: integer("initial_quantity").notNull(),
   currentQuantity: integer("current_quantity").notNull(),
-  receivedDate: timestamp("received_date").defaultNow(),
-  supplierRef: text("supplier_ref"), // Lieferantenreferenz
+  receivedDate: date("received_date").notNull(),
+  manufacturingDate: date("manufacturing_date"),
+  expiryDate: date("expiry_date").notNull(), // Required for FIFO
+  orderId: integer("order_id"),
+  supplierId: integer("supplier_id"),
+  status: text("status").notNull().default("active"),
+  locationInWarehouse: text("location_in_warehouse"),
   notes: text("notes"),
-  createdBy: integer("created_by"), // User ID
+  createdBy: integer("created_by"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+  version: integer("version").notNull().default(1),
 }, (table) => {
   return {
-    // Eine Charge kann pro Produkt und Lager nur einmal existieren
-    uniqueBatch: unique().on(table.warehouseId, table.productId, table.batchNumber)
+    // FIFO indexing for efficient queries
+    fifoIndex: unique().on(table.warehouseId, table.productId, table.expiryDate),
   };
 });
 
-export const insertProductBatchSchema = createInsertSchema(productBatches).omit({
+export const insertStockBatchSchema = createInsertSchema(stockBatches).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
+  version: true,
 });
 
-export type InsertProductBatch = z.infer<typeof insertProductBatchSchema>;
-export type ProductBatch = typeof productBatches.$inferSelect;
+export type InsertStockBatch = z.infer<typeof insertStockBatchSchema>;
+export type StockBatch = typeof stockBatches.$inferSelect;
 
-// Inventory Movement Table - Warenbewegungen mit detailliertem Tracking
-export const inventoryMovements = pgTable("inventory_movements_v3", {
+// Stock Movements - Maps to existing inventory_movements table with required fields
+export const stockMovements = pgTable("inventory_movements", {
   id: serial("id").primaryKey(),
   
-  // Quelle und Ziel
-  sourceType: text("source_type").notNull(), // "warehouse", "machine", "supplier", "disposal"
-  sourceId: integer("source_id"), // ID des Quell-Lagers, -Automaten, etc.
-  destinationType: text("destination_type").notNull(), // "warehouse", "machine", "customer", "disposal"
-  destinationId: integer("destination_id"), // ID des Ziel-Lagers, -Automaten, etc.
+  // Core movement information
+  movementType: text("movement_type").notNull(), // "RECEIPT", "FILL", "ADJUST"
+  productId: integer("product_id").notNull(),
+  warehouseId: integer("source_warehouse_id"), // Use existing source_warehouse_id field
+  batchId: integer("batch_id"),
   
-  // Produkt und Mengeninformationen
-  productId: integer("product_id").notNull(), // Referenz zur products-Tabelle
-  batchId: integer("batch_id").references(() => productBatches.id),
-  quantity: integer("quantity").notNull(),
+  // Required fields for audit trail as per requirements
+  qtyDelta: integer("quantity").notNull(), // Maps to quantity field
+  beforeQty: integer("previous_stock"), // Maps to previous_stock
+  afterQty: integer("current_stock"), // Maps to current_stock
+  actorUserId: integer("performed_by"), // Maps to performed_by - REQUIRED per requirements
   
-  // Bestandsinformationen für Audit-Trail
-  previousStock: integer("previous_stock"), // Vorheriger Bestand
-  currentStock: integer("current_stock"), // Neuer Bestand nach Bewegung
+  // Optional machine and order references
+  machineId: integer("machine_id"),
+  orderId: integer("destination_warehouse_id"), // Repurpose for order_id when needed
   
-  // Bewegungstyp und Referenzen
-  movementType: text("movement_type").notNull(), // "IN", "OUT", "TRANSFER", "ADJUST", "REFILL", "DISPOSAL"
-  referenceType: text("reference_type"), // "ORDER", "REFILL", "COUNT", "EXPIRY", "MANUAL"
-  referenceId: text("reference_id"), // Referenz-ID (Order-ID, Refill-ID, etc.)
+  // Timestamps and metadata
+  occurredAt: timestamp("performed_at").defaultNow(),
+  source: text("reference_type"), // Maps to reference_type for source tracking
   
-  // Metadaten
-  reason: text("reason"), // Grund für die Bewegung
+  // Existing fields we need to maintain
+  direction: text("direction"),
+  referenceId: text("reference_id"),
+  status: text("status"),
   notes: text("notes"),
-  status: text("status").default("completed"), // "pending", "completed", "cancelled", "error"
-  
-  // Wer hat die Bewegung durchgeführt
-  performedBy: integer("performed_by"), // User ID
-  performedAt: timestamp("performed_at").defaultNow(),
-  
-  // Zeitstempel
+  batchNumber: text("batch_number"),
+  expiryDate: date("expiry_date"),
+  locationFrom: text("location_from"),
+  locationTo: text("location_to"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-export const insertInventoryMovementSchema = createInsertSchema(inventoryMovements).omit({
+export const insertStockMovementSchema = createInsertSchema(stockMovements).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
 });
 
-export type InsertInventoryMovement = z.infer<typeof insertInventoryMovementSchema>;
-export type InventoryMovement = typeof inventoryMovements.$inferSelect;
+export type InsertStockMovement = z.infer<typeof insertStockMovementSchema>;
+export type StockMovement = typeof stockMovements.$inferSelect;
 
 // Inventory Count - Inventur
 export const inventoryCounts = pgTable("inventory_counts_v3", {
@@ -329,14 +319,62 @@ export const refillTrackingRelations = relations(refillTrackings, ({ one, many }
   items: many(refillTrackingItems),
 }));
 
-// Refill Tracking Item Relations
-export const refillTrackingItemRelations = relations(refillTrackingItems, ({ one }) => ({
-  refill: one(refillTrackings, {
-    fields: [refillTrackingItems.refillId],
-    references: [refillTrackings.id],
+// Movement Type Enum for consistent movement logging
+export const MovementTypeEnum = {
+  RECEIPT: 'RECEIPT' as const,
+  FILL: 'FILL' as const,
+  ADJUST: 'ADJUST' as const,
+} as const;
+
+export type MovementType = typeof MovementTypeEnum[keyof typeof MovementTypeEnum];
+
+// Relations for the unified schema
+export const stockBatchRelations = relations(stockBatches, ({ one, many }) => ({
+  product: one(products, {
+    fields: [stockBatches.productId],
+    references: [products.id],
   }),
-  batch: one(productBatches, {
-    fields: [refillTrackingItems.batchId],
-    references: [productBatches.id],
+  warehouse: one(warehouses, {
+    fields: [stockBatches.warehouseId],
+    references: [warehouses.id],
+  }),
+  movements: many(stockMovements),
+  createdByUser: one(users, {
+    fields: [stockBatches.createdBy],
+    references: [users.id],
   }),
 }));
+
+export const stockMovementRelations = relations(stockMovements, ({ one }) => ({
+  product: one(products, {
+    fields: [stockMovements.productId],
+    references: [products.id],
+  }),
+  batch: one(stockBatches, {
+    fields: [stockMovements.batchId],
+    references: [stockBatches.id],
+  }),
+  actor: one(users, {
+    fields: [stockMovements.actorUserId],
+    references: [users.id],
+  }),
+}));
+
+export const machineWarehouseAssignmentRelations = relations(machineWarehouseAssignments, ({ one }) => ({
+  warehouse: one(warehouses, {
+    fields: [machineWarehouseAssignments.warehouseId],
+    references: [warehouses.id],
+  }),
+  assignedByUser: one(users, {
+    fields: [machineWarehouseAssignments.assignedBy],
+    references: [users.id],
+  }),
+}));
+
+// Export legacy compatibility aliases
+export const productBatches = stockBatches; // For backward compatibility
+export const inventoryMovements = stockMovements; // For backward compatibility
+export type ProductBatch = StockBatch;
+export type InventoryMovement = StockMovement;
+export const insertProductBatchSchema = insertStockBatchSchema;
+export const insertInventoryMovementSchema = insertStockMovementSchema;
