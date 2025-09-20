@@ -188,6 +188,7 @@ app.get('/api/inter-app/health', async (req, res) => {
 
 // SECURITY: Import unified authentication system
 import authRouter from './routes/auth';
+import enhancedAuthRouter from './routes/enhanced-auth-routes';
 import { replitAuthMiddleware } from './auth/replit-auth';
 
 // Public routes that don't need authentication
@@ -195,6 +196,7 @@ const publicRoutes = [
   '/api/inter-app/',
   '/api/supplier-portal/',
   '/api/auth/',
+  '/api/enhanced-auth/', // Enhanced Auth must be public for login
   '/api/test-email'
 ];
 
@@ -217,6 +219,10 @@ logger.info('Global API authentication middleware applied');
 app.get('/api/metrics', metricsHandler);
 app.get('/api/service-discovery', serviceDiscoveryHandler);
 logger.info('Protected metrics endpoints mounted: /api/metrics, /api/service-discovery');
+
+// CRITICAL FIX: Mount Enhanced Auth Routes
+app.use('/api/enhanced-auth', enhancedAuthRouter);
+logger.info('Enhanced Authentication routes mounted: /api/enhanced-auth');
 
 // Mount enhanced inter-app API routes (MIT Authentifizierung)
 app.use('/api/inter-app', interAppApiRouter);
