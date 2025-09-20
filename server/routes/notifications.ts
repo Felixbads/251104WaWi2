@@ -10,6 +10,9 @@ import {
   NotificationEventType
 } from '@shared/schema';
 
+// Import proper authentication middleware
+import { enhancedAuthMiddleware, requireAdmin } from '../auth/enhanced-auth';
+
 // Import trigger services
 import { coinLowTrigger } from '../services/triggers/coinLowTrigger';
 import { cashHighTrigger } from '../services/triggers/cashHighTrigger';
@@ -22,18 +25,8 @@ import { forecastWeekTrigger } from '../services/triggers/forecastWeekTrigger';
 
 const router = Router();
 
-// Middleware to check admin access
-const requireAdmin = (req: any, res: any, next: any) => {
-  // TODO: Implement proper admin authentication
-  // For now, allow all requests - this should be replaced with proper auth
-  if (!req.user || req.user.role !== 'admin') {
-    // Temporarily allow all - replace with proper auth check
-    console.log('Note: Admin authentication check bypassed for development');
-  }
-  next();
-};
-
-// Apply admin middleware to all notification routes
+// Apply proper authentication and admin middleware to all notification routes
+router.use(enhancedAuthMiddleware);
 router.use(requireAdmin);
 
 // ========================================
