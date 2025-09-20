@@ -192,6 +192,7 @@ import refillTemplatesRouter from './routes/refill-templates';
 import dailyEmailRouter from './routes/daily-email';
 import emailNotificationsRouter from './routes/email-notifications-simple';
 import warehouseRefillsRouter from './routes/warehouse-refills';
+import notificationsRouter from './routes/notifications';
 
 // Hilfsfunktion zum Gruppieren der Transaktionen nach Zeitraum
 function groupTransactionsByPeriod(transactions: any[], period: string) {
@@ -6898,6 +6899,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Registriere tägliche E-Mail-Benachrichtigungen
   app.use(`${API_PREFIX}/email/daily`, dailyEmailRouter);
   app.use(`${API_PREFIX}/email-notifications`, emailNotificationsRouter);
+  app.use(`${API_PREFIX}/notifications`, notificationsRouter);
   
   // Registriere Sync-Routen
   app.use(`${API_PREFIX}/sync`, syncRouter);
