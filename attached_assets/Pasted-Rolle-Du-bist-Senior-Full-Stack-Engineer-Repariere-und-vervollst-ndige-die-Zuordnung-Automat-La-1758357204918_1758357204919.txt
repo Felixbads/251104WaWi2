@@ -1,0 +1,103 @@
+Rolle: Du bist Senior Full-Stack Engineer. Repariere und vervollständige die Zuordnung „Automat → Lager“ und den gesamten Bestandsfluss (Refill/Receipt + Bewegungslog) in „Proviantomat“. Tech-Stack: React/wouter/React Query, Express/TypeScript, Postgres/Drizzle. Zeitzone Europe/Berlin. Arbeite transaktional und auditierbar. Halte dich strikt an die unten genannten Pfade/Dateien aus dem Code.
+
+## 0) Referenz aus Befund
+- FE Dropdown: `client/src/pages/WarehouseDetail.tsx` 136–144 (Daten), 1059–1087 (Render).
+- GET /api/machines: `server/routes.ts` 3334–3345 (liefert snake_case).
+- Alt-Assignments: `server/routes.ts` 636–656 (liefert `machine_name`/`warehouse_name`).
+- Neuer Assignments-Router: `server/routes/warehouse-machine-assignments.ts` 9–81 (OK).
+- Refill Endpoint: `server/routes/warehouse3.routes.ts` 1000–1019 (nimmt Lager aus URL, keine Zuordnungsprüfung).
+- Refill Verarbeitung: `server/warehouse3.storage.ts` 1491–1543 (kein FIFO, falscher movementType, kein actor_user_id).
+- Receipt: `server/routes.ts` 5051–5152 (keine Movements).
+- GoodsReceiptService: `server/services/goodsReceiptService.ts` 266–302 (falsche Felder, keine Movements).
+- createInventoryMovement: `server/warehouse3.storage.ts` 922–1008 (inkonsistent, ohne actor_user_id/before/after).
+
+## 1) API-Normalisierung & FE-Fix (Dropdown)
+1. `server/routes.ts` (GET /api/machines):
+   - Antworte in **camelCase** (z. B. Mapper: `{ machine_name, location } → { machineName, location }`).
+   - Füge optional `id`, `machineName`, `locationName` hinzu, Auth-Guard falls nötig.
+2. `server/routes.ts` (GET /api/machine-warehouse-assignments` 636–656):
+   - SQL-Aliase setzen: `m.machine_name AS machineName`, `w.name AS warehouseName`.
+3. `client/src/pages/WarehouseDetail.tsx`:
+   - Beim Laden der Automaten `useQuery`-Fetcher an neue/normalisierte API anpassen.
+   - Renderer: Labels aus `machine.machineName` anzeigen; robusten **Empty-State** („Keine Automaten gefunden“) + **Error-State**.
+   - **Verwende ab sofort** den neuen Router `server/routes/warehouse-machine-assignments.ts` für Lesen/Speichern.
+
+## 2) Zuordnung „Automat → Standard-Lager“
+- Datenmodell ist vorhanden (`machine_warehouse_assignments.isPrimary`).
+- Stelle sicher, dass FE „Als Standard-Lager festlegen“ → `POST/DELETE` am neuen Router nutzt.
+- Baue eine **GET-Hilfe**: `/api/machines/:id/warehouse` (liest primäre Zuordnung) im neuen Router.
+
+## 3) Refill: Lager erzwingen, FIFO & Bewegungslog
+**Serveränderungen:**
+1. `server/routes/warehouse3.routes.ts` (1000–1019):
+   - Ignoriere `:warehouseId` aus der URL für Buchungen.
+   - Ermittele `warehouseId` über `machine_warehouse_assignments` (isPrimary). Wenn keine Zuordnung: `422 { error: 'Machine has no default warehouse' }`.
+   - Übergib `actor_user_id` aus Auth-Context, `machine_id`.
+2. `server/warehouse3.storage.ts` (1491–1543):
+   - Implementiere **FIFO**: lese `stock_batches` für `(article_id, warehouse_id)` sortiert nach `(expiry ASC, created_at ASC, batch_id ASC)`, reduziere iterativ.
+   - Für **jede** Teilmenge:
+     - schreibe `stock_movements` mit:
+       - `movement_type='FILL'`
+       - `article_id`, `warehouse_id`, `batch_id`, `machine_id`, `actor_user_id`
+       - `qty_delta = -consumed`
+       - `before_qty` (Summe vor Update), `after_qty` (nach Update)
+       - `occurred_at = now()`, `source='refill'`
+   - Das alles in **einer DB-Transaktion** mit `SELECT … FOR UPDATE` auf betroffene Batch-Zeilen.
+3. `server/warehouse3.storage.ts` (922–1008):
+   - Vereinheitliche `createInventoryMovement` auf Enum `('RECEIPT','FILL','ADJUST')`.
+   - `actor_user_id` **Pflicht**.
+   - `before_qty/after_qty` aus realen Werten in der **gleichen** Transaktion, nicht heuristisch.
+
+## 4) Receipt (Wareneingang): Chargen + Movements
+1. `server/routes.ts` (5051–5152) **und** `server/services/goodsReceiptService.ts` (266–302):
+   - Nach Batch-Anlage und Bestandsanhebung **immer** `stock_movements` anlegen:
+     - `movement_type='RECEIPT'`
+     - `order_id`, `article_id`, `warehouse_id`, `batch_id`, `actor_user_id`
+     - `qty_delta = +received`
+     - `before_qty` (Summe vor Update), `after_qty` (nach Update)
+     - `occurred_at=now()`, `source='order_receipt'`
+   - `goodsReceiptService`: Felder auf tatsächlich vorhandene Spalten (`quantity`, `updatedAt`) anpassen.
+   - Alles in **Transaktion**.
+
+## 5) Datenbank & Sperren
+- Sicherstellen, dass folgende Tabellen/Spalten existieren:
+  - `stock_batches (id, article_id, warehouse_id, qty_available, expiry, created_at)`
+  - `stock_movements (id, movement_type, article_id, warehouse_id, batch_id?, qty_delta, before_qty, after_qty, actor_user_id, machine_id?, order_id?, occurred_at, source)`
+- Indizes:
+  - `stock_batches (article_id, warehouse_id, expiry)`
+  - `stock_movements (warehouse_id, article_id, occurred_at)`
+- Negative Bestände durch CHECKS/Guards verhindern; Use-Case-Fehler → 409/422.
+
+## 6) Frontend-UX (WarehouseDetail / Mapping)
+- Nach Speichern der Zuordnung: Erfolgstoast + erneutes Laden (`invalidateQueries`).
+- Refill-UI: zeige „Entnahme aus: <Standard-Lagername> (FIFO)“, ohne dass der Nutzer ein Lager auswählen muss.
+- Mobile: Select/Modal mit ausreichendem `z-index` und Scroll-Lock.
+
+## 7) Tests (bitte liefern)
+**Integration (Supertest)**
+- `PATCH /api/machines/:id/warehouse` speichert primäre Zuordnung; `GET` liefert sie.
+- `POST /api/refills` (mit machineId): erzeugt `stock_movements` (`FILL`) mit korrekten `before/after`, `batch_id`, `actor_user_id`, `machine_id`; bucht nur aus zugeordnetem Lager.
+- `/orders/:id/receipt`: erzeugt Chargen + `stock_movements` (`RECEIPT`) pro Batch.
+
+**FIFO-Tests**
+- 3 Chargen (verschiedene `expiry`) → Refill zieht in richtiger Reihenfolge, Restmengen stimmen.
+
+**E2E (Playwright)**
+- Dropdown zeigt Lagernamen (nicht „()“), Speichern funktioniert, Refill zeigt korrekte Lagerinfo, Bewegungslog sichtbar.
+
+## 8) Deprecation & Cleanup
+- Altpfad `/api/machine-warehouse-assignments` als **deprecated** markieren; FE auf neuen Router umstellen.
+- Logging: strukturierte Logs (pino) in Refill/Receipt-Transaktionen; `request-id`.
+
+## Akzeptanzkriterien (DoD)
+- Dropdown listet **benannte** Automaten; Zuordnung speicherbar & persistent.
+- Refill entnimmt **nur** aus zugeordnetem Standard-Lager, **FIFO/charge-genau**, mit vollständigem Bewegungslog (`FILL`).
+- Receipt erzeugt Chargen und `RECEIPT`-Bewegungen mit `before/after`.
+- Keine negativen Bestände; Transaktionen und Sperren aktiv.
+- Tests grün (Integration + FIFO + E2E).
+
+### Liefere
+- Code-Änderungen (Router/Storage/Services/FE),
+- Drizzle-Migrationen (falls nötig),
+- Tests,
+- kurze README-Notiz „Automat-Lager-Zuordnung & Bestandsbewegungen“.
