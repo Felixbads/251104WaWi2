@@ -4621,6 +4621,205 @@ export const allRelations = {
   refillTemplateProductRelations,
 };
 
+// ========================================
+// NOTIFICATION SYSTEM TABLES
+// ========================================
+
+// Notification Recipients - Empfänger für Benachrichtigungen
+export const notificationRecipients = pgTable("notification_recipients", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id), // Optional: Reference to user table
+  email: text("email").notNull(),
+  displayName: text("display_name").notNull(),
+  active: boolean("active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  emailIdx: index("notification_recipients_email_idx").on(table.email),
+  userEmailUniqueIdx: unique("notification_recipients_user_email_unique").on(table.userId, table.email),
+}));
+
+export const insertNotificationRecipientSchema = createInsertSchema(notificationRecipients).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  email: z.string().email("Ungültige E-Mail-Adresse"),
+  displayName: z.string().min(1, "Anzeigename ist erforderlich"),
+});
+
+export type InsertNotificationRecipient = z.infer<typeof insertNotificationRecipientSchema>;
+export type NotificationRecipient = typeof notificationRecipients.$inferSelect;
+
+// Event Types - Enum for the 8 notification event types
+export const notificationEventTypes = [
+  'coin_low',
+  'cash_high', 
+  'mhd_soon',
+  'stock_low',
+  'sales_yesterday',
+  'sales_weekly',
+  'margin_report',
+  'forecast_week'
+] as const;
+
+export type NotificationEventType = typeof notificationEventTypes[number];
+
+// Notification Subscriptions - Abonnements für verschiedene Event-Typen
+export const notificationSubscriptions = pgTable("notification_subscriptions", {
+  id: serial("id").primaryKey(),
+  recipientId: integer("recipient_id").references(() => notificationRecipients.id, { onDelete: 'cascade' }).notNull(),
+  eventType: text("event_type").notNull(),
+  channel: text("channel").default("email"), // email, sms, push (future)
+  active: boolean("active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  recipientEventIdx: unique("notification_subscriptions_recipient_event_unique").on(table.recipientId, table.eventType, table.channel),
+  eventTypeIdx: index("notification_subscriptions_event_type_idx").on(table.eventType),
+}));
+
+export const insertNotificationSubscriptionSchema = createInsertSchema(notificationSubscriptions).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  eventType: z.enum(notificationEventTypes, { errorMap: () => ({ message: "Ungültiger Event-Typ" }) }),
+  channel: z.enum(["email"], { errorMap: () => ({ message: "Ungültiger Kanal" }) }),
+});
+
+export type InsertNotificationSubscription = z.infer<typeof insertNotificationSubscriptionSchema>;
+export type NotificationSubscription = typeof notificationSubscriptions.$inferSelect;
+
+// Notification Schedules - Zeitpläne für Benachrichtigungen  
+export const notificationSchedules = pgTable("notification_schedules", {
+  id: serial("id").primaryKey(),
+  subscriptionId: integer("subscription_id").references(() => notificationSubscriptions.id, { onDelete: 'cascade' }).notNull(),
+  frequency: text("frequency").notNull(), // 'event', 'daily', 'weekly'
+  weekday: integer("weekday"), // 1=Monday, 7=Sunday (nur für weekly)
+  hour: integer("hour").default(6), // 0-23 (für daily/weekly)
+  minute: integer("minute").default(0), // 0-59 (für daily/weekly)
+  timezone: text("timezone").default("Europe/Berlin"),
+  active: boolean("active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  subscriptionIdx: index("notification_schedules_subscription_idx").on(table.subscriptionId),
+  frequencyIdx: index("notification_schedules_frequency_idx").on(table.frequency),
+}));
+
+export const insertNotificationScheduleSchema = createInsertSchema(notificationSchedules).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  frequency: z.enum(["event", "daily", "weekly"], { errorMap: () => ({ message: "Ungültige Frequenz" }) }),
+  weekday: z.number().min(1).max(7).optional(),
+  hour: z.number().min(0).max(23).default(6),
+  minute: z.number().min(0).max(59).default(0),
+  timezone: z.string().default("Europe/Berlin"),
+}).superRefine((data, ctx) => {
+  // Weekday is required for weekly frequency
+  if (data.frequency === "weekly" && !data.weekday) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Wochentag ist für wöchentliche Benachrichtigungen erforderlich",
+      path: ["weekday"]
+    });
+  }
+  // Event frequency doesn't need hour/minute/weekday
+  if (data.frequency === "event" && (data.hour !== undefined || data.minute !== undefined || data.weekday !== undefined)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Event-basierte Benachrichtigungen benötigen keine Zeitangaben",
+      path: ["frequency"]
+    });
+  }
+});
+
+export type InsertNotificationSchedule = z.infer<typeof insertNotificationScheduleSchema>;
+export type NotificationSchedule = typeof notificationSchedules.$inferSelect;
+
+// Notification Events - Events die Benachrichtigungen auslösen
+export const notificationEvents = pgTable("notification_events", {
+  id: serial("id").primaryKey(),
+  eventType: text("event_type").notNull(),
+  payload: jsonb("payload").notNull(),
+  payloadHash: text("payload_hash").notNull(), // For deduplication
+  occurredAt: timestamp("occurred_at").defaultNow(),
+  dedupeWindow: integer("dedupe_window").default(3600), // Seconds - prevent duplicate events within this window
+  processed: boolean("processed").default(false),
+  processedAt: timestamp("processed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  eventTypeIdx: index("notification_events_event_type_idx").on(table.eventType),
+  payloadHashIdx: index("notification_events_payload_hash_idx").on(table.payloadHash),
+  occurredAtIdx: index("notification_events_occurred_at_idx").on(table.occurredAt),
+  processedIdx: index("notification_events_processed_idx").on(table.processed),
+  // Composite index for deduplication
+  eventDedupeIdx: index("notification_events_dedupe_idx").on(table.eventType, table.payloadHash, table.occurredAt),
+}));
+
+export const insertNotificationEventSchema = createInsertSchema(notificationEvents).omit({
+  id: true,
+  processed: true,
+  processedAt: true,
+  createdAt: true,
+}).extend({
+  eventType: z.enum(notificationEventTypes, { errorMap: () => ({ message: "Ungültiger Event-Typ" }) }),
+  payload: z.record(z.any()),
+  dedupeWindow: z.number().min(0).default(3600),
+});
+
+export type InsertNotificationEvent = z.infer<typeof insertNotificationEventSchema>;
+export type NotificationEvent = typeof notificationEvents.$inferSelect;
+
+// Notification Logs - Logs für gesendete Benachrichtigungen
+export const notificationLogs = pgTable("notification_logs", {
+  id: serial("id").primaryKey(),
+  subscriptionId: integer("subscription_id").references(() => notificationSubscriptions.id),
+  eventId: integer("event_id").references(() => notificationEvents.id),
+  recipientId: integer("recipient_id").references(() => notificationRecipients.id),
+  eventType: text("event_type").notNull(),
+  status: text("status").notNull(), // 'sent', 'failed', 'pending', 'skipped'
+  channel: text("channel").default("email"),
+  recipient: text("recipient").notNull(), // Email address
+  subject: text("subject"),
+  errorMessage: text("error_message"),
+  errorCode: text("error_code"),
+  sentAt: timestamp("sent_at"),
+  retryCount: integer("retry_count").default(0),
+  nextRetryAt: timestamp("next_retry_at"),
+  messageId: text("message_id"), // External message ID from email provider
+  deliveryStatus: text("delivery_status"), // delivered, bounced, etc. (future)
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  subscriptionIdx: index("notification_logs_subscription_idx").on(table.subscriptionId),
+  eventIdx: index("notification_logs_event_idx").on(table.eventId),
+  statusIdx: index("notification_logs_status_idx").on(table.status),
+  recipientIdx: index("notification_logs_recipient_idx").on(table.recipientId),
+  sentAtIdx: index("notification_logs_sent_at_idx").on(table.sentAt),
+  eventTypeIdx: index("notification_logs_event_type_idx").on(table.eventType),
+}));
+
+export const insertNotificationLogSchema = createInsertSchema(notificationLogs).omit({
+  id: true,
+  createdAt: true,
+}).extend({
+  eventType: z.enum(notificationEventTypes, { errorMap: () => ({ message: "Ungültiger Event-Typ" }) }),
+  status: z.enum(["sent", "failed", "pending", "skipped"], { errorMap: () => ({ message: "Ungültiger Status" }) }),
+  channel: z.enum(["email"], { errorMap: () => ({ message: "Ungültiger Kanal" }) }),
+  recipient: z.string().email("Ungültige E-Mail-Adresse"),
+  retryCount: z.number().min(0).default(0),
+});
+
+export type InsertNotificationLog = z.infer<typeof insertNotificationLogSchema>;
+export type NotificationLog = typeof notificationLogs.$inferSelect;
+
+// ========================================
+// RELATIONS
+// ========================================
+
 // Email notification relations
 export const emailSettingsRelations = relations(emailSettings, ({ one, many }) => ({
   template: one(emailTemplates, {
@@ -4697,5 +4896,50 @@ export const dataQualityMetricsRelations = relations(dataQualityMetrics, ({ one 
   machine: one(machines, {
     fields: [dataQualityMetrics.machineId],
     references: [machines.id],
+  }),
+}));
+
+// Notification System Relations
+export const notificationRecipientsRelations = relations(notificationRecipients, ({ one, many }) => ({
+  user: one(users, {
+    fields: [notificationRecipients.userId],
+    references: [users.id],
+  }),
+  subscriptions: many(notificationSubscriptions),
+  logs: many(notificationLogs),
+}));
+
+export const notificationSubscriptionsRelations = relations(notificationSubscriptions, ({ one, many }) => ({
+  recipient: one(notificationRecipients, {
+    fields: [notificationSubscriptions.recipientId],
+    references: [notificationRecipients.id],
+  }),
+  schedules: many(notificationSchedules),
+  logs: many(notificationLogs),
+}));
+
+export const notificationSchedulesRelations = relations(notificationSchedules, ({ one }) => ({
+  subscription: one(notificationSubscriptions, {
+    fields: [notificationSchedules.subscriptionId],
+    references: [notificationSubscriptions.id],
+  }),
+}));
+
+export const notificationEventsRelations = relations(notificationEvents, ({ many }) => ({
+  logs: many(notificationLogs),
+}));
+
+export const notificationLogsRelations = relations(notificationLogs, ({ one }) => ({
+  subscription: one(notificationSubscriptions, {
+    fields: [notificationLogs.subscriptionId],
+    references: [notificationSubscriptions.id],
+  }),
+  event: one(notificationEvents, {
+    fields: [notificationLogs.eventId],
+    references: [notificationEvents.id],
+  }),
+  recipient: one(notificationRecipients, {
+    fields: [notificationLogs.recipientId],
+    references: [notificationRecipients.id],
   }),
 }));
