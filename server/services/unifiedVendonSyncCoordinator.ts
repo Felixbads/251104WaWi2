@@ -636,6 +636,12 @@ export class UnifiedVendonSyncCoordinator {
       const duplicates = batchResult.duplicates; 
       const errors = batchResult.errors;
 
+      // KRITISCHE ERGÄNZUNG: Inventory-Reduktion für neue Transaktionen
+      if (itemsSaved > 0) {
+        console.log(`🔄 Erstelle Inventory-Bewegungen für ${itemsSaved} neue Verkäufe...`);
+        await this.processInventoryReductionsForNewTransactions(apiTransactions);
+      }
+
       return {
         success: errors.length === 0,
         itemsFound: apiTransactions.length,
@@ -659,6 +665,135 @@ export class UnifiedVendonSyncCoordinator {
         durationMs: Date.now() - startTime,
         message: `Transaktions-Sync fehlgeschlagen: ${error.message}`
       };
+    }
+  }
+
+  /**
+   * KRITISCHE FUNKTION: Erstellt Inventory-Bewegungen für Verkäufe
+   * Reduziert automatisch Lagerbestände wenn Produkte verkauft werden
+   */
+  private async processInventoryReductionsForNewTransactions(transactions: VendonTransaction[]): Promise<void> {
+    console.log(`📦 Verarbeite Inventory-Reduktionen für ${transactions.length} Transaktionen...`);
+    
+    for (const transaction of transactions) {
+      try {
+        // Skip if no product name or quantity
+        if (!transaction.product_name || !transaction.quantity) {
+          continue;
+        }
+
+        // 1. Finde die Maschine und ihr zugewiesenes Lager
+        const machineQuery = `
+          SELECT 
+            m.id as machine_id,
+            m.machine_name,
+            mwa.warehouse_id
+          FROM machines m
+          LEFT JOIN machine_warehouse_assignments mwa ON m.id = mwa.machine_id
+          WHERE m.vendon_id = $1
+          LIMIT 1
+        `;
+        
+        const machineResult = await rawDb.query(machineQuery, [transaction.machine_id]);
+        
+        if (machineResult.rows.length === 0) {
+          console.warn(`⚠️ Maschine ${transaction.machine_id} nicht gefunden für Transaktion ${transaction.transaction_id}`);
+          continue;
+        }
+        
+        const machine = machineResult.rows[0];
+        if (!machine.warehouse_id) {
+          console.warn(`⚠️ Kein Lager für Maschine ${machine.machine_name} zugewiesen`);
+          continue;
+        }
+
+        // 2. Finde das Produkt
+        const productQuery = `
+          SELECT id FROM products 
+          WHERE LOWER(product_name) = LOWER($1)
+          LIMIT 1
+        `;
+        
+        const productResult = await rawDb.query(productQuery, [transaction.product_name]);
+        
+        if (productResult.rows.length === 0) {
+          console.warn(`⚠️ Produkt '${transaction.product_name}' nicht in Datenbank gefunden`);
+          continue;
+        }
+        
+        const productId = productResult.rows[0].id;
+
+        // 3. Hole aktuellen Lagerbestand
+        const inventoryQuery = `
+          SELECT quantity FROM inventory_items 
+          WHERE warehouse_id = $1 AND product_id = $2
+          LIMIT 1
+        `;
+        
+        const inventoryResult = await rawDb.query(inventoryQuery, [machine.warehouse_id, productId]);
+        
+        let currentStock = 0;
+        if (inventoryResult.rows.length > 0) {
+          currentStock = inventoryResult.rows[0].quantity;
+        }
+
+        const previousStock = currentStock;
+        const soldQuantity = Math.abs(transaction.quantity); // Ensure positive
+        const newStock = Math.max(0, currentStock - soldQuantity); // Prevent negative
+
+        // 4. Aktualisiere Lagerbestand
+        const updateQuery = `
+          INSERT INTO inventory_items (warehouse_id, product_id, quantity, min_quantity)
+          VALUES ($1, $2, $3, 0)
+          ON CONFLICT (warehouse_id, product_id)
+          DO UPDATE SET 
+            quantity = $3,
+            updated_at = NOW()
+        `;
+        
+        await rawDb.query(updateQuery, [machine.warehouse_id, productId, newStock]);
+
+        // 5. Erstelle Inventory Movement für Verkauf
+        const movementQuery = `
+          INSERT INTO inventory_movements (
+            product_id,
+            source_warehouse_id,
+            machine_id,
+            movement_type,
+            quantity,
+            previous_stock,
+            current_stock,
+            reference_type,
+            reference_id,
+            notes,
+            performed_at,
+            initiated_by,
+            correlation_id
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        `;
+        
+        await rawDb.query(movementQuery, [
+          productId,
+          machine.warehouse_id, // source (Lager reduziert)
+          machine.machine_id,   // Ziel-Maschine
+          'SALE', // Neuer Movement-Type für Verkäufe
+          -soldQuantity, // Negative quantity für Ausgang
+          previousStock,
+          newStock,
+          'transaction',
+          transaction.transaction_id,
+          `VERKAUF: ${soldQuantity}x ${transaction.product_name} von ${machine.machine_name} (Preis: ${transaction.price})`,
+          new Date(transaction.datetime || transaction.transaction_dt),
+          'system',
+          `sale_${transaction.transaction_id}`
+        ]);
+
+        console.log(`✅ Inventory reduziert: ${transaction.product_name} ${previousStock} → ${newStock} (${soldQuantity} verkauft)`);
+
+      } catch (error: any) {
+        console.error(`❌ Fehler bei Inventory-Reduktion für Transaktion ${transaction.transaction_id}:`, error.message);
+        // Continue with other transactions even if one fails
+      }
     }
   }
 
