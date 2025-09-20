@@ -2,7 +2,7 @@ import { pgTable, text, serial, integer, boolean, timestamp, real, date, unique,
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { relations } from "drizzle-orm";
-import { users, products, warehouses as mainWarehouses } from './schema';
+import { users, products, warehouses } from './schema';
 
 // ----- WAREHOUSE 3 SCHEMA -----
 // Vollständig überarbeitetes Schema für robuste Lagerverwaltung
@@ -249,44 +249,23 @@ export type RefillTrackingItem = typeof refillTrackingItems.$inferSelect;
 
 // ---- RELATIONEN ----
 
-// Warehouse Relations
+// Warehouse Relations - Updated to use unified schema
 export const warehouseRelations = relations(warehouses, ({ many }) => ({
   inventory: many(productInventory),
-  batches: many(productBatches),
-  movements: many(inventoryMovements, { relationName: "warehouse_movements" }),
+  batches: many(stockBatches),
+  movements: many(stockMovements, { relationName: "warehouse_movements" }),
   counts: many(inventoryCounts),
   machineAssignments: many(machineWarehouseAssignments),
   refills: many(refillTrackings),
 }));
 
-// Product Inventory Relations
+// Product Inventory Relations - Updated to use unified schema
 export const productInventoryRelations = relations(productInventory, ({ one, many }) => ({
   warehouse: one(warehouses, {
     fields: [productInventory.warehouseId],
     references: [warehouses.id],
   }),
-  batches: many(productBatches),
-}));
-
-// Product Batch Relations
-export const productBatchRelations = relations(productBatches, ({ one, many }) => ({
-  warehouse: one(warehouses, {
-    fields: [productBatches.warehouseId],
-    references: [warehouses.id],
-  }),
-  inventory: one(productInventory, {
-    fields: [productBatches.warehouseId, productBatches.productId],
-    references: [productInventory.warehouseId, productInventory.productId],
-  }),
-  movements: many(inventoryMovements),
-}));
-
-// Inventory Movement Relations
-export const inventoryMovementRelations = relations(inventoryMovements, ({ one }) => ({
-  batch: one(productBatches, {
-    fields: [inventoryMovements.batchId],
-    references: [productBatches.id],
-  }),
+  batches: many(stockBatches),
 }));
 
 // Inventory Count Relations

@@ -14,20 +14,23 @@ router.use(replitAuthMiddleware);
 
 /**
  * GET /api/machines
- * Get all machines (for dropdowns and lists)
+ * Get all machines with proper camelCase field normalization
  */
 router.get('/', async (req, res) => {
   try {
-    console.log('[MACHINES API] Fetching all machines for dropdown');
+    console.log('[MACHINES API] Fetching all machines with camelCase normalization');
     
+    // Use SQL aliases to convert snake_case to camelCase directly in the query
     const result = await rawDb.query(`
       SELECT 
         id,
-        machine_name,
-        vendon_id,
-        location_id,
-        machine_type,
-        status
+        machine_name AS "machineName",
+        vendon_id AS "vendonId", 
+        location_id AS "locationId",
+        machine_type AS "machineType",
+        status,
+        created_at AS "createdAt",
+        updated_at AS "updatedAt"
       FROM machines 
       WHERE machine_name IS NOT NULL 
         AND machine_name != '' 
@@ -37,20 +40,13 @@ router.get('/', async (req, res) => {
       ORDER BY machine_name ASC
     `);
     
-    const machines = result.rows.map(machine => ({
-      id: machine.id,
-      name: machine.machine_name,
-      machine_name: machine.machine_name,
-      vendon_id: machine.vendon_id,
-      location_id: machine.location_id,
-      machine_type: machine.machine_type,
-      status: machine.status
-    }));
+    // No need for additional mapping since SQL aliases handle camelCase conversion
+    const machines = result.rows;
     
-    console.log(`[MACHINES API] Returning ${machines.length} machines`);
+    console.log(`[MACHINES API] Returning ${machines.length} machines with camelCase fields`);
     res.json(machines);
     
-  } catch (error) {
+  } catch (error: any) {
     console.error('[MACHINES API] Error fetching machines:', error);
     res.status(500).json({
       error: 'Fehler beim Abrufen der Maschinen',
