@@ -1,0 +1,113 @@
+Rolle: Du bist Senior Full-Stack Engineer für „Proviantomat“ (React/wouter/React Query, Express/TypeScript, Postgres/Drizzle). Implementiere ein vollständiges, robustes Benachrichtigungssystem (E-Mail). Nutze bestehende Projektkonventionen. Zeitzone strikt Europe/Berlin.
+
+## Ausgangslage
+- FE „System → Benachrichtigungen“ ist nur Dummy, keine Funktionalität.
+- Keine API/Services/DB-Tabellen für Empfänger/Subscriptions/Schedules/Logs.
+- Weekly-Report ist harter Sonderweg (fixe Adresse, node-cron, keine Persistenz/Retry).
+- Status-/Vendon-Quellen liefern Daten, aber ohne Trigger-/Schwellenlogik.
+- Sicherheit/Idempotenz/Deduplizierung/Audit fehlen.
+
+## Zielbild (fachlich)
+Benachrichtigungen per E-Mail an:
+- „an mich“ (aktueller User) ODER gespeicherte Empfänger (Liste unter System → Benachrichtigungen).
+- Zweck(e)/Event(s) frei wählbar pro Empfänger.
+- Turnus: `event` (on-trigger), `daily` (Uhrzeit), `weekly` (Wochentag+Uhrzeit).
+- Ereignisse (insgesamt acht):
+  1) **coin_low** – Münzbestand niedrig
+  2) **cash_high** – zu viel Bargeld → Abholung
+  3) **mhd_soon** – MHD bald (nur Produkte in Automaten)
+  4) **stock_low** – Lagerbestand niedrig (nur Produkte in Automaten)
+  5) **sales_yesterday** – gestrige Umsätze (Summe + pro Standort)
+  6) **sales_weekly** – Umsätze der letzten Woche (Summe + pro Standort)
+  7) **margin_report** – Ergebnis & Marge der Automaten
+  8) **forecast_week** – Prognose für 7 Tage (Wetter, Ferien/Feiertage, erwartete Auslastung)
+
+## Architekturvorgaben
+- **DB/Queues:** Drizzle + Postgres. Persistente Jobs/Schedules via **pg-boss** (Postgres-basiert).
+- **Mailer:** zentrales `server/services/mailer.ts` mit SMTP (ENV). Templates via Handlebars/MJML.
+- **Eventfluss:** Trigger erzeugen Events → `notification_events` → Dispatcher → Mailer.
+- **Sicherheit:** Admin-Guard für Konfig-APIs. Secrets aus ENV. Audit-Logs.
+
+## Konkrete Aufgaben
+
+1) **DB-Schema (Drizzle)**
+- Neue Tabellen:
+  - `notification_recipients`: Empfänger (user_id?, email, display_name, active).
+  - `notification_subscriptions`: recipient_id, event_type (alle 8), channel, active.
+  - `notification_schedules`: subscription_id, frequency (event/daily/weekly), weekday?, hour, minute, tz.
+  - `notification_events`: event_type, payload (jsonb), payload_hash, occurred_at, dedupe_window.
+  - `notification_logs`: subscription_id, event_id?, status, error?, sent_at, created_at.
+- Indizes für schnelle Abfragen; Constraints (z. B. keine negativen Bestände).
+- Migrationen inkl. Down-Migrations.
+
+2) **Backend-API** (`server/routes/notifications.ts`)
+- CRUD für Recipients, Subscriptions, Schedules.
+- Zod-Schemas für Requests/Responses.
+- AuthZ: AdminOnly.
+- Service: `notificationService.ts` (recordEvent, dispatchDueNotifications, CRUD).
+
+3) **Scheduler/Jobs (pg-boss)**
+- Queues:
+  - `notifications:dispatch` → alle 5 Min prüfen, welche fällig sind.
+  - `notifications:send` → Mail bauen + verschicken.
+- Retry mit Backoff, Idempotenz via Logs.
+- Weekly Report → refactor zu `weekly_digest`-Subscription.
+
+4) **Trigger-Services**
+- `coinLowTrigger.ts` – prüft Coin-Level < Threshold.
+- `cashHighTrigger.ts` – prüft Cash-Level > Threshold.
+- `mhdSoonTrigger.ts` – Chargen in Automaten mit Expiry ≤ X Tage.
+- `stockLowTrigger.ts` – Reorder-Point unterschritten, nur Automatenprodukte.
+- `salesYesterdayTrigger.ts` – Summiert Transaktionen Vortag.
+- `salesWeeklyTrigger.ts` – Summiert Transaktionen Woche.
+- `marginReportTrigger.ts` – Umsatz – Kosten pro Automat/System.
+- `forecastWeekTrigger.ts` – Wetter (7 Tage), Ferien/Feiertage, erwartete Auslastung (externe API/Quelle).
+- Events normalisiert mit payload_hash für Dedupe.
+
+5) **Mailer/Templates** (`server/templates/notifications/*.hbs`)
+- Templates für alle 8 Eventtypen.
+- Digest-Option für Kombi-Reports (z. B. weekly_sales + forecast).
+- Inhalte: Tabellen pro Automat/Standort, Werte/Schwellen.
+
+6) **Frontend (React)**
+- Neue Seite: `client/src/pages/System/Notifications.tsx`
+  - CRUD für Empfänger.
+  - Subscriptions (Checkboxen für alle 8 Eventtypen).
+  - Schedule-Editor (daily/weekly).
+  - React Query Hooks, Toaster.
+- Guard: AdminRoute.
+- Entferne alte Mock-Komponenten (Settings, EmailServerConfig, SystemAlerts).
+
+7) **Sicherheit & Ops**
+- AdminOnly für alle /api/notifications*.
+- Secrets aus ENV, validiert beim Serverstart.
+- Logs mit request-id (pino).
+- Audit-Logs für Versand/Änderungen.
+
+8) **Tests**
+- Unit/Integration:
+  - CRUD (Recipients/Subscriptions/Schedules).
+  - `recordEvent` dedupliziert.
+  - `dispatchDueNotifications` enqueued korrekt.
+  - Trigger-Services korrekt.
+- E2E (Playwright):
+  - Admin richtet Subscription ein, Event wird erzeugt, Mail verschickt (Mock-Transport).
+- Fixtures: Standorte, Automaten, Produkte, Lagerdaten, Vendon-Mock.
+
+9) **Refactor/Doku**
+- Weekly-Report-Cron → neue Pipeline.
+- Doku in `docs/notifications.md`.
+
+## Akzeptanzkriterien (DoD)
+- Admin kann alle acht Eventtypen auswählen und planen.
+- Events werden erzeugt, dedupliziert, gespeichert, verschickt, geloggt.
+- Tägliche/wöchentliche Reports korrekt (sales/margin/forecast).
+- Alle Zeiten in Europe/Berlin.
+- Tests grün, UI funktioniert, keine Hardcodings.
+
+### Liefere
+- Code (DB, Services, Routes, Frontend).
+- Migrationen.
+- Tests (Unit/Integration/E2E).
+- Templates.
+- Dokumentation.
