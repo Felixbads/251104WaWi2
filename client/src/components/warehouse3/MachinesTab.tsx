@@ -81,25 +81,30 @@ export default function MachinesTab({ warehouseId }: MachinesTabProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false);
   
-  // Abrufen der zugewiesenen Automaten
-  const { data: machines, isLoading, isError, error } = useQuery({
-    queryKey: ['/api/warehouse3/warehouses', warehouseId, 'machines'],
+  // Abrufen der zugewiesenen Automaten über die normalisierte API
+  const { data: allAssignments, isLoading, isError, error } = useQuery({
+    queryKey: ['/api/machine-warehouse-assignments'],
     retry: 1,
   });
 
+  // Filtere Zuweisungen für dieses Lager
+  const warehouseAssignments = Array.isArray(allAssignments) 
+    ? allAssignments.filter((assignment: any) => assignment.warehouseId === warehouseId)
+    : [];
+
   // Filtere Automaten basierend auf dem Suchbegriff
-  const filteredMachines = machines?.filter((machine: any) => {
+  const filteredMachines = warehouseAssignments.filter((assignment: any) => {
     return (
-      machine.machineName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      machine.location?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      machine.vendonId?.toLowerCase().includes(searchTerm.toLowerCase())
+      assignment.machineName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      assignment.warehouseLocation?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      assignment.machineId?.toString().toLowerCase().includes(searchTerm.toLowerCase())
     );
-  }) || [];
+  });
 
   // Handler zum Entfernen einer Zuordnung
   const handleRemoveAssignment = async (assignmentId: number) => {
     try {
-      await apiRequest(`/api/warehouse3/machine-assignments/${assignmentId}`, {
+      await apiRequest(`/api/machine-warehouse-assignments/${assignmentId}`, {
         method: 'DELETE',
       });
       
@@ -109,7 +114,7 @@ export default function MachinesTab({ warehouseId }: MachinesTabProps) {
       });
       
       // Daten neu laden
-      queryClient.invalidateQueries({ queryKey: ['/api/warehouse3/warehouses', warehouseId, 'machines'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/machine-warehouse-assignments'] });
     } catch (err) {
       console.error("Fehler beim Entfernen der Zuordnung:", err);
       toast({
@@ -203,7 +208,7 @@ export default function MachinesTab({ warehouseId }: MachinesTabProps) {
             <AlertTriangle className="mx-auto h-10 w-10 text-destructive mb-4" />
             <p className="mb-4 text-muted-foreground">{(error as Error)?.message || "Ein unbekannter Fehler ist aufgetreten"}</p>
             <Button 
-              onClick={() => queryClient.invalidateQueries({ queryKey: ['/api/warehouse3/warehouses', warehouseId, 'machines'] })}
+              onClick={() => queryClient.invalidateQueries({ queryKey: ['/api/machine-warehouse-assignments'] })}
               variant="outline"
             >
               <RefreshCw className="mr-2 h-4 w-4" /> Erneut versuchen
@@ -215,7 +220,7 @@ export default function MachinesTab({ warehouseId }: MachinesTabProps) {
   }
 
   // Wenn keine Automaten zugewiesen sind
-  if (!machines || machines.length === 0) {
+  if (!warehouseAssignments || warehouseAssignments.length === 0) {
     return (
       <Card>
         <CardHeader>
@@ -299,7 +304,7 @@ export default function MachinesTab({ warehouseId }: MachinesTabProps) {
                   onClose={() => setIsAssignDialogOpen(false)}
                   onSuccess={() => {
                     setIsAssignDialogOpen(false);
-                    queryClient.invalidateQueries({ queryKey: ['/api/warehouse3/warehouses', warehouseId, 'machines'] });
+                    queryClient.invalidateQueries({ queryKey: ['/api/machine-warehouse-assignments'] });
                   }}
                 />
               </DialogContent>
@@ -323,20 +328,20 @@ export default function MachinesTab({ warehouseId }: MachinesTabProps) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredMachines.map((machine: any) => (
-                  <TableRow key={machine.id}>
+                {filteredMachines.map((assignment: any) => (
+                  <TableRow key={assignment.id}>
                     <TableCell>
-                      <div className="font-medium">{machine.machineName}</div>
+                      <div className="font-medium">{assignment.machineName}</div>
                     </TableCell>
-                    <TableCell>{machine.vendonId || "–"}</TableCell>
-                    <TableCell>{machine.location || "Unbekannt"}</TableCell>
+                    <TableCell>{assignment.vendonId || "–"}</TableCell>
+                    <TableCell>{assignment.warehouseLocation || "Unbekannt"}</TableCell>
                     <TableCell className="text-right">
-                      {machine.productCount || 0}
+                      {assignment.productCount || 0}
                     </TableCell>
                     <TableCell>
                       <MachineStatusBadge 
-                        needsRefill={machine.needsRefill || false} 
-                        lastRefill={machine.lastRefillDate} 
+                        needsRefill={assignment.needsRefill || false} 
+                        lastRefill={assignment.lastRefillDate} 
                       />
                     </TableCell>
                     <TableCell className="text-right">
@@ -350,33 +355,33 @@ export default function MachinesTab({ warehouseId }: MachinesTabProps) {
                         <DropdownMenuContent align="end">
                           <DropdownMenuLabel>Aktionen</DropdownMenuLabel>
                           <DropdownMenuItem asChild>
-                            <Link href={`/machines/${machine.machineId}`}>
+                            <Link href={`/machines/${assignment.machineId}`}>
                               <PanelTop className="mr-2 h-4 w-4" /> Details
                             </Link>
                           </DropdownMenuItem>
                           <DropdownMenuItem asChild>
-                            <Link href={`/warehouse3/${warehouseId}/refills/new?machineId=${machine.machineId}`}>
+                            <Link href={`/warehouse3/${warehouseId}/refills/new?machineId=${assignment.machineId}`}>
                               <Truck className="mr-2 h-4 w-4" /> Auffüllung erstellen
                             </Link>
                           </DropdownMenuItem>
                           <DropdownMenuItem asChild>
-                            <Link href={`/machines/${machine.machineId}/products`}>
+                            <Link href={`/machines/${assignment.machineId}/products`}>
                               <ShoppingBag className="mr-2 h-4 w-4" /> Produkte
                             </Link>
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem asChild>
-                            <Link href={`/machines/${machine.machineId}/stats`}>
+                            <Link href={`/machines/${assignment.machineId}/stats`}>
                               <LineChart className="mr-2 h-4 w-4" /> Statistiken
                             </Link>
                           </DropdownMenuItem>
                           <DropdownMenuItem asChild>
-                            <Link href={`/machines/${machine.machineId}/sales`}>
+                            <Link href={`/machines/${assignment.machineId}/sales`}>
                               <BarChart className="mr-2 h-4 w-4" /> Verkäufe
                             </Link>
                           </DropdownMenuItem>
                           <DropdownMenuItem asChild>
-                            <Link href={`/machines/${machine.machineId}/refills`}>
+                            <Link href={`/machines/${assignment.machineId}/refills`}>
                               <Calendar className="mr-2 h-4 w-4" /> Auffüllhistorie
                             </Link>
                           </DropdownMenuItem>
@@ -391,14 +396,14 @@ export default function MachinesTab({ warehouseId }: MachinesTabProps) {
                               <AlertDialogHeader>
                                 <AlertDialogTitle>Automatenzuweisung aufheben</AlertDialogTitle>
                                 <AlertDialogDescription>
-                                  Sind Sie sicher, dass Sie die Zuweisung von "{machine.machineName}" zu diesem Lager aufheben möchten? 
+                                  Sind Sie sicher, dass Sie die Zuweisung von "{assignment.machineName}" zu diesem Lager aufheben möchten? 
                                   Die Zuweisung kann jederzeit wiederhergestellt werden.
                                 </AlertDialogDescription>
                               </AlertDialogHeader>
                               <AlertDialogFooter>
                                 <AlertDialogCancel>Abbrechen</AlertDialogCancel>
                                 <AlertDialogAction 
-                                  onClick={() => handleRemoveAssignment(machine.assignmentId)}
+                                  onClick={() => handleRemoveAssignment(assignment.id)}
                                 >
                                   Zuweisung aufheben
                                 </AlertDialogAction>
