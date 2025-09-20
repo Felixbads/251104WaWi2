@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp, real, date, unique, primaryKey } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, real, date, unique, primaryKey, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { relations } from "drizzle-orm";
@@ -108,29 +108,49 @@ export const insertStockBatchSchema = createInsertSchema(stockBatches).omit({
 export type InsertStockBatch = z.infer<typeof insertStockBatchSchema>;
 export type StockBatch = typeof stockBatches.$inferSelect;
 
-// Stock Movements - Maps to existing inventory_movements table with required fields
+// Stock Movements - Enhanced audit trail with comprehensive tracking
 export const stockMovements = pgTable("inventory_movements", {
   id: serial("id").primaryKey(),
   
   // Core movement information
-  movementType: text("movement_type").notNull(), // "RECEIPT", "FILL", "ADJUST"
+  movementType: text("movement_type").notNull(), // "RECEIPT", "FILL", "ADJUST", "TRANSFER", "EXPIRY"
   productId: integer("product_id").notNull(),
-  warehouseId: integer("source_warehouse_id"), // Use existing source_warehouse_id field
+  warehouseId: integer("source_warehouse_id").notNull(), // AUDIT FIX: Make NOT NULL for audit clarity
   batchId: integer("batch_id"),
+  
+  // COMPREHENSIVE AUDIT TRAIL - Tracking & Correlation
+  movementGroupId: text("movement_group_id"), // UUID to group related movements
+  correlationId: text("correlation_id"), // Cross-service request tracking
+  reasonCode: text("reason_code"), // Structured reason ("REFILL", "ADJUSTMENT", "EXPIRY", "TRANSFER")
   
   // Required fields for audit trail as per requirements
   qtyDelta: integer("quantity").notNull(), // Maps to quantity field
   beforeQty: integer("previous_stock"), // Maps to previous_stock
   afterQty: integer("current_stock"), // Maps to current_stock
-  actorUserId: integer("performed_by"), // Maps to performed_by - REQUIRED per requirements
+  actorUserId: integer("performed_by").notNull(), // Maps to performed_by - REQUIRED per requirements
   
-  // Optional machine and order references
+  // COMPREHENSIVE USER CONTEXT - Actor Snapshots for Audit
+  actorUsernameSnapshot: text("actor_username_snapshot"), // Username at time of action
+  actorRoleSnapshot: text("actor_role_snapshot"), // Role at time of action
+  actorIpHash: text("actor_ip_hash"), // Hashed IP for privacy compliance
+  actorUserAgent: text("actor_user_agent"), // Browser/client info
+  initiatedBy: text("initiated_by").notNull().default("user"), // "user", "system", "job", "integration"
+  integrationId: text("integration_id"), // External system identifier
+  requestSessionId: text("request_session_id"), // Session tracking
+  
+  // Optional machine and order references - SCHEMA FIX
   machineId: integer("machine_id"),
-  orderId: integer("destination_warehouse_id"), // Repurpose for order_id when needed
+  orderId: integer("order_id"), // FIXED: Use dedicated order_id field instead of overloading destination_warehouse_id
+  destinationWarehouseId: integer("destination_warehouse_id"), // Keep original field for transfers
   
-  // Timestamps and metadata
+  // ENHANCED TIMESTAMPS
   occurredAt: timestamp("performed_at").defaultNow(),
+  utcOccurredAt: timestamp("utc_occurred_at"), // Explicit UTC timestamp
   source: text("reference_type"), // Maps to reference_type for source tracking
+  
+  // AUDIT INTEGRITY - Tamper Evidence
+  schemaVersion: integer("schema_version").notNull().default(2), // Track audit schema evolution
+  movementHash: text("movement_hash"), // SHA-256 hash for tamper detection
   
   // Existing fields we need to maintain
   direction: text("direction"),
@@ -143,6 +163,17 @@ export const stockMovements = pgTable("inventory_movements", {
   locationTo: text("location_to"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => {
+  return {
+    // PERFORMANCE & AUDIT INDEXES - NON-UNIQUE for audit querying (Architect Fix)
+    productWarehouseTimeIndex: index().on(table.productId, table.warehouseId, table.occurredAt),
+    warehouseTimeIndex: index().on(table.warehouseId, table.occurredAt),
+    actorTimeIndex: index().on(table.actorUserId, table.occurredAt),
+    batchIndex: index().on(table.batchId),
+    movementGroupIndex: index().on(table.movementGroupId),
+    correlationIndex: index().on(table.correlationId),
+    auditQueryIndex: index().on(table.movementType, table.status, table.occurredAt)
+  };
 });
 
 export const insertStockMovementSchema = createInsertSchema(stockMovements).omit({
@@ -153,6 +184,90 @@ export const insertStockMovementSchema = createInsertSchema(stockMovements).omit
 
 export type InsertStockMovement = z.infer<typeof insertStockMovementSchema>;
 export type StockMovement = typeof stockMovements.$inferSelect;
+
+// Movement Groups - For logical grouping of related movements
+export const movementGroups = pgTable("movement_groups", {
+  id: text("id").primaryKey(), // UUID - movement_group_id
+  movementType: text("movement_type").notNull(),
+  productId: integer("product_id").notNull(),
+  warehouseId: integer("warehouse_id").notNull(),
+  totalQtyDelta: integer("total_qty_delta").notNull(),
+  beforeQty: integer("before_qty").notNull(),
+  afterQty: integer("after_qty").notNull(),
+  actorUserId: integer("actor_user_id").notNull(),
+  correlationId: text("correlation_id"),
+  reasonCode: text("reason_code"),
+  status: text("status").notNull().default("completed"), // "pending", "completed", "failed"
+  occurredAt: timestamp("occurred_at").defaultNow(),
+  machineId: integer("machine_id"),
+  orderId: integer("order_id"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => {
+  return {
+    // Efficient querying for group-level audit reports - NON-UNIQUE (Architect Fix)
+    warehouseTimeIndex: index().on(table.warehouseId, table.occurredAt),
+    productTimeIndex: index().on(table.productId, table.occurredAt),
+    actorTimeIndex: index().on(table.actorUserId, table.occurredAt),
+    correlationIndex: index().on(table.correlationId),
+  };
+});
+
+export const insertMovementGroupSchema = createInsertSchema(movementGroups).omit({
+  createdAt: true,
+});
+
+export type InsertMovementGroup = z.infer<typeof insertMovementGroupSchema>;
+export type MovementGroup = typeof movementGroups.$inferSelect;
+
+// Movement Attempts - APPEND-ONLY failure logging outside transactions
+export const movementAttempts = pgTable("movement_attempts", {
+  id: serial("id").primaryKey(),
+  movementGroupId: text("movement_group_id").notNull(), // Links to attempted movement
+  correlationId: text("correlation_id"),
+  attemptType: text("attempt_type").notNull(), // "initial", "retry", "recovery"
+  status: text("status").notNull(), // "failed", "succeeded", "timeout"
+  
+  // Input snapshot for forensics
+  productId: integer("product_id").notNull(),
+  warehouseId: integer("warehouse_id").notNull(),
+  intendedQtyDelta: integer("intended_qty_delta").notNull(),
+  beforeQtySnapshot: integer("before_qty_snapshot"),
+  
+  // Actor context
+  actorUserId: integer("actor_user_id").notNull(),
+  actorUsernameSnapshot: text("actor_username_snapshot"),
+  actorRoleSnapshot: text("actor_role_snapshot"),
+  
+  // Error details
+  errorCode: text("error_code"),
+  errorMessage: text("error_message"),
+  stackTraceHash: text("stack_trace_hash"), // Hashed for privacy/space
+  
+  // Retry context
+  retryOfAttemptId: integer("retry_of_attempt_id"), // Links to original failed attempt
+  retryCount: integer("retry_count").default(0),
+  
+  // Timestamps
+  occurredAt: timestamp("occurred_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => {
+  return {
+    // Efficient failure analysis queries - NON-UNIQUE (Architect Fix)
+    groupTimeIndex: index().on(table.movementGroupId, table.occurredAt),
+    errorAnalysisIndex: index().on(table.errorCode, table.occurredAt),
+    retryChainIndex: index().on(table.retryOfAttemptId),
+    statusTimeIndex: index().on(table.status, table.occurredAt),
+  };
+});
+
+export const insertMovementAttemptSchema = createInsertSchema(movementAttempts).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertMovementAttempt = z.infer<typeof insertMovementAttemptSchema>;
+export type MovementAttempt = typeof movementAttempts.$inferSelect;
 
 // Inventory Count - Inventur
 export const inventoryCounts = pgTable("inventory_counts_v3", {
@@ -298,14 +413,55 @@ export const refillTrackingRelations = relations(refillTrackings, ({ one, many }
   items: many(refillTrackingItems),
 }));
 
-// Movement Type Enum for consistent movement logging
+// Movement Type Enum for consistent movement logging - ENHANCED
 export const MovementTypeEnum = {
   RECEIPT: 'RECEIPT' as const,
   FILL: 'FILL' as const,
   ADJUST: 'ADJUST' as const,
+  TRANSFER: 'TRANSFER' as const,
+  EXPIRY: 'EXPIRY' as const,
 } as const;
 
 export type MovementType = typeof MovementTypeEnum[keyof typeof MovementTypeEnum];
+
+// Reason Code Enum for structured audit reasoning
+export const ReasonCodeEnum = {
+  // Refill operations
+  MACHINE_REFILL: 'MACHINE_REFILL' as const,
+  BULK_REFILL: 'BULK_REFILL' as const,
+  EMERGENCY_REFILL: 'EMERGENCY_REFILL' as const,
+  
+  // Adjustments
+  INVENTORY_CORRECTION: 'INVENTORY_CORRECTION' as const,
+  DAMAGED_GOODS: 'DAMAGED_GOODS' as const,
+  LOST_GOODS: 'LOST_GOODS' as const,
+  FOUND_GOODS: 'FOUND_GOODS' as const,
+  
+  // Transfers
+  WAREHOUSE_TRANSFER: 'WAREHOUSE_TRANSFER' as const,
+  MACHINE_TRANSFER: 'MACHINE_TRANSFER' as const,
+  
+  // Receipts
+  DELIVERY_RECEIPT: 'DELIVERY_RECEIPT' as const,
+  RETURN_RECEIPT: 'RETURN_RECEIPT' as const,
+  
+  // System operations
+  EXPIRY_REMOVAL: 'EXPIRY_REMOVAL' as const,
+  BATCH_CONSOLIDATION: 'BATCH_CONSOLIDATION' as const,
+  SYSTEM_MIGRATION: 'SYSTEM_MIGRATION' as const,
+} as const;
+
+export type ReasonCode = typeof ReasonCodeEnum[keyof typeof ReasonCodeEnum];
+
+// Initiated By Enum for actor type tracking
+export const InitiatedByEnum = {
+  USER: 'user' as const,
+  SYSTEM: 'system' as const,
+  JOB: 'job' as const,
+  INTEGRATION: 'integration' as const,
+} as const;
+
+export type InitiatedBy = typeof InitiatedByEnum[keyof typeof InitiatedByEnum];
 
 // Relations for the unified schema
 export const stockBatchRelations = relations(stockBatches, ({ one, many }) => ({
@@ -347,6 +503,59 @@ export const machineWarehouseAssignmentRelations = relations(machineWarehouseAss
   assignedByUser: one(users, {
     fields: [machineWarehouseAssignments.assignedBy],
     references: [users.id],
+  }),
+}));
+
+// AUDIT TRAIL RELATIONS - New comprehensive audit relations
+export const movementGroupRelations = relations(movementGroups, ({ one, many }) => ({
+  warehouse: one(warehouses, {
+    fields: [movementGroups.warehouseId],
+    references: [warehouses.id],
+  }),
+  product: one(products, {
+    fields: [movementGroups.productId],
+    references: [products.id],
+  }),
+  actor: one(users, {
+    fields: [movementGroups.actorUserId],
+    references: [users.id],
+  }),
+  movements: many(stockMovements),
+  attempts: many(movementAttempts),
+}));
+
+export const movementAttemptRelations = relations(movementAttempts, ({ one }) => ({
+  movementGroup: one(movementGroups, {
+    fields: [movementAttempts.movementGroupId],
+    references: [movementGroups.id],
+  }),
+  actor: one(users, {
+    fields: [movementAttempts.actorUserId],
+    references: [users.id],
+  }),
+  retryOf: one(movementAttempts, {
+    fields: [movementAttempts.retryOfAttemptId],
+    references: [movementAttempts.id],
+  }),
+}));
+
+// Enhanced stockMovement relations with movement groups
+export const enhancedStockMovementRelations = relations(stockMovements, ({ one }) => ({
+  product: one(products, {
+    fields: [stockMovements.productId],
+    references: [products.id],
+  }),
+  batch: one(stockBatches, {
+    fields: [stockMovements.batchId],
+    references: [stockBatches.id],
+  }),
+  actor: one(users, {
+    fields: [stockMovements.actorUserId],
+    references: [users.id],
+  }),
+  movementGroup: one(movementGroups, {
+    fields: [stockMovements.movementGroupId],
+    references: [movementGroups.id],
   }),
 }));
 

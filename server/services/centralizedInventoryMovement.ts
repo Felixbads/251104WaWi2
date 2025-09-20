@@ -1,14 +1,21 @@
 import { eq, and, desc, sql, asc, gte, lte, isNull } from 'drizzle-orm';
 import { PgDatabase } from 'drizzle-orm/pg-core';
 import { PgTransaction } from 'drizzle-orm/pg-core';
+import crypto from 'crypto';
 import { z } from 'zod';
 import { 
   stockMovements, 
   stockBatches,
   productInventory,
+  movementGroups,
+  movementAttempts,
   type StockMovement,
   type StockBatch,
-  insertStockMovementSchema
+  type MovementGroup,
+  type MovementAttempt,
+  insertStockMovementSchema,
+  ReasonCodeEnum,
+  InitiatedByEnum
 } from '@shared/warehouse3.schema';
 
 // ========================================
@@ -16,7 +23,7 @@ import {
 // ========================================
 
 /**
- * Input data for creating an inventory movement with FIFO support
+ * Enhanced input data for creating an inventory movement with comprehensive audit trail
  */
 export const createMovementInputSchema = z.object({
   // Core movement data
@@ -27,6 +34,19 @@ export const createMovementInputSchema = z.object({
   
   // Actor information (required)
   actorUserId: z.number().positive(),
+  
+  // COMPREHENSIVE AUDIT TRAIL - Enhanced user context
+  actorUsername: z.string().optional(), // Username snapshot
+  actorRole: z.string().optional(), // Role snapshot
+  actorIp: z.string().optional(), // Will be hashed for privacy
+  actorUserAgent: z.string().optional(), // Browser/client info
+  initiatedBy: z.enum(['user', 'system', 'job', 'integration']).optional().default('user'),
+  integrationId: z.string().optional(), // External system ID
+  requestSessionId: z.string().optional(), // Session tracking
+  
+  // AUDIT CORRELATION - Request tracking
+  correlationId: z.string().optional(), // Cross-service correlation
+  reasonCode: z.enum(Object.values(ReasonCodeEnum) as [string, ...string[]]).optional(),
   
   // Optional references
   machineId: z.number().positive().optional(),
@@ -52,13 +72,21 @@ export const createMovementInputSchema = z.object({
 export type CreateMovementInput = z.infer<typeof createMovementInputSchema>;
 
 /**
- * Result of creating an inventory movement
+ * Enhanced result of creating an inventory movement with comprehensive audit trail
  */
 export interface MovementResult {
   movement: StockMovement;
+  movementGroup: MovementGroup;
   batchesProcessed: BatchProcessResult[];
   totalQuantityProcessed: number;
   inventoryUpdated: boolean;
+  auditTrail: {
+    movementGroupId: string;
+    correlationId: string;
+    perRowHashing: boolean; // ARCHITECT FIX: Match actual return type
+    beforeQty: number;
+    afterQty: number;
+  };
 }
 
 export interface BatchProcessResult {
@@ -68,6 +96,114 @@ export interface BatchProcessResult {
   stockBefore: number;
   stockAfter: number;
   expiryDate: string;
+}
+
+// ========================================
+// AUDIT TRAIL UTILITIES
+// ========================================
+
+/**
+ * Generate a unique movement group ID for correlating related movements
+ */
+function generateMovementGroupId(): string {
+  return crypto.randomUUID();
+}
+
+/**
+ * Generate correlation ID for cross-service request tracking
+ */
+function generateCorrelationId(prefix?: string): string {
+  const id = crypto.randomUUID();
+  return prefix ? `${prefix}_${id}` : `corr_${id}`;
+}
+
+/**
+ * Hash IP address for privacy compliance (GDPR-safe)
+ */
+function hashIpAddress(ip?: string): string | undefined {
+  if (!ip) return undefined;
+  return crypto.createHash('sha256').update(ip).digest('hex').substring(0, 16);
+}
+
+/**
+ * Generate tamper-evident hash for movement integrity
+ * Enhanced per-row hash including all critical fields with HMAC
+ * 
+ * CANONICALIZATION RULES (for verification reproducibility):
+ * - All optional fields normalized to explicit null (never undefined)  
+ * - utcOccurredAt converted to ISO string format
+ * - Keys sorted alphabetically for consistent JSON
+ * - HMAC with server secret for tamper evidence
+ */
+function generateMovementHash(movementData: any): string {
+  // ARCHITECT FIX: Normalize optional fields to explicit null for DB state match
+  const canonical = {
+    // Core movement data
+    productId: movementData.productId,
+    warehouseId: movementData.warehouseId,
+    qtyDelta: movementData.qtyDelta,
+    actorUserId: movementData.actorUserId,
+    movementType: movementData.movementType,
+    
+    // Per-row specific fields - NORMALIZED to explicit null
+    batchId: movementData.batchId ?? null, // Prevent undefined vs null mismatch
+    beforeQty: movementData.beforeQty,
+    afterQty: movementData.afterQty,
+    reasonCode: movementData.reasonCode ?? null, // Prevent undefined vs null mismatch
+    
+    // Temporal integrity - consistent ISO format
+    timestamp: movementData.utcOccurredAt?.toISOString() ?? null,
+    
+    // Identity and correlation - normalized
+    movementGroupId: movementData.movementGroupId ?? null,
+    correlationId: movementData.correlationId ?? null
+  };
+  
+  // ARCHITECT FIX: Production security guard for HMAC secret
+  const serverSecret = process.env.MOVEMENT_HASH_SECRET;
+  if (!serverSecret && process.env.NODE_ENV === 'production') {
+    throw new Error('MOVEMENT_HASH_SECRET must be set in production for tamper-evident audit trail');
+  }
+  const effectiveSecret = serverSecret || 'default-development-secret-change-in-production';
+  const canonicalString = JSON.stringify(canonical, Object.keys(canonical).sort());
+  
+  return crypto.createHmac('sha256', effectiveSecret)
+    .update(canonicalString)
+    .digest('hex');
+}
+
+/**
+ * ARCHITECT REQUIREMENT: Hash verification utility  
+ * Recomputes movement hash from stored database row for tamper verification
+ */
+export function verifyMovementHashFromDbRow(dbRow: any): { 
+  isValid: boolean; 
+  computedHash: string; 
+  storedHash: string;
+} {
+  // Recompute hash using exact stored values from DB
+  const computedHash = generateMovementHash({
+    productId: dbRow.productId || dbRow.product_id,
+    warehouseId: dbRow.warehouseId || dbRow.source_warehouse_id,
+    qtyDelta: dbRow.qtyDelta || dbRow.qty_delta,
+    actorUserId: dbRow.actorUserId || dbRow.performed_by,
+    movementType: dbRow.movementType || dbRow.movement_type,
+    batchId: dbRow.batchId || dbRow.batch_id, // Will be null if not set
+    beforeQty: dbRow.beforeQty || dbRow.before_qty,
+    afterQty: dbRow.afterQty || dbRow.after_qty,
+    reasonCode: dbRow.reasonCode || dbRow.reason_code, // Will be null if not set
+    utcOccurredAt: dbRow.utcOccurredAt || dbRow.utc_occurred_at,
+    movementGroupId: dbRow.movementGroupId || dbRow.movement_group_id,
+    correlationId: dbRow.correlationId || dbRow.correlation_id
+  });
+  
+  const storedHash = dbRow.movementHash || dbRow.movement_hash;
+  
+  return {
+    isValid: computedHash === storedHash,
+    computedHash,
+    storedHash
+  };
 }
 
 // ========================================
@@ -100,26 +236,44 @@ export class CentralizedInventoryMovement {
     // Validate input
     const validatedInput = createMovementInputSchema.parse(input);
     
-    // ATOMICITY FIX: If no transaction provided, wrap in one for atomicity
-    if (tx) {
-      return this.executeMovement(validatedInput, tx);
-    } else {
-      return this.db.transaction(async (transactionClient) => {
-        return this.executeMovement(validatedInput, transactionClient);
-      });
+    // Generate tracking IDs for failure logging (outside transaction)
+    const correlationId = validatedInput.correlationId || generateCorrelationId('inv');
+    const movementGroupId = generateMovementGroupId();
+    
+    try {
+      // ATOMICITY FIX: If no transaction provided, wrap in one for atomicity
+      if (tx) {
+        return this.executeMovement(validatedInput, tx, correlationId, movementGroupId);
+      } else {
+        return this.db.transaction(async (transactionClient) => {
+          return this.executeMovement(validatedInput, transactionClient, correlationId, movementGroupId);
+        });
+      }
+    } catch (error) {
+      // FAILURE LOGGING OUTSIDE TRANSACTION - Critical requirement from architect
+      console.log(`[FAILURE_AUDIT] Recording movement attempt failure outside transaction`);
+      await this.recordMovementAttemptFailure(validatedInput, correlationId, movementGroupId, error);
+      throw error; // Re-throw after logging
     }
   }
   
   /**
-   * Execute the actual movement within a transaction context
+   * Execute the actual movement within a transaction context with comprehensive audit trail
    */
   private async executeMovement(
     validatedInput: CreateMovementInput,
-    dbClient: any
+    dbClient: any,
+    correlationId: string,
+    movementGroupId: string
   ): Promise<MovementResult> {
     
     try {
       console.log(`[INVENTORY_MOVEMENT] Creating ${validatedInput.movementType} movement: ${validatedInput.qtyDelta} units of product ${validatedInput.productId}`);
+      
+      // COMPREHENSIVE AUDIT TRAIL - Use passed-in tracking IDs
+      const utcOccurredAt = new Date();
+      
+      console.log(`[AUDIT_TRAIL] Movement Group: ${movementGroupId}, Correlation: ${correlationId}`);
       
       // 1. Get current inventory state for audit trail
       const currentInventory = await this.getCurrentInventoryState(
@@ -151,8 +305,9 @@ export class CentralizedInventoryMovement {
       const beforeQty = currentInventory.totalQuantity;
       const afterQty = beforeQty + validatedInput.qtyDelta;
       
-      // 4. Create stock movement records (one per batch for OUT movements)
+      // 4. COMPREHENSIVE AUDIT TRAIL - Prepare enhanced movement data
       const movements: StockMovement[] = [];
+      
       const baseMovementData = {
         movementType: validatedInput.movementType,
         productId: validatedInput.productId,
@@ -161,9 +316,27 @@ export class CentralizedInventoryMovement {
         beforeQty: beforeQty,
         afterQty: afterQty,
         actorUserId: validatedInput.actorUserId,
+        
+        // COMPREHENSIVE AUDIT TRAIL - Enhanced tracking
+        movementGroupId: movementGroupId,
+        correlationId: correlationId,
+        reasonCode: validatedInput.reasonCode,
+        actorUsernameSnapshot: validatedInput.actorUsername,
+        actorRoleSnapshot: validatedInput.actorRole,
+        actorIpHash: hashIpAddress(validatedInput.actorIp),
+        actorUserAgent: validatedInput.actorUserAgent,
+        initiatedBy: validatedInput.initiatedBy,
+        integrationId: validatedInput.integrationId,
+        requestSessionId: validatedInput.requestSessionId,
+        
+        // References and metadata
         machineId: validatedInput.machineId,
         orderId: validatedInput.orderId,
+        destinationWarehouseId: undefined, // For transfers
+        
+        // Enhanced timestamps
         occurredAt: new Date(),
+        utcOccurredAt: utcOccurredAt,
         source: validatedInput.source,
         referenceId: validatedInput.referenceId,
         direction: validatedInput.direction || (validatedInput.qtyDelta < 0 ? 'OUT' : 'IN'),
@@ -171,40 +344,112 @@ export class CentralizedInventoryMovement {
         notes: validatedInput.notes,
         locationFrom: validatedInput.locationFrom,
         locationTo: validatedInput.locationTo,
+        
+        // AUDIT INTEGRITY
+        schemaVersion: 2,
+        // movementHash will be computed per-row below
+        
         createdAt: new Date(),
         updatedAt: new Date()
       };
       
       if (batchesProcessed.length > 0) {
-        // AUDIT TRAIL FIX: Create one movement record per batch consumed
+        // AUDIT TRAIL FIX: Create one movement record per batch with ALIGNED per-row beforeQty/afterQty
+        let cumulativeQty = beforeQty; // Track cumulative quantity for per-row fidelity
+        
         for (const batchInfo of batchesProcessed) {
+          const perRowQtyDelta = validatedInput.qtyDelta < 0 ? -batchInfo.quantityUsed : batchInfo.quantityUsed;
+          const perRowBeforeQty = cumulativeQty;
+          const perRowAfterQty = cumulativeQty + perRowQtyDelta;
+          
+          // ARCHITECT FIX: Generate per-row hash using EXACT persisted fields
+          const perRowMovementHash = generateMovementHash({
+            productId: validatedInput.productId,
+            warehouseId: validatedInput.warehouseId,
+            qtyDelta: perRowQtyDelta,
+            actorUserId: validatedInput.actorUserId,
+            movementType: validatedInput.movementType,
+            batchId: batchInfo.batchId,
+            beforeQty: perRowBeforeQty, // EXACT persisted beforeQty
+            afterQty: perRowAfterQty, // EXACT persisted afterQty
+            reasonCode: validatedInput.reasonCode,
+            utcOccurredAt: utcOccurredAt,
+            movementGroupId: movementGroupId,
+            correlationId: correlationId
+          });
+          
           const [movement] = await dbClient
             .insert(stockMovements)
             .values({
               ...baseMovementData,
               batchId: batchInfo.batchId,
-              qtyDelta: validatedInput.qtyDelta < 0 ? -batchInfo.quantityUsed : batchInfo.quantityUsed,
+              qtyDelta: perRowQtyDelta,
+              beforeQty: perRowBeforeQty, // ALIGNED: Per-row beforeQty
+              afterQty: perRowAfterQty, // ALIGNED: Per-row afterQty  
               batchNumber: batchInfo.batchNumber,
-              expiryDate: batchInfo.expiryDate
+              expiryDate: batchInfo.expiryDate,
+              movementHash: perRowMovementHash // Hash matches persisted data
             })
             .returning();
           movements.push(movement);
+          
+          // Update cumulative for next iteration
+          cumulativeQty = perRowAfterQty;
         }
       } else {
-        // Single movement for non-batch operations
+        // Single movement for non-batch operations with per-row hash
+        const singleRowMovementHash = generateMovementHash({
+          productId: validatedInput.productId,
+          warehouseId: validatedInput.warehouseId,
+          qtyDelta: validatedInput.qtyDelta,
+          actorUserId: validatedInput.actorUserId,
+          movementType: validatedInput.movementType,
+          batchId: validatedInput.batchId,
+          beforeQty: beforeQty,
+          afterQty: afterQty,
+          reasonCode: validatedInput.reasonCode,
+          utcOccurredAt: utcOccurredAt,
+          movementGroupId: movementGroupId,
+          correlationId: correlationId
+        });
+        
         const [movement] = await dbClient
           .insert(stockMovements)
           .values({
             ...baseMovementData,
             batchId: validatedInput.batchId,
             batchNumber: validatedInput.batchNumber,
-            expiryDate: validatedInput.expiryDate
+            expiryDate: validatedInput.expiryDate,
+            movementHash: singleRowMovementHash // Per-row hash
           })
           .returning();
         movements.push(movement);
       }
       
-      // 5. Update inventory totals if needed
+      // 5. CREATE MOVEMENT GROUP for logical grouping and audit trail
+      const [movementGroup] = await dbClient
+        .insert(movementGroups)
+        .values({
+          id: movementGroupId,
+          movementType: validatedInput.movementType,
+          productId: validatedInput.productId,
+          warehouseId: validatedInput.warehouseId,
+          totalQtyDelta: validatedInput.qtyDelta,
+          beforeQty: beforeQty,
+          afterQty: afterQty,
+          actorUserId: validatedInput.actorUserId,
+          correlationId: correlationId,
+          reasonCode: validatedInput.reasonCode,
+          status: validatedInput.status,
+          occurredAt: utcOccurredAt,
+          machineId: validatedInput.machineId,
+          orderId: validatedInput.orderId,
+          notes: validatedInput.notes,
+          createdAt: new Date()
+        })
+        .returning();
+      
+      // 6. Update inventory totals if needed
       const inventoryUpdated = await this.updateInventoryTotals(
         validatedInput.productId,
         validatedInput.warehouseId,
@@ -213,17 +458,67 @@ export class CentralizedInventoryMovement {
       );
       
       console.log(`[INVENTORY_MOVEMENT] ✅ Created ${movements.length} movement record(s): ${batchesProcessed.length} batches processed`);
+      console.log(`[AUDIT_TRAIL] ✅ Movement Group ${movementGroupId} created with per-row hashing`);
       
+      // ENHANCED RETURN with comprehensive audit trail
       return {
         movement: movements[0], // Return first movement for compatibility
+        movementGroup: movementGroup, // New: Movement group for logical grouping
         batchesProcessed,
         totalQuantityProcessed: Math.abs(validatedInput.qtyDelta),
-        inventoryUpdated
+        inventoryUpdated,
+        auditTrail: { // New: Comprehensive audit information
+          movementGroupId: movementGroupId,
+          correlationId: correlationId,
+          perRowHashing: true, // Per-row hashes computed for each movement
+          beforeQty: beforeQty,
+          afterQty: afterQty
+        }
       };
       
     } catch (error) {
       console.error('[INVENTORY_MOVEMENT] Error creating movement:', error);
       throw error;
+    }
+  }
+
+  /**
+   * FAILURE LOGGING OUTSIDE TRANSACTION - Critical architect requirement
+   * Records movement attempt failures in append-only table outside transaction boundary
+   */
+  private async recordMovementAttemptFailure(
+    input: CreateMovementInput,
+    correlationId: string,
+    movementGroupId: string,
+    error: any
+  ): Promise<void> {
+    try {
+      // Use raw database connection to ensure this is outside any transaction
+      // FIX: Use only schema-defined fields
+      await this.rawDb.query(`
+        INSERT INTO movement_attempts (
+          movement_group_id, correlation_id, attempt_type, status,
+          product_id, warehouse_id, intended_qty_delta, actor_user_id,
+          error_code, error_message, occurred_at, created_at
+        ) VALUES (
+          $1, $2, 'initial', 'failed', $3, $4, $5, $6,
+          $7, $8, NOW(), NOW()
+        )
+      `, [
+        movementGroupId,
+        correlationId,
+        input.productId,
+        input.warehouseId,
+        input.qtyDelta, // Maps to intended_qty_delta
+        input.actorUserId,
+        error.code || 'UNKNOWN_ERROR',
+        error.message || 'Unknown error occurred'
+      ]);
+      
+      console.log(`[FAILURE_AUDIT] ✅ Recorded failure attempt for correlation ${correlationId}`);
+    } catch (logError) {
+      // Never throw from failure logging - just log the meta-error
+      console.error('[FAILURE_AUDIT] ❌ Failed to record movement attempt failure:', logError);
     }
   }
 
@@ -464,7 +759,9 @@ export async function createReceiptMovement(
     batchId,
     source: 'RECEIPT',
     direction: 'IN',
-    status: 'completed'
+    status: 'completed',
+    initiatedBy: 'user', // Fix LSP error - add required field
+    reasonCode: 'DELIVERY_RECEIPT'
   }, tx);
 }
 
@@ -489,6 +786,8 @@ export async function createFillMovement(
     machineId,
     source: 'REFILL',
     direction: 'OUT',
-    status: 'completed'
+    status: 'completed',
+    initiatedBy: 'user', // Fix LSP error - add required field
+    reasonCode: 'MACHINE_REFILL'
   }, tx);
 }
