@@ -153,21 +153,24 @@ export class LegacyRefillProcessingService {
   }
 
   private async determineWarehouseFromMachine(machineId: number): Promise<number | null> {
-    // Versuche Machine→Warehouse Zuordnung zu finden
+    // Versuche Machine→Warehouse Zuordnung zu finden (bevorzuge primäre Zuordnung)
     const result = await db.execute(sql`
       SELECT warehouse_id 
       FROM machine_warehouse_assignments 
       WHERE machine_id = ${machineId}
+      ORDER BY is_primary DESC, assigned_at DESC
       LIMIT 1
     `);
     
     if (result.rows[0]) {
-      return result.rows[0].warehouse_id as number;
+      const warehouseId = result.rows[0].warehouse_id as number;
+      console.log(`[LEGACY_REFILL] Machine ${machineId} assigned to warehouse ${warehouseId}`);
+      return warehouseId;
     }
 
-    // Fallback: Verwende Lager ID 1 (Hauptlager)
-    console.log(`[LEGACY_REFILL] No warehouse assignment for machine ${machineId}, using warehouse 1`);
-    return 1;
+    // KEIN Fallback mehr - Fehler wenn keine Zuordnung gefunden wird
+    console.error(`[LEGACY_REFILL] ERROR: No warehouse assignment found for machine ${machineId}! Please assign machine to warehouse first.`);
+    return null;
   }
 
   private async checkExistingMovements(refillId: number, movementType: string): Promise<any[]> {
