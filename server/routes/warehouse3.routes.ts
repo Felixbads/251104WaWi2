@@ -36,6 +36,13 @@ import {
   type RefillRemove
 } from "../services/refillProcessingService";
 
+// ---- LEGACY REFILL PROCESSING SERVICE ----
+import { 
+  legacyRefillProcessingService, 
+  legacyRefillCommitSchema,
+  type LegacyRefillCommit
+} from "../services/legacyRefillProcessingService";
+
 const router = Router();
 
 // ---- HELPER FUNCTIONS FOR RETRY LOGIC ----
@@ -2090,6 +2097,82 @@ router.post("/warehouses/:warehouseId/refills/:refillId/remove",
     return res.status(500).json({
       success: false,
       message: "Serverfehler bei Refill-Entnahme-Verarbeitung",
+      error: errorMessage
+    });
+  }
+});
+
+// ---- LEGACY REFILL PROCESSING ROUTES (TEST) ----
+
+// Legacy Refill verarbeiten (aus refills/refill_details Tabellen)
+router.post("/legacy-refills/:refillId/commit", 
+  authenticateUser, 
+  requireRole(['admin', 'manager', 'employee']), 
+  auditLog('LEGACY_REFILL_COMMIT', 'WAREHOUSE_REFILL_PROCESSING'), 
+  async (req, res) => {
+  try {
+    const refillId = parseInt(req.params.refillId);
+    
+    if (isNaN(refillId)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Ungültige Refill-ID" 
+      });
+    }
+
+    // Request-Body mit ID ergänzen
+    const commitData = {
+      refillId,
+      performedBy: req.user?.id || 1, // Fallback user ID
+      notes: req.body.notes || "Legacy Refill Processing Test"
+    };
+
+    // Validierung
+    const validatedData = legacyRefillCommitSchema.parse(commitData);
+
+    console.log(`[LEGACY_REFILL] Processing legacy refill commit for refill ${refillId}`);
+
+    // Legacy Refill-Processing mit Retry-Logik
+    const result = await executeWithRetry(
+      () => legacyRefillProcessingService.processLegacyRefillAdded(validatedData),
+      3,
+      `Legacy refill commit ${refillId}`
+    );
+
+    if (!result.success) {
+      return res.status(400).json({
+        success: false,
+        message: "Legacy Refill-Verarbeitung fehlgeschlagen",
+        errors: result.errors || ["Unbekannter Fehler bei der Legacy Refill-Verarbeitung"],
+        warnings: result.warnings
+      });
+    }
+
+    console.log(`[LEGACY_REFILL] Legacy refill ${refillId} processed successfully: ${result.movementsCreated} movements, ${result.totalQuantityProcessed} quantity`);
+
+    return res.json({
+      success: true,
+      message: "Legacy Refill erfolgreich verarbeitet - Lagerbewegungen erstellt",
+      result: {
+        refillId: result.refillId,
+        movementsCreated: result.movementsCreated,
+        totalQuantityProcessed: result.totalQuantityProcessed,
+        batchesProcessed: result.batchesProcessed,
+        warnings: result.warnings
+      }
+    });
+
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unbekannter Fehler';
+    console.error(`[LEGACY_REFILL] Legacy refill commit error for refill ${req.params.refillId}:`, error);
+    
+    if (error instanceof z.ZodError) {
+      return handleValidationError(error, res);
+    }
+    
+    return res.status(500).json({
+      success: false,
+      message: "Serverfehler bei Legacy Refill-Verarbeitung",
       error: errorMessage
     });
   }
