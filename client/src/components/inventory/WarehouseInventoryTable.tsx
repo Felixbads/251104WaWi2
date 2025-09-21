@@ -68,26 +68,18 @@ const WarehouseInventoryTable: React.FC<WarehouseInventoryTableProps> = ({ wareh
   
   // API-Abfrage für erweiterte Warenbewegungen über inventory-api
   const { data: inventoryMovements = [], isLoading: isMovementsLoading } = useQuery({
-    queryKey: [`/api/inventory-api/warehouse/${warehouseId}/movements`],
+    queryKey: [`/api/warehouse3/warehouses/${warehouseId}/movements`],
     queryFn: async () => {
       try {
         debug(`Lade erweiterte Warenbewegungen für Lager ${warehouseId}...`);
-        const response = await fetch(`/api/inventory-api/warehouse/${warehouseId}/movements?limit=1000`);
+        const response = await fetch(`/api/warehouse3/warehouses/${warehouseId}/movements?limit=1000`);
         if (!response.ok) {
           debug(`Fehler beim Laden der erweiterten Warenbewegungen, Status: ${response.status}`);
-          // Fallback zu warehouse3 API
-          const fallbackResponse = await fetch(`/api/warehouse3/warehouses/${warehouseId}/movements?limit=1000`);
-          if (fallbackResponse.ok) {
-            const fallbackData = await fallbackResponse.json();
-            const fallbackMovements = fallbackData.items || [];
-            debug(`Fallback: ${fallbackMovements.length} Warenbewegungen von warehouse3 API geladen`);
-            return fallbackMovements;
-          }
           return [];
         }
         
         const data = await response.json();
-        const movements = Array.isArray(data) ? data : (data.items || []);
+        const movements = data.items || [];
         debug(`${movements.length} erweiterte Warenbewegungen geladen`);
         
         // Debug: Zeige tatsächliche API-Response-Struktur
@@ -667,7 +659,7 @@ const WarehouseInventoryTable: React.FC<WarehouseInventoryTableProps> = ({ wareh
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       openBatchDialog({
-                                        id: productId,
+                                        id: item.product?.id || item.productId || item.product_id,
                                         warehouseId: warehouseId,
                                         name: item.productName || item.product_name || 'Unbekanntes Produkt'
                                       });
@@ -802,10 +794,14 @@ const WarehouseInventoryTable: React.FC<WarehouseInventoryTableProps> = ({ wareh
                                                       {detailText}
                                                     </span>
                                                   )}
-                                                  {/* Bestand vorher/nachher prominent anzeigen */}
-                                                  {(movement.previousStock !== undefined || movement.currentStock !== undefined) && (
+                                                  {/* Bestand vorher/nachher prominent anzeigen - benutze displayDescription wenn verfügbar */}
+                                                  {movement.displayDescription ? (
                                                     <span className="font-bold text-blue-600">
-                                                      Bestand: {movement.previousStock || '?'} → {movement.currentStock || '?'}
+                                                      {movement.displayDescription}
+                                                    </span>
+                                                  ) : (movement.previousStock !== undefined || movement.currentStock !== undefined) && (
+                                                    <span className="font-bold text-blue-600">
+                                                      Bestand: {movement.previousStock !== 'undefined' && movement.previousStock !== null ? movement.previousStock : 'Unbekannt'} → {movement.currentStock !== 'undefined' && movement.currentStock !== null ? movement.currentStock : 'Unbekannt'}
                                                     </span>
                                                   )}
                                                 </div>

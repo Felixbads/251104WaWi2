@@ -32,14 +32,19 @@ interface ProductBatchDialogProps {
 
 interface BatchMovement {
   id: number;
-  batchId: number;
+  batchNumber?: string;
   movementType: string;
   quantity: number;
   performedAt: string;
+  displayDescription?: string;
+  displayType?: string;
   destinationType?: string;
   destinationName?: string;
   machineName?: string;
-  performedByName?: string; // Name des Benutzers, der die Bewegung durchgeführt hat
+  performedByName?: string;
+  productName?: string;
+  sourceWarehouseName?: string;
+  destinationWarehouseName?: string;
 }
 
 export default function ProductBatchDialog({
@@ -90,16 +95,29 @@ export default function ProductBatchDialog({
         if (!response.ok) return {};
         
         const movementsData = await response.json();
+        console.log('[BATCH-DIALOG] API Response:', movementsData.length, 'movements');
+        console.log('[BATCH-DIALOG] First movement:', movementsData[0]);
         
-        // Gruppiere Bewegungen nach Batch-ID
+        // Gruppiere Bewegungen nach Batch-Number/ID 
         const movementsByBatch: Record<number, BatchMovement[]> = {};
         for (const movement of movementsData) {
-          if (!movement.batchId) continue;
+          // Finde die passende Batch anhand des Batch-Nummern-Matchings
+          const matchingBatch = productBatches.find(batch => 
+            batch.batch_number === movement.batchNumber || 
+            batch.id === movement.batchId ||
+            batch.batch_number?.includes(movement.batchNumber?.split('-')[0] || '')
+          );
           
-          if (!movementsByBatch[movement.batchId]) {
-            movementsByBatch[movement.batchId] = [];
+          if (!matchingBatch) {
+            console.log('[BATCH-DIALOG] No matching batch for movement:', movement.batchNumber, movement.id);
+            continue;
           }
-          movementsByBatch[movement.batchId].push(movement);
+          
+          if (!movementsByBatch[matchingBatch.id]) {
+            movementsByBatch[matchingBatch.id] = [];
+          }
+          console.log('[BATCH-DIALOG] Adding movement to batch:', matchingBatch.id, movement.displayDescription?.substring(0, 50));
+          movementsByBatch[matchingBatch.id].push(movement);
         }
         
         return movementsByBatch;
@@ -277,29 +295,57 @@ export default function ProductBatchDialog({
                                             </span>
                                           </TableCell>
                                           <TableCell className="text-xs">
-                                            {movement.movementType === 'REFILL' && movement.machineName && (
-                                              <span>
-                                                Auffüllung zu Automat: {movement.machineName}
-                                                {movement.performedByName && (
-                                                  <span className="text-muted-foreground"> (von {movement.performedByName})</span>
-                                                )}
+                                            {/* Zeige displayDescription mit echten Bestandsübergängen wenn verfügbar */}
+                                            {movement.displayDescription ? (
+                                              <span title={movement.displayDescription}>
+                                                {movement.displayDescription.length > 80 
+                                                  ? `${movement.displayDescription.substring(0, 80)}...`
+                                                  : movement.displayDescription
+                                                }
                                               </span>
-                                            )}
-                                            {movement.movementType === 'TRANSFER' && (
-                                              <span>
-                                                Transfer: {movement.destinationName || 'Unbekannt'}
-                                                {movement.performedByName && (
-                                                  <span className="text-muted-foreground"> (von {movement.performedByName})</span>
-                                                )}
+                                            ) : movement.notes ? (
+                                              <span title={movement.notes}>
+                                                {movement.notes.length > 80 
+                                                  ? `${movement.notes.substring(0, 80)}...`
+                                                  : movement.notes
+                                                }
                                               </span>
-                                            )}
-                                            {movement.movementType === 'OUT' && (
-                                              <span>
-                                                Ausgang
-                                                {movement.performedByName && (
-                                                  <span className="text-muted-foreground"> (von {movement.performedByName})</span>
+                                            ) : (
+                                              <>
+                                                {movement.movementType === 'REFILL' && movement.machineName && (
+                                                  <span>
+                                                    Auffüllung zu Automat: {movement.machineName}
+                                                    {movement.performedByName && (
+                                                      <span className="text-muted-foreground"> (von {movement.performedByName})</span>
+                                                    )}
+                                                  </span>
                                                 )}
-                                              </span>
+                                                {movement.movementType === 'TRANSFER' && (
+                                                  <span>
+                                                    Transfer: {movement.destinationName || 'Unbekannt'}
+                                                    {movement.performedByName && (
+                                                      <span className="text-muted-foreground"> (von {movement.performedByName})</span>
+                                                    )}
+                                                  </span>
+                                                )}
+                                                {movement.movementType === 'OUT' && (
+                                                  <span>
+                                                    Ausgang
+                                                    {movement.performedByName && (
+                                                      <span className="text-muted-foreground"> (von {movement.performedByName})</span>
+                                                    )}
+                                                  </span>
+                                                )}
+                                                {/* Fallback für unbekannte Bewegungstypen */}
+                                                {!['REFILL', 'TRANSFER', 'OUT'].includes(movement.movementType) && (
+                                                  <span>
+                                                    {movement.movementType}
+                                                    {movement.performedByName && (
+                                                      <span className="text-muted-foreground"> (von {movement.performedByName})</span>
+                                                    )}
+                                                  </span>
+                                                )}
+                                              </>
                                             )}
                                           </TableCell>
                                         </TableRow>
