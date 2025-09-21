@@ -8,7 +8,7 @@ import { insertWarehouseSchema, insertMachineWarehouseAssignmentSchema,
          insertProductInventorySchema, insertStockBatchSchema, 
          insertStockMovementSchema, insertInventoryCountSchema,
          insertInventoryCountItemSchema, insertRefillTrackingSchema, 
-         insertRefillTrackingItemSchema } from "../../shared/warehouse3.schema";
+         insertRefillTrackingItemSchema, productBatches, inventoryMovements } from "../../shared/warehouse3.schema";
 import { products } from "../../shared/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { stockBatches, stockMovements, warehouses, machineWarehouseAssignments } from "../../shared/warehouse3.schema";
@@ -466,7 +466,7 @@ router.post("/warehouses/:warehouseId/fifo-depletion",
       
       // CRITICAL FIX 5: FIFO-Entnahme mit Retry Logic für Transaction Conflicts
       const result = await executeWithRetry(
-        () => fifoDepleteTransaction(db, validatedData),
+        () => fifoDeplete(validatedData),
         3,
         "FIFO depletion transaction"
       );
@@ -975,7 +975,7 @@ router.post("/warehouses/:warehouseId/inventory/:productId/adjust", async (req, 
       
       try {
         // FIFO-Entnahme verwenden für negative Anpassungen
-        const result = await fifoDepleteTransaction(db, depleteData);
+        const result = await fifoDeplete(depleteData);
         
         if (!result.success) {
           return res.status(400).json({
@@ -1389,7 +1389,7 @@ router.post("/warehouses/:warehouseId/movements",
     }
     
     // Validierung
-    const validatedData = insertInventoryMovementSchema.parse(movementData);
+    const validatedData = insertStockMovementSchema.parse(movementData);
     
     // Warenbewegung erstellen
     const newMovement = await warehouseStorage.createInventoryMovement(validatedData);
@@ -1413,7 +1413,7 @@ router.post("/warehouses/:warehouseId/movements",
       };
       
       try {
-        const fifoResult = await fifoDepleteTransaction(db, depleteData);
+        const fifoResult = await fifoDeplete(depleteData);
         
         if (!fifoResult.success) {
           return res.status(400).json({
