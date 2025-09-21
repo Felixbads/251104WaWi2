@@ -67,22 +67,6 @@ router.get('/', async (req, res) => {
 
     const movements = await movementsQuery.orderBy(desc(inventoryMovements.createdAt));
 
-    // Build filters for transfers
-    const transferFilters = [];
-
-    // Apply warehouse filter to transfers as well
-    if (warehouseId && warehouseId !== '') {
-      const whId = parseInt(warehouseId as string);
-      if (!isNaN(whId)) {
-        transferFilters.push(
-          or(
-            eq(inventoryTransfers.sourceWarehouseId, whId),
-            eq(inventoryTransfers.targetWarehouseId, whId)
-          )!
-        );
-      }
-    }
-
     // Get inventory transfers with their items
     let transfersQuery = db
       .select({
@@ -101,9 +85,17 @@ router.get('/', async (req, res) => {
       .from(inventoryTransfers)
       .leftJoin(inventoryTransferItems, eq(inventoryTransfers.id, inventoryTransferItems.transferId));
 
-    // Apply filters if any exist
-    if (transferFilters.length > 0) {
-      transfersQuery = transfersQuery.where(and(...transferFilters));
+    // Apply warehouse filter to transfers if provided
+    if (warehouseId && warehouseId !== '') {
+      const whId = parseInt(warehouseId as string);
+      if (!isNaN(whId)) {
+        transfersQuery = transfersQuery.where(
+          or(
+            eq(inventoryTransfers.sourceWarehouseId, whId),
+            eq(inventoryTransfers.targetWarehouseId, whId)
+          )!
+        );
+      }
     }
 
     const transfers = await transfersQuery.orderBy(desc(inventoryTransfers.createdAt));
