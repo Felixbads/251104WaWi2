@@ -14050,3 +14050,41 @@ DATA: {
   "machineName": null
 }
 
+[2025-09-21T22:05:56.558Z] [MovementsAPI] Warenbewegungen für Lager ID 10 abrufen mit neuem Service, Limit: 1000, Offset: 0
+
+[2025-09-21T22:05:56.568Z] [WarehouseMovements] Fetching movements for warehouse ID: 10, limit: 1000, offset: 0
+
+[2025-09-21T22:05:56.568Z] [SQL] Query: getWarehouseMovements
+DATA: {
+  "sql": "\n      SELECT \n        im.id,\n        im.product_id,\n        p.product_name,\n        im.quantity,\n        im.movement_type,\n        im.source_warehouse_id,\n        im.destination_warehouse_id,\n        im.machine_id,\n        im.reference_type,\n        im.reference_id,\n        im.notes,\n        im.performed_at,\n        im.performed_by,\n        im.previous_stock,\n        im.current_stock,\n        m.machine_name\n      FROM \n        inventory_movements im\n      JOIN \n        products p ON im.product_id = p.id\n      LEFT JOIN \n        machines m ON im.machine_id = m.id\n      WHERE \n        (im.source_warehouse_id = $1) OR\n        (im.destination_warehouse_id = $1)\n      ORDER BY \n        im.performed_at DESC\n      LIMIT $2 OFFSET $3\n    ",
+  "params": [
+    10,
+    1000,
+    0
+  ]
+}
+
+[2025-09-21T22:05:57.736Z] [WarehouseMovements] Found 1000 movements for warehouse 10
+
+[2025-09-21T22:05:57.738Z] [MovementsAPI] Warenbewegungen für Lager 10 geladen: 1000 Einträge gefunden
+
+[2025-09-21T22:05:57.738Z] [MovementsAPI] Beispiel-Eintrag:
+DATA: {
+  "id": 1651,
+  "productId": 23,
+  "productName": "Struppener Knacker Paar (Landfleischerei Struppen)",
+  "quantity": 25,
+  "movementType": "OUT",
+  "sourceWarehouseId": 10,
+  "destinationWarehouseId": null,
+  "machineId": null,
+  "referenceType": "REFILL",
+  "referenceId": "15752",
+  "notes": "FIFO-Entnahme aus Charge BSD-SK-001-2024 - Batch: 55 → 30, Inventar: 80 → 55 - Refill Auffüllung: Struppener Knacker Paar (Landfleischerei Struppen) - Corrected Processing - Machine 1 → Warehouse 10",
+  "performedAt": "2025-09-21T21:25:15.207Z",
+  "performedBy": 4,
+  "previousStock": null,
+  "currentStock": null,
+  "machineName": null
+}
+
