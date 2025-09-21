@@ -23,12 +23,12 @@ interface WarehouseInfo {
   id: number;
   name: string;
   address?: string;
-  postal_code?: string;
+  postalCode?: string;
   city?: string;
   description?: string;
-  is_active?: boolean;
-  created_at?: string;
-  updated_at?: string;
+  isActive?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export default function WarehouseInventoryPage() {
@@ -117,20 +117,20 @@ export default function WarehouseInventoryPage() {
           {warehouse?.address && (
             <div className="text-muted-foreground flex items-center mt-1">
               <MapPin className="h-4 w-4 mr-1" />
-              {warehouse?.address}, {warehouse?.postal_code} {warehouse?.city}
+              {warehouse?.address}, {warehouse?.postalCode} {warehouse?.city}
             </div>
           )}
         </div>
         <div className="flex items-center gap-2 mt-2 md:mt-0">
-          {warehouse?.is_active ? (
+          {warehouse?.isActive ? (
             <Badge variant="outline" className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100">Aktiv</Badge>
           ) : (
             <Badge variant="outline" className="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-100">Inaktiv</Badge>
           )}
-          {warehouse?.updated_at && (
+          {warehouse?.updatedAt && (
             <div className="text-sm text-muted-foreground flex items-center">
               <Clock className="h-3 w-3 mr-1" />
-              Aktualisiert: {formatRelativeDate(warehouse?.updated_at)}
+              Aktualisiert: {formatRelativeDate(warehouse?.updatedAt)}
             </div>
           )}
         </div>
