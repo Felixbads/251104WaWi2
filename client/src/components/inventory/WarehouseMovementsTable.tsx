@@ -40,6 +40,10 @@ interface Movement {
 
 interface MovementsResponse {
   items: Movement[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
 }
 
 interface WarehouseMovementsTableProps {
@@ -51,12 +55,12 @@ const WarehouseMovementsTable: React.FC<WarehouseMovementsTableProps> = ({
   warehouseId, 
   limit = 50
 }) => {
-  const { data, isLoading, error } = useQuery<Movement[]>({
-    queryKey: [`/api/inventory-api/warehouse/${warehouseId}/movements`, { limit }],
+  const { data, isLoading, error } = useQuery<MovementsResponse>({
+    queryKey: [`/api/warehouse3/warehouses/${warehouseId}/movements`, { limit }],
   });
   
   // Extract movements array from the response
-  const movements = data || [];
+  const movements = data?.items || [];
 
   // Formatiert ein Datum im deutschen Format
   const formatDate = (dateString: string) => {
