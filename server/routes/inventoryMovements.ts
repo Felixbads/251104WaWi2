@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { db } from '../db';
 import { inventoryMovements, inventoryTransfers, inventoryTransferItems, products, warehouses } from '../../shared/schema';
-import { eq, desc, or } from 'drizzle-orm';
+import { eq, desc, or, ne, and } from 'drizzle-orm';
 
 const router = Router();
 
@@ -15,6 +15,30 @@ router.get('/', async (req, res) => {
     
     console.log('[INVENTORY_MOVEMENTS] Query params:', { productId, warehouseId, batchId, batchIds });
     console.log('[INVENTORY_MOVEMENTS] warehouseId type:', typeof warehouseId, 'value:', warehouseId, 'isEmpty:', warehouseId === '', 'isUndefined:', warehouseId === undefined);
+
+    // Build filters array
+    const filters = [
+      // CRITICAL: Filter out SALE entries as they are transaction records, not warehouse movements
+      ne(inventoryMovements.movementType, 'SALE')
+    ];
+
+    // Filter by productId if provided
+    if (productId) {
+      filters.push(eq(inventoryMovements.productId, parseInt(productId as string)));
+    }
+
+    // Filter by warehouseId if provided (either source or destination)
+    if (warehouseId && warehouseId !== '') {
+      const whId = parseInt(warehouseId as string);
+      if (!isNaN(whId)) {
+        filters.push(
+          or(
+            eq(inventoryMovements.sourceWarehouseId, whId),
+            eq(inventoryMovements.destinationWarehouseId, whId)
+          )!
+        );
+      }
+    }
 
     let movementsQuery = db
       .select({
@@ -38,27 +62,26 @@ router.get('/', async (req, res) => {
         referenceId: inventoryMovements.referenceId
       })
       .from(inventoryMovements)
-      .leftJoin(products, eq(inventoryMovements.productId, products.id));
+      .leftJoin(products, eq(inventoryMovements.productId, products.id))
+      .where(and(...filters));
 
-    // Filter by productId if provided
-    if (productId) {
-      movementsQuery = movementsQuery.where(eq(inventoryMovements.productId, parseInt(productId as string)));
-    }
+    const movements = await movementsQuery.orderBy(desc(inventoryMovements.createdAt));
 
-    // Filter by warehouseId if provided (either source or destination)
+    // Build filters for transfers
+    const transferFilters = [];
+
+    // Apply warehouse filter to transfers as well
     if (warehouseId && warehouseId !== '') {
       const whId = parseInt(warehouseId as string);
       if (!isNaN(whId)) {
-        movementsQuery = movementsQuery.where(
+        transferFilters.push(
           or(
-            eq(inventoryMovements.sourceWarehouseId, whId),
-            eq(inventoryMovements.destinationWarehouseId, whId)
-          )
+            eq(inventoryTransfers.sourceWarehouseId, whId),
+            eq(inventoryTransfers.targetWarehouseId, whId)
+          )!
         );
       }
     }
-
-    const movements = await movementsQuery.orderBy(desc(inventoryMovements.createdAt));
 
     // Get inventory transfers with their items
     let transfersQuery = db
@@ -78,17 +101,9 @@ router.get('/', async (req, res) => {
       .from(inventoryTransfers)
       .leftJoin(inventoryTransferItems, eq(inventoryTransfers.id, inventoryTransferItems.transferId));
 
-    // Apply warehouse filter to transfers as well
-    if (warehouseId && warehouseId !== '') {
-      const whId = parseInt(warehouseId as string);
-      if (!isNaN(whId)) {
-        transfersQuery = transfersQuery.where(
-          or(
-            eq(inventoryTransfers.sourceWarehouseId, whId),
-            eq(inventoryTransfers.targetWarehouseId, whId)
-          )
-        );
-      }
+    // Apply filters if any exist
+    if (transferFilters.length > 0) {
+      transfersQuery = transfersQuery.where(and(...transferFilters));
     }
 
     const transfers = await transfersQuery.orderBy(desc(inventoryTransfers.createdAt));
@@ -163,11 +178,20 @@ router.get('/', async (req, res) => {
  * Helper function to get display type for movement
  */
 function getMovementDisplayType(movementType: string | null, direction: string | null): string {
-  if (movementType === 'transfer') return 'Umlagerung';
+  // Handle specific movement types for warehouse operations
+  if (movementType === 'GOODS_RECEIPT' || (movementType === null && direction === 'IN')) return 'Warenlieferung';
+  if (movementType === 'refill' && direction === 'IN') return 'Auffüllung';
+  if (movementType === 'REFILL') return 'Auffüllung';
+  if (movementType === 'OUT' || (movementType === null && direction === 'OUT')) return 'Entnahme';
+  if (movementType === 'TRANSFER' || movementType === 'transfer') return 'Umlagerung';
+  if (movementType === 'transfer_in' || movementType === 'transfer_out') return 'Umlagerung';
   if (movementType === 'disposal') return 'Entsorgung';
   if (movementType === 'adjustment') return 'Korrektur';
+  
+  // Fallback to direction-based classification
   if (direction === 'in') return 'Eingang';
   if (direction === 'out') return 'Ausgang';
+  
   return 'Unbekannt';
 }
 
