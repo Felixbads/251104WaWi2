@@ -8,7 +8,6 @@ import {
   stockMovements,
   stockBatches,
   productInventory,
-  inventoryItems,
   insertStockMovementSchema,
   type RefillTracking,
   type RefillTrackingItem
@@ -143,9 +142,10 @@ export class RefillProcessingService {
         warnings
       };
 
-    } catch (error) {
+    } catch (error: unknown) {
       console.error(`[REFILL_PROCESSING] Error processing refill ${data.refillId}:`, error);
-      return this.createFailResult(data.refillId, [`Verarbeitungsfehler: ${error.message}`]);
+      const errorMessage = error instanceof Error ? error.message : 'Unbekannter Fehler';
+      return this.createFailResult(data.refillId, [`Verarbeitungsfehler: ${errorMessage}`]);
     }
   }
 
@@ -213,9 +213,10 @@ export class RefillProcessingService {
         warnings: []
       };
 
-    } catch (error) {
+    } catch (error: unknown) {
       console.error(`[REFILL_PROCESSING] Error processing refill removal ${data.refillId}:`, error);
-      return this.createFailResult(data.refillId, [`Verarbeitungsfehler: ${error.message}`]);
+      const errorMessage = error instanceof Error ? error.message : 'Unbekannter Fehler';
+      return this.createFailResult(data.refillId, [`Verarbeitungsfehler: ${errorMessage}`]);
     }
   }
 
@@ -283,7 +284,7 @@ export class RefillProcessingService {
         machineId: refill.machineId
       };
 
-      const result = await fifoDeplete(depleteData);
+      const result = await fifoDeplete(db, depleteData);
 
       if (!result.success) {
         return {
@@ -302,14 +303,15 @@ export class RefillProcessingService {
         batchesProcessed: result.batchesProcessed?.length || 0
       };
 
-    } catch (error) {
+    } catch (error: unknown) {
       console.error(`[REFILL_PROCESSING] FEFO error for item ${item.productId}:`, error);
+      const errorMessage = error instanceof Error ? error.message : 'Unbekannter FEFO-Fehler';
       return {
         success: false,
         movementsCreated: 0,
         quantityProcessed: 0,
         batchesProcessed: 0,
-        errors: [`FEFO-Fehler: ${error.message}`]
+        errors: [`FEFO-Fehler: ${errorMessage}`]
       };
     }
   }
@@ -349,7 +351,7 @@ export class RefillProcessingService {
 
       return movements[0];
 
-    } catch (error) {
+    } catch (error: unknown) {
       console.error(`[REFILL_PROCESSING] Error creating dispose movement for item ${item.productId}:`, error);
       return null;
     }

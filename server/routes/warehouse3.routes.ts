@@ -27,6 +27,15 @@ import {
 
 import { MhdFifoService } from "../services/mhdFifoService.js";
 
+// ---- REFILL PROCESSING SERVICE ----
+import { 
+  refillProcessingService, 
+  refillCommitSchema, 
+  refillRemoveSchema,
+  type RefillCommit,
+  type RefillRemove
+} from "../services/refillProcessingService";
+
 const router = Router();
 
 // ---- HELPER FUNCTIONS FOR RETRY LOGIC ----
@@ -1929,6 +1938,160 @@ router.post("/warehouses/:warehouseId/refills/:refillId/items", async (req, res)
       return handleValidationError(error, res);
     }
     return handleServerError(error, res);
+  }
+});
+
+// ---- REFILL PROCESSING ROUTES (NEW) ----
+
+// Refill verarbeiten (Lager → Automat) - FEFO OUT-Bewegungen erstellen
+router.post("/warehouses/:warehouseId/refills/:refillId/commit", 
+  authenticateUser, 
+  requireWarehouseAccess(), 
+  requireRole(['admin', 'manager', 'employee']), 
+  auditLog('REFILL_COMMIT', 'WAREHOUSE_REFILL_PROCESSING'), 
+  async (req, res) => {
+  try {
+    const warehouseId = parseInt(req.params.warehouseId);
+    const refillId = parseInt(req.params.refillId);
+    
+    if (isNaN(warehouseId) || isNaN(refillId)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Ungültige Lager-ID oder Refill-ID" 
+      });
+    }
+
+    // Request-Body mit IDs ergänzen
+    const commitData = {
+      refillId,
+      performedBy: req.user?.id || 1, // Fallback user ID
+      notes: req.body.notes
+    };
+
+    // Validierung
+    const validatedData = refillCommitSchema.parse(commitData);
+
+    console.log(`[WAREHOUSE3] Processing refill commit for refill ${refillId} in warehouse ${warehouseId}`);
+
+    // Refill-Processing mit Retry-Logik für Transaction Conflicts
+    const result = await executeWithRetry(
+      () => refillProcessingService.processRefillAdded(validatedData),
+      3,
+      `Refill commit ${refillId}`
+    );
+
+    if (!result.success) {
+      return res.status(400).json({
+        success: false,
+        message: "Refill-Verarbeitung fehlgeschlagen",
+        errors: result.errors || ["Unbekannter Fehler bei der Refill-Verarbeitung"],
+        warnings: result.warnings
+      });
+    }
+
+    console.log(`[WAREHOUSE3] Refill ${refillId} processed successfully: ${result.movementsCreated} movements, ${result.totalQuantityProcessed} quantity`);
+
+    return res.json({
+      success: true,
+      message: "Refill erfolgreich verarbeitet - Lagerbewegungen erstellt",
+      result: {
+        refillId: result.refillId,
+        movementsCreated: result.movementsCreated,
+        totalQuantityProcessed: result.totalQuantityProcessed,
+        batchesProcessed: result.batchesProcessed,
+        warnings: result.warnings
+      }
+    });
+
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unbekannter Fehler';
+    console.error(`[WAREHOUSE3] Refill commit error for refill ${req.params.refillId}:`, error);
+    
+    if (error instanceof z.ZodError) {
+      return handleValidationError(error, res);
+    }
+    
+    return res.status(500).json({
+      success: false,
+      message: "Serverfehler bei Refill-Verarbeitung",
+      error: errorMessage
+    });
+  }
+});
+
+// Refill-Entnahme verarbeiten (Automat → Entsorgung) - DISPOSE-Bewegungen erstellen
+router.post("/warehouses/:warehouseId/refills/:refillId/remove", 
+  authenticateUser, 
+  requireWarehouseAccess(), 
+  requireRole(['admin', 'manager', 'employee']), 
+  auditLog('REFILL_REMOVE', 'WAREHOUSE_REFILL_PROCESSING'), 
+  async (req, res) => {
+  try {
+    const warehouseId = parseInt(req.params.warehouseId);
+    const refillId = parseInt(req.params.refillId);
+    
+    if (isNaN(warehouseId) || isNaN(refillId)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Ungültige Lager-ID oder Refill-ID" 
+      });
+    }
+
+    // Request-Body mit IDs ergänzen
+    const removeData = {
+      refillId,
+      performedBy: req.user?.id || 1, // Fallback user ID
+      reason: req.body.reason || "Entnahme aus Automat",
+      notes: req.body.notes
+    };
+
+    // Validierung
+    const validatedData = refillRemoveSchema.parse(removeData);
+
+    console.log(`[WAREHOUSE3] Processing refill removal for refill ${refillId} in warehouse ${warehouseId}`);
+
+    // Refill-Entnahme verarbeiten
+    const result = await executeWithRetry(
+      () => refillProcessingService.processRefillRemoved(validatedData),
+      3,
+      `Refill removal ${refillId}`
+    );
+
+    if (!result.success) {
+      return res.status(400).json({
+        success: false,
+        message: "Refill-Entnahme-Verarbeitung fehlgeschlagen",
+        errors: result.errors || ["Unbekannter Fehler bei der Refill-Entnahme"],
+        warnings: result.warnings
+      });
+    }
+
+    console.log(`[WAREHOUSE3] Refill removal ${refillId} processed successfully: ${result.movementsCreated} disposal movements`);
+
+    return res.json({
+      success: true,
+      message: "Refill-Entnahme erfolgreich verarbeitet - Entsorgungsbewegungen erstellt",
+      result: {
+        refillId: result.refillId,
+        movementsCreated: result.movementsCreated,
+        totalQuantityProcessed: result.totalQuantityProcessed,
+        warnings: result.warnings
+      }
+    });
+
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unbekannter Fehler';
+    console.error(`[WAREHOUSE3] Refill removal error for refill ${req.params.refillId}:`, error);
+    
+    if (error instanceof z.ZodError) {
+      return handleValidationError(error, res);
+    }
+    
+    return res.status(500).json({
+      success: false,
+      message: "Serverfehler bei Refill-Entnahme-Verarbeitung",
+      error: errorMessage
+    });
   }
 });
 
