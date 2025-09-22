@@ -111,8 +111,17 @@ export class UnifiedVendonSync {
       this.mergeStats(totalStats, transactionResult.stats);
       if (transactionResult.errors) errors.push(...transactionResult.errors);
 
-      // TODO: Events und Refills API-Endpunkte sind noch nicht in VendonAPI implementiert
-      console.log('⚠️ Events und Refills Sync übersprungen - API-Endpunkte nicht verfügbar');
+      // Synchronisiere Refills (letzte 48h)
+      const refillRange: DateRange = {
+        startDate: new Date(Date.now() - 48 * 60 * 60 * 1000),
+        endDate: new Date()
+      };
+      const refillResult = await this.syncRefills(refillRange, opts);
+      this.mergeStats(totalStats, refillResult.stats);
+      if (refillResult.errors) errors.push(...refillResult.errors);
+
+      // TODO: Events API-Endpunkt noch nicht implementiert
+      console.log('⚠️ Events Sync übersprungen - API-Endpunkt nicht verfügbar');
 
       totalStats.duration = Date.now() - startTime;
 
@@ -376,17 +385,126 @@ export class UnifiedVendonSync {
 
   /**
    * Synchronisiert Refills für einen Zeitraum
-   * TODO: API-Endpunkt noch nicht implementiert in VendonAPI
    */
   async syncRefills(range: DateRange, options?: SyncOptions): Promise<SyncResult> {
-    const duration = Date.now() - Date.now(); // 0ms
-    console.log(`⚠️ Refills-Sync übersprungen - API-Endpunkt noch nicht verfügbar`);
-    
-    return {
-      status: 'success',
-      message: 'Refills-Sync übersprungen - API-Endpunkt nicht verfügbar',
-      stats: { found: 0, saved: 0, updated: 0, duplicates: 0, errors: 0, duration }
-    };
+    const opts = { ...this.defaultOptions, ...options };
+    const startTime = Date.now();
+    const stats = { found: 0, saved: 0, updated: 0, duplicates: 0, errors: 0, duration: 0 };
+    const errors: string[] = [];
+
+    try {
+      console.log('🔄 Synchronisiere Refills mit robuster API-Abfrage...');
+      console.log(`📅 Zeitraum: ${range.startDate.toISOString()} bis ${range.endDate.toISOString()}`);
+      
+      // Verwende die neue robuste getRefills API-Methode
+      const vendonRefills = await this.vendonApi.getRefills(range.startDate, range.endDate);
+      
+      if (!vendonRefills || vendonRefills.length === 0) {
+        stats.duration = Date.now() - startTime;
+        return {
+          status: 'success',
+          message: 'Keine Refills im gewählten Zeitraum gefunden',
+          stats
+        };
+      }
+
+      stats.found = vendonRefills.length;
+      console.log(`📡 ${vendonRefills.length} Refills von API erhalten`);
+
+      // Hole Maschinen-Mapping für Refill-Zuordnung
+      const machines = await storage.getMachines();
+      const machinesMap = new Map(machines.map(m => [String(m.vendonId), m.id]));
+      
+      // Verarbeite Refills in Batches
+      const refillBatches = this.createBatches(vendonRefills, opts.batchSize);
+      
+      for (const batch of refillBatches) {
+        try {
+          const refillsToInsert: InsertRefill[] = [];
+          
+          for (const vendonRefill of batch) {
+            try {
+              // Maschinen-ID finden
+              const machineId = machinesMap.get(String(vendonRefill.machine_id));
+              if (!machineId) {
+                console.warn(`⚠️ Refill ${vendonRefill.id}: Maschine ${vendonRefill.machine_id} nicht gefunden`);
+                continue;
+              }
+
+              // Refill-Datensatz erstellen
+              const newRefill: InsertRefill = {
+                vendonId: String(vendonRefill.id),
+                machineId: machineId,
+                datetime: new Date(vendonRefill.datetime),
+                operator: vendonRefill.user || null,
+                extraData: JSON.stringify(vendonRefill)
+              };
+
+              refillsToInsert.push(newRefill);
+              
+            } catch (error) {
+              stats.errors++;
+              const errorMsg = `Fehler beim Verarbeiten des Refills ${vendonRefill.id}: ${error instanceof Error ? error.message : String(error)}`;
+              errors.push(errorMsg);
+              console.error(`❌ ${errorMsg}`);
+            }
+          }
+
+          // Batch-Verarbeitung mit Duplikatsprüfung
+          if (refillsToInsert.length > 0) {
+            const processResult = await this.duplicateService.processRefillBatch(
+              refillsToInsert,
+              opts.forceUpdate
+            );
+            
+            stats.saved += processResult.saved;
+            stats.updated += processResult.updated;
+            stats.duplicates += processResult.duplicates;
+            
+            if (processResult.errors.length > 0) {
+              stats.errors += processResult.errors.length;
+              errors.push(...processResult.errors);
+            }
+          }
+
+        } catch (batchError) {
+          stats.errors++;
+          const errorMsg = `Batch-Verarbeitung fehlgeschlagen: ${batchError instanceof Error ? batchError.message : String(batchError)}`;
+          errors.push(errorMsg);
+          console.error(`❌ ${errorMsg}`);
+        }
+      }
+
+      stats.duration = Date.now() - startTime;
+
+      // Sync-Log erstellen
+      await this.logSyncResult('refills', stats, errors);
+
+      const status = errors.length > 0 ? 'partial' : 'success';
+      const message = `Refills-Sync abgeschlossen: ${stats.saved} neue, ${stats.updated} aktualisiert, ${stats.duplicates} Duplikate (${stats.duration}ms)`;
+
+      console.log(`✅ ${message}`);
+
+      return {
+        status,
+        message,
+        stats,
+        errors: errors.length > 0 ? errors : undefined
+      };
+
+    } catch (error) {
+      stats.duration = Date.now() - startTime;
+      stats.errors++;
+      
+      const errorMsg = `Refills-Sync fehlgeschlagen: ${error instanceof Error ? error.message : String(error)}`;
+      
+      return {
+        status: 'error',
+        message: errorMsg,
+        stats,
+        errors: [errorMsg]
+      };
+    }
   }
 
   /**
