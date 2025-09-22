@@ -147,9 +147,11 @@ router.get('/', async (req, res) => {
       warehouseData.forEach(wh => warehouseMap.set(wh.id, wh.name));
     }
 
-    // Enrich all movements with warehouse names
+    // FIXED: Apply correct quantity signs and enrich movements
     const enrichedMovements = allMovements.map(movement => ({
       ...movement,
+      // CRITICAL FIX: Apply correct signs for REFILL and other movement types
+      quantity: calculateCorrectQuantitySign(movement.quantity, movement.movementType, movement.direction),
       sourceWarehouseName: movement.sourceWarehouseId ? warehouseMap.get(movement.sourceWarehouseId) || `Lager ${movement.sourceWarehouseId}` : null,
       destinationWarehouseName: movement.destinationWarehouseId ? warehouseMap.get(movement.destinationWarehouseId) || `Lager ${movement.destinationWarehouseId}` : null,
       displayType: getMovementDisplayType(movement.movementType, movement.direction),
@@ -166,6 +168,45 @@ router.get('/', async (req, res) => {
     });
   }
 });
+
+/**
+ * CRITICAL FIX: Calculate correct quantity sign based on movement type and direction
+ * Fixes the Armand Mathy "45 Stück" problem where REFILL showed negative quantities
+ */
+function calculateCorrectQuantitySign(quantity: number, movementType: string | null, direction: string | null): number {
+  const absQuantity = Math.abs(quantity);
+  
+  // REFILL operations should ALWAYS be positive (adding to stock)
+  if (movementType === 'REFILL' || movementType === 'refill') {
+    console.log(`[QUANTITY_FIX] REFILL: ${quantity} → +${absQuantity}`);
+    return absQuantity; // Always positive for refills
+  }
+  
+  // GOODS_RECEIPT should be positive (incoming stock)
+  if (movementType === 'GOODS_RECEIPT' || (movementType === null && direction === 'IN')) {
+    return absQuantity; // Always positive for incoming stock
+  }
+  
+  // OUT operations should be negative (removing from stock)
+  if (movementType === 'OUT' || direction === 'OUT' || direction === 'out') {
+    return -absQuantity; // Always negative for outgoing
+  }
+  
+  // IN operations should be positive (adding to stock)
+  if (direction === 'IN' || direction === 'in') {
+    return absQuantity; // Always positive for incoming
+  }
+  
+  // For transfers, keep original sign but log for debugging
+  if (movementType === 'transfer' || movementType === 'TRANSFER') {
+    console.log(`[QUANTITY_FIX] TRANSFER: keeping original sign ${quantity}`);
+    return quantity; // Keep original transfer logic
+  }
+  
+  // Default: return absolute value for safety
+  console.log(`[QUANTITY_FIX] DEFAULT: ${movementType}/${direction}: ${quantity} → +${absQuantity}`);
+  return absQuantity;
+}
 
 /**
  * Helper function to get display type for movement

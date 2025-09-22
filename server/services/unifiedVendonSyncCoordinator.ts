@@ -111,7 +111,10 @@ class VendonApiClient {
   private readonly apiKey: string;
 
   constructor(apiKey?: string) {
-    this.apiKey = apiKey || process.env.VENDON_API_KEY || 'e5o9SSU4n2XQp9XmShtbIOK1rStoQvoB';
+    this.apiKey = apiKey || process.env.VENDON_API_KEY || '';
+    if (!this.apiKey) {
+      console.error('❌ VENDON_API_KEY not found in environment variables!');
+    }
     
     this.client = axios.create({
       baseURL: this.BASE_URL,
@@ -203,7 +206,7 @@ class VendonApiClient {
   }
 
   /**
-   * Get transactions for date range - FIXED API FORMAT
+   * Get transactions for date range - FIXED API FORMAT WITH PAGINATION
    */
   async getTransactions(startDate: Date, endDate: Date, limit: number = 100): Promise<VendonTransaction[]> {
     // Vendon API /stats/vends erwartet Unix-Zeitstempel in Sekunden
@@ -211,17 +214,44 @@ class VendonApiClient {
       return Math.floor(date.getTime() / 1000); // Unix timestamp in seconds
     };
     
-    const params = {
-      'from_timestamp': toUnixTimestamp(startDate),
-      'to_timestamp': toUnixTimestamp(endDate),
-      'limit': limit,
-      'offset': 0
-    };
+    const allTransactions: VendonTransaction[] = [];
+    let offset = 0;
+    let hasMore = true;
     
-    console.log(`🔍 Live-Transaktionen API-Call - Zeitraum: ${startDate.toISOString()} bis ${endDate.toISOString()}`);
-    console.log(`📊 Unix timestamps: ${params.from_timestamp} bis ${params.to_timestamp}`);
+    console.log(`🔍 Live-Transaktionen API-Call mit Pagination - Zeitraum: ${startDate.toISOString()} bis ${endDate.toISOString()}`);
     
-    return await this.makeRequest<VendonTransaction[]>('/stats/vends', params);
+    // FIXED: Implement proper pagination to get all data
+    while (hasMore && allTransactions.length < 1000) { // Safety limit
+      const params = {
+        'from_timestamp': toUnixTimestamp(startDate),
+        'to_timestamp': toUnixTimestamp(endDate),
+        'limit': limit,
+        'offset': offset,
+        'order': 'desc' // Get newest first instead of oldest
+      };
+      
+      console.log(`📊 API-Batch ${Math.floor(offset/limit) + 1}: Offset ${offset}, Unix timestamps: ${params.from_timestamp} bis ${params.to_timestamp}`);
+      
+      const batch = await this.makeRequest<VendonTransaction[]>('/stats/vends', params);
+      
+      if (batch.length === 0) {
+        console.log('📦 Keine weiteren Transaktionen gefunden - Pagination beendet');
+        hasMore = false;
+      } else {
+        allTransactions.push(...batch);
+        offset += batch.length;
+        
+        console.log(`✅ Batch verarbeitet: ${batch.length} Transaktionen (Gesamt: ${allTransactions.length})`);
+        
+        // If we got less than the limit, we're done
+        if (batch.length < limit) {
+          hasMore = false;
+        }
+      }
+    }
+    
+    console.log(`🎯 Pagination abgeschlossen: ${allTransactions.length} Transaktionen gefunden`);
+    return allTransactions;
   }
 
   /**
@@ -580,9 +610,9 @@ export class UnifiedVendonSyncCoordinator {
   private async syncTransactions(): Promise<SyncResult> {
     console.log('🔄 Synchronisiere Transaktionen...');
     
-    // Sync transactions for last 2 hours by default
+    // FIXED: Use last 24 hours instead of 2 hours to catch more data
     const endDate = new Date();
-    const startDate = new Date(endDate.getTime() - 2 * 60 * 60 * 1000);
+    const startDate = new Date(endDate.getTime() - 24 * 60 * 60 * 1000);
     
     console.log(`🕐 Transaktions-Zeitraum: ${startDate.toISOString()} bis ${endDate.toISOString()}`);
     
