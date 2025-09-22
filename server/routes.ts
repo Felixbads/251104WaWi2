@@ -1895,6 +1895,314 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get detailed product information with batches and movements
+  app.get(`${API_PREFIX}/products/:id/detail`, async (req: Request, res: Response) => {
+    try {
+      const productId = parseInt(req.params.id);
+      if (isNaN(productId)) {
+        return res.status(400).json({ error: "Invalid product ID" });
+      }
+
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 50;
+      const offset = (page - 1) * limit;
+      
+      // Filter parameters
+      const movementType = req.query.movementType as string;
+      const warehouseId = req.query.warehouseId ? parseInt(req.query.warehouseId as string) : undefined;
+      const machineId = req.query.machineId ? parseInt(req.query.machineId as string) : undefined;
+
+      // 1. Get basic product information
+      const productQuery = `
+        SELECT 
+          id, vendon_id, product_name, sku, barcode, price, vat, status, 
+          units, category, short_description, description, ingredients, 
+          allergens, nutritional_info, package_size, min_order_quantity, 
+          shelf_life_days, photos, created_at, updated_at
+        FROM products 
+        WHERE id = $1
+      `;
+      const productResult = await rawDb.query(productQuery, [productId]);
+      
+      if (productResult.rows.length === 0) {
+        return res.status(404).json({ error: "Product not found" });
+      }
+      
+      const product = productResult.rows[0];
+
+      // 2. Get current inventory totals across all warehouses
+      const totalsQuery = `
+        SELECT 
+          COALESCE(SUM(
+            CASE WHEN pb.quantity_available > 0 
+            THEN pb.quantity_available 
+            ELSE 0 END
+          ), 0) as on_hand_warehouse,
+          COALESCE(SUM(
+            CASE WHEN pb.quantity_reserved > 0 
+            THEN pb.quantity_reserved 
+            ELSE 0 END
+          ), 0) as reserved,
+          COUNT(DISTINCT pb.warehouse_id) as warehouses_count,
+          MAX(pb.updated_at) as last_movement_at
+        FROM product_batches pb
+        WHERE pb.product_id = $1 AND pb.status = 'active'
+      `;
+      const totalsResult = await rawDb.query(totalsQuery, [productId]);
+      const totals = totalsResult.rows[0] || {};
+
+      // 3. Get machine stock totals
+      const machineStockQuery = `
+        SELECT COALESCE(SUM(current_stock), 0) as in_machines
+        FROM machine_stocks ms
+        JOIN machines m ON m.id = ms.machine_id
+        WHERE ms.product_id = $1 AND m.status = 'active'
+      `;
+      const machineStockResult = await rawDb.query(machineStockQuery, [productId]);
+      const machineStock = machineStockResult.rows[0] || { in_machines: 0 };
+
+      // 4. Get product batches with warehouse information
+      const batchesQuery = `
+        SELECT 
+          pb.id as batch_id,
+          pb.batch_number,
+          pb.supplier_batch_number,
+          pb.expiry_date,
+          pb.received_date,
+          pb.quantity_available,
+          pb.quantity_reserved,
+          pb.quantity_damaged,
+          pb.status,
+          pb.warehouse_id,
+          w.name as warehouse_name,
+          CASE 
+            WHEN pb.expiry_date IS NULL THEN 'good'
+            WHEN pb.expiry_date <= CURRENT_DATE THEN 'expired'
+            WHEN pb.expiry_date <= CURRENT_DATE + INTERVAL '7 days' THEN 'warning'
+            WHEN pb.expiry_date <= CURRENT_DATE + INTERVAL '14 days' THEN 'attention'
+            ELSE 'good'
+          END as expiry_status,
+          CASE 
+            WHEN pb.expiry_date IS NULL THEN NULL
+            ELSE EXTRACT(days FROM pb.expiry_date - CURRENT_DATE)::INTEGER
+          END as days_until_expiry
+        FROM product_batches pb
+        LEFT JOIN warehouses w ON w.id = pb.warehouse_id
+        WHERE pb.product_id = $1 AND pb.status = 'active'
+        ORDER BY 
+          CASE WHEN pb.expiry_date IS NULL THEN 1 ELSE 0 END,
+          pb.expiry_date ASC NULLS LAST, 
+          pb.received_date DESC
+      `;
+      const batchesResult = await rawDb.query(batchesQuery, [productId]);
+
+      // 5. Get inventory movements with filters
+      let movementsQuery = `
+        SELECT 
+          im.id,
+          im.movement_type,
+          CASE 
+            WHEN im.movement_type = 'OUT' THEN 'OUT'
+            ELSE 'IN'
+          END as direction,
+          im.quantity,
+          im.unit,
+          im.warehouse_id,
+          w.name as warehouse_name,
+          im.machine_id,
+          m.machine_name,
+          im.actor_username_snapshot as user_name,
+          im.performed_at,
+          im.source_type,
+          im.source_reference_id,
+          im.batch_number,
+          im.notes,
+          CASE 
+            WHEN im.source_type = 'GOODS_RECEIPT' THEN 'Wareneingang'
+            WHEN im.source_type = 'REFILL' THEN 'Refill'
+            WHEN im.source_type = 'TRANSFER' THEN 'Transfer'
+            WHEN im.source_type = 'ADJUSTMENT' THEN 'Anpassung'
+            WHEN im.source_type = 'DISPOSAL' THEN 'Entsorgung'
+            ELSE im.source_type
+          END as movement_type_display
+        FROM inventory_movements im
+        LEFT JOIN warehouses w ON w.id = im.warehouse_id
+        LEFT JOIN machines m ON m.id = im.machine_id
+        WHERE im.product_id = $1
+      `;
+
+      const movementParams = [productId];
+      let paramCount = 1;
+
+      if (movementType && movementType !== 'all') {
+        paramCount++;
+        movementsQuery += ` AND im.movement_type = $${paramCount}`;
+        movementParams.push(movementType);
+      }
+
+      if (warehouseId) {
+        paramCount++;
+        movementsQuery += ` AND im.warehouse_id = $${paramCount}`;
+        movementParams.push(warehouseId);
+      }
+
+      if (machineId) {
+        paramCount++;
+        movementsQuery += ` AND im.machine_id = $${paramCount}`;
+        movementParams.push(machineId);
+      }
+
+      movementsQuery += `
+        ORDER BY im.performed_at DESC
+        LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}
+      `;
+      movementParams.push(limit, offset);
+
+      // Count total movements for pagination
+      let countQuery = `
+        SELECT COUNT(*) as total
+        FROM inventory_movements im
+        WHERE im.product_id = $1
+      `;
+      const countParams = [productId];
+      let countParamCount = 1;
+
+      if (movementType && movementType !== 'all') {
+        countParamCount++;
+        countQuery += ` AND im.movement_type = $${countParamCount}`;
+        countParams.push(movementType);
+      }
+
+      if (warehouseId) {
+        countParamCount++;
+        countQuery += ` AND im.warehouse_id = $${countParamCount}`;
+        countParams.push(warehouseId);
+      }
+
+      if (machineId) {
+        countParamCount++;
+        countQuery += ` AND im.machine_id = $${countParamCount}`;
+        countParams.push(machineId);
+      }
+
+      const [movementsResult, countResult] = await Promise.all([
+        rawDb.query(movementsQuery, movementParams),
+        rawDb.query(countQuery, countParams)
+      ]);
+
+      // 6. Get filter metadata (warehouses, machines, movement types)
+      const metaQuery = `
+        SELECT 
+          DISTINCT im.movement_type,
+          w.id as warehouse_id,
+          w.name as warehouse_name,
+          m.id as machine_id,
+          m.machine_name
+        FROM inventory_movements im
+        LEFT JOIN warehouses w ON w.id = im.warehouse_id
+        LEFT JOIN machines m ON m.id = im.machine_id
+        WHERE im.product_id = $1
+      `;
+      const metaResult = await rawDb.query(metaQuery, [productId]);
+      
+      // Extract unique values for filters
+      const warehouses = [...new Set(metaResult.rows
+        .filter(row => row.warehouse_id)
+        .map(row => ({ id: row.warehouse_id, name: row.warehouse_name }))
+      )];
+      
+      const machines = [...new Set(metaResult.rows
+        .filter(row => row.machine_id)
+        .map(row => ({ id: row.machine_id, name: row.machine_name }))
+      )];
+      
+      const movementTypes = [...new Set(metaResult.rows
+        .map(row => row.movement_type)
+        .filter(Boolean)
+      )];
+
+      // Prepare response
+      const response = {
+        success: true,
+        data: {
+          // Product header information
+          header: {
+            ...product,
+            productName: product.product_name,
+            totals: {
+              onHandWarehouse: parseInt(totals.on_hand_warehouse) || 0,
+              inMachines: parseInt(machineStock.in_machines) || 0,
+              reserved: parseInt(totals.reserved) || 0,
+              availableToSell: (parseInt(totals.on_hand_warehouse) || 0) - (parseInt(totals.reserved) || 0),
+              warehousesCount: parseInt(totals.warehouses_count) || 0
+            },
+            lastMovementAt: totals.last_movement_at
+          },
+          
+          // Batches information
+          batches: batchesResult.rows.map(batch => ({
+            batchId: batch.batch_id,
+            batchNumber: batch.batch_number,
+            supplierBatchNumber: batch.supplier_batch_number,
+            expiryDate: batch.expiry_date,
+            receivedDate: batch.received_date,
+            qtyAvailable: batch.quantity_available,
+            qtyReserved: batch.quantity_reserved,
+            qtyDamaged: batch.quantity_damaged,
+            status: batch.status,
+            warehouseId: batch.warehouse_id,
+            warehouseName: batch.warehouse_name,
+            expiryStatus: batch.expiry_status,
+            daysUntilExpiry: batch.days_until_expiry
+          })),
+          
+          // Movements information
+          movements: {
+            data: movementsResult.rows.map(movement => ({
+              id: movement.id,
+              type: movement.movement_type,
+              typeDisplay: movement.movement_type_display,
+              direction: movement.direction,
+              quantity: movement.direction === 'OUT' ? -Math.abs(movement.quantity) : Math.abs(movement.quantity),
+              unit: movement.unit,
+              warehouseId: movement.warehouse_id,
+              warehouseName: movement.warehouse_name,
+              machineId: movement.machine_id,
+              machineName: movement.machine_name,
+              userName: movement.user_name,
+              performedAt: movement.performed_at,
+              sourceType: movement.source_type,
+              referenceId: movement.source_reference_id,
+              batchNumber: movement.batch_number,
+              notes: movement.notes
+            })),
+            pagination: {
+              page,
+              limit,
+              total: parseInt(countResult.rows[0].total),
+              totalPages: Math.ceil(parseInt(countResult.rows[0].total) / limit)
+            }
+          },
+          
+          // Filter metadata
+          meta: {
+            warehouses,
+            machines,
+            movementTypes
+          }
+        }
+      };
+
+      res.json(response);
+    } catch (error) {
+      console.error("Error fetching product detail:", error);
+      res.status(500).json({ 
+        error: "Failed to fetch product detail", 
+        details: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+
   // Update product by ID
   app.patch(`${API_PREFIX}/products/:id`, async (req: Request, res: Response) => {
     try {
