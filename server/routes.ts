@@ -1934,15 +1934,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const totalsQuery = `
         SELECT 
           COALESCE(SUM(
-            CASE WHEN pb.quantity_available > 0 
-            THEN pb.quantity_available 
+            CASE WHEN pb.current_quantity > 0 
+            THEN pb.current_quantity 
             ELSE 0 END
           ), 0) as on_hand_warehouse,
-          COALESCE(SUM(
-            CASE WHEN pb.quantity_reserved > 0 
-            THEN pb.quantity_reserved 
-            ELSE 0 END
-          ), 0) as reserved,
+          0 as reserved,
           COUNT(DISTINCT pb.warehouse_id) as warehouses_count,
           MAX(pb.updated_at) as last_movement_at
         FROM product_batches pb
@@ -1953,10 +1949,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // 3. Get machine stock totals
       const machineStockQuery = `
-        SELECT COALESCE(SUM(current_stock), 0) as in_machines
+        SELECT COALESCE(SUM(ms.quantity), 0) as in_machines
         FROM machine_stocks ms
         JOIN machines m ON m.id = ms.machine_id
-        WHERE ms.product_id = $1 AND m.status = 'active'
+        WHERE ms.product_vendon_id IN (
+          SELECT vendon_id::text FROM products WHERE id = $1 AND vendon_id IS NOT NULL
+        ) AND m.status = 'active'
       `;
       const machineStockResult = await rawDb.query(machineStockQuery, [productId]);
       const machineStock = machineStockResult.rows[0] || { in_machines: 0 };
@@ -1969,9 +1967,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           pb.supplier_batch_number,
           pb.expiry_date,
           pb.received_date,
-          pb.quantity_available,
-          pb.quantity_reserved,
-          pb.quantity_damaged,
+          pb.current_quantity as quantity_available,
+          0 as quantity_reserved,
+          0 as quantity_damaged,
           pb.status,
           pb.warehouse_id,
           w.name as warehouse_name,
@@ -1984,7 +1982,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           END as expiry_status,
           CASE 
             WHEN pb.expiry_date IS NULL THEN NULL
-            ELSE EXTRACT(days FROM pb.expiry_date - CURRENT_DATE)::INTEGER
+            ELSE (pb.expiry_date - CURRENT_DATE)::INTEGER
           END as days_until_expiry
         FROM product_batches pb
         LEFT JOIN warehouses w ON w.id = pb.warehouse_id
@@ -2001,32 +1999,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
         SELECT 
           im.id,
           im.movement_type,
-          CASE 
-            WHEN im.movement_type = 'OUT' THEN 'OUT'
-            ELSE 'IN'
-          END as direction,
+          im.direction,
           im.quantity,
-          im.unit,
-          im.warehouse_id,
-          w.name as warehouse_name,
+          'Stück' as unit,
+          COALESCE(im.source_warehouse_id, im.destination_warehouse_id) as warehouse_id,
+          COALESCE(ws.name, wd.name) as warehouse_name,
           im.machine_id,
           m.machine_name,
           im.actor_username_snapshot as user_name,
           im.performed_at,
-          im.source_type,
-          im.source_reference_id,
+          im.reference_type as source_type,
+          im.reference_id as source_reference_id,
           im.batch_number,
           im.notes,
           CASE 
-            WHEN im.source_type = 'GOODS_RECEIPT' THEN 'Wareneingang'
-            WHEN im.source_type = 'REFILL' THEN 'Refill'
-            WHEN im.source_type = 'TRANSFER' THEN 'Transfer'
-            WHEN im.source_type = 'ADJUSTMENT' THEN 'Anpassung'
-            WHEN im.source_type = 'DISPOSAL' THEN 'Entsorgung'
-            ELSE im.source_type
+            WHEN im.reference_type = 'GOODS_RECEIPT' THEN 'Wareneingang'
+            WHEN im.reference_type = 'REFILL' THEN 'Refill'
+            WHEN im.reference_type = 'TRANSFER' THEN 'Transfer'
+            WHEN im.reference_type = 'ADJUSTMENT' THEN 'Anpassung'
+            WHEN im.reference_type = 'DISPOSAL' THEN 'Entsorgung'
+            ELSE COALESCE(im.reference_type, im.movement_type)
           END as movement_type_display
         FROM inventory_movements im
-        LEFT JOIN warehouses w ON w.id = im.warehouse_id
+        LEFT JOIN warehouses ws ON ws.id = im.source_warehouse_id
+        LEFT JOIN warehouses wd ON wd.id = im.destination_warehouse_id
         LEFT JOIN machines m ON m.id = im.machine_id
         WHERE im.product_id = $1
       `;
@@ -2042,8 +2038,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (warehouseId) {
         paramCount++;
-        movementsQuery += ` AND im.warehouse_id = $${paramCount}`;
-        movementParams.push(warehouseId);
+        movementsQuery += ` AND (im.source_warehouse_id = $${paramCount} OR im.destination_warehouse_id = $${paramCount + 1})`;
+        movementParams.push(warehouseId, warehouseId);
+        paramCount++; // Increment again since we use two parameters
       }
 
       if (machineId) {
@@ -2075,8 +2072,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (warehouseId) {
         countParamCount++;
-        countQuery += ` AND im.warehouse_id = $${countParamCount}`;
-        countParams.push(warehouseId);
+        countQuery += ` AND (im.source_warehouse_id = $${countParamCount} OR im.destination_warehouse_id = $${countParamCount + 1})`;
+        countParams.push(warehouseId, warehouseId);
+        countParamCount++; // Increment again since we use two parameters
       }
 
       if (machineId) {
@@ -2094,12 +2092,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const metaQuery = `
         SELECT 
           DISTINCT im.movement_type,
-          w.id as warehouse_id,
-          w.name as warehouse_name,
+          COALESCE(ws.id, wd.id) as warehouse_id,
+          COALESCE(ws.name, wd.name) as warehouse_name,
           m.id as machine_id,
           m.machine_name
         FROM inventory_movements im
-        LEFT JOIN warehouses w ON w.id = im.warehouse_id
+        LEFT JOIN warehouses ws ON ws.id = im.source_warehouse_id
+        LEFT JOIN warehouses wd ON wd.id = im.destination_warehouse_id
         LEFT JOIN machines m ON m.id = im.machine_id
         WHERE im.product_id = $1
       `;
