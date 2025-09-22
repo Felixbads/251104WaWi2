@@ -3835,28 +3835,21 @@ app.get('/orders-data', (req, res) => {
         console.warn('[VENDON-SYNC] ⚠️ Initiale Synchronisation fehlgeschlagen, Service läuft trotzdem weiter:', initialError);
       }
       
-      // Periodische Synchronisation alle 5 Minuten
+      // Periodische VOLLSTÄNDIGE Synchronisation alle 5 Minuten (inkl. Refills!)
       setInterval(async () => {
         try {
-          console.log('[VENDON-SYNC] 🔄 Starte geplante Transaktions-Synchronisation...');
+          console.log('[VENDON-SYNC] 🔄 Starte geplante VOLLSTÄNDIGE Synchronisation (Transaktionen + Refills)...');
           
-          const yesterday = new Date();
-          yesterday.setDate(yesterday.getDate() - 1);
-          const today = new Date();
-          
-          const syncResult = await unifiedSync.syncTransactions({
-            startDate: yesterday,
-            endDate: today
-          }, {
+          const syncResult = await unifiedSync.runFullSync({
             batchSize: 100,
             maxRetries: 2,
             requestDelay: 1000
           });
           
           if (syncResult.status === 'success') {
-            console.log(`[VENDON-SYNC] ✅ Synchronisation erfolgreich: ${syncResult.stats.saved} neue, ${syncResult.stats.duplicates} Duplikate`);
+            console.log(`[VENDON-SYNC] ✅ Vollständige Synchronisation erfolgreich: ${syncResult.stats.saved} neue, ${syncResult.stats.duplicates} Duplikate`);
           } else {
-            console.warn(`[VENDON-SYNC] ⚠️ Synchronisation teilweise erfolgreich: ${syncResult.message}`);
+            console.warn(`[VENDON-SYNC] ⚠️ Vollständige Synchronisation teilweise erfolgreich: ${syncResult.message}`);
           }
         } catch (error) {
           console.error('[VENDON-SYNC] ❌ Geplante Synchronisation fehlgeschlagen:', error);
