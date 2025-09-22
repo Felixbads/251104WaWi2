@@ -1994,7 +1994,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       `;
       const batchesResult = await rawDb.query(batchesQuery, [productId]);
 
-      // 5. Get inventory movements with filters
+      // 5. Get inventory movements with filters including ALL refill sources
       let movementsQuery = `
         SELECT 
           im.id,
@@ -2014,7 +2014,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           im.notes,
           CASE 
             WHEN im.reference_type = 'GOODS_RECEIPT' THEN 'Wareneingang'
-            WHEN im.reference_type = 'REFILL' OR im.movement_type = 'REFILL' THEN 'Refill'
+            WHEN LOWER(im.reference_type) = 'refill' OR LOWER(im.movement_type) = 'refill' THEN 'Refill'
             WHEN im.reference_type = 'TRANSFER' OR im.movement_type = 'TRANSFER' THEN 'Transfer'
             WHEN im.reference_type = 'ADJUSTMENT' OR im.movement_type = 'ADJUSTMENT' THEN 'Anpassung'
             WHEN im.reference_type = 'DISPOSAL' OR im.movement_type = 'DISPOSAL' THEN 'Entsorgung'
@@ -2035,8 +2035,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (movementType && movementType !== 'all') {
         paramCount++;
-        movementsQuery += ` AND im.movement_type = $${paramCount}`;
-        movementParams.push(movementType);
+        movementsQuery += ` AND (LOWER(im.movement_type) = LOWER($${paramCount}) OR LOWER(im.reference_type) = LOWER($${paramCount + 1}))`;
+        movementParams.push(movementType, movementType);
+        paramCount++; // Increment again since we use two parameters
       }
 
       if (warehouseId) {
@@ -2069,8 +2070,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (movementType && movementType !== 'all') {
         countParamCount++;
-        countQuery += ` AND im.movement_type = $${countParamCount}`;
-        countParams.push(movementType);
+        countQuery += ` AND (LOWER(im.movement_type) = LOWER($${countParamCount}) OR LOWER(im.reference_type) = LOWER($${countParamCount + 1}))`;
+        countParams.push(movementType, movementType);
+        countParamCount++; // Increment again since we use two parameters
       }
 
       if (warehouseId) {
