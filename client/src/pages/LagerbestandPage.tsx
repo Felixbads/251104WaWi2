@@ -6,7 +6,7 @@ import { useToast } from '@/hooks/use-toast';
 // Lucide Icons
 import { 
   Search, X, Plus, Building2, ArrowRightLeft, 
-  Package, CircleAlert, RefreshCw, Filter,
+  Package, Package2, CircleAlert, RefreshCw, Filter,
   Download, Upload, ChevronRight, ChevronLeft,
   ChevronsRight, ChevronsLeft, Warehouse, MonitorSmartphone
 } from 'lucide-react';
@@ -36,6 +36,7 @@ import WarehouseInventory from '@/components/inventory/WarehouseInventory';
 import InventoryMovements from '@/components/inventory/InventoryMovements';
 import WarehouseMachineAssignments from '@/components/inventory/WarehouseMachineAssignments';
 import NewWarehouseDialog from '@/components/inventory/NewWarehouseDialog';
+import InventoryDetailedTable from '@/components/inventory/InventoryDetailedTable';
 
 // Dialog Komponenten
 import {
@@ -269,6 +270,10 @@ export default function LagerbestandPage() {
             <Warehouse className="h-4 w-4" />
             <span>Lagerbestand</span>
           </TabsTrigger>
+          <TabsTrigger value="chargen-detail" className="flex items-center gap-2">
+            <Package2 className="h-4 w-4" />
+            <span>Detaillierte Chargen</span>
+          </TabsTrigger>
           <TabsTrigger value="bewegungen" className="flex items-center gap-2">
             <ArrowRightLeft className="h-4 w-4" />
             <span>Warenbewegungen</span>
@@ -444,6 +449,41 @@ export default function LagerbestandPage() {
                 </div>
               )}
             </>
+          )}
+        </TabsContent>
+
+        {/* Detaillierte Chargen Tab */}
+        <TabsContent value="chargen-detail" className="space-y-4">
+          {filteredWarehouses.length > 0 ? (
+            <div className="grid grid-cols-1 gap-6">
+              {filteredWarehouses.map((warehouse: any) => (
+                <div key={warehouse.id} className="space-y-4">
+                  <div className="flex items-center gap-2 mb-4">
+                    <Warehouse className="h-5 w-5 text-muted-foreground" />
+                    <h3 className="text-lg font-semibold" data-testid={`header-warehouse-${warehouse.id}`}>
+                      {warehouse.name}
+                    </h3>
+                    <Badge variant="outline" className="ml-2">
+                      {warehouse.status === 'active' ? 'Aktiv' : 'Inaktiv'}
+                    </Badge>
+                  </div>
+                  <InventoryDetailedTable 
+                    warehouseId={warehouse.id}
+                    key={`detailed-${warehouse.id}`}
+                  />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center p-8">
+                <Package2 className="h-12 w-12 text-muted-foreground mb-4" />
+                <h3 className="text-lg font-medium mb-2">Keine Lager für detaillierte Ansicht</h3>
+                <p className="text-muted-foreground text-center">
+                  Wählen Sie ein Lager aus der Lagerbestand-Ansicht aus oder erstellen Sie ein neues Lager.
+                </p>
+              </CardContent>
+            </Card>
           )}
         </TabsContent>
 
