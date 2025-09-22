@@ -18,7 +18,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { queryClient, apiRequest } from '@/lib/queryClient';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertCircle, MoveHorizontal, PackageOpen, RefreshCw } from "lucide-react";
+import { AlertCircle, MoveHorizontal, PackageOpen, RefreshCw, Package2, Search } from "lucide-react";
 import { useInventoryCart } from "@/components/inventory/InventoryCartContext";
 import InventoryCart from "@/components/inventory/InventoryCart";
 import InventoryProductsTable from "@/components/inventory/InventoryProductsTable";
@@ -45,6 +45,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Calendar } from "lucide-react";
+import InventoryDetailedTable from "@/components/inventory/InventoryDetailedTable";
 
 // Types
 interface Warehouse {
@@ -89,6 +90,7 @@ const disposalFormSchema = z.object({
 
 export default function WarenbewegungNewPage() {
   const [activeTab, setActiveTab] = useState<string>("umlagerung");
+  const [detailWarehouseId, setDetailWarehouseId] = useState<string>("");
   const [sourceWarehouseId, setSourceWarehouseId] = useState<string>("");
   const [targetWarehouseId, setTargetWarehouseId] = useState<string>("");
   const [disposalWarehouseId, setDisposalWarehouseId] = useState<string>("");
@@ -429,9 +431,13 @@ export default function WarenbewegungNewPage() {
     <div className="container mx-auto py-6">
       <Tabs defaultValue="umlagerung" value={activeTab} onValueChange={handleTabChange}>
         <div className="mb-6">
-          <TabsList className="grid w-full max-w-2xl grid-cols-3">
+          <TabsList className="grid w-full max-w-4xl grid-cols-4">
             <TabsTrigger value="umlagerung">Warenumlagerung</TabsTrigger>
             <TabsTrigger value="entnahme">Warenentnahme</TabsTrigger>
+            <TabsTrigger value="chargen-detail" className="flex items-center gap-2">
+              <Package2 className="h-4 w-4" />
+              <span>Detaillierte Chargen</span>
+            </TabsTrigger>
             <TabsTrigger value="transaktionen">Umlagerungs-Transaktionen</TabsTrigger>
           </TabsList>
         </div>
@@ -822,6 +828,70 @@ export default function WarenbewegungNewPage() {
               </Card>
             </div>
           </div>
+        </TabsContent>
+
+        {/* Detaillierte Chargen Tab Content */}
+        <TabsContent value="chargen-detail" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Package2 className="h-6 w-6" />
+                Detaillierte Chargen-Rückverfolgung
+              </CardTitle>
+              <CardDescription>
+                Vollständige Transparenz und Verfolgung aller Warenbewegungen pro Charge mit MHD-Status
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="flex flex-col sm:flex-row gap-4">
+                  <div className="w-full sm:w-1/2">
+                    <Label htmlFor="detailWarehouse">Lager auswählen</Label>
+                    <Select 
+                      value={detailWarehouseId}
+                      onValueChange={setDetailWarehouseId}
+                      disabled={warehousesLoading || !warehouses || warehouses.length === 0}
+                    >
+                      <SelectTrigger id="detailWarehouse" className="w-full">
+                        <SelectValue placeholder={warehousesLoading ? "Lade Lager..." : "Wählen Sie ein Lager aus"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectGroup>
+                          <SelectLabel>Verfügbare Lager</SelectLabel>
+                          {!warehousesLoading && warehouses && warehouses.map((warehouse: Warehouse) => (
+                            <SelectItem 
+                              key={warehouse.id} 
+                              value={warehouse.id.toString()}
+                            >
+                              {warehouse.name}
+                              {warehouse.city ? ` (${warehouse.city})` : ''}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="w-full sm:w-1/2 flex items-end">
+                    <div className="text-sm text-muted-foreground">
+                      💡 Zeigt detaillierte Chargen-Informationen mit Bewegungshistorie und MHD-Status
+                    </div>
+                  </div>
+                </div>
+
+                {!detailWarehouseId ? (
+                  <Alert>
+                    <Search className="h-4 w-4" />
+                    <AlertTitle>Lager auswählen</AlertTitle>
+                    <AlertDescription>
+                      Bitte wählen Sie ein Lager aus, um die detaillierte Chargen-Übersicht anzuzeigen.
+                    </AlertDescription>
+                  </Alert>
+                ) : (
+                  <InventoryDetailedTable warehouseId={parseInt(detailWarehouseId)} />
+                )}
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {/* Umlagerungs-Transaktionen Tab Content */}
