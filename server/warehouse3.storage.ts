@@ -1945,7 +1945,7 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
           
           totalMovements.push({
             source: "Hauptlager (Bahnhof)",
-            quantity: shortage
+            quantity: -shortage // NEGATIVE für OUT-Bewegung
           });
         } else {
           console.warn(`Auch im Hauptlager nicht genügend Bestand. Verfügbar: ${mainStock}, Benötigt: ${shortage}`);
@@ -1958,7 +1958,7 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
         
         totalMovements.push({
           source: `Zugeordnetes Lager (${refill.warehouseId})`,
-          quantity: stockBefore
+          quantity: -stockBefore // NEGATIVE für OUT-Bewegung
         });
       }
     } else {
@@ -1978,7 +1978,7 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
           
           totalMovements.push({
             source: `Batch ${batch.batchNumber} (${refill.warehouseId})`,
-            quantity: quantityFromBatch,
+            quantity: -quantityFromBatch, // NEGATIVE für OUT-Bewegung
             batchId: batch.id,
             expiryDate: batch.expiryDate
           });
@@ -1997,7 +1997,7 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
         
         totalMovements.push({
           source: `Normal-Bestand (${refill.warehouseId})`,
-          quantity: quantityFromNormal
+          quantity: -quantityFromNormal // NEGATIVE für OUT-Bewegung
         });
         
         console.log(`Entnahme von ${quantityFromNormal} aus Normal-Bestand`);
