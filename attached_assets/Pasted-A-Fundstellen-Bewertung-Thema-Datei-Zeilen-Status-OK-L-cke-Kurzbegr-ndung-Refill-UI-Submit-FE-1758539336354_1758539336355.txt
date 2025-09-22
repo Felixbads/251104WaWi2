@@ -1,0 +1,135 @@
+A) Fundstellen & Bewertung
+Thema	Datei	Zeilen	Status (OK/Lücke)	Kurzbegründung
+Refill-UI & Submit	FEHLT – client/src/pages/Warehouse3/RefillNew.tsx	–	Lücke	Keine Erfassungs-/Submit-Komponente auffindbar; nur eine Detailansicht existiert.
+POST /warehouses/:warehouseId/refills	server/routes/warehouse3.routes.ts	992-1021	Lücke	Lager wird ausschließlich aus der URL genommen, Maschinenzuordnung oder Lagerableitung aus Assignments fehlt.
+POST /warehouses/:warehouseId/refills/:refillId/items	server/routes/warehouse3.routes.ts	1059-1096	Lücke	Kein Bestandsabgleich vor Abgang; keine Prüfung auf Maschinen-Lager-Zuordnung oder verfügbare Menge.
+Lagerabgang updateProductStock	server/warehouse3.storage.ts	625-670	Lücke	Entnahme setzt newStock = Math.max(0, currentStock + quantityChange) ⇒ Unterdeckung wird auf 0 gekappt statt Fehler auszulösen.
+Chargenabgang updateBatchStock	server/warehouse3.storage.ts	802-829	Lücke	Gleiches Math.max(0, ...) für Chargen; zusätzlich zweiter Lagerabzug ohne FIFO/Chargenauswahl.
+Refill-Item Verarbeitung	server/warehouse3.storage.ts	1491-1558	Lücke	Sequentielle Updates ohne Transaktion/Locks; Batch wird nur genommen, wenn ID mitgesendet wird (keine FIFO-Ermittlung).
+Bewegungslog	server/warehouse3.storage.ts	1543-1558, 922-975	Lücke	Bewegung wird als movementType: "OUT" mit positiver Menge gespeichert; kein negativer qty_delta/movement_type='FILL', obwohl before/after gesetzt werden sollen.
+Zeitstempel & TZ	server/warehouse3.storage.ts	156-165	Lücke	timestamp(...).defaultNow() nutzt DB-Standard (UTC), keine explizite Erzwingung von Europe/Berlin für Refills.
+Frontend-Refetch	client/src/components/warehouse3/RefillsTab.tsx	80-180	Lücke	Tab lädt nur per useQuery; keine Mutation/Invalidation nach einer Refill-Erfassung vorhanden.
+B) Beleg-Code
+POST-Endpoint ohne Zuordnungsprüfung:
+const refillData = {
+  ...req.body,
+  warehouseId
+};
+const validatedData = insertRefillTrackingSchema.parse(refillData);
+const newRefill = await warehouseStorage.createRefillTracking(validatedData);
+```​:codex-file-citation[codex-file-citation]{line_range_start=1005 line_range_end=1015 path=server/routes/warehouse3.routes.ts git_url="https://github.com/Felixbads/Wawi/blob/main/server/routes/warehouse3.routes.ts#L1005-L1015"}​
+
+Refill-Item ohne Bestandsprüfung / FIFO:
+const stockBefore = inventory?.quantity || 0;
+await this.updateProductStock(refill.warehouseId, data.productId, -data.quantity);
+if (data.batchId) {
+  await this.updateBatchStock(data.batchId, -data.quantity);
+}
+```​:codex-file-citation[codex-file-citation]{line_range_start=1511 line_range_end=1519 path=server/warehouse3.storage.ts git_url="https://github.com/Felixbads/Wawi/blob/main/server/warehouse3.storage.ts#L1511-L1519"}​
+
+Lagerbestand wird auf Null gekappt:
+const currentStock = currentInventory.quantity || 0;
+const newStock = Math.max(0, currentStock + quantityChange);
+await db.update(inventoryItems).set({ quantity: newStock, updatedAt: new Date() });
+```​:codex-file-citation[codex-file-citation]{line_range_start=655 line_range_end=663 path=server/warehouse3.storage.ts git_url="https://github.com/Felixbads/Wawi/blob/main/server/warehouse3.storage.ts#L655-L663"}​
+
+Chargenbestand ohne FIFO und Doppel-Update:
+const newQuantity = Math.max(0, batch.currentQuantity + quantityChange);
+await db.update(productBatches).set({ currentQuantity: newQuantity, updatedAt: new Date() });
+await this.updateProductStock(batch.warehouseId, batch.productId, quantityChange);
+```​:codex-file-citation[codex-file-citation]{line_range_start=813 line_range_end=827 path=server/warehouse3.storage.ts git_url="https://github.com/Felixbads/Wawi/blob/main/server/warehouse3.storage.ts#L813-L827"}​
+
+Bewegungslog mit positivem quantity und Typ OUT:
+await this.createInventoryMovement({
+  sourceType: "warehouse",
+  destinationType: "machine",
+  quantity: data.quantity,
+  movementType: "OUT",
+  referenceType: "REFILL",
+  referenceId: `refill-${data.refillId}`,
+});
+```​:codex-file-citation[codex-file-citation]{line_range_start=1543 line_range_end=1555 path=server/warehouse3.storage.ts git_url="https://github.com/Felixbads/Wawi/blob/main/server/warehouse3.storage.ts#L1543-L1555"}​
+
+Bewegung setzt currentStock ebenfalls über Math.max:
+const newStock = isOutbound
+  ? Math.max(0, (inventoryItem.quantity || 0) - data.quantity)
+  : ((inventoryItem.quantity || 0) + data.quantity);
+currentStock = newStock;
+```​:codex-file-citation[codex-file-citation]{line_range_start=954 line_range_end=962 path=server/warehouse3.storage.ts git_url="https://github.com/Felixbads/Wawi/blob/main/server/warehouse3.storage.ts#L954-L962"}​
+
+Refillschema ohne TZ-Override:
+const refillTrackings = pgTable("refill_trackings", {
+  refillDate: timestamp("refill_date").defaultNow(),
+  status: text("status").default("completed"),
+});
+```​:codex-file-citation[codex-file-citation]{line_range_start=156 line_range_end=165 path=server/warehouse3.storage.ts git_url="https://github.com/Felixbads/Wawi/blob/main/server/warehouse3.storage.ts#L156-L165"}​
+
+Frontend lädt nur, kein Submit:
+const { data, isLoading, isError, error } = useQuery({
+  queryKey: ['/api/warehouse3/warehouses', warehouseId, 'refills', { /* … */ }],
+  retry: 1,
+});
+```​:codex-file-citation[codex-file-citation]{line_range_start=95 line_range_end=105 path=client/src/components/warehouse3/RefillsTab.tsx git_url="https://github.com/Felixbads/Wawi/blob/main/client/src/components/warehouse3/RefillsTab.tsx#L95-L105"}​
+C) Konsistenz-SQL / Checks
+-- 1) Bestand vs. Bewegungen
+SELECT ii.quantity AS current_qty,
+       SUM(CASE
+             WHEN im.source_type = 'warehouse' AND im.source_id = ii.warehouse_id THEN -im.quantity
+             WHEN im.destination_type = 'warehouse' AND im.destination_id = ii.warehouse_id THEN im.quantity
+             ELSE 0
+           END) AS movement_balance
+FROM inventory_items ii
+LEFT JOIN inventory_movements im
+  ON im.product_id = ii.product_id
+ AND (
+      (im.source_type = 'warehouse' AND im.source_id = ii.warehouse_id) OR
+      (im.destination_type = 'warehouse' AND im.destination_id = ii.warehouse_id)
+     )
+WHERE ii.warehouse_id = :warehouseId
+  AND ii.product_id = :productId
+GROUP BY ii.quantity;
+
+-- 2) Refill-Items vs. Bewegungslog
+SELECT rti.refill_id,
+       rti.product_id,
+       SUM(rti.quantity)            AS qty_refill_items,
+       SUM(CASE WHEN im.reference_id = 'refill-' || rti.refill_id THEN im.quantity ELSE 0 END) AS qty_logged
+FROM refill_tracking_items rti
+LEFT JOIN inventory_movements im
+  ON im.reference_type = 'REFILL'
+ AND im.product_id = rti.product_id
+ AND im.reference_id = 'refill-' || rti.refill_id
+WHERE rti.refill_id = :refillId
+GROUP BY rti.refill_id, rti.product_id;
+
+-- 3) Kürzliches Refill, unveränderter Lagerstand?
+SELECT rt.id,
+       rt.refill_date AT TIME ZONE 'Europe/Berlin' AS refill_date_berlin,
+       rti.product_id,
+       rti.stock_before,
+       rti.stock_after,
+       ii.quantity AS current_qty
+FROM refill_trackings rt
+JOIN refill_tracking_items rti ON rti.refill_id = rt.id
+JOIN inventory_items ii ON ii.warehouse_id = rt.warehouse_id AND ii.product_id = rti.product_id
+WHERE rt.warehouse_id = :warehouseId
+  AND rt.refill_date >= NOW() - INTERVAL '7 days'
+ORDER BY rt.refill_date DESC;
+D) Gaps & Ursachen
+Keine Refill-Erfassungs-UI ⇒ Nutzer können keine geführte Entnahme mit Payload erfassen.
+API bestimmt das Lager ausschließlich aus der URL und prüft nicht, ob der Automat diesem Lager zugeordnet ist (fehlende machine_warehouse_assignments-Validierung).
+Bestandsabgänge erlauben Unterdeckungen (Kappen auf Null) statt Fehler zu werfen; damit entstehen stille Mengenabweichungen.
+Keine FIFO-/Chargenauswahl: Batch muss extern übergeben werden, sonst erfolgt nur Lagerabgang ohne Chargenabzug.
+Operationen laufen ohne Transaktion oder Locks ⇒ Race Conditions möglich.
+Bewegungslog nutzt movement_type='OUT' mit positiver Menge, wodurch ein negatives qty_delta für Refills fehlt und Audits schwieriger werden.
+Zeitstempel verwenden DB-Standardtimezone; keine garantierte Europe/Berlin-Normalisierung.
+Frontend refresht Bestände nicht automatisch nach einer (hypothetischen) Erfassung; nur Leseabfragen vorhanden.
+E) Minimaler Nachweis-Plan
+Seed: Lege ein Lager, einen Automaten mit Assignment und initiale inventory_items + passende product_batches an.
+API-Test: Sende POST /warehouse3/warehouses/{id}/refills mit machineId, anschließend POST /warehouse3/warehouses/{id}/refills/{refillId}/items mit gewähltem productId, batchId, quantity.
+Direkt nach dem Call obenstehende SQL-Checks (C) ausführen:
+Prüfen, ob inventory_items.quantity exakt um quantity reduziert wurde und nicht auf 0 gekappt wurde.
+Gegenprüfen, ob inventory_movements für den Refill (reference_id='refill-{id}') den gleichen Abgang und korrekte before/after-Werte enthält.
+Sicherstellen, dass kein weiterer Bestand im Lager verbleibt, wenn Menge > vorhandener Bestand war (Nachweis des Bugs).
+Zeitstempel kontrollieren (SELECT refill_date AT TIME ZONE 'Europe/Berlin') um zu zeigen, dass ohne TZ-Setting eventuell UTC gespeichert wird.
+Diese Schritte zeigen, dass aktuelle Implementierung Refill-Mengen nicht garantiert korrekt aus dem Lager abzieht und das Bewegungslog inkonsistent bleibt.

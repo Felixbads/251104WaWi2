@@ -839,15 +839,18 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
       ));
     
     if (!currentInventory) {
-      // Wenn kein Eintrag existiert, einen neuen erstellen mit Drizzle-Schema-Feldnamen
-      // dann werden sie korrekt auf die DB-Feldnamen gemappt
+      // Wenn kein Eintrag existiert, einen neuen erstellen
+      if (quantityChange < 0) {
+        throw new Error(`BESTANDSFEHLER: Produkt ${productId} nicht im Lager ${warehouseId} gefunden. Abgang von ${Math.abs(quantityChange)} nicht möglich.`);
+      }
+      
       const [newInventory] = await db
         .insert(inventoryItems)
         .values({
           warehouseId: warehouseId,
           productId: productId,
-          quantity: Math.max(0, quantityChange), // Bestand darf nicht negativ sein
-          minQuantity: 0, // Standardwert für Mindestbestand
+          quantity: quantityChange, // Positiver Zugang erlaubt
+          minQuantity: 0,
           lastCountDate: new Date(),
           createdAt: new Date(),
           updatedAt: new Date()
@@ -857,9 +860,13 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
       return newInventory;
     }
     
-    // Bestand aktualisieren (niemals unter 0)
+    // KRITISCHE BESTANDSPRÜFUNG bei Abgängen
     const currentStock = currentInventory.quantity || 0;
-    const newStock = Math.max(0, currentStock + quantityChange);
+    if (quantityChange < 0 && currentStock + quantityChange < 0) {
+      throw new Error(`UNTERBESTAND: Produkt ${productId} in Lager ${warehouseId}. Verfügbar: ${currentStock}, Abgang: ${Math.abs(quantityChange)}. Fehlende Menge: ${Math.abs(currentStock + quantityChange)}`);
+    }
+    
+    const newStock = currentStock + quantityChange;
     
     const [updatedInventory] = await db
       .update(inventoryItems)
@@ -1016,8 +1023,13 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
       throw new Error(`Batch mit ID ${batchId} nicht gefunden`);
     }
     
-    // Neuer Bestand berechnen (nicht unter 0)
-    const newQuantity = Math.max(0, batch.currentQuantity + quantityChange);
+    // KRITISCHE BESTANDSPRÜFUNG bei Batch-Abgängen
+    const currentQuantity = batch.currentQuantity || 0;
+    if (quantityChange < 0 && currentQuantity + quantityChange < 0) {
+      throw new Error(`BATCH-UNTERBESTAND: Batch ${batch.batchNumber || batchId} hat nur ${currentQuantity} Stück, Abgang: ${Math.abs(quantityChange)}. Fehlende Menge: ${Math.abs(currentQuantity + quantityChange)}`);
+    }
+    
+    const newQuantity = currentQuantity + quantityChange;
     
     // Charge aktualisieren
     const [updatedBatch] = await db
@@ -1161,9 +1173,15 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
             (data.sourceType === 'warehouse' && data.sourceId === warehouseId) || 
             data.movementType === "OUT";
             
+          // BESTANDSPRÜFUNG bei Bewegungen
+          const currentItemStock = inventoryItem.quantity || 0;
+          if (isOutbound && currentItemStock - data.quantity < 0) {
+            throw new Error(`BEWEGUNGS-UNTERBESTAND: Lager ${warehouseId}, Produkt ${data.productId}. Verfügbar: ${currentItemStock}, Bewegung: ${data.quantity}`);
+          }
+          
           const newStock = isOutbound
-            ? Math.max(0, (inventoryItem.quantity || 0) - data.quantity)
-            : ((inventoryItem.quantity || 0) + data.quantity);
+            ? currentItemStock - data.quantity
+            : currentItemStock + data.quantity;
             
           currentStock = newStock;
         }
