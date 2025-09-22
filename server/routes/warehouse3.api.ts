@@ -475,6 +475,7 @@ router.get("/warehouses/:id/movements", async (req, res) => {
       LEFT JOIN users u ON im.performed_by = u.id
       LEFT JOIN machines m ON im.machine_id = m.id
       WHERE (im.source_warehouse_id = $1 OR im.destination_warehouse_id = $1)
+      AND im.movement_type != 'SALE'
     `;
 
     const queryParams: any[] = [warehouseId];
@@ -526,7 +527,8 @@ router.get("/warehouses/:id/movements", async (req, res) => {
     // Gesamtanzahl der Einträge ermitteln
     const countResult = await pool.query(
       `SELECT COUNT(*) FROM inventory_movements im
-       WHERE (im.source_warehouse_id = $1 OR im.destination_warehouse_id = $1)`,
+       WHERE (im.source_warehouse_id = $1 OR im.destination_warehouse_id = $1)
+       AND im.movement_type != 'SALE'`,
       [warehouseId]
     );
     const total = parseInt(countResult.rows[0]?.count) || 0;

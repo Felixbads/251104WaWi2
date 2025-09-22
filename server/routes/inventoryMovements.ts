@@ -93,7 +93,7 @@ router.get('/', async (req, res) => {
           or(
             eq(inventoryTransfers.sourceWarehouseId, whId),
             eq(inventoryTransfers.targetWarehouseId, whId)
-          )!
+          )
         );
       }
     }
