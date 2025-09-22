@@ -11,6 +11,13 @@ const router = Router();
  */
 router.get('/', async (req, res) => {
   try {
+    // FORCE NO CACHING - ALWAYS FRESH DATA
+    res.set({
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0'
+    });
+
     const { productId, warehouseId, batchId, batchIds } = req.query;
     
     console.log('[INVENTORY_MOVEMENTS] Query params:', { productId, warehouseId, batchId, batchIds });

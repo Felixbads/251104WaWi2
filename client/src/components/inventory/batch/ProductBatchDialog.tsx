@@ -91,7 +91,13 @@ export default function ProductBatchDialog({
         const batchIds = productBatches.map((batch: any) => batch.id);
         if (!batchIds.length) return {};
         
-        const response = await fetch(`/api/inventory-movements?batchIds=${batchIds.join(',')}`);
+        const response = await fetch(`/api/inventory-movements?batchIds=${batchIds.join(',')}`, {
+          cache: 'no-store', // FORCE FRESH DATA - NO CACHE
+          headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache'
+          }
+        });
         if (!response.ok) return {};
         
         const movementsData = await response.json();
@@ -127,6 +133,10 @@ export default function ProductBatchDialog({
       }
     },
     enabled: !!productBatches.length && open,
+    // FORCE FRESH DATA - NO REACT QUERY CACHE
+    staleTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
   });
 
   // Icon für Bewegungstyp

@@ -418,6 +418,13 @@ router.get("/warehouses/:id/inventory", async (req, res) => {
 // GET /api/warehouse3/warehouses/:id/movements - Warenbewegungen eines Lagers abrufen
 router.get("/warehouses/:id/movements", async (req, res) => {
   try {
+    // FORCE NO CACHING - ALWAYS FRESH DATA
+    res.set({
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0'
+    });
+
     const warehouseId = parseInt(req.params.id);
     if (isNaN(warehouseId)) {
       return res.status(400).json({ success: false, message: "Ungültige Lager-ID" });

@@ -72,7 +72,13 @@ const WarehouseInventoryTable: React.FC<WarehouseInventoryTableProps> = ({ wareh
     queryFn: async () => {
       try {
         debug(`Lade erweiterte Warenbewegungen für Lager ${warehouseId}...`);
-        const response = await fetch(`/api/warehouse3/warehouses/${warehouseId}/movements?limit=1000`);
+        const response = await fetch(`/api/warehouse3/warehouses/${warehouseId}/movements?limit=1000`, {
+          cache: 'no-store', // FORCE FRESH DATA - NO CACHE
+          headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache'
+          }
+        });
         if (!response.ok) {
           debug(`Fehler beim Laden der erweiterten Warenbewegungen, Status: ${response.status}`);
           return [];
@@ -96,6 +102,11 @@ const WarehouseInventoryTable: React.FC<WarehouseInventoryTableProps> = ({ wareh
       }
     },
     enabled: !!warehouseId,
+    // FORCE FRESH DATA - NO REACT QUERY CACHE
+    staleTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
+    refetchInterval: 60000, // Auto-refresh every minute
   });
 
   // API-Abfrage für alle Batches des Lagers
@@ -156,11 +167,23 @@ const WarehouseInventoryTable: React.FC<WarehouseInventoryTableProps> = ({ wareh
     
     console.log('[DEBUG] Gruppierte Bewegungen:', groupedMovements);
     
-    // Sortiere Bewegungen nach Datum (neueste zuerst)
+    // Sortiere Bewegungen nach Datum (neueste zuerst) - FIX FIELD NAMES
     Object.keys(groupedMovements).forEach(productId => {
-      groupedMovements[parseInt(productId)].sort((a, b) => 
-        new Date(b.performedAt || b.createdAt).getTime() - new Date(a.performedAt || a.createdAt).getTime()
-      );
+      groupedMovements[parseInt(productId)].sort((a, b) => {
+        // FIXED: Support both camelCase and snake_case field names
+        const dateA = a.performedAt || a.performed_at || a.timestamp || a.createdAt || a.created_at || '1970-01-01';
+        const dateB = b.performedAt || b.performed_at || b.timestamp || b.createdAt || b.created_at || '1970-01-01';
+        
+        const timeA = new Date(dateA).getTime();
+        const timeB = new Date(dateB).getTime();
+        
+        // Debug log for troubleshooting
+        if (parseInt(productId) === 21) { // Example product for debugging
+          console.log(`[DATE SORT] Movement A: ${dateA} (${timeA}) vs Movement B: ${dateB} (${timeB})`);
+        }
+        
+        return timeB - timeA; // Newest first
+      });
     });
     
     return groupedMovements;
