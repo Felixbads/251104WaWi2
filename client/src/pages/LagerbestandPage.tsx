@@ -8,7 +8,7 @@ import {
   Search, X, Plus, Building2, ArrowRightLeft, 
   Package, Package2, CircleAlert, RefreshCw, Filter,
   Download, Upload, ChevronRight, ChevronLeft,
-  ChevronsRight, ChevronsLeft, Warehouse, MonitorSmartphone
+  ChevronsRight, ChevronsLeft, Warehouse, MonitorSmartphone, Users
 } from 'lucide-react';
 
 // UI-Komponenten
@@ -37,6 +37,7 @@ import InventoryMovements from '@/components/inventory/InventoryMovements';
 import WarehouseMachineAssignments from '@/components/inventory/WarehouseMachineAssignments';
 import NewWarehouseDialog from '@/components/inventory/NewWarehouseDialog';
 import InventoryDetailedTable from '@/components/inventory/InventoryDetailedTable';
+import WarehouseWithdrawals from '@/components/inventory/WarehouseWithdrawals';
 
 // Dialog Komponenten
 import {
@@ -265,10 +266,14 @@ export default function LagerbestandPage() {
 
       {/* Tabs für verschiedene Ansichten */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="mb-4">
+        <TabsList className="mb-4 grid-cols-5">
           <TabsTrigger value="lagerbestand" className="flex items-center gap-2">
             <Warehouse className="h-4 w-4" />
             <span>Lagerbestand</span>
+          </TabsTrigger>
+          <TabsTrigger value="entnahmen" className="flex items-center gap-2">
+            <Users className="h-4 w-4" />
+            <span>Entnahmen-Übersicht</span>
           </TabsTrigger>
           <TabsTrigger value="chargen-detail" className="flex items-center gap-2">
             <Package2 className="h-4 w-4" />
@@ -450,6 +455,11 @@ export default function LagerbestandPage() {
               )}
             </>
           )}
+        </TabsContent>
+
+        {/* Entnahmen-Übersicht Tab */}
+        <TabsContent value="entnahmen" className="space-y-4">
+          <WarehouseWithdrawals />
         </TabsContent>
 
         {/* Detaillierte Chargen Tab */}
