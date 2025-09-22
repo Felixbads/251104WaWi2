@@ -630,7 +630,11 @@ const BatchRow: React.FC<BatchRowProps> = ({
               <TableCell data-testid={`text-movement-date-${movement.id}`}>
                 <div className="flex items-center gap-2">
                   <Clock className="h-4 w-4 text-muted-foreground" />
-                  {format(parseISO(movement.performedAt), 'dd.MM.yyyy HH:mm', { locale: de })}
+                  {movement.performedAt ? (
+                    format(parseISO(movement.performedAt), 'dd.MM.yyyy HH:mm', { locale: de })
+                  ) : (
+                    <span className="text-muted-foreground italic">Kein Datum</span>
+                  )}
                 </div>
               </TableCell>
             </TableRow>
