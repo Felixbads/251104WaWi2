@@ -1806,7 +1806,14 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
   // ---- REFILL TRACKING ----
   
   async createRefillTracking(data: InsertRefillTracking): Promise<any> {
-    const [result] = await db.insert(refillTrackings).values(data).returning();
+    // Timezone-Fix: Explicit Berlin-Zeit für Refill-Timestamps
+    const { getBerlinTime } = await import('../utils/timezone');
+    const refillData = {
+      ...data,
+      performedAt: data.performedAt || getBerlinTime() // Europe/Berlin statt UTC
+    };
+    
+    const [result] = await db.insert(refillTrackings).values(refillData).returning();
     return result;
   }
   
@@ -1868,6 +1875,8 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
   async createRefillTrackingItem(data: InsertRefillTrackingItem): Promise<any> {
     // TRANSAKTIONS-SICHERHEIT: Atomare Operation mit Row-Level-Locking
     return await db.transaction(async (tx) => {
+      // Timezone-Fix: Explicit Berlin-Zeit für Bewegungs-Timestamps
+      const { getBerlinTime } = await import('../utils/timezone');
       // Refill-Informationen abrufen
       const [refill] = await tx
         .select()
@@ -2049,7 +2058,8 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
         referenceId: `refill-${data.refillId}`,
         reason: "Automaten-Auffüllung",
         notes: `Auffüllung des Automaten: ${quantityFromAssigned} Einheiten aus zugeordnetem Lager`,
-        performedBy: refill.performedBy
+        performedBy: refill.performedBy,
+        performedAt: getBerlinTime() // Timezone-Fix: Europe/Berlin statt UTC
       });
     }
     
