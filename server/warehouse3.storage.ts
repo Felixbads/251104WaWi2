@@ -1866,30 +1866,33 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
   }
   
   async createRefillTrackingItem(data: InsertRefillTrackingItem): Promise<any> {
-    // Refill-Informationen abrufen
-    const [refill] = await db
-      .select()
-      .from(refillTrackings)
-      .where(eq(refillTrackings.id, data.refillId));
-    
-    if (!refill) {
-      throw new Error(`Refill mit ID ${data.refillId} nicht gefunden`);
-    }
-    
-    // Konstante für Hauptlager (Bahnhof)
-    const MAIN_WAREHOUSE_ID = 3;
-    
-    // Lagerbestand vor der Entnahme abrufen
-    const [inventory] = await db
-      .select()
-      .from(inventoryItems)
-      .where(and(
-        eq(inventoryItems.warehouseId, refill.warehouseId),
-        eq(inventoryItems.productId, data.productId)
-      ));
-    
-    const stockBefore = inventory?.quantity || 0;
-    let totalMovements = [];
+    // TRANSAKTIONS-SICHERHEIT: Atomare Operation mit Row-Level-Locking
+    return await db.transaction(async (tx) => {
+      // Refill-Informationen abrufen
+      const [refill] = await tx
+        .select()
+        .from(refillTrackings)
+        .where(eq(refillTrackings.id, data.refillId));
+      
+      if (!refill) {
+        throw new Error(`Refill mit ID ${data.refillId} nicht gefunden`);
+      }
+      
+      // Konstante für Hauptlager (Bahnhof)
+      const MAIN_WAREHOUSE_ID = 3;
+      
+      // Lagerbestand vor der Entnahme abrufen (MIT ROW-LEVEL LOCK)
+      const [inventory] = await tx
+        .select()
+        .from(inventoryItems)
+        .where(and(
+          eq(inventoryItems.warehouseId, refill.warehouseId),
+          eq(inventoryItems.productId, data.productId)
+        ))
+        .for('update'); // ROW-LEVEL LOCK für Race Condition Protection
+      
+      const stockBefore = inventory?.quantity || 0;
+      let totalMovements = [];
     
     // ENHANCED: Verfügbare Batch-Bestände prüfen
     const fifoResult = await this.selectFIFOBatches(refill.warehouseId, data.productId, data.quantity);
@@ -2050,10 +2053,11 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
       });
     }
     
-    return {
-      ...result,
-      movements: totalMovements
-    };
+      return {
+        ...result,
+        movements: totalMovements
+      };
+    }); // Transaction schließen
   }
   
   async getRefillTrackingItems(refillId: number): Promise<any[]> {
