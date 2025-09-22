@@ -1,6 +1,6 @@
 import { db } from "./db";
 import { sql } from "drizzle-orm";
-import { eq, and, or, desc, inArray, gte, lte, like } from "drizzle-orm";
+import { eq, and, or, desc, asc, inArray, gte, lte, gt, like } from "drizzle-orm";
 import { products, machines, purchaseConditions, users } from "../shared/schema";
 
 // Import warehouse3 schema definitions for type information
@@ -231,6 +231,9 @@ export interface WarehouseStorage {
   updateBatchStock(batchId: number, quantityChange: number): Promise<any>;
   getExpiredBatches(): Promise<any[]>;
   removeExpiredBatches(): Promise<void>;
+  
+  // FIFO Batch Selection
+  selectFIFOBatches(warehouseId: number, productId: number, requestedQuantity: number): Promise<{batches: any[], totalAvailable: number}>;
   
   // Inventory Movements
   createInventoryMovement(data: InsertInventoryMovement): Promise<any>;
@@ -607,7 +610,7 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
           eq(productBatches.warehouseId, inventory.warehouseId),
           eq(productBatches.productId, inventory.productId)
         ))
-        .orderBy(desc(productBatches.expiryDate));
+        .orderBy(asc(productBatches.expiryDate)); // FIFO: Älteste Batches zuerst
       
       return {
         ...inventory,
@@ -1041,8 +1044,8 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
       .where(eq(productBatches.id, batchId))
       .returning();
     
-    // Lagerbestand aktualisieren
-    await this.updateProductStock(batch.warehouseId, batch.productId, quantityChange);
+    // FIXED: Batch-Updates sollen nicht automatisch Normal-Bestand ändern
+    // await this.updateProductStock(batch.warehouseId, batch.productId, quantityChange);
     
     return updatedBatch;
   }
@@ -1133,6 +1136,51 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
     } catch (error) {
       console.error("Fehler beim Ausbuchen abgelaufener Chargen:", error);
     }
+  }
+
+  /**
+   * FIFO-Batch-Auswahl: Wählt automatisch die ältesten verfügbaren Batches
+   * für eine gegebene Menge aus (First In, First Out)
+   */
+  async selectFIFOBatches(warehouseId: number, productId: number, requestedQuantity: number): Promise<{batches: any[], totalAvailable: number}> {
+    // Alle verfügbaren Batches des Produkts abrufen, sortiert nach Ablaufdatum (FIFO)
+    const availableBatches = await db
+      .select()
+      .from(productBatches)
+      .where(and(
+        eq(productBatches.warehouseId, warehouseId),
+        eq(productBatches.productId, productId),
+        gt(productBatches.currentQuantity, 0) // Nur Batches mit Bestand
+      ))
+      .orderBy(asc(productBatches.expiryDate)); // FIFO: Älteste zuerst
+
+    let remainingQuantity = requestedQuantity;
+    let totalAvailable = 0;
+    const selectedBatches = [];
+
+    // Gesamtverfügbare Menge berechnen
+    for (const batch of availableBatches) {
+      totalAvailable += batch.currentQuantity;
+    }
+
+    // Batches auswählen bis die gewünschte Menge erreicht ist
+    for (const batch of availableBatches) {
+      if (remainingQuantity <= 0) break;
+
+      const quantityFromThisBatch = Math.min(remainingQuantity, batch.currentQuantity);
+      
+      selectedBatches.push({
+        ...batch,
+        allocatedQuantity: quantityFromThisBatch
+      });
+
+      remainingQuantity -= quantityFromThisBatch;
+    }
+
+    return {
+      batches: selectedBatches,
+      totalAvailable
+    };
   }
   
   // ---- INVENTORY MOVEMENTS ----
@@ -1843,8 +1891,19 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
     const stockBefore = inventory?.quantity || 0;
     let totalMovements = [];
     
-    // Überprüfen, ob genügend Bestand im zugeordneten Lager vorhanden ist
-    if (stockBefore < data.quantity) {
+    // ENHANCED: Verfügbare Batch-Bestände prüfen
+    const fifoResult = await this.selectFIFOBatches(refill.warehouseId, data.productId, data.quantity);
+    const totalAvailableInBatches = fifoResult.totalAvailable;
+    const totalAvailableStock = stockBefore + totalAvailableInBatches;
+    
+    console.log(`Bestandsprüfung für Produkt ${data.productId} in Lager ${refill.warehouseId}:`);
+    console.log(`- Normal-Bestand: ${stockBefore}`);
+    console.log(`- Batch-Bestand: ${totalAvailableInBatches}`);
+    console.log(`- Gesamt verfügbar: ${totalAvailableStock}`);
+    console.log(`- Benötigt: ${data.quantity}`);
+    
+    // Überprüfen, ob genügend Bestand im zugeordneten Lager vorhanden ist (inkl. Batches)
+    if (totalAvailableStock < data.quantity) {
       const shortage = data.quantity - stockBefore;
       
       console.log(`Nicht genügend Bestand im Lager ${refill.warehouseId}. Benötigt: ${data.quantity}, Verfügbar: ${stockBefore}, Fehlmenge: ${shortage}`);
@@ -1903,19 +1962,49 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
         });
       }
     } else {
-      // Vollständige Entnahme aus zugeordnetem Lager
-      await this.updateProductStock(refill.warehouseId, data.productId, -data.quantity);
+      // Vollständige Entnahme möglich - verwende FIFO-Batches zuerst
+      let remainingQuantity = data.quantity;
       
-      totalMovements.push({
-        source: `Zugeordnetes Lager (${refill.warehouseId})`,
-        quantity: data.quantity
-      });
+      // 1. Zuerst aus verfügbaren Batches entnehmen (FIFO)
+      if (fifoResult.batches.length > 0) {
+        console.log(`Verwende FIFO-Batches für ${remainingQuantity} Einheiten`);
+        
+        for (const batch of fifoResult.batches) {
+          const quantityFromBatch = Math.min(remainingQuantity, batch.allocatedQuantity);
+          
+          await this.updateBatchStock(batch.id, -quantityFromBatch);
+          
+          console.log(`FIFO: Entnahme von ${quantityFromBatch} aus Batch ${batch.batchNumber} (MHD: ${batch.expiryDate})`);
+          
+          totalMovements.push({
+            source: `Batch ${batch.batchNumber} (${refill.warehouseId})`,
+            quantity: quantityFromBatch,
+            batchId: batch.id,
+            expiryDate: batch.expiryDate
+          });
+          
+          remainingQuantity -= quantityFromBatch;
+          
+          if (remainingQuantity <= 0) break;
+        }
+      }
+      
+      // 2. Restliche Menge aus Normal-Bestand entnehmen (falls nötig)
+      if (remainingQuantity > 0 && stockBefore > 0) {
+        const quantityFromNormal = Math.min(remainingQuantity, stockBefore);
+        
+        await this.updateProductStock(refill.warehouseId, data.productId, -quantityFromNormal);
+        
+        totalMovements.push({
+          source: `Normal-Bestand (${refill.warehouseId})`,
+          quantity: quantityFromNormal
+        });
+        
+        console.log(`Entnahme von ${quantityFromNormal} aus Normal-Bestand`);
+      }
     }
     
-    // Batch-Bestand reduzieren (falls anwendbar)
-    if (data.batchId) {
-      await this.updateBatchStock(data.batchId, -data.quantity);
-    }
+    // FIFO-Logik wurde bereits oben in der Entnahmelogik verarbeitet
     
     // Aktuellen Bestand nach der Änderung abrufen
     const [updatedInventory] = await db
