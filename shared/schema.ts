@@ -112,6 +112,7 @@ export const syncLocks = pgTable("sync_locks", {
 export const syncLogs = pgTable("sync_logs", {
   id: serial("id").primaryKey(),
   syncType: varchar("sync_type", { length: 50 }).notNull(),
+  serviceType: varchar("service_type", { length: 50 }),
   startDate: timestamp("start_date").defaultNow().notNull(),
   endDate: timestamp("end_date"),
   itemsFound: integer("items_found"),
