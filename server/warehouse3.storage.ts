@@ -1886,6 +1886,21 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
       if (!refill) {
         throw new Error(`Refill mit ID ${data.refillId} nicht gefunden`);
       }
+
+      // ASSIGNMENT-VALIDATION: Überprüfen ob Maschine dem Lager zugeordnet ist
+      const [assignment] = await tx
+        .select()
+        .from(machineWarehouseAssignments)
+        .where(and(
+          eq(machineWarehouseAssignments.machineId, refill.machineId),
+          eq(machineWarehouseAssignments.warehouseId, refill.warehouseId)
+        ));
+      
+      if (!assignment) {
+        throw new Error(`Maschine ${refill.machineId} ist nicht dem Lager ${refill.warehouseId} zugeordnet. Assignment-Überprüfung fehlgeschlagen.`);
+      }
+
+      console.log(`✅ Assignment-Validation erfolgreich: Maschine ${refill.machineId} → Lager ${refill.warehouseId}`);
       
       // Konstante für Hauptlager (Bahnhof)
       const MAIN_WAREHOUSE_ID = 3;
