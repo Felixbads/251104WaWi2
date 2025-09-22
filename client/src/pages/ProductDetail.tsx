@@ -40,6 +40,13 @@ export default function ProductDetail() {
     staleTime: 1000 * 60, // 1 Minute
   });
 
+  // Detaillierte Produktdaten mit Chargen und Bewegungen
+  const { data: productDetail, isLoading: isDetailLoading } = useQuery({
+    queryKey: [`/api/products/${id}/detail`],
+    staleTime: 1000 * 30, // 30 Sekunden
+    enabled: !!id, // Nur ausführen wenn ID vorhanden
+  });
+
   // Mutation zum Aktualisieren des Produkts
   const updateProductMutation = useMutation({
     mutationFn: async (updatedProduct: Partial<Product>) => {
@@ -339,6 +346,10 @@ export default function ProductDetail() {
             <TabsTrigger value="prognose" className="flex items-center gap-1 px-3 py-2 text-xs sm:text-sm whitespace-nowrap">
               <TrendingUp className="h-3 w-3 sm:h-4 sm:w-4" />
               <span>Prognose</span>
+            </TabsTrigger>
+            <TabsTrigger value="batch-details" className="flex items-center gap-1 px-3 py-2 text-xs sm:text-sm whitespace-nowrap">
+              <Package2 className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span>Chargen & Bewegungen</span>
             </TabsTrigger>
           </TabsList>
         </div>
@@ -982,6 +993,210 @@ export default function ProductDetail() {
         {/* Forecast Tab */}
         <TabsContent value="prognose" className="space-y-6 mt-6">
           <ProductForecastView productId={parseInt(id!)} productName={product.productName} />
+        </TabsContent>
+
+        {/* Batch Details & Movements Tab */}
+        <TabsContent value="batch-details" className="space-y-6 mt-6">
+          {isDetailLoading ? (
+            <div className="flex justify-center items-center py-12">
+              <div className="animate-pulse space-y-4 w-full">
+                <div className="h-8 bg-gray-200 rounded w-1/3"></div>
+                <div className="space-y-3">
+                  <div className="h-4 bg-gray-200 rounded"></div>
+                  <div className="h-4 bg-gray-200 rounded w-5/6"></div>
+                </div>
+              </div>
+            </div>
+          ) : productDetail?.data ? (
+            <div className="space-y-6">
+              {/* Product Header Section */}
+              <Card>
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-4 h-6 bg-green-500 rounded-sm"></div>
+                      <div>
+                        <h2 className="text-lg font-semibold">
+                          {productDetail.data.header.productName}
+                        </h2>
+                        <p className="text-sm text-gray-600">
+                          {productDetail.data.header.category} • {productDetail.data.header.totals.onHandWarehouse} • {productDetail.data.header.totals.inMachines} • 0
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <span className="text-sm text-gray-500">
+                        {productDetail.data.header.lastMovementAt ? 
+                          new Date(productDetail.data.header.lastMovementAt).toLocaleDateString('de-DE') : 
+                          'Kein Datum'
+                        }
+                      </span>
+                      <Badge variant="outline" className="text-green-600 border-green-200 bg-green-50">
+                        Auf Lager
+                      </Badge>
+                    </div>
+                  </div>
+                </CardHeader>
+              </Card>
+
+              {/* Chargen Section */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Chargen</CardTitle>
+                  <div className="text-sm text-gray-600">
+                    <span 
+                      className="text-blue-600 hover:text-blue-800 cursor-pointer"
+                      data-testid="link-movements-history"
+                    >
+                      Detailansicht mit Bewegungshistorie
+                    </span>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {productDetail.data.batches.length > 0 ? (
+                    <div className="space-y-4">
+                      {productDetail.data.batches.map((batch) => (
+                        <div key={batch.batchId} className="border rounded-lg p-4 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium">Batch Nr.</span>
+                            <span className="text-sm text-gray-500">MHD</span>
+                            <span className="text-sm text-gray-500">Eingangsdatum</span>
+                            <span className="text-sm text-gray-500">Menge</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span 
+                              className="text-sm font-mono bg-gray-100 px-2 py-1 rounded"
+                              data-testid={`batch-number-${batch.batchNumber}`}
+                            >
+                              {batch.batchNumber}
+                            </span>
+                            <span 
+                              className={`text-sm ${
+                                batch.expiryStatus === 'expired' ? 'text-red-600' :
+                                batch.expiryStatus === 'warning' ? 'text-orange-600' :
+                                batch.expiryStatus === 'attention' ? 'text-yellow-600' :
+                                'text-gray-600'
+                              }`}
+                              data-testid={`batch-expiry-${batch.batchNumber}`}
+                            >
+                              {batch.expiryDate ? 
+                                new Date(batch.expiryDate).toLocaleDateString('de-DE') : 
+                                'Kein MHD'
+                              }
+                            </span>
+                            <span className="text-sm text-gray-600">
+                              {batch.receivedDate ? 
+                                new Date(batch.receivedDate).toLocaleDateString('de-DE') : 
+                                'Unbekannt'
+                              }
+                            </span>
+                            <span className="text-sm font-medium" data-testid={`batch-quantity-${batch.batchNumber}`}>
+                              {batch.qtyAvailable}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-500">Keine Chargen verfügbar</p>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Warenbewegungen Section */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Warenbewegungen</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {productDetail.data.movements.data.length > 0 ? (
+                    <div className="space-y-3">
+                      {productDetail.data.movements.data.map((movement) => (
+                        <div 
+                          key={movement.id} 
+                          className="flex items-center justify-between py-3 border-b border-gray-100 last:border-b-0"
+                          data-testid={`movement-${movement.id}`}
+                        >
+                          <div className="flex items-center space-x-3">
+                            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs text-white ${
+                              movement.typeDisplay === 'Refill' ? 'bg-blue-500' :
+                              movement.typeDisplay === 'Wareneingang' ? 'bg-green-500' :
+                              movement.typeDisplay === 'Transfer' ? 'bg-orange-500' :
+                              'bg-gray-500'
+                            }`}>
+                              {movement.typeDisplay === 'Refill' ? '↗' :
+                               movement.typeDisplay === 'Wareneingang' ? '⬇' :
+                               movement.typeDisplay === 'Transfer' ? '⇄' : '•'}
+                            </div>
+                            <div>
+                              <div className="flex items-center space-x-2">
+                                <span className="text-sm font-medium">{movement.typeDisplay}</span>
+                                <span 
+                                  className={`text-sm font-semibold ${
+                                    movement.quantity < 0 ? 'text-red-600' : 'text-green-600'
+                                  }`}
+                                  data-testid={`movement-quantity-${movement.id}`}
+                                >
+                                  {movement.quantity < 0 ? '' : '+'}{movement.quantity} Stück
+                                </span>
+                              </div>
+                              <div className="text-xs text-gray-500 flex items-center space-x-2">
+                                {movement.warehouseName && (
+                                  <span>→ {movement.warehouseName}</span>
+                                )}
+                                {movement.machineName && (
+                                  <span>| Befüller: {movement.userName || 'System'}</span>
+                                )}
+                                {movement.machineName && (
+                                  <span>• Automat: {movement.machineName}</span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-sm text-gray-600">
+                              {movement.performedAt ? 
+                                new Date(movement.performedAt).toLocaleDateString('de-DE', {
+                                  day: '2-digit',
+                                  month: '2-digit',
+                                  year: 'numeric'
+                                }) : 
+                                'Kein Datum'
+                              }
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              {movement.performedAt ? 
+                                new Date(movement.performedAt).toLocaleTimeString('de-DE', {
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                }) : 
+                                ''
+                              }
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                      
+                      {/* More movements indicator */}
+                      {productDetail.data.movements.pagination.total > productDetail.data.movements.data.length && (
+                        <div className="text-center py-3 border-t">
+                          <span className="text-sm text-gray-500">
+                            ... und {productDetail.data.movements.pagination.total - productDetail.data.movements.data.length} weitere Bewegungen
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-500">Keine Warenbewegungen verfügbar</p>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          ) : (
+            <div className="text-center py-12">
+              <p className="text-gray-500">Detaillierte Daten konnten nicht geladen werden</p>
+            </div>
+          )}
         </TabsContent>
       </Tabs>
 
