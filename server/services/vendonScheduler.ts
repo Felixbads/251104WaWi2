@@ -41,12 +41,14 @@ class VendonScheduler {
 
     console.log('Vendon Scheduler started - syncing every 10 minutes');
 
+    // DEAKTIVIERT: Historical backfill blockiert Live-Sync und verursacht alte Daten!
     // Start historical backfill in the background (only once)
-    if (!this.historicalBackfillCompleted) {
-      this.performHistoricalBackfill().catch(error => {
-        console.error('Historical backfill failed:', error);
-      });
-    }
+    console.log('⚠️ Historical backfill DEAKTIVIERT - verhindert frische Daten!');
+    // if (!this.historicalBackfillCompleted) {
+    //   this.performHistoricalBackfill().catch(error => {
+    //     console.error('Historical backfill failed:', error);
+    //   });
+    // }
   }
 
   /**
