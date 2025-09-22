@@ -2093,6 +2093,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         rawDb.query(countQuery, countParams)
       ]);
 
+      // DEBUG: Log query results for refill tracking debug
+      if (productId === 84 || productId === 56 || productId === 48) {
+        console.log(`[PRODUCT-DETAIL DEBUG] Product ${productId}:`);
+        console.log(`[PRODUCT-DETAIL DEBUG] Total movements found: ${movementsResult.rows.length}`);
+        console.log(`[PRODUCT-DETAIL DEBUG] Refill movements:`, 
+          movementsResult.rows.filter(row => 
+            row.movement_type_display && row.movement_type_display.toLowerCase().includes('refill')
+          ).map(row => ({
+            id: row.id,
+            movement_type: row.movement_type,
+            reference_type: row.reference_type,
+            movement_type_display: row.movement_type_display,
+            performed_at: row.performed_at,
+            actor: row.user_name
+          }))
+        );
+      }
+
       // 6. Get filter metadata (warehouses, machines, movement types)
       const metaQuery = `
         SELECT 
