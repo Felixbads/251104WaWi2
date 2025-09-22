@@ -109,4 +109,66 @@ router.get('/batches/:orderId', async (req, res) => {
   }
 });
 
+// GET /api/inventory-batches/product/:productId/warehouse/:warehouseId - Get batches for product in warehouse with FIFO sorting
+router.get('/product/:productId/warehouse/:warehouseId', async (req, res) => {
+  try {
+    const productId = parseInt(req.params.productId);
+    const warehouseId = parseInt(req.params.warehouseId);
+    const excludeExpired = req.query.excludeExpired === 'true';
+    
+    console.log(`[INVENTORY-BATCHES] Getting batches for product ${productId} in warehouse ${warehouseId}, excludeExpired: ${excludeExpired}`);
+    
+    // Build the WHERE clause for expiry filtering
+    let whereClause = 'pb.product_id = $1 AND pb.warehouse_id = $2';
+    if (excludeExpired) {
+      whereClause += ' AND (pb.expiry_date IS NULL OR pb.expiry_date > CURRENT_DATE)';
+    }
+    
+    const result = await pool.query(`
+      SELECT 
+        pb.id,
+        pb.product_id as "productId",
+        pb.warehouse_id as "warehouseId",
+        pb.batch_number as "batchNumber",
+        pb.current_quantity as "currentQuantity",
+        pb.initial_quantity as "initialQuantity",
+        pb.expiry_date as "expiryDate",
+        pb.received_date as "receivedDate",
+        pb.location_in_warehouse as "locationInWarehouse",
+        pb.status,
+        pb.created_at as "createdAt",
+        p.product_name as "productName",
+        -- Calculate expiry status and days until expiry
+        CASE 
+          WHEN pb.expiry_date IS NULL THEN 'no_expiry'
+          WHEN pb.expiry_date < CURRENT_DATE THEN 'expired'
+          WHEN pb.expiry_date <= CURRENT_DATE + INTERVAL '3 days' THEN 'critical'
+          WHEN pb.expiry_date <= CURRENT_DATE + INTERVAL '7 days' THEN 'warning'
+          WHEN pb.expiry_date <= CURRENT_DATE + INTERVAL '14 days' THEN 'attention'
+          ELSE 'good'
+        END as "expiryStatus",
+        CASE 
+          WHEN pb.expiry_date IS NULL THEN NULL
+          ELSE (pb.expiry_date - CURRENT_DATE)::integer
+        END as "daysUntilExpiry"
+      FROM product_batches pb
+      JOIN products p ON pb.product_id = p.id
+      WHERE ${whereClause}
+      ORDER BY 
+        pb.expiry_date ASC NULLS LAST,
+        pb.created_at ASC
+    `, [productId, warehouseId]);
+
+    console.log(`[INVENTORY-BATCHES] Found ${result.rows.length} batches for product ${productId} in warehouse ${warehouseId}`);
+    
+    return res.json(result.rows);
+  } catch (error) {
+    console.error('Fehler beim Abrufen der Produkt-Chargen:', error);
+    return res.status(500).json({
+      error: 'Datenbankfehler',
+      message: error.message
+    });
+  }
+});
+
 export default router;

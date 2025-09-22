@@ -2470,8 +2470,8 @@ app.get('/orders-data', (req, res) => {
 
   // Register inventory-count-batches router - FIX: separate path to avoid conflict with inventoryRouter
   app.use('/api/inventory-count-batches', inventoryCountBatchesRouter);
-  // Also register at /api/inventory-batches for compatibility with frontend expectations
-  app.use('/api/inventory-batches', inventoryCountBatchesRouter);
+  // Register inventory-batches router with FIFO sorting and proper product batches
+  app.use('/api/inventory-batches', inventoryBatchesRouter);
   
 
   
