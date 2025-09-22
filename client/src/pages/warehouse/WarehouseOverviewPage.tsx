@@ -17,13 +17,14 @@ const TabsContent = TabsContentBase;
 const TabsList = TabsListBase;
 const TabsTrigger = TabsTriggerBase;
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Building2, Package, ArrowDown, ArrowUp, AlertTriangle, Plus } from 'lucide-react';
+import { Building2, Package, ArrowDown, ArrowUp, AlertTriangle, Plus, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Link } from 'wouter';
 import { WarehouseFormDialog } from '@/components/inventory/WarehouseFormDialog';
+import WarehouseWithdrawals from '@/components/inventory/WarehouseWithdrawals';
 
 /**
  * Hauptseite für die Lagerbestandsübersicht
@@ -235,6 +236,10 @@ export default function WarehouseOverviewPage() {
         <TabsList className="mb-2">
           <TabsTrigger value="cards">Karten-Ansicht</TabsTrigger>
           <TabsTrigger value="table">Tabellen-Ansicht</TabsTrigger>
+          <TabsTrigger value="withdrawals" className="flex items-center gap-2">
+            <Users className="h-4 w-4" />
+            Entnahmen-Übersicht
+          </TabsTrigger>
         </TabsList>
         
         <TabsContent value="cards">
@@ -368,6 +373,10 @@ export default function WarehouseOverviewPage() {
               </tbody>
             </table>
           </div>
+        </TabsContent>
+
+        <TabsContent value="withdrawals">
+          <WarehouseWithdrawals />
         </TabsContent>
       </Tabs>
 

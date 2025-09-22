@@ -49,8 +49,8 @@ interface Warehouse {
 
 export default function WarehouseWithdrawals() {
   const [searchTerm, setSearchTerm] = useState('');
-  const [warehouseFilter, setWarehouseFilter] = useState('');
-  const [userFilter, setUserFilter] = useState('');
+  const [warehouseFilter, setWarehouseFilter] = useState('all');
+  const [userFilter, setUserFilter] = useState('all');
   const [dateRange, setDateRange] = useState('7'); // Tage
   
   // Lade Lager-Entnahmen (nur OUT-Bewegungen)
@@ -71,10 +71,11 @@ export default function WarehouseWithdrawals() {
   });
 
   // Lade Lagerdaten für das Dropdown
-  const { data: warehouses = [] } = useQuery({
+  const { data: warehousesResponse } = useQuery({
     queryKey: ['/api/warehouses'],
     staleTime: 1000 * 60 * 5, // 5 Minuten
   });
+  const warehouses = warehousesResponse?.data || [];
   
   // Suche und Filterung
   const filteredWithdrawals = Array.isArray(withdrawals) ? withdrawals.filter((movement: WithdrawalMovement) => {
@@ -83,9 +84,9 @@ export default function WarehouseWithdrawals() {
        movement.machineName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
        movement.actorUsernameSnapshot?.toLowerCase().includes(searchTerm.toLowerCase()));
       
-    const matchesWarehouse = !warehouseFilter || movement.sourceWarehouseId === parseInt(warehouseFilter);
+    const matchesWarehouse = warehouseFilter === "all" || !warehouseFilter || movement.sourceWarehouseId === parseInt(warehouseFilter);
     
-    const matchesUser = !userFilter || 
+    const matchesUser = userFilter === "all" || !userFilter || 
       (movement.actorUsernameSnapshot?.toLowerCase().includes(userFilter.toLowerCase()));
     
     return matchesSearch && matchesWarehouse && matchesUser;
@@ -236,7 +237,7 @@ export default function WarehouseWithdrawals() {
                 <SelectValue placeholder="Alle Lager" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Alle Lager</SelectItem>
+                <SelectItem value="all">Alle Lager</SelectItem>
                 {warehouses.map((warehouse: Warehouse) => (
                   <SelectItem key={warehouse.id} value={warehouse.id.toString()}>
                     {warehouse.name}
@@ -251,7 +252,7 @@ export default function WarehouseWithdrawals() {
                 <SelectValue placeholder="Alle Benutzer" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Alle Benutzer</SelectItem>
+                <SelectItem value="all">Alle Benutzer</SelectItem>
                 {uniqueUsers.map((user: string) => (
                   <SelectItem key={user} value={user}>
                     {user}
@@ -278,8 +279,8 @@ export default function WarehouseWithdrawals() {
               variant="outline" 
               onClick={() => {
                 setSearchTerm('');
-                setWarehouseFilter('');
-                setUserFilter('');
+                setWarehouseFilter('all');
+                setUserFilter('all');
                 setDateRange('7');
               }}
               className="flex items-center gap-2"
