@@ -343,16 +343,35 @@ router.get('/product/:productId/warehouse/:warehouseId', async (req: Request, re
   try {
     const productId = parseInt(req.params.productId);
     const warehouseId = parseInt(req.params.warehouseId);
+    const excludeExpired = req.query.excludeExpired !== 'false'; // Default true - abgelaufene Batches ausblenden
     
     if (!productId || isNaN(productId) || !warehouseId || isNaN(warehouseId)) {
       return res.status(400).json({ error: "Valid Product ID and Warehouse ID are required" });
     }
     
-    // Hole alle aktiven Batches für das Produkt im spezifizierten Lager
+    // Dynamische WHERE clause basierend auf excludeExpired Parameter
+    const expiredCondition = excludeExpired 
+      ? `AND (pb.expiry_date IS NULL OR pb.expiry_date > CURRENT_DATE)` 
+      : '';
+    
+    // Hole Batches für das Produkt im spezifizierten Lager
     const query = `
       SELECT 
         pb.*,
-        p.product_name as product_name
+        p.product_name as product_name,
+        -- Expiry status calculation für FIFO sorting
+        CASE 
+          WHEN pb.expiry_date IS NULL THEN 'no_expiry'
+          WHEN pb.expiry_date <= CURRENT_DATE THEN 'expired'
+          WHEN pb.expiry_date <= CURRENT_DATE + INTERVAL '7 days' THEN 'warning'
+          WHEN pb.expiry_date <= CURRENT_DATE + INTERVAL '30 days' THEN 'attention'
+          ELSE 'good'
+        END as expiry_status,
+        -- Days until expiry für Frontend-Anzeige
+        CASE 
+          WHEN pb.expiry_date IS NULL THEN NULL
+          ELSE pb.expiry_date - CURRENT_DATE
+        END as days_until_expiry
       FROM 
         product_batches pb
       JOIN 
@@ -361,13 +380,15 @@ router.get('/product/:productId/warehouse/:warehouseId', async (req: Request, re
         pb.product_id = $1
         AND pb.warehouse_id = $2
         AND pb.status = 'active'
+        AND pb.current_quantity > 0
+        ${expiredCondition}
       ORDER BY 
-        pb.expiry_date ASC NULLS LAST
+        pb.expiry_date ASC NULLS LAST, pb.created_at ASC
     `;
     
     const batchesResult = await rawDb.query(query, [productId, warehouseId]);
     
-    // Formatiere das Ergebnis
+    // Formatiere das Ergebnis mit erweiterten Expiry-Informationen
     const batches = batchesResult.rows.map((row: any) => ({
       id: row.id,
       batchNumber: row.batch_number,
@@ -380,11 +401,14 @@ router.get('/product/:productId/warehouse/:warehouseId', async (req: Request, re
       notes: row.notes,
       locationInWarehouse: row.location_in_warehouse,
       status: row.status,
+      expiryStatus: row.expiry_status, // expired, warning, attention, good, no_expiry
+      daysUntilExpiry: row.days_until_expiry, // Tage bis Ablauf (kann negativ sein)
       createdAt: row.created_at,
       updatedAt: row.updated_at,
       productName: row.product_name || null
     }));
     
+    console.log(`Found ${batches.length} batches for product ${productId} in warehouse ${warehouseId} (excludeExpired: ${excludeExpired})`);
     res.status(200).json(batches);
   } catch (error) {
     console.error("Error fetching product batches:", error);
