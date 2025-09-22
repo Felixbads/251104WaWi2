@@ -420,6 +420,88 @@ export class VendonAPI {
       return null;
     }
   }
+
+  /**
+   * Holt Refills für einen Zeitraum mit robusten Fallback-Strategien
+   * @param startDate Startdatum (optional)
+   * @param endDate Enddatum (optional)
+   * @returns Refill-Daten oder null im Fehlerfall
+   */
+  async getRefills(startDate?: Date, endDate?: Date): Promise<any[] | null> {
+    console.log('🔄 [VENDON API] Fetching refills with robust fallback strategies...');
+    
+    const effectiveStartDate = startDate || new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+    const effectiveEndDate = endDate || new Date();
+    
+    try {
+      console.log(`🔍 Refills API Test von ${effectiveStartDate.toISOString()} bis ${effectiveEndDate.toISOString()}`);
+      
+      // Versuch 1: Mit Zeitstempel (bevorzugte Methode)
+      try {
+        const fromTimestamp = Math.floor(effectiveStartDate.getTime() / 1000);
+        const toTimestamp = Math.floor(effectiveEndDate.getTime() / 1000);
+        
+        console.log(`[VENDON API] Versuch 1: /refills mit timestamps (${fromTimestamp} - ${toTimestamp})`);
+        const result = await this.request('/refills', {
+          from_timestamp: fromTimestamp,
+          to_timestamp: toTimestamp,
+          limit: 2000,
+          offset: 0
+        });
+        
+        if (result && Array.isArray(result)) {
+          console.log(`✅ /refills mit Zeitstempel erfolgreich: ${result.length} Refills`);
+          return result;
+        }
+      } catch (err1) {
+        console.log('⚠️ /refills mit Zeitstempel fehlgeschlagen:', err1 instanceof Error ? err1.message : String(err1));
+      }
+      
+      // Versuch 2: Mit Datumsstring (Fallback)
+      try {
+        const fromStr = effectiveStartDate.toISOString().split('T')[0];
+        const toStr = effectiveEndDate.toISOString().split('T')[0];
+        
+        console.log(`[VENDON API] Versuch 2: /refills mit Datumsstrings (${fromStr} - ${toStr})`);
+        const result = await this.request('/refills', {
+          from_date: fromStr,
+          to_date: toStr,
+          limit: 2000,
+          offset: 0
+        });
+        
+        if (result && Array.isArray(result)) {
+          console.log(`✅ /refills mit Datumsstring erfolgreich: ${result.length} Refills`);
+          return result;
+        }
+      } catch (err2) {
+        console.log('⚠️ /refills mit Datumsstring fehlgeschlagen:', err2 instanceof Error ? err2.message : String(err2));
+      }
+      
+      // Versuch 3: Ohne Zeitfilter (letzter Fallback)
+      try {
+        console.log(`[VENDON API] Versuch 3: /refills ohne Zeitfilter`);
+        const result = await this.request('/refills', {
+          limit: 2000,
+          offset: 0
+        });
+        
+        if (result && Array.isArray(result)) {
+          console.log(`✅ /refills ohne Zeitfilter erfolgreich: ${result.length} Refills`);
+          return result;
+        }
+      } catch (err3) {
+        console.log('⚠️ /refills ohne Zeitfilter fehlgeschlagen:', err3 instanceof Error ? err3.message : String(err3));
+      }
+      
+      console.warn('❌ Alle Refills-Parameter fehlgeschlagen');
+      return null;
+      
+    } catch (error) {
+      console.error('❌ Fehler beim Abrufen der Refills:', error);
+      return null;
+    }
+  }
 }
 
 /**
