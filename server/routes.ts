@@ -2014,10 +2014,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           im.notes,
           CASE 
             WHEN im.reference_type = 'GOODS_RECEIPT' THEN 'Wareneingang'
-            WHEN im.reference_type = 'REFILL' THEN 'Refill'
-            WHEN im.reference_type = 'TRANSFER' THEN 'Transfer'
-            WHEN im.reference_type = 'ADJUSTMENT' THEN 'Anpassung'
-            WHEN im.reference_type = 'DISPOSAL' THEN 'Entsorgung'
+            WHEN im.reference_type = 'REFILL' OR im.movement_type = 'REFILL' THEN 'Refill'
+            WHEN im.reference_type = 'TRANSFER' OR im.movement_type = 'TRANSFER' THEN 'Transfer'
+            WHEN im.reference_type = 'ADJUSTMENT' OR im.movement_type = 'ADJUSTMENT' THEN 'Anpassung'
+            WHEN im.reference_type = 'DISPOSAL' OR im.movement_type = 'DISPOSAL' THEN 'Entsorgung'
+            WHEN im.movement_type = 'SALE' OR im.reference_type = 'transaction' THEN 'Verkauf'
+            WHEN im.movement_type = 'IN' OR im.reference_type = 'order' THEN 'Wareneingang'
+            WHEN im.movement_type = 'OUT' THEN 'Ausgang'
             ELSE COALESCE(im.reference_type, im.movement_type)
           END as movement_type_display
         FROM inventory_movements im
@@ -2050,7 +2053,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       movementsQuery += `
-        ORDER BY im.performed_at DESC
+        ORDER BY COALESCE(im.performed_at, im.created_at) DESC
         LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}
       `;
       movementParams.push(limit, offset);
