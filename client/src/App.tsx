@@ -100,6 +100,7 @@ import Lagerhaltung from "@/pages/Lagerhaltung";
 import LagerNew from "@/pages/LagerNew";
 import WarehouseDetail from "@/pages/WarehouseDetail";
 import WarehouseDetailPage from "@/pages/WarehouseDetailPage";
+import WarehouseDetailV3 from "@/pages/Warehouse3/WarehouseDetail";
 import WarehouseMovements from "@/pages/WarehouseMovements";
 import WarenentnahmePage from "@/pages/WarenentnahmePage";
 import WarenentnahmeDetail from "@/pages/WarenentnahmeDetail";
@@ -403,6 +404,13 @@ function AuthenticatedRouter() {
         <Route path="/lager">
           <ApprovedUserRoute>
             <LagerV2 />
+          </ApprovedUserRoute>
+        </Route>
+
+        {/* WAREHOUSE V3 DETAIL ROUTE */}
+        <Route path="/lager/:id">
+          <ApprovedUserRoute>
+            <WarehouseDetailV3 />
           </ApprovedUserRoute>
         </Route>
 

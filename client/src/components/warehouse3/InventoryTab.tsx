@@ -359,7 +359,8 @@ export default function InventoryTab({ warehouseId }: InventoryTabProps) {
   const totalPages = Math.ceil(data.total / itemsPerPage);
 
   return (
-    <Card>
+    <>
+      <Card>
       <CardHeader>
         <CardTitle>Lagerbestand</CardTitle>
         <CardDescription>
@@ -625,5 +626,6 @@ export default function InventoryTab({ warehouseId }: InventoryTabProps) {
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
+    </>
   );
 }

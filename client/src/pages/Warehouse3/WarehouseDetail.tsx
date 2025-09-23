@@ -48,14 +48,14 @@ export default function WarehouseDetail() {
   
   // Lager-Daten abrufen
   const { data: warehouse, isLoading, isError, error } = useQuery({
-    queryKey: ['/api/warehouse3-api/warehouses', warehouseId],
+    queryKey: ['/api/warehouse3/warehouses', warehouseId],
     retry: 1,
     enabled: !isNaN(warehouseId),
   });
 
-  // Zusammenfassende Statistiken abrufen
+  // Zusammenfassende Statistiken abrufen  
   const { data: stats, isLoading: isLoadingStats } = useQuery({
-    queryKey: ['/api/warehouse3-api/warehouses', warehouseId, 'stats'],
+    queryKey: ['/api/warehouse3/warehouses', warehouseId, 'stats'],
     retry: 1,
     enabled: !isNaN(warehouseId) && !!warehouse,
   });
@@ -63,12 +63,12 @@ export default function WarehouseDetail() {
   // Funktion zur Aktualisierung eines Lagers
   const handleUpdateWarehouse = async (warehouseData: any) => {
     try {
-      await apiRequest(`/api/warehouse3-api/warehouses/${warehouseId}`, {
+      await apiRequest(`/api/warehouse3/warehouses/${warehouseId}`, {
         method: 'PATCH',
         data: warehouseData,
       });
       
-      queryClient.invalidateQueries({ queryKey: ['/api/warehouse3-api/warehouses', warehouseId] });
+      queryClient.invalidateQueries({ queryKey: ['/api/warehouse3/warehouses', warehouseId] });
       setIsEditDialogOpen(false);
       toast({
         title: "Lager aktualisiert",

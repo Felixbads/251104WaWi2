@@ -409,7 +409,8 @@ export default function RefillsTab({ warehouseId }: RefillsTabProps) {
   const totalPages = Math.ceil(data.total / itemsPerPage);
 
   return (
-    <Card>
+    <>
+      <Card>
       <CardHeader>
         <CardTitle>Auffüllungen</CardTitle>
         <CardDescription>
@@ -722,5 +723,6 @@ export default function RefillsTab({ warehouseId }: RefillsTabProps) {
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
+    </>
   );
 }
