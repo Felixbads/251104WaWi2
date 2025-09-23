@@ -271,7 +271,7 @@ router.get("/warehouses/:id/stats", async (req, res) => {
 
     // Produkte im Lager zählen
     const productCountResult = await pool.query(
-      `SELECT COUNT(*) FROM product_inventory WHERE warehouse_id = $1`,
+      `SELECT COUNT(*) FROM inventory_items WHERE warehouse_id = $1`,
       [warehouseId]
     );
     const productCount = parseInt(productCountResult.rows[0]?.count) || 0;
