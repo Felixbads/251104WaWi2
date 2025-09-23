@@ -335,16 +335,16 @@ router.get("/warehouses/:id/stats", async (req, res) => {
     const assignedMachinesResult = await pool.query(
       `SELECT 
         m.id,
-        m.name as "machineName",
-        COUNT(DISTINCT sl.product_id) as "productCount",
+        m.machine_name as "machineName",
+        COUNT(DISTINCT ms.product_vendon_id) as "productCount",
         0 as "pendingRefills",
         false as "needsRefill"
        FROM machine_warehouse_assignments mwa
        JOIN machines m ON mwa.machine_id = m.id
-       LEFT JOIN machine_slots sl ON m.id = sl.machine_id
+       LEFT JOIN machine_stocks ms ON m.id = ms.machine_id
        WHERE mwa.warehouse_id = $1
-       GROUP BY m.id, m.name
-       ORDER BY m.name
+       GROUP BY m.id, m.machine_name
+       ORDER BY m.machine_name
        LIMIT 10`,
       [warehouseId]
     );
