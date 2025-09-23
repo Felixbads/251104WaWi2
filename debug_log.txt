@@ -14444,3 +14444,15 @@ DATA: {
 
 [2025-09-23T10:05:38.797Z] [LagerService] Fetching lager overview
 
+[2025-09-23T10:12:59.263Z] [LagerAPI] Fetching lager overview
+
+[2025-09-23T10:12:59.263Z] [LagerService] Fetching lager overview
+
+[2025-09-23T10:13:34.158Z] [LagerAPI] Fetching lager overview
+
+[2025-09-23T10:13:34.159Z] [LagerService] Fetching lager overview
+
+[2025-09-23T10:14:00.678Z] [LagerAPI] Fetching lager overview
+
+[2025-09-23T10:14:00.678Z] [LagerService] Fetching lager overview
+

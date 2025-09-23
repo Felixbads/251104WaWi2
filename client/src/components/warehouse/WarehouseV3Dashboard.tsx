@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -39,6 +40,29 @@ interface WarehouseStats {
 
 export default function WarehouseV3Dashboard() {
   const [selectedWarehouse, setSelectedWarehouse] = useState<number | null>(null);
+  const [, navigate] = useLocation();
+  
+  // Handler für Warehouse-Karten Navigation
+  const handleWarehouseClick = (warehouseId: number) => {
+    console.log('Navigating to warehouse:', warehouseId);
+    navigate(`/lagerbestand/${warehouseId}`);
+  };
+  
+  // Handler für Action-Buttons
+  const handleInventoryStart = () => {
+    console.log('Starting inventory count...');
+    alert('Inventur-Funktion wird entwickelt!');
+  };
+  
+  const handleViewMovements = () => {
+    console.log('Viewing movements...');
+    navigate('/warenbewegung');
+  };
+  
+  const handleGenerateReports = () => {
+    console.log('Generating reports...');
+    alert('Berichte-Funktion wird entwickelt!');
+  };
 
   // Warehouse-Übersicht laden
   const { data: warehouses, isLoading: loadingWarehouses } = useQuery<WarehouseOverview[]>({
@@ -180,7 +204,7 @@ export default function WarehouseV3Dashboard() {
                 key={warehouse.warehouseId} 
                 className="cursor-pointer hover:shadow-lg transition-shadow"
                 data-testid={`warehouse-card-${warehouse.warehouseId}`}
-                onClick={() => setSelectedWarehouse(warehouse.warehouseId)}
+                onClick={() => handleWarehouseClick(warehouse.warehouseId)}
               >
                 <CardHeader className="pb-3">
                   <div className="flex items-center justify-between">
@@ -254,7 +278,11 @@ export default function WarehouseV3Dashboard() {
             <CardDescription>Bestandsaufnahme und Zählungen</CardDescription>
           </CardHeader>
           <CardContent>
-            <Button className="w-full" data-testid="button-start-inventory">
+            <Button 
+              className="w-full" 
+              onClick={handleInventoryStart}
+              data-testid="button-start-inventory"
+            >
               <Activity className="h-4 w-4 mr-2" />
               Inventur starten
             </Button>
@@ -267,7 +295,12 @@ export default function WarehouseV3Dashboard() {
             <CardDescription>Ein- und Ausgänge verwalten</CardDescription>
           </CardHeader>
           <CardContent>
-            <Button variant="outline" className="w-full" data-testid="button-view-movements">
+            <Button 
+              variant="outline" 
+              className="w-full" 
+              onClick={handleViewMovements}
+              data-testid="button-view-movements"
+            >
               <Package2 className="h-4 w-4 mr-2" />
               Bewegungen anzeigen
             </Button>
@@ -280,7 +313,12 @@ export default function WarehouseV3Dashboard() {
             <CardDescription>Auswertungen und Analytics</CardDescription>
           </CardHeader>
           <CardContent>
-            <Button variant="outline" className="w-full" data-testid="button-generate-reports">
+            <Button 
+              variant="outline" 
+              className="w-full" 
+              onClick={handleGenerateReports}
+              data-testid="button-generate-reports"
+            >
               <BarChart3 className="h-4 w-4 mr-2" />
               Berichte generieren
             </Button>
