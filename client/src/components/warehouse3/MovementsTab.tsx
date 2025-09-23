@@ -72,6 +72,7 @@ import {
   Package,
   ArrowUpDown,
   ArrowDownUp,
+  PanelTop,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
@@ -109,7 +110,22 @@ export default function MovementsTab({ warehouseId }: MovementsTabProps) {
   
   // Bewegungsdaten abrufen
   const { data, isLoading, isError, error } = useQuery({
-    queryKey: ['/api/warehouse3/warehouses', warehouseId, 'movements', { page: currentPage, filters }],
+    queryKey: [
+      '/api/warehouse3/warehouses', 
+      warehouseId, 
+      'movements', 
+      {
+        page: currentPage,
+        filters: {
+          search: filters.search,
+          startDate: filters.startDate?.toISOString(),
+          endDate: filters.endDate?.toISOString(),
+          movementType: filters.movementType,
+          sortBy: filters.sortBy,
+          sortOrder: filters.sortOrder,
+        }
+      }
+    ],
     retry: 1,
   });
 
