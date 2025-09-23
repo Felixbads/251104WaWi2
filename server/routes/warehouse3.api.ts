@@ -48,6 +48,51 @@ router.get("/warehouses", async (req, res) => {
   }
 });
 
+// GET /api/warehouse3/overview - Warehouse-Übersicht mit Kennzahlen für Dashboard
+router.get("/overview", async (req, res) => {
+  try {
+    console.log("[Warehouse3 API] Fetching overview data...");
+    
+    const query = `
+      SELECT 
+        w.id as warehouse_id,
+        w.name as warehouse_name,
+        COUNT(DISTINCT i.product_id) as total_products,
+        COUNT(CASE WHEN i.quantity <= COALESCE(i.min_quantity, 0) THEN 1 END) as critical_items,
+        COUNT(CASE WHEN pb.expiry_date <= CURRENT_DATE + INTERVAL '7 days' 
+               AND pb.expiry_date > CURRENT_DATE THEN 1 END) as expiring_batches,
+        COALESCE(SUM(i.quantity * COALESCE(p.price, 0)), 0) as total_value,
+        MAX(im.performed_at) as last_activity
+      FROM warehouses w
+      LEFT JOIN inventory_items i ON w.id = i.warehouse_id
+      LEFT JOIN products p ON i.product_id = p.id
+      LEFT JOIN product_batches pb ON i.warehouse_id = pb.warehouse_id AND i.product_id = pb.product_id
+      LEFT JOIN inventory_movements im ON w.id = COALESCE(im.source_warehouse_id, im.destination_warehouse_id)
+      WHERE w.status = 'active'
+      GROUP BY w.id, w.name
+      ORDER BY w.name
+    `;
+    
+    const result = await pool.query(query);
+    
+    const overview = result.rows.map(row => ({
+      warehouseId: Number(row.warehouse_id),
+      warehouseName: String(row.warehouse_name),
+      totalProducts: Number(row.total_products || 0),
+      criticalItems: Number(row.critical_items || 0),
+      expiringBatches: Number(row.expiring_batches || 0),
+      totalValue: Number(row.total_value || 0),
+      lastActivity: row.last_activity ? String(row.last_activity) : null
+    }));
+    
+    console.log(`[Warehouse3 API] Overview loaded: ${overview.length} warehouses`);
+    return res.json(overview);
+  } catch (error) {
+    console.error("[Warehouse3 API] Error fetching overview:", error);
+    return handleServerError(error, res);
+  }
+});
+
 // POST /api/warehouse3/warehouses - Neues Lager erstellen
 router.post("/warehouses", async (req, res) => {
   try {
