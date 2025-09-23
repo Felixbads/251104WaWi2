@@ -491,7 +491,7 @@ app.get('/orders-data', (req, res) => {
 
   app.get('/api/sql-warehouses', async (req, res) => {
     try {
-      const result = await pool.query('SELECT * FROM warehouses WHERE is_active = true ORDER BY name');
+      const result = await pool.query('SELECT * FROM warehouses ORDER BY name');
       return res.json(result.rows);
     } catch (error) {
       console.error('Fehler beim SQL-Abrufen der Lager:', error);
@@ -517,7 +517,7 @@ app.get('/orders-data', (req, res) => {
   
   app.get('/api/sql-suppliers', async (req, res) => {
     try {
-      const result = await pool.query('SELECT * FROM suppliers WHERE is_active = true ORDER BY name');
+      const result = await pool.query('SELECT * FROM suppliers ORDER BY name');
       return res.json(result.rows);
     } catch (error) {
       console.error('Fehler beim SQL-Abrufen der Lieferanten:', error);

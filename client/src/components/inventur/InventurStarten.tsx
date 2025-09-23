@@ -28,20 +28,35 @@ export default function InventurStarten({ onInventurGestartet }: InventurStarten
   const [selectedWarehouse, setSelectedWarehouse] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
   
-  // Interface für Warehouse
+  // Interface für Warehouse - match API response
   interface Warehouse {
     id: number;
     name: string;
-    location?: string;
     description?: string;
-    archived?: boolean;
+    isActive: boolean;
+    status: string;
+    type: string;
+  }
+  
+  // API Response Wrapper 
+  interface WarehousesResponse {
+    data: Warehouse[];
+    meta: {
+      page: number;
+      limit: number;
+      total: number;
+      pages: number;
+    };
   }
 
-  // Lade verfügbare Lager
-  const { data: warehouses = [], isLoading: isLoadingWarehouses } = useQuery<Warehouse[]>({
+  // Lade verfügbare Lager - handle paginated API response
+  const { data: warehousesResponse, isLoading: isLoadingWarehouses } = useQuery<WarehousesResponse>({
     queryKey: ['/api/warehouses'],
     staleTime: 5 * 60 * 1000, // 5 Minuten Cache
   });
+  
+  // Extract warehouses array from API response
+  const warehouses = warehousesResponse?.data || [];
   
   // Mutation zum Starten einer neuen Inventur
   const startInventurMutation = useMutation({
@@ -96,10 +111,16 @@ export default function InventurStarten({ onInventurGestartet }: InventurStarten
     },
   });
   
-  // Aktive (nicht archivierte) Lager filtern - defensive Programmierung
+  // Debug: Log API response structure
+  console.log('[INVENTUR] API Response:', warehousesResponse);
+  console.log('[INVENTUR] Extracted warehouses:', warehouses);
+  
+  // Aktive Lager filtern - nach isActive Feld
   const activeWarehouses = Array.isArray(warehouses) 
-    ? warehouses.filter((warehouse: Warehouse) => !warehouse.archived)
+    ? warehouses.filter((warehouse: Warehouse) => warehouse.isActive === true)
     : [];
+  
+  console.log('[INVENTUR] Active warehouses after filter:', activeWarehouses);
   
   // Handler für das Starten einer Inventur
   const handleStartInventur = () => {

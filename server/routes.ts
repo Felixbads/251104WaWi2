@@ -6898,7 +6898,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get(`${API_PREFIX}/warehouses/stats`, async (req: Request, res: Response) => {
     try {
       // Hole alle Lager zum Berechnen der Statistiken
-      const warehousesQuery = `SELECT * FROM warehouses WHERE is_active = true ORDER BY name ASC`;
+      const warehousesQuery = `SELECT * FROM warehouses ORDER BY name ASC`;
       const warehousesResult = await rawDb.query(warehousesQuery);
       const warehouses = warehousesResult.rows;
       
@@ -7026,7 +7026,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (warehouseId === 0) {
         // Abfrage ohne ORM, da wir in server/routes.ts keine vollständige Importstruktur haben
         const warehousesResult = await rawDb.query(
-          'SELECT * FROM warehouses WHERE is_active = true',
+          'SELECT * FROM warehouses',
           []
         );
         
