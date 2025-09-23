@@ -73,6 +73,7 @@ import { recurringOrdersRouter } from './routes/recurring-orders';
 // ✅ UNIFIED SCHEDULING: Using only RecurringOrderScheduler (removed duplicate recurringOrderCron.ts)
 import RecurringOrderScheduler from './services/recurringOrderScheduler';
 import weeklyReportRouter from './routes/weekly-report';
+import lagerRouter from './routes/lager';
 import { weeklyReportCron } from './services/weeklyReportCron';
 import { startDailyEmailScheduler } from './services/dailyEmailScheduler';
 import syncRouter from './routes/sync';
@@ -1724,6 +1725,10 @@ app.get('/orders-data', (req, res) => {
   const warehouse3Router = (await import('./routes/warehouse3.api')).default;
   app.use('/api/warehouse3', warehouse3Router);
   console.log('[SERVER] Warehouse3 API router mounted successfully');
+  
+  // Mount new Lager V2 API
+  app.use('/api/lager', lagerRouter);
+  console.log('[SERVER] Lager V2 API router mounted successfully');
   
   // Mount inventory-api router for alternative endpoint
   app.use('/api/inventory-api', inventoryApiRouter);

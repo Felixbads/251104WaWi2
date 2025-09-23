@@ -139,6 +139,7 @@ import LocationDetail from "@/pages/LocationDetail";
 import PagePermissions from "@/pages/PagePermissions";
 import DBIndex from "@/pages/DBIndex";
 import RefillVorlagen from "@/pages/RefillVorlagen";
+import LagerV2 from "@/pages/LagerV2";
 
 // Authentifizierte und nicht-authentifizierte Router
 function AuthenticatedRouter() {
@@ -400,6 +401,12 @@ function AuthenticatedRouter() {
         <Route path="/warehouse/:id">
           <ApprovedUserRoute>
             <WarehouseDetailPage />
+          </ApprovedUserRoute>
+        </Route>
+
+        <Route path="/lager">
+          <ApprovedUserRoute>
+            <LagerV2 />
           </ApprovedUserRoute>
         </Route>
 

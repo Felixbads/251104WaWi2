@@ -14240,3 +14240,179 @@ DATA: {
   "machineName": null
 }
 
+[2025-09-23T08:33:58.349Z] [LagerAPI] Fetching lager overview
+
+[2025-09-23T08:33:58.350Z] [LagerService] Fetching lager overview
+
+[2025-09-23T08:33:59.716Z] [LagerAPI] Fetching lager notifications
+
+[2025-09-23T08:33:59.716Z] [LagerService] Fetching lager notifications
+
+[2025-09-23T08:33:59.940Z] [ERROR:LagerService] Error fetching lager notifications
+ErrorMessage: column p.name does not exist
+DATA: {
+  "stack": "error: column p.name does not exist\n    at /home/runner/workspace/node_modules/pg-pool/index.js:45:11\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)\n    at async getLagerNotifications (/home/runner/workspace/server/services/lagerService.ts:264:28)\n    at async <anonymous> (/home/runner/workspace/server/routes/lager.ts:68:27)"
+}
+
+[2025-09-23T08:33:59.958Z] [ERROR:LagerAPI] Error fetching notifications
+ErrorMessage: column p.name does not exist
+DATA: {
+  "stack": "error: column p.name does not exist\n    at /home/runner/workspace/node_modules/pg-pool/index.js:45:11\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)\n    at async getLagerNotifications (/home/runner/workspace/server/services/lagerService.ts:264:28)\n    at async <anonymous> (/home/runner/workspace/server/routes/lager.ts:68:27)"
+}
+
+[2025-09-23T08:35:28.205Z] [LagerAPI] Fetching lager notifications
+
+[2025-09-23T08:35:28.205Z] [LagerService] Fetching lager notifications
+
+[2025-09-23T08:35:28.430Z] [ERROR:LagerService] Error fetching lager notifications
+ErrorMessage: column p.name does not exist
+DATA: {
+  "stack": "error: column p.name does not exist\n    at /home/runner/workspace/node_modules/pg-pool/index.js:45:11\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)\n    at async getLagerNotifications (/home/runner/workspace/server/services/lagerService.ts:264:28)\n    at async <anonymous> (/home/runner/workspace/server/routes/lager.ts:68:27)"
+}
+
+[2025-09-23T08:35:28.430Z] [ERROR:LagerAPI] Error fetching notifications
+ErrorMessage: column p.name does not exist
+DATA: {
+  "stack": "error: column p.name does not exist\n    at /home/runner/workspace/node_modules/pg-pool/index.js:45:11\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)\n    at async getLagerNotifications (/home/runner/workspace/server/services/lagerService.ts:264:28)\n    at async <anonymous> (/home/runner/workspace/server/routes/lager.ts:68:27)"
+}
+
+[2025-09-23T08:37:21.988Z] [LagerAPI] Fetching lager notifications
+
+[2025-09-23T08:37:21.988Z] [LagerService] Fetching lager notifications
+
+[2025-09-23T08:37:22.208Z] [ERROR:LagerService] Error fetching lager notifications
+ErrorMessage: column p.name does not exist
+DATA: {
+  "stack": "error: column p.name does not exist\n    at /home/runner/workspace/node_modules/pg-pool/index.js:45:11\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)\n    at async getLagerNotifications (/home/runner/workspace/server/services/lagerService.ts:264:28)\n    at async <anonymous> (/home/runner/workspace/server/routes/lager.ts:68:27)"
+}
+
+[2025-09-23T08:37:22.208Z] [ERROR:LagerAPI] Error fetching notifications
+ErrorMessage: column p.name does not exist
+DATA: {
+  "stack": "error: column p.name does not exist\n    at /home/runner/workspace/node_modules/pg-pool/index.js:45:11\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)\n    at async getLagerNotifications (/home/runner/workspace/server/services/lagerService.ts:264:28)\n    at async <anonymous> (/home/runner/workspace/server/routes/lager.ts:68:27)"
+}
+
+[2025-09-23T08:38:54.782Z] [LagerAPI] Fetching lager notifications
+
+[2025-09-23T08:38:54.783Z] [LagerService] Fetching lager notifications
+
+[2025-09-23T08:38:55.009Z] [ERROR:LagerService] Error fetching lager notifications
+ErrorMessage: column prod.name does not exist
+DATA: {
+  "stack": "error: column prod.name does not exist\n    at /home/runner/workspace/node_modules/pg-pool/index.js:45:11\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)\n    at async getLagerNotifications (/home/runner/workspace/server/services/lagerService.ts:264:28)\n    at async <anonymous> (/home/runner/workspace/server/routes/lager.ts:68:27)"
+}
+
+[2025-09-23T08:38:55.009Z] [ERROR:LagerAPI] Error fetching notifications
+ErrorMessage: column prod.name does not exist
+DATA: {
+  "stack": "error: column prod.name does not exist\n    at /home/runner/workspace/node_modules/pg-pool/index.js:45:11\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)\n    at async getLagerNotifications (/home/runner/workspace/server/services/lagerService.ts:264:28)\n    at async <anonymous> (/home/runner/workspace/server/routes/lager.ts:68:27)"
+}
+
+[2025-09-23T08:39:37.609Z] [LagerAPI] Fetching lager overview
+
+[2025-09-23T08:39:37.609Z] [LagerService] Fetching lager overview
+
+[2025-09-23T08:41:47.682Z] [LagerAPI] Fetching lager notifications
+
+[2025-09-23T08:41:47.683Z] [LagerService] Fetching lager notifications
+
+[2025-09-23T08:41:47.898Z] [ERROR:LagerService] Error fetching lager notifications
+ErrorMessage: column prod.name does not exist
+DATA: {
+  "stack": "error: column prod.name does not exist\n    at /home/runner/workspace/node_modules/pg-pool/index.js:45:11\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)\n    at async getLagerNotifications (/home/runner/workspace/server/services/lagerService.ts:264:28)\n    at async <anonymous> (/home/runner/workspace/server/routes/lager.ts:68:27)"
+}
+
+[2025-09-23T08:41:47.898Z] [ERROR:LagerAPI] Error fetching notifications
+ErrorMessage: column prod.name does not exist
+DATA: {
+  "stack": "error: column prod.name does not exist\n    at /home/runner/workspace/node_modules/pg-pool/index.js:45:11\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)\n    at async getLagerNotifications (/home/runner/workspace/server/services/lagerService.ts:264:28)\n    at async <anonymous> (/home/runner/workspace/server/routes/lager.ts:68:27)"
+}
+
+[2025-09-23T08:44:09.385Z] [LagerAPI] Fetching lager notifications
+
+[2025-09-23T08:44:09.386Z] [LagerService] Fetching lager notifications
+
+[2025-09-23T08:44:09.603Z] [ERROR:LagerService] Error fetching lager notifications
+ErrorMessage: relation "product_mapping" does not exist
+DATA: {
+  "stack": "error: relation \"product_mapping\" does not exist\n    at /home/runner/workspace/node_modules/pg-pool/index.js:45:11\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)\n    at async getLagerNotifications (/home/runner/workspace/server/services/lagerService.ts:264:28)\n    at async <anonymous> (/home/runner/workspace/server/routes/lager.ts:68:27)"
+}
+
+[2025-09-23T08:44:09.605Z] [ERROR:LagerAPI] Error fetching notifications
+ErrorMessage: relation "product_mapping" does not exist
+DATA: {
+  "stack": "error: relation \"product_mapping\" does not exist\n    at /home/runner/workspace/node_modules/pg-pool/index.js:45:11\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)\n    at async getLagerNotifications (/home/runner/workspace/server/services/lagerService.ts:264:28)\n    at async <anonymous> (/home/runner/workspace/server/routes/lager.ts:68:27)"
+}
+
+[2025-09-23T08:44:28.407Z] [LagerAPI] Fetching lager overview
+
+[2025-09-23T08:44:28.408Z] [LagerService] Fetching lager overview
+
+[2025-09-23T08:45:17.851Z] [LagerAPI] Fetching lager notifications
+
+[2025-09-23T08:45:17.852Z] [LagerService] Fetching lager notifications
+
+[2025-09-23T08:45:18.066Z] [ERROR:LagerService] Error fetching lager notifications
+ErrorMessage: relation "product_mapping" does not exist
+DATA: {
+  "stack": "error: relation \"product_mapping\" does not exist\n    at /home/runner/workspace/node_modules/pg-pool/index.js:45:11\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)\n    at async getLagerNotifications (/home/runner/workspace/server/services/lagerService.ts:264:28)\n    at async <anonymous> (/home/runner/workspace/server/routes/lager.ts:68:27)"
+}
+
+[2025-09-23T08:45:18.067Z] [ERROR:LagerAPI] Error fetching notifications
+ErrorMessage: relation "product_mapping" does not exist
+DATA: {
+  "stack": "error: relation \"product_mapping\" does not exist\n    at /home/runner/workspace/node_modules/pg-pool/index.js:45:11\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)\n    at async getLagerNotifications (/home/runner/workspace/server/services/lagerService.ts:264:28)\n    at async <anonymous> (/home/runner/workspace/server/routes/lager.ts:68:27)"
+}
+
+[2025-09-23T08:46:41.645Z] [LagerAPI] Fetching lager notifications
+
+[2025-09-23T08:46:41.646Z] [LagerService] Fetching lager notifications
+
+[2025-09-23T08:46:42.309Z] [ERROR:LagerService] Error fetching lager notifications
+ErrorMessage: function date_part(unknown, integer) does not exist
+DATA: {
+  "stack": "error: function date_part(unknown, integer) does not exist\n    at /home/runner/workspace/node_modules/pg-pool/index.js:45:11\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)\n    at async getLagerNotifications (/home/runner/workspace/server/services/lagerService.ts:297:28)\n    at async <anonymous> (/home/runner/workspace/server/routes/lager.ts:68:27)"
+}
+
+[2025-09-23T08:46:42.309Z] [ERROR:LagerAPI] Error fetching notifications
+ErrorMessage: function date_part(unknown, integer) does not exist
+DATA: {
+  "stack": "error: function date_part(unknown, integer) does not exist\n    at /home/runner/workspace/node_modules/pg-pool/index.js:45:11\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)\n    at async getLagerNotifications (/home/runner/workspace/server/services/lagerService.ts:297:28)\n    at async <anonymous> (/home/runner/workspace/server/routes/lager.ts:68:27)"
+}
+
+[2025-09-23T08:47:57.428Z] [LagerAPI] Fetching lager notifications
+
+[2025-09-23T08:47:57.429Z] [LagerService] Fetching lager notifications
+
+[2025-09-23T08:47:58.075Z] [ERROR:LagerService] Error fetching lager notifications
+ErrorMessage: function date_part(unknown, integer) does not exist
+DATA: {
+  "stack": "error: function date_part(unknown, integer) does not exist\n    at /home/runner/workspace/node_modules/pg-pool/index.js:45:11\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)\n    at async getLagerNotifications (/home/runner/workspace/server/services/lagerService.ts:297:28)\n    at async <anonymous> (/home/runner/workspace/server/routes/lager.ts:68:27)"
+}
+
+[2025-09-23T08:47:58.076Z] [ERROR:LagerAPI] Error fetching notifications
+ErrorMessage: function date_part(unknown, integer) does not exist
+DATA: {
+  "stack": "error: function date_part(unknown, integer) does not exist\n    at /home/runner/workspace/node_modules/pg-pool/index.js:45:11\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)\n    at async getLagerNotifications (/home/runner/workspace/server/services/lagerService.ts:297:28)\n    at async <anonymous> (/home/runner/workspace/server/routes/lager.ts:68:27)"
+}
+
+[2025-09-23T08:49:25.702Z] [LagerAPI] Fetching lager notifications
+
+[2025-09-23T08:49:25.704Z] [LagerService] Fetching lager notifications
+
+[2025-09-23T08:50:06.932Z] [LagerAPI] Fetching lager notifications
+
+[2025-09-23T08:50:06.933Z] [LagerService] Fetching lager notifications
+
+[2025-09-23T08:52:45.402Z] [LagerAPI] Fetching lager notifications
+
+[2025-09-23T08:52:45.402Z] [LagerService] Fetching lager notifications
+
+[2025-09-23T08:53:13.677Z] [LagerAPI] Fetching lager notifications
+
+[2025-09-23T08:53:13.677Z] [LagerService] Fetching lager notifications
+
+[2025-09-23T08:53:53.755Z] [LagerAPI] Fetching lager notifications
+
+[2025-09-23T08:53:53.756Z] [LagerService] Fetching lager notifications
+
