@@ -224,8 +224,22 @@ export default function WarehouseDetail() {
   
   // Effekt: Wenn wir ein neues Lager laden, setze die Bearbeitungsdaten zurück
   useEffect(() => {
-    if (warehouse) {
+    console.log('[WAREHOUSE-TITLE] useEffect ALWAYS triggered!');
+    console.log('[WAREHOUSE-TITLE] warehouse object:', warehouse);
+    console.log('[WAREHOUSE-TITLE] warehouse truthy?', !!warehouse);
+    console.log('[WAREHOUSE-TITLE] warehouse.name:', warehouse?.name);
+    console.log('[WAREHOUSE-TITLE] Object.keys(warehouse):', Object.keys(warehouse || {}));
+    
+    if (warehouse && warehouse.name) {
       setEditedWarehouse({ ...warehouse });
+      // Set page title with warehouse name
+      const newTitle = `${warehouse.name} — Lagerbestand`;
+      console.log('[WAREHOUSE-TITLE] Setting document.title to:', newTitle);
+      document.title = newTitle;
+      console.log('[WAREHOUSE-TITLE] document.title is now:', document.title);
+    } else {
+      console.log('[WAREHOUSE-TITLE] NOT setting title - warehouse or warehouse.name missing');
+      console.log('[WAREHOUSE-TITLE] Current document.title:', document.title);
     }
   }, [warehouse]);
   

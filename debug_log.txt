@@ -14424,3 +14424,23 @@ DATA: {
 
 [2025-09-23T09:00:29.961Z] [LagerService] Fetching lager notifications
 
+[2025-09-23T09:55:58.059Z] [LagerAPI] Fetching lager overview
+
+[2025-09-23T09:55:58.060Z] [LagerService] Fetching lager overview
+
+[2025-09-23T09:57:10.778Z] [LagerAPI] Fetching lager overview
+
+[2025-09-23T09:57:10.778Z] [LagerService] Fetching lager overview
+
+[2025-09-23T10:01:07.399Z] [LagerAPI] Fetching lager overview
+
+[2025-09-23T10:01:07.400Z] [LagerService] Fetching lager overview
+
+[2025-09-23T10:03:09.510Z] [LagerAPI] Fetching lager overview
+
+[2025-09-23T10:03:09.510Z] [LagerService] Fetching lager overview
+
+[2025-09-23T10:05:38.796Z] [LagerAPI] Fetching lager overview
+
+[2025-09-23T10:05:38.797Z] [LagerService] Fetching lager overview
+

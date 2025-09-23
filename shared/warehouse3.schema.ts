@@ -93,8 +93,10 @@ export const stockBatches = pgTable("product_batches", {
   version: integer("version").notNull().default(1),
 }, (table) => {
   return {
-    // FIFO indexing for efficient queries
-    fifoIndex: unique().on(table.warehouseId, table.productId, table.expiryDate),
+    // FIFO indexing for efficient queries - NON-UNIQUE to allow multiple batches with same expiry
+    fifoIndex: index().on(table.warehouseId, table.productId, table.expiryDate),
+    // Ensure each batch number is unique within a warehouse/product combination
+    uniqueBatchPerProduct: unique().on(table.warehouseId, table.productId, table.batchNumber),
   };
 });
 
