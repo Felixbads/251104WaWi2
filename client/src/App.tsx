@@ -362,11 +362,6 @@ function AuthenticatedRouter() {
 
         {/* Removed static supplier portal route - use token-based access only */}
 
-        <Route path="/lager">
-          <ApprovedUserRoute>
-            <LagerPage />
-          </ApprovedUserRoute>
-        </Route>
 
         <Route path="/lager-neu">
           <ApprovedUserRoute>

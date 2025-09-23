@@ -14416,3 +14416,11 @@ DATA: {
 
 [2025-09-23T08:53:53.756Z] [LagerService] Fetching lager notifications
 
+[2025-09-23T09:00:29.956Z] [LagerAPI] Fetching lager overview
+
+[2025-09-23T09:00:29.957Z] [LagerService] Fetching lager overview
+
+[2025-09-23T09:00:29.960Z] [LagerAPI] Fetching lager notifications
+
+[2025-09-23T09:00:29.961Z] [LagerService] Fetching lager notifications
+

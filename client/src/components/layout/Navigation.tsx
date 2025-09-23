@@ -35,7 +35,7 @@ const navigationSections = [
       { href: '/produkte', label: 'Produkte', icon: Package, roles: ['user', 'admin'] },
       { href: '/lieferanten', label: 'Lieferanten', icon: Truck, roles: ['user', 'admin'] },
       { href: '/bestellungen', label: 'Bestellungen', icon: ShoppingCart, roles: ['user', 'admin'] },
-      { href: '/lager-neu', label: 'Lager', icon: Database, roles: ['user', 'admin'] },
+      { href: '/lager', label: 'Lager', icon: Database, roles: ['user', 'admin'] },
     ]
   },
   {
