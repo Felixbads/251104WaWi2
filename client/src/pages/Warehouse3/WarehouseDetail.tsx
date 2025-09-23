@@ -251,35 +251,8 @@ export default function WarehouseDetail() {
         </div>
       </div>
       
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle className="text-xl">Lagerdetails</CardTitle>
-            {warehouse.description && (
-              <CardDescription>{warehouse.description}</CardDescription>
-            )}
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <h3 className="text-sm font-medium text-muted-foreground mb-1">Erstellt am</h3>
-                <p>{formatDate(warehouse.createdAt)}</p>
-              </div>
-              <div>
-                <h3 className="text-sm font-medium text-muted-foreground mb-1">Letzte Aktualisierung</h3>
-                <p>{formatDate(warehouse.updatedAt)}</p>
-              </div>
-              {warehouse.notes && (
-                <div className="col-span-2">
-                  <h3 className="text-sm font-medium text-muted-foreground mb-1">Notizen</h3>
-                  <p className="whitespace-pre-line">{warehouse.notes}</p>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
+      <div className="flex justify-center mb-6">
+        <Card className="w-full max-w-md">
           <CardHeader>
             <CardTitle className="text-xl">Statistiken</CardTitle>
           </CardHeader>
@@ -393,73 +366,6 @@ export default function WarehouseDetail() {
         </TabsList>
         
         <TabsContent value="übersicht" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Lagerübersicht</CardTitle>
-              <CardDescription>
-                Zusammenfassung der aktuellen Informationen zu diesem Lager
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <div className="space-y-2">
-                  <h3 className="font-medium">Aktuelle Lagerauslastung</h3>
-                  <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
-                    <div 
-                      className="h-full bg-primary" 
-                      style={{ width: `${stats?.capacityUtilizationPercent || 0}%` }}
-                    ></div>
-                  </div>
-                  <div className="text-sm text-muted-foreground">
-                    {stats?.capacityUtilizationPercent || 0}% genutzt
-                  </div>
-                </div>
-                
-                <div className="space-y-2">
-                  <h3 className="font-medium">Produkte nach Kategorie</h3>
-                  <div className="text-sm">
-                    {isLoadingStats ? (
-                      <Skeleton className="h-20 w-full" />
-                    ) : stats?.productsByCategory && Object.keys(stats.productsByCategory).length > 0 ? (
-                      <ul className="space-y-1">
-                        {Object.entries(stats.productsByCategory).map(([category, count]) => (
-                          <li key={category} className="flex justify-between">
-                            <span>{category || "Ohne Kategorie"}</span>
-                            <span>{count}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="text-muted-foreground">Keine Produkte vorhanden</p>
-                    )}
-                  </div>
-                </div>
-                
-                <div className="space-y-2">
-                  <h3 className="font-medium">Letzte Aktivitäten</h3>
-                  {isLoadingStats ? (
-                    <div className="space-y-2">
-                      <Skeleton className="h-4 w-full" />
-                      <Skeleton className="h-4 w-11/12" />
-                      <Skeleton className="h-4 w-10/12" />
-                    </div>
-                  ) : stats?.recentActivities && stats.recentActivities.length > 0 ? (
-                    <ul className="space-y-1 text-sm">
-                      {stats.recentActivities.map((activity: any, index: number) => (
-                        <li key={index} className="flex justify-between">
-                          <span>{activity.description}</span>
-                          <span className="text-muted-foreground">{formatDate(activity.date)}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">Keine Aktivitäten in den letzten 7 Tagen</p>
-                  )}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <Card>
               <CardHeader>

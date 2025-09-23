@@ -315,6 +315,41 @@ router.get("/warehouses/:id/stats", async (req, res) => {
     );
     const movementCount30Days = parseInt(movementCount30DaysResult.rows[0]?.count) || 0;
 
+    // Kritische Bestände abrufen (detailliert)
+    const lowStockItemsResult = await pool.query(
+      `SELECT 
+        i.id,
+        p.product_name as "productName",
+        i.quantity as "currentStock",
+        i.min_quantity as "minimumStock"
+       FROM inventory_items i
+       JOIN products p ON i.product_id = p.id
+       WHERE i.warehouse_id = $1 AND i.quantity <= i.min_quantity
+       ORDER BY i.quantity ASC
+       LIMIT 10`,
+      [warehouseId]
+    );
+    const lowStockItems = lowStockItemsResult.rows;
+
+    // Zugewiesene Automaten abrufen (detailliert)
+    const assignedMachinesResult = await pool.query(
+      `SELECT 
+        m.id,
+        m.name as "machineName",
+        COUNT(DISTINCT sl.product_id) as "productCount",
+        0 as "pendingRefills",
+        false as "needsRefill"
+       FROM machine_warehouse_assignments mwa
+       JOIN machines m ON mwa.machine_id = m.id
+       LEFT JOIN machine_slots sl ON m.id = sl.machine_id
+       WHERE mwa.warehouse_id = $1
+       GROUP BY m.id, m.name
+       ORDER BY m.name
+       LIMIT 10`,
+      [warehouseId]
+    );
+    const assignedMachines = assignedMachinesResult.rows;
+
     // Statistiken zusammenstellen
     const stats = {
       productCount,
@@ -322,6 +357,8 @@ router.get("/warehouses/:id/stats", async (req, res) => {
       machineCount,
       lastInventoryDate,
       movementCount30Days,
+      lowStockItems,
+      assignedMachines,
     };
 
     return res.json(stats);
