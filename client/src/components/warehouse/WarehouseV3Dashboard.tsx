@@ -19,6 +19,7 @@ import {
   BarChart3
 } from "lucide-react";
 import { queryClient } from "@/lib/queryClient";
+import { warehouseRoutes, buildWarehousePath } from "@/lib/warehouseRoutes";
 
 interface WarehouseOverview {
   warehouseId: number;
@@ -44,8 +45,8 @@ export default function WarehouseV3Dashboard() {
   
   // Handler für Warehouse-Karten Navigation
   const handleWarehouseClick = (warehouseId: number) => {
-    console.log('Navigating to warehouse:', warehouseId);
-    navigate(`/lagerbestand/${warehouseId}`);
+    console.log('Navigating to warehouse V3:', warehouseId);
+    navigate(buildWarehousePath(warehouseId));
   };
   
   // Handler für Action-Buttons
@@ -66,7 +67,7 @@ export default function WarehouseV3Dashboard() {
 
   // Warehouse-Übersicht laden
   const { data: warehouses, isLoading: loadingWarehouses } = useQuery<WarehouseOverview[]>({
-    queryKey: ['/api/lager/overview'],
+    queryKey: [warehouseRoutes.api.overview],
     enabled: true
   });
 

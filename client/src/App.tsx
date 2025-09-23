@@ -140,6 +140,7 @@ import PagePermissions from "@/pages/PagePermissions";
 import DBIndex from "@/pages/DBIndex";
 import RefillVorlagen from "@/pages/RefillVorlagen";
 import LagerV2 from "@/pages/LagerV2";
+import { warehouseRoutes, buildWarehousePath } from "@/lib/warehouseRoutes";
 
 // Authentifizierte und nicht-authentifizierte Router
 function AuthenticatedRouter() {
@@ -435,16 +436,13 @@ function AuthenticatedRouter() {
           </ApprovedUserRoute>
         </Route>
 
+        {/* LEGACY REDIRECTS - Alte Lagerbestand-Routen zu neuer V3 weiterleiten */}
         <Route path="/lagerbestand">
-          <ApprovedUserRoute>
-            <WarehouseOverviewPage />
-          </ApprovedUserRoute>
+          <Redirect to={warehouseRoutes.dashboard} />
         </Route>
 
         <Route path="/lagerbestand/:id">
-          <ApprovedUserRoute>
-            <WarehouseInventoryPage />
-          </ApprovedUserRoute>
+          {(params) => <Redirect to={buildWarehousePath(params.id)} />}
         </Route>
 
         <Route path="/warehouses/:id/warenbewegung">
