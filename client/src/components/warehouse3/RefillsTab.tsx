@@ -307,7 +307,7 @@ export default function RefillsTab({ warehouseId }: RefillsTabProps) {
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Alle Status</SelectItem>
+                <SelectItem value="all-status">Alle Status</SelectItem>
                 <SelectItem value="pending">Ausstehend</SelectItem>
                 <SelectItem value="in_progress">In Bearbeitung</SelectItem>
                 <SelectItem value="completed">Abgeschlossen</SelectItem>
@@ -324,7 +324,7 @@ export default function RefillsTab({ warehouseId }: RefillsTabProps) {
                   <SelectValue placeholder="Automat" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Alle Automaten</SelectItem>
+                  <SelectItem value="all-machines">Alle Automaten</SelectItem>
                   {machines.map((machine: any) => (
                     <SelectItem key={machine.machineId} value={machine.machineId.toString()}>
                       {machine.machineName}
@@ -439,7 +439,7 @@ export default function RefillsTab({ warehouseId }: RefillsTabProps) {
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Alle Status</SelectItem>
+                  <SelectItem value="all-status">Alle Status</SelectItem>
                   <SelectItem value="pending">Ausstehend</SelectItem>
                   <SelectItem value="in_progress">In Bearbeitung</SelectItem>
                   <SelectItem value="completed">Abgeschlossen</SelectItem>
@@ -456,7 +456,7 @@ export default function RefillsTab({ warehouseId }: RefillsTabProps) {
                     <SelectValue placeholder="Automat" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Alle Automaten</SelectItem>
+                    <SelectItem value="all-machines">Alle Automaten</SelectItem>
                     {machines.map((machine: any) => (
                       <SelectItem key={machine.machineId} value={machine.machineId.toString()}>
                         {machine.machineName}

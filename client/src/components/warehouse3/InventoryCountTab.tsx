@@ -279,7 +279,7 @@ export default function InventoryCountTab({ warehouseId }: InventoryCountTabProp
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Alle Status</SelectItem>
+                <SelectItem value="all">Alle Status</SelectItem>
                 <SelectItem value="pending">Ausstehend</SelectItem>
                 <SelectItem value="in_progress">In Bearbeitung</SelectItem>
                 <SelectItem value="completed">Abgeschlossen</SelectItem>
@@ -371,7 +371,7 @@ export default function InventoryCountTab({ warehouseId }: InventoryCountTabProp
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Alle Status</SelectItem>
+                  <SelectItem value="all">Alle Status</SelectItem>
                   <SelectItem value="pending">Ausstehend</SelectItem>
                   <SelectItem value="in_progress">In Bearbeitung</SelectItem>
                   <SelectItem value="completed">Abgeschlossen</SelectItem>

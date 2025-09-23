@@ -308,8 +308,7 @@ router.get("/warehouses/:id/stats", async (req, res) => {
 
     const movementCount30DaysResult = await pool.query(
       `SELECT COUNT(*) FROM inventory_movements 
-       WHERE ((source_type = 'warehouse' AND source_id = $1) 
-              OR (destination_type = 'warehouse' AND destination_id = $1))
+       WHERE (source_warehouse_id = $1 OR destination_warehouse_id = $1)
              AND performed_at >= $2`,
       [warehouseId, thirtyDaysAgo]
     );
@@ -331,6 +330,90 @@ router.get("/warehouses/:id/stats", async (req, res) => {
 });
 
 // ---- INVENTORY ROUTES ----
+
+// GET /api/warehouse3/warehouses/:id/inventory-counts - Inventurzählungen abrufen
+router.get("/warehouses/:id/inventory-counts", async (req, res) => {
+  try {
+    const warehouseId = parseInt(req.params.id);
+    if (isNaN(warehouseId)) {
+      return res.status(400).json({ success: false, message: "Ungültige Lager-ID" });
+    }
+
+    // Abfrageparameter für Paginierung und Filterung
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+    const offset = (page - 1) * limit;
+    const searchTerm = req.query.search as string || "";
+    const statusFilter = req.query.status as string || "";
+
+    // Basis-SQL für Inventurzählungen
+    let baseQuery = `
+      FROM inventory_counts ic
+      LEFT JOIN users u ON ic.initiated_by = u.id
+      WHERE ic.warehouse_id = $1
+    `;
+    
+    let queryParams = [warehouseId];
+    let paramIndex = 2;
+
+    // Such-Filter hinzufügen
+    if (searchTerm) {
+      baseQuery += ` AND ic.notes ILIKE $${paramIndex}`;
+      queryParams.push(`%${searchTerm}%`);
+      paramIndex++;
+    }
+
+    // Status-Filter hinzufügen
+    if (statusFilter && statusFilter !== "all") {
+      baseQuery += ` AND ic.status = $${paramIndex}`;
+      queryParams.push(statusFilter);
+      paramIndex++;
+    }
+
+    // Gesamt-Anzahl abrufen
+    const countResult = await pool.query(
+      `SELECT COUNT(*) ${baseQuery}`,
+      queryParams
+    );
+    const totalItems = parseInt(countResult.rows[0]?.count) || 0;
+
+    // Inventurzählungen abrufen
+    const query = `
+      SELECT 
+        ic.id,
+        ic.notes,
+        ic.status,
+        ic.start_date,
+        ic.end_date,
+        ic.created_at,
+        ic.updated_at,
+        u.username as initiated_by_username,
+        (SELECT COUNT(*) FROM inventory_count_items ici WHERE ici.inventory_count_id = ic.id) as product_count
+      ${baseQuery}
+      ORDER BY ic.created_at DESC
+      LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
+    `;
+
+    queryParams.push(limit, offset);
+
+    const result = await pool.query(query, queryParams);
+
+    return res.json({
+      success: true,
+      data: {
+        items: result.rows,
+        pagination: {
+          currentPage: page,
+          totalPages: Math.ceil(totalItems / limit),
+          totalItems,
+          itemsPerPage: limit
+        }
+      }
+    });
+  } catch (error) {
+    return handleServerError(error, res);
+  }
+});
 
 // GET /api/warehouse3/warehouses/:id/inventory - Lagerbestand abrufen
 router.get("/warehouses/:id/inventory", async (req, res) => {
