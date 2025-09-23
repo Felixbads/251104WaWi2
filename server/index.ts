@@ -1196,11 +1196,7 @@ app.get('/orders-data', (req, res) => {
               </p>
               <p style="margin: 10px 0 0 0; font-size: 12px; color: #6b7280; text-align: center;">Dieser sichere Link ist nur für Sie bestimmt und 30 Tage gültig.</p>
             </div>
-            ` : `
-            <div style="margin-bottom: 20px; padding: 15px; background-color: #f8f9fa; border: 1px solid #dee2e6; border-radius: 5px; text-align: center;">
-              <p style="margin: 0; font-weight: bold; color: #495057;">Bestelleingang und Liefertermin hier bestätigen: Link</p>
-            </div>
-            `}
+            ` : ''}
             
             <!-- HEADER wie im PDF -->
             <table style="width: 100%; margin-bottom: 30px; border-collapse: collapse;">
