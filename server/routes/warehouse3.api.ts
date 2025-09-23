@@ -59,15 +59,16 @@ router.get("/overview", async (req, res) => {
         w.name as warehouse_name,
         COUNT(DISTINCT i.product_id) as total_products,
         COUNT(CASE WHEN i.quantity <= COALESCE(i.min_quantity, 0) THEN 1 END) as critical_items,
-        COUNT(CASE WHEN pb.expiry_date <= CURRENT_DATE + INTERVAL '7 days' 
-               AND pb.expiry_date > CURRENT_DATE THEN 1 END) as expiring_batches,
+        (SELECT COUNT(*) FROM product_batches pb 
+         WHERE pb.warehouse_id = w.id 
+         AND pb.expiry_date <= CURRENT_DATE + INTERVAL '7 days'
+         AND pb.expiry_date > CURRENT_DATE) as expiring_batches,
         COALESCE(SUM(i.quantity * COALESCE(p.price, 0)), 0) as total_value,
-        MAX(im.performed_at) as last_activity
+        (SELECT MAX(performed_at) FROM inventory_movements im 
+         WHERE im.source_warehouse_id = w.id OR im.destination_warehouse_id = w.id) as last_activity
       FROM warehouses w
       LEFT JOIN inventory_items i ON w.id = i.warehouse_id
       LEFT JOIN products p ON i.product_id = p.id
-      LEFT JOIN product_batches pb ON i.warehouse_id = pb.warehouse_id AND i.product_id = pb.product_id
-      LEFT JOIN inventory_movements im ON w.id = COALESCE(im.source_warehouse_id, im.destination_warehouse_id)
       WHERE w.status = 'active'
       GROUP BY w.id, w.name
       ORDER BY w.name
