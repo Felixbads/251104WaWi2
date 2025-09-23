@@ -138,9 +138,7 @@ export default function InventoryCountTab({ warehouseId }: InventoryCountTabProp
   // Handler zum Löschen einer Inventur
   const handleDeleteCount = async (countId: number) => {
     try {
-      await apiRequest(`/api/warehouse3/inventory-counts/${countId}`, {
-        method: 'DELETE',
-      });
+      await apiRequest(`/api/warehouse3/inventory-counts/${countId}`, null, 'DELETE');
       
       toast({
         title: "Inventur gelöscht",

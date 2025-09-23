@@ -63,10 +63,7 @@ export default function WarehouseDetail() {
   // Funktion zur Aktualisierung eines Lagers
   const handleUpdateWarehouse = async (warehouseData: any) => {
     try {
-      await apiRequest(`/api/warehouse3/warehouses/${warehouseId}`, {
-        method: 'PATCH',
-        data: warehouseData,
-      });
+      await apiRequest(`/api/warehouse3/warehouses/${warehouseId}`, warehouseData, 'PATCH');
       
       queryClient.invalidateQueries({ queryKey: ['/api/warehouse3/warehouses', warehouseId] });
       setIsEditDialogOpen(false);
