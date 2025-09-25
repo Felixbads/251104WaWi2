@@ -3116,4 +3116,394 @@ router.get('/goods-receipt/warehouses',
   }
 );
 
+// ================================
+// 🚛 WAREHOUSE TRANSFER SYSTEM - COMPREHENSIVE FIFO INTEGRATION
+// ================================
+
+/**
+ * POST /warehouse3/warehouses/:sourceWarehouseId/transfer
+ * 
+ * Execute warehouse-to-warehouse transfer with FIFO integration
+ * - Uses sophisticated FIFO batch selection for optimal inventory rotation
+ * - Provides both automatic and manual batch selection modes
+ * - Includes comprehensive validation and audit trails
+ */
+router.post('/warehouses/:sourceWarehouseId/transfer',
+  authenticateUser,
+  requireRole(['admin', 'manager', 'warehouse_staff']),
+  auditLog('WAREHOUSE3_TRANSFER_EXECUTE', 'WAREHOUSE_TRANSFER'),
+  async (req, res) => {
+    try {
+      const sourceWarehouseId = parseInt(req.params.sourceWarehouseId);
+      if (isNaN(sourceWarehouseId)) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid source warehouse ID'
+        });
+      }
+
+      console.log(`[WAREHOUSE3_TRANSFER] Executing transfer from warehouse ${sourceWarehouseId}`);
+
+      // Import transfer service at runtime to avoid circular dependencies
+      const { WarehouseTransferService } = await import('../services/warehouseTransferService');
+      const transferService = new WarehouseTransferService();
+
+      // Enhance request with source warehouse ID and performer
+      const transferRequest = {
+        sourceWarehouseId,
+        performedBy: req.user?.id || 1,
+        ...req.body
+      };
+
+      // Execute the transfer
+      const result = await transferService.executeTransfer(transferRequest);
+
+      if (result.success) {
+        console.log(`[WAREHOUSE3_TRANSFER] Transfer completed successfully: ${result.transferId}`);
+        
+        return res.json({
+          success: true,
+          data: result,
+          message: result.summary
+        });
+      } else {
+        return res.status(400).json({
+          success: false,
+          error: 'Transfer execution failed',
+          details: result.errors,
+          warnings: result.warnings
+        });
+      }
+
+    } catch (error) {
+      console.error('[WAREHOUSE3_TRANSFER] Transfer execution failed:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Transfer execution failed',
+        details: error.message
+      });
+    }
+  }
+);
+
+/**
+ * POST /warehouse3/warehouses/:sourceWarehouseId/transfer/validate
+ * 
+ * Validate transfer request before execution
+ * - Checks warehouse existence and stock availability
+ * - Validates batch selections and transfer constraints
+ * - Provides detailed validation feedback for frontend
+ */
+router.post('/warehouses/:sourceWarehouseId/transfer/validate',
+  authenticateUser,
+  auditLog('WAREHOUSE3_TRANSFER_VALIDATE', 'WAREHOUSE_READ'),
+  async (req, res) => {
+    try {
+      const sourceWarehouseId = parseInt(req.params.sourceWarehouseId);
+      if (isNaN(sourceWarehouseId)) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid source warehouse ID'
+        });
+      }
+
+      console.log(`[WAREHOUSE3_TRANSFER] Validating transfer from warehouse ${sourceWarehouseId}`);
+
+      // Import transfer service at runtime
+      const { WarehouseTransferService } = await import('../services/warehouseTransferService');
+      const transferService = new WarehouseTransferService();
+
+      // Enhance request with source warehouse ID
+      const transferRequest = {
+        sourceWarehouseId,
+        performedBy: req.user?.id || 1,
+        ...req.body
+      };
+
+      // Validate the transfer
+      const validation = await transferService.validateTransferRequest(transferRequest);
+
+      return res.json({
+        success: true,
+        data: validation,
+        message: validation.isValid ? 'Transfer validation passed' : 'Transfer validation failed'
+      });
+
+    } catch (error) {
+      console.error('[WAREHOUSE3_TRANSFER] Transfer validation failed:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Transfer validation failed',
+        details: error.message
+      });
+    }
+  }
+);
+
+/**
+ * GET /warehouse3/warehouses/:warehouseId/transfer-history
+ * 
+ * Get transfer history for a specific warehouse
+ * - Includes both incoming and outgoing transfers
+ * - Supports pagination and date filtering
+ * - Provides detailed transfer information with batch tracking
+ */
+router.get('/warehouses/:warehouseId/transfer-history',
+  authenticateUser,
+  auditLog('WAREHOUSE3_TRANSFER_HISTORY', 'WAREHOUSE_READ'),
+  async (req, res) => {
+    try {
+      const warehouseId = parseInt(req.params.warehouseId);
+      if (isNaN(warehouseId)) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid warehouse ID'
+        });
+      }
+
+      console.log(`[WAREHOUSE3_TRANSFER] Getting transfer history for warehouse ${warehouseId}`);
+
+      // Import transfer service at runtime
+      const { WarehouseTransferService } = await import('../services/warehouseTransferService');
+      const transferService = new WarehouseTransferService();
+
+      // Parse query parameters
+      const options = {
+        limit: parseInt(req.query.limit as string) || 50,
+        offset: parseInt(req.query.offset as string) || 0,
+        startDate: req.query.startDate ? new Date(req.query.startDate as string) : undefined,
+        endDate: req.query.endDate ? new Date(req.query.endDate as string) : undefined,
+        transferType: req.query.transferType as string
+      };
+
+      // Get transfer history
+      const history = await transferService.getTransferHistory(warehouseId, options);
+
+      return res.json({
+        success: true,
+        data: history,
+        message: `Retrieved ${history.transfers.length} transfers (${history.totalCount} total)`
+      });
+
+    } catch (error) {
+      console.error('[WAREHOUSE3_TRANSFER] Error getting transfer history:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to get transfer history',
+        details: error.message
+      });
+    }
+  }
+);
+
+/**
+ * GET /warehouse3/warehouses/:warehouseId/available-products
+ * 
+ * Get products available for transfer from a warehouse
+ * - Shows current stock levels and batch information
+ * - Includes FIFO-relevant data like expiry dates
+ * - Optimized for transfer planning and batch selection
+ */
+router.get('/warehouses/:warehouseId/available-products',
+  authenticateUser,
+  auditLog('WAREHOUSE3_TRANSFER_PRODUCTS', 'WAREHOUSE_READ'),
+  async (req, res) => {
+    try {
+      const warehouseId = parseInt(req.params.warehouseId);
+      if (isNaN(warehouseId)) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid warehouse ID'
+        });
+      }
+
+      console.log(`[WAREHOUSE3_TRANSFER] Getting available products for warehouse ${warehouseId}`);
+
+      // Import transfer service at runtime
+      const { WarehouseTransferService } = await import('../services/warehouseTransferService');
+      const transferService = new WarehouseTransferService();
+
+      // Get available products
+      const products = await transferService.getAvailableProductsForTransfer(warehouseId);
+
+      return res.json({
+        success: true,
+        data: products,
+        message: `Found ${products.length} products available for transfer`
+      });
+
+    } catch (error) {
+      console.error('[WAREHOUSE3_TRANSFER] Error getting available products:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to get available products',
+        details: error.message
+      });
+    }
+  }
+);
+
+/**
+ * GET /warehouse3/warehouses/:warehouseId/batches/:productId
+ * 
+ * Get available batches for a specific product in warehouse
+ * - Used for manual batch selection in transfers
+ * - Sorted by FIFO order (oldest first)
+ * - Includes detailed batch information for selection
+ */
+router.get('/warehouses/:warehouseId/batches/:productId',
+  authenticateUser,
+  auditLog('WAREHOUSE3_TRANSFER_BATCHES', 'WAREHOUSE_READ'),
+  async (req, res) => {
+    try {
+      const warehouseId = parseInt(req.params.warehouseId);
+      const productId = parseInt(req.params.productId);
+      
+      if (isNaN(warehouseId) || isNaN(productId)) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid warehouse ID or product ID'
+        });
+      }
+
+      console.log(`[WAREHOUSE3_TRANSFER] Getting batches for product ${productId} in warehouse ${warehouseId}`);
+
+      // Get batches for the product in FIFO order
+      const batches = await db.select({
+        id: productBatches.id,
+        batchNumber: productBatches.batchNumber,
+        expiryDate: productBatches.expiryDate,
+        initialQuantity: productBatches.initialQuantity,
+        currentQuantity: productBatches.currentQuantity,
+        status: productBatches.status,
+        createdAt: productBatches.createdAt
+      })
+        .from(productBatches)
+        .where(and(
+          eq(productBatches.warehouseId, warehouseId),
+          eq(productBatches.productId, productId),
+          eq(productBatches.status, 'active'),
+          sql`${productBatches.currentQuantity} > 0`
+        ))
+        .orderBy(productBatches.expiryDate, productBatches.createdAt); // FIFO order
+
+      return res.json({
+        success: true,
+        data: batches,
+        message: `Found ${batches.length} available batches for transfer`
+      });
+
+    } catch (error) {
+      console.error('[WAREHOUSE3_TRANSFER] Error getting batches:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to get batches',
+        details: error.message
+      });
+    }
+  }
+);
+
+/**
+ * POST /warehouse3/transfer/bulk
+ * 
+ * Execute bulk transfers between multiple warehouses
+ * - Processes multiple transfer requests in a single operation
+ * - Maintains FIFO principles across all transfers
+ * - Provides comprehensive result summary
+ */
+router.post('/transfer/bulk',
+  authenticateUser,
+  requireRole(['admin', 'manager']),
+  auditLog('WAREHOUSE3_TRANSFER_BULK', 'WAREHOUSE_TRANSFER'),
+  async (req, res) => {
+    try {
+      console.log('[WAREHOUSE3_TRANSFER] Executing bulk transfer operation');
+
+      // Import transfer service at runtime
+      const { WarehouseTransferService } = await import('../services/warehouseTransferService');
+      const transferService = new WarehouseTransferService();
+
+      const { transfers } = req.body;
+      
+      if (!transfers || !Array.isArray(transfers) || transfers.length === 0) {
+        return res.status(400).json({
+          success: false,
+          error: 'At least one transfer must be specified'
+        });
+      }
+
+      console.log(`[WAREHOUSE3_TRANSFER] Processing ${transfers.length} bulk transfers`);
+
+      const results = [];
+      let successCount = 0;
+      let failCount = 0;
+
+      // Process each transfer
+      for (const [index, transferRequest] of transfers.entries()) {
+        console.log(`[WAREHOUSE3_TRANSFER] Processing bulk transfer ${index + 1}/${transfers.length}`);
+        
+        try {
+          // Enhance request with performer
+          const enhancedRequest = {
+            ...transferRequest,
+            performedBy: req.user?.id || 1
+          };
+
+          const result = await transferService.executeTransfer(enhancedRequest);
+          results.push({
+            index,
+            transferRequest: enhancedRequest,
+            result
+          });
+
+          if (result.success) {
+            successCount++;
+          } else {
+            failCount++;
+          }
+        } catch (transferError) {
+          results.push({
+            index,
+            transferRequest,
+            result: {
+              success: false,
+              errors: [transferError instanceof Error ? transferError.message : String(transferError)],
+              summary: 'Transfer failed with exception'
+            }
+          });
+          failCount++;
+        }
+      }
+
+      const overallSuccess = failCount === 0;
+      const summary = `Bulk transfer completed: ${successCount} successful, ${failCount} failed`;
+
+      console.log(`[WAREHOUSE3_TRANSFER] Bulk transfer summary: ${summary}`);
+
+      return res.json({
+        success: overallSuccess,
+        data: {
+          results,
+          summary: {
+            totalTransfers: transfers.length,
+            successCount,
+            failCount,
+            overallSuccess
+          }
+        },
+        message: summary
+      });
+
+    } catch (error) {
+      console.error('[WAREHOUSE3_TRANSFER] Bulk transfer execution failed:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Bulk transfer execution failed',
+        details: error.message
+      });
+    }
+  }
+);
+
 export default router;
