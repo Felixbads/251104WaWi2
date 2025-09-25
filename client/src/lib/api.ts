@@ -2283,8 +2283,8 @@ export interface TopRemovedProduct {
 }
 
 // PROBLEM 4 BEHOBEN: GET statt POST für /removed-products/top
-export async function getTopRemovedProducts(days: number = 7): Promise<TopRemovedProduct[]> {
-  return apiRequest<TopRemovedProduct[]>('get', `/removed-products/top?days=${days}`);
+export async function getTopRemovedProducts(days: number = 7, limit: number = 20): Promise<TopRemovedProduct[]> {
+  return apiRequest<TopRemovedProduct[]>('get', `/removed-products/top?days=${days}&limit=${limit}`);
 }
 
 // Detaillierte Produktstatistiken Interface  

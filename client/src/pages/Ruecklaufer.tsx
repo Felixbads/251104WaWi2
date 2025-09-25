@@ -13,6 +13,13 @@ import { CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, XAxis, YA
 import { formatDistanceToNow, format, startOfDay, subDays } from "date-fns";
 import { de } from "date-fns/locale";
 import { apiRequest } from "@/lib/queryClient";
+import { 
+  getTopRemovedProducts, 
+  getProductRemovalStats, 
+  getLocationTrends,
+  ProductRemovalStats,
+  LocationTrendsData 
+} from "@/lib/api";
 import RuecklauferRawDataTab from "@/components/RuecklauferRawDataTab";
 
 interface RemovedProduct {
@@ -28,42 +35,7 @@ interface RemovedProduct {
   position: string | null;
 }
 
-interface ProductRemovalStats {
-  productName: string;
-  totalRemoved: number;
-  removalsCount: number;
-  lastRemoved: string;
-  avgPerRemoval: number;
-  avgPurchasePrice: number;
-  estimatedLoss: number;
-  machines: Array<{
-    machineId: number;
-    machineName: string;
-    removedCount: number;
-    avgPrice: number;
-    machineLoss: number;
-  }>;
-  timeline: Array<{
-    date: string;
-    removed: number;
-    count: number;
-  }>;
-}
-
-interface LocationTrend {
-  locationName: string;
-  products: Array<{
-    productName: string;
-    totalRemoved: number;
-    removalEvents: number;
-    avgPerEvent: number;
-    avgPurchasePrice: number;
-    locationLoss: number;
-    rankAtLocation: number;
-  }>;
-  totalRemovedAtLocation: number;
-  totalLossAtLocation: number;
-}
+// Lokale Interfaces entfernt - verwende importierte Typen aus @/lib/api
 
 // API-Funktionen
 const getRemovedProducts = async (params: {
@@ -77,17 +49,7 @@ const getRemovedProducts = async (params: {
   return apiRequest('/removed-products', params, 'GET');
 };
 
-const getProductRemovalStats = async (productName: string, days: number = 30) => {
-  return apiRequest(`/removed-products/stats/${encodeURIComponent(productName)}`, { days }, 'GET');
-};
-
-const getTopRemovedProducts = async (days: number = 30, limit: number = 20) => {
-  return apiRequest('/removed-products/top', { days, limit }, 'GET');
-};
-
-const getLocationTrends = async (days: number = 30, limit: number = 50): Promise<LocationTrend[]> => {
-  return apiRequest('/removed-products/location-trends', { days, limit }, 'GET');
-};
+// Lokale Funktionen entfernt - verwende importierte Funktionen aus @/lib/api
 
 const exportRemovedProducts = async (params: any) => {
   const searchParams = new URLSearchParams();
