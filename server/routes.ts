@@ -2305,7 +2305,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Enhanced Dashboard Analytics - Rückläufer Analysis
   app.get(`${API_PREFIX}/dashboard/ruecklaufer`, async (req: Request, res: Response) => {
     try {
-      const days = 3; // Nur 3 Tage - realistischer für echte Rückläufer  
+      const days = parseInt(req.query.days as string) || 3; // Respektiere Query-Parameter, Default 3 Tage  
       const { pool } = await import('./db');
       
       // Top 5 products by removal quantity - SIMPLE QUERY for realistic data
