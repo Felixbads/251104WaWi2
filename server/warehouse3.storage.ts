@@ -246,6 +246,10 @@ export interface WarehouseStorage {
   getInventoryMovements(filters?: any): Promise<any[]>;
   getInventoryMovement(id: number): Promise<any | null>;
   
+  // 🔥 CRITICAL PERFORMANCE-OPTIMIZED METHODS
+  getOptimizedMovements(warehouseId: number, options?: {productId?: number, days?: number, movementType?: string, limit?: number}): Promise<any[]>;
+  getFifoBatches(warehouseId: number, productId: number, requestedQuantity: number): Promise<{batches: any[], totalAvailable: number}>;
+  
   // Inventory Counts
   createInventoryCount(data: InsertInventoryCount): Promise<any>;
   getInventoryCounts(warehouseId: number): Promise<any[]>;
@@ -1582,6 +1586,110 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
       batchNumber: batch?.batchNumber || '',
       expiryDate: batch?.expiryDate || null,
       performedByName: performedByName
+    };
+  }
+
+  // 🔥 CRITICAL PERFORMANCE-OPTIMIZED METHOD: Target <500ms for warehouse movements
+  async getOptimizedMovements(
+    warehouseId: number,
+    options: {
+      productId?: number;
+      days?: number;
+      movementType?: string;
+      limit?: number;
+    } = {}
+  ): Promise<any[]> {
+    const { productId, days = 30, movementType, limit = 50 } = options;
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - days);
+
+    // Use optimized index: idx_inventory_movements_fifo for maximum performance
+    const movements = await db
+      .select({
+        id: inventoryMovements.id,
+        productId: inventoryMovements.productId,
+        quantity: inventoryMovements.quantity,
+        movementType: inventoryMovements.movementType,
+        performedAt: inventoryMovements.performedAt,
+        batchNumber: inventoryMovements.batchNumber,
+        expiryDate: inventoryMovements.expiryDate,
+        currentStock: inventoryMovements.currentStock,
+        productName: products.productName,
+        sku: products.sku,
+        status: inventoryMovements.status,
+      })
+      .from(inventoryMovements)
+      .innerJoin(products, eq(inventoryMovements.productId, products.id))
+      .where(
+        and(
+          or(
+            eq(inventoryMovements.sourceWarehouseId, warehouseId),
+            eq(inventoryMovements.destinationWarehouseId, warehouseId)
+          ),
+          gte(inventoryMovements.performedAt, cutoffDate),
+          eq(inventoryMovements.status, 'completed'),
+          productId ? eq(inventoryMovements.productId, productId) : sql`true`,
+          movementType ? eq(inventoryMovements.movementType, movementType) : sql`true`
+        )
+      )
+      .orderBy(desc(inventoryMovements.performedAt))
+      .limit(limit);
+
+    return movements;
+  }
+
+  // 🔥 CRITICAL FIFO-OPTIMIZED METHOD: Fast batch selection for FIFO compliance
+  async getFifoBatches(
+    warehouseId: number,
+    productId: number,
+    requestedQuantity: number
+  ): Promise<{batches: any[], totalAvailable: number}> {
+    // Use optimized index: idx_product_batches_fifo for maximum performance
+    const availableBatches = await db
+      .select({
+        id: productBatches.id,
+        batchNumber: productBatches.batchNumber,
+        currentQuantity: productBatches.currentQuantity,
+        expiryDate: productBatches.expiryDate,
+        receivedDate: productBatches.receivedDate,
+        locationInWarehouse: productBatches.locationInWarehouse,
+      })
+      .from(productBatches)
+      .where(
+        and(
+          eq(productBatches.warehouseId, warehouseId),
+          eq(productBatches.productId, productId),
+          eq(productBatches.status, 'active'),
+          gt(productBatches.currentQuantity, 0)
+        )
+      )
+      .orderBy(
+        asc(productBatches.expiryDate),
+        asc(productBatches.receivedDate)
+      );
+
+    // Calculate total available quantity
+    const totalAvailable = availableBatches.reduce((sum, batch) => sum + batch.currentQuantity, 0);
+
+    // Select batches for FIFO withdrawal (oldest first)
+    const selectedBatches = [];
+    let remainingQuantity = requestedQuantity;
+
+    for (const batch of availableBatches) {
+      if (remainingQuantity <= 0) break;
+
+      const quantityToTake = Math.min(batch.currentQuantity, remainingQuantity);
+      selectedBatches.push({
+        ...batch,
+        quantityToWithdraw: quantityToTake
+      });
+      
+      remainingQuantity -= quantityToTake;
+    }
+
+    return {
+      batches: selectedBatches,
+      totalAvailable
     };
   }
   
