@@ -107,10 +107,8 @@ export async function createSupplierPin(supplierId: number, orderId?: number, or
       };
     }
 
-    // Erstelle Access-URL mit dynamischer Base-URL-Erkennung
-    const baseUrl = process.env.BASE_URL || 
-                   (process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : 
-                   'http://localhost:5000');
+    // Erstelle Access-URL mit korrekte Production-Domain
+    const baseUrl = 'https://proviantomat.de';
     const accessUrl = `${baseUrl}/lieferant/${accessToken}`;
 
     // Generiere QR-Code

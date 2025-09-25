@@ -38,18 +38,8 @@ function generateSecureAccessToken(): string {
  * Ermittelt sichere Basis-URL für Portal-Links
  */
 function getSecureBaseUrl(): string {
-  // Production URL hat höchste Priorität
-  if (process.env.PRODUCTION_DOMAIN) {
-    return `https://${process.env.PRODUCTION_DOMAIN}`;
-  }
-  
-  // Development URL
-  if (process.env.REPLIT_DEV_DOMAIN) {
-    return `https://${process.env.REPLIT_DEV_DOMAIN}`;
-  }
-  
-  // Fallback
-  return 'https://www.proviantomat.de';
+  // IMMER Production-Domain verwenden für Portal-Links
+  return 'https://proviantomat.de';
 }
 
 /**

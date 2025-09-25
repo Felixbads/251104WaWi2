@@ -1052,14 +1052,14 @@ app.get('/orders-data', (req, res) => {
             
             if (pinResult.success && pinResult.data) {
               // IMMER Production-Domain verwenden für Portal-Links
-              const baseUrl = 'https://www.proviantomat.de';
+              const baseUrl = 'https://proviantomat.de';
               portalLink = `${baseUrl}/lieferant/${pinResult.data.accessToken}/bestellung/${orderId}`;
               console.log(`[EmailTemplate] Neuer Portal-Link erstellt für Lieferant ${order.supplier_id}`);
             }
           } else {
             const accessToken = result.rows[0].access_token;
             // IMMER Production-Domain verwenden für Portal-Links
-            const baseUrl = 'https://www.proviantomat.de';
+            const baseUrl = 'https://proviantomat.de';
             portalLink = `${baseUrl}/lieferant/${accessToken}/bestellung/${orderId}`;
             console.log(`[EmailTemplate] Existierenden Portal-Link verwendet für Lieferant ${order.supplier_id}`);
           }
