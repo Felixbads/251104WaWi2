@@ -1,0 +1,71 @@
+
+# 🏭 WAREHOUSE3 LAGERVERWALTUNG: UMFASSENDE FEHLERBEHEBUNG UND FIFO-AUTOMATISIERUNG
+
+## 🎯 ÜBERBLICK DER KRITISCHEN PROBLEME
+
+Analysiere die Warehouse3-Lagerverwaltung (`/warehouse3`) und behebe folgende kritische Fehler systematisch:
+
+### 📊 ERKANNTE HAUPTPROBLEME:
+1. **FIFO-Logik unvollständig** - Batch-Auswahl erfolgt nicht nach FIFO-Prinzip
+2. **Performance-Probleme** - Bewegungs-Queries führen zu Timeouts (>2s)
+3. **Refill-Integration defekt** - Vendon-Refills werden nicht automatisch verarbeitet
+4. **Wareneingang-Disconnect** - Goods-Receipt läuft über separates System
+5. **Fehlende Umlagerungs-Funktionen** - Transfer zwischen Lagern nicht implementiert
+6. **Datenbankinkonsistenzen** - Verwaiste Batch-Records und fehlende Bewegungsprotokoll-Einträge
+
+## 🚀 TEIL 1: FIFO-AUTOMATISIERUNG IMPLEMENTIEREN
+
+### 1.1 MHD-FIFO Service Verbesserungen
+
+**Datei:** `server/services/mhdFifoService.ts`
+
+**PROBLEME BEHEBEN:**
+- ✅ FIFO-Sortierung nach `incoming_date ASC, expiry_date ASC`
+- ✅ Automatische Batch-Auswahl bei Entnahmen
+- ✅ MHD-basierte Priorisierung
+- ✅ Abgelaufene Chargen ausfiltern
+
+**ERWEITERTE FUNKTIONEN HINZUFÜGEN:**
+```typescript
+// Neue Methoden implementieren:
+- `automaticFifoWithdrawal()` - Automatische FIFO-Entnahme
+- `batchOptimizedReorder()` - MHD-optimierte Nachbestellung
+- `expiryAlertSystem()` - Ablaufwarnungen mit 7/14/30 Tage Vorlauf
+- `batchConsolidation()` - Automatische Batch-Zusammenführung
+```
+
+### 1.2 Inventory Transactions Service
+
+**Datei:** `server/services/inventoryTransactions.ts`
+
+**FIFO-AUTOMATISIERUNG:**
+```typescript
+// Erweitere bestehende Funktionen:
+export async function automaticFifoDeplete(params: {
+  warehouseId: number;
+  productId: string;
+  quantityToDeplete: number;
+  movementType: 'OUT' | 'TRANSFER' | 'REFILL';
+  autoSelectBatches: boolean; // NEU: Automatische Batch-Auswahl
+  respectMhd: boolean; // NEU: MHD-Berücksichtigung
+  allowPartialBatches: boolean; // NEU: Teilentnahmen erlauben
+}) => Promise<FifoResult & { batchesUsed: BatchInfo[] }>
+
+// Neue FIFO-Receipt Funktion:
+export async function smartReceiptTransaction(params: {
+  warehouseId: number;
+  deliveryDate: string;
+  receiptLines: EnhancedReceiptLine[];
+  autoGenerateBatches: boolean; // NEU: Automatische Batch-Erstellung
+  mhdOptimization: boolean; // NEU: MHD-optimierte Einlagerung
+}) => Promise<ReceiptResult & { optimalBatchStrategy: BatchStrategy }>
+```
+
+### 1.3 Warehouse3 Routes FIFO-Integration
+
+**Datei:** `server/routes/warehouse3.routes.ts`
+
+**NEUE FIFO-ENDPUNKTE:**
+```typescript
+// Automatische FIFO-Entnahme mit MHD-Optimierung
+router.post("/warehouses/:warehouseId/smart-withdrawal", async (req, res) => {
