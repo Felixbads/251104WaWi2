@@ -153,6 +153,18 @@ DRINGENDE Bestellpositionen:
 // REMOVED: Portal-Link-Funktionen (jetzt in orders-email-working.ts zentralisiert)
 
 /**
+ * Validiert, ob eine URL gültig ist
+ */
+export function isValidUrl(url: string): boolean {
+  try {
+    new URL(url);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Erstellt eine E-Mail-Vorlage für eine Bestellung
  * REPARIERT - Portal-Links werden jetzt zuverlässig eingebettet
  */

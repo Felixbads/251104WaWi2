@@ -1036,8 +1036,7 @@ app.get('/orders-data', (req, res) => {
       let portalLink = '';
       if (order.supplier_id && includePortalLink) {
         try {
-          // Import der Portal-Link Funktion aus dem utils
-          const { getSupplierPortalLink } = await import('./utils/orderEmailUtils');
+          // Portal-Link wird inline erstellt (kein Import nötig)
           // Alternativ: Erstelle Portal-Link direkt hier
           const { rawDb } = await import('./db');
           

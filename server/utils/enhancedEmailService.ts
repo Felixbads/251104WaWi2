@@ -310,6 +310,18 @@ class EnhancedEmailService {
   // REMOVED: Portal-Link-Funktionen (jetzt in orders-email-working.ts zentralisiert)
 
   /**
+   * Validiert eine URL
+   */
+  private isValidUrl(url: string): boolean {
+    try {
+      new URL(url);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
    * Escapes HTML entities für sichere E-Mail-Darstellung
    */
   private escapeHtml(unsafe: string): string {
