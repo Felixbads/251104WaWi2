@@ -26,6 +26,7 @@ import {
 } from "../services/inventoryTransactions.js";
 
 import { MhdFifoService } from "../services/mhdFifoService.js";
+import { WarehouseCleanupService } from "../services/warehouseCleanupService.js";
 
 // ---- REFILL PROCESSING SERVICE ----
 import { 
@@ -87,6 +88,9 @@ const executeWithRetry = async <T>(
 // CRITICAL FIX 1: MhdFifoService-Instanz für FIFO-Berechnungen
 // Fix: Use pool instead of db - Service expects pg Pool, not Drizzle instance
 const mhdFifoService = new MhdFifoService(pool);
+
+// 🔥 CRITICAL: WarehouseCleanupService-Instanz für Datenintegrität
+const warehouseCleanupService = new WarehouseCleanupService(pool);
 
 // ---- HELPER FUNCTIONS ----
 
@@ -2566,5 +2570,206 @@ router.get("/warehouses/:warehouseId/movements-fixed",
     return res.status(500).json({ error: 'Failed to fetch movements', details: error.message });
   }
 });
+
+// ========================================
+// 🔥 CRITICAL: DATA INTEGRITY CLEANUP ENDPOINTS
+// ========================================
+
+/**
+ * GET /warehouses/cleanup/status
+ * 
+ * Get current cleanup status and recommendations
+ */
+router.get("/cleanup/status", 
+  authenticateUser,
+  requireRole(['admin', 'warehouse_manager']),
+  auditLog('WAREHOUSE_CLEANUP_STATUS', 'SYSTEM'),
+  async (req, res) => {
+    try {
+      console.log('[WAREHOUSE_CLEANUP] Getting cleanup status...');
+      
+      const status = await warehouseCleanupService.getCleanupStatus();
+      
+      return res.json({
+        success: true,
+        data: status,
+        message: 'Cleanup status retrieved successfully'
+      });
+
+    } catch (error) {
+      console.error('[WAREHOUSE_CLEANUP] Status check failed:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to get cleanup status',
+        details: error.message
+      });
+    }
+  }
+);
+
+/**
+ * POST /warehouses/cleanup/dry-run
+ * 
+ * Perform a dry run of cleanup operations without making changes
+ */
+router.post("/cleanup/dry-run",
+  authenticateUser,
+  requireRole(['admin', 'warehouse_manager']),
+  auditLog('WAREHOUSE_CLEANUP_DRY_RUN', 'SYSTEM'),
+  async (req, res) => {
+    try {
+      console.log('[WAREHOUSE_CLEANUP] Starting dry run cleanup...');
+      
+      const options = {
+        cleanupOrphanedBatches: req.body.cleanupOrphanedBatches ?? true,
+        createMissingMovements: req.body.createMissingMovements ?? true,
+        fixInconsistentStock: req.body.fixInconsistentStock ?? true,
+        removeExpiredData: req.body.removeExpiredData ?? true,
+        dryRun: true
+      };
+      
+      const report = await warehouseCleanupService.performFullCleanup(options);
+      
+      return res.json({
+        success: true,
+        data: report,
+        message: `Dry run completed: ${report.totalItemsCleaned} items would be cleaned`
+      });
+
+    } catch (error) {
+      console.error('[WAREHOUSE_CLEANUP] Dry run failed:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Cleanup dry run failed',
+        details: error.message
+      });
+    }
+  }
+);
+
+/**
+ * POST /warehouses/cleanup/execute
+ * 
+ * Execute full cleanup operations (ADMIN ONLY)
+ */
+router.post("/cleanup/execute",
+  authenticateUser,
+  requireRole(['admin']), // Only admins can execute actual cleanup
+  auditLog('WAREHOUSE_CLEANUP_EXECUTE', 'SYSTEM'),
+  async (req, res) => {
+    try {
+      console.log('[WAREHOUSE_CLEANUP] Starting full cleanup execution...');
+      
+      const options = {
+        cleanupOrphanedBatches: req.body.cleanupOrphanedBatches ?? true,
+        createMissingMovements: req.body.createMissingMovements ?? true,
+        fixInconsistentStock: req.body.fixInconsistentStock ?? true,
+        removeExpiredData: req.body.removeExpiredData ?? true,
+        dryRun: false
+      };
+      
+      const report = await warehouseCleanupService.performFullCleanup(options);
+      
+      // Log the cleanup for audit purposes
+      console.log(`[WAREHOUSE_CLEANUP] Cleanup completed successfully:`, {
+        totalItemsCleaned: report.totalItemsCleaned,
+        executionTime: report.executionTime,
+        user: req.user?.username
+      });
+      
+      return res.json({
+        success: true,
+        data: report,
+        message: `Cleanup completed successfully: ${report.totalItemsCleaned} items cleaned in ${report.executionTime}ms`
+      });
+
+    } catch (error) {
+      console.error('[WAREHOUSE_CLEANUP] Cleanup execution failed:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Cleanup execution failed',
+        details: error.message
+      });
+    }
+  }
+);
+
+/**
+ * POST /warehouses/cleanup/orphaned-batches
+ * 
+ * Clean up only orphaned batch records
+ */
+router.post("/cleanup/orphaned-batches",
+  authenticateUser,
+  requireRole(['admin', 'warehouse_manager']),
+  auditLog('WAREHOUSE_CLEANUP_ORPHANED_BATCHES', 'SYSTEM'),
+  async (req, res) => {
+    try {
+      console.log('[WAREHOUSE_CLEANUP] Cleaning orphaned batches...');
+      
+      const dryRun = req.body.dryRun ?? false;
+      const report = await warehouseCleanupService.performFullCleanup({
+        cleanupOrphanedBatches: true,
+        createMissingMovements: false,
+        fixInconsistentStock: false,
+        removeExpiredData: false,
+        dryRun
+      });
+      
+      return res.json({
+        success: true,
+        data: report.orphanedBatches,
+        message: `Orphaned batches cleanup ${dryRun ? 'simulation' : 'execution'} completed: ${report.orphanedBatches.itemsCleaned} items`
+      });
+
+    } catch (error) {
+      console.error('[WAREHOUSE_CLEANUP] Orphaned batches cleanup failed:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Orphaned batches cleanup failed',
+        details: error.message
+      });
+    }
+  }
+);
+
+/**
+ * POST /warehouses/cleanup/missing-movements
+ * 
+ * Create missing movement protocol entries
+ */
+router.post("/cleanup/missing-movements",
+  authenticateUser,
+  requireRole(['admin', 'warehouse_manager']),
+  auditLog('WAREHOUSE_CLEANUP_MISSING_MOVEMENTS', 'SYSTEM'),
+  async (req, res) => {
+    try {
+      console.log('[WAREHOUSE_CLEANUP] Creating missing movement entries...');
+      
+      const dryRun = req.body.dryRun ?? false;
+      const report = await warehouseCleanupService.performFullCleanup({
+        cleanupOrphanedBatches: false,
+        createMissingMovements: true,
+        fixInconsistentStock: false,
+        removeExpiredData: false,
+        dryRun
+      });
+      
+      return res.json({
+        success: true,
+        data: report.missingMovements,
+        message: `Missing movements cleanup ${dryRun ? 'simulation' : 'execution'} completed: ${report.missingMovements.itemsCleaned} items`
+      });
+
+    } catch (error) {
+      console.error('[WAREHOUSE_CLEANUP] Missing movements cleanup failed:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Missing movements cleanup failed',
+        details: error.message
+      });
+    }
+  }
+);
 
 export default router;
