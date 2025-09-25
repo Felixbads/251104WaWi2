@@ -1051,15 +1051,19 @@ app.get('/orders-data', (req, res) => {
             const pinResult = await createSupplierPin(order.supplier_id, orderId);
             
             if (pinResult.success && pinResult.data) {
-              // IMMER Production-Domain verwenden für Portal-Links
-              const baseUrl = 'https://proviantomat.de';
+              // Portal läuft auf Replit-Webspace  
+              const baseUrl = process.env.REPLIT_DEV_DOMAIN 
+                ? `https://${process.env.REPLIT_DEV_DOMAIN}` 
+                : 'https://proviantomat.de';
               portalLink = `${baseUrl}/lieferant/${pinResult.data.accessToken}/bestellung/${orderId}`;
               console.log(`[EmailTemplate] Neuer Portal-Link erstellt für Lieferant ${order.supplier_id}`);
             }
           } else {
             const accessToken = result.rows[0].access_token;
-            // IMMER Production-Domain verwenden für Portal-Links
-            const baseUrl = 'https://proviantomat.de';
+            // Portal läuft auf Replit-Webspace
+            const baseUrl = process.env.REPLIT_DEV_DOMAIN 
+              ? `https://${process.env.REPLIT_DEV_DOMAIN}` 
+              : 'https://proviantomat.de';
             portalLink = `${baseUrl}/lieferant/${accessToken}/bestellung/${orderId}`;
             console.log(`[EmailTemplate] Existierenden Portal-Link verwendet für Lieferant ${order.supplier_id}`);
           }

@@ -107,8 +107,10 @@ export async function createSupplierPin(supplierId: number, orderId?: number, or
       };
     }
 
-    // Erstelle Access-URL mit korrekte Production-Domain
-    const baseUrl = 'https://proviantomat.de';
+    // Portal läuft auf Replit-Webspace
+    const baseUrl = process.env.REPLIT_DEV_DOMAIN 
+      ? `https://${process.env.REPLIT_DEV_DOMAIN}` 
+      : 'https://proviantomat.de';
     const accessUrl = `${baseUrl}/lieferant/${accessToken}`;
 
     // Generiere QR-Code

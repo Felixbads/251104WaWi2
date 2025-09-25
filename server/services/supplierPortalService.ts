@@ -38,8 +38,11 @@ function generateSecureAccessToken(): string {
  * Ermittelt sichere Basis-URL für Portal-Links
  */
 function getSecureBaseUrl(): string {
-  // IMMER Production-Domain verwenden für Portal-Links
-  return 'https://proviantomat.de';
+  // Portal läuft auf Replit-Webspace
+  if (process.env.REPLIT_DEV_DOMAIN) {
+    return `https://${process.env.REPLIT_DEV_DOMAIN}`;
+  }
+  return 'https://proviantomat.de'; // Fallback
 }
 
 /**

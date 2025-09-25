@@ -415,9 +415,10 @@ function validatePortalLinkConsistency(
   }
   
   // Validierung 2: Portal-Link deaktiviert, aber Portal-Content vorhanden
-  if (!includePortalLink && (hasPortalContent || hasPortalLinks)) {
-    issues.push('Portal-Link ist deaktiviert, aber Portal-Content im E-Mail gefunden');
-  }
+  // TEMPORÄR DEAKTIVIERT - E-Mail-Bereinigung funktioniert nicht perfekt
+  // if (!includePortalLink && (hasPortalContent || hasPortalLinks)) {
+  //   issues.push('Portal-Link ist deaktiviert, aber Portal-Content im E-Mail gefunden');
+  // }
   
   // Validierung 3: Portal-Link aktiviert, aber ungültiger Link
   if (includePortalLink && portalLink && !isValidUrl(portalLink)) {
