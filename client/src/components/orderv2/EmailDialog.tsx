@@ -275,6 +275,65 @@ export default function EmailDialog({
         
         onSendEmail(true);
         onOpenChange(false);
+      } else if (response.status === 409 && result.requiresResendConfirmation) {
+        // ✅ RESEND-BESTÄTIGUNG: Bestellung bereits versendet
+        const confirmed = window.confirm(
+          `${result.message}\n\nBestellnummer: ${result.orderNumber || orderNumber}\nStatus: ${result.orderStatus}\n\nMöchten Sie die E-Mail trotzdem erneut versenden?`
+        );
+        
+        if (confirmed) {
+          // Wiederhole Request mit resend: true
+          setIsLoading(true);
+          
+          try {
+            const resendResponse = await fetch(`/api/orders-email-working/${orderId}/send-email-working`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                emailAddress: emailData.to.trim(),
+                cc: emailData.cc.trim(),
+                bcc: emailData.bcc.trim(),
+                subject: emailData.subject.trim(),
+                content: sendAsPdf ? undefined : emailData.htmlContent.trim(),
+                usePdf: sendAsPdf,
+                includePortalLink: includePortalLink,
+                coverText: sendAsPdf ? coverText : undefined,
+                resend: true // ✅ RESEND-FLAG
+              }),
+            });
+            
+            const resendResult = await resendResponse.json();
+            
+            if (resendResponse.ok) {
+              toast({
+                title: "✅ E-Mail erneut gesendet",
+                description: `${resendResult.message} (Erneut versendet)`,
+                variant: "default",
+              });
+              
+              // Invalidate orders cache to show updated status
+              queryClient.invalidateQueries({ queryKey: ['/api/orders/dashboard/open'] });
+              queryClient.invalidateQueries({ queryKey: ['/api/orders'] });
+              
+              onSendEmail(true);
+              onOpenChange(false);
+            } else {
+              throw new Error(resendResult.error || 'Fehler beim erneuten Senden der E-Mail');
+            }
+          } catch (resendError) {
+            console.error('Error resending email:', resendError);
+            toast({
+              title: "Fehler beim erneuten Versenden",
+              description: resendError instanceof Error ? resendError.message : "E-Mail konnte nicht erneut gesendet werden",
+              variant: "destructive",
+            });
+          }
+        }
+        // Falls nicht bestätigt, beende Ladezustand aber schließe Dialog nicht
+        setIsLoading(false);
+        return;
       } else {
         throw new Error(result.error || 'Fehler beim Senden der E-Mail');
       }

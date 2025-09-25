@@ -561,7 +561,25 @@ router.post('/:orderId/send-email-working', async (req: Request, res: Response) 
     }
     
     const order = orderResult[0];
-    console.log('[WorkingOrderEmail] Order found:', order.orderNumber);
+    console.log('[WorkingOrderEmail] Order found:', order.orderNumber, 'Status:', order.status);
+    
+    // ✅ RESEND-VALIDIERUNG: Prüfung auf bereits versendete Bestellungen
+    const { resend } = req.body;
+    if (order.status === 'sent' && !resend) {
+      console.log('[WorkingOrderEmail] Order already sent, resend confirmation required');
+      return res.status(409).json({
+        success: false,
+        error: 'Bestellung bereits versendet',
+        requiresResendConfirmation: true,
+        orderStatus: order.status,
+        orderNumber: order.orderNumber,
+        message: 'Diese Bestellung wurde bereits per E-Mail versendet. Möchten Sie sie erneut versenden?'
+      });
+    }
+    
+    if (resend) {
+      console.log('[WorkingOrderEmail] Resend confirmed for already sent order');
+    }
     
     // Fetch supplier data
     let supplier = { name: order.supplierName || 'Unbekannter Lieferant' };

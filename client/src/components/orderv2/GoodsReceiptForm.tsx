@@ -542,16 +542,8 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
     }
   };
   
-  // Trigger validation on form changes (debounced)
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (enableEnhancedFeatures && effectiveOrderId) {
-        validateFormData();
-      }
-    }, 1000); // 1 second debounce
-    
-    return () => clearTimeout(timer);
-  }, [form.watch(), effectiveOrderId, enableEnhancedFeatures]);
+  // DEAKTIVIERT - Doppelte Validierung verhindert
+  // useEffect entfernt um Endless-Loop zu stoppen
 
   // Handle input change (Enhanced with quality status sync)
   const handleQuantityChange = (id: number, receivedQuantity: number) => {
@@ -722,23 +714,29 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
     };
   }, [previewUrls]);
 
-  // Enhanced: Real-time validation trigger
+  // Enhanced: Real-time validation trigger (FIXED - no more endless loop)
   useEffect(() => {
-    if (!enableEnhancedFeatures) return;
+    if (!enableEnhancedFeatures || !effectiveOrderId) return;
     
-    const subscription = form.watch(async (value) => {
-      // Debounce validation
-      const timeoutId = setTimeout(() => {
-        if (value.deliveryDate && value.warehouseId && value.items?.length > 0) {
+    let timeoutId: NodeJS.Timeout;
+    
+    const subscription = form.watch((value) => {
+      // Clear previous timeout
+      if (timeoutId) clearTimeout(timeoutId);
+      
+      // Debounce validation with longer delay to prevent spam
+      timeoutId = setTimeout(() => {
+        if (value.deliveryDate && value.warehouseId && Array.isArray(value.items) && value.items.length > 0) {
           validateFormData();
         }
-      }, 1000);
-      
-      return () => clearTimeout(timeoutId);
+      }, 3000); // Longer debounce to prevent spam
     });
     
-    return () => subscription.unsubscribe();
-  }, [form, enableEnhancedFeatures, effectiveOrderId]);
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+      subscription.unsubscribe();
+    };
+  }, [enableEnhancedFeatures, effectiveOrderId]);
 
   // File validation function
   const validateFile = (file: File): { valid: boolean; error?: string } => {
