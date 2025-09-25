@@ -2287,6 +2287,60 @@ export async function getTopRemovedProducts(days: number = 7): Promise<TopRemove
   return apiRequest<TopRemovedProduct[]>('get', `/removed-products/top?days=${days}`);
 }
 
+// Detaillierte Produktstatistiken Interface  
+export interface ProductRemovalStats {
+  productName: string;
+  totalRemoved: number;
+  removalsCount: number;
+  lastRemoved: string;
+  avgPerRemoval: number;
+  avgSalePrice: number;
+  estimatedLoss: number;
+  machines: ProductMachineStats[];
+  timeline: ProductTimelineData[];
+}
+
+export interface ProductMachineStats {
+  machineId: number;
+  machineName: string;
+  removedCount: number;
+  avgPrice: number;
+  machineLoss: number;
+}
+
+export interface ProductTimelineData {
+  date: string;
+  removed: number;
+  count: number;
+}
+
+// Standort-Trends Interface
+export interface LocationTrendsData {
+  locationName: string;
+  totalRemovedAtLocation: number;
+  totalLossAtLocation: number;
+  products: LocationProductData[];
+}
+
+export interface LocationProductData {
+  rankAtLocation: number;
+  productName: string;
+  totalRemoved: number;
+  removalEvents: number;
+  avgPerEvent: number;
+  avgPurchasePrice: number;
+  locationLoss: number;
+}
+
+// API-Funktionen für Rückläufer-Analyse
+export async function getProductRemovalStats(productName: string, days: number = 30): Promise<ProductRemovalStats | null> {
+  return apiRequest<ProductRemovalStats | null>('get', `/removed-products/stats/${encodeURIComponent(productName)}?days=${days}`);
+}
+
+export async function getLocationTrends(days: number = 30, limit: number = 20): Promise<LocationTrendsData[]> {
+  return apiRequest<LocationTrendsData[]>('get', `/removed-products/location-trends?days=${days}&limit=${limit}`);
+}
+
 // Dashboard Analytics Response Interfaces
 export interface RuecklauferProduct {
   productName: string;
