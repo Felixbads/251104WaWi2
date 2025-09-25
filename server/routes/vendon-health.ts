@@ -302,8 +302,12 @@ router.get('/sync-logs', async (req, res) => {
       SELECT 
         created_at,
         service_type,
-        sync_result,
-        sync_stats,
+        sync_status,
+        items_found,
+        items_saved,
+        duplicates,
+        errors,
+        duration_seconds,
         error_message
       FROM sync_logs 
       WHERE created_at >= NOW() - INTERVAL '7 days'
