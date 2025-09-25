@@ -1064,7 +1064,7 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {warehouses.map((warehouse: any) => (
+                        {Array.isArray(warehouses) && warehouses.map((warehouse: any) => (
                           <SelectItem key={warehouse.id} value={warehouse.id.toString()}>
                             <div className="flex items-center">
                               <Warehouse className="h-4 w-4 mr-2" />
@@ -1078,7 +1078,7 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
                           </SelectItem>
                         ))}
                         {/* Fallback for legacy warehouses */}
-                        {warehouses.length === 0 && order.warehouseName && (
+                        {(!Array.isArray(warehouses) || warehouses.length === 0) && order.warehouseName && (
                           <SelectItem value={order.warehouseId?.toString() || "1"}>
                             <div className="flex items-center">
                               <Warehouse className="h-4 w-4 mr-2" />
