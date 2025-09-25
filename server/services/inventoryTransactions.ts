@@ -776,6 +776,263 @@ export async function validateOrderForReceipt(
   return { valid: true, order };
 }
 
+/**
+ * 🧠 INTELLIGENTE FIFO-WARENEINGANG TRANSAKTION
+ * Erweiterte receiptTransaction mit automatischer MHD-Optimierung und FIFO-Integration
+ */
+export async function smartReceiptTransaction(
+  db: PgDatabase<any>,
+  receiptData: z.infer<typeof receiptTransactionSchema>,
+  userId: number,
+  options: {
+    autoFifoIntegration?: boolean;
+    mhdOptimization?: boolean;
+    batchConsolidation?: boolean;
+  } = {}
+) {
+  const { 
+    autoFifoIntegration = true, 
+    mhdOptimization = true, 
+    batchConsolidation = true 
+  } = options;
+
+  // Standard-Wareneingang durchführen
+  const receiptResult = await receiptTransaction(db, receiptData);
+
+  if (!receiptResult.success) {
+    return receiptResult;
+  }
+
+  const smartOptimizations: SmartOptimization[] = [];
+
+  // MHD-Optimierung: Analysiere kürzlich erstellte Batches
+  if (mhdOptimization && receiptResult.batchesCreated > 0) {
+    // Hole kürzlich erstellte Batches für diese spezifische Bestellung
+    const recentBatches = await db
+      .select()
+      .from(productBatches)
+      .where(
+        and(
+          eq(productBatches.orderId, receiptData.orderId),
+          eq(productBatches.warehouseId, receiptData.warehouseId),
+          eq(productBatches.status, 'active')
+        )
+      )
+      .orderBy(desc(productBatches.createdAt))
+      .limit(receiptResult.batchesCreated);
+
+    for (const batch of recentBatches) {
+      if (batch.expiryDate) {
+        const daysUntilExpiry = Math.ceil(
+          (new Date(`${batch.expiryDate}T00:00:00Z`).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
+        );
+        
+        if (daysUntilExpiry <= 30) {
+          smartOptimizations.push({
+            type: 'MHD_WARNING',
+            message: `Batch ${batch.batchNumber} läuft in ${daysUntilExpiry} Tagen ab`,
+            priority: daysUntilExpiry <= 7 ? 'CRITICAL' : daysUntilExpiry <= 14 ? 'HIGH' : 'MEDIUM',
+            batchId: batch.id
+          });
+        }
+      }
+    }
+
+    // Batch-Konsolidierung: Finde ähnliche Batches zum Zusammenführen
+    if (batchConsolidation) {
+      for (const newBatch of recentBatches) {
+        const similarBatches = await db
+          .select()
+          .from(productBatches)
+          .where(
+            and(
+              eq(productBatches.productId, newBatch.productId),
+              eq(productBatches.expiryDate, newBatch.expiryDate),
+              eq(productBatches.warehouseId, receiptData.warehouseId),
+              eq(productBatches.status, 'active'),
+              ne(productBatches.id, newBatch.id) // Exclude the new batch itself
+            )
+          );
+
+        if (similarBatches.length >= 1) {
+          smartOptimizations.push({
+            type: 'CONSOLIDATION_OPPORTUNITY',
+            message: `${similarBatches.length} Batches mit gleichem MHD können konsolidiert werden`,
+            batchIds: similarBatches.map(b => b.id)
+          });
+        }
+      }
+    }
+  }
+
+  return {
+    ...receiptResult,
+    smartOptimizations,
+    mhdWarnings: smartOptimizations.filter(opt => opt.type === 'MHD_WARNING'),
+    consolidationOpportunities: smartOptimizations.filter(opt => opt.type === 'CONSOLIDATION_OPPORTUNITY')
+  };
+}
+
+/**
+ * Smart Optimization Type Definition
+ */
+type SmartOptimization = {
+  type: 'MHD_WARNING' | 'CONSOLIDATION_OPPORTUNITY';
+  message: string;
+  priority?: 'CRITICAL' | 'HIGH' | 'MEDIUM';
+  batchId?: number;
+  batchIds?: number[];
+};
+
+/**
+ * 🎯 AUTOMATISCHE FIFO-ENTNAHME MIT MHD-OPTIMIERUNG
+ * Intelligente Entnahme basierend auf FIFO-Prinzip und MHD-Risikoanalyse
+ */
+export async function automaticFifoDeplete(
+  db: PgDatabase<any>,
+  depletions: Array<{
+    productId: number;
+    requestedQuantity: number;
+    warehouseId?: number;
+    allowPartialFulfillment?: boolean;
+    mhdPriorityMode?: 'STRICT_FIFO' | 'MHD_OPTIMIZED' | 'RISK_AWARE';
+  }>,
+  userId: number
+) {
+  const results = [];
+
+  for (const depletion of depletions) {
+    const { 
+      productId, 
+      requestedQuantity, 
+      warehouseId = 1, 
+      allowPartialFulfillment = true,
+      mhdPriorityMode = 'MHD_OPTIMIZED'
+    } = depletion;
+
+    // Hole verfügbare Batches mit FIFO-Reihenfolge und MHD-Analyse
+    let availableBatches = await db
+      .select({
+        id: productBatches.id,
+        batchNumber: productBatches.batchNumber,
+        productId: productBatches.productId,
+        expiryDate: productBatches.expiryDate,
+        createdAt: productBatches.createdAt,
+        availableQuantity: productBatches.currentQuantity
+      })
+      .from(productBatches)
+      .where(
+        and(
+          eq(productBatches.productId, productId),
+          eq(productBatches.status, 'active'),
+          gte(productBatches.currentQuantity, 1)
+        )
+      );
+
+    // MHD-basierte Sortierung anwenden
+    if (mhdPriorityMode === 'MHD_OPTIMIZED') {
+      // Priorisiere Batches, die bald ablaufen, aber noch sicher sind
+      availableBatches.sort((a, b) => {
+        const aDaysLeft = a.expiryDate ? 
+          Math.ceil((new Date(`${a.expiryDate}T00:00:00Z`).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)) : 999;
+        const bDaysLeft = b.expiryDate ?
+          Math.ceil((new Date(`${b.expiryDate}T00:00:00Z`).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)) : 999;
+        
+        // Kritische Batches (7-30 Tage) haben höchste Priorität
+        const aIsCritical = aDaysLeft >= 7 && aDaysLeft <= 30;
+        const bIsCritical = bDaysLeft >= 7 && bDaysLeft <= 30;
+        
+        if (aIsCritical && !bIsCritical) return -1;
+        if (!aIsCritical && bIsCritical) return 1;
+        
+        // Bei gleicher Kritikalität: FIFO (älteste zuerst)
+        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      });
+    } else if (mhdPriorityMode === 'RISK_AWARE') {
+      // Vermeide sehr nahe Ablaufdaten (< 7 Tage)
+      availableBatches = availableBatches.filter(batch => {
+        if (!batch.expiryDate) return true;
+        const daysLeft = Math.ceil((new Date(`${batch.expiryDate}T00:00:00Z`).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+        return daysLeft > 7; // Nur Batches mit mehr als 7 Tagen
+      });
+      availableBatches.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    } else {
+      // STRICT_FIFO: Reine FIFO-Reihenfolge
+      availableBatches.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    }
+
+    // Entnahme durchführen
+    let remainingQuantity = requestedQuantity;
+    const depletionDetails = [];
+    const mhdWarnings = [];
+
+    for (const batch of availableBatches) {
+      if (remainingQuantity <= 0) break;
+
+      const quantityToTake = Math.min(remainingQuantity, batch.availableQuantity);
+      
+      // MHD-Warnung prüfen
+      if (batch.expiryDate) {
+        const daysLeft = Math.ceil((new Date(`${batch.expiryDate}T00:00:00Z`).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+        if (daysLeft <= 14) {
+          mhdWarnings.push({
+            batchNumber: batch.batchNumber,
+            expiryDate: batch.expiryDate,
+            daysLeft,
+            quantity: quantityToTake,
+            riskLevel: daysLeft <= 7 ? 'CRITICAL' : 'HIGH'
+          });
+        }
+      }
+
+      // Standard FIFO-Entnahme durchführen
+      try {
+        await fifoDeplete(db, {
+          productId,
+          quantity: quantityToTake,
+          warehouseId,
+          reason: 'Automatische FIFO-Entnahme',
+          notes: `MHD-optimiert (${mhdPriorityMode})`
+        });
+
+        depletionDetails.push({
+          batchId: batch.id,
+          batchNumber: batch.batchNumber,
+          quantityTaken: quantityToTake,
+          expiryDate: batch.expiryDate
+        });
+
+        remainingQuantity -= quantityToTake;
+      } catch (error) {
+        console.error(`❌ Fehler bei automatischer FIFO-Entnahme für Batch ${batch.batchNumber}:`, error);
+      }
+    }
+
+    results.push({
+      productId,
+      requestedQuantity,
+      fulfilledQuantity: requestedQuantity - remainingQuantity,
+      remainingQuantity,
+      fullyFulfilled: remainingQuantity === 0,
+      partiallyFulfilled: remainingQuantity > 0 && remainingQuantity < requestedQuantity,
+      depletionDetails,
+      mhdWarnings,
+      mhdPriorityMode
+    });
+  }
+
+  return {
+    success: true,
+    results,
+    summary: {
+      totalRequests: depletions.length,
+      fullyFulfilled: results.filter(r => r.fullyFulfilled).length,
+      partiallyFulfilled: results.filter(r => r.partiallyFulfilled).length,
+      totalMhdWarnings: results.flatMap(r => r.mhdWarnings).length
+    }
+  };
+}
+
 export default {
   receiptTransaction,
   fifoDeplete,
@@ -783,6 +1040,10 @@ export default {
   getProductBatchesFifo,
   createMovementAuditTrail,
   validateOrderForReceipt,
+  
+  // 🚀 Neue intelligente FIFO-Methoden
+  smartReceiptTransaction,
+  automaticFifoDeplete,
   
   // Schema-Exports
   receiptLineSchema,
