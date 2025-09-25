@@ -139,6 +139,196 @@ export class MhdFifoService {
   }
 
   /**
+   * 🔥 CRITICAL: Automatic FIFO Withdrawal with Inventory Transaction Integration
+   * 
+   * Automatically selects batches using FIFO principles and creates inventory movements
+   * 
+   * @param warehouseId - ID des Lagers
+   * @param productId - ID des Produkts (numeric)
+   * @param requestedQuantity - Angeforderte Menge
+   * @param movementType - Art der Bewegung (default: 'OUT')
+   * @param destinationType - Zieltyp (default: 'machine')
+   * @param destinationId - Ziel-ID (z.B. Automaten-ID)
+   * @param performedBy - Benutzer-ID
+   * @param notes - Zusätzliche Notizen
+   * @returns FIFO Withdrawal Details mit Bewegungsprotokoll
+   */
+  async automaticFifoWithdrawal(
+    warehouseId: number,
+    productId: number,
+    requestedQuantity: number,
+    options: {
+      movementType?: string;
+      destinationType?: string;
+      destinationId?: number;
+      performedBy?: number;
+      notes?: string;
+      referenceType?: string;
+      referenceId?: number;
+    } = {}
+  ): Promise<{
+    success: boolean;
+    totalWithdrawn: number;
+    batches: FifoMhdTransfer[];
+    movements: any[];
+    error?: string;
+  }> {
+    const {
+      movementType = 'OUT',
+      destinationType = 'machine',
+      destinationId,
+      performedBy,
+      notes = 'Automatic FIFO Withdrawal',
+      referenceType,
+      referenceId
+    } = options;
+
+    const withdrawalResult = {
+      success: false,
+      totalWithdrawn: 0,
+      batches: [] as FifoMhdTransfer[],
+      movements: [] as any[],
+      error: undefined as string | undefined
+    };
+
+    try {
+      await this.db.query('BEGIN');
+      
+      console.log(`[FIFO_AUTO] Starting automatic FIFO withdrawal: ${requestedQuantity} units of product ${productId} from warehouse ${warehouseId}`);
+
+      // 1. Hole verfügbare Batches mit FIFO-Sortierung (modernere product_batches Tabelle)
+      const batchesResult = await this.db.query(`
+        SELECT 
+          pb.id, 
+          pb.batch_number, 
+          pb.current_quantity, 
+          pb.expiry_date, 
+          pb.received_date,
+          pb.location_in_warehouse,
+          p.product_name,
+          p.sku
+        FROM product_batches pb
+        JOIN products p ON pb.product_id = p.id
+        WHERE pb.warehouse_id = $1 
+          AND pb.product_id = $2
+          AND pb.current_quantity > 0
+          AND pb.status = 'active'
+          AND (pb.expiry_date IS NULL OR pb.expiry_date > CURRENT_DATE)
+        ORDER BY pb.expiry_date ASC NULLS LAST, pb.received_date ASC
+      `, [warehouseId, productId]);
+
+      if (batchesResult.rows.length === 0) {
+        withdrawalResult.error = `No available batches for product ${productId} in warehouse ${warehouseId}`;
+        await this.db.query('ROLLBACK');
+        return withdrawalResult;
+      }
+
+      let remainingQuantity = requestedQuantity;
+      
+      // 2. FIFO: Verwende älteste Chargen zuerst
+      for (const batch of batchesResult.rows) {
+        if (remainingQuantity <= 0) break;
+        
+        const quantityFromThisBatch = Math.min(remainingQuantity, batch.current_quantity);
+        
+        console.log(`[FIFO_AUTO] Withdrawing ${quantityFromThisBatch} from batch ${batch.batch_number} (expiry: ${batch.expiry_date || 'no expiry'})`);
+
+        // 3. Update Batch-Bestand
+        await this.db.query(`
+          UPDATE product_batches 
+          SET 
+            current_quantity = current_quantity - $1, 
+            updated_at = NOW(),
+            version = version + 1
+          WHERE id = $2 AND current_quantity >= $1
+        `, [quantityFromThisBatch, batch.id]);
+
+        // 4. Erstelle Inventory Movement Record für vollständige Nachverfolgung
+        const movementResult = await this.db.query(`
+          INSERT INTO inventory_movements (
+            product_id,
+            quantity,
+            movement_type,
+            status,
+            source_type,
+            source_id,
+            destination_type,
+            destination_id,
+            performed_at,
+            performed_by,
+            batch_id,
+            batch_number,
+            expiry_date,
+            notes,
+            reference_type,
+            reference_id,
+            source_warehouse_id,
+            destination_warehouse_id
+          ) VALUES (
+            $1, $2, $3, 'completed', 'warehouse', $4, $5, $6,
+            NOW(), $7, $8, $9, $10, $11, $12, $13, $4,
+            CASE WHEN $5 = 'warehouse' THEN $6 ELSE NULL END
+          )
+          RETURNING id, performed_at
+        `, [
+          productId,
+          quantityFromThisBatch,
+          movementType,
+          warehouseId,
+          destinationType,
+          destinationId,
+          performedBy,
+          batch.id,
+          batch.batch_number,
+          batch.expiry_date,
+          notes,
+          referenceType,
+          referenceId
+        ]);
+
+        // 5. Dokumentiere die Batch-Verwendung
+        withdrawalResult.batches.push({
+          batchId: batch.id,
+          expiryDate: batch.expiry_date || '',
+          quantityUsed: quantityFromThisBatch,
+          quantityRemaining: batch.current_quantity - quantityFromThisBatch
+        });
+
+        // 6. Dokumentiere die Bewegung
+        withdrawalResult.movements.push({
+          id: movementResult.rows[0].id,
+          batchId: batch.id,
+          batchNumber: batch.batch_number,
+          quantity: quantityFromThisBatch,
+          expiryDate: batch.expiry_date,
+          performedAt: movementResult.rows[0].performed_at
+        });
+
+        remainingQuantity -= quantityFromThisBatch;
+      }
+
+      withdrawalResult.totalWithdrawn = requestedQuantity - remainingQuantity;
+      withdrawalResult.success = true;
+
+      await this.db.query('COMMIT');
+      
+      console.log(`[FIFO_AUTO] Successfully completed automatic withdrawal: ${withdrawalResult.totalWithdrawn}/${requestedQuantity} units`);
+      
+      if (remainingQuantity > 0) {
+        console.log(`[FIFO_AUTO] WARNING: Could not fulfill complete request. Remaining: ${remainingQuantity} units`);
+      }
+
+      return withdrawalResult;
+      
+    } catch (error) {
+      await this.db.query('ROLLBACK');
+      console.error('[FIFO_AUTO] Error in automatic FIFO withdrawal:', error);
+      withdrawalResult.error = error instanceof Error ? error.message : 'Unknown error';
+      return withdrawalResult;
+    }
+  }
+
+  /**
    * Prüft auf ablaufende MHD-Produkte in einem Automaten
    * 
    * @param machineId - ID des Automaten
