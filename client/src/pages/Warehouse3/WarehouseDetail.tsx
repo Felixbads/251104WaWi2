@@ -28,6 +28,7 @@ import {
   PanelTop,
   Pencil,
   Trash2,
+  PackageOpen,
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { toast } from "@/hooks/use-toast";
@@ -357,6 +358,9 @@ export default function WarehouseDetail() {
           <TabsTrigger value="auffüllungen" className="flex items-center gap-1">
             <Truck className="h-4 w-4" /> Auffüllungen
           </TabsTrigger>
+          <TabsTrigger value="wareneingang" className="flex items-center gap-1" data-testid="tab-wareneingang">
+            <PackageOpen className="h-4 w-4" /> Wareneingang
+          </TabsTrigger>
           <TabsTrigger value="inventuren" className="flex items-center gap-1">
             <Clipboard className="h-4 w-4" /> Inventuren
           </TabsTrigger>
@@ -486,6 +490,42 @@ export default function WarehouseDetail() {
         
         <TabsContent value="abgelaufene-produkte">
           <ExpiredProductsList warehouseId={warehouseId} />
+        </TabsContent>
+        
+        <TabsContent value="wareneingang">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <PackageOpen className="h-5 w-5" />
+                Wareneingang
+              </CardTitle>
+              <CardDescription>
+                Bestellungen annehmen und in das Lager einbuchen
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-center py-8">
+                <PackageOpen className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-semibold mb-2">Wareneingang verfügbar</h3>
+                <p className="text-muted-foreground mb-6">
+                  Hier können Sie eingehende Bestellungen bearbeiten und Waren in das Lager einbuchen.
+                </p>
+                <div className="flex gap-4 justify-center">
+                  <Link href={`/orders?warehouseId=${warehouseId}`}>
+                    <Button data-testid="button-orders-list">
+                      <Package className="mr-2 h-4 w-4" />
+                      Zu Bestellungen
+                    </Button>
+                  </Link>
+                  <Link href={`/orders/new?warehouseId=${warehouseId}`}>
+                    <Button variant="outline" data-testid="button-orders-new">
+                      Neue Bestellung
+                    </Button>
+                  </Link>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
     </div>
