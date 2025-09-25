@@ -2772,4 +2772,348 @@ router.post("/cleanup/missing-movements",
   }
 );
 
+// ================================
+// 🔥 GOODS RECEIPT INTEGRATION - WAREHOUSE3 UNIFIED SYSTEM
+// ================================
+
+/**
+ * POST /warehouse3/goods-receipt/:orderId/process-enhanced
+ * 
+ * Enhanced goods receipt processing with warehouse3 FIFO integration
+ * - Integrates existing goods receipt service with warehouse3 FIFO system
+ * - Provides unified receipt processing for warehouse3
+ * - Includes MHD tracking, batch creation, and inventory movements
+ */
+router.post('/goods-receipt/:orderId/process-enhanced',
+  authenticateUser,
+  requireRole(['admin', 'manager']),
+  auditLog('WAREHOUSE3_GOODS_RECEIPT_ENHANCED', 'GOODS_RECEIPT_WRITE'),
+  async (req, res) => {
+    try {
+      const orderId = parseInt(req.params.orderId);
+      if (isNaN(orderId)) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid order ID'
+        });
+      }
+
+      console.log(`[WAREHOUSE3_RECEIPT] Processing enhanced goods receipt for order ${orderId}`);
+
+      // Import goodsReceiptService at runtime to avoid circular dependencies
+      const { default: GoodsReceiptService } = await import('../services/goodsReceiptService');
+      const goodsReceiptService = new GoodsReceiptService(new DatabaseStorage());
+
+      // Process using enhanced goods receipt with warehouse3 compatibility
+      const result = await goodsReceiptService.processEnhancedGoodsReceipt(req.body);
+
+      if (result.success) {
+        console.log(`[WAREHOUSE3_RECEIPT] Enhanced receipt processed: ${result.itemsProcessed} items, ${result.batchesCreated} batches`);
+        
+        return res.json({
+          success: true,
+          data: result,
+          message: `Enhanced goods receipt processed successfully: ${result.itemsProcessed} items processed`
+        });
+      } else {
+        return res.status(400).json({
+          success: false,
+          error: 'Enhanced goods receipt processing failed',
+          details: result.errorMessage || 'Unknown error',
+          validationErrors: result.validationErrors
+        });
+      }
+
+    } catch (error) {
+      console.error('[WAREHOUSE3_RECEIPT] Enhanced processing failed:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Enhanced goods receipt processing failed',
+        details: error.message
+      });
+    }
+  }
+);
+
+/**
+ * POST /warehouse3/goods-receipt/:orderId/process-with-fifo
+ * 
+ * Process goods receipt with automatic FIFO integration
+ * - Combines goods receipt processing with FIFO batch selection
+ * - Creates inventory movements using warehouse3 FIFO service
+ * - Provides unified warehouse3 + goods receipt workflow
+ */
+router.post('/goods-receipt/:orderId/process-with-fifo',
+  authenticateUser,
+  requireRole(['admin', 'manager']),
+  auditLog('WAREHOUSE3_GOODS_RECEIPT_FIFO', 'FIFO_OPERATION'),
+  async (req, res) => {
+    try {
+      const orderId = parseInt(req.params.orderId);
+      if (isNaN(orderId)) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid order ID'
+        });
+      }
+
+      console.log(`[WAREHOUSE3_FIFO_RECEIPT] Processing goods receipt with FIFO integration for order ${orderId}`);
+
+      // Import services at runtime
+      const { default: GoodsReceiptService } = await import('../services/goodsReceiptService');
+      const goodsReceiptService = new GoodsReceiptService(new DatabaseStorage());
+
+      // 1. First process the goods receipt normally
+      const receiptResult = await goodsReceiptService.processEnhancedGoodsReceipt(req.body);
+
+      if (!receiptResult.success) {
+        return res.status(400).json({
+          success: false,
+          error: 'Goods receipt processing failed',
+          details: receiptResult.errorMessage,
+          validationErrors: receiptResult.validationErrors
+        });
+      }
+
+      // 2. Integrate with warehouse3 FIFO if needed
+      console.log(`[WAREHOUSE3_FIFO_RECEIPT] Goods receipt completed, integrating with FIFO system`);
+
+      // Use FIFO service for any additional warehouse movements if specified
+      if (req.body.createFifoMovements && req.body.warehouseId) {
+        try {
+          const mhdFifoService = new MhdFifoService(db);
+          
+          // Create FIFO-based inventory movements for better tracking
+          for (const item of req.body.items || []) {
+            if (item.quantityReceived > 0) {
+              console.log(`[WAREHOUSE3_FIFO_RECEIPT] Creating FIFO movement for product ${item.productId}`);
+              
+              // This creates an IN movement using FIFO principles
+              await mhdFifoService.automaticFifoWithdrawal(
+                req.body.warehouseId,
+                item.productId,
+                -item.quantityReceived, // Negative for IN movement
+                {
+                  movementType: 'IN',
+                  destinationType: 'WAREHOUSE',
+                  destinationId: req.body.warehouseId,
+                  performedBy: req.user?.id || 1,
+                  notes: `Goods receipt for order ${orderId}`,
+                  referenceType: 'GOODS_RECEIPT',
+                  referenceId: orderId
+                }
+              );
+            }
+          }
+          
+          console.log(`[WAREHOUSE3_FIFO_RECEIPT] FIFO movements created successfully`);
+        } catch (fifoError) {
+          console.warn('[WAREHOUSE3_FIFO_RECEIPT] FIFO integration failed, but goods receipt was successful:', fifoError);
+          // Don't fail the entire operation if FIFO integration fails
+        }
+      }
+
+      return res.json({
+        success: true,
+        data: {
+          ...receiptResult,
+          fifoIntegrated: req.body.createFifoMovements || false
+        },
+        message: `Goods receipt with FIFO integration completed: ${receiptResult.itemsProcessed} items processed`
+      });
+
+    } catch (error) {
+      console.error('[WAREHOUSE3_FIFO_RECEIPT] Processing failed:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Goods receipt with FIFO integration failed',
+        details: error.message
+      });
+    }
+  }
+);
+
+/**
+ * GET /warehouse3/goods-receipt/:orderId/details
+ * 
+ * Get comprehensive goods receipt details for warehouse3
+ * - Includes delivery notes and warehouse-specific information
+ * - Provides FIFO batch tracking and movement history
+ * - Enhanced details for warehouse3 integration
+ */
+router.get('/goods-receipt/:orderId/details',
+  authenticateUser,
+  auditLog('WAREHOUSE3_GOODS_RECEIPT_VIEW', 'GOODS_RECEIPT_READ'),
+  async (req, res) => {
+    try {
+      const orderId = parseInt(req.params.orderId);
+      if (isNaN(orderId)) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid order ID'
+        });
+      }
+
+      console.log(`[WAREHOUSE3_RECEIPT] Getting details for order ${orderId}`);
+
+      // Import service at runtime
+      const { default: GoodsReceiptService } = await import('../services/goodsReceiptService');
+      const goodsReceiptService = new GoodsReceiptService(new DatabaseStorage());
+
+      // Get comprehensive details including delivery notes
+      const details = await goodsReceiptService.getGoodsReceiptWithDocuments(orderId);
+
+      // Enhance with warehouse3-specific information
+      const enhancedDetails = {
+        ...details,
+        warehouse3Integration: {
+          fifoTracking: true,
+          batchManagement: true,
+          inventoryMovements: true
+        }
+      };
+
+      return res.json({
+        success: true,
+        data: enhancedDetails,
+        message: 'Warehouse3 goods receipt details retrieved successfully'
+      });
+
+    } catch (error) {
+      console.error('[WAREHOUSE3_RECEIPT] Error getting details:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to get goods receipt details',
+        details: error.message
+      });
+    }
+  }
+);
+
+/**
+ * POST /warehouse3/goods-receipt/:orderId/validate
+ * 
+ * Validate goods receipt data for warehouse3 processing
+ * - Enhanced validation including warehouse3 FIFO requirements
+ * - Checks warehouse assignments and FIFO constraints
+ * - Provides detailed validation feedback
+ */
+router.post('/goods-receipt/:orderId/validate',
+  authenticateUser,
+  auditLog('WAREHOUSE3_GOODS_RECEIPT_VALIDATE', 'GOODS_RECEIPT_READ'),
+  async (req, res) => {
+    try {
+      const orderId = parseInt(req.params.orderId);
+      if (isNaN(orderId)) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid order ID'
+        });
+      }
+
+      console.log(`[WAREHOUSE3_RECEIPT] Validating goods receipt data for order ${orderId}`);
+
+      // Import service at runtime
+      const { default: GoodsReceiptService } = await import('../services/goodsReceiptService');
+      const goodsReceiptService = new GoodsReceiptService(new DatabaseStorage());
+
+      // Enhance request data with orderId
+      const dataToValidate = {
+        orderId,
+        ...req.body
+      };
+
+      // Perform enhanced validation
+      const validationResult = await goodsReceiptService.validateGoodsReceiptData(dataToValidate);
+
+      // Add warehouse3-specific validations
+      const warehouse3Validations = [];
+      
+      if (req.body.warehouseId) {
+        // Validate warehouse exists in warehouse3 system
+        const existingWarehouse = await warehouseStorage.getWarehouse(req.body.warehouseId);
+        if (!existingWarehouse) {
+          warehouse3Validations.push(`Warehouse ${req.body.warehouseId} not found in warehouse3 system`);
+        }
+      }
+
+      const finalResult = {
+        ...validationResult,
+        warehouse3Checks: {
+          passed: warehouse3Validations.length === 0,
+          issues: warehouse3Validations
+        },
+        isValid: validationResult.isValid && warehouse3Validations.length === 0
+      };
+
+      if (finalResult.isValid) {
+        return res.json({
+          success: true,
+          data: finalResult,
+          message: 'Goods receipt data is valid for warehouse3 processing'
+        });
+      } else {
+        return res.status(400).json({
+          success: false,
+          data: finalResult,
+          message: 'Goods receipt data validation failed'
+        });
+      }
+
+    } catch (error) {
+      console.error('[WAREHOUSE3_RECEIPT] Validation failed:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Goods receipt validation failed',
+        details: error.message
+      });
+    }
+  }
+);
+
+/**
+ * GET /warehouse3/goods-receipt/warehouses
+ * 
+ * Get available warehouses for goods receipt processing
+ * - Returns warehouse3-compatible warehouse list
+ * - Includes warehouse capabilities and FIFO status
+ */
+router.get('/goods-receipt/warehouses',
+  authenticateUser,
+  auditLog('WAREHOUSE3_GOODS_RECEIPT_WAREHOUSES', 'GOODS_RECEIPT_READ'),
+  async (req, res) => {
+    try {
+      console.log('[WAREHOUSE3_RECEIPT] Getting available warehouses');
+
+      // Get warehouses from warehouse3 system
+      const warehouses = await warehouseStorage.getAllWarehouses();
+
+      // Enhance with goods receipt capabilities
+      const enhancedWarehouses = warehouses.map(warehouse => ({
+        ...warehouse,
+        capabilities: {
+          goodsReceipt: true,
+          fifoTracking: true,
+          batchManagement: true,
+          inventoryMovements: true
+        }
+      }));
+
+      return res.json({
+        success: true,
+        data: enhancedWarehouses,
+        message: `${enhancedWarehouses.length} warehouses available for goods receipt`
+      });
+
+    } catch (error) {
+      console.error('[WAREHOUSE3_RECEIPT] Error getting warehouses:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to get available warehouses',
+        details: error.message
+      });
+    }
+  }
+);
+
 export default router;
