@@ -279,10 +279,10 @@ export class VendonSyncHealthMonitor {
 
   private async getDuplicateCount24h(): Promise<number> {
     const query = `
-      SELECT COALESCE(SUM((sync_stats->>'duplicates')::integer), 0) as count
+      SELECT COALESCE(SUM(duplicates), 0) as count
       FROM sync_logs 
       WHERE created_at >= NOW() - INTERVAL '24 hours'
-        AND sync_stats IS NOT NULL
+        AND duplicates IS NOT NULL
     `;
     
     const result = await this.pool.query(query);
@@ -303,11 +303,10 @@ export class VendonSyncHealthMonitor {
 
   private async getAverageResponseTime(): Promise<number> {
     const query = `
-      SELECT AVG((sync_stats->>'duration')::integer) as avg_duration
+      SELECT AVG(duration_seconds * 1000) as avg_duration
       FROM sync_logs 
       WHERE created_at >= NOW() - INTERVAL '24 hours'
-        AND sync_stats IS NOT NULL
-        AND (sync_stats->>'duration')::integer IS NOT NULL
+        AND duration_seconds IS NOT NULL
     `;
     
     const result = await this.pool.query(query);
@@ -360,8 +359,12 @@ export class VendonSyncHealthMonitor {
       SELECT 
         created_at,
         service_type,
-        sync_result,
-        sync_stats,
+        sync_status,
+        items_found,
+        items_saved,
+        duplicates,
+        errors,
+        duration_seconds,
         error_message
       FROM sync_logs 
       WHERE created_at >= NOW() - INTERVAL '24 hours'
@@ -442,20 +445,19 @@ export class VendonSyncHealthMonitor {
   private async logHealthStatus(health: HealthMetrics): Promise<void> {
     const query = `
       INSERT INTO sync_logs (
-        service_type, sync_result, sync_stats, created_at
-      ) VALUES ($1, $2, $3, NOW())
+        service_type, sync_status, items_found, items_saved, duplicates, 
+        errors, duration_seconds, created_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
     `;
     
     await this.pool.query(query, [
       'health_monitor',
       health.syncStatus,
-      JSON.stringify({
-        lastSyncTime: health.lastSyncTime,
-        transactionsSynced24h: health.transactionsSynced24h,
-        errorRate24h: health.errorRate24h,
-        averageResponseTime: health.averageResponseTime,
-        systemLoad: health.systemLoad
-      })
+      health.transactionsSynced24h,
+      0, // items_saved - für health monitor nicht relevant
+      health.duplicatesFound24h,
+      Math.round(health.errorRate24h * 100), // errors als Ganzzahl
+      health.averageResponseTime / 1000 // duration_seconds
     ]);
   }
 
