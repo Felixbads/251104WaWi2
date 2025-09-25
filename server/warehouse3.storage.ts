@@ -16,6 +16,12 @@ import {
   InsertRefillTrackingItem,
 } from "../shared/warehouse3.schema";
 
+// Import missing types from main schema
+import {
+  InsertProductBatch,
+  InsertInventoryMovement,
+} from "../shared/schema";
+
 // Da die Tabellennamen in warehouse3.schema.ts mit "_v3" enden, 
 // aber die tatsächlichen Tabellen in der Datenbank ohne dieses Suffix existieren,
 // definieren wir hier lokale Tabellennamen, die auf die realen Tabellen verweisen
