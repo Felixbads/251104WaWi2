@@ -104,50 +104,70 @@ router.get('/top', async (req, res) => {
     let query, queryParams;
     
     if (machineId) {
-      // Machine-spezifische Top-Produkte mit verbesserter Kostenberechnung
+      // Machine-spezifische Top-Produkte mit DEDUPLIZIERUNG für korrekte Kumulierung
       console.log(`[TOP-API] Machine-spezifische Top-Produkte für Maschine ${machineId}`);
       query = `
         WITH machine_filter AS (
           SELECT id FROM machines WHERE vendon_id = $2
+        ),
+        deduplicated_removals AS (
+          SELECT DISTINCT ON (rd.refill_id, rd.product_name)
+            rd.refill_id,
+            r.datetime,
+            rd.product_name,
+            rd.removed,
+            r.machine_id,
+            r.machine_name
+          FROM refill_details rd
+          INNER JOIN refills r ON rd.refill_id = r.id
+          WHERE rd.removed > 0 
+            AND r.datetime >= NOW() - make_interval(days => $3)
+            AND r.machine_id IN (SELECT id FROM machine_filter)
+          ORDER BY rd.refill_id, rd.product_name, r.datetime DESC
         )
         SELECT 
-          rd.product_name as "productName",
-          SUM(rd.removed) as "totalRemoved",
-          COUNT(*) as "removalsCount",
-          MAX(r.datetime) as "lastRemoved",
-          COALESCE(AVG(pc.unit_price), AVG(t.price), 0) as "avgPurchasePrice",
-          SUM(rd.removed * COALESCE(pc.unit_price, t.price, 0)) as "estimatedLoss"
-        FROM refill_details rd
-        INNER JOIN refills r ON rd.refill_id = r.id
-        LEFT JOIN products p ON rd.product_name = p.product_name
-        LEFT JOIN purchase_conditions pc ON p.id = pc.product_id AND pc.is_preferred = true  
-        LEFT JOIN transactions t ON rd.product_name = t.product_name
-        WHERE rd.removed > 0
-          AND r.datetime >= NOW() - make_interval(days => $3)
-          AND r.machine_id IN (SELECT id FROM machine_filter)
-        GROUP BY rd.product_name
+          dr.product_name as "productName",
+          SUM(dr.removed) as "totalRemoved",
+          COUNT(DISTINCT dr.refill_id) as "removalsCount",
+          MAX(dr.datetime) as "lastRemoved",
+          COALESCE(AVG(pc.unit_price), AVG(p.cost_price), 0) as "avgPurchasePrice",
+          SUM(dr.removed * COALESCE(pc.unit_price, p.cost_price, 0)) as "estimatedLoss"
+        FROM deduplicated_removals dr
+        LEFT JOIN products p ON dr.product_name = p.product_name
+        LEFT JOIN purchase_conditions pc ON p.id = pc.product_id AND pc.is_preferred = true
+        GROUP BY dr.product_name
         ORDER BY "totalRemoved" DESC
         LIMIT $1
       `;
       queryParams = [limit, machineId, days];
     } else {
-      // System-weite Top-Produkte mit verbesserter Kostenberechnung
+      // System-weite Top-Produkte mit DEDUPLIZIERUNG für korrekte Kumulierung
       query = `
+        WITH deduplicated_removals AS (
+          SELECT DISTINCT ON (rd.refill_id, rd.product_name)
+            rd.refill_id,
+            r.datetime,
+            rd.product_name,
+            rd.removed,
+            r.machine_id,
+            r.machine_name
+          FROM refill_details rd
+          INNER JOIN refills r ON rd.refill_id = r.id
+          WHERE rd.removed > 0 
+            AND r.datetime >= NOW() - make_interval(days => $2)
+          ORDER BY rd.refill_id, rd.product_name, r.datetime DESC
+        )
         SELECT 
-          rd.product_name as "productName",
-          SUM(rd.removed) as "totalRemoved",
-          COUNT(*) as "removalsCount",
-          MAX(r.datetime) as "lastRemoved",
-          COALESCE(AVG(pc.unit_price), AVG(t.price), 0) as "avgPurchasePrice",
-          SUM(rd.removed * COALESCE(pc.unit_price, t.price, 0)) as "estimatedLoss"
-        FROM refill_details rd
-        INNER JOIN refills r ON rd.refill_id = r.id
-        LEFT JOIN products p ON rd.product_name = p.product_name
-        LEFT JOIN purchase_conditions pc ON p.id = pc.product_id AND pc.is_preferred = true  
-        LEFT JOIN transactions t ON rd.product_name = t.product_name
-        WHERE rd.removed > 0
-          AND r.datetime >= NOW() - make_interval(days => $2)
-        GROUP BY rd.product_name
+          dr.product_name as "productName",
+          SUM(dr.removed) as "totalRemoved",
+          COUNT(DISTINCT dr.refill_id) as "removalsCount",
+          MAX(dr.datetime) as "lastRemoved",
+          COALESCE(AVG(pc.unit_price), AVG(p.cost_price), 0) as "avgPurchasePrice",
+          SUM(dr.removed * COALESCE(pc.unit_price, p.cost_price, 0)) as "estimatedLoss"
+        FROM deduplicated_removals dr
+        LEFT JOIN products p ON dr.product_name = p.product_name
+        LEFT JOIN purchase_conditions pc ON p.id = pc.product_id AND pc.is_preferred = true
+        GROUP BY dr.product_name
         ORDER BY "totalRemoved" DESC
         LIMIT $1
       `;
@@ -183,23 +203,35 @@ router.get('/stats/:productName', async (req, res) => {
     
     console.log(`[RemovedProducts] Getting detailed stats for: "${productName}" (${days} days)`);
     
-    // Grundlegende Statistiken mit Kostenanalyse
+    // Grundlegende Statistiken mit DEDUPLIZIERUNG für korrekte Kumulierung
     const statsQuery = `
+      WITH deduplicated_removals AS (
+        SELECT DISTINCT ON (rd.refill_id, rd.product_name)
+          rd.refill_id,
+          r.datetime,
+          rd.product_name,
+          rd.removed,
+          r.machine_id,
+          r.machine_name
+        FROM refill_details rd
+        INNER JOIN refills r ON rd.refill_id = r.id
+        WHERE rd.removed > 0 
+          AND rd.product_name = $1
+          AND r.datetime >= NOW() - make_interval(days => $2)
+        ORDER BY rd.refill_id, rd.product_name, r.datetime DESC
+      )
       SELECT 
-        rd.product_name as "productName",
-        SUM(rd.removed) as "totalRemoved",
-        COUNT(*) as "removalsCount",
-        MAX(r.datetime) as "lastRemoved",
-        AVG(rd.removed) as "avgPerRemoval",
-        AVG(t.price) as "avgSalePrice",
-        SUM(rd.removed * COALESCE(t.price, 0)) as "estimatedLoss"
-      FROM refill_details rd
-      INNER JOIN refills r ON rd.refill_id = r.id
-      LEFT JOIN transactions t ON rd.product_name = t.product_name AND r.machine_id = t.machine_id
-      WHERE rd.removed > 0 
-        AND rd.product_name = $1
-        AND r.datetime >= NOW() - make_interval(days => $2)
-      GROUP BY rd.product_name
+        dr.product_name as "productName",
+        SUM(dr.removed) as "totalRemoved",
+        COUNT(DISTINCT dr.refill_id) as "removalsCount",
+        MAX(dr.datetime) as "lastRemoved",
+        AVG(dr.removed) as "avgPerRemoval",
+        COALESCE(AVG(pc.unit_price), AVG(p.cost_price), 0) as "avgSalePrice",
+        SUM(dr.removed * COALESCE(pc.unit_price, p.cost_price, 0)) as "estimatedLoss"
+      FROM deduplicated_removals dr
+      LEFT JOIN products p ON dr.product_name = p.product_name
+      LEFT JOIN purchase_conditions pc ON p.id = pc.product_id AND pc.is_preferred = true
+      GROUP BY dr.product_name
     `;
     
     const statsResult = await pool.query(statsQuery, [productName, days]);
@@ -223,39 +255,62 @@ router.get('/stats/:productName', async (req, res) => {
     const stats = statsResult.rows[0];
     console.log(`[RemovedProducts] Stats:`, stats);
     
-    // Automaten-spezifische Aufschlüsselung mit Kostenberechnung
+    // Automaten-spezifische Aufschlüsselung mit DEDUPLIZIERUNG
     const machinesQuery = `
+      WITH deduplicated_removals AS (
+        SELECT DISTINCT ON (rd.refill_id, rd.product_name)
+          rd.refill_id,
+          r.datetime,
+          rd.product_name,
+          rd.removed,
+          r.machine_id,
+          r.machine_name
+        FROM refill_details rd
+        INNER JOIN refills r ON rd.refill_id = r.id
+        WHERE rd.removed > 0 
+          AND rd.product_name = $1
+          AND r.datetime >= NOW() - make_interval(days => $2)
+        ORDER BY rd.refill_id, rd.product_name, r.datetime DESC
+      )
       SELECT 
-        r.machine_id as "machineId",
-        r.machine_name as "machineName",
-        SUM(rd.removed) as "removedCount",
-        AVG(t.price) as "avgPrice",
-        SUM(rd.removed * COALESCE(t.price, 0)) as "machineLoss"
-      FROM refill_details rd
-      INNER JOIN refills r ON rd.refill_id = r.id
-      LEFT JOIN transactions t ON rd.product_name = t.product_name AND r.machine_id = t.machine_id
-      WHERE rd.removed > 0 
-        AND rd.product_name = $1
-        AND r.datetime >= NOW() - make_interval(days => $2)
-      GROUP BY r.machine_id, r.machine_name
+        dr.machine_id as "machineId",
+        dr.machine_name as "machineName",
+        SUM(dr.removed) as "removedCount",
+        COALESCE(AVG(pc.unit_price), AVG(p.cost_price), 0) as "avgPrice",
+        SUM(dr.removed * COALESCE(pc.unit_price, p.cost_price, 0)) as "machineLoss"
+      FROM deduplicated_removals dr
+      LEFT JOIN products p ON dr.product_name = p.product_name
+      LEFT JOIN purchase_conditions pc ON p.id = pc.product_id AND pc.is_preferred = true
+      GROUP BY dr.machine_id, dr.machine_name
       ORDER BY "removedCount" DESC
     `;
     
     const machinesResult = await pool.query(machinesQuery, [productName, days]);
     console.log(`[RemovedProducts] Machines query returned ${machinesResult.rows.length} machines`);
     
-    // Zeitverlaufs-Daten (tagesweise)
+    // Zeitverlaufs-Daten (tagesweise) mit DEDUPLIZIERUNG
     const timelineQuery = `
+      WITH deduplicated_removals AS (
+        SELECT DISTINCT ON (rd.refill_id, rd.product_name)
+          rd.refill_id,
+          r.datetime,
+          rd.product_name,
+          rd.removed,
+          r.machine_id,
+          r.machine_name
+        FROM refill_details rd
+        INNER JOIN refills r ON rd.refill_id = r.id
+        WHERE rd.removed > 0 
+          AND rd.product_name = $1
+          AND r.datetime >= NOW() - make_interval(days => $2)
+        ORDER BY rd.refill_id, rd.product_name, r.datetime DESC
+      )
       SELECT 
-        DATE(r.datetime) as "date",
-        SUM(rd.removed) as "removed",
-        COUNT(*) as "count"
-      FROM refill_details rd
-      INNER JOIN refills r ON rd.refill_id = r.id
-      WHERE rd.removed > 0 
-        AND rd.product_name = $1
-        AND r.datetime >= NOW() - make_interval(days => $2)
-      GROUP BY DATE(r.datetime)
+        DATE(dr.datetime) as "date",
+        SUM(dr.removed) as "removed",
+        COUNT(DISTINCT dr.refill_id) as "count"
+      FROM deduplicated_removals dr
+      GROUP BY DATE(dr.datetime)
       ORDER BY "date"
     `;
     
