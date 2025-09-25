@@ -53,25 +53,49 @@ router.get("/overview", async (req, res) => {
   try {
     console.log("[Warehouse3 API] Fetching overview data...");
     
+    // OPTIMIZED: Split complex query into efficient parts
     const query = `
+      WITH warehouse_basics AS (
+        SELECT 
+          w.id as warehouse_id,
+          w.name as warehouse_name,
+          COUNT(DISTINCT i.product_id) as total_products,
+          COUNT(CASE WHEN i.quantity <= COALESCE(i.min_quantity, 0) THEN 1 END) as critical_items,
+          COALESCE(SUM(i.quantity * COALESCE(p.price, 0)), 0) as total_value
+        FROM warehouses w
+        LEFT JOIN inventory_items i ON w.id = i.warehouse_id
+        LEFT JOIN products p ON i.product_id = p.id
+        WHERE w.status = 'active'
+        GROUP BY w.id, w.name
+      ),
+      expiring_batches AS (
+        SELECT 
+          warehouse_id,
+          COUNT(*) as expiring_count
+        FROM product_batches pb
+        WHERE pb.expiry_date <= CURRENT_DATE + INTERVAL '7 days'
+        AND pb.expiry_date > CURRENT_DATE
+        GROUP BY warehouse_id
+      ),
+      last_activities AS (
+        SELECT 
+          warehouse_id,
+          MAX(performed_at) as last_activity
+        FROM (
+          SELECT source_warehouse_id as warehouse_id, performed_at FROM inventory_movements WHERE source_warehouse_id IS NOT NULL
+          UNION ALL 
+          SELECT destination_warehouse_id as warehouse_id, performed_at FROM inventory_movements WHERE destination_warehouse_id IS NOT NULL
+        ) activities
+        GROUP BY warehouse_id
+      )
       SELECT 
-        w.id as warehouse_id,
-        w.name as warehouse_name,
-        COUNT(DISTINCT i.product_id) as total_products,
-        COUNT(CASE WHEN i.quantity <= COALESCE(i.min_quantity, 0) THEN 1 END) as critical_items,
-        (SELECT COUNT(*) FROM product_batches pb 
-         WHERE pb.warehouse_id = w.id 
-         AND pb.expiry_date <= CURRENT_DATE + INTERVAL '7 days'
-         AND pb.expiry_date > CURRENT_DATE) as expiring_batches,
-        COALESCE(SUM(i.quantity * COALESCE(p.price, 0)), 0) as total_value,
-        (SELECT MAX(performed_at) FROM inventory_movements im 
-         WHERE im.source_warehouse_id = w.id OR im.destination_warehouse_id = w.id) as last_activity
-      FROM warehouses w
-      LEFT JOIN inventory_items i ON w.id = i.warehouse_id
-      LEFT JOIN products p ON i.product_id = p.id
-      WHERE w.status = 'active'
-      GROUP BY w.id, w.name
-      ORDER BY w.name
+        wb.*,
+        COALESCE(eb.expiring_count, 0) as expiring_batches,
+        la.last_activity
+      FROM warehouse_basics wb
+      LEFT JOIN expiring_batches eb ON wb.warehouse_id = eb.warehouse_id
+      LEFT JOIN last_activities la ON wb.warehouse_id = la.warehouse_id
+      ORDER BY wb.warehouse_name
     `;
     
     const result = await pool.query(query);
