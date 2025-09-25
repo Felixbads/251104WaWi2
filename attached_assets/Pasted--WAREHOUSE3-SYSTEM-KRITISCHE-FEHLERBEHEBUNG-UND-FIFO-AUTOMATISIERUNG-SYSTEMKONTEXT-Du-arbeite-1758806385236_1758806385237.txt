@@ -1,0 +1,246 @@
+
+# WAREHOUSE3 SYSTEM: KRITISCHE FEHLERBEHEBUNG UND FIFO-AUTOMATISIERUNG
+
+## SYSTEMKONTEXT
+Du arbeitest am Warehouse3-Lagerverwaltungssystem eines Automatenbetreibers. Das System verwaltet Lagerbestände, Produktchargen mit MHD, Warenbewegungen und Automaten-Refills mit FIFO-Logik.
+
+## AKTUELLE ARCHITEKTUR
+- **Backend**: Node.js/Express mit Drizzle ORM, PostgreSQL
+- **Frontend**: React/TypeScript mit TanStack Query
+- **Haupttabellen**: 
+  - `warehouses` - Lagerdefinitionen
+  - `inventory_items` - Aktuelle Bestände pro Produkt/Lager
+  - `product_batches` - Chargen mit MHD für FIFO
+  - `inventory_movements` - Audit-Trail aller Bewegungen
+  - `machine_warehouse_assignments` - Automaten-Zuordnungen
+
+## KRITISCHE PROBLEME ZU BEHEBEN
+
+### 1. FIFO-LOGIK UNVOLLSTÄNDIG
+**Problem**: Batch-Auswahl erfolgt nicht immer nach FIFO (First In, First Out)
+**Dateien**: 
+- `server/services/mhdFifoService.ts` - Hauptlogik
+- `server/routes/warehouse3.routes.ts` - API-Endpunkte
+- `server/services/inventoryTransactions.ts` - Transaktionsabwicklung
+
+**Symptome**:
+- MHD-basierte Sortierung fehlt bei Entnahmen
+- Automatische FIFO-Selektion nicht implementiert
+- Chargen werden nicht nach Ablaufdatum priorisiert
+
+**Anforderungen**:
+```sql
+-- FIFO-Sortierung muss immer erfolgen nach:
+ORDER BY expiry_date ASC, received_date ASC
+```
+
+### 2. PERFORMANCE-PROBLEME
+**Problem**: Komplexe Bewegungs-Queries führen zu Timeouts (>2s)
+**Betroffene Endpunkte**:
+- `/api/warehouse3/warehouses/:id/stats` (slow: 2046ms)
+- `/api/warehouse3/warehouses/:id/movements`
+
+**Symptome**:
+```
+[2025-09-25 13:03:14.442 +0000] WARN: [] Slow request detected: 2046ms
+```
+
+**Zu optimieren**:
+- Bewegungsprotokoll-Abfragen mit komplexen Joins
+- Warehouse-Statistik-Berechnungen
+- Batch-Verfügbarkeits-Checks
+
+### 3. REFILL-INTEGRATION PROBLEME
+**Problem**: Vendon-Refills werden nicht automatisch verarbeitet
+**Dateien**:
+- `server/services/refillProcessingService.ts`
+- `server/services/legacyRefillProcessingService.ts`
+- `server/routes/warehouse3.routes.ts` - MHD-Transfer-Endpoint
+
+**Symptome**:
+- Manuelle Refill-Prozesse parallel zu automatischen
+- MHD-Daten werden nicht korrekt übertragen
+- Bestandsreduzierung im Lager fehlt
+
+### 4. WARENEINGANG-DISCONNECT
+**Problem**: Goods-Receipt läuft über separates System
+**Dateien**:
+- `server/routes/goods-receipt.ts` - Separates System
+- `server/services/goodsReceiptService.ts`
+- `server/services/inventoryTransactions.ts` - Sollte integriert werden
+
+**Symptome**:
+- Nicht direkt in Warehouse3 Dashboard sichtbar
+- Doppelte Datenerfassung
+- Inkonsistente Bestandsführung
+
+### 5. FEHLENDE KERNFUNKTIONEN
+**Probleme**:
+- Umlagerungen zwischen Lagern nicht implementiert
+- Direkte Entnahme-Funktionen fehlen
+- Bestandswarnung-System nicht aktiv
+- Automatische Benachrichtigungen bei niedrigen Beständen fehlen
+
+## TECHNISCHE IMPLEMENTIERUNGSDETAILS
+
+### AKTUELLE WAREHOUSE3 ENDPUNKTE
+```typescript
+// Basis-Endpunkte (funktionieren)
+GET /api/warehouse3/overview
+GET /api/warehouse3/warehouses/:id
+GET /api/warehouse3/warehouses/:id/stats
+GET /api/warehouse3/warehouses/:id/inventory
+GET /api/warehouse3/warehouses/:id/batches
+GET /api/warehouse3/warehouses/:id/movements
+
+// Problematische/fehlende Endpunkte
+POST /api/warehouse3/warehouses/:warehouseId/receipts (neu)
+POST /api/warehouse3/warehouses/:warehouseId/fifo-depletion (FIFO-Probleme)
+POST /api/warehouse3/warehouses/:warehouseId/mhd-transfer (Performance)
+POST /api/warehouse3/warehouses/:warehouseId/transfers (fehlt)
+```
+
+### DATENBANK-INKONSISTENZEN
+```sql
+-- 1. Verwaiste Batch-Records
+SELECT COUNT(*) FROM product_batches pb 
+LEFT JOIN inventory_items ii ON pb.product_id = ii.product_id 
+AND pb.warehouse_id = ii.warehouse_id 
+WHERE ii.id IS NULL;
+
+-- 2. Fehlende Bewegungsprotokoll-Einträge  
+SELECT COUNT(*) FROM inventory_items 
+WHERE last_updated > '2025-01-01' 
+AND id NOT IN (
+  SELECT DISTINCT inventory_item_id 
+  FROM inventory_movements 
+  WHERE performed_at > '2025-01-01'
+);
+
+-- 3. FIFO-Inkonsistenz: Neuere Chargen vor älteren verbraucht
+SELECT * FROM product_batches 
+WHERE status = 'consumed' 
+AND expiry_date > (
+  SELECT MIN(expiry_date) FROM product_batches pb2 
+  WHERE pb2.product_id = product_batches.product_id 
+  AND pb2.warehouse_id = product_batches.warehouse_id 
+  AND pb2.status = 'active'
+);
+```
+
+### BEISPIEL-IMPLEMENTIERUNG FIFO-AUTOMATISIERUNG
+```typescript
+// In mhdFifoService.ts - Zu verbessern
+async transferMhdFromWarehouse(
+  machineId: number,
+  productId: string,
+  quantityAdded: number,
+  warehouseId: number,
+  stockId: number
+): Promise<FifoMhdTransfer[]> {
+  // KRITISCH: FIFO-Sortierung muss immer korrekt sein
+  const batchesResult = await this.db.query(`
+    SELECT ib.id, ib.expiry_date, ib.quantity, ib.batch_number, ib.incoming_date
+    FROM inventory_batches ib
+    JOIN products p ON ib.product_id = p.id
+    WHERE ib.warehouse_id = $1 
+      AND p.vendon_id = $2
+      AND ib.quantity > 0
+      AND ib.status = 'active'
+      AND (ib.expiry_date IS NULL OR ib.expiry_date >= CURRENT_DATE)
+    ORDER BY ib.expiry_date ASC NULLS LAST, ib.incoming_date ASC  -- FIFO-KRITISCH
+  `, [warehouseId, productId]);
+  
+  // Rest der Implementierung...
+}
+```
+
+## KONKRETE AUFGABEN
+
+### PHASE 1: KRITISCHE FIFO-FIXES
+1. **Korrigiere FIFO-Sortierung** in `mhdFifoService.ts`
+   - Alle Batch-Abfragen müssen `ORDER BY expiry_date ASC, received_date ASC`
+   - NULL-Werte für expiry_date als "weit in der Zukunft" behandeln
+   - Unit-Tests für FIFO-Korrektheit
+
+2. **Performance-Optimierung** in `warehouse3.routes.ts`
+   - Stats-Endpoint von 2046ms auf <500ms optimieren
+   - Bewegungsabfragen mit Indizes beschleunigen
+   - Caching für häufige Abfragen implementieren
+
+3. **Retry-Logic** für Transaction Conflicts
+   - `executeWithRetry` Funktion bereits vorhanden, erweitern
+   - Exponential backoff bei Deadlocks
+   - Bessere Error-Unterscheidung
+
+### PHASE 2: INTEGRATION UND NEUE FEATURES
+4. **Goods-Receipt Integration**
+   - `receiptTransaction` aus `inventoryTransactions.ts` in Warehouse3 integrieren
+   - Dashboard-Anzeige für Wareneingänge
+   - Einheitliche API-Struktur
+
+5. **Umlagerungs-Funktionalität**
+   - Transfer-Endpunkt implementieren
+   - FIFO-basierte Quellenauswahl
+   - Bewegungsprotokoll für Transfers
+
+6. **Automatische Benachrichtigungen**
+   - Low-Stock-Alerts basierend auf `reorderPoint`
+   - MHD-Warnungen (X Tage vor Ablauf)
+   - Email/Dashboard-Notifications
+
+### PHASE 3: MONITORING UND QUALITÄT
+7. **Audit und Monitoring**
+   - FIFO-Compliance-Checker (täglich)
+   - Performance-Monitoring für alle Endpunkte
+   - Datenintegrität-Checks
+
+8. **Error Recovery**
+   - Automatische Korrektur von FIFO-Verletzungen
+   - Batch-Konsolidierung bei Fragmentierung
+   - Historische Daten-Reparatur
+
+## BEISPIEL-FEHLERMELDUNGEN ZU FIXEN
+
+### Console Logs (Aktuell)
+```
+[WAREHOUSE3] FIFO-Entnahme fehlgeschlagen: insufficient stock
+[WAREHOUSE3] Receipt processed successfully: 0 lines, 0 batches created
+[WAREHOUSE3] MHD transfer failed: batch not found
+Slow request detected: 2046ms for /warehouses/10/stats
+```
+
+### Error Codes (Zu implementieren)
+```typescript
+enum WarehouseErrorCodes {
+  INSUFFICIENT_STOCK = 'WH_001',
+  BATCH_NOT_FOUND = 'WH_002', 
+  FIFO_VIOLATION = 'WH_003',
+  PERFORMANCE_TIMEOUT = 'WH_004',
+  INTEGRATION_FAILED = 'WH_005'
+}
+```
+
+## SUCCESS CRITERIA
+
+### Funktional
+- ✅ Alle FIFO-Entnahmen erfolgen korrekt nach Ablaufdatum
+- ✅ Warehouse-Stats laden in <500ms
+- ✅ Wareneingänge sind im Warehouse3-Dashboard sichtbar  
+- ✅ Umlagerungen zwischen Lagern funktionieren
+- ✅ Automatische Benachrichtigungen bei niedrigen Beständen
+
+### Technisch
+- ✅ Keine Slow-Request-Warnings (>2s)
+- ✅ FIFO-Compliance-Rate: 100%
+- ✅ Zero verwaiste Batch-Records
+- ✅ Vollständiger Audit-Trail für alle Bewegungen
+- ✅ Performance-Monitoring mit Alerting
+
+### Benutzerfreundlichkeit
+- ✅ Einheitliche UI für alle Lagerfunktionen
+- ✅ Real-time Updates bei Bestandsänderungen
+- ✅ Intuitive Batch-Verwaltung mit MHD-Übersicht
+- ✅ Mobile-responsive Warehouse-Dashboard
+
+Implementiere diese Fixes systematisch, teste gründlich und stelle sicher, dass bestehende Funktionalität nicht beeinträchtigt wird.

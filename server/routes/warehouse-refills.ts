@@ -207,10 +207,10 @@ router.get('/refill-history', async (req: AuthRequest, res: Response) => {
         r.operator as "performedBy",
         r.refill_type as "refillType",
         r.refill_number as "refillNumber",
-        -- Get related inventory movements for this refill
+        -- Get related inventory movements for this refill (Fixed: Remove DISTINCT/ORDER BY conflict)
         COALESCE(
           JSON_AGG(
-            DISTINCT JSON_BUILD_OBJECT(
+            JSON_BUILD_OBJECT(
               'productName', p.product_name,
               'quantity', im.quantity,
               'batchNumber', im.batch_number,
