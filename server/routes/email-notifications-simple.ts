@@ -21,7 +21,7 @@ router.get('/settings', async (req, res) => {
     const settings = await db
       .select()
       .from(emailSettings)
-      .where(eq(emailSettings.enabled, true))
+      .orderBy(desc(emailSettings.id))
       .limit(1);
 
     if (settings.length === 0) {
@@ -52,16 +52,16 @@ router.get('/settings', async (req, res) => {
 
     res.json({
       id: setting.id,
-      emailAddress: recipients[0]?.email || '',
-      isActive: setting.enabled || false,
+      emailAddress: recipients[0]?.email ?? '',
+      isActive: setting.enabled ?? false,
       frequency: 'daily', // Vereinfacht auf täglich
       sendOnWeekdays: ['1', '2', '3', '4', '5'],
-      includeMhdAlerts: setting.includeMhdAlerts || true,
-      includeStockAlerts: setting.includeLowStockAlerts || true,
-      includeOrderAlerts: setting.includeOpenOrders || true,
-      includeDeliveryAlerts: setting.includeInventoryAlerts || true,
-      includePerformanceAlerts: setting.includeSalesAnalysis || false,
-      sendTime: setting.sendTime || '06:00'
+      includeMhdAlerts: setting.includeMhdAlerts ?? true,
+      includeStockAlerts: setting.includeLowStockAlerts ?? true,
+      includeOrderAlerts: setting.includeOpenOrders ?? true,
+      includeDeliveryAlerts: setting.includeInventoryAlerts ?? true,
+      includePerformanceAlerts: setting.includeSalesAnalysis ?? false,
+      sendTime: setting.sendTime ?? '06:00'
     });
   } catch (error) {
     console.error('Fehler beim Laden der E-Mail-Einstellungen:', error);
