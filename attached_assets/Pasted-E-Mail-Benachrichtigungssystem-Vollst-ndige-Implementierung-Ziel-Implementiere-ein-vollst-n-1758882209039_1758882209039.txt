@@ -1,0 +1,548 @@
+E-Mail-Benachrichtigungssystem - Vollständige Implementierung
+
+## 🎯 Ziel
+Implementiere ein vollständiges, produktionsreifes E-Mail-Benachrichtigungssystem mit täglichen Reports, Trigger-basierten Alerts und flexibler Template-Verwaltung.
+
+## 📋 Systemkomponenten
+
+### 1. **Kern-Service Architecture**
+
+#### A) Daily Email System
+- **`dailyEmailService.ts`** - Hauptsteuerung für tägliche E-Mails
+- **`dailyEmailDataAggregator.ts`** - Datensammlung und -aufbereitung
+- **`dailyEmailComposer.ts`** - HTML/Text-Template-Rendering
+- **`dailyEmailScheduler.ts`** - Zeitgesteuerte Ausführung
+
+#### B) Notification System
+- **`notificationService.ts`** - Zentrale Benachrichtigungslogik
+- **`emailService.ts`** - SMTP-Versand und -Konfiguration
+- **Trigger Services** in `/server/services/triggers/`:
+  - `cashHighTrigger.ts` - Hoher Geldbestand
+  - `coinLowTrigger.ts` - Wenig Münzgeld
+  - `stockLowTrigger.ts` - Niedriger Lagerbestand
+  - `mhdSoonTrigger.ts` - Nahende MHD-Ablaufdaten
+  - `salesYesterdayTrigger.ts` - Gestrige Verkaufszahlen
+  - `salesWeeklyTrigger.ts` - Wöchentliche Verkaufsberichte
+  - `forecastWeekTrigger.ts` - Wochenprognosen
+  - `marginReportTrigger.ts` - Margen-Berichte
+
+#### C) Template Management
+- **Handlebars Templates** in `/server/templates/notifications/`:
+  - `cash_high.hbs`
+  - `coin_low.hbs`
+  - `stock_low.hbs`
+  - `mhd_soon.hbs`
+  - `sales_yesterday.hbs`
+  - `sales_weekly.hbs`
+  - `forecast_week.hbs`
+  - `margin_report.hbs`
+
+### 2. **API-Endpunkte**
+
+#### Daily Email Routes (`/server/routes/daily-email.ts`)
+```typescript
+// Tägliche E-Mail-Konfiguration und -Versand
+GET    /api/daily-email/settings     // Aktuelle Einstellungen
+POST   /api/daily-email/settings     // Einstellungen speichern
+POST   /api/daily-email/send-test    // Test-E-Mail senden
+GET    /api/daily-email/preview      // E-Mail-Vorschau
+GET    /api/daily-email/logs         // Versand-Logs
+POST   /api/daily-email/recipients   // Empfänger verwalten
+```
+
+#### Notification Routes (`/server/routes/notifications.ts`)
+```typescript
+// Benachrichtigungsmanagement
+GET    /api/notifications/schedules        // Alle Zeitpläne
+POST   /api/notifications/schedules        // Zeitplan erstellen
+PUT    /api/notifications/schedules/:id    // Zeitplan bearbeiten
+DELETE /api/notifications/schedules/:id    // Zeitplan löschen
+POST   /api/notifications/test             // Test-Benachrichtigung
+GET    /api/notifications/logs             // Benachrichtigungs-Logs
+GET    /api/notifications/subscriptions    // Abonnements verwalten
+POST   /api/notifications/subscriptions    // Abonnement erstellen
+```
+
+#### Email Template Routes (`/server/routes/email-templates.ts`)
+```typescript
+// Template-Verwaltung
+GET    /api/email-templates              // Alle Templates
+GET    /api/email-templates/:type        // Spezifisches Template
+POST   /api/email-templates/:type        // Template erstellen/aktualisieren
+DELETE /api/email-templates/:type        // Template löschen
+POST   /api/email-templates/:type/test   // Template testen
+```
+
+### 3. **Frontend-Komponenten**
+
+#### Email Management Pages
+- **`DailyEmailSettings.tsx`** - Tägliche E-Mail-Konfiguration
+- **`MailBenachrichtigungPage.tsx`** - Benachrichtigungsübersicht
+- **`MailSettings.tsx`** - SMTP-Konfiguration
+
+#### Spezielle Komponenten in `/client/src/components/email/`
+```typescript
+// Daily Email Management
+- EmailNotificationSettings.tsx      // Grundeinstellungen
+- EmailRecipientsManager.tsx         // Empfänger-Verwaltung
+- EmailTemplatesManager.tsx          // Template-Editor
+- EmailLogsViewer.tsx               // Versand-Protokolle
+- TestEmailSender.tsx               // Test-Funktionalität
+
+// Notifications Management
+- NotificationSchedulesManager.tsx   // Zeitplan-Verwaltung
+- NotificationSubscriptionsManager.tsx // Abonnement-Verwaltung
+- NotificationLogsViewer.tsx        // Benachrichtigungs-Logs
+- NotificationTestCenter.tsx        // Test-Center
+- NotificationSystemStatus.tsx      // System-Status
+- SystemAlerts.tsx                  // System-Alerts
+```
+
+### 4. **Datenstrukturen**
+
+#### Database Schema
+```sql
+-- Email-Konfiguration
+CREATE TABLE email_settings (
+  id SERIAL PRIMARY KEY,
+  smtp_host VARCHAR(255),
+  smtp_port INTEGER,
+  smtp_user VARCHAR(255),
+  smtp_pass VARCHAR(255),
+  smtp_secure BOOLEAN DEFAULT true,
+  from_name VARCHAR(255),
+  from_email VARCHAR(255),
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Daily Email Einstellungen
+CREATE TABLE daily_email_settings (
+  id SERIAL PRIMARY KEY,
+  enabled BOOLEAN DEFAULT false,
+  send_time TIME DEFAULT '08:00:00',
+  timezone VARCHAR(50) DEFAULT 'Europe/Berlin',
+  include_sales BOOLEAN DEFAULT true,
+  include_inventory BOOLEAN DEFAULT true,
+  include_alerts BOOLEAN DEFAULT true,
+  include_forecasts BOOLEAN DEFAULT false,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- E-Mail-Empfänger
+CREATE TABLE email_recipients (
+  id SERIAL PRIMARY KEY,
+  email VARCHAR(255) UNIQUE NOT NULL,
+  name VARCHAR(255),
+  role VARCHAR(100),
+  active BOOLEAN DEFAULT true,
+  daily_reports BOOLEAN DEFAULT true,
+  alerts BOOLEAN DEFAULT true,
+  forecasts BOOLEAN DEFAULT false,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Benachrichtigungs-Zeitpläne
+CREATE TABLE notification_schedules (
+  id SERIAL PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  trigger_type VARCHAR(100) NOT NULL,
+  enabled BOOLEAN DEFAULT true,
+  schedule_config JSONB,
+  conditions JSONB,
+  template_type VARCHAR(100),
+  last_run TIMESTAMP,
+  next_run TIMESTAMP,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Abonnements
+CREATE TABLE notification_subscriptions (
+  id SERIAL PRIMARY KEY,
+  recipient_id INTEGER REFERENCES email_recipients(id),
+  schedule_id INTEGER REFERENCES notification_schedules(id),
+  active BOOLEAN DEFAULT true,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- E-Mail-Logs
+CREATE TABLE email_logs (
+  id SERIAL PRIMARY KEY,
+  recipient_email VARCHAR(255),
+  subject VARCHAR(500),
+  type VARCHAR(100),
+  status VARCHAR(50),
+  error_message TEXT,
+  sent_at TIMESTAMP DEFAULT NOW(),
+  template_used VARCHAR(100),
+  data_snapshot JSONB
+);
+
+-- Template-Speicherung
+CREATE TABLE email_templates (
+  id SERIAL PRIMARY KEY,
+  type VARCHAR(100) UNIQUE NOT NULL,
+  name VARCHAR(255),
+  subject_template TEXT,
+  html_template TEXT,
+  text_template TEXT,
+  variables JSONB,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+```
+
+#### TypeScript Interfaces
+```typescript
+// E-Mail-Konfiguration
+interface EmailSettings {
+  id?: number;
+  smtp_host: string;
+  smtp_port: number;
+  smtp_user: string;
+  smtp_pass: string;
+  smtp_secure: boolean;
+  from_name: string;
+  from_email: string;
+}
+
+// Daily Email Einstellungen
+interface DailyEmailSettings {
+  id?: number;
+  enabled: boolean;
+  send_time: string;
+  timezone: string;
+  include_sales: boolean;
+  include_inventory: boolean;
+  include_alerts: boolean;
+  include_forecasts: boolean;
+}
+
+// Empfänger
+interface EmailRecipient {
+  id?: number;
+  email: string;
+  name?: string;
+  role?: string;
+  active: boolean;
+  daily_reports: boolean;
+  alerts: boolean;
+  forecasts: boolean;
+}
+
+// Benachrichtigungs-Zeitplan
+interface NotificationSchedule {
+  id?: number;
+  name: string;
+  trigger_type: string;
+  enabled: boolean;
+  schedule_config: {
+    frequency: 'daily' | 'weekly' | 'monthly' | 'on_condition';
+    time?: string;
+    days_of_week?: number[];
+    day_of_month?: number;
+    conditions?: any;
+  };
+  conditions: any;
+  template_type: string;
+  last_run?: Date;
+  next_run?: Date;
+}
+
+// Daily Report Daten-Struktur
+interface DailyReportData {
+  template: string;
+  date: string;
+  betreff: string;
+  sections: {
+    verkäufe: SalesData;
+    bestände_logistik: InventoryData;
+    erweiterte_bestellungen: OrderData;
+    automaten_status: MachineStatusData;
+    wetter_ferien_umsatz?: WeatherData;
+    offene_wareneingänge?: OpenOrdersData;
+    agent_analyse?: AgentAnalysisData;
+  };
+  hinweise: string[];
+}
+```
+
+### 5. **Implementierungsschritte**
+
+#### Phase 1: Basis-Infrastructure
+1. **Database Setup**
+   - Erstelle alle notwendigen Tabellen
+   - Implementiere Migrationen
+   - Setze Grundkonfiguration
+
+2. **Core Services**
+   - `emailService.ts` - SMTP-Basis-Funktionalität
+   - `notificationService.ts` - Zentrale Benachrichtigungslogik
+   - Template-System mit Handlebars
+
+#### Phase 2: Daily Email System
+1. **Data Aggregation**
+   - `dailyEmailDataAggregator.ts` - Vollständige Datensammlung
+   - Verkaufsdaten, Lagerbestände, Alerts, Wetterprognosen
+   - MHD-FIFO Integration
+
+2. **Template Rendering**
+   - `dailyEmailComposer.ts` - HTML/Text-Generierung
+   - Responsive E-Mail-Templates
+   - Bedingte Sektionen
+
+3. **Scheduling**
+   - `dailyEmailScheduler.ts` - Zeitgesteuerte Ausführung
+   - Cron-Job Integration
+   - Fehlerbehandlung
+
+#### Phase 3: Trigger-basierte Benachrichtigungen
+1. **Trigger Services implementieren**
+   - Hoher Geldbestand (`cashHighTrigger.ts`)
+   - Niedriger Münzbestand (`coinLowTrigger.ts`)
+   - Niedrige Lagerbestände (`stockLowTrigger.ts`)
+   - Nahende MHD-Ablaufdaten (`mhdSoonTrigger.ts`)
+   - Verkaufsberichte (`salesYesterdayTrigger.ts`, `salesWeeklyTrigger.ts`)
+   - Prognose-Alerts (`forecastWeekTrigger.ts`)
+   - Margen-Berichte (`marginReportTrigger.ts`)
+
+2. **Condition Engine**
+   - Flexible Bedingungsprüfung
+   - Schwellenwerte und Regeln
+   - Zeitfenster-Logik
+
+#### Phase 4: Frontend Management
+1. **Admin-Interfaces**
+   - E-Mail-Konfiguration
+   - Empfänger-Verwaltung
+   - Template-Editor
+   - Zeitplan-Management
+
+2. **Monitoring & Logs**
+   - Versand-Protokolle
+   - Error-Tracking
+   - System-Status
+
+#### Phase 5: Testing & Deployment
+1. **Test-Framework**
+   - Unit-Tests für alle Services
+   - Integration-Tests
+   - E-Mail-Preview-System
+
+2. **Production Features**
+   - Rate Limiting
+   - Retry-Mechanismen
+   - Monitoring-Integration
+
+### 6. **Spezifische Trigger-Implementierungen**
+
+#### Cash High Trigger
+```typescript
+// server/services/triggers/cashHighTrigger.ts
+export class CashHighTrigger {
+  async checkCondition(): Promise<boolean> {
+    // Prüfe Bargeldbestände aller Automaten
+    // Schwellenwert: > 200€ pro Automat
+  }
+  
+  async generateNotification(): Promise<NotificationData> {
+    // Sammle Daten der betroffenen Automaten
+    // Erstelle Benachrichtigungsinhalt
+  }
+}
+```
+
+#### Stock Low Trigger
+```typescript
+// server/services/triggers/stockLowTrigger.ts
+export class StockLowTrigger {
+  async checkCondition(): Promise<boolean> {
+    // Prüfe Lagerbestände gegen Mindestbestände
+    // Berücksichtige MHD-FIFO-Logik
+  }
+  
+  async generateNotification(): Promise<NotificationData> {
+    // Liste kritischer Produkte
+    // Nachbestellempfehlungen
+  }
+}
+```
+
+#### MHD Soon Trigger
+```typescript
+// server/services/triggers/mhdSoonTrigger.ts
+export class MhdSoonTrigger {
+  async checkCondition(): Promise<boolean> {
+    // Prüfe ablaufende MHDs (< 7 Tage)
+    // Sowohl Lager als auch Automaten
+  }
+  
+  async generateNotification(): Promise<NotificationData> {
+    // Betroffene Produkte und Standorte
+    // Handlungsempfehlungen
+  }
+}
+```
+
+### 7. **Template-Beispiele**
+
+#### Daily Report Template (HTML)
+```handlebars
+<!-- server/templates/notifications/daily_report.hbs -->
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>{{betreff}}</title>
+    <style>
+        /* Responsive E-Mail-Styles */
+    </style>
+</head>
+<body>
+    <h1>📊 Tagesreport – {{date}}</h1>
+    
+    {{#if sections.verkäufe}}
+    <section>
+        <h2>💰 Verkäufe</h2>
+        <p>Gesamtumsatz: €{{sections.verkäufe.gesamtumsatz}}</p>
+        <p>Anzahl Verkäufe: {{sections.verkäufe.anzahl_verkäufe}}</p>
+    </section>
+    {{/if}}
+    
+    {{#if sections.bestände_logistik}}
+    <section>
+        <h2>📦 Bestände & Logistik</h2>
+        {{#if sections.bestände_logistik.niedriger_lagerbestand}}
+        <h3>⚠️ Niedrige Lagerbestände</h3>
+        <ul>
+        {{#each sections.bestände_logistik.niedriger_lagerbestand}}
+            <li>{{produkt}}: {{bestand}} (Mindest: {{schwellenwert}})</li>
+        {{/each}}
+        </ul>
+        {{/if}}
+    </section>
+    {{/if}}
+    
+    <!-- Weitere Sektionen... -->
+</body>
+</html>
+```
+
+#### Stock Low Alert Template
+```handlebars
+<!-- server/templates/notifications/stock_low.hbs -->
+<h2>⚠️ Niedrige Lagerbestände</h2>
+<p>Die folgenden Produkte sind unter dem Mindestbestand:</p>
+<ul>
+{{#each products}}
+    <li>
+        <strong>{{name}}</strong><br>
+        Aktueller Bestand: {{currentStock}}<br>
+        Mindestbestand: {{minimumStock}}<br>
+        Empfohlene Nachbestellung: {{recommendedOrder}}
+    </li>
+{{/each}}
+</ul>
+<p>Bitte prüfen Sie die Bestände und bestellen Sie entsprechend nach.</p>
+```
+
+### 8. **Konfiguration & Environment**
+
+#### Environment Variables
+```bash
+# SMTP-Konfiguration
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=your-email@gmail.com
+SMTP_PASS=your-app-password
+SMTP_SECURE=true
+SMTP_FROM_NAME=Proviantomat System
+SMTP_FROM_EMAIL=noreply@proviantomat.de
+
+# Daily Email Settings
+DAILY_EMAIL_ENABLED=true
+DAILY_EMAIL_TIME=08:00
+DAILY_EMAIL_TIMEZONE=Europe/Berlin
+
+# Notification Settings
+NOTIFICATIONS_ENABLED=true
+CASH_HIGH_THRESHOLD=200
+STOCK_LOW_THRESHOLD_DAYS=7
+MHD_WARNING_DAYS=7
+```
+
+### 9. **Error Handling & Monitoring**
+
+#### Retry-Mechanismus
+```typescript
+// Implementiere exponential backoff für fehlgeschlagene E-Mails
+class EmailRetryService {
+  async sendWithRetry(emailData: EmailData, maxRetries = 3): Promise<void> {
+    // Retry-Logik mit exponential backoff
+  }
+}
+```
+
+#### Monitoring
+```typescript
+// E-Mail-Versand-Metriken
+interface EmailMetrics {
+  sent: number;
+  failed: number;
+  retries: number;
+  averageDeliveryTime: number;
+}
+```
+
+### 10. **Testing Strategy**
+
+#### Unit Tests
+- Jeder Trigger-Service
+- Template-Rendering
+- SMTP-Funktionalität
+- Daten-Aggregation
+
+#### Integration Tests
+- End-to-End E-Mail-Versand
+- Scheduler-Funktionalität
+- Fehlerbehandlung
+
+#### Test-Tools
+```typescript
+// E-Mail-Mock für Tests
+class MockEmailService {
+  sentEmails: EmailData[] = [];
+  
+  async sendEmail(data: EmailData): Promise<void> {
+    this.sentEmails.push(data);
+  }
+}
+```
+
+## 🚀 **Finale Implementierungsanweisung**
+
+1. **Beginne mit der Database-Migration**
+   - Erstelle alle Tabellen in der richtigen Reihenfolge
+   - Setze Standard-Konfigurationen
+
+2. **Implementiere Core Services**
+   - Reihenfolge: emailService → notificationService → dailyEmailService
+   - Teste jeden Service isoliert
+
+3. **Aufbau der Trigger-Services**
+   - Implementiere jeden Trigger einzeln
+   - Teste Bedingungsprüfung und Benachrichtigungsgenerierung
+
+4. **Frontend-Integration**
+   - Admin-Interfaces für Konfiguration
+   - Test-Funktionalitäten
+   - Monitoring-Dashboards
+
+5. **Production Deployment**
+   - Environment-Konfiguration
+   - Scheduler-Aktivierung
+   - Monitoring-Setup
+
+**Das System ist darauf ausgelegt, vollständig funktionsfähig, skalierbar und wartbar zu sein, mit umfassendem Error Handling und Monitoring-Capabilities.**
