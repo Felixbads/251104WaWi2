@@ -33,7 +33,10 @@ import {
   productBatches, type ProductBatch, type InsertProductBatch,
   productMovements, type ProductMovement, type InsertProductMovement,
   pagePermissions, type PagePermission, type InsertPagePermission,
-  machineDailyStats, type MachineDailyStats, type InsertMachineDailyStats
+  machineDailyStats, type MachineDailyStats, type InsertMachineDailyStats,
+  // Navigation Audit System tables
+  navigationAuditSessions, navigationIssues, touchTargetMetrics, 
+  scrollabilityTests, navigationFixes, auditPerformanceHistory
 } from "@shared/schema";
 import { IStorage, User as IUser, MachineDailyStats as IMachineDailyStats, Machine as IMachine } from "../storage";
 
@@ -2853,6 +2856,897 @@ export class DatabaseStorage implements IStorage {
       return parseInt(result[0]?.count?.toString() || '0');
     } catch (error) {
       console.error('[STORAGE] Error getting transaction count:', error);
+      throw error;
+    }
+  }
+
+  // ==================== NAVIGATION AUDIT SYSTEM OPERATIONS ====================
+
+  // Navigation Audit Session operations
+  async getNavigationAuditSessions(options?: { 
+    deviceType?: string; 
+    auditType?: string; 
+    limit?: number; 
+    offset?: number 
+  }): Promise<import('@shared/schema').NavigationAuditSession[]> {
+    try {
+      let query = db.select().from(navigationAuditSessions);
+      
+      if (options?.deviceType) {
+        query = query.where(eq(navigationAuditSessions.deviceType, options.deviceType));
+      }
+      
+      if (options?.auditType) {
+        query = query.where(eq(navigationAuditSessions.auditType, options.auditType));
+      }
+      
+      if (options?.limit) {
+        query = query.limit(options.limit);
+      }
+      
+      if (options?.offset) {
+        query = query.offset(options.offset);
+      }
+      
+      return await query.orderBy(desc(navigationAuditSessions.createdAt));
+    } catch (error) {
+      console.error('[STORAGE] Error getting navigation audit sessions:', error);
+      throw error;
+    }
+  }
+
+  async getNavigationAuditSessionById(id: number): Promise<import('@shared/schema').NavigationAuditSession | undefined> {
+    try {
+      const result = await db.select()
+        .from(navigationAuditSessions)
+        .where(eq(navigationAuditSessions.id, id))
+        .limit(1);
+      
+      return result[0];
+    } catch (error) {
+      console.error('[STORAGE] Error getting navigation audit session by id:', error);
+      throw error;
+    }
+  }
+
+  async getNavigationAuditSessionBySessionId(sessionId: string): Promise<import('@shared/schema').NavigationAuditSession | undefined> {
+    try {
+      const result = await db.select()
+        .from(navigationAuditSessions)
+        .where(eq(navigationAuditSessions.sessionId, sessionId))
+        .limit(1);
+      
+      return result[0];
+    } catch (error) {
+      console.error('[STORAGE] Error getting navigation audit session by session id:', error);
+      throw error;
+    }
+  }
+
+  async createNavigationAuditSession(session: Omit<import('@shared/schema').NavigationAuditSession, 'id' | 'createdAt'>): Promise<import('@shared/schema').NavigationAuditSession> {
+    try {
+      const result = await db.insert(navigationAuditSessions)
+        .values({
+          ...session,
+          createdAt: new Date()
+        })
+        .returning();
+      
+      return result[0];
+    } catch (error) {
+      console.error('[STORAGE] Error creating navigation audit session:', error);
+      throw error;
+    }
+  }
+
+  async updateNavigationAuditSession(id: number, updates: Partial<import('@shared/schema').NavigationAuditSession>): Promise<import('@shared/schema').NavigationAuditSession> {
+    try {
+      const result = await db.update(navigationAuditSessions)
+        .set(updates)
+        .where(eq(navigationAuditSessions.id, id))
+        .returning();
+      
+      if (!result[0]) {
+        throw new Error(`Navigation audit session with id ${id} not found`);
+      }
+      
+      return result[0];
+    } catch (error) {
+      console.error('[STORAGE] Error updating navigation audit session:', error);
+      throw error;
+    }
+  }
+
+  async deleteNavigationAuditSession(id: number): Promise<void> {
+    try {
+      await db.delete(navigationAuditSessions)
+        .where(eq(navigationAuditSessions.id, id));
+    } catch (error) {
+      console.error('[STORAGE] Error deleting navigation audit session:', error);
+      throw error;
+    }
+  }
+
+  // Navigation Issues operations
+  async getNavigationIssues(options?: { 
+    sessionId?: number; 
+    severity?: string; 
+    component?: string; 
+    isFixed?: boolean;
+    limit?: number 
+  }): Promise<import('@shared/schema').NavigationIssue[]> {
+    try {
+      let query = db.select().from(navigationIssues);
+      
+      const conditions = [];
+      
+      if (options?.sessionId) {
+        conditions.push(eq(navigationIssues.sessionId, options.sessionId));
+      }
+      
+      if (options?.severity) {
+        conditions.push(eq(navigationIssues.severity, options.severity));
+      }
+      
+      if (options?.component) {
+        conditions.push(eq(navigationIssues.component, options.component));
+      }
+      
+      if (options?.isFixed !== undefined) {
+        conditions.push(eq(navigationIssues.isFixed, options.isFixed));
+      }
+      
+      if (conditions.length > 0) {
+        query = query.where(and(...conditions));
+      }
+      
+      if (options?.limit) {
+        query = query.limit(options.limit);
+      }
+      
+      return await query.orderBy(desc(navigationIssues.createdAt));
+    } catch (error) {
+      console.error('[STORAGE] Error getting navigation issues:', error);
+      throw error;
+    }
+  }
+
+  async getNavigationIssueById(id: number): Promise<import('@shared/schema').NavigationIssue | undefined> {
+    try {
+      const result = await db.select()
+        .from(navigationIssues)
+        .where(eq(navigationIssues.id, id))
+        .limit(1);
+      
+      return result[0];
+    } catch (error) {
+      console.error('[STORAGE] Error getting navigation issue by id:', error);
+      throw error;
+    }
+  }
+
+  async getNavigationIssuesBySession(sessionId: number): Promise<import('@shared/schema').NavigationIssue[]> {
+    try {
+      return await db.select()
+        .from(navigationIssues)
+        .where(eq(navigationIssues.sessionId, sessionId))
+        .orderBy(desc(navigationIssues.createdAt));
+    } catch (error) {
+      console.error('[STORAGE] Error getting navigation issues by session:', error);
+      throw error;
+    }
+  }
+
+  async createNavigationIssue(issue: Omit<import('@shared/schema').NavigationIssue, 'id' | 'createdAt'>): Promise<import('@shared/schema').NavigationIssue> {
+    try {
+      const result = await db.insert(navigationIssues)
+        .values({
+          ...issue,
+          createdAt: new Date()
+        })
+        .returning();
+      
+      return result[0];
+    } catch (error) {
+      console.error('[STORAGE] Error creating navigation issue:', error);
+      throw error;
+    }
+  }
+
+  async updateNavigationIssue(id: number, updates: Partial<import('@shared/schema').NavigationIssue>): Promise<import('@shared/schema').NavigationIssue> {
+    try {
+      const result = await db.update(navigationIssues)
+        .set(updates)
+        .where(eq(navigationIssues.id, id))
+        .returning();
+      
+      if (!result[0]) {
+        throw new Error(`Navigation issue with id ${id} not found`);
+      }
+      
+      return result[0];
+    } catch (error) {
+      console.error('[STORAGE] Error updating navigation issue:', error);
+      throw error;
+    }
+  }
+
+  async deleteNavigationIssue(id: number): Promise<void> {
+    try {
+      await db.delete(navigationIssues)
+        .where(eq(navigationIssues.id, id));
+    } catch (error) {
+      console.error('[STORAGE] Error deleting navigation issue:', error);
+      throw error;
+    }
+  }
+
+  async markNavigationIssueAsFixed(id: number, fixedBy: number): Promise<import('@shared/schema').NavigationIssue> {
+    try {
+      const result = await db.update(navigationIssues)
+        .set({
+          isFixed: true,
+          fixedBy: fixedBy,
+          fixedAt: new Date()
+        })
+        .where(eq(navigationIssues.id, id))
+        .returning();
+      
+      if (!result[0]) {
+        throw new Error(`Navigation issue with id ${id} not found`);
+      }
+      
+      return result[0];
+    } catch (error) {
+      console.error('[STORAGE] Error marking navigation issue as fixed:', error);
+      throw error;
+    }
+  }
+
+  async getUnfixedCriticalIssues(): Promise<import('@shared/schema').NavigationIssue[]> {
+    try {
+      return await db.select()
+        .from(navigationIssues)
+        .where(and(
+          eq(navigationIssues.severity, 'critical'),
+          eq(navigationIssues.isFixed, false)
+        ))
+        .orderBy(desc(navigationIssues.createdAt));
+    } catch (error) {
+      console.error('[STORAGE] Error getting unfixed critical issues:', error);
+      throw error;
+    }
+  }
+
+  // Touch Target Metrics operations  
+  async getTouchTargetMetrics(options?: { 
+    sessionId?: number; 
+    isCompliant?: boolean; 
+    elementType?: string 
+  }): Promise<import('@shared/schema').TouchTargetMetric[]> {
+    try {
+      let query = db.select().from(touchTargetMetrics);
+      
+      const conditions = [];
+      
+      if (options?.sessionId) {
+        conditions.push(eq(touchTargetMetrics.sessionId, options.sessionId));
+      }
+      
+      if (options?.isCompliant !== undefined) {
+        conditions.push(eq(touchTargetMetrics.isCompliant, options.isCompliant));
+      }
+      
+      if (options?.elementType) {
+        conditions.push(eq(touchTargetMetrics.elementType, options.elementType));
+      }
+      
+      if (conditions.length > 0) {
+        query = query.where(and(...conditions));
+      }
+      
+      return await query.orderBy(desc(touchTargetMetrics.createdAt));
+    } catch (error) {
+      console.error('[STORAGE] Error getting touch target metrics:', error);
+      throw error;
+    }
+  }
+
+  async getTouchTargetMetricById(id: number): Promise<import('@shared/schema').TouchTargetMetric | undefined> {
+    try {
+      const result = await db.select()
+        .from(touchTargetMetrics)
+        .where(eq(touchTargetMetrics.id, id))
+        .limit(1);
+      
+      return result[0];
+    } catch (error) {
+      console.error('[STORAGE] Error getting touch target metric by id:', error);
+      throw error;
+    }
+  }
+
+  async getTouchTargetMetricsBySession(sessionId: number): Promise<import('@shared/schema').TouchTargetMetric[]> {
+    try {
+      return await db.select()
+        .from(touchTargetMetrics)
+        .where(eq(touchTargetMetrics.sessionId, sessionId))
+        .orderBy(desc(touchTargetMetrics.createdAt));
+    } catch (error) {
+      console.error('[STORAGE] Error getting touch target metrics by session:', error);
+      throw error;
+    }
+  }
+
+  async createTouchTargetMetric(metric: Omit<import('@shared/schema').TouchTargetMetric, 'id' | 'createdAt'>): Promise<import('@shared/schema').TouchTargetMetric> {
+    try {
+      const result = await db.insert(touchTargetMetrics)
+        .values({
+          ...metric,
+          createdAt: new Date()
+        })
+        .returning();
+      
+      return result[0];
+    } catch (error) {
+      console.error('[STORAGE] Error creating touch target metric:', error);
+      throw error;
+    }
+  }
+
+  async updateTouchTargetMetric(id: number, updates: Partial<import('@shared/schema').TouchTargetMetric>): Promise<import('@shared/schema').TouchTargetMetric> {
+    try {
+      const result = await db.update(touchTargetMetrics)
+        .set(updates)
+        .where(eq(touchTargetMetrics.id, id))
+        .returning();
+      
+      if (!result[0]) {
+        throw new Error(`Touch target metric with id ${id} not found`);
+      }
+      
+      return result[0];
+    } catch (error) {
+      console.error('[STORAGE] Error updating touch target metric:', error);
+      throw error;
+    }
+  }
+
+  async deleteTouchTargetMetric(id: number): Promise<void> {
+    try {
+      await db.delete(touchTargetMetrics)
+        .where(eq(touchTargetMetrics.id, id));
+    } catch (error) {
+      console.error('[STORAGE] Error deleting touch target metric:', error);
+      throw error;
+    }
+  }
+
+  async getTouchTargetComplianceStats(deviceType?: string): Promise<{ compliant: number; total: number; percentage: number }> {
+    try {
+      let query = db.select({
+        total: count(),
+        compliant: sql<number>`SUM(CASE WHEN ${touchTargetMetrics.isCompliant} = true THEN 1 ELSE 0 END)`
+      }).from(touchTargetMetrics);
+      
+      if (deviceType) {
+        // Join with sessions to filter by device type
+        query = query.innerJoin(navigationAuditSessions, eq(touchTargetMetrics.sessionId, navigationAuditSessions.id))
+          .where(eq(navigationAuditSessions.deviceType, deviceType));
+      }
+      
+      const result = await query;
+      const total = parseInt(result[0]?.total?.toString() || '0');
+      const compliant = parseInt(result[0]?.compliant?.toString() || '0');
+      const percentage = total > 0 ? (compliant / total) * 100 : 0;
+      
+      return { compliant, total, percentage };
+    } catch (error) {
+      console.error('[STORAGE] Error getting touch target compliance stats:', error);
+      throw error;
+    }
+  }
+
+  // Scrollability Tests operations
+  async getScrollabilityTests(options?: { 
+    sessionId?: number; 
+    containerType?: string; 
+    isScrollable?: boolean 
+  }): Promise<import('@shared/schema').ScrollabilityTest[]> {
+    try {
+      let query = db.select().from(scrollabilityTests);
+      
+      const conditions = [];
+      
+      if (options?.sessionId) {
+        conditions.push(eq(scrollabilityTests.sessionId, options.sessionId));
+      }
+      
+      if (options?.containerType) {
+        conditions.push(eq(scrollabilityTests.containerType, options.containerType));
+      }
+      
+      if (options?.isScrollable !== undefined) {
+        conditions.push(eq(scrollabilityTests.isScrollable, options.isScrollable));
+      }
+      
+      if (conditions.length > 0) {
+        query = query.where(and(...conditions));
+      }
+      
+      return await query.orderBy(desc(scrollabilityTests.createdAt));
+    } catch (error) {
+      console.error('[STORAGE] Error getting scrollability tests:', error);
+      throw error;
+    }
+  }
+
+  async getScrollabilityTestById(id: number): Promise<import('@shared/schema').ScrollabilityTest | undefined> {
+    try {
+      const result = await db.select()
+        .from(scrollabilityTests)
+        .where(eq(scrollabilityTests.id, id))
+        .limit(1);
+      
+      return result[0];
+    } catch (error) {
+      console.error('[STORAGE] Error getting scrollability test by id:', error);
+      throw error;
+    }
+  }
+
+  async getScrollabilityTestsBySession(sessionId: number): Promise<import('@shared/schema').ScrollabilityTest[]> {
+    try {
+      return await db.select()
+        .from(scrollabilityTests)
+        .where(eq(scrollabilityTests.sessionId, sessionId))
+        .orderBy(desc(scrollabilityTests.createdAt));
+    } catch (error) {
+      console.error('[STORAGE] Error getting scrollability tests by session:', error);
+      throw error;
+    }
+  }
+
+  async createScrollabilityTest(test: Omit<import('@shared/schema').ScrollabilityTest, 'id' | 'createdAt'>): Promise<import('@shared/schema').ScrollabilityTest> {
+    try {
+      const result = await db.insert(scrollabilityTests)
+        .values({
+          ...test,
+          createdAt: new Date()
+        })
+        .returning();
+      
+      return result[0];
+    } catch (error) {
+      console.error('[STORAGE] Error creating scrollability test:', error);
+      throw error;
+    }
+  }
+
+  async updateScrollabilityTest(id: number, updates: Partial<import('@shared/schema').ScrollabilityTest>): Promise<import('@shared/schema').ScrollabilityTest> {
+    try {
+      const result = await db.update(scrollabilityTests)
+        .set(updates)
+        .where(eq(scrollabilityTests.id, id))
+        .returning();
+      
+      if (!result[0]) {
+        throw new Error(`Scrollability test with id ${id} not found`);
+      }
+      
+      return result[0];
+    } catch (error) {
+      console.error('[STORAGE] Error updating scrollability test:', error);
+      throw error;
+    }
+  }
+
+  async deleteScrollabilityTest(id: number): Promise<void> {
+    try {
+      await db.delete(scrollabilityTests)
+        .where(eq(scrollabilityTests.id, id));
+    } catch (error) {
+      console.error('[STORAGE] Error deleting scrollability test:', error);
+      throw error;
+    }
+  }
+
+  async getScrollabilityComplianceStats(deviceType?: string): Promise<{ compliant: number; total: number; percentage: number }> {
+    try {
+      let query = db.select({
+        total: count(),
+        compliant: sql<number>`SUM(CASE WHEN ${scrollabilityTests.isScrollable} = true THEN 1 ELSE 0 END)`
+      }).from(scrollabilityTests);
+      
+      if (deviceType) {
+        // Join with sessions to filter by device type
+        query = query.innerJoin(navigationAuditSessions, eq(scrollabilityTests.sessionId, navigationAuditSessions.id))
+          .where(eq(navigationAuditSessions.deviceType, deviceType));
+      }
+      
+      const result = await query;
+      const total = parseInt(result[0]?.total?.toString() || '0');
+      const compliant = parseInt(result[0]?.compliant?.toString() || '0');
+      const percentage = total > 0 ? (compliant / total) * 100 : 0;
+      
+      return { compliant, total, percentage };
+    } catch (error) {
+      console.error('[STORAGE] Error getting scrollability compliance stats:', error);
+      throw error;
+    }
+  }
+
+  // Navigation Fixes operations
+  async getNavigationFixes(options?: { 
+    issueId?: number; 
+    fixType?: string; 
+    success?: boolean 
+  }): Promise<import('@shared/schema').NavigationFix[]> {
+    try {
+      let query = db.select().from(navigationFixes);
+      
+      const conditions = [];
+      
+      if (options?.issueId) {
+        conditions.push(eq(navigationFixes.issueId, options.issueId));
+      }
+      
+      if (options?.fixType) {
+        conditions.push(eq(navigationFixes.fixType, options.fixType));
+      }
+      
+      if (options?.success !== undefined) {
+        conditions.push(eq(navigationFixes.success, options.success));
+      }
+      
+      if (conditions.length > 0) {
+        query = query.where(and(...conditions));
+      }
+      
+      return await query.orderBy(desc(navigationFixes.appliedAt));
+    } catch (error) {
+      console.error('[STORAGE] Error getting navigation fixes:', error);
+      throw error;
+    }
+  }
+
+  async getNavigationFixById(id: number): Promise<import('@shared/schema').NavigationFix | undefined> {
+    try {
+      const result = await db.select()
+        .from(navigationFixes)
+        .where(eq(navigationFixes.id, id))
+        .limit(1);
+      
+      return result[0];
+    } catch (error) {
+      console.error('[STORAGE] Error getting navigation fix by id:', error);
+      throw error;
+    }
+  }
+
+  async getNavigationFixesByIssue(issueId: number): Promise<import('@shared/schema').NavigationFix[]> {
+    try {
+      return await db.select()
+        .from(navigationFixes)
+        .where(eq(navigationFixes.issueId, issueId))
+        .orderBy(desc(navigationFixes.appliedAt));
+    } catch (error) {
+      console.error('[STORAGE] Error getting navigation fixes by issue:', error);
+      throw error;
+    }
+  }
+
+  async createNavigationFix(fix: Omit<import('@shared/schema').NavigationFix, 'id' | 'appliedAt'>): Promise<import('@shared/schema').NavigationFix> {
+    try {
+      const result = await db.insert(navigationFixes)
+        .values({
+          ...fix,
+          appliedAt: new Date()
+        })
+        .returning();
+      
+      return result[0];
+    } catch (error) {
+      console.error('[STORAGE] Error creating navigation fix:', error);
+      throw error;
+    }
+  }
+
+  async updateNavigationFix(id: number, updates: Partial<import('@shared/schema').NavigationFix>): Promise<import('@shared/schema').NavigationFix> {
+    try {
+      const result = await db.update(navigationFixes)
+        .set(updates)
+        .where(eq(navigationFixes.id, id))
+        .returning();
+      
+      if (!result[0]) {
+        throw new Error(`Navigation fix with id ${id} not found`);
+      }
+      
+      return result[0];
+    } catch (error) {
+      console.error('[STORAGE] Error updating navigation fix:', error);
+      throw error;
+    }
+  }
+
+  async deleteNavigationFix(id: number): Promise<void> {
+    try {
+      await db.delete(navigationFixes)
+        .where(eq(navigationFixes.id, id));
+    } catch (error) {
+      console.error('[STORAGE] Error deleting navigation fix:', error);
+      throw error;
+    }
+  }
+
+  // Audit Performance History operations
+  async getAuditPerformanceHistory(options?: { 
+    deviceType?: string; 
+    dateFrom?: string; 
+    dateTo?: string 
+  }): Promise<import('@shared/schema').AuditPerformanceHistory[]> {
+    try {
+      let query = db.select().from(auditPerformanceHistory);
+      
+      const conditions = [];
+      
+      if (options?.deviceType) {
+        conditions.push(eq(auditPerformanceHistory.deviceType, options.deviceType));
+      }
+      
+      if (options?.dateFrom) {
+        conditions.push(gte(auditPerformanceHistory.date, options.dateFrom));
+      }
+      
+      if (options?.dateTo) {
+        conditions.push(lte(auditPerformanceHistory.date, options.dateTo));
+      }
+      
+      if (conditions.length > 0) {
+        query = query.where(and(...conditions));
+      }
+      
+      return await query.orderBy(desc(auditPerformanceHistory.date));
+    } catch (error) {
+      console.error('[STORAGE] Error getting audit performance history:', error);
+      throw error;
+    }
+  }
+
+  async getAuditPerformanceHistoryById(id: number): Promise<import('@shared/schema').AuditPerformanceHistory | undefined> {
+    try {
+      const result = await db.select()
+        .from(auditPerformanceHistory)
+        .where(eq(auditPerformanceHistory.id, id))
+        .limit(1);
+      
+      return result[0];
+    } catch (error) {
+      console.error('[STORAGE] Error getting audit performance history by id:', error);
+      throw error;
+    }
+  }
+
+  async getLatestAuditPerformanceByDevice(deviceType: string): Promise<import('@shared/schema').AuditPerformanceHistory | undefined> {
+    try {
+      const result = await db.select()
+        .from(auditPerformanceHistory)
+        .where(eq(auditPerformanceHistory.deviceType, deviceType))
+        .orderBy(desc(auditPerformanceHistory.date))
+        .limit(1);
+      
+      return result[0];
+    } catch (error) {
+      console.error('[STORAGE] Error getting latest audit performance by device:', error);
+      throw error;
+    }
+  }
+
+  async upsertAuditPerformanceHistory(history: Omit<import('@shared/schema').AuditPerformanceHistory, 'id' | 'updatedAt'>): Promise<import('@shared/schema').AuditPerformanceHistory> {
+    try {
+      // Try to find existing record for the same device type and date
+      const existing = await db.select()
+        .from(auditPerformanceHistory)
+        .where(and(
+          eq(auditPerformanceHistory.deviceType, history.deviceType),
+          eq(auditPerformanceHistory.date, history.date)
+        ))
+        .limit(1);
+      
+      if (existing[0]) {
+        // Update existing record
+        const result = await db.update(auditPerformanceHistory)
+          .set({
+            ...history,
+            updatedAt: new Date()
+          })
+          .where(eq(auditPerformanceHistory.id, existing[0].id))
+          .returning();
+        
+        return result[0];
+      } else {
+        // Insert new record
+        const result = await db.insert(auditPerformanceHistory)
+          .values({
+            ...history,
+            updatedAt: new Date()
+          })
+          .returning();
+        
+        return result[0];
+      }
+    } catch (error) {
+      console.error('[STORAGE] Error upserting audit performance history:', error);
+      throw error;
+    }
+  }
+
+  async updateAuditPerformanceHistory(id: number, updates: Partial<import('@shared/schema').AuditPerformanceHistory>): Promise<import('@shared/schema').AuditPerformanceHistory> {
+    try {
+      const result = await db.update(auditPerformanceHistory)
+        .set({
+          ...updates,
+          updatedAt: new Date()
+        })
+        .where(eq(auditPerformanceHistory.id, id))
+        .returning();
+      
+      if (!result[0]) {
+        throw new Error(`Audit performance history with id ${id} not found`);
+      }
+      
+      return result[0];
+    } catch (error) {
+      console.error('[STORAGE] Error updating audit performance history:', error);
+      throw error;
+    }
+  }
+
+  async deleteAuditPerformanceHistory(id: number): Promise<void> {
+    try {
+      await db.delete(auditPerformanceHistory)
+        .where(eq(auditPerformanceHistory.id, id));
+    } catch (error) {
+      console.error('[STORAGE] Error deleting audit performance history:', error);
+      throw error;
+    }
+  }
+
+  // Audit Analytics and Reporting
+  async getAuditSummaryStats(options?: { 
+    deviceType?: string; 
+    dateFrom?: string; 
+    dateTo?: string 
+  }): Promise<{
+    totalSessions: number;
+    avgPerformanceScore: number;
+    totalIssues: number;
+    criticalIssues: number;
+    warningIssues: number;
+    fixedIssues: number;
+    touchTargetCompliance: number;
+    scrollContainerCompliance: number;
+  }> {
+    try {
+      // Get sessions count and average performance score
+      let sessionsQuery = db.select({
+        totalSessions: count(),
+        avgPerformanceScore: sql<number>`COALESCE(AVG(${navigationAuditSessions.performanceScore}), 0)`
+      }).from(navigationAuditSessions);
+      
+      if (options?.deviceType) {
+        sessionsQuery = sessionsQuery.where(eq(navigationAuditSessions.deviceType, options.deviceType));
+      }
+      
+      if (options?.dateFrom || options?.dateTo) {
+        const dateConditions = [];
+        if (options.dateFrom) {
+          dateConditions.push(gte(navigationAuditSessions.createdAt, new Date(options.dateFrom)));
+        }
+        if (options.dateTo) {
+          dateConditions.push(lte(navigationAuditSessions.createdAt, new Date(options.dateTo)));
+        }
+        if (dateConditions.length > 0) {
+          sessionsQuery = sessionsQuery.where(and(...dateConditions));
+        }
+      }
+      
+      const sessionStats = await sessionsQuery;
+      
+      // Get issues stats
+      let issuesQuery = db.select({
+        totalIssues: count(),
+        criticalIssues: sql<number>`SUM(CASE WHEN ${navigationIssues.severity} = 'critical' THEN 1 ELSE 0 END)`,
+        warningIssues: sql<number>`SUM(CASE WHEN ${navigationIssues.severity} = 'warning' THEN 1 ELSE 0 END)`,
+        fixedIssues: sql<number>`SUM(CASE WHEN ${navigationIssues.isFixed} = true THEN 1 ELSE 0 END)`
+      }).from(navigationIssues);
+      
+      if (options?.deviceType || options?.dateFrom || options?.dateTo) {
+        issuesQuery = issuesQuery.innerJoin(navigationAuditSessions, eq(navigationIssues.sessionId, navigationAuditSessions.id));
+        
+        const issueConditions = [];
+        if (options?.deviceType) {
+          issueConditions.push(eq(navigationAuditSessions.deviceType, options.deviceType));
+        }
+        if (options?.dateFrom) {
+          issueConditions.push(gte(navigationAuditSessions.createdAt, new Date(options.dateFrom)));
+        }
+        if (options?.dateTo) {
+          issueConditions.push(lte(navigationAuditSessions.createdAt, new Date(options.dateTo)));
+        }
+        if (issueConditions.length > 0) {
+          issuesQuery = issuesQuery.where(and(...issueConditions));
+        }
+      }
+      
+      const issueStats = await issuesQuery;
+      
+      // Get touch target compliance
+      const touchTargetStats = await this.getTouchTargetComplianceStats(options?.deviceType);
+      
+      // Get scrollability compliance
+      const scrollabilityStats = await this.getScrollabilityComplianceStats(options?.deviceType);
+      
+      return {
+        totalSessions: parseInt(sessionStats[0]?.totalSessions?.toString() || '0'),
+        avgPerformanceScore: parseFloat(sessionStats[0]?.avgPerformanceScore?.toString() || '0'),
+        totalIssues: parseInt(issueStats[0]?.totalIssues?.toString() || '0'),
+        criticalIssues: parseInt(issueStats[0]?.criticalIssues?.toString() || '0'),
+        warningIssues: parseInt(issueStats[0]?.warningIssues?.toString() || '0'),
+        fixedIssues: parseInt(issueStats[0]?.fixedIssues?.toString() || '0'),
+        touchTargetCompliance: touchTargetStats.percentage,
+        scrollContainerCompliance: scrollabilityStats.percentage
+      };
+    } catch (error) {
+      console.error('[STORAGE] Error getting audit summary stats:', error);
+      throw error;
+    }
+  }
+
+  // Automated Fix Helpers
+  async getAutoFixableIssues(): Promise<import('@shared/schema').NavigationIssue[]> {
+    try {
+      return await db.select()
+        .from(navigationIssues)
+        .where(and(
+          eq(navigationIssues.isFixed, false),
+          eq(navigationIssues.autoFixable, true)
+        ))
+        .orderBy(desc(navigationIssues.createdAt));
+    } catch (error) {
+      console.error('[STORAGE] Error getting auto-fixable issues:', error);
+      throw error;
+    }
+  }
+
+  async bulkApplyAutomaticFixes(issueIds: number[], appliedBy: number): Promise<import('@shared/schema').NavigationFix[]> {
+    try {
+      const fixes: import('@shared/schema').NavigationFix[] = [];
+      
+      for (const issueId of issueIds) {
+        const issue = await this.getNavigationIssueById(issueId);
+        if (issue && issue.autoFixable && !issue.isFixed) {
+          // Create fix record
+          const fix = await this.createNavigationFix({
+            issueId: issueId,
+            fixType: 'automatic',
+            description: `Automatic fix applied for ${issue.component}`,
+            appliedBy: appliedBy,
+            success: true,
+            details: issue.recommendedFix || 'Automatic fix applied'
+          });
+          
+          // Mark issue as fixed
+          await this.markNavigationIssueAsFixed(issueId, appliedBy);
+          
+          fixes.push(fix);
+        }
+      }
+      
+      return fixes;
+    } catch (error) {
+      console.error('[STORAGE] Error applying bulk automatic fixes:', error);
       throw error;
     }
   }

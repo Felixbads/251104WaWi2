@@ -26,7 +26,9 @@ import {
   Info,
   Zap,
   Clock,
-  Users
+  Users,
+  Calendar,
+  Eye
 } from 'lucide-react';
 import type { AuditResults } from '@/lib/services/NavigationAuditService';
 
@@ -38,6 +40,22 @@ interface DashboardStats {
   touchTargetCompliance: number;
   scrollContainerCompliance: number;
   lastAuditDate: string | null;
+}
+
+interface AuditSession {
+  id: number;
+  sessionId: string;
+  auditType: string;
+  performanceScore: number | null;
+  deviceType: string | null;
+  totalIssues: number;
+  criticalIssues: number;
+  warningIssues: number;
+  testedElements: number;
+  passedElements: number;
+  failedElements: number;
+  executionTime: number | null;
+  createdAt: string;
 }
 
 export default function NavigationAuditDashboard() {
@@ -60,6 +78,12 @@ export default function NavigationAuditDashboard() {
 
   const currentDevice = isMobile ? 'mobile' : isTablet ? 'tablet' : 'desktop';
   const DeviceIcon = isMobile ? Smartphone : isTablet ? Tablet : Monitor;
+
+  // Fetch audit sessions from the API
+  const { data: auditSessions, isLoading: isLoadingSessions, refetch: refetchSessions } = useQuery<AuditSession[]>({
+    queryKey: ['/api/navigation-audit/sessions'],
+    enabled: selectedView === 'history', // Only fetch when history tab is active
+  });
 
   // Mock data - In a real implementation, this would fetch from the API
   useEffect(() => {
@@ -384,17 +408,144 @@ export default function NavigationAuditDashboard() {
         </TabsContent>
 
         {/* History Tab */}
-        <TabsContent value="history" className="space-y-6">
+        <TabsContent value="history" className="space-y-6" data-testid="tab-content-history">
           <Card>
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>Audit-Verlauf und Performance-Trends</CardTitle>
+              <Button variant="outline" size="sm" onClick={() => refetchSessions()}>
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Aktualisieren
+              </Button>
             </CardHeader>
             <CardContent>
-              <div className="text-center py-12 text-muted-foreground">
-                <BarChart3 className="h-12 w-12 mx-auto mb-4" />
-                <h3 className="text-lg font-semibold mb-2">Verlaufsdaten werden gesammelt</h3>
-                <p>Führen Sie weitere Audits durch, um Trend-Analysen und historische Leistungsvergleiche zu sehen.</p>
-              </div>
+              {isLoadingSessions ? (
+                <div className="text-center py-12 text-muted-foreground">
+                  <RefreshCw className="h-8 w-8 mx-auto mb-4 animate-spin" />
+                  <p>Lade Audit-Verlauf...</p>
+                </div>
+              ) : auditSessions && auditSessions.length > 0 ? (
+                <div className="space-y-4" data-testid="audit-results">
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+                    <Card className="bg-blue-50">
+                      <CardContent className="p-4">
+                        <div className="flex items-center gap-2">
+                          <BarChart3 className="h-5 w-5 text-blue-600" />
+                          <div>
+                            <p className="text-sm font-medium">Gesamt Audits</p>
+                            <p className="text-2xl font-bold text-blue-600">{auditSessions.length}</p>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <Card className="bg-green-50">
+                      <CardContent className="p-4">
+                        <div className="flex items-center gap-2">
+                          <TrendingUp className="h-5 w-5 text-green-600" />
+                          <div>
+                            <p className="text-sm font-medium">Ø Performance</p>
+                            <p className="text-2xl font-bold text-green-600">
+                              {Math.round(auditSessions.filter(s => s.performanceScore).reduce((acc, s) => acc + (s.performanceScore || 0), 0) / auditSessions.filter(s => s.performanceScore).length || 0)}%
+                            </p>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <Card className="bg-red-50">
+                      <CardContent className="p-4">
+                        <div className="flex items-center gap-2">
+                          <AlertTriangle className="h-5 w-5 text-red-600" />
+                          <div>
+                            <p className="text-sm font-medium">Kritische Probleme</p>
+                            <p className="text-2xl font-bold text-red-600">
+                              {auditSessions.reduce((acc, s) => acc + s.criticalIssues, 0)}
+                            </p>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  <ScrollArea className="h-[400px]">
+                    <div className="space-y-3">
+                      {auditSessions.map((session) => (
+                        <Card key={session.id} className="border-l-4 border-l-primary hover:shadow-md transition-shadow">
+                          <CardContent className="p-4">
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-3 mb-2">
+                                  <Badge variant="outline" className="font-mono text-xs">
+                                    {session.sessionId.slice(0, 8)}
+                                  </Badge>
+                                  <Badge variant={session.auditType === 'touch-targets' ? 'default' : 'secondary'}>
+                                    {session.auditType}
+                                  </Badge>
+                                  {session.deviceType && (
+                                    <Badge variant="outline">
+                                      {session.deviceType === 'mobile' ? <Smartphone className="h-3 w-3 mr-1" /> :
+                                       session.deviceType === 'tablet' ? <Tablet className="h-3 w-3 mr-1" /> :
+                                       <Monitor className="h-3 w-3 mr-1" />}
+                                      {session.deviceType}
+                                    </Badge>
+                                  )}
+                                </div>
+                                
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                                  <div>
+                                    <p className="text-muted-foreground">Performance</p>
+                                    <p className="font-semibold">
+                                      {session.performanceScore ? (
+                                        <span className={session.performanceScore >= 80 ? 'text-green-600' : 
+                                                       session.performanceScore >= 60 ? 'text-yellow-600' : 'text-red-600'}>
+                                          {session.performanceScore}/100
+                                        </span>
+                                      ) : 'N/A'}
+                                    </p>
+                                  </div>
+                                  <div>
+                                    <p className="text-muted-foreground">Probleme</p>
+                                    <p className="font-semibold">{session.totalIssues}</p>
+                                  </div>
+                                  <div>
+                                    <p className="text-muted-foreground">Kritisch</p>
+                                    <p className="font-semibold text-red-600">{session.criticalIssues}</p>
+                                  </div>
+                                  <div>
+                                    <p className="text-muted-foreground">Dauer</p>
+                                    <p className="font-semibold">
+                                      {session.executionTime ? `${session.executionTime}ms` : 'N/A'}
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+                              
+                              <div className="flex flex-col items-end gap-2 ml-4">
+                                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                  <Calendar className="h-3 w-3" />
+                                  {new Date(session.createdAt).toLocaleString('de-DE')}
+                                </div>
+                                <Button variant="ghost" size="sm">
+                                  <Eye className="h-4 w-4 mr-1" />
+                                  Details
+                                </Button>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                </div>
+              ) : (
+                <div className="text-center py-12 text-muted-foreground">
+                  <BarChart3 className="h-12 w-12 mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold mb-2">Noch keine Audit-Daten vorhanden</h3>
+                  <p className="mb-4">Führen Sie Ihren ersten Audit durch, um Verlaufsdaten zu sammeln.</p>
+                  <Button onClick={() => setSelectedView('audit')}>
+                    <Target className="h-4 w-4 mr-2" />
+                    Ersten Audit starten
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
