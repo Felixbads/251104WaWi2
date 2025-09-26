@@ -20,7 +20,7 @@ const router = express.Router();
 const inventoryService = new CentralizedInventoryMovement(db, rawDb);
 
 // Initialize MHD-FIFO service for FIFO-optimized operations  
-const mhdFifoService = new MhdFifoService(db, rawDb);
+const mhdFifoService = new MhdFifoService(rawDb);
 
 
 interface AuthRequest extends Request {

@@ -20,12 +20,10 @@ interface DatabaseClient {
 }
 
 export class MhdFifoService {
-  private db: any; // Drizzle instance
-  private rawDb: DatabaseClient; // Raw PostgreSQL client
+  private rawDb: DatabaseClient; // Raw PostgreSQL client for transactional queries
 
-  constructor(db: any, rawDb: DatabaseClient) {
-    this.db = db; // Drizzle ORM instance
-    this.rawDb = rawDb; // Raw PostgreSQL client for direct queries
+  constructor(rawDb: DatabaseClient) {
+    this.rawDb = rawDb; // Raw PostgreSQL client for direct queries and transactions
   }
 
   /**
@@ -43,18 +41,19 @@ export class MhdFifoService {
     productId: string,
     quantityAdded: number,
     warehouseId: number,
-    stockId: number
+    stockId: number,
+    client?: DatabaseClient  // Optional transaction client
   ): Promise<FifoMhdTransfer[]> {
     const transfers: FifoMhdTransfer[] = [];
+    const dbClient = client || this.rawDb; // Use provided client or default
     
     try {
-      await this.db.query('BEGIN');
       
       console.log(`[MHD_FIFO] Transferring ${quantityAdded} units of product ${productId} to machine ${machineId}`);
 
       // 1. Hole verfügbare Product Batches für dieses Produkt (FIFO-sortiert)
       // WICHTIG: Filtere abgelaufene Chargen aus (expiry_date >= CURRENT_DATE)
-      const batchesResult = await this.db.query(`
+      const batchesResult = await dbClient.query(`
         SELECT pb.id, pb.expiry_date, pb.current_quantity as quantity, pb.batch_number, pb.incoming_date
         FROM product_batches pb
         JOIN products p ON pb.product_id = p.id
@@ -68,7 +67,7 @@ export class MhdFifoService {
 
       if (batchesResult.rows.length === 0) {
         console.log(`[MHD_FIFO] No product batches found for product ${productId} in warehouse ${warehouseId}`);
-        return transfers;
+        return transfers; // Safe return - no transaction state change
       }
 
       let remainingQuantity = quantityAdded;
@@ -82,7 +81,7 @@ export class MhdFifoService {
         console.log(`[MHD_FIFO] Using ${quantityFromThisBatch} from batch ${batch.batch_number} (expiry: ${batch.expiry_date})`);
 
         // 3. Erstelle/Update Machine Stock mit MHD-Daten
-        await this.db.query(`
+        await dbClient.query(`
           INSERT INTO machine_stocks (
             machine_id, machine_vendon_id, product_vendon_id, quantity, 
             expiry_date, batch_id, received_date, status
@@ -110,7 +109,7 @@ export class MhdFifoService {
         ]);
 
         // 4. Reduziere Lagerbestand in product_batches
-        await this.db.query(`
+        await dbClient.query(`
           UPDATE product_batches 
           SET current_quantity = current_quantity - $1, updated_at = NOW()
           WHERE id = $2
@@ -127,16 +126,13 @@ export class MhdFifoService {
         remainingQuantity -= quantityFromThisBatch;
       }
 
-      await this.db.query('COMMIT');
-      
       console.log(`[MHD_FIFO] Successfully transferred ${quantityAdded - remainingQuantity} units with MHD data`);
       
       return transfers;
       
     } catch (error) {
-      await this.db.query('ROLLBACK');
       console.error('[MHD_FIFO] Error in FIFO transfer:', error);
-      throw error;
+      throw error; // Let parent transaction handle rollback
     }
   }
 
@@ -167,7 +163,8 @@ export class MhdFifoService {
       notes?: string;
       referenceType?: string;
       referenceId?: number;
-    } = {}
+    } = {},
+    client?: DatabaseClient  // Optional transaction client
   ): Promise<{
     success: boolean;
     totalWithdrawn: number;
@@ -193,13 +190,14 @@ export class MhdFifoService {
       error: undefined as string | undefined
     };
 
+    const dbClient = client || this.rawDb; // Use provided client or default
+
     try {
-      await this.db.query('BEGIN');
       
       console.log(`[FIFO_AUTO] Starting automatic FIFO withdrawal: ${requestedQuantity} units of product ${productId} from warehouse ${warehouseId}`);
 
       // 1. Hole verfügbare Batches mit FIFO-Sortierung (modernere product_batches Tabelle)
-      const batchesResult = await this.db.query(`
+      const batchesResult = await dbClient.query(`
         SELECT 
           pb.id, 
           pb.batch_number, 
@@ -221,8 +219,7 @@ export class MhdFifoService {
 
       if (batchesResult.rows.length === 0) {
         withdrawalResult.error = `No available batches for product ${productId} in warehouse ${warehouseId}`;
-        await this.db.query('ROLLBACK');
-        return withdrawalResult;
+        return withdrawalResult; // Safe return - no transaction changes
       }
 
       let remainingQuantity = requestedQuantity;
@@ -236,7 +233,7 @@ export class MhdFifoService {
         console.log(`[FIFO_AUTO] Withdrawing ${quantityFromThisBatch} from batch ${batch.batch_number} (expiry: ${batch.expiry_date || 'no expiry'})`);
 
         // 3. Update Batch-Bestand
-        await this.db.query(`
+        await this.rawDb.query(`
           UPDATE product_batches 
           SET 
             current_quantity = current_quantity - $1, 
@@ -246,7 +243,7 @@ export class MhdFifoService {
         `, [quantityFromThisBatch, batch.id]);
 
         // 4. Erstelle Inventory Movement Record für vollständige Nachverfolgung
-        const movementResult = await this.db.query(`
+        const movementResult = await this.rawDb.query(`
           INSERT INTO inventory_movements (
             product_id,
             quantity,
@@ -312,7 +309,7 @@ export class MhdFifoService {
       withdrawalResult.totalWithdrawn = requestedQuantity - remainingQuantity;
       withdrawalResult.success = true;
 
-      await this.db.query('COMMIT');
+      await this.rawDb.query('COMMIT');
       
       console.log(`[FIFO_AUTO] Successfully completed automatic withdrawal: ${withdrawalResult.totalWithdrawn}/${requestedQuantity} units`);
       
@@ -323,7 +320,7 @@ export class MhdFifoService {
       return withdrawalResult;
       
     } catch (error) {
-      await this.db.query('ROLLBACK');
+      await this.rawDb.query('ROLLBACK');
       console.error('[FIFO_AUTO] Error in automatic FIFO withdrawal:', error);
       withdrawalResult.error = error instanceof Error ? error.message : 'Unknown error';
       return withdrawalResult;
@@ -338,7 +335,7 @@ export class MhdFifoService {
    * @returns Ablaufende Produkte mit MHD-Informationen
    */
   async getExpiringProducts(machineId: number, daysAhead: number = 7) {
-    const result = await this.db.query(`
+    const result = await this.rawDb.query(`
       SELECT 
         ms.product_vendon_id,
         p.product_name,
@@ -384,7 +381,7 @@ export class MhdFifoService {
       console.log(`[FIFO_CALC] Calculating FIFO allocation for machine ${machineId}, product ${productIdentifier}`);
 
       // 🔥 FIXED: FIFO-Batch-Zuordnung basierend auf machine_stocks mit korrekten Spalten
-      const batchResult = await this.db.query(`
+      const batchResult = await this.rawDb.query(`
         SELECT 
           ms.batch_id,
           ms.expiry_date,
@@ -441,7 +438,7 @@ export class MhdFifoService {
    */
   async batchOptimizedReorder(warehouseId: number, daysAhead: number = 30) {
     try {
-      const result = await this.db.query(`
+      const result = await this.rawDb.query(`
         WITH expiring_stock AS (
           SELECT 
             p.vendon_id as product_vendon_id,
@@ -522,7 +519,7 @@ export class MhdFifoService {
       const whereClause = warehouseId ? 'AND ib.warehouse_id = $2' : '';
       const params = warehouseId ? [alertLevels.join(','), warehouseId] : [alertLevels.join(',')];
       
-      const result = await this.db.query(`
+      const result = await this.rawDb.query(`
         WITH alert_batches AS (
           SELECT 
             ib.id as batch_id,
@@ -596,12 +593,12 @@ export class MhdFifoService {
    */
   async batchConsolidation(warehouseId: number, maxDaysDifference: number = 3) {
     try {
-      await this.db.query('BEGIN');
+      await this.rawDb.query('BEGIN');
       
       console.log(`[MHD_FIFO] Starting batch consolidation for warehouse ${warehouseId}`);
 
       // Finde Batches mit ähnlichen MHD für das gleiche Produkt
-      const consolidationCandidates = await this.db.query(`
+      const consolidationCandidates = await this.rawDb.query(`
         WITH similar_batches AS (
           SELECT 
             ib1.id as batch1_id,
@@ -645,7 +642,7 @@ export class MhdFifoService {
           ? candidate.batch2_quantity : candidate.batch1_quantity;
 
         // Führe Batches zusammen
-        await this.db.query(`
+        await this.rawDb.query(`
           UPDATE inventory_batches 
           SET quantity = quantity + $1, 
               updated_at = NOW(),
@@ -654,7 +651,7 @@ export class MhdFifoService {
         `, [mergeQuantity, mergeBatchId, mainBatchId]);
 
         // Markiere das zusammengeführte Batch als inaktiv
-        await this.db.query(`
+        await this.rawDb.query(`
           UPDATE inventory_batches 
           SET status = 'consolidated', quantity = 0, updated_at = NOW()
           WHERE id = $1
@@ -671,13 +668,13 @@ export class MhdFifoService {
         console.log(`[MHD_FIFO] Consolidated batch ${mergeBatchId} into ${mainBatchId} (${mergeQuantity} units)`);
       }
 
-      await this.db.query('COMMIT');
+      await this.rawDb.query('COMMIT');
       
       console.log(`[MHD_FIFO] Successfully consolidated ${consolidatedBatches.length} batch pairs`);
       return consolidatedBatches;
       
     } catch (error) {
-      await this.db.query('ROLLBACK');
+      await this.rawDb.query('ROLLBACK');
       console.error('[MHD_FIFO] Error in batch consolidation:', error);
       throw error;
     }
@@ -689,7 +686,7 @@ export class MhdFifoService {
   async createTestMhdData(warehouseId: number, productVendonId: string) {
     try {
       // Finde das Produkt
-      const productResult = await this.db.query(
+      const productResult = await this.rawDb.query(
         'SELECT id FROM products WHERE vendon_id = $1',
         [productVendonId]
       );
@@ -712,7 +709,7 @@ export class MhdFifoService {
         const expiryDate = new Date();
         expiryDate.setDate(expiryDate.getDate() + batch.daysUntilExpiry);
 
-        await this.db.query(`
+        await this.rawDb.query(`
           INSERT INTO inventory_batches (
             warehouse_id, product_id, quantity, batch_number, 
             expiry_date, incoming_date, status
