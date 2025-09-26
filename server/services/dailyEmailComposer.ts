@@ -395,6 +395,60 @@ export class DailyEmailComposer {
                 color: #666;
                 font-size: 12px;
             }
+            /* NEUE CSS-Klassen für Enhanced Monitoring */
+            .enhanced-monitoring {
+                background: linear-gradient(135deg, #667eea, #764ba2);
+                color: white;
+                padding: 20px;
+                border-radius: 8px;
+                margin: 20px 0;
+            }
+            .monitoring-subsection {
+                background: rgba(255,255,255,0.1);
+                border-radius: 6px;
+                padding: 15px;
+                margin-bottom: 15px;
+            }
+            .monitoring-subsection h3 {
+                margin-top: 0;
+                color: #ffffff;
+                border-bottom: 1px solid rgba(255,255,255,0.3);
+                padding-bottom: 8px;
+            }
+            .risk-summary {
+                display: flex;
+                gap: 15px;
+                margin-bottom: 15px;
+                flex-wrap: wrap;
+            }
+            .risk-critical, .risk-high, .risk-medium {
+                padding: 8px 12px;
+                border-radius: 4px;
+                font-weight: bold;
+                font-size: 14px;
+            }
+            .risk-critical {
+                background: #d63031;
+            }
+            .risk-high {
+                background: #e17055;
+            }
+            .risk-medium {
+                background: #fdcb6e;
+                color: #2d3436;
+            }
+            .mhd-analysis, .cash-monitoring, .card-payment-monitoring, .alcohol-monitoring {
+                background: rgba(255,255,255,0.05);
+                border-radius: 4px;
+                padding: 12px;
+            }
+            .info-medium {
+                background-color: #667eea;
+                color: white;
+                padding: 10px;
+                border-radius: 4px;
+                margin-bottom: 10px;
+            }
             .link-button {
                 display: inline-block;
                 background: #667eea;
@@ -429,6 +483,7 @@ export class DailyEmailComposer {
                 ${this.renderInventorySection(data)}
                 ${data.sections.erweiterte_bestellungen ? this.renderEnhancedOrdersSection(data) : ''}
                 ${data.sections.automaten_status ? this.renderMachineStatusSection(data) : ''}
+                ${this.renderEnhancedMonitoringSection(data)}
                 ${data.sections.wetter_ferien_umsatz ? this.renderWeatherSection(data) : ''}
                 ${data.sections.offene_wareneingänge ? this.renderOpenOrdersSection(data) : ''}
                 ${data.sections.agent_analyse ? this.renderAgentAnalysisSection(data) : ''}
@@ -618,6 +673,191 @@ export class DailyEmailComposer {
                 `<li><strong>${escapeHtml(bestellung.lieferant)}</strong> (${escapeHtml(bestellung.bestelldatum)}): ${escapeHtml(bestellung.produkte.join(', '))}</li>`
             ).join('')}
         </ul>
+    </div>
+    `;
+  }
+
+  /**
+   * NEUE FUNKTION: Rendert die erweiterten Monitoring-Systeme
+   */
+  private renderEnhancedMonitoringSection(data: DailyReportData): string {
+    return `
+    <div class="section enhanced-monitoring">
+        <h2>🔍 Erweiterte Monitoring-Systeme</h2>
+        
+        <!-- MHD-Optimiertes Monitoring -->
+        <div class="monitoring-subsection">
+            <h3>📅 MHD-Risiko-Analyse</h3>
+            ${this.renderMhdOptimizedMonitoring(data)}
+        </div>
+        
+        <!-- Geld-Monitoring -->
+        <div class="monitoring-subsection">
+            <h3>💰 Geld-Monitoring</h3>
+            ${this.renderCashMonitoring(data)}
+        </div>
+        
+        <!-- Kartenzahlungs-Monitoring -->
+        <div class="monitoring-subsection">
+            <h3>💳 Kartenzahlungs-Status</h3>
+            ${this.renderCardPaymentMonitoring(data)}
+        </div>
+        
+        <!-- Alkohol-Compliance -->
+        <div class="monitoring-subsection">
+            <h3>🍺 Alkohol-Compliance</h3>
+            ${this.renderAlcoholMonitoring(data)}
+        </div>
+    </div>
+    `;
+  }
+
+  /**
+   * Rendert MHD-optimierte Monitoring-Daten
+   */
+  private renderMhdOptimizedMonitoring(data: DailyReportData): string {
+    const mhdData = data.sections?.bestände_logistik?.nahendes_mhd;
+    if (!mhdData) return '<div class="info-low">ℹ️ Keine MHD-Daten verfügbar</div>';
+    
+    const kritisch = safeArray(mhdData.lager?.["<5"]);
+    const hoch = safeArray(mhdData.lager?.["<14"]);
+    const mittel = safeArray(mhdData.lager?.["<31"]);
+    
+    return `
+    <div class="mhd-analysis">
+        <div class="risk-summary">
+            <span class="risk-critical">Kritisch: ${kritisch.length}</span>
+            <span class="risk-high">Hoch: ${hoch.length}</span>
+            <span class="risk-medium">Mittel: ${mittel.length}</span>
+        </div>
+        
+        ${kritisch.length > 0 ? `
+        <div class="alert-critical">
+            <strong>🚨 Kritische MHD-Probleme (&lt;5 Tage):</strong>
+            <ul>
+                ${kritisch.map((item: any) => `
+                <li>
+                    <strong>${escapeHtml(item.produkt)}</strong> - ${escapeHtml(item.lager)}
+                    <br>Anzahl: ${this.formatNumber(item.anzahl)} | MHD: ${escapeHtml(item.mhd)}
+                    <br><em>Sofortige Abholung empfohlen</em>
+                </li>
+                `).join('')}
+            </ul>
+        </div>
+        ` : ''}
+        
+        ${hoch.length > 0 ? `
+        <div class="alert-high">
+            <strong>⚠️ Hohe MHD-Priorität (&lt;14 Tage):</strong>
+            <ul>
+                ${hoch.map((item: any) => `
+                <li>
+                    <strong>${escapeHtml(item.produkt)}</strong> - ${escapeHtml(item.lager)}
+                    <br>Anzahl: ${this.formatNumber(item.anzahl)} | MHD: ${escapeHtml(item.mhd)}
+                </li>
+                `).join('')}
+            </ul>
+        </div>
+        ` : ''}
+    </div>
+    `;
+  }
+
+  /**
+   * Rendert Geld-Monitoring-Daten
+   */
+  private renderCashMonitoring(data: DailyReportData): string {
+    const automatenStatus = data.sections?.automaten_status;
+    const hoherGeldbestand = safeArray(automatenStatus?.hoher_geldbestand);
+    
+    if (hoherGeldbestand.length === 0) {
+      return '<div class="info-low">✅ Alle Automaten haben normalen Geldbestand</div>';
+    }
+    
+    return `
+    <div class="cash-monitoring">
+        <div class="alert-high">
+            <strong>💰 Automaten mit hohem Geldbestand:</strong>
+            <ul>
+                ${hoherGeldbestand.map((machine: any) => `
+                <li>
+                    <strong>${escapeHtml(machine.automat)}</strong>
+                    <br>Aktuell: ${this.formatCurrency(machine.aktueller_bestand)}
+                    <br>Schwellenwert: ${this.formatCurrency(machine.schwellenwert)}
+                    <br><em>Leerung ${escapeHtml(machine.priorität)}</em>
+                </li>
+                `).join('')}
+            </ul>
+        </div>
+    </div>
+    `;
+  }
+
+  /**
+   * Rendert Kartenzahlungs-Monitoring-Daten
+   */
+  private renderCardPaymentMonitoring(data: DailyReportData): string {
+    // Da Kartenzahlungs-Daten eventuell in unterschiedlichen Sektionen sind
+    const technischeAnomalien = safeArray(data.sections?.automaten_status?.technische_anomalien);
+    const cardPaymentIssues = technischeAnomalien.filter((anomalie: any) => 
+      anomalie.problem?.toLowerCase().includes('karte') || 
+      anomalie.problem?.toLowerCase().includes('payment')
+    );
+    
+    if (cardPaymentIssues.length === 0) {
+      return '<div class="info-low">✅ Kartenzahlungssysteme funktionieren normal</div>';
+    }
+    
+    return `
+    <div class="card-payment-monitoring">
+        <div class="alert-medium">
+            <strong>💳 Kartenzahlungs-Probleme:</strong>
+            <ul>
+                ${cardPaymentIssues.map((issue: any) => `
+                <li>
+                    <strong>${escapeHtml(issue.automat)}</strong>
+                    <br>Problem: ${escapeHtml(issue.problem)}
+                    <br>Seit: ${escapeHtml(issue.seit)}
+                </li>
+                `).join('')}
+            </ul>
+        </div>
+    </div>
+    `;
+  }
+
+  /**
+   * Rendert Alkohol-Monitoring-Daten
+   */
+  private renderAlcoholMonitoring(data: DailyReportData): string {
+    // Alkohol-Compliance wird über Verkaufsdaten analysiert
+    const verkäufe = data.sections?.verkäufe;
+    const topProdukte = safeArray(verkäufe?.top_produkte);
+    
+    const alkoholProdukte = topProdukte.filter((produkt: any) => 
+      produkt.name?.toLowerCase().includes('bier') ||
+      produkt.name?.toLowerCase().includes('wein') ||
+      produkt.name?.toLowerCase().includes('schnaps') ||
+      produkt.name?.toLowerCase().includes('alcohol')
+    );
+    
+    if (alkoholProdukte.length === 0) {
+      return '<div class="info-low">ℹ️ Keine Alkohol-Verkäufe heute registriert</div>';
+    }
+    
+    return `
+    <div class="alcohol-monitoring">
+        <div class="info-medium">
+            <strong>🍺 Alkohol-Verkäufe heute:</strong>
+            <ul>
+                ${alkoholProdukte.map((produkt: any) => `
+                <li>
+                    <strong>${escapeHtml(produkt.name)}</strong>
+                    <br>Verkäufe: ${this.formatNumber(produkt.anzahl)} | Umsatz: ${this.formatCurrency(produkt.umsatz)}
+                </li>
+                `).join('')}
+            </ul>
+        </div>
     </div>
     `;
   }
