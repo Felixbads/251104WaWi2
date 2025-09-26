@@ -4236,6 +4236,73 @@ export type InsertRetroactiveInventoryAdjustment = z.infer<typeof insertRetroact
 export type RetroactiveInventoryAdjustment = typeof retroactiveInventoryAdjustments.$inferSelect;
 
 // Email Notification Tables
+
+// SMTP Email Configuration table for email server settings
+export const smtpEmailSettings = pgTable("smtp_email_settings", {
+  id: serial("id").primaryKey(),
+  smtp_host: varchar("smtp_host", { length: 255 }).notNull(),
+  smtp_port: integer("smtp_port").notNull().default(587),
+  smtp_user: varchar("smtp_user", { length: 255 }).notNull(),
+  smtp_pass: text("smtp_pass").notNull(), // Encrypted password
+  smtp_secure: boolean("smtp_secure").default(true),
+  from_name: varchar("from_name", { length: 255 }).notNull(),
+  from_email: varchar("from_email", { length: 255 }).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertSmtpEmailSettingsSchema = createInsertSchema(smtpEmailSettings)
+  .omit({
+    id: true,
+    createdAt: true,
+    updatedAt: true,
+  })
+  .extend({
+    smtp_host: z.string().min(1, "SMTP Host ist erforderlich"),
+    smtp_port: z.number().min(1).max(65535, "Ungültiger Port"),
+    smtp_user: z.string().min(1, "SMTP Benutzer ist erforderlich"),
+    smtp_pass: z.string().min(1, "SMTP Passwort ist erforderlich"),
+    smtp_secure: z.boolean().optional(),
+    from_name: z.string().min(1, "Absender-Name ist erforderlich"),
+    from_email: z.string().email("Ungültige E-Mail-Adresse"),
+  });
+
+export type InsertSmtpEmailSettings = z.infer<typeof insertSmtpEmailSettingsSchema>;
+export type SmtpEmailSettings = typeof smtpEmailSettings.$inferSelect;
+
+// Daily Email Settings table for daily report configuration
+export const dailyEmailSettings = pgTable("daily_email_settings", {
+  id: serial("id").primaryKey(),
+  enabled: boolean("enabled").default(false),
+  send_time: time("send_time").default("08:00:00"),
+  timezone: varchar("timezone", { length: 50 }).default("Europe/Berlin"),
+  include_sales: boolean("include_sales").default(true),
+  include_inventory: boolean("include_inventory").default(true),
+  include_alerts: boolean("include_alerts").default(true),
+  include_forecasts: boolean("include_forecasts").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertDailyEmailSettingsSchema = createInsertSchema(dailyEmailSettings)
+  .omit({
+    id: true,
+    createdAt: true,
+    updatedAt: true,
+  })
+  .extend({
+    enabled: z.boolean().optional(),
+    send_time: z.string().regex(/^\d{2}:\d{2}:\d{2}$/, "Zeit muss im Format HH:MM:SS sein").optional(),
+    timezone: z.string().optional(),
+    include_sales: z.boolean().optional(),
+    include_inventory: z.boolean().optional(),
+    include_alerts: z.boolean().optional(),
+    include_forecasts: z.boolean().optional(),
+  });
+
+export type InsertDailyEmailSettings = z.infer<typeof insertDailyEmailSettingsSchema>;
+export type DailyEmailSettings = typeof dailyEmailSettings.$inferSelect;
+
 // Email Settings table for daily notification configuration
 export const emailSettings = pgTable("email_settings", {
   id: serial("id").primaryKey(),
@@ -4291,10 +4358,18 @@ export type EmailSettings = typeof emailSettings.$inferSelect;
 export const emailRecipients = pgTable("email_recipients", {
   id: serial("id").primaryKey(),
   emailSettingsId: integer("email_settings_id").references(() => emailSettings.id, { onDelete: "cascade" }),
-  email: varchar("email", { length: 255 }).notNull(),
+  email: varchar("email", { length: 255 }).notNull().unique(),
   name: varchar("name", { length: 255 }),
+  role: varchar("role", { length: 100 }),
+  active: boolean("active").default(true),
+  daily_reports: boolean("daily_reports").default(true),
+  alerts: boolean("alerts").default(true),
+  forecasts: boolean("forecasts").default(false),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  emailIdx: index("email_recipients_email_idx").on(table.email),
+  activeIdx: index("email_recipients_active_idx").on(table.active),
+}));
 
 export const insertEmailRecipientsSchema = createInsertSchema(emailRecipients)
   .omit({
@@ -4304,6 +4379,11 @@ export const insertEmailRecipientsSchema = createInsertSchema(emailRecipients)
   .extend({
     email: z.string().email("Ungültige E-Mail-Adresse"),
     name: z.string().optional().nullable().or(z.literal("")),
+    role: z.string().optional().nullable().or(z.literal("")),
+    active: z.boolean().optional(),
+    daily_reports: z.boolean().optional(),
+    alerts: z.boolean().optional(),
+    forecasts: z.boolean().optional(),
   });
 
 export type InsertEmailRecipients = z.infer<typeof insertEmailRecipientsSchema>;
@@ -4312,14 +4392,20 @@ export type EmailRecipients = typeof emailRecipients.$inferSelect;
 // Email Templates table for managing email templates
 export const emailTemplates = pgTable("email_templates", {
   id: serial("id").primaryKey(),
+  type: varchar("type", { length: 100 }).notNull().unique(),
   name: varchar("name", { length: 255 }).notNull(),
   description: text("description"),
-  contentSchema: jsonb("content_schema"), // JSON schema for template variables
-  htmlTemplate: text("html_template").notNull(),
+  subject_template: text("subject_template"),
+  html_template: text("html_template").notNull(),
+  text_template: text("text_template"),
+  variables: jsonb("variables"), // JSON schema for template variables
+  contentSchema: jsonb("content_schema"), // JSON schema for template variables (legacy)
   isDefault: boolean("is_default").default(false),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => ({
+  typeIdx: index("email_templates_type_idx").on(table.type),
+}));
 
 export const insertEmailTemplatesSchema = createInsertSchema(emailTemplates)
   .omit({
@@ -4328,9 +4414,13 @@ export const insertEmailTemplatesSchema = createInsertSchema(emailTemplates)
     updatedAt: true,
   })
   .extend({
+    type: z.string().min(1, "Template-Typ ist erforderlich"),
     name: z.string().min(1, "Template-Name ist erforderlich"),
     description: z.string().optional().nullable().or(z.literal("")),
-    htmlTemplate: z.string().min(1, "HTML-Template ist erforderlich"),
+    subject_template: z.string().optional().nullable().or(z.literal("")),
+    html_template: z.string().min(1, "HTML-Template ist erforderlich"),
+    text_template: z.string().optional().nullable().or(z.literal("")),
+    variables: z.record(z.any()).optional(),
     isDefault: z.boolean().optional(),
   });
 
@@ -4707,29 +4797,43 @@ export type NotificationSubscription = typeof notificationSubscriptions.$inferSe
 export const notificationSchedules = pgTable("notification_schedules", {
   id: serial("id").primaryKey(),
   subscriptionId: integer("subscription_id").references(() => notificationSubscriptions.id, { onDelete: 'cascade' }).notNull(),
+  name: varchar("name", { length: 255 }).notNull(),
+  trigger_type: varchar("trigger_type", { length: 100 }).notNull(),
   frequency: text("frequency").notNull(), // 'event', 'daily', 'weekly'
   weekday: integer("weekday"), // 1=Monday, 7=Sunday (nur für weekly)
   hour: integer("hour").default(6), // 0-23 (für daily/weekly)
   minute: integer("minute").default(0), // 0-59 (für daily/weekly)
   timezone: text("timezone").default("Europe/Berlin"),
+  conditions: jsonb("conditions"), // Flexible conditions for triggers
+  template_type: varchar("template_type", { length: 100 }),
+  last_run: timestamp("last_run"),
+  next_run: timestamp("next_run"),
   active: boolean("active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => ({
   subscriptionIdx: index("notification_schedules_subscription_idx").on(table.subscriptionId),
   frequencyIdx: index("notification_schedules_frequency_idx").on(table.frequency),
+  triggerTypeIdx: index("notification_schedules_trigger_type_idx").on(table.trigger_type),
+  nextRunIdx: index("notification_schedules_next_run_idx").on(table.next_run),
 }));
 
 export const insertNotificationScheduleSchema = createInsertSchema(notificationSchedules).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
+  last_run: true,
+  next_run: true,
 }).extend({
+  name: z.string().min(1, "Name ist erforderlich"),
+  trigger_type: z.string().min(1, "Trigger-Typ ist erforderlich"),
   frequency: z.enum(["event", "daily", "weekly"], { errorMap: () => ({ message: "Ungültige Frequenz" }) }),
   weekday: z.number().min(1).max(7).optional(),
   hour: z.number().min(0).max(23).default(6),
   minute: z.number().min(0).max(59).default(0),
   timezone: z.string().default("Europe/Berlin"),
+  conditions: z.record(z.any()).optional(),
+  template_type: z.string().optional().nullable().or(z.literal("")),
 }).superRefine((data, ctx) => {
   // Weekday is required for weekly frequency
   if (data.frequency === "weekly" && !data.weekday) {
