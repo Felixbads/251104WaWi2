@@ -1,0 +1,1343 @@
+
+# Mobile-First Navigation Audit System - Komplettes Prüfprogramm
+
+## Überblick
+Dieses Dokument definiert ein vollständiges System zur Überprüfung und Vereinheitlichung der Menüführung im gesamten Frontend mit Fokus auf Mobile-First Design und horizontale Tab-Navigation auf kleinen Bildschirmen.
+
+## Identifizierte Probleme
+
+### 1. Horizontale Tab-Navigation auf kleinen Bildschirmen
+- **Problem**: Tabs die über den Bildschirmrand hinausragen sind nicht scrollbar/bewegbar
+- **Betroffene Komponenten**: `client/src/components/ui/tabs.tsx`
+- **Auswirkung**: Nicht erreichbare Tab-Inhalte auf mobilen Geräten
+
+### 2. Inkonsistente Navigation-Systeme
+- **Hauptnavigation**: `client/src/components/layout/Navigation.tsx`
+- **Mobile Header**: `client/src/components/layout/MobileHeader.tsx`
+- **Mobile Menu**: `client/src/components/layout/MobileMenu.tsx`
+- **Mobile Footer**: `client/src/components/layout/MobileFooter.tsx`
+
+### 3. Responsive Design Lücken
+- Verschiedene Breakpoints in `useMediaQuery.ts`
+- Inkonsistente Touch-Target Größen
+- Fehlende Mobile-First CSS Utilities
+
+## Audit-Programm Implementierung
+
+### Phase 1: Navigation Components Audit Tool
+
+```typescript
+// client/src/components/audit/NavigationAuditTool.tsx
+import React, { useState, useEffect } from 'react';
+import { useMediaQuery, useResponsive } from '@/hooks/useMediaQuery';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ScrollArea } from '@/components/ui/scroll-area';
+
+interface NavigationIssue {
+  id: string;
+  component: string;
+  type: 'critical' | 'warning' | 'info';
+  description: string;
+  location: string;
+  recommendation: string;
+  affectedBreakpoints: string[];
+}
+
+interface TouchTargetMetrics {
+  element: string;
+  width: number;
+  height: number;
+  isCompliant: boolean;
+  recommendedSize: number;
+}
+
+interface ScrollabilityTest {
+  container: string;
+  isScrollable: boolean;
+  hasOverflow: boolean;
+  scrollMethod: string;
+  issues: string[];
+}
+
+export const NavigationAuditTool: React.FC = () => {
+  const { isMobile, isTablet, isDesktop } = useResponsive();
+  const [auditResults, setAuditResults] = useState<{
+    issues: NavigationIssue[];
+    touchTargets: TouchTargetMetrics[];
+    scrollTests: ScrollabilityTest[];
+    coverage: {
+      tested: number;
+      passed: number;
+      failed: number;
+    };
+  }>({
+    issues: [],
+    touchTargets: [],
+    scrollTests: [],
+    coverage: { tested: 0, passed: 0, failed: 0 }
+  });
+
+  const [isRunning, setIsRunning] = useState(false);
+
+  // Audit-Funktionen
+  const auditTabNavigation = (): NavigationIssue[] => {
+    const issues: NavigationIssue[] = [];
+    
+    // Prüfe horizontale Tab-Container
+    const tabContainers = document.querySelectorAll('[role="tablist"]');
+    
+    tabContainers.forEach((container, index) => {
+      const containerRect = container.getBoundingClientRect();
+      const tabs = container.querySelectorAll('[role="tab"]');
+      let totalTabWidth = 0;
+      
+      tabs.forEach(tab => {
+        totalTabWidth += tab.getBoundingClientRect().width;
+      });
+      
+      if (totalTabWidth > containerRect.width) {
+        const isScrollable = container.scrollWidth > container.clientWidth;
+        const hasScrollBehavior = window.getComputedStyle(container).overflowX !== 'hidden';
+        
+        if (!isScrollable || !hasScrollBehavior) {
+          issues.push({
+            id: `tab-overflow-${index}`,
+            component: 'TabsList',
+            type: 'critical',
+            description: 'Horizontale Tabs überschreiten Container-Breite ohne Scroll-Funktionalität',
+            location: `Tab-Container #${index}`,
+            recommendation: 'ScrollArea implementieren oder horizontales Scrollen aktivieren',
+            affectedBreakpoints: ['mobile', 'tablet']
+          });
+        }
+      }
+    });
+    
+    return issues;
+  };
+
+  const auditTouchTargets = (): TouchTargetMetrics[] => {
+    const touchTargets: TouchTargetMetrics[] = [];
+    const minTouchSize = 44; // Apple/Google Empfehlung: 44px
+    
+    // Prüfe Navigation Links
+    const navLinks = document.querySelectorAll('nav a, [role="tab"], button');
+    
+    navLinks.forEach((element, index) => {
+      const rect = element.getBoundingClientRect();
+      const isCompliant = rect.width >= minTouchSize && rect.height >= minTouchSize;
+      
+      touchTargets.push({
+        element: `${element.tagName}#${index}`,
+        width: rect.width,
+        height: rect.height,
+        isCompliant,
+        recommendedSize: minTouchSize
+      });
+    });
+    
+    return touchTargets;
+  };
+
+  const auditScrollability = (): ScrollabilityTest[] => {
+    const scrollTests: ScrollabilityTest[] = [];
+    
+    // Teste verschiedene Container
+    const containers = [
+      { selector: '[role="tablist"]', name: 'Tab Lists' },
+      { selector: '.nav', name: 'Navigation Menus' },
+      { selector: '.mobile-menu', name: 'Mobile Menus' }
+    ];
+    
+    containers.forEach(({ selector, name }) => {
+      const elements = document.querySelectorAll(selector);
+      
+      elements.forEach((element, index) => {
+        const hasOverflow = element.scrollWidth > element.clientWidth || 
+                          element.scrollHeight > element.clientHeight;
+        const computedStyle = window.getComputedStyle(element);
+        const isScrollable = computedStyle.overflow !== 'hidden' && 
+                            computedStyle.overflowX !== 'hidden';
+        
+        const issues = [];
+        if (hasOverflow && !isScrollable) {
+          issues.push('Overflow ohne Scroll-Funktionalität');
+        }
+        
+        scrollTests.push({
+          container: `${name} #${index}`,
+          isScrollable,
+          hasOverflow,
+          scrollMethod: computedStyle.overflow,
+          issues
+        });
+      });
+    });
+    
+    return scrollTests;
+  };
+
+  const auditResponsiveBreakpoints = (): NavigationIssue[] => {
+    const issues: NavigationIssue[] = [];
+    
+    // Teste verschiedene Viewport-Größen
+    const breakpoints = [
+      { name: 'mobile', width: 375 },
+      { name: 'mobile-large', width: 414 },
+      { name: 'tablet', width: 768 },
+      { name: 'desktop', width: 1024 }
+    ];
+    
+    // Simuliere verschiedene Bildschirmgrößen
+    breakpoints.forEach(({ name, width }) => {
+      // Hier würden wir in einem echten Test die Viewport-Größe ändern
+      // Für diese Demo sammeln wir bekannte Probleme
+      
+      if (width <= 414) {
+        // Mobile-spezifische Checks
+        const mobileNavigation = document.querySelector('.mobile-menu');
+        if (!mobileNavigation) {
+          issues.push({
+            id: `mobile-nav-missing-${name}`,
+            component: 'MobileNavigation',
+            type: 'critical',
+            description: 'Mobile Navigation nicht verfügbar',
+            location: `Breakpoint: ${name} (${width}px)`,
+            recommendation: 'Mobile-Navigation implementieren',
+            affectedBreakpoints: [name]
+          });
+        }
+      }
+    });
+    
+    return issues;
+  };
+
+  const runFullAudit = async () => {
+    setIsRunning(true);
+    
+    try {
+      // Sammle alle Audit-Ergebnisse
+      const tabIssues = auditTabNavigation();
+      const responsiveIssues = auditResponsiveBreakpoints();
+      const touchTargets = auditTouchTargets();
+      const scrollTests = auditScrollability();
+      
+      const allIssues = [...tabIssues, ...responsiveIssues];
+      const passedTargets = touchTargets.filter(t => t.isCompliant).length;
+      const passedScrollTests = scrollTests.filter(s => s.issues.length === 0).length;
+      
+      setAuditResults({
+        issues: allIssues,
+        touchTargets,
+        scrollTests,
+        coverage: {
+          tested: touchTargets.length + scrollTests.length,
+          passed: passedTargets + passedScrollTests,
+          failed: (touchTargets.length - passedTargets) + (scrollTests.length - passedScrollTests)
+        }
+      });
+    } catch (error) {
+      console.error('Audit failed:', error);
+    } finally {
+      setIsRunning(false);
+    }
+  };
+
+  useEffect(() => {
+    // Auto-run audit on component mount
+    setTimeout(runFullAudit, 1000);
+  }, []);
+
+  const getIssueColor = (type: NavigationIssue['type']) => {
+    switch (type) {
+      case 'critical': return 'destructive';
+      case 'warning': return 'default';
+      case 'info': return 'secondary';
+      default: return 'default';
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Mobile-First Navigation Audit</h1>
+          <p className="text-muted-foreground">
+            Systemweite Überprüfung der Menüführung und Navigation
+          </p>
+        </div>
+        <Button 
+          onClick={runFullAudit} 
+          disabled={isRunning}
+          size="lg"
+        >
+          {isRunning ? 'Audit läuft...' : 'Audit ausführen'}
+        </Button>
+      </div>
+
+      {/* Current Device Info */}
+      <Alert>
+        <AlertDescription>
+          Aktuelle Geräteklasse: {isMobile ? 'Mobile' : isTablet ? 'Tablet' : 'Desktop'} 
+          | Bildschirmbreite: {window.innerWidth}px
+        </AlertDescription>
+      </Alert>
+
+      {/* Coverage Overview */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">Getestete Elemente</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{auditResults.coverage.tested}</div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">Bestanden</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">
+              {auditResults.coverage.passed}
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">Fehlgeschlagen</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-red-600">
+              {auditResults.coverage.failed}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Detailed Results */}
+      <Tabs defaultValue="issues" className="w-full">
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="issues">Probleme ({auditResults.issues.length})</TabsTrigger>
+          <TabsTrigger value="touch">Touch-Targets ({auditResults.touchTargets.length})</TabsTrigger>
+          <TabsTrigger value="scroll">Scroll-Tests ({auditResults.scrollTests.length})</TabsTrigger>
+          <TabsTrigger value="recommendations">Empfehlungen</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="issues" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Identifizierte Navigation-Probleme</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ScrollArea className="h-[400px]">
+                <div className="space-y-4">
+                  {auditResults.issues.map((issue) => (
+                    <div key={issue.id} className="border rounded-lg p-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Badge variant={getIssueColor(issue.type)}>
+                          {issue.type.toUpperCase()}
+                        </Badge>
+                        <span className="font-medium">{issue.component}</span>
+                      </div>
+                      <h4 className="font-semibold mb-1">{issue.description}</h4>
+                      <p className="text-sm text-muted-foreground mb-2">
+                        <strong>Ort:</strong> {issue.location}
+                      </p>
+                      <p className="text-sm text-muted-foreground mb-2">
+                        <strong>Betroffene Breakpoints:</strong> {issue.affectedBreakpoints.join(', ')}
+                      </p>
+                      <div className="bg-blue-50 p-3 rounded text-sm">
+                        <strong>Empfehlung:</strong> {issue.recommendation}
+                      </div>
+                    </div>
+                  ))}
+                  {auditResults.issues.length === 0 && (
+                    <p className="text-center text-muted-foreground py-8">
+                      Keine kritischen Probleme gefunden
+                    </p>
+                  )}
+                </div>
+              </ScrollArea>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="touch" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Touch-Target Analyse</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ScrollArea className="h-[400px]">
+                <div className="space-y-2">
+                  {auditResults.touchTargets.map((target, index) => (
+                    <div key={index} className="flex items-center justify-between border-b pb-2">
+                      <div>
+                        <span className="font-medium">{target.element}</span>
+                        <div className="text-sm text-muted-foreground">
+                          {target.width}px × {target.height}px
+                        </div>
+                      </div>
+                      <Badge variant={target.isCompliant ? "default" : "destructive"}>
+                        {target.isCompliant ? 'OK' : 'Zu klein'}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="scroll" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Scrollability Tests</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ScrollArea className="h-[400px]">
+                <div className="space-y-4">
+                  {auditResults.scrollTests.map((test, index) => (
+                    <div key={index} className="border rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="font-medium">{test.container}</span>
+                        <Badge variant={test.issues.length === 0 ? "default" : "destructive"}>
+                          {test.issues.length === 0 ? 'OK' : 'Problem'}
+                        </Badge>
+                      </div>
+                      <div className="text-sm space-y-1">
+                        <div>Overflow: {test.hasOverflow ? 'Ja' : 'Nein'}</div>
+                        <div>Scrollbar: {test.isScrollable ? 'Ja' : 'Nein'}</div>
+                        <div>Method: {test.scrollMethod}</div>
+                        {test.issues.length > 0 && (
+                          <div className="text-red-600">
+                            Probleme: {test.issues.join(', ')}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="recommendations" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Systemweite Empfehlungen</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div>
+                <h4 className="font-semibold mb-2">1. Tab-Navigation Verbesserungen</h4>
+                <ul className="list-disc pl-6 space-y-1 text-sm">
+                  <li>ScrollArea um alle TabsList-Komponenten implementieren</li>
+                  <li>Touch-scrolling für horizontale Tab-Navigation aktivieren</li>
+                  <li>Scroll-Indikatoren für bessere UX hinzufügen</li>
+                </ul>
+              </div>
+
+              <div>
+                <h4 className="font-semibold mb-2">2. Touch-Target Optimierung</h4>
+                <ul className="list-disc pl-6 space-y-1 text-sm">
+                  <li>Minimale Touch-Target Größe von 44px × 44px sicherstellen</li>
+                  <li>Ausreichend Abstand zwischen interaktiven Elementen</li>
+                  <li>Touch-highlight Feedback implementieren</li>
+                </ul>
+              </div>
+
+              <div>
+                <h4 className="font-semibold mb-2">3. Responsive Design Vereinheitlichung</h4>
+                <ul className="list-disc pl-6 space-y-1 text-sm">
+                  <li>Konsistente Breakpoints systemweit verwenden</li>
+                  <li>Mobile-First CSS-Utilities standardisieren</li>
+                  <li>Adaptive Navigation-Pattern implementieren</li>
+                </ul>
+              </div>
+
+              <div>
+                <h4 className="font-semibold mb-2">4. Navigation-Komponenten Vereinheitlichung</h4>
+                <ul className="list-disc pl-6 space-y-1 text-sm">
+                  <li>Zentrale Navigation-State Management</li>
+                  <li>Wiederverwendbare Navigation-Pattern</li>
+                  <li>Konsistente Styling-Conventions</li>
+                </ul>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+};
+
+export default NavigationAuditTool;
+```
+
+### Phase 2: Enhanced Tabs Component (Mobile-Optimiert)
+
+```typescript
+// client/src/components/ui/enhanced-mobile-tabs.tsx
+import * as React from "react"
+import { cn } from "@/lib/utils"
+import { useMediaQuery } from "@/hooks/useMediaQuery"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { Button } from "@/components/ui/button"
+import { ChevronLeft, ChevronRight } from "lucide-react"
+
+interface TabsContextValue {
+  value: string
+  onValueChange: (value: string) => void
+}
+
+const TabsContext = React.createContext<TabsContextValue | undefined>(undefined)
+
+function useTabsContext() {
+  const context = React.useContext(TabsContext)
+  if (!context) {
+    throw new Error("Tabs components must be used within a Tabs provider")
+  }
+  return context
+}
+
+const EnhancedMobileTabs = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement> & {
+    value: string
+    onValueChange: (value: string) => void
+    defaultValue?: string
+  }
+>(({ className, value, onValueChange, defaultValue, ...props }, ref) => {
+  const [tabValue, setTabValue] = React.useState(value || defaultValue || "")
+  
+  React.useEffect(() => {
+    if (value !== undefined) {
+      setTabValue(value)
+    }
+  }, [value])
+  
+  const handleValueChange = React.useCallback(
+    (newValue: string) => {
+      setTabValue(newValue)
+      onValueChange?.(newValue)
+    },
+    [onValueChange]
+  )
+  
+  return (
+    <TabsContext.Provider value={{ value: tabValue, onValueChange: handleValueChange }}>
+      <div
+        ref={ref}
+        className={cn("", className)}
+        {...props}
+      />
+    </TabsContext.Provider>
+  )
+})
+EnhancedMobileTabs.displayName = "EnhancedMobileTabs"
+
+const EnhancedMobileTabsList = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement> & {
+    showScrollButtons?: boolean
+  }
+>(({ className, showScrollButtons = true, ...props }, ref) => {
+  const isMobile = useMediaQuery("(max-width: 768px)")
+  const scrollRef = React.useRef<HTMLDivElement>(null)
+  const [canScrollLeft, setCanScrollLeft] = React.useState(false)
+  const [canScrollRight, setCanScrollRight] = React.useState(false)
+  
+  const updateScrollButtons = React.useCallback(() => {
+    if (scrollRef.current && isMobile) {
+      const { scrollLeft, scrollWidth, clientWidth } = scrollRef.current
+      setCanScrollLeft(scrollLeft > 0)
+      setCanScrollRight(scrollLeft + clientWidth < scrollWidth - 1)
+    }
+  }, [isMobile])
+  
+  React.useEffect(() => {
+    const scrollElement = scrollRef.current
+    if (scrollElement) {
+      scrollElement.addEventListener('scroll', updateScrollButtons)
+      updateScrollButtons()
+      
+      // Update on resize
+      const resizeObserver = new ResizeObserver(updateScrollButtons)
+      resizeObserver.observe(scrollElement)
+      
+      return () => {
+        scrollElement.removeEventListener('scroll', updateScrollButtons)
+        resizeObserver.disconnect()
+      }
+    }
+  }, [updateScrollButtons])
+  
+  const scroll = (direction: 'left' | 'right') => {
+    if (scrollRef.current) {
+      const scrollAmount = 200
+      scrollRef.current.scrollBy({
+        left: direction === 'left' ? -scrollAmount : scrollAmount,
+        behavior: 'smooth'
+      })
+    }
+  }
+  
+  if (isMobile) {
+    return (
+      <div className={cn("relative w-full border-b bg-background", className)}>
+        {showScrollButtons && canScrollLeft && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="absolute left-0 top-1/2 -translate-y-1/2 z-10 bg-background/80 backdrop-blur-sm"
+            onClick={() => scroll('left')}
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+        )}
+        
+        <ScrollArea className="w-full">
+          <div
+            ref={scrollRef}
+            className="flex h-12 items-center space-x-1 px-4 whitespace-nowrap overflow-x-auto scrollbar-none"
+            style={{
+              scrollbarWidth: 'none',
+              msOverflowStyle: 'none',
+              WebkitOverflowScrolling: 'touch'
+            }}
+            {...props}
+          />
+        </ScrollArea>
+        
+        {showScrollButtons && canScrollRight && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="absolute right-0 top-1/2 -translate-y-1/2 z-10 bg-background/80 backdrop-blur-sm"
+            onClick={() => scroll('right')}
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        )}
+      </div>
+    )
+  }
+  
+  return (
+    <div
+      ref={ref}
+      className={cn(
+        "inline-flex h-10 items-center justify-center rounded-md bg-muted p-1 text-muted-foreground",
+        className
+      )}
+      {...props}
+    />
+  )
+})
+EnhancedMobileTabsList.displayName = "EnhancedMobileTabsList"
+
+const EnhancedMobileTabsTrigger = React.forwardRef<
+  HTMLButtonElement,
+  React.ButtonHTMLAttributes<HTMLButtonElement> & { 
+    value: string
+    showBadge?: boolean
+    badgeContent?: string | number
+  }
+>(({ className, value, showBadge, badgeContent, children, ...props }, ref) => {
+  const isMobile = useMediaQuery("(max-width: 768px)")
+  const { value: selectedValue, onValueChange } = useTabsContext()
+  const isActive = selectedValue === value
+  
+  if (isMobile) {
+    return (
+      <button
+        ref={ref}
+        type="button"
+        role="tab"
+        aria-selected={isActive}
+        data-state={isActive ? "active" : "inactive"}
+        className={cn(
+          "relative flex-shrink-0 px-4 py-3 text-sm font-medium transition-all duration-200 border-b-2 min-w-fit touch-manipulation",
+          "min-h-[44px] min-w-[44px]", // Ensure minimum touch target size
+          isActive
+            ? "border-primary text-primary bg-primary/5"
+            : "border-transparent text-muted-foreground hover:text-foreground hover:border-muted active:bg-accent",
+          className
+        )}
+        onClick={() => onValueChange(value)}
+        {...props}
+      >
+        <span className="relative">
+          {children}
+          {showBadge && badgeContent && (
+            <span className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground text-xs rounded-full min-w-[16px] h-4 flex items-center justify-center px-1">
+              {badgeContent}
+            </span>
+          )}
+        </span>
+      </button>
+    )
+  }
+  
+  return (
+    <button
+      ref={ref}
+      type="button"
+      role="tab"
+      aria-selected={isActive}
+      data-state={isActive ? "active" : "inactive"}
+      className={cn(
+        "inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm",
+        "min-h-[44px] min-w-[44px]", // Ensure minimum touch target size
+        className
+      )}
+      onClick={() => onValueChange(value)}
+      {...props}
+    >
+      <span className="relative">
+        {children}
+        {showBadge && badgeContent && (
+          <span className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground text-xs rounded-full min-w-[16px] h-4 flex items-center justify-center px-1">
+            {badgeContent}
+          </span>
+        )}
+      </span>
+    </button>
+  )
+})
+EnhancedMobileTabsTrigger.displayName = "EnhancedMobileTabsTrigger"
+
+const EnhancedMobileTabsContent = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement> & { value: string }
+>(({ className, value, children, ...props }, ref) => {
+  const { value: selectedValue } = useTabsContext()
+  const isActive = selectedValue === value
+  
+  if (!isActive) return null
+  
+  return (
+    <div
+      ref={ref}
+      role="tabpanel"
+      data-state={isActive ? "active" : "inactive"}
+      className={cn(
+        "mt-2 ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+        className
+      )}
+      {...props}
+    >
+      {children}
+    </div>
+  )
+})
+EnhancedMobileTabsContent.displayName = "EnhancedMobileTabsContent"
+
+export { 
+  EnhancedMobileTabs as Tabs, 
+  EnhancedMobileTabsList as TabsList, 
+  EnhancedMobileTabsTrigger as TabsTrigger, 
+  EnhancedMobileTabsContent as TabsContent 
+}
+```
+
+### Phase 3: Navigation Consistency Service
+
+```typescript
+// client/src/services/navigationConsistencyService.ts
+export interface NavigationItem {
+  id: string;
+  label: string;
+  href: string;
+  icon?: React.ComponentType;
+  roles: string[];
+  category?: string;
+  mobileOrder?: number;
+  desktopOrder?: number;
+  showOnMobile?: boolean;
+  showOnDesktop?: boolean;
+  touchTargetSize?: 'small' | 'medium' | 'large';
+}
+
+export interface NavigationSection {
+  id: string;
+  title: string;
+  items: NavigationItem[];
+  collapsible?: boolean;
+  defaultExpanded?: boolean;
+  mobileDisplayMode?: 'accordion' | 'tabs' | 'list';
+}
+
+export interface NavigationAuditResult {
+  score: number;
+  issues: Array<{
+    type: 'error' | 'warning' | 'info';
+    component: string;
+    description: string;
+    fix: string;
+  }>;
+  recommendations: string[];
+  touchTargetCompliance: {
+    tested: number;
+    compliant: number;
+    percentage: number;
+  };
+  mobileUsability: {
+    scrollableContainers: number;
+    nonScrollableOverflows: number;
+    touchFriendlyElements: number;
+  };
+}
+
+class NavigationConsistencyService {
+  private static instance: NavigationConsistencyService;
+  
+  private constructor() {}
+  
+  static getInstance(): NavigationConsistencyService {
+    if (!NavigationConsistencyService.instance) {
+      NavigationConsistencyService.instance = new NavigationConsistencyService();
+    }
+    return NavigationConsistencyService.instance;
+  }
+  
+  // Audit functions
+  auditTouchTargets(): { tested: number; compliant: number; percentage: number } {
+    const minTouchSize = 44; // Minimum recommended touch target size
+    const interactiveElements = document.querySelectorAll(
+      'button, a, [role="button"], [role="tab"], input[type="checkbox"], input[type="radio"]'
+    );
+    
+    let compliant = 0;
+    const tested = interactiveElements.length;
+    
+    interactiveElements.forEach(element => {
+      const rect = element.getBoundingClientRect();
+      if (rect.width >= minTouchSize && rect.height >= minTouchSize) {
+        compliant++;
+      }
+    });
+    
+    return {
+      tested,
+      compliant,
+      percentage: tested > 0 ? Math.round((compliant / tested) * 100) : 0
+    };
+  }
+  
+  auditScrollability(): { scrollableContainers: number; nonScrollableOverflows: number } {
+    const containers = document.querySelectorAll(
+      '.tabs-list, [role="tablist"], .nav, .navigation-menu'
+    );
+    
+    let scrollableContainers = 0;
+    let nonScrollableOverflows = 0;
+    
+    containers.forEach(container => {
+      const hasOverflow = container.scrollWidth > container.clientWidth ||
+                         container.scrollHeight > container.clientHeight;
+      
+      if (hasOverflow) {
+        const computedStyle = window.getComputedStyle(container);
+        const isScrollable = computedStyle.overflow !== 'hidden' &&
+                            computedStyle.overflowX !== 'hidden' &&
+                            computedStyle.overflowY !== 'hidden';
+        
+        if (isScrollable) {
+          scrollableContainers++;
+        } else {
+          nonScrollableOverflows++;
+        }
+      }
+    });
+    
+    return { scrollableContainers, nonScrollableOverflows };
+  }
+  
+  generateNavigationReport(): NavigationAuditResult {
+    const touchTargetResult = this.auditTouchTargets();
+    const scrollabilityResult = this.auditScrollability();
+    
+    const issues = [];
+    const recommendations = [];
+    
+    // Check touch target compliance
+    if (touchTargetResult.percentage < 90) {
+      issues.push({
+        type: 'warning' as const,
+        component: 'Touch Targets',
+        description: `${touchTargetResult.percentage}% der interaktiven Elemente erfüllen die Touch-Target Anforderungen`,
+        fix: 'Minimale Touch-Target Größe auf 44px × 44px erhöhen'
+      });
+      
+      recommendations.push('Touch-Target Größen systemweit auf mindestens 44px × 44px standardisieren');
+    }
+    
+    // Check scrollability issues
+    if (scrollabilityResult.nonScrollableOverflows > 0) {
+      issues.push({
+        type: 'error' as const,
+        component: 'Scrollable Containers',
+        description: `${scrollabilityResult.nonScrollableOverflows} Container mit Overflow ohne Scroll-Funktionalität`,
+        fix: 'ScrollArea-Komponente implementieren oder overflow-x: auto hinzufügen'
+      });
+      
+      recommendations.push('Alle Container mit Overflow scrollbar machen');
+    }
+    
+    // Calculate overall score
+    let score = 100;
+    score -= (100 - touchTargetResult.percentage) * 0.5; // Touch targets weight 50%
+    score -= scrollabilityResult.nonScrollableOverflows * 10; // Each overflow issue -10 points
+    
+    score = Math.max(0, Math.min(100, score));
+    
+    return {
+      score: Math.round(score),
+      issues,
+      recommendations,
+      touchTargetCompliance: touchTargetResult,
+      mobileUsability: {
+        scrollableContainers: scrollabilityResult.scrollableContainers,
+        nonScrollableOverflows: scrollabilityResult.nonScrollableOverflows,
+        touchFriendlyElements: touchTargetResult.compliant
+      }
+    };
+  }
+  
+  // Fix functions
+  fixTouchTargets(): void {
+    const style = document.createElement('style');
+    style.textContent = `
+      .nav-item, 
+      [role="tab"], 
+      .tab-trigger,
+      .mobile-nav-item {
+        min-height: 44px !important;
+        min-width: 44px !important;
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
+      }
+      
+      .nav-item:not(:last-child), 
+      [role="tab"]:not(:last-child) {
+        margin-right: 8px !important;
+      }
+    `;
+    document.head.appendChild(style);
+  }
+  
+  fixScrollableContainers(): void {
+    const containers = document.querySelectorAll(
+      '.tabs-list, [role="tablist"]:not(.scroll-area *)'
+    );
+    
+    containers.forEach(container => {
+      if (container.scrollWidth > container.clientWidth) {
+        container.classList.add('overflow-x-auto', 'scrollbar-thin');
+        (container as HTMLElement).style.scrollbarWidth = 'thin';
+        (container as HTMLElement).style.scrollBehavior = 'smooth';
+      }
+    });
+  }
+}
+
+export default NavigationConsistencyService;
+```
+
+### Phase 4: Automated Audit Runner
+
+```typescript
+// client/src/components/audit/AutomatedAuditRunner.tsx
+import React, { useState, useEffect } from 'react';
+import NavigationConsistencyService, { NavigationAuditResult } from '@/services/navigationConsistencyService';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { CheckCircle, AlertTriangle, XCircle, RefreshCw } from 'lucide-react';
+
+export const AutomatedAuditRunner: React.FC = () => {
+  const [auditResult, setAuditResult] = useState<NavigationAuditResult | null>(null);
+  const [isRunning, setIsRunning] = useState(false);
+  const [autoFixApplied, setAutoFixApplied] = useState(false);
+  
+  const navigationService = NavigationConsistencyService.getInstance();
+  
+  const runAudit = async () => {
+    setIsRunning(true);
+    
+    // Simulate async audit
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    const result = navigationService.generateNavigationReport();
+    setAuditResult(result);
+    setIsRunning(false);
+  };
+  
+  const applyAutoFixes = () => {
+    if (!auditResult) return;
+    
+    navigationService.fixTouchTargets();
+    navigationService.fixScrollableContainers();
+    setAutoFixApplied(true);
+    
+    // Re-run audit after fixes
+    setTimeout(runAudit, 500);
+  };
+  
+  const getScoreColor = (score: number) => {
+    if (score >= 90) return 'text-green-600';
+    if (score >= 70) return 'text-yellow-600';
+    return 'text-red-600';
+  };
+  
+  const getIssueIcon = (type: string) => {
+    switch (type) {
+      case 'error': return <XCircle className="h-4 w-4 text-red-500" />;
+      case 'warning': return <AlertTriangle className="h-4 w-4 text-yellow-500" />;
+      default: return <CheckCircle className="h-4 w-4 text-blue-500" />;
+    }
+  };
+  
+  useEffect(() => {
+    runAudit();
+  }, []);
+  
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-bold">Automatisierter Navigation Audit</h2>
+        <div className="flex gap-2">
+          <Button onClick={runAudit} disabled={isRunning} variant="outline">
+            <RefreshCw className={`h-4 w-4 mr-2 ${isRunning ? 'animate-spin' : ''}`} />
+            Audit wiederholen
+          </Button>
+          {auditResult && auditResult.issues.length > 0 && (
+            <Button onClick={applyAutoFixes} disabled={autoFixApplied}>
+              Auto-Fix anwenden
+            </Button>
+          )}
+        </div>
+      </div>
+      
+      {auditResult && (
+        <>
+          {/* Score Overview */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between">
+                Navigation Score
+                <span className={`text-3xl font-bold ${getScoreColor(auditResult.score)}`}>
+                  {auditResult.score}/100
+                </span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Progress value={auditResult.score} className="h-3" />
+              <div className="mt-2 text-sm text-muted-foreground">
+                {auditResult.score >= 90 && 'Excellent - Navigation ist mobile-optimiert'}
+                {auditResult.score >= 70 && auditResult.score < 90 && 'Good - Einige Verbesserungen möglich'}
+                {auditResult.score < 70 && 'Needs Improvement - Mobile-Optimierung erforderlich'}
+              </div>
+            </CardContent>
+          </Card>
+          
+          {/* Metrics */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">Touch-Target Compliance</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {auditResult.touchTargetCompliance.percentage}%
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  {auditResult.touchTargetCompliance.compliant} von {auditResult.touchTargetCompliance.tested} Elementen
+                </div>
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">Scrollbare Container</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-green-600">
+                  {auditResult.mobileUsability.scrollableContainers}
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  Funktionale Container
+                </div>
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">Overflow Probleme</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className={`text-2xl font-bold ${auditResult.mobileUsability.nonScrollableOverflows > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                  {auditResult.mobileUsability.nonScrollableOverflows}
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  Nicht-scrollbare Overflows
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+          
+          {/* Issues */}
+          {auditResult.issues.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Identifizierte Probleme ({auditResult.issues.length})</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {auditResult.issues.map((issue, index) => (
+                  <div key={index} className="flex items-start gap-3 p-3 border rounded-lg">
+                    {getIssueIcon(issue.type)}
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Badge variant={issue.type === 'error' ? 'destructive' : 'default'}>
+                          {issue.type.toUpperCase()}
+                        </Badge>
+                        <span className="font-medium">{issue.component}</span>
+                      </div>
+                      <p className="text-sm mb-2">{issue.description}</p>
+                      <p className="text-sm text-blue-600 bg-blue-50 p-2 rounded">
+                        <strong>Fix:</strong> {issue.fix}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+          
+          {/* Recommendations */}
+          {auditResult.recommendations.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Empfehlungen</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ul className="space-y-2">
+                  {auditResult.recommendations.map((rec, index) => (
+                    <li key={index} className="flex items-center gap-2">
+                      <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />
+                      <span className="text-sm">{rec}</span>
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          )}
+          
+          {autoFixApplied && (
+            <Alert>
+              <CheckCircle className="h-4 w-4" />
+              <AlertDescription>
+                Automatische Korrekturen wurden angewendet. Führen Sie das Audit erneut aus, um die Verbesserungen zu sehen.
+              </AlertDescription>
+            </Alert>
+          )}
+        </>
+      )}
+    </div>
+  );
+};
+
+export default AutomatedAuditRunner;
+```
+
+### Phase 5: Integration in das Haupt-System
+
+```typescript
+// client/src/pages/NavigationAudit.tsx
+import React from 'react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/enhanced-mobile-tabs';
+import NavigationAuditTool from '@/components/audit/NavigationAuditTool';
+import AutomatedAuditRunner from '@/components/audit/AutomatedAuditRunner';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+
+const NavigationAuditPage: React.FC = () => {
+  return (
+    <div className="container mx-auto py-6 space-y-6">
+      <div>
+        <h1 className="text-4xl font-bold mb-2">Navigation Audit Dashboard</h1>
+        <p className="text-lg text-muted-foreground">
+          Systemweite Überprüfung und Optimierung der Mobile-First Navigation
+        </p>
+      </div>
+
+      <Tabs defaultValue="automated" className="w-full">
+        <TabsList showScrollButtons={true}>
+          <TabsTrigger value="automated">Automatisierter Audit</TabsTrigger>
+          <TabsTrigger value="detailed">Detaillierte Analyse</TabsTrigger>
+          <TabsTrigger value="guidelines">Richtlinien</TabsTrigger>
+          <TabsTrigger value="implementation">Implementierung</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="automated">
+          <AutomatedAuditRunner />
+        </TabsContent>
+
+        <TabsContent value="detailed">
+          <NavigationAuditTool />
+        </TabsContent>
+
+        <TabsContent value="guidelines" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Mobile-First Navigation Guidelines</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <h4 className="font-semibold mb-2">Touch-Target Anforderungen</h4>
+                <ul className="list-disc pl-6 space-y-1 text-sm">
+                  <li>Minimale Größe: 44px × 44px (Apple/Google Standard)</li>
+                  <li>Empfohlene Größe: 48px × 48px für bessere Usability</li>
+                  <li>Mindestabstand: 8px zwischen interaktiven Elementen</li>
+                  <li>Touch-Feedback: Visuelle Rückmeldung bei Berührung</li>
+                </ul>
+              </div>
+              
+              <div>
+                <h4 className="font-semibold mb-2">Horizontale Scroll-Navigation</h4>
+                <ul className="list-disc pl-6 space-y-1 text-sm">
+                  <li>ScrollArea-Komponente für Tab-Listen verwenden</li>
+                  <li>Scroll-Indikatoren für bessere UX implementieren</li>
+                  <li>Smooth-Scrolling aktivieren: `scroll-behavior: smooth`</li>
+                  <li>Touch-Scrolling optimieren: `overflow-scrolling: touch`</li>
+                </ul>
+              </div>
+              
+              <div>
+                <h4 className="font-semibold mb-2">Responsive Breakpoints</h4>
+                <ul className="list-disc pl-6 space-y-1 text-sm">
+                  <li>Mobile: bis 640px</li>
+                  <li>Tablet: 641px - 1024px</li>
+                  <li>Desktop: ab 1025px</li>
+                  <li>Kritisch: 320px - 375px (kleinste Smartphones)</li>
+                </ul>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="implementation" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Implementierungsplan</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <h4 className="font-semibold mb-2">Phase 1: Sofortige Korrekturen</h4>
+                <ul className="list-disc pl-6 space-y-1 text-sm">
+                  <li>Enhanced Mobile Tabs Komponente implementieren</li>
+                  <li>Touch-Target CSS-Korrekturen anwenden</li>
+                  <li>Scroll-Container reparieren</li>
+                </ul>
+              </div>
+              
+              <div>
+                <h4 className="font-semibold mb-2">Phase 2: Systemweite Vereinheitlichung</h4>
+                <ul className="list-disc pl-6 space-y-1 text-sm">
+                  <li>Navigation-Service implementieren</li>
+                  <li>Konsistente Breakpoints einführen</li>
+                  <li>Mobile-Pattern standardisieren</li>
+                </ul>
+              </div>
+              
+              <div>
+                <h4 className="font-semibold mb-2">Phase 3: Kontinuierliches Monitoring</h4>
+                <ul className="list-disc pl-6 space-y-1 text-sm">
+                  <li>Automated Audit Tool aktivieren</li>
+                  <li>Performance Monitoring einrichten</li>
+                  <li>User Testing durchführen</li>
+                </ul>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+};
+
+export default NavigationAuditPage;
+```
+
+## Verwendung und Aktivierung
+
+### 1. Audit-Tool Integration
+Das NavigationAuditTool kann in jede bestehende Seite integriert werden:
+
+```typescript
+// In beliebiger Seite
+import NavigationAuditTool from '@/components/audit/NavigationAuditTool';
+
+// Als floating widget oder in settings
+<NavigationAuditTool />
+```
+
+### 2. Enhanced Tabs verwenden
+Ersetzen Sie bestehende Tab-Implementierungen:
+
+```typescript
+// Statt der alten Tabs
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+
+// Neue mobile-optimierte Tabs verwenden
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/enhanced-mobile-tabs';
+```
+
+### 3. Automatische Korrekturen
+Der NavigationConsistencyService kann automatische Korrekturen anwenden:
+
+```typescript
+import NavigationConsistencyService from '@/services/navigationConsistencyService';
+
+const service = NavigationConsistencyService.getInstance();
+service.fixTouchTargets();
+service.fixScrollableContainers();
+```
+
+## Monitoring und Wartung
+
+### Kontinuierliche Überwachung
+- Automatische Audits bei Seitenlade
+- Performance Metrics sammeln
+- User Interaction Tracking
+- Mobile-spezifische Analytics
+
+### Wartungszyklen
+- Wöchentliche automatische Audits
+- Monatliche manuelle Reviews
+- Quartalsweise UX-Bewertungen
+- Bei größeren Updates: Vollständige Neubewertung
+
+## Fazit
+
+Dieses umfassende Audit-System ermöglicht:
+
+1. **Sofortige Problemerkennung**: Automatische Identifikation von Navigation-Problemen
+2. **Mobile-First Optimierung**: Fokus auf kleinste Bildschirmgrößen
+3. **Systemweite Konsistenz**: Vereinheitlichung aller Navigation-Pattern
+4. **Kontinuierliche Verbesserung**: Automated Monitoring und Fixes
+5. **Entwickler-Freundlichkeit**: Einfache Integration und Verwendung
+
+Das System ist modular aufgebaut und kann schrittweise implementiert werden, ohne bestehende Funktionalität zu beeinträchtigen.
