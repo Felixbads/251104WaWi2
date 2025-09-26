@@ -1,0 +1,331 @@
+
+# E-Mail-Benachrichtigungs-System: Erweiterungs- und Korrektur-Prompt
+
+## Übersicht
+Das bestehende E-Mail-Benachrichtigungssystem muss um kritische Überwachungsfunktionen erweitert und bestehende Probleme behoben werden.
+
+## 🎯 Prioritäre Erweiterungen
+
+### 1. MHD-Warnungen für Automaten
+**Anforderung:** Automatische Überwachung und Benachrichtigung bei ablaufenden Produkten in Automaten
+
+**Implementierung:**
+- Neue Trigger-Klasse: `MhdSoonTrigger` (erweitern von bestehender)
+- Überwachung der `machine_stocks` Tabelle auf `expiry_date`
+- Warnstufen:
+  - 🔴 KRITISCH: ≤1 Tag bis Ablauf (sofortige Benachrichtigung)
+  - 🟡 WARNUNG: ≤3 Tage bis Ablauf (tägliche Benachrichtigung)
+  - 🟢 BEOBACHTEN: ≤7 Tage bis Ablauf (wöchentliche Benachrichtigung)
+
+**Template-Anpassungen:**
+- Erweitere `mhd_soon.hbs` um Automaten-spezifische Daten
+- Füge Standort-Informationen und Servicetechniker-Kontakte hinzu
+- Zeige Warenwert der betroffenen Produkte an
+
+### 2. Hoher Geldbestand in Automaten
+**Anforderung:** Überwachung der Bargeld-Bestände und automatische Leerungsempfehlungen
+
+**Implementierung:**
+- Erweitere `CashHighTrigger` um verbesserte Schwellenwerte
+- Überwachung von `machines.cashCredit` und `machines.cardCredit`
+- Schwellenwerte:
+  - 🟡 WARNUNG: >500€ (Leerung in 24h empfohlen)
+  - 🔴 KRITISCH: >1000€ (Sofortige Leerung erforderlich)
+  - 🚨 SICHERHEITSRISIKO: >1500€ (Notfall-Protokoll)
+
+**Template-Features:**
+- Bargeld-Verlauf der letzten 7 Tage
+- Empfohlener Leerungstermin basierend auf Umsatztrend
+- Sicherheitsprotokoll-Hinweise
+
+### 3. Lange keine Kartenzahlung
+**Anforderung:** Überwachung der Kartenzahlungs-Funktionalität
+
+**Implementierung:**
+- Neue Trigger-Klasse: `CardPaymentInactiveTrigger`
+- Überwachung der `transactions` Tabelle nach `paymentMethod = 'CASHLESS'`
+- Warnstufen:
+  - 🟡 WARNUNG: >24h keine Kartenzahlung
+  - 🔴 KRITISCH: >48h keine Kartenzahlung
+  - 🚨 AUSFALL: >72h keine Kartenzahlung
+
+**Überwachungslogik:**
+```sql
+SELECT machine_id, machine_name, 
+       MAX(datetime) as last_card_payment,
+       EXTRACT(HOURS FROM (NOW() - MAX(datetime))) as hours_since_last
+FROM transactions t
+JOIN machines m ON t.machine_id = m.id
+WHERE payment_method = 'CASHLESS'
+GROUP BY machine_id, machine_name
+HAVING EXTRACT(HOURS FROM (NOW() - MAX(datetime))) > 24
+```
+
+### 4. Lange kein Alkoholverkauf
+**Anforderung:** Überwachung der Alkohol-Verkäufe zur Compliance-Sicherstellung
+
+**Implementierung:**
+- Neue Trigger-Klasse: `AlcoholSalesInactiveTrigger`
+- Überwachung basierend auf Produkt-Kategorien oder Alkohol-Flag
+- Warnstufen:
+  - 🟡 HINWEIS: >7 Tage kein Alkoholverkauf
+  - 🔴 AUFFÄLLIG: >14 Tage kein Alkoholverkauf
+  - 🚨 PRÜFUNG: >30 Tage kein Alkoholverkauf
+
+**Überwachungslogik:**
+```sql
+SELECT machine_id, machine_name,
+       MAX(t.datetime) as last_alcohol_sale,
+       EXTRACT(DAYS FROM (NOW() - MAX(t.datetime))) as days_since_last
+FROM transactions t
+JOIN machines m ON t.machine_id = m.id
+JOIN products p ON t.product_id = p.id
+WHERE p.category_id IN (SELECT id FROM categories WHERE name ILIKE '%alkohol%')
+   OR p.product_name ILIKE '%bier%' 
+   OR p.product_name ILIKE '%wein%'
+   OR p.is_alcoholic = true
+GROUP BY machine_id, machine_name
+HAVING EXTRACT(DAYS FROM (NOW() - MAX(t.datetime))) > 7
+```
+
+## 🔧 Kritische Fehlerbehebungen
+
+### 5. Umsatz-Null-Problem beheben
+**Problem:** Umsatz wird als Null angezeigt in E-Mail-Berichten
+
+**Diagnose-Schritte:**
+1. **Datenbank-Abfrage prüfen:** Überprüfe `DailyEmailDataAggregator.getSalesAnalysis()`
+2. **Zeitraum-Filter:** Stelle sicher, dass der korrekte Datumsbereich verwendet wird
+3. **Währungs-Formatierung:** Prüfe Decimal-zu-Number Konvertierung
+4. **Template-Rendering:** Überprüfe Platzhalter-Ersetzung in `DailyEmailComposer`
+
+**Korrekturen:**
+```typescript
+// In DailyEmailDataAggregator.ts
+private async getSalesAnalysis(reportDate: Date) {
+    const dayStart = new Date(reportDate);
+    dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(reportDate);
+    dayEnd.setHours(23, 59, 59, 999);
+
+    const salesData = await db
+        .select({
+            totalRevenue: sql<number>`COALESCE(SUM(CAST(${transactions.price} AS DECIMAL)), 0)`.as('totalRevenue'),
+            transactionCount: count(transactions.id).as('transactionCount')
+        })
+        .from(transactions)
+        .where(
+            and(
+                gte(transactions.datetime, dayStart),
+                lte(transactions.datetime, dayEnd),
+                // Stelle sicher, dass price nicht null ist
+                sql`${transactions.price} IS NOT NULL AND ${transactions.price} > 0`
+            )
+        );
+
+    return {
+        anzahl_verkäufe: Number(salesData[0]?.transactionCount) || 0,
+        umsatzsumme: Number(salesData[0]?.totalRevenue) || 0,
+        // ... weitere Felder
+    };
+}
+```
+
+## 📧 Template-Erweiterungen
+
+### Neues Unified Daily Report Template
+**Datei:** `server/templates/notifications/daily_unified_report.hbs`
+
+```html
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <title>Täglicher Proviantomat-Statusbericht</title>
+    <style>
+        /* Erweiterte CSS-Styles für alle Benachrichtigungstypen */
+        .critical-section { background: #f8d7da; border-left: 4px solid #dc3545; }
+        .warning-section { background: #fff3cd; border-left: 4px solid #ffc107; }
+        .info-section { background: #d1ecf1; border-left: 4px solid #17a2b8; }
+        .success-section { background: #d4edda; border-left: 4px solid #28a745; }
+    </style>
+</head>
+<body>
+    <!-- Header mit Datum und Übersicht -->
+    <div class="header">
+        <h1>🏪 Täglicher Proviantomat-Statusbericht</h1>
+        <p><strong>📅 Datum:</strong> {{formatDate date "DD.MM.YYYY"}}</p>
+        <p><strong>⏰ Berichtszeitpunkt:</strong> {{formatDate timestamp "DD.MM.YYYY HH:mm"}}</p>
+    </div>
+
+    <!-- Kritische Warnungen (wenn vorhanden) -->
+    {{#if criticalAlerts}}
+    <div class="critical-section">
+        <h2>🚨 KRITISCHE WARNUNGEN</h2>
+        {{#each criticalAlerts}}
+        <div class="alert-item">
+            <strong>{{type}}:</strong> {{message}}
+            <br><small>Standort: {{location}} | Priorität: {{priority}}</small>
+        </div>
+        {{/each}}
+    </div>
+    {{/if}}
+
+    <!-- MHD-Warnungen -->
+    {{#if mhdAlerts}}
+    <div class="warning-section">
+        <h2>📅 MHD-Warnungen ({{mhdAlerts.length}})</h2>
+        {{#each mhdAlerts}}
+        <div class="mhd-alert">
+            <strong>{{machineName}}</strong> ({{location}})
+            <ul>
+                {{#each products}}
+                <li>{{productName}}: {{quantity}} Stk., MHD: {{formatDate expiryDate "DD.MM.YYYY"}} 
+                    ({{daysUntilExpiry}} Tage)</li>
+                {{/each}}
+            </ul>
+        </div>
+        {{/each}}
+    </div>
+    {{/if}}
+
+    <!-- Hoher Geldbestand -->
+    {{#if cashHighAlerts}}
+    <div class="warning-section">
+        <h2>💰 Hoher Bargeldbestand ({{cashHighAlerts.length}})</h2>
+        {{#each cashHighAlerts}}
+        <div class="cash-alert">
+            <strong>{{machineName}}</strong> ({{location}})
+            <br>Aktueller Bestand: {{currentCash}}€ | Empfohlene Leerung: {{recommendedAction}}
+        </div>
+        {{/each}}
+    </div>
+    {{/if}}
+
+    <!-- Kartenzahlungs-Probleme -->
+    {{#if cardPaymentAlerts}}
+    <div class="warning-section">
+        <h2>💳 Kartenzahlungs-Probleme ({{cardPaymentAlerts.length}})</h2>
+        {{#each cardPaymentAlerts}}
+        <div class="payment-alert">
+            <strong>{{machineName}}</strong> ({{location}})
+            <br>Letzte Kartenzahlung: {{formatDate lastCardPayment "DD.MM.YYYY HH:mm"}} 
+            ({{hoursSinceLastCard}} Stunden)
+        </div>
+        {{/each}}
+    </div>
+    {{/if}}
+
+    <!-- Alkoholverkauf-Anomalien -->
+    {{#if alcoholSalesAlerts}}
+    <div class="info-section">
+        <h2>🍺 Alkoholverkauf-Status ({{alcoholSalesAlerts.length}})</h2>
+        {{#each alcoholSalesAlerts}}
+        <div class="alcohol-alert">
+            <strong>{{machineName}}</strong> ({{location}})
+            <br>Letzter Alkoholverkauf: {{formatDate lastAlcoholSale "DD.MM.YYYY"}} 
+            ({{daysSinceLastAlcohol}} Tage)
+        </div>
+        {{/each}}
+    </div>
+    {{/if}}
+
+    <!-- Tagesumsatz (korrigiert) -->
+    <div class="success-section">
+        <h2>💰 Tagesumsatz</h2>
+        <p><strong>Gesamtumsatz:</strong> {{formatCurrency salesData.totalRevenue}}€</p>
+        <p><strong>Anzahl Transaktionen:</strong> {{salesData.transactionCount}}</p>
+        <p><strong>Durchschnitt pro Transaktion:</strong> {{formatCurrency salesData.averageTransaction}}€</p>
+        
+        {{#if salesData.topProducts}}
+        <h3>🏆 Top-Verkäufe</h3>
+        {{#each salesData.topProducts}}
+        <div>{{name}}: {{quantity}} Stk. ({{formatCurrency revenue}}€)</div>
+        {{/each}}
+        {{/if}}
+    </div>
+
+    <!-- Footer mit nächsten Aktionen -->
+    <div class="footer">
+        <h3>📋 Empfohlene Aktionen</h3>
+        <ul>
+            {{#each recommendedActions}}
+            <li class="{{priority}}">{{action}} - {{description}}</li>
+            {{/each}}
+        </ul>
+        
+        <p style="margin-top: 20px; color: #666; font-size: 12px;">
+            Automatisch generiert vom Proviantomat-System<br>
+            Nächster Bericht: {{formatDate nextReportTime "DD.MM.YYYY HH:mm"}}
+        </p>
+    </div>
+</body>
+</html>
+```
+
+## 🚀 Implementierungsplan
+
+### Phase 1: Kritische Fehlerbehebungen (Priorität 1)
+1. **Umsatz-Null-Problem beheben**
+   - Datei: `server/services/dailyEmailDataAggregator.ts`
+   - Zeile 276-300: getSalesAnalysis() Methode korrigieren
+   - Decimal-Konvertierung und Null-Checks hinzufügen
+
+2. **Template-Rendering verbessern**
+   - Datei: `server/services/dailyEmailComposer.ts`
+   - Currency-Formatierung und Null-Wert-Behandlung
+
+### Phase 2: Neue Trigger-Implementierung (Priorität 2)
+1. **CardPaymentInactiveTrigger erstellen**
+   - Datei: `server/services/triggers/cardPaymentInactiveTrigger.ts`
+   - Template: `server/templates/notifications/card_payment_inactive.hbs`
+
+2. **AlcoholSalesInactiveTrigger erstellen**
+   - Datei: `server/services/triggers/alcoholSalesInactiveTrigger.ts`
+   - Template: `server/templates/notifications/alcohol_sales_inactive.hbs`
+
+3. **MhdSoonTrigger erweitern**
+   - Datei: `server/services/triggers/mhdSoonTrigger.ts` (erweitern)
+   - Automaten-spezifische Logik hinzufügen
+
+### Phase 3: Dashboard-Integration (Priorität 3)
+1. **Trigger-Management im Notifications-Dashboard**
+   - Datei: `client/src/pages/System/Notifications.tsx`
+   - Neue Trigger zu eventTypes Array hinzufügen
+
+2. **Test-Center erweitern**
+   - Manuelle Trigger-Tests für alle neuen Benachrichtigungstypen
+
+## ✅ Qualitätssicherung
+
+### Testing-Checkliste
+- [ ] Umsatz-Berechnung zeigt korrekte Werte
+- [ ] MHD-Warnungen werden rechtzeitig gesendet
+- [ ] Bargeld-Schwellenwerte funktionieren
+- [ ] Kartenzahlungs-Überwachung erkennt Ausfälle
+- [ ] Alkoholverkauf-Monitoring ist aktiv
+- [ ] E-Mail-Templates rendern korrekt
+- [ ] Zeitstempel sind korrekt (Europe/Berlin)
+- [ ] Deduplication verhindert Spam
+
+### Performance-Optimierung
+- Trigger-Ausführung auf max. 1x täglich beschränken
+- Database-Queries mit Indizes optimieren
+- E-Mail-Versand in Batches für bessere Performance
+
+## 📋 Überwachung & Wartung
+
+### Monitoring-Metriken
+- Anzahl gesendeter Benachrichtigungen pro Tag
+- Response-Zeit der Trigger-Ausführung
+- Fehlerrate beim E-Mail-Versand
+- False-Positive-Rate bei Warnungen
+
+### Wartungs-Aufgaben
+- Wöchentliche Überprüfung der Schwellenwerte
+- Monatliche Analyse der Benachrichtigungs-Effektivität
+- Quartalsmäßige Review der Template-Performance
+
+---
+
+**Anmerkung:** Dieses Dokument dient als Grundlage für die systematische Implementierung aller gewünschten E-Mail-Benachrichtigungs-Features mit Fokus auf Stabilität und Benutzerfreundlichkeit.
