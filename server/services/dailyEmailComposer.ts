@@ -8,6 +8,72 @@ import { escapeHtml, escapeText, safeArray, safeObject } from '../utils/stringUt
 
 export class DailyEmailComposer {
   /**
+   * ERWEITERTE Currency-Formatierung für robuste Null-Wert-Behandlung
+   */
+  private formatCurrency(value: any, showSymbol: boolean = true): string {
+    // ROBUSTE Null-Wert-Behandlung und Typ-Konvertierung
+    let numericValue: number;
+    
+    if (value === null || value === undefined || value === '') {
+      numericValue = 0;
+    } else if (typeof value === 'string') {
+      // String zu Number konvertieren, Kommas entfernen
+      const cleanString = value.replace(/[€$£¥\s,]/g, '');
+      numericValue = parseFloat(cleanString);
+      if (isNaN(numericValue)) numericValue = 0;
+    } else if (typeof value === 'number') {
+      numericValue = isNaN(value) ? 0 : value;
+    } else {
+      numericValue = 0;
+    }
+    
+    // Deutsche Lokalisierung mit Euro-Symbol
+    const formatter = new Intl.NumberFormat('de-DE', {
+      style: showSymbol ? 'currency' : 'decimal',
+      currency: 'EUR',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    });
+    
+    return formatter.format(numericValue);
+  }
+
+  /**
+   * ERWEITERTE Number-Formatierung für deutsche Lokalisierung
+   */
+  private formatNumber(value: any, decimals: number = 0): string {
+    let numericValue: number;
+    
+    if (value === null || value === undefined || value === '') {
+      numericValue = 0;
+    } else if (typeof value === 'string') {
+      numericValue = parseFloat(value.replace(/[^\d.-]/g, ''));
+      if (isNaN(numericValue)) numericValue = 0;
+    } else if (typeof value === 'number') {
+      numericValue = isNaN(value) ? 0 : value;
+    } else {
+      numericValue = 0;
+    }
+    
+    const formatter = new Intl.NumberFormat('de-DE', {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals
+    });
+    
+    return formatter.format(numericValue);
+  }
+
+  /**
+   * NEUE Funktion: Safe Value Extraction mit Fallback
+   */
+  private safeValue(value: any, fallback: any = 0): any {
+    if (value === null || value === undefined || value === '') {
+      return fallback;
+    }
+    return value;
+  }
+
+  /**
    * Erstellt den Haupt-HTML-Inhalt für den täglichen Statusbericht
    */
   async composeEmail(data: DailyReportData, template?: EmailTemplates): Promise<{
@@ -40,13 +106,15 @@ export class DailyEmailComposer {
       rendered = this.replaceVar(rendered, 'timestamp', currentDate.toLocaleString('de-DE'));
       rendered = this.replaceVar(rendered, 'next_report_time', '08:00 Uhr');
       
-      // VERKÄUFE & PERFORMANCE
+      // VERKÄUFE & PERFORMANCE - KORRIGIERT mit robuster Currency-Formatierung
       const verkäufe = safeObject(data.sections?.verkäufe);
-      const salesAverage = verkäufe.anzahl_verkäufe > 0 ? (verkäufe.umsatzsumme / verkäufe.anzahl_verkäufe) : 0;
+      const salesCount = this.safeValue(verkäufe.anzahl_verkäufe, 0);
+      const salesTotal = this.safeValue(verkäufe.umsatzsumme, 0);
+      const salesAverage = salesCount > 0 ? (salesTotal / salesCount) : 0;
       
-      rendered = this.replaceVar(rendered, 'sales_total', verkäufe.umsatzsumme?.toFixed(2) || '0.00');
-      rendered = this.replaceVar(rendered, 'sales_count', verkäufe.anzahl_verkäufe?.toString() || '0');
-      rendered = this.replaceVar(rendered, 'sales_average', salesAverage.toFixed(2));
+      rendered = this.replaceVar(rendered, 'sales_total', this.formatCurrency(salesTotal));
+      rendered = this.replaceVar(rendered, 'sales_count', this.formatNumber(salesCount));
+      rendered = this.replaceVar(rendered, 'sales_average', this.formatCurrency(salesAverage));
       
       // Top Produkte Details
       const topProductsHtml = this.renderTopProducts(safeArray(verkäufe.top_produkte));
@@ -62,11 +130,11 @@ export class DailyEmailComposer {
       rendered = this.replaceVar(rendered, 'erweiterte_bestellungen_ausstehend', 
         this.renderOrderDeliveries(safeArray(erweiterteBest.diese_woche)));
       
-      // Bestellungen Zusammenfassung
+      // Bestellungen Zusammenfassung - KORRIGIERT mit robuster Formatierung
       const bestZusammenfassung = safeObject(erweiterteBest.zusammenfassung);
-      rendered = this.replaceVar(rendered, 'bestellungen_total_count', bestZusammenfassung.total_ausstehend?.toString() || '0');
-      rendered = this.replaceVar(rendered, 'bestellungen_total_value', bestZusammenfassung.total_wert_ausstehend?.toFixed(2) || '0.00');
-      rendered = this.replaceVar(rendered, 'bestellungen_critical_delays', bestZusammenfassung.kritische_verspätungen?.toString() || '0');
+      rendered = this.replaceVar(rendered, 'bestellungen_total_count', this.formatNumber(bestZusammenfassung.total_ausstehend));
+      rendered = this.replaceVar(rendered, 'bestellungen_total_value', this.formatCurrency(bestZusammenfassung.total_wert_ausstehend));
+      rendered = this.replaceVar(rendered, 'bestellungen_critical_delays', this.formatNumber(bestZusammenfassung.kritische_verspätungen));
       
       // AUTOMATEN-STATUS & ALERTS
       const automatenStatus = safeObject(data.sections?.automaten_status);
@@ -78,11 +146,11 @@ export class DailyEmailComposer {
       rendered = this.replaceVar(rendered, 'automaten_status_technische_anomalien', 
         this.renderMachineAlerts(safeArray(automatenStatus.technische_anomalien)));
       
-      // Automaten Zusammenfassung
+      // Automaten Zusammenfassung - KORRIGIERT mit robuster Formatierung
       const automatZusammenfassung = safeObject(automatenStatus.zusammenfassung);
-      rendered = this.replaceVar(rendered, 'automaten_alerts_total', automatZusammenfassung.total_alerts?.toString() || '0');
-      rendered = this.replaceVar(rendered, 'automaten_betroffene', automatZusammenfassung.betroffene_automaten?.toString() || '0');
-      rendered = this.replaceVar(rendered, 'automaten_kritische_alerts', automatZusammenfassung.kritische_alerts?.toString() || '0');
+      rendered = this.replaceVar(rendered, 'automaten_alerts_total', this.formatNumber(automatZusammenfassung.total_alerts));
+      rendered = this.replaceVar(rendered, 'automaten_betroffene', this.formatNumber(automatZusammenfassung.betroffene_automaten));
+      rendered = this.replaceVar(rendered, 'automaten_kritische_alerts', this.formatNumber(automatZusammenfassung.kritische_alerts));
       
       // BESTÄNDE & LOGISTIK
       const beständeLogistik = safeObject(data.sections?.bestände_logistik);
