@@ -704,7 +704,7 @@ router.get('/:id/stock', async (req, res) => {
         console.log(`[MACHINES API] ⚠️ Vendon API: Keine Produktdaten von /products Endpoint erhalten für Maschine ${vendonId}`);
         
         // FALLBACK: Try enhanced client with alternative endpoints
-        const { getVendonApiClient } = await import('../services/enhancedVendonApiClient');
+        const { getVendonApiClient } = await import('../services/EnhancedVendonApiClient');
         const vendonClient = getVendonApiClient();
         
         const stockEndpoints = [

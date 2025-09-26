@@ -31,7 +31,7 @@ import { rawDb } from "../db";
 import { sql, eq, and, gt } from "drizzle-orm";
 import { getPersistentSyncLockInstance } from "./PersistentSyncLock";
 import { DuplicatePreventionService } from "./DuplicatePreventionService";
-import { EnhancedVendonApiClient, getVendonApiClient } from "./enhancedVendonApiClient";
+import { EnhancedVendonApiClient, getVendonApiClient } from "./EnhancedVendonApiClient";
 import axios, { AxiosInstance, AxiosRequestConfig } from "axios";
 
 // =============================================================================

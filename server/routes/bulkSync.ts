@@ -9,7 +9,7 @@ const router = express.Router();
 
 // Erstelle den Bulk-Exporter mit den vorhandenen Services
 // ✅ GEFIXT - Verwende EnhancedVendonApiClient 
-import { getVendonApiClient } from '../services/enhancedVendonApiClient';
+import { getVendonApiClient } from '../services/EnhancedVendonApiClient';
 const vendonApi = getVendonApiClient();
 const bulkExporter = new BulkTransactionExporter(vendonApi, storage);
 
