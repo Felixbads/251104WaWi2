@@ -55,7 +55,6 @@ const navigationSections = [
       { href: '/inter-app-verbindungen', label: 'App-Verbindungen', icon: Server, roles: ['admin'] },
       { href: '/system/mail-benachrichtigung', label: 'Mail-Benachrichtigungen', icon: Mail, roles: ['admin'] },
       { href: '/settings', label: 'Einstellungen', icon: Settings, roles: ['user', 'admin'] },
-      { href: '/taegliche-email-einstellungen', label: 'E-Mail-Benachrichtigungen (Alt)', icon: Mail, roles: ['admin'] },
     ]
   },
   {
