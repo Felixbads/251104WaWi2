@@ -41,7 +41,12 @@ router.get('/settings', async (req, res) => {
 
     const setting = settings[0];
     const recipients = await db
-      .select()
+      .select({
+        id: emailRecipients.id,
+        email: emailRecipients.email,
+        name: emailRecipients.name,
+        emailSettingsId: emailRecipients.emailSettingsId
+      })
       .from(emailRecipients)
       .where(eq(emailRecipients.emailSettingsId, setting.id));
 
