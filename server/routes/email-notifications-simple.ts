@@ -423,7 +423,7 @@ router.get('/preview', async (req, res) => {
   }
 });
 
-// POST /api/email-notifications/test - Test-E-Mail senden
+// POST /api/email-notifications/test - Test-E-Mail mit echten Inhalten senden
 router.post('/test', async (req, res) => {
   try {
     const { emailAddress } = req.body;
@@ -432,29 +432,165 @@ router.post('/test', async (req, res) => {
       return res.status(400).json({ error: 'E-Mail-Adresse ist erforderlich' });
     }
 
-    const testEmailContent = `
-      <h2>Test-E-Mail für Warenwirtschaftssystem</h2>
-      <p>Diese Test-E-Mail bestätigt, dass Ihr E-Mail-System korrekt konfiguriert ist.</p>
-      
-      <h3>Beispiel-Inhalte:</h3>
-      <ul>
-        <li>✅ MHD-Warnungen funktionieren</li>
-        <li>✅ Lagerbestands-Alerts aktiviert</li>
-        <li>✅ Bestellungsübersicht verfügbar</li>
-        <li>✅ Performance-Berichte eingerichtet</li>
-      </ul>
-      
-      <p>Gesendet am: ${new Date().toLocaleString('de-DE')}</p>
-      <p>System: Warenwirtschaftssystem</p>
-    `;
+    // Echte Daten für Test-E-Mail sammeln
+    const today = new Date();
+    const sevenDaysFromNow = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+    // MHD-Warnungen (ablaufende Produkte in den nächsten 7 Tagen)
+    const mhdWarnings = await db
+      .select({
+        productName: products.productName,
+        batchNumber: productBatches.batchNumber,
+        expiryDate: productBatches.expiryDate,
+        quantity: productBatches.currentQuantity
+      })
+      .from(productBatches)
+      .leftJoin(products, eq(productBatches.productId, products.id))
+      .where(sql`${productBatches.expiryDate} BETWEEN ${today.toISOString().split('T')[0]} AND ${sevenDaysFromNow.toISOString().split('T')[0]}`)
+      .limit(5);
+
+    // Niedrige Lagerbestände (vereinfachte Logik)
+    const lowStockItems = await db
+      .select({
+        productName: products.productName,
+        currentStock: inventoryItems.quantity
+      })
+      .from(inventoryItems)
+      .leftJoin(products, eq(inventoryItems.productId, products.id))
+      .where(
+        sql`${inventoryItems.quantity} <= 10`
+      )
+      .limit(5);
+
+    // Offene Bestellungen
+    const openOrders = await db
+      .select({
+        orderNumber: orders.orderNumber,
+        orderDate: orders.orderDate,
+        totalAmount: orders.totalAmount,
+        status: orders.status
+      })
+      .from(orders)
+      .where(sql`${orders.status} IN ('pending', 'confirmed', 'shipped')`)
+      .limit(5);
+
+    // Performance-Daten (letzte 7 Tage)
+    const performanceData = await db
+      .select({
+        transactionCount: count(),
+        totalRevenue: sql<number>`SUM(${transactions.amount})::numeric`
+      })
+      .from(transactions)
+      .where(gte(transactions.datetime, new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000)));
+
+    // HTML-E-Mail-Content mit echten Daten erstellen
+    let testEmailContent = `
+      <div style="font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px;">
+        <h2 style="color: #2563eb; border-bottom: 2px solid #2563eb; padding-bottom: 10px;">
+          📧 Test-E-Mail - Warenwirtschaftssystem
+        </h2>
+        <p style="font-size: 16px; color: #374151;">
+          Diese Test-E-Mail enthält echte Daten aus Ihrem System und bestätigt, dass alle Benachrichtigungstypen korrekt funktionieren.
+        </p>`;
+
+    // MHD-Warnungen Sektion
+    testEmailContent += `
+      <div style="background: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0;">
+        <h3 style="color: #92400e; margin-top: 0;">📅 MHD-Warnungen (${mhdWarnings.length})</h3>`;
+    
+    if (mhdWarnings.length > 0) {
+      testEmailContent += `<ul style="margin: 10px 0;">`;
+      mhdWarnings.forEach(item => {
+        const expiryDate = new Date(item.expiryDate).toLocaleDateString('de-DE');
+        testEmailContent += `
+          <li style="margin: 5px 0;">
+            <strong>${item.productName}</strong> (Charge: ${item.batchNumber || 'N/A'}) - 
+            ${item.quantity} Stück - MHD: ${expiryDate}
+          </li>`;
+      });
+      testEmailContent += `</ul>`;
+    } else {
+      testEmailContent += `<p style="color: #059669;">✅ Keine kritischen MHD-Warnungen</p>`;
+    }
+    testEmailContent += `</div>`;
+
+    // Lagerbestände Sektion
+    testEmailContent += `
+      <div style="background: #fecaca; border-left: 4px solid #ef4444; padding: 15px; margin: 20px 0;">
+        <h3 style="color: #991b1b; margin-top: 0;">📦 Niedrige Lagerbestände (${lowStockItems.length})</h3>`;
+    
+    if (lowStockItems.length > 0) {
+      testEmailContent += `<ul style="margin: 10px 0;">`;
+      lowStockItems.forEach(item => {
+        testEmailContent += `
+          <li style="margin: 5px 0;">
+            <strong>${item.productName}</strong> - 
+            Bestand: ${item.currentStock} (Schwellenwert: 10)
+          </li>`;
+      });
+      testEmailContent += `</ul>`;
+    } else {
+      testEmailContent += `<p style="color: #059669;">✅ Alle Lagerbestände ausreichend</p>`;
+    }
+    testEmailContent += `</div>`;
+
+    // Bestellungen Sektion
+    testEmailContent += `
+      <div style="background: #dbeafe; border-left: 4px solid #3b82f6; padding: 15px; margin: 20px 0;">
+        <h3 style="color: #1e40af; margin-top: 0;">🛒 Offene Bestellungen (${openOrders.length})</h3>`;
+    
+    if (openOrders.length > 0) {
+      testEmailContent += `<ul style="margin: 10px 0;">`;
+      openOrders.forEach(order => {
+        const orderDate = new Date(order.orderDate).toLocaleDateString('de-DE');
+        testEmailContent += `
+          <li style="margin: 5px 0;">
+            <strong>#${order.orderNumber}</strong> - 
+            ${orderDate} - ${order.totalAmount}€ - Status: ${order.status}
+          </li>`;
+      });
+      testEmailContent += `</ul>`;
+    } else {
+      testEmailContent += `<p style="color: #059669;">✅ Keine offenen Bestellungen</p>`;
+    }
+    testEmailContent += `</div>`;
+
+    // Performance Sektion
+    const performance = performanceData[0];
+    testEmailContent += `
+      <div style="background: #f3e8ff; border-left: 4px solid #8b5cf6; padding: 15px; margin: 20px 0;">
+        <h3 style="color: #6b21a8; margin-top: 0;">📊 Performance (letzte 7 Tage)</h3>
+        <ul style="margin: 10px 0;">
+          <li>Transaktionen: ${performance?.transactionCount || 0}</li>
+          <li>Gesamtumsatz: ${performance?.totalRevenue ? Number(performance.totalRevenue).toFixed(2) : '0.00'}€</li>
+        </ul>
+      </div>`;
+
+    // Footer
+    testEmailContent += `
+      <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb; color: #6b7280; font-size: 14px;">
+        <p><strong>Gesendet am:</strong> ${new Date().toLocaleString('de-DE')}</p>
+        <p><strong>System:</strong> Warenwirtschaftssystem - Proviantomat</p>
+        <p>Diese Test-E-Mail enthält echte Daten aus Ihrem System. Bei produktiven E-Mails werden nur die aktivierten Kategorien gesendet.</p>
+      </div>
+    </div>`;
 
     await sendEmail({
       to: emailAddress,
-      subject: 'Test-E-Mail - Warenwirtschaftssystem Benachrichtigungen',
+      subject: 'Test-E-Mail mit echten Daten - Warenwirtschaftssystem',
       html: testEmailContent
     });
 
-    res.json({ success: true, message: 'Test-E-Mail erfolgreich gesendet' });
+    res.json({ 
+      success: true, 
+      message: 'Test-E-Mail mit echten Daten erfolgreich gesendet',
+      preview: {
+        mhdWarnings: mhdWarnings.length,
+        lowStockItems: lowStockItems.length,
+        openOrders: openOrders.length,
+        performance: performance
+      }
+    });
   } catch (error) {
     console.error('Fehler beim Senden der Test-E-Mail:', error);
     res.status(500).json({ error: 'Fehler beim Senden der Test-E-Mail' });
