@@ -593,6 +593,7 @@ export class DailyEmailDataAggregator {
 
   /**
    * Analysiert Verkäufe und Top-Produkte für den Berichtszeitraum
+   * KORRIGIERT: Umsatz-Null-Problem durch robuste Decimal-Behandlung und Null-Checks
    */
   private async getSalesAnalysis(reportDate: Date) {
     const dayStart = new Date(reportDate);
@@ -601,43 +602,53 @@ export class DailyEmailDataAggregator {
     dayEnd.setHours(23, 59, 59, 999);
 
     try {
-      // Gesamtumsatz und Anzahl Verkäufe
+      // Gesamtumsatz und Anzahl Verkäufe - KORRIGIERT mit COALESCE und Price-Validierung
       const salesStats = await db
         .select({
-          totalRevenue: sum(transactions.price).as('totalRevenue'),
+          totalRevenue: sql<number>`COALESCE(SUM(CAST(${transactions.price} AS DECIMAL)), 0)`.as('totalRevenue'),
           totalSales: count(transactions.id).as('totalSales')
         })
         .from(transactions)
         .where(
           and(
             gte(transactions.datetime, dayStart),
-            lte(transactions.datetime, dayEnd)
+            lte(transactions.datetime, dayEnd),
+            // Stelle sicher, dass price nicht null und > 0 ist
+            sql`${transactions.price} IS NOT NULL AND CAST(${transactions.price} AS DECIMAL) > 0`
           )
         );
 
-      // Top-Produkte nach Stückzahl und Umsatz
+      // Top-Produkte nach Stückzahl und Umsatz - KORRIGIERT mit verbesserter Aggregation
       const topProducts = await db
         .select({
           productName: transactions.productName,
-          quantity: sum(transactions.quantity).as('quantity'),
-          revenue: sum(transactions.price).as('revenue')
+          quantity: sql<number>`COALESCE(SUM(CAST(${transactions.quantity} AS INTEGER)), 0)`.as('quantity'),
+          revenue: sql<number>`COALESCE(SUM(CAST(${transactions.price} AS DECIMAL)), 0)`.as('revenue')
         })
         .from(transactions)
         .where(
           and(
             gte(transactions.datetime, dayStart),
-            lte(transactions.datetime, dayEnd)
+            lte(transactions.datetime, dayEnd),
+            sql`${transactions.price} IS NOT NULL AND CAST(${transactions.price} AS DECIMAL) > 0`,
+            sql`${transactions.quantity} IS NOT NULL AND CAST(${transactions.quantity} AS INTEGER) > 0`
           )
         )
         .groupBy(transactions.productName)
-        .orderBy(desc(sum(transactions.quantity)))
+        .orderBy(sql`COALESCE(SUM(CAST(${transactions.quantity} AS INTEGER)), 0) DESC`)
         .limit(5);
 
       const stats = salesStats[0] || {};
       
+      // Robuste Number-Konvertierung mit Fallback-Werten
+      const totalRevenue = Number(stats.totalRevenue) || 0;
+      const totalSales = Number(stats.totalSales) || 0;
+      
+      console.log(`📊 Verkaufsanalyse ${reportDate.toISOString().split('T')[0]}: ${totalSales} Verkäufe, ${totalRevenue.toFixed(2)}€ Umsatz`);
+      
       return {
-        anzahl_verkäufe: Number(stats.totalSales) || 0,
-        umsatzsumme: Number(stats.totalRevenue) || 0,
+        anzahl_verkäufe: totalSales,
+        umsatzsumme: totalRevenue,
         top_produkte: topProducts.map(product => ({
           name: product.productName || 'Unbekannt',
           stückzahl: Number(product.quantity) || 0,
@@ -645,7 +656,7 @@ export class DailyEmailDataAggregator {
         }))
       };
     } catch (error) {
-      console.error('Fehler bei der Verkaufsanalyse:', error);
+      console.error('❌ Fehler bei der Verkaufsanalyse:', error);
       return {
         anzahl_verkäufe: 0,
         umsatzsumme: 0,
