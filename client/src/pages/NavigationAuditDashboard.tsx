@@ -80,10 +80,19 @@ export default function NavigationAuditDashboard() {
   const DeviceIcon = isMobile ? Smartphone : isTablet ? Tablet : Monitor;
 
   // Fetch audit sessions from the API
-  const { data: auditSessions, isLoading: isLoadingSessions, refetch: refetchSessions } = useQuery<AuditSession[]>({
+  const { data: sessionsResponse, isLoading: isLoadingSessions, refetch: refetchSessions } = useQuery<{ sessions: AuditSession[] }>({
     queryKey: ['/api/navigation-audit/sessions'],
-    enabled: selectedView === 'history', // Only fetch when history tab is active
+    staleTime: 30000, // Cache for 30 seconds
+    refetchOnWindowFocus: false,
   });
+
+  // Extract sessions array from response
+  const auditSessions = sessionsResponse?.sessions || [];
+
+  // Debug logging
+  console.log('[NAVIGATION-AUDIT] Component rendered, loading:', isLoadingSessions);
+  console.log('[NAVIGATION-AUDIT] Sessions response:', sessionsResponse);
+  console.log('[NAVIGATION-AUDIT] Extracted sessions:', auditSessions);
 
   // Mock data - In a real implementation, this would fetch from the API
   useEffect(() => {
