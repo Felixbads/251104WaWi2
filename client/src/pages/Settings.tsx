@@ -10,13 +10,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { 
   AlertCircle, Save, RefreshCw, Database, Key, 
-  Bell, User, Clock, Shield, Cog, Mail, Menu
+  Bell, User, Clock, Shield, Cog, Mail, Menu, ArrowRight
 } from "lucide-react";
 import DatabaseViewer from "@/components/settings/DatabaseViewer";
 import DatabaseManager from "@/pages/DatabaseManager";
 import EmailNotificationsSettings from "@/components/email/EmailNotificationsSettings";
 import MobileMenu from "@/components/layout/MobileMenu";
 import { useToast } from "@/hooks/use-toast";
+import { Link } from "wouter";
 
 export default function Settings() {
   const { toast } = useToast();
@@ -510,7 +511,48 @@ export default function Settings() {
 
             {/* Email Notifications Tab */}
             <TabsContent value="email" className="space-y-4">
-              <EmailNotificationsSettings />
+              <Card className="border-orange-200 bg-orange-50">
+                <CardHeader>
+                  <div className="flex items-center gap-3">
+                    <Mail className="h-6 w-6 text-orange-600" />
+                    <div>
+                      <CardTitle className="text-orange-900">Erweiterte E-Mail-Benachrichtigungen verfügbar</CardTitle>
+                      <CardDescription className="text-orange-700">
+                        Eine neue, umfassende E-Mail-Benachrichtigungsseite ist verfügbar
+                      </CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="text-sm text-orange-800">
+                    <p className="mb-4">
+                      Wir haben eine neue, erweiterte E-Mail-Benachrichtigungsseite entwickelt, die folgende Funktionen bietet:
+                    </p>
+                    <ul className="list-disc list-inside space-y-2 mb-4">
+                      <li><strong>Test-E-Mails senden:</strong> Sofortiges Testen Ihrer E-Mail-Konfiguration</li>
+                      <li><strong>Live-Vorschau:</strong> Sehen Sie, wie Ihre E-Mails aussehen werden</li>
+                      <li><strong>MHD-Warnungen:</strong> Automatische Benachrichtigungen bei ablaufenden Produkten</li>
+                      <li><strong>Lagerbestand-Alerts:</strong> Warnungen bei niedrigem Lagerbestand</li>
+                      <li><strong>Leistungsmetriken:</strong> Detaillierte Analyse-Berichte per E-Mail</li>
+                      <li><strong>Flexible Zeitpläne:</strong> Anpassbare Versandzeiten und -häufigkeiten</li>
+                    </ul>
+                    <p className="text-orange-900 font-medium">
+                      Die neue Seite bietet eine viel bessere Benutzererfahrung und mehr Kontrolle über Ihre E-Mail-Benachrichtigungen.
+                    </p>
+                  </div>
+                </CardContent>
+                <CardFooter>
+                  <Link to="/system/mail-benachrichtigung">
+                    <Button 
+                      className="bg-orange-600 hover:bg-orange-700 text-white"
+                      data-testid="button-redirect-email-notifications"
+                    >
+                      <ArrowRight className="h-4 w-4 mr-2" />
+                      Zur neuen E-Mail-Benachrichtigungsseite
+                    </Button>
+                  </Link>
+                </CardFooter>
+              </Card>
             </TabsContent>
 
             {/* Database Viewer Tab */}
