@@ -64,7 +64,7 @@ export async function sendEmail(params: EmailParams): Promise<boolean> {
     const transporter = createSMTPTransporter();
     
     // Standard-Absenderadresse falls nicht angegeben
-    const fromEmail = params.from || process.env.FROM_EMAIL || process.env.SMTP_USER || 'noreply@warenwirtschaft.de';
+    const fromEmail = params.from || process.env.FROM_EMAIL || 'einkauf@proviantomat.de';
     
     const mailOptions = {
       from: fromEmail,
