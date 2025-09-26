@@ -7,7 +7,14 @@ import {
   packageTypes, purchaseConditions, recurringOrders, recurringOrderItems, 
   forecasts, users, events,
   locationCosts, machineDailyStats, machineWarehouseAssignments,
-  type InsertMachineDailyStats, type MachineWarehouseAssignment
+  type InsertMachineDailyStats, type MachineWarehouseAssignment,
+  // Navigation Audit System Types
+  navigationAuditSessions, type NavigationAuditSession, type InsertNavigationAuditSession,
+  navigationIssues, type NavigationIssue, type InsertNavigationIssue,
+  touchTargetMetrics, type TouchTargetMetric, type InsertTouchTargetMetric,
+  scrollabilityTests, type ScrollabilityTest, type InsertScrollabilityTest,
+  navigationFixes, type NavigationFix, type InsertNavigationFix,
+  auditPerformanceHistory, type AuditPerformanceHistory, type InsertAuditPerformanceHistory
 } from '../shared/schema.js';
 
 // Core types and interfaces
@@ -664,6 +671,108 @@ export interface IStorage {
   
   // Product operations extended for package support
   getProductById(id: number): Promise<Product | undefined>;
+  
+  // Navigation Audit System Operations
+  // ================================
+  
+  // Navigation Audit Session operations
+  getNavigationAuditSessions(options?: { 
+    deviceType?: string; 
+    auditType?: string; 
+    limit?: number; 
+    offset?: number 
+  }): Promise<NavigationAuditSession[]>;
+  getNavigationAuditSessionById(id: number): Promise<NavigationAuditSession | undefined>;
+  getNavigationAuditSessionBySessionId(sessionId: string): Promise<NavigationAuditSession | undefined>;
+  createNavigationAuditSession(session: Omit<NavigationAuditSession, 'id' | 'createdAt'>): Promise<NavigationAuditSession>;
+  updateNavigationAuditSession(id: number, updates: Partial<NavigationAuditSession>): Promise<NavigationAuditSession>;
+  deleteNavigationAuditSession(id: number): Promise<void>;
+  
+  // Navigation Issues operations
+  getNavigationIssues(options?: { 
+    sessionId?: number; 
+    severity?: string; 
+    component?: string; 
+    isFixed?: boolean;
+    limit?: number 
+  }): Promise<NavigationIssue[]>;
+  getNavigationIssueById(id: number): Promise<NavigationIssue | undefined>;
+  getNavigationIssuesBySession(sessionId: number): Promise<NavigationIssue[]>;
+  createNavigationIssue(issue: Omit<NavigationIssue, 'id' | 'createdAt'>): Promise<NavigationIssue>;
+  updateNavigationIssue(id: number, updates: Partial<NavigationIssue>): Promise<NavigationIssue>;
+  deleteNavigationIssue(id: number): Promise<void>;
+  markNavigationIssueAsFixed(id: number, fixedBy: number): Promise<NavigationIssue>;
+  getUnfixedCriticalIssues(): Promise<NavigationIssue[]>;
+  
+  // Touch Target Metrics operations  
+  getTouchTargetMetrics(options?: { 
+    sessionId?: number; 
+    isCompliant?: boolean; 
+    elementType?: string 
+  }): Promise<TouchTargetMetric[]>;
+  getTouchTargetMetricById(id: number): Promise<TouchTargetMetric | undefined>;
+  getTouchTargetMetricsBySession(sessionId: number): Promise<TouchTargetMetric[]>;
+  createTouchTargetMetric(metric: Omit<TouchTargetMetric, 'id' | 'createdAt'>): Promise<TouchTargetMetric>;
+  updateTouchTargetMetric(id: number, updates: Partial<TouchTargetMetric>): Promise<TouchTargetMetric>;
+  deleteTouchTargetMetric(id: number): Promise<void>;
+  getTouchTargetComplianceStats(deviceType?: string): Promise<{ compliant: number; total: number; percentage: number }>;
+  
+  // Scrollability Tests operations
+  getScrollabilityTests(options?: { 
+    sessionId?: number; 
+    containerType?: string; 
+    isScrollable?: boolean 
+  }): Promise<ScrollabilityTest[]>;
+  getScrollabilityTestById(id: number): Promise<ScrollabilityTest | undefined>;
+  getScrollabilityTestsBySession(sessionId: number): Promise<ScrollabilityTest[]>;
+  createScrollabilityTest(test: Omit<ScrollabilityTest, 'id' | 'createdAt'>): Promise<ScrollabilityTest>;
+  updateScrollabilityTest(id: number, updates: Partial<ScrollabilityTest>): Promise<ScrollabilityTest>;
+  deleteScrollabilityTest(id: number): Promise<void>;
+  getScrollabilityComplianceStats(deviceType?: string): Promise<{ compliant: number; total: number; percentage: number }>;
+  
+  // Navigation Fixes operations
+  getNavigationFixes(options?: { 
+    issueId?: number; 
+    fixType?: string; 
+    success?: boolean 
+  }): Promise<NavigationFix[]>;
+  getNavigationFixById(id: number): Promise<NavigationFix | undefined>;
+  getNavigationFixesByIssue(issueId: number): Promise<NavigationFix[]>;
+  createNavigationFix(fix: Omit<NavigationFix, 'id' | 'appliedAt'>): Promise<NavigationFix>;
+  updateNavigationFix(id: number, updates: Partial<NavigationFix>): Promise<NavigationFix>;
+  deleteNavigationFix(id: number): Promise<void>;
+  
+  // Audit Performance History operations
+  getAuditPerformanceHistory(options?: { 
+    deviceType?: string; 
+    dateFrom?: string; 
+    dateTo?: string 
+  }): Promise<AuditPerformanceHistory[]>;
+  getAuditPerformanceHistoryById(id: number): Promise<AuditPerformanceHistory | undefined>;
+  getLatestAuditPerformanceByDevice(deviceType: string): Promise<AuditPerformanceHistory | undefined>;
+  upsertAuditPerformanceHistory(history: Omit<AuditPerformanceHistory, 'id' | 'updatedAt'>): Promise<AuditPerformanceHistory>;
+  updateAuditPerformanceHistory(id: number, updates: Partial<AuditPerformanceHistory>): Promise<AuditPerformanceHistory>;
+  deleteAuditPerformanceHistory(id: number): Promise<void>;
+  
+  // Audit Analytics and Reporting
+  getAuditSummaryStats(options?: { 
+    deviceType?: string; 
+    dateFrom?: string; 
+    dateTo?: string 
+  }): Promise<{
+    totalSessions: number;
+    avgPerformanceScore: number;
+    totalIssues: number;
+    criticalIssues: number;
+    warningIssues: number;
+    fixedIssues: number;
+    touchTargetCompliance: number;
+    scrollContainerCompliance: number;
+  }>;
+  
+  // Automated Fix Helpers
+  getAutoFixableIssues(): Promise<NavigationIssue[]>;
+  bulkApplyAutomaticFixes(issueIds: number[], appliedBy: number): Promise<NavigationFix[]>;
 }
 
 // Export the DatabaseStorage implementation from the separate file

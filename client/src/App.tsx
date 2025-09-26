@@ -141,6 +141,7 @@ import PagePermissions from "@/pages/PagePermissions";
 import DBIndex from "@/pages/DBIndex";
 import RefillVorlagen from "@/pages/RefillVorlagen";
 import LagerV2 from "@/pages/LagerV2";
+import NavigationAuditDashboard from "@/pages/NavigationAuditDashboard"; // Navigation Audit System Dashboard
 import { warehouseRoutes, buildWarehousePath } from "@/lib/warehouseRoutes";
 
 // Authentifizierte und nicht-authentifizierte Router

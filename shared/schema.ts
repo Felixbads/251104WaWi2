@@ -5059,3 +5059,220 @@ export const notificationLogsRelations = relations(notificationLogs, ({ one }) =
     references: [notificationRecipients.id],
   }),
 }));
+
+// ========================================
+// MOBILE-FIRST NAVIGATION AUDIT SYSTEM
+// ========================================
+
+// Navigation Audit Sessions - Track individual audit runs
+export const navigationAuditSessions = pgTable("navigation_audit_sessions", {
+  id: serial("id").primaryKey(),
+  sessionId: text("session_id").notNull().unique(),
+  auditType: text("audit_type").notNull(), // 'full', 'tabs', 'touch-targets', 'responsive'
+  performanceScore: integer("performance_score"), // 0-100
+  deviceType: text("device_type"), // 'mobile', 'tablet', 'desktop'
+  viewport: jsonb("viewport").$type<{ width: number; height: number }>(), 
+  userAgent: text("user_agent"),
+  totalIssues: integer("total_issues").default(0),
+  criticalIssues: integer("critical_issues").default(0),
+  warningIssues: integer("warning_issues").default(0),
+  testedElements: integer("tested_elements").default(0),
+  passedElements: integer("passed_elements").default(0),
+  failedElements: integer("failed_elements").default(0),
+  executionTime: integer("execution_time"), // milliseconds
+  createdBy: integer("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertNavigationAuditSessionSchema = createInsertSchema(navigationAuditSessions).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertNavigationAuditSession = z.infer<typeof insertNavigationAuditSessionSchema>;
+export type NavigationAuditSession = typeof navigationAuditSessions.$inferSelect;
+
+// Navigation Issues - Individual problems found during audits
+export const navigationIssues = pgTable("navigation_issues", {
+  id: serial("id").primaryKey(),
+  sessionId: integer("session_id").notNull().references(() => navigationAuditSessions.id),
+  issueType: text("issue_type").notNull(), // 'tab-overflow', 'touch-target-small', 'no-scroll', 'breakpoint-mismatch'
+  severity: text("severity").notNull(), // 'critical', 'warning', 'info'
+  component: text("component").notNull(), // 'TabsList', 'NavigationMenu', 'Button', etc.
+  elementSelector: text("element_selector"), // CSS selector for the problematic element
+  description: text("description").notNull(),
+  location: text("location"), // Human readable location
+  recommendation: text("recommendation"),
+  affectedBreakpoints: text("affected_breakpoints").array(),
+  currentValue: text("current_value"), // e.g., "32px width" for touch targets
+  expectedValue: text("expected_value"), // e.g., "44px minimum"
+  autoFixable: boolean("auto_fixable").default(false),
+  isFixed: boolean("is_fixed").default(false),
+  fixedAt: timestamp("fixed_at"),
+  fixedBy: integer("fixed_by").references(() => users.id),
+  additionalData: jsonb("additional_data"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertNavigationIssueSchema = createInsertSchema(navigationIssues).omit({
+  id: true,
+  isFixed: true,
+  fixedAt: true,
+  fixedBy: true,
+  createdAt: true,
+});
+
+export type InsertNavigationIssue = z.infer<typeof insertNavigationIssueSchema>;
+export type NavigationIssue = typeof navigationIssues.$inferSelect;
+
+// Touch Target Metrics - Track element size compliance
+export const touchTargetMetrics = pgTable("touch_target_metrics", {
+  id: serial("id").primaryKey(),
+  sessionId: integer("session_id").notNull().references(() => navigationAuditSessions.id),
+  elementType: text("element_type").notNull(), // 'button', 'link', 'tab', 'input'
+  elementSelector: text("element_selector"),
+  width: real("width").notNull(),
+  height: real("height").notNull(),
+  minTouchSize: integer("min_touch_size").default(44), // Apple/Google recommendation
+  isCompliant: boolean("is_compliant").notNull(),
+  complianceScore: integer("compliance_score"), // 0-100
+  accessibility: jsonb("accessibility").$type<{
+    hasAriaLabel: boolean;
+    hasRoleAttribute: boolean;
+    keyboardAccessible: boolean;
+  }>(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertTouchTargetMetricSchema = createInsertSchema(touchTargetMetrics).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertTouchTargetMetric = z.infer<typeof insertTouchTargetMetricSchema>;
+export type TouchTargetMetric = typeof touchTargetMetrics.$inferSelect;
+
+// Scrollability Tests - Track container behavior
+export const scrollabilityTests = pgTable("scrollability_tests", {
+  id: serial("id").primaryKey(),
+  sessionId: integer("session_id").notNull().references(() => navigationAuditSessions.id),
+  containerType: text("container_type").notNull(), // 'tablist', 'navigation', 'mobile-menu'
+  containerSelector: text("container_selector"),
+  hasOverflow: boolean("has_overflow").notNull(),
+  isScrollable: boolean("is_scrollable").notNull(),
+  scrollMethod: text("scroll_method"), // 'overflow-x: scroll', 'auto', 'hidden'
+  containerWidth: real("container_width"),
+  contentWidth: real("content_width"),
+  scrollWidth: real("scroll_width"),
+  hasScrollIndicators: boolean("has_scroll_indicators").default(false),
+  hasScrollButtons: boolean("has_scroll_buttons").default(false),
+  issues: text("issues").array(),
+  recommendations: text("recommendations").array(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertScrollabilityTestSchema = createInsertSchema(scrollabilityTests).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertScrollabilityTest = z.infer<typeof insertScrollabilityTestSchema>;
+export type ScrollabilityTest = typeof scrollabilityTests.$inferSelect;
+
+// Automated Fixes - Track automatic corrections applied
+export const navigationFixes = pgTable("navigation_fixes", {
+  id: serial("id").primaryKey(),
+  issueId: integer("issue_id").notNull().references(() => navigationIssues.id),
+  fixType: text("fix_type").notNull(), // 'add-scroll-area', 'increase-touch-target', 'add-scroll-buttons'
+  fixDescription: text("fix_description").notNull(),
+  appliedChanges: jsonb("applied_changes"), // CSS classes, attributes, etc. that were changed
+  success: boolean("success").default(true),
+  errorMessage: text("error_message"),
+  beforeSnapshot: text("before_snapshot"), // CSS or DOM state before fix
+  afterSnapshot: text("after_snapshot"), // CSS or DOM state after fix
+  appliedBy: integer("applied_by").references(() => users.id),
+  appliedAt: timestamp("applied_at").defaultNow(),
+});
+
+export const insertNavigationFixSchema = createInsertSchema(navigationFixes).omit({
+  id: true,
+  appliedAt: true,
+});
+
+export type InsertNavigationFix = z.infer<typeof insertNavigationFixSchema>;
+export type NavigationFix = typeof navigationFixes.$inferSelect;
+
+// Audit Performance History - Track overall system health over time
+export const auditPerformanceHistory = pgTable("audit_performance_history", {
+  id: serial("id").primaryKey(),
+  date: date("date").notNull().default(sql`CURRENT_DATE`),
+  deviceType: text("device_type").notNull(),
+  avgPerformanceScore: real("avg_performance_score"),
+  totalAudits: integer("total_audits").default(0),
+  totalIssues: integer("total_issues").default(0),
+  criticalIssues: integer("critical_issues").default(0),
+  warningIssues: integer("warning_issues").default(0),
+  fixedIssues: integer("fixed_issues").default(0),
+  touchTargetCompliance: real("touch_target_compliance"), // percentage
+  scrollContainerCompliance: real("scroll_container_compliance"), // percentage
+  responsiveBreakpointCompliance: real("responsive_breakpoint_compliance"), // percentage
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  uniqueDateDevice: unique().on(table.date, table.deviceType),
+}));
+
+export const insertAuditPerformanceHistorySchema = createInsertSchema(auditPerformanceHistory).omit({
+  id: true,
+  updatedAt: true,
+});
+
+export type InsertAuditPerformanceHistory = z.infer<typeof insertAuditPerformanceHistorySchema>;
+export type AuditPerformanceHistory = typeof auditPerformanceHistory.$inferSelect;
+
+// Relations for the audit system
+export const navigationAuditSessionsRelations = relations(navigationAuditSessions, ({ one, many }) => ({
+  createdByUser: one(users, {
+    fields: [navigationAuditSessions.createdBy],
+    references: [users.id],
+  }),
+  issues: many(navigationIssues),
+  touchTargetMetrics: many(touchTargetMetrics),
+  scrollabilityTests: many(scrollabilityTests),
+}));
+
+export const navigationIssuesRelations = relations(navigationIssues, ({ one, many }) => ({
+  session: one(navigationAuditSessions, {
+    fields: [navigationIssues.sessionId],
+    references: [navigationAuditSessions.id],
+  }),
+  fixedByUser: one(users, {
+    fields: [navigationIssues.fixedBy],
+    references: [users.id],
+  }),
+  fixes: many(navigationFixes),
+}));
+
+export const touchTargetMetricsRelations = relations(touchTargetMetrics, ({ one }) => ({
+  session: one(navigationAuditSessions, {
+    fields: [touchTargetMetrics.sessionId],
+    references: [navigationAuditSessions.id],
+  }),
+}));
+
+export const scrollabilityTestsRelations = relations(scrollabilityTests, ({ one }) => ({
+  session: one(navigationAuditSessions, {
+    fields: [scrollabilityTests.sessionId],
+    references: [navigationAuditSessions.id],
+  }),
+}));
+
+export const navigationFixesRelations = relations(navigationFixes, ({ one }) => ({
+  issue: one(navigationIssues, {
+    fields: [navigationFixes.issueId],
+    references: [navigationIssues.id],
+  }),
+  appliedByUser: one(users, {
+    fields: [navigationFixes.appliedBy],
+    references: [users.id],
+  }),
+}));

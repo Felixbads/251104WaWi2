@@ -2,6 +2,29 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Mobile-First Navigation Audit System Utilities */
+@layer utilities {
+  /* Hide scrollbars for enhanced mobile tab experience */
+  .scrollbar-hide {
+    -ms-overflow-style: none;  /* Internet Explorer 10+ */
+    scrollbar-width: none;     /* Firefox */
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;             /* Safari and Chrome */
+  }
+  
+  /* Enhanced touch targets for mobile audit compliance */
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  
+  /* Touch manipulation for better mobile responsiveness */
+  .touch-manipulation {
+    touch-action: manipulation;
+  }
+}
+
 @layer base {
   * {
     @apply border-border;
