@@ -1,0 +1,455 @@
+
+# LAGER-KONZEPT VOLLSTÄNDIGE IMPLEMENTIERUNG
+
+## ÜBERSICHT DER AKTUELLEN SITUATION
+
+**Status**: Das Lagersystem ist grundlegend implementiert, aber **kritische Lücken** bestehen bei der MHD-Verfolgung und FIFO-Integration vom Lager zu den Automaten.
+
+### WAS FUNKTIONIERT BEREITS:
+1. ✅ **Warehouse3-Grundstruktur**: `server/warehouse3.storage.ts` - Vollständiges CRUD für Lager, Zuordnungen, Inventar
+2. ✅ **MHD-FIFO Service**: `server/services/mhdFifoService.ts` - FIFO-Logik für Chargen implementiert
+3. ✅ **Batch-Management**: `inventory_batches` Tabelle mit MHD-Tracking
+4. ✅ **UI-Komponenten**: Warehouse3Dashboard, Batch-Dialoge, Inventory-Management
+
+### KRITISCHE LÜCKEN:
+1. ❌ **Refill-MHD-Transfer**: MHD wird NICHT vom Lager zum Automaten übertragen
+2. ❌ **Machine-Stock-MHD**: `machine_stocks` Tabelle fehlt MHD-Felder
+3. ❌ **FIFO-Integration**: Refill-Prozess nutzt FIFO nicht automatisch
+4. ❌ **MHD-Verfolgung**: Kein durchgängiges MHD-Tracking vom Wareneingang bis Verkauf
+
+## IMPLEMENTIERUNGSAUFTRAG
+
+### PHASE 1: DATABASE SCHEMA ERWEITERN
+
+**1.1 Machine-Stocks Tabelle erweitern**
+```sql
+-- Zu implementierende Schema-Erweiterung
+ALTER TABLE machine_stocks ADD COLUMN IF NOT EXISTS expiry_date DATE;
+ALTER TABLE machine_stocks ADD COLUMN IF NOT EXISTS batch_id INTEGER REFERENCES inventory_batches(id);
+ALTER TABLE machine_stocks ADD COLUMN IF NOT EXISTS received_date TIMESTAMP DEFAULT NOW();
+ALTER TABLE machine_stocks ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'active';
+```
+
+**1.2 Refill-Details erweitern**
+```sql
+-- Refill-Details um MHD-Informationen erweitern
+ALTER TABLE refill_details ADD COLUMN IF NOT EXISTS batch_id INTEGER REFERENCES inventory_batches(id);
+ALTER TABLE refill_details ADD COLUMN IF NOT EXISTS source_expiry_date DATE;
+ALTER TABLE refill_details ADD COLUMN IF NOT EXISTS fifo_transfer_log JSONB;
+```
+
+### PHASE 2: REFILL-PROZESS MIT MHD-FIFO INTEGRATION
+
+**2.1 Erweitere `server/routes/machines.ts`**
+
+Im Stock-Endpoint (`/api/machines/:id/stock`) die FIFO-Batch-Berechnung integrieren:
+
+```typescript
+// NEUE FUNKTION: FIFO Batch Allocation für Machine Stock
+async function calculateFifoBatchAllocation(
+  db: any, 
+  machineId: number, 
+  productName: string, 
+  currentQuantity: number
+): Promise<{
+  batches: Array<{
+    batchId: number;
+    batchNumber: string;
+    quantity: number;
+    expiryDate: string;
+    daysUntilExpiry: number;
+  }>;
+  earliestMhd: string | null;
+  totalBatches: number;
+  mhdStatus: 'ok' | 'warning' | 'expired';
+}> {
+  // FIFO-Batch-Zuordnung basierend auf machine_stocks
+  const batchResult = await db.query(`
+    SELECT 
+      ms.batch_id,
+      ms.expiry_date,
+      ms.quantity,
+      ib.batch_number,
+      DATE_PART('day', ms.expiry_date - CURRENT_DATE) as days_until_expiry
+    FROM machine_stocks ms
+    LEFT JOIN inventory_batches ib ON ms.batch_id = ib.id
+    WHERE ms.machine_id = $1 
+      AND ms.product_vendon_id IN (
+        SELECT vendon_id FROM products WHERE product_name ILIKE $2
+      )
+      AND ms.quantity > 0
+    ORDER BY ms.expiry_date ASC NULLS LAST, ms.received_date ASC
+  `, [machineId, `%${productName}%`]);
+
+  // Verarbeitung und Status-Berechnung
+  const batches = batchResult.rows.map(row => ({
+    batchId: row.batch_id,
+    batchNumber: row.batch_number || `BATCH-${row.batch_id}`,
+    quantity: row.quantity,
+    expiryDate: row.expiry_date,
+    daysUntilExpiry: row.days_until_expiry || 999
+  }));
+
+  const earliestMhd = batches.length > 0 ? batches[0].expiryDate : null;
+  const mhdStatus = batches.some(b => b.daysUntilExpiry < 0) ? 'expired' :
+                   batches.some(b => b.daysUntilExpiry <= 7) ? 'warning' : 'ok';
+
+  return {
+    batches,
+    earliestMhd,
+    totalBatches: batches.length,
+    mhdStatus
+  };
+}
+```
+
+**2.2 Refill-Prozess MHD-Integration**
+
+In `server/routes.ts` den MHD-Transfer bei Refills aktivieren:
+
+```typescript
+// ERWEITERE den bestehenden Refill-Handler
+if (detail.added && detail.added > 0) {
+  // **NEUE MHD-FIFO INTEGRATION**
+  try {
+    console.log(`[MHD_FIFO] Starting MHD transfer for ${detail.product_name}, quantity: ${detail.added}`);
+    
+    // Warehouse-ID aus Machine-Zuordnung ermitteln  
+    const warehouseResult = await rawDb.query(`
+      SELECT warehouse_id FROM machine_warehouse_assignments 
+      WHERE machine_id = $1 AND is_primary = true LIMIT 1
+    `, [refill.machine_id]);
+    
+    const warehouseId = warehouseResult.rows[0]?.warehouse_id || 1; // Fallback
+    
+    // **AUTOMATISCHER MHD-FIFO TRANSFER**
+    const mhdTransfers = await mhdFifoService.transferMhdFromWarehouse(
+      refill.machine_id,
+      detail.vendon_product_id || detail.product_name,
+      detail.added,
+      warehouseId,
+      detail.stock_id || 0
+    );
+    
+    console.log(`[MHD_FIFO] Successfully transferred: ${mhdTransfers.length} batches`);
+    
+    // Transfer-Details in refill_details speichern
+    await rawDb.query(`
+      UPDATE refill_details 
+      SET fifo_transfer_log = $1, 
+          source_expiry_date = $2,
+          updated_at = NOW()
+      WHERE id = $3
+    `, [
+      JSON.stringify(mhdTransfers),
+      mhdTransfers[0]?.expiryDate || null,
+      detail.id
+    ]);
+    
+  } catch (mhdError) {
+    console.error(`[MHD_FIFO] Transfer failed for ${detail.product_name}:`, mhdError);
+    // Refill fortsetzten, aber Fehler loggen
+  }
+}
+```
+
+### PHASE 3: FRONTEND MHD-ANZEIGE
+
+**3.1 AutomatDetail.tsx erweitern**
+
+Im Warenbestand-Tab (`warenbestand`) die FIFO-Batch-Informationen anzeigen:
+
+```typescript
+// ERWEITERE das MachineStock Interface
+interface MachineStock {
+  // ... existing fields
+  batches?: Array<{
+    batchId: number;
+    batchNumber: string;
+    quantity: number;
+    expiryDate: string;
+    daysUntilExpiry: number;
+  }>;
+  earliestMhd?: string;
+  mhdStatus?: 'ok' | 'warning' | 'expired';
+}
+
+// NEUE UI-Komponente für MHD-Anzeige
+const MHDBatchDisplay = ({ stock }: { stock: MachineStock }) => {
+  if (!stock.batches || stock.batches.length === 0) {
+    return <Badge variant="outline">Kein MHD</Badge>;
+  }
+
+  const earliestBatch = stock.batches[0];
+  const statusColor = stock.mhdStatus === 'expired' ? 'destructive' : 
+                     stock.mhdStatus === 'warning' ? 'secondary' : 'default';
+
+  return (
+    <div className="space-y-1">
+      <Badge variant={statusColor}>
+        MHD: {format(new Date(earliestBatch.expiryDate), 'dd.MM.yyyy')}
+      </Badge>
+      {stock.batches.length > 1 && (
+        <Badge variant="outline">+{stock.batches.length - 1} weitere</Badge>
+      )}
+    </div>
+  );
+};
+```
+
+**3.2 Warenbestand-Tabelle erweitern**
+
+```typescript
+// ERWEITERE die Stock-Tabelle um MHD-Spalte
+<TableHead>MHD (FIFO)</TableHead>
+
+// In der Tabellen-Zeile:
+<TableCell>
+  <MHDBatchDisplay stock={stockItem} />
+</TableCell>
+```
+
+### PHASE 4: MHD-OPTIMIERTE REFILL-TEMPLATES
+
+**4.1 Refill-Template Service erweitern**
+
+In `server/services/mhdOptimizedRefillTemplateService.ts`:
+
+```typescript
+// NEUE FUNKTION: MHD-basierte Template-Optimierung
+export async function optimizeTemplateForShortExpiry(
+  templateId: number,
+  maxDaysUntilExpiry: number = 14
+): Promise<{
+  success: boolean;
+  adjustedProducts: number;
+  template?: MHDOptimizedTemplate;
+}> {
+  // 1. Template laden
+  const template = await getRefillTemplate(templateId);
+  if (!template) return { success: false, adjustedProducts: 0 };
+
+  // 2. Für jedes Produkt MHD-Status prüfen
+  let adjustedProducts = 0;
+  const optimizedProducts = [];
+
+  for (const product of template.products) {
+    // Prüfe kürzeste MHD im Lager
+    const batchResult = await db.query(`
+      SELECT MIN(expiry_date) as earliest_expiry, SUM(quantity) as total_stock
+      FROM inventory_batches ib
+      JOIN products p ON ib.product_id = p.id  
+      WHERE p.vendon_id = $1 AND ib.quantity > 0 AND ib.status = 'active'
+    `, [product.vendonId]);
+
+    const earliestExpiry = batchResult.rows[0]?.earliest_expiry;
+    const daysUntilExpiry = earliestExpiry ? 
+      Math.ceil((new Date(earliestExpiry).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : 999;
+
+    let adjustedQuantity = product.quantity;
+    let adjustmentReason = '';
+
+    // MHD-basierte Mengenanpassung
+    if (daysUntilExpiry <= 3) {
+      adjustedQuantity = Math.min(product.quantity, 5); // Nur minimale Menge
+      adjustmentReason = 'Kritisch: MHD in 3 Tagen - Minimalmenge';
+      adjustedProducts++;
+    } else if (daysUntilExpiry <= 7) {
+      adjustedQuantity = Math.floor(product.quantity * 0.6); // 60% der ursprünglichen Menge
+      adjustmentReason = 'Warnung: MHD in 1 Woche - Reduzierte Menge';
+      adjustedProducts++;
+    } else if (daysUntilExpiry <= maxDaysUntilExpiry) {
+      adjustedQuantity = Math.floor(product.quantity * 0.8); // 80% der ursprünglichen Menge
+      adjustmentReason = 'Vorsicht: Kurzes MHD - Leicht reduziert';
+      adjustedProducts++;
+    }
+
+    optimizedProducts.push({
+      ...product,
+      originalQuantity: product.quantity,
+      adjustedQuantity,
+      mhdDays: daysUntilExpiry,
+      riskCategory: daysUntilExpiry <= 3 ? 'critical' as const :
+                   daysUntilExpiry <= 7 ? 'high' as const :
+                   daysUntilExpiry <= 14 ? 'medium' as const : 'low' as const,
+      adjustmentReason
+    });
+
+    // Template aktualisieren
+    if (adjustedQuantity !== product.quantity) {
+      await db.update(refillTemplateProducts)
+        .set({ quantity: adjustedQuantity })
+        .where(eq(refillTemplateProducts.id, product.id));
+    }
+  }
+
+  return {
+    success: true,
+    adjustedProducts,
+    template: {
+      template,
+      products: optimizedProducts,
+      summary: {
+        totalProducts: optimizedProducts.length,
+        adjustedProducts,
+        criticalProducts: optimizedProducts.filter(p => p.riskCategory === 'critical').length,
+        totalReduction: optimizedProducts.reduce((sum, p) => sum + (p.originalQuantity - p.adjustedQuantity), 0),
+        averageConfidence: 85 // MHD-basierte Optimierung hat hohe Konfidenz
+      }
+    }
+  };
+}
+```
+
+### PHASE 5: INTEGRATION UND TESTING
+
+**5.1 Route Integration**
+
+Neue API-Endpunkte in `server/routes/machines.ts`:
+
+```typescript
+// MHD-optimierte Refill-Vorlage
+router.post('/:id/refill-templates/mhd-optimize', async (req, res) => {
+  const machineId = parseInt(req.params.id);
+  const { templateId, maxDaysUntilExpiry = 14 } = req.body;
+
+  const result = await optimizeTemplateForShortExpiry(templateId, maxDaysUntilExpiry);
+  
+  if (result.success) {
+    res.json({
+      success: true,
+      message: `Template optimiert: ${result.adjustedProducts} Produkte angepasst`,
+      template: result.template
+    });
+  } else {
+    res.status(500).json({ error: 'Optimierung fehlgeschlagen' });
+  }
+});
+
+// FIFO-Batch-Details für Automaten-Bestand
+router.get('/:id/stock/fifo-batches', async (req, res) => {
+  const machineId = parseInt(req.params.id);
+  
+  const batchDetails = await rawDb.query(`
+    SELECT 
+      ms.product_vendon_id,
+      p.product_name,
+      ms.quantity,
+      ms.expiry_date,
+      ms.batch_id,
+      ib.batch_number,
+      DATE_PART('day', ms.expiry_date - CURRENT_DATE) as days_until_expiry
+    FROM machine_stocks ms
+    LEFT JOIN products p ON ms.product_vendon_id = p.vendon_id
+    LEFT JOIN inventory_batches ib ON ms.batch_id = ib.id
+    WHERE ms.machine_id = $1 AND ms.quantity > 0
+    ORDER BY ms.expiry_date ASC NULLS LAST
+  `, [machineId]);
+
+  res.json({
+    success: true,
+    batches: batchDetails.rows,
+    summary: {
+      totalBatches: batchDetails.rows.length,
+      expiringSoon: batchDetails.rows.filter(b => b.days_until_expiry <= 7).length,
+      expired: batchDetails.rows.filter(b => b.days_until_expiry < 0).length
+    }
+  });
+});
+```
+
+**5.2 Frontend Integration**
+
+Neuer Tab im AutomatDetail für MHD-Übersicht:
+
+```typescript
+<TabsTrigger value="mhd-tracking">MHD-Tracking</TabsTrigger>
+
+<TabsContent value="mhd-tracking">
+  <div className="space-y-6">
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {/* MHD-Status Karten */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm">Kritische MHDs</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold text-red-600">
+            {fifoBatches?.filter(b => b.days_until_expiry <= 3).length || 0}
+          </div>
+        </CardContent>
+      </Card>
+      
+      {/* FIFO-Batch-Tabelle */}
+      <Card className="md:col-span-3">
+        <CardHeader>
+          <CardTitle>FIFO-Batch-Tracking</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Produkt</TableHead>
+                <TableHead>Charge</TableHead>
+                <TableHead>Menge</TableHead>
+                <TableHead>MHD</TableHead>
+                <TableHead>Tage bis MHD</TableHead>
+                <TableHead>Status</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {fifoBatches?.map((batch, index) => (
+                <TableRow key={index}>
+                  <TableCell>{batch.product_name}</TableCell>
+                  <TableCell>{batch.batch_number || 'N/A'}</TableCell>
+                  <TableCell>{batch.quantity}</TableCell>
+                  <TableCell>{formatDateOnly(batch.expiry_date)}</TableCell>
+                  <TableCell>{Math.ceil(batch.days_until_expiry || 0)}</TableCell>
+                  <TableCell>
+                    <Badge variant={
+                      batch.days_until_expiry < 0 ? 'destructive' :
+                      batch.days_until_expiry <= 3 ? 'destructive' :
+                      batch.days_until_expiry <= 7 ? 'secondary' : 'default'
+                    }>
+                      {batch.days_until_expiry < 0 ? 'Abgelaufen' :
+                       batch.days_until_expiry <= 3 ? 'Kritisch' :
+                       batch.days_until_expiry <= 7 ? 'Warnung' : 'OK'}
+                    </Badge>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+    </div>
+  </div>
+</TabsContent>
+```
+
+## ERFOLGSKRITERIEN
+
+Nach der Implementierung muss das System folgende Anforderungen erfüllen:
+
+1. ✅ **Durchgängiges MHD-Tracking**: Vom Wareneingang über Lagerung bis zum Automaten
+2. ✅ **Automatischer FIFO-Transfer**: Bei jedem Refill werden MHD-Daten korrekt übertragen
+3. ✅ **MHD-Visualisierung**: Klare Anzeige der MHD-Situation in Automaten
+4. ✅ **Optimierte Refill-Templates**: Automatische Mengenanpassung bei kurzen MHDs
+5. ✅ **Batch-Traceability**: Vollständige Nachverfolgung von der Charge bis zum Verkauf
+
+## IMPLEMENTIERUNGSREIHENFOLGE
+
+1. **Schritt 1**: Database Schema erweitern (machine_stocks, refill_details)
+2. **Schritt 2**: MHD-FIFO Integration in Refill-Prozess
+3. **Schritt 3**: Frontend MHD-Anzeigen implementieren
+4. **Schritt 4**: MHD-optimierte Refill-Templates
+5. **Schritt 5**: Testing und Validierung
+
+**Geschätzte Implementierungszeit**: 6-8 Stunden
+
+**Kritische Abhängigkeiten**: 
+- `mhdFifoService.ts` ist bereits vollständig implementiert
+- `warehouse3.storage.ts` bietet alle benötigten Grundfunktionen
+- Database Schema muss erweitert werden
+
+Diese Implementierung schließt die kritische Lücke im MHD-Tracking und schafft ein vollständiges FIFO-System vom Lager bis zum Verkauf.

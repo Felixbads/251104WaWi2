@@ -1255,6 +1255,17 @@ export const refillDetails = pgTable("refill_details", {
   refillUnitSize: integer("refill_unit_size").default(0),   // Größe der Nachfülleinheit
   minRefill: integer("min_refill").default(0),              // Mindestmenge für Nachfüllung
   critical: boolean("critical").default(false),             // Kritischer Bestand?
+  
+  // 🔥 NEUE MHD-FIFO INTEGRATION FELDER (wie in Spezifikation gefordert)
+  batchId: integer("batch_id"),                              // Referenz zur ursprünglichen Lager-Charge
+  sourceBatchNumber: text("source_batch_number"),           // Chargennummer für Rückverfolgbarkeit
+  sourceExpiryDate: date("source_expiry_date"),             // MHD der Ursprungscharge
+  fifoTransferLog: jsonb("fifo_transfer_log").default('{}'), // JSON-Log des FIFO-Transfers
+  mhdRiskCategory: text("mhd_risk_category").default('unknown'), // Risiko-Kategorie: critical|high|medium|low|ok
+  mhdStrategy: text("mhd_strategy").default('auto'),        // FIFO-Strategie: fifo|manual|auto
+  allocatedQuantity: integer("allocated_quantity").default(0), // Tatsächlich zugewiesene Menge
+  allocationSource: text("allocation_source").default('warehouse'), // Quelle der Zuweisung: warehouse|direct|manual
+  
   extraData: text("extra_data").default('{}'),              // JSON mit allen zusätzlichen Daten
   createdAt: timestamp("created_at").defaultNow(),          // Erstellungsdatum
   updatedAt: timestamp("updated_at").defaultNow(),          // Aktualisierungsdatum
