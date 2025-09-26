@@ -2,24 +2,41 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { AlertTriangle, CheckCircle, Clock } from 'lucide-react';
+import { AlertTriangle, CheckCircle, Clock, Calendar, Package2 } from 'lucide-react';
+
+interface BatchInfo {
+  batchId: number;
+  batchNumber: string;
+  quantity: number;
+  expiryDate: string;
+  daysUntilExpiry: number;
+}
 
 interface ProductStockInfo {
   id: number;
   stockId: number;
   name: string;
+  productName: string;
   amount: number;
+  currentQuantity: number;
   amountMax: number;
+  maxQuantity: number;
   amountCritical: number;
   fillRatio: number;
   isCritical: boolean;
   selections: { selection: number; price: number }[];
+  status: 'critical' | 'warning' | 'good';
+  // 🔥 NEUE MHD-FIFO FELDER (wie in deutscher Spezifikation)
+  batches: BatchInfo[];
+  earliestMhd: string | null;
+  totalBatches: number;
+  mhdStatus: 'ok' | 'warning' | 'expired' | 'critical';
 }
 
 interface MachineStockData {
-  machineId: number;
+  machineId: string; // 🔧 Fixed: Changed from number to string (was vendonId assignment)
   machineName: string;
-  vendonId: number;
+  vendonId: string; // 🔧 Fixed: Changed from number to string to match schema
   products: ProductStockInfo[];
   totalFillLevel: number;
   criticalProducts: number;
@@ -27,14 +44,51 @@ interface MachineStockData {
 }
 
 interface MachineStockDisplayProps {
-  vendonId: number;
+  vendonId: string; // 🔧 Fixed: Changed from number to string to match schema
   machineName?: string;
 }
+
+// 🔥 MHD-HILFSFUNKTIONEN (wie in deutscher Spezifikation)
+const getMhdStatusColor = (mhdStatus: string, daysUntilExpiry?: number) => {
+  if (mhdStatus === 'expired' || (daysUntilExpiry !== undefined && daysUntilExpiry < 0)) {
+    return 'text-red-700 bg-red-100 border-red-300';
+  }
+  if (mhdStatus === 'critical' || (daysUntilExpiry !== undefined && daysUntilExpiry <= 3)) {
+    return 'text-red-600 bg-red-50 border-red-200';
+  }
+  if (mhdStatus === 'warning' || (daysUntilExpiry !== undefined && daysUntilExpiry <= 7)) {
+    return 'text-orange-600 bg-orange-50 border-orange-200';
+  }
+  return 'text-green-600 bg-green-50 border-green-200';
+};
+
+const getMhdStatusBadge = (mhdStatus: string, daysUntilExpiry?: number) => {
+  if (mhdStatus === 'expired' || (daysUntilExpiry !== undefined && daysUntilExpiry < 0)) {
+    return { variant: 'destructive' as const, text: 'ABGELAUFEN' };
+  }
+  if (mhdStatus === 'critical' || (daysUntilExpiry !== undefined && daysUntilExpiry <= 3)) {
+    return { variant: 'destructive' as const, text: `${daysUntilExpiry}T KRITISCH` };
+  }
+  if (mhdStatus === 'warning' || (daysUntilExpiry !== undefined && daysUntilExpiry <= 7)) {
+    return { variant: 'secondary' as const, text: `${daysUntilExpiry}T WARNUNG` };
+  }
+  return { variant: 'default' as const, text: daysUntilExpiry ? `${daysUntilExpiry}T OK` : 'OK' };
+};
+
+const formatMhdDate = (dateStr: string | null) => {
+  if (!dateStr) return 'Unbekannt';
+  try {
+    return new Date(dateStr).toLocaleDateString('de-DE');
+  } catch {
+    return 'Ungültig';
+  }
+};
 
 export function MachineStockDisplay({ vendonId, machineName }: MachineStockDisplayProps) {
   const [stockData, setStockData] = useState<MachineStockData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showMhdDetails, setShowMhdDetails] = useState(false);
 
   useEffect(() => {
     const fetchStockData = async () => {
@@ -42,14 +96,51 @@ export function MachineStockDisplay({ vendonId, machineName }: MachineStockDispl
         setLoading(true);
         setError(null);
         
-        const response = await fetch(`/api/machine-stock/${vendonId}`);
-        const result = await response.json();
+        // 🔥 ENHANCED API CALL: Use machines stock endpoint with MHD-FIFO data
+        const response = await fetch(`/api/machines/${vendonId}/stock`);
         
-        if (result.success) {
-          setStockData(result.data);
-        } else {
-          setError(result.error || 'Fehler beim Laden der Bestandsdaten');
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
         }
+        
+        const stockProducts = await response.json();
+        
+        // Transform data to match expected format with MHD support
+        const transformedData: MachineStockData = {
+          machineId: vendonId,
+          machineName: machineName || `Maschine ${vendonId}`,
+          vendonId: vendonId,
+          products: stockProducts.map((product: any, index: number) => ({
+            id: product.id || index + 1,
+            stockId: product.vendonId || product.id || index + 1,
+            name: product.productName || product.name || 'Unbekanntes Produkt',
+            productName: product.productName || product.name || 'Unbekanntes Produkt',
+            amount: product.currentQuantity || 0,
+            currentQuantity: product.currentQuantity || 0,
+            amountMax: product.maxQuantity || 10,
+            maxQuantity: product.maxQuantity || 10,
+            amountCritical: 2,
+            fillRatio: (product.currentQuantity || 0) / (product.maxQuantity || 10),
+            isCritical: product.status === 'critical' || (product.currentQuantity || 0) <= 2,
+            selections: [{ selection: 1, price: 0 }],
+            status: product.status || 'good',
+            // MHD-FIFO Daten aus Backend
+            batches: product.batches || [],
+            earliestMhd: product.earliestMhd,
+            totalBatches: product.totalBatches || 0,
+            mhdStatus: product.mhdStatus || 'ok'
+          })),
+          totalFillLevel: 0,
+          criticalProducts: 0,
+          lastUpdate: new Date().toISOString()
+        };
+        
+        // Calculate totals
+        transformedData.totalFillLevel = transformedData.products.reduce((acc, p) => acc + p.fillRatio, 0) / transformedData.products.length;
+        transformedData.criticalProducts = transformedData.products.filter(p => p.isCritical).length;
+        
+        setStockData(transformedData);
+        console.log(`[MHD-FIFO] ✅ Loaded ${transformedData.products.length} products with enhanced MHD data`);
       } catch (err) {
         setError('Verbindungsfehler beim Laden der Bestandsdaten');
         console.error('Fehler beim Laden der Maschinendaten:', err);
@@ -163,6 +254,43 @@ export function MachineStockDisplay({ vendonId, machineName }: MachineStockDispl
             </div>
           </div>
 
+          {/* 🔥 MHD-ÜBERSICHT (wie in deutscher Spezifikation) */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium">MHD-Status Übersicht</span>
+              <button 
+                onClick={() => setShowMhdDetails(!showMhdDetails)}
+                className="text-xs text-blue-600 hover:text-blue-800"
+              >
+                {showMhdDetails ? 'Weniger anzeigen' : 'Details anzeigen'}
+              </button>
+            </div>
+            
+            {/* MHD Kategorien */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-center text-xs">
+              {(() => {
+                const mhdCounts = {
+                  expired: stockData.products.filter(p => p.mhdStatus === 'expired').length,
+                  critical: stockData.products.filter(p => p.mhdStatus === 'critical').length,
+                  warning: stockData.products.filter(p => p.mhdStatus === 'warning').length,
+                  ok: stockData.products.filter(p => p.mhdStatus === 'ok').length
+                };
+                
+                return [
+                  { label: 'Abgelaufen', count: mhdCounts.expired, color: 'text-red-700 bg-red-100' },
+                  { label: 'Kritisch', count: mhdCounts.critical, color: 'text-red-600 bg-red-50' },
+                  { label: 'Warnung', count: mhdCounts.warning, color: 'text-orange-600 bg-orange-50' },
+                  { label: 'OK', count: mhdCounts.ok, color: 'text-green-600 bg-green-50' }
+                ].map(({ label, count, color }) => (
+                  <div key={label} className={`p-2 rounded border ${color}`}>
+                    <div className="font-bold text-sm">{count}</div>
+                    <div>{label}</div>
+                  </div>
+                ));
+              })()}
+            </div>
+          </div>
+
           {/* Kritische Produkte Warnung */}
           {criticalCount > 0 && (
             <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-md">
@@ -186,8 +314,110 @@ export function MachineStockDisplay({ vendonId, machineName }: MachineStockDispl
         </CardContent>
       </Card>
 
-      {/* Detaillierte Produktliste (nur kritische Produkte anzeigen) */}
-      {criticalCount > 0 && (
+      {/* 🔥 ERWEITERTE MHD-FIFO PRODUKTLISTE (wie in deutscher Spezifikation) */}
+      {showMhdDetails && (
+        <Card className="w-full">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Package2 className="h-5 w-5" />
+              MHD-FIFO Produktdetails ({stockData.products.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {stockData.products.map(product => {
+                const earliestBatch = product.batches?.[0];
+                const daysUntilExpiry = earliestBatch ? 
+                  Math.ceil((new Date(earliestBatch.expiryDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : null;
+                
+                const mhdBadge = getMhdStatusBadge(product.mhdStatus, daysUntilExpiry);
+                const colorClass = getMhdStatusColor(product.mhdStatus, daysUntilExpiry);
+
+                return (
+                  <div key={product.id} className={`p-4 rounded-md border ${colorClass}`}>
+                    {/* Header mit Produktname und MHD Status */}
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex-1">
+                        <div className="font-semibold text-base">{product.productName}</div>
+                        <div className="text-sm text-gray-600">
+                          Bestand: {product.currentQuantity}/{product.maxQuantity} • 
+                          {product.fillRatio > 0 ? ` ${Math.round(product.fillRatio * 100)}% gefüllt` : ' Leer'}
+                        </div>
+                      </div>
+                      <Badge variant={mhdBadge.variant} className="ml-2">
+                        {mhdBadge.text}
+                      </Badge>
+                    </div>
+
+                    {/* MHD und FIFO Informationen */}
+                    {product.earliestMhd && (
+                      <div className="flex items-center gap-4 mb-3 text-sm">
+                        <div className="flex items-center gap-1">
+                          <Calendar className="h-4 w-4" />
+                          <span>Frühestes MHD: {formatMhdDate(product.earliestMhd)}</span>
+                        </div>
+                        {daysUntilExpiry !== null && (
+                          <div className="text-sm">
+                            ({daysUntilExpiry >= 0 ? `${daysUntilExpiry} Tage` : `${Math.abs(daysUntilExpiry)} Tage überfällig`})
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Batch-Details (FIFO-Information) */}
+                    {product.batches && product.batches.length > 0 && (
+                      <div className="space-y-2">
+                        <div className="text-sm font-medium">FIFO-Batches ({product.totalBatches}):</div>
+                        <div className="grid gap-2">
+                          {product.batches.slice(0, 3).map((batch, index) => (
+                            <div key={batch.batchId} className="flex items-center justify-between p-2 bg-white bg-opacity-50 rounded text-sm">
+                              <div className="flex items-center gap-2">
+                                <Badge variant="outline" className="text-xs">
+                                  #{index + 1}
+                                </Badge>
+                                <span className="font-mono text-xs">{batch.batchNumber}</span>
+                              </div>
+                              <div className="text-right">
+                                <div className="text-xs">{batch.quantity} Stk.</div>
+                                <div className="text-xs text-gray-500">
+                                  MHD: {formatMhdDate(batch.expiryDate)}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                          {product.batches.length > 3 && (
+                            <div className="text-xs text-gray-500 text-center">
+                              +{product.batches.length - 3} weitere Batches
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Status-Indikatoren */}
+                    <div className="flex items-center justify-between mt-3 pt-3 border-t border-current border-opacity-20">
+                      <div className="flex items-center gap-2 text-xs">
+                        {product.status === 'critical' && <AlertTriangle className="h-3 w-3 text-red-600" />}
+                        {product.status === 'warning' && <Clock className="h-3 w-3 text-orange-500" />}
+                        {product.status === 'good' && <CheckCircle className="h-3 w-3 text-green-600" />}
+                        <span className="capitalize">{product.status} Status</span>
+                      </div>
+                      {product.vendonId && (
+                        <div className="text-xs text-gray-500">
+                          ID: {product.vendonId}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Kritische Produkte - Kompakte Ansicht wenn Details nicht angezeigt */}
+      {!showMhdDetails && criticalCount > 0 && (
         <Card className="w-full">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-red-600">
@@ -198,25 +428,31 @@ export function MachineStockDisplay({ vendonId, machineName }: MachineStockDispl
           <CardContent>
             <div className="space-y-3">
               {stockData.products
-                .filter(product => product.isCritical)
-                .map(product => (
-                  <div key={product.id} className="flex items-center justify-between p-3 bg-red-50 border border-red-200 rounded-md">
-                    <div className="flex-1">
-                      <div className="font-medium text-sm">{product.name}</div>
-                      <div className="text-xs text-gray-500">
-                        Auswahl {product.selections[0]?.selection} • €{product.selections[0]?.price?.toFixed(2)}
+                .filter(product => product.isCritical || product.mhdStatus === 'expired' || product.mhdStatus === 'critical')
+                .map(product => {
+                  const daysUntilExpiry = product.batches?.[0] ? 
+                    Math.ceil((new Date(product.batches[0].expiryDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : null;
+                  const mhdBadge = getMhdStatusBadge(product.mhdStatus, daysUntilExpiry);
+
+                  return (
+                    <div key={product.id} className="flex items-center justify-between p-3 bg-red-50 border border-red-200 rounded-md">
+                      <div className="flex-1">
+                        <div className="font-medium text-sm">{product.productName}</div>
+                        <div className="text-xs text-gray-500">
+                          {product.earliestMhd ? `MHD: ${formatMhdDate(product.earliestMhd)}` : 'Kein MHD verfügbar'}
+                        </div>
+                      </div>
+                      <div className="text-right flex flex-col items-end gap-1">
+                        <div className="font-bold text-red-600">
+                          {product.currentQuantity}/{product.maxQuantity}
+                        </div>
+                        <Badge variant={mhdBadge.variant} className="text-xs">
+                          {mhdBadge.text}
+                        </Badge>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <div className="font-bold text-red-600">
-                        {product.amount}/{product.amountMax}
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        Kritisch: ≤{product.amountCritical}
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
             </div>
           </CardContent>
         </Card>

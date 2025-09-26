@@ -12,11 +12,15 @@ import { machines, products, users } from '@shared/schema';
 import { eq, and, gte, lte, desc, sql } from 'drizzle-orm';
 import { format } from 'date-fns';
 import { CentralizedInventoryMovement, createFillMovement } from '../services/centralizedInventoryMovement';
+import { MhdFifoService } from '../services/mhdFifoService';
 
 const router = express.Router();
 
 // Initialize centralized inventory movement service
 const inventoryService = new CentralizedInventoryMovement(db, rawDb);
+
+// Initialize MHD-FIFO service for FIFO-optimized operations  
+const mhdFifoService = new MhdFifoService(db, rawDb);
 
 
 interface AuthRequest extends Request {
@@ -126,8 +130,12 @@ router.post('/warehouse-refills', async (req: AuthRequest, res: Response) => {
           throw new BusinessError(`Ungültige Item-Daten: productId=${productId}, quantity=${quantity}`, 400);
         }
 
-        // Use centralized FIFO inventory service for movement
+        // 🔥 ENHANCED MHD-FIFO INTEGRATION: Advanced batch selection and MHD transfer
+        console.log(`[MHD-FIFO] Processing refill item: productId=${productId}, quantity=${quantity}`);
+        
+        // Use centralized FIFO inventory service for movement with proper service instance
         const movementResult = await createFillMovement(
+          inventoryService,
           productId,
           warehouseId,
           quantity,
@@ -136,22 +144,110 @@ router.post('/warehouse-refills', async (req: AuthRequest, res: Response) => {
           tx
         );
 
-        // Create refill detail using warehouse3 refillTrackingItems schema
+        console.log(`[MHD-FIFO] Movement result: ${movementResult.batchesProcessed.length} batches processed`);
+        
+        // 🔥 AUTOMATIC MHD TRANSFER: Create machine_stocks entry with MHD tracking
+        if (movementResult.batchesProcessed.length > 0) {
+          const primaryBatch = movementResult.batchesProcessed[0];
+          
+          // Check if machine_stocks entry already exists for this product
+          const existingStockResult = await rawDb.query(
+            `SELECT id, quantity FROM machine_stocks 
+             WHERE machine_id = $1 AND product_id = $2 
+             ORDER BY received_date DESC LIMIT 1`,
+            [machineId, productId]
+          );
+
+          if (existingStockResult.rows.length > 0) {
+            // Update existing machine stock with new quantity and MHD info
+            await rawDb.query(
+              `UPDATE machine_stocks SET 
+                quantity = quantity + $3,
+                expiry_date = COALESCE($4::date, expiry_date),
+                batch_id = COALESCE($5, batch_id),
+                source_batch_number = COALESCE($6, source_batch_number),
+                last_updated = CURRENT_TIMESTAMP
+               WHERE id = $1`,
+              [
+                existingStockResult.rows[0].id,
+                machineId,
+                quantity,
+                primaryBatch.expiryDate,
+                primaryBatch.batchId,
+                primaryBatch.batchNumber
+              ]
+            );
+            
+            console.log(`[MHD-FIFO] ✅ Updated existing machine stock for productId ${productId}`);
+          } else {
+            // Create new machine stock entry with MHD tracking
+            await rawDb.query(
+              `INSERT INTO machine_stocks 
+                (machine_id, product_id, quantity, expiry_date, batch_id, 
+                 source_batch_number, received_date, status, last_updated)
+               VALUES ($1, $2, $3, $4::date, $5, $6, CURRENT_TIMESTAMP, 'active', CURRENT_TIMESTAMP)`,
+              [
+                machineId,
+                productId, 
+                quantity,
+                primaryBatch.expiryDate,
+                primaryBatch.batchId,
+                primaryBatch.batchNumber
+              ]
+            );
+            
+            console.log(`[MHD-FIFO] ✅ Created new machine stock entry for productId ${productId}`);
+          }
+        }
+
+        // 🔥 ENHANCED MHD TRACKING: Create refill detail with complete MHD information
+        const primaryBatch = movementResult.batchesProcessed[0];
+        const mhdDaysUntilExpiry = primaryBatch?.expiryDate ? 
+          Math.ceil((new Date(primaryBatch.expiryDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : null;
+        
+        const mhdStatus = mhdDaysUntilExpiry === null ? 'unknown' :
+          mhdDaysUntilExpiry < 0 ? 'expired' :
+          mhdDaysUntilExpiry <= 3 ? 'critical' :
+          mhdDaysUntilExpiry <= 7 ? 'warning' : 'ok';
+
         const refillDetailResult = await tx.insert(refillTrackingItems)
           .values({
             refillId,
             productId,
-            batchId: movementResult.batchesProcessed[0]?.batchId,
+            batchId: primaryBatch?.batchId,
             quantity,
             stockBefore: movementResult.movement.beforeQty,
             stockAfter: movementResult.movement.afterQty,
+            // 🔥 NEUE MHD FELDER (von Extended Schema)
+            sourceExpiryDate: primaryBatch?.expiryDate ? new Date(primaryBatch.expiryDate) : null,
+            fifoTransferLog: JSON.stringify({
+              transferDate: new Date().toISOString(),
+              batchesUsed: movementResult.batchesProcessed.map(batch => ({
+                batchId: batch.batchId,
+                batchNumber: batch.batchNumber,
+                quantityUsed: batch.quantityUsed,
+                expiryDate: batch.expiryDate
+              })),
+              fifoOrder: movementResult.batchesProcessed.map((batch, index) => ({
+                order: index + 1,
+                batchNumber: batch.batchNumber,
+                daysUntilExpiry: Math.ceil((new Date(batch.expiryDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+              }))
+            }),
+            mhdStatus: mhdStatus,
+            riskLevel: mhdDaysUntilExpiry === null ? null :
+              mhdDaysUntilExpiry <= 3 ? 'high' :
+              mhdDaysUntilExpiry <= 7 ? 'medium' : 'low',
             createdAt: new Date(),
             updatedAt: new Date()
           })
           .returning();
 
+        console.log(`[MHD-FIFO] ✅ Enhanced refill detail created with MHD status: ${mhdStatus}, risk level: ${mhdDaysUntilExpiry === null ? 'unknown' : mhdDaysUntilExpiry <= 3 ? 'high' : mhdDaysUntilExpiry <= 7 ? 'medium' : 'low'}`);
+        console.log(`[MHD-FIFO] 📊 FIFO Transfer Log: ${movementResult.batchesProcessed.length} batches processed in correct FIFO order`);
+
         // Add to history items for response with batch info from FIFO processing
-        const primaryBatch = movementResult.batchesProcessed[0];
+        // primaryBatch already defined above - reusing for response
         refillHistoryItems.push({
           productName: item.productName,
           quantity,

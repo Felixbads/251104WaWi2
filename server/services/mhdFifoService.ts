@@ -20,10 +20,12 @@ interface DatabaseClient {
 }
 
 export class MhdFifoService {
-  private db: DatabaseClient;
+  private db: any; // Drizzle instance
+  private rawDb: DatabaseClient; // Raw PostgreSQL client
 
-  constructor(db: DatabaseClient) {
-    this.db = db;
+  constructor(db: any, rawDb: DatabaseClient) {
+    this.db = db; // Drizzle ORM instance
+    this.rawDb = rawDb; // Raw PostgreSQL client for direct queries
   }
 
   /**
@@ -50,22 +52,22 @@ export class MhdFifoService {
       
       console.log(`[MHD_FIFO] Transferring ${quantityAdded} units of product ${productId} to machine ${machineId}`);
 
-      // 1. Hole verfügbare Inventory Batches für dieses Produkt (FIFO-sortiert)
+      // 1. Hole verfügbare Product Batches für dieses Produkt (FIFO-sortiert)
       // WICHTIG: Filtere abgelaufene Chargen aus (expiry_date >= CURRENT_DATE)
       const batchesResult = await this.db.query(`
-        SELECT ib.id, ib.expiry_date, ib.quantity, ib.batch_number, ib.incoming_date
-        FROM inventory_batches ib
-        JOIN products p ON ib.product_id = p.id
-        WHERE ib.warehouse_id = $1 
+        SELECT pb.id, pb.expiry_date, pb.current_quantity as quantity, pb.batch_number, pb.incoming_date
+        FROM product_batches pb
+        JOIN products p ON pb.product_id = p.id
+        WHERE pb.warehouse_id = $1 
           AND p.vendon_id = $2
-          AND ib.quantity > 0
-          AND ib.status = 'active'
-          AND (ib.expiry_date IS NULL OR ib.expiry_date >= CURRENT_DATE)  -- Keine abgelaufenen Chargen
-        ORDER BY ib.incoming_date ASC, ib.expiry_date ASC
+          AND pb.current_quantity > 0
+          AND pb.status = 'active'
+          AND (pb.expiry_date IS NULL OR pb.expiry_date >= CURRENT_DATE)  -- Keine abgelaufenen Chargen
+        ORDER BY pb.incoming_date ASC, pb.expiry_date ASC
       `, [warehouseId, productId]);
 
       if (batchesResult.rows.length === 0) {
-        console.log(`[MHD_FIFO] No inventory batches found for product ${productId} in warehouse ${warehouseId}`);
+        console.log(`[MHD_FIFO] No product batches found for product ${productId} in warehouse ${warehouseId}`);
         return transfers;
       }
 
@@ -107,10 +109,10 @@ export class MhdFifoService {
           batch.id
         ]);
 
-        // 4. Reduziere Lagerbestand in inventory_batches
+        // 4. Reduziere Lagerbestand in product_batches
         await this.db.query(`
-          UPDATE inventory_batches 
-          SET quantity = quantity - $1, updated_at = NOW()
+          UPDATE product_batches 
+          SET current_quantity = current_quantity - $1, updated_at = NOW()
           WHERE id = $2
         `, [quantityFromThisBatch, batch.id]);
 
@@ -358,101 +360,74 @@ export class MhdFifoService {
   }
 
   /**
-   * Automatische FIFO-Entnahme mit MHD-Optimierung
+   * 🔥 CALCULATE FIFO BATCH ALLOCATION (für Frontend-Anzeige)
    * 
-   * @param warehouseId - ID des Lagers
-   * @param productId - Vendon ID des Produkts
-   * @param quantityToDeplete - Zu entnehmende Menge
-   * @param movementType - Art der Bewegung ('OUT' | 'TRANSFER' | 'REFILL')
-   * @param allowPartialBatches - Teilentnahmen aus Batches erlauben
-   * @returns FIFO-Entnahme Details mit verwendeten Batches
+   * Berechnet FIFO-basierte Batch-Zuordnung für Automaten-Bestand
    */
-  async automaticFifoWithdrawal(
-    warehouseId: number,
-    productId: string,
-    quantityToDeplete: number,
-    movementType: 'OUT' | 'TRANSFER' | 'REFILL' = 'OUT',
-    allowPartialBatches: boolean = true
-  ): Promise<FifoMhdTransfer[]> {
-    const withdrawals: FifoMhdTransfer[] = [];
-    
+  async calculateFifoBatchAllocation(
+    machineId: number, 
+    productIdentifier: string, 
+    currentQuantity: number
+  ): Promise<{
+    batches: Array<{
+      batchId: number;
+      batchNumber: string;
+      quantity: number;
+      expiryDate: string;
+      daysUntilExpiry: number;
+    }>;
+    earliestMhd: string | null;
+    totalBatches: number;
+    mhdStatus: 'ok' | 'warning' | 'expired';
+  }> {
     try {
-      await this.db.query('BEGIN');
-      
-      console.log(`[MHD_FIFO] Starting automatic FIFO withdrawal: ${quantityToDeplete} units of product ${productId}`);
+      console.log(`[FIFO_CALC] Calculating FIFO allocation for machine ${machineId}, product ${productIdentifier}`);
 
-      // Hole verfügbare Batches (FIFO-sortiert, keine abgelaufenen)
-      const batchesResult = await this.db.query(`
-        SELECT ib.id, ib.expiry_date, ib.quantity, ib.batch_number, ib.incoming_date,
-               CASE 
-                 WHEN ib.expiry_date IS NULL THEN 999
-                 ELSE DATE_PART('day', ib.expiry_date - CURRENT_DATE)
-               END as days_until_expiry
-        FROM inventory_batches ib
-        JOIN products p ON ib.product_id = p.id
-        WHERE ib.warehouse_id = $1 
-          AND p.vendon_id = $2
-          AND ib.quantity > 0
-          AND ib.status = 'active'
-          AND (ib.expiry_date IS NULL OR ib.expiry_date >= CURRENT_DATE)
-        ORDER BY ib.incoming_date ASC, ib.expiry_date ASC NULLS LAST
-      `, [warehouseId, productId]);
+      // 🔥 FIXED: FIFO-Batch-Zuordnung basierend auf machine_stocks mit korrekten Spalten
+      const batchResult = await this.db.query(`
+        SELECT 
+          ms.batch_id,
+          ms.expiry_date,
+          ms.quantity,
+          COALESCE(pb.batch_number, CONCAT('BATCH-', ms.batch_id)) as batch_number,
+          CASE 
+            WHEN ms.expiry_date IS NOT NULL THEN 
+              (ms.expiry_date::date - CURRENT_DATE::date)
+            ELSE NULL 
+          END as days_until_expiry
+        FROM machine_stocks ms
+        LEFT JOIN products p ON ms.product_vendon_id = p.vendon_id
+        LEFT JOIN product_batches pb ON ms.batch_id = pb.id
+        WHERE ms.machine_id = $1 
+          AND (ms.product_vendon_id = $2 OR p.product_name ILIKE $3)
+          AND ms.quantity > 0
+        ORDER BY ms.expiry_date ASC NULLS LAST, ms.received_date ASC
+      `, [machineId, productIdentifier, `%${productIdentifier}%`]);
 
-      if (batchesResult.rows.length === 0) {
-        console.warn(`[MHD_FIFO] No available batches for product ${productId} in warehouse ${warehouseId}`);
-        await this.db.query('ROLLBACK');
-        return withdrawals;
-      }
+      // Verarbeitung und Status-Berechnung
+      const batches = batchResult.rows.map(row => ({
+        batchId: row.batch_id,
+        batchNumber: row.batch_number || `BATCH-${row.batch_id}`,
+        quantity: row.quantity,
+        expiryDate: row.expiry_date,
+        daysUntilExpiry: row.days_until_expiry || 999
+      }));
 
-      let remainingQuantity = quantityToDeplete;
-      
-      // FIFO-Entnahme: Älteste Batches zuerst
-      for (const batch of batchesResult.rows) {
-        if (remainingQuantity <= 0) break;
-        
-        const quantityFromThisBatch = allowPartialBatches 
-          ? Math.min(remainingQuantity, batch.quantity)
-          : (batch.quantity >= remainingQuantity ? remainingQuantity : 0);
-          
-        if (quantityFromThisBatch <= 0) continue;
-        
-        // Warne bei bald ablaufenden Produkten (< 7 Tage)
-        if (batch.days_until_expiry < 7 && batch.days_until_expiry > 0) {
-          console.warn(`[MHD_FIFO] WARNING: Using batch ${batch.batch_number} expiring in ${batch.days_until_expiry} days`);
-        }
+      const earliestMhd = batches.length > 0 ? batches[0].expiryDate : null;
+      const mhdStatus = batches.some(b => b.daysUntilExpiry < 0) ? 'expired' :
+                       batches.some(b => b.daysUntilExpiry <= 7) ? 'warning' : 'ok';
 
-        // Reduziere Batch-Bestand
-        await this.db.query(`
-          UPDATE inventory_batches 
-          SET quantity = quantity - $1, updated_at = NOW()
-          WHERE id = $2 AND quantity >= $1
-        `, [quantityFromThisBatch, batch.id]);
+      console.log(`[FIFO_CALC] Berechnung abgeschlossen: ${batches.length} Chargen, Status: ${mhdStatus}`);
 
-        // Dokumentiere Entnahme
-        withdrawals.push({
-          batchId: batch.id,
-          expiryDate: batch.expiry_date,
-          quantityUsed: quantityFromThisBatch,
-          quantityRemaining: batch.quantity - quantityFromThisBatch
-        });
+      return {
+        batches,
+        earliestMhd,
+        totalBatches: batches.length,
+        mhdStatus
+      };
 
-        remainingQuantity -= quantityFromThisBatch;
-        
-        console.log(`[MHD_FIFO] Withdrew ${quantityFromThisBatch} from batch ${batch.batch_number} (${remainingQuantity} remaining)`);
-      }
-
-      if (remainingQuantity > 0) {
-        console.warn(`[MHD_FIFO] Could not fulfill complete withdrawal: ${remainingQuantity} units short`);
-      }
-
-      await this.db.query('COMMIT');
-      
-      console.log(`[MHD_FIFO] Successfully withdrew ${quantityToDeplete - remainingQuantity} units using FIFO`);
-      return withdrawals;
-      
     } catch (error) {
-      await this.db.query('ROLLBACK');
-      console.error('[MHD_FIFO] Error in automatic FIFO withdrawal:', error);
+      console.error('[FIFO_CALC] Fehler bei FIFO-Berechnung:', error);
       throw error;
     }
   }
