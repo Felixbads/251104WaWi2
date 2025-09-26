@@ -176,6 +176,14 @@ function AuthenticatedRouter() {
           )}
         </Route>
 
+        <Route path="/navigation-audit-dashboard">
+          {() => (
+            <ApprovedUserRoute>
+              <NavigationAuditDashboard />
+            </ApprovedUserRoute>
+          )}
+        </Route>
+
         <Route path="/">
           <Redirect to="/dashboard" />
         </Route>

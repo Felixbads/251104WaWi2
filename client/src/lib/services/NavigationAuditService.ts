@@ -55,7 +55,6 @@ export class NavigationAuditService {
    */
   async runAudit(options: AuditOptions = {}): Promise<AuditResults> {
     const startTime = Date.now();
-    const sessionId = nanoid(12);
     
     const {
       auditType = 'full',
@@ -64,30 +63,12 @@ export class NavigationAuditService {
       performanceThreshold = 70
     } = options;
 
-    // Initialize audit session
-    const session: Partial<NavigationAuditSession> = {
-      sessionId,
-      auditType,
-      deviceType,
-      viewport: {
-        width: window.innerWidth,
-        height: window.innerHeight
-      },
-      userAgent: navigator.userAgent,
-      totalIssues: 0,
-      criticalIssues: 0,
-      warningIssues: 0,
-      testedElements: 0,
-      passedElements: 0,
-      failedElements: 0
-    };
-
     let issues: NavigationIssue[] = [];
     let touchTargets: TouchTargetMetric[] = [];
     let scrollabilityTests: ScrollabilityTest[] = [];
 
     try {
-      // Run different audit types
+      // Run different audit types locally first
       if (auditType === 'full' || auditType === 'tabs') {
         const tabIssues = await this.auditTabNavigation();
         issues.push(...tabIssues);
@@ -108,21 +89,44 @@ export class NavigationAuditService {
 
       // Calculate performance metrics
       const performanceScore = this.calculatePerformanceScore(issues, touchTargets, scrollabilityTests);
+
+      // Prepare data for backend API
+      const auditData = {
+        auditType,
+        deviceType,
+        viewport: {
+          width: window.innerWidth,
+          height: window.innerHeight
+        },
+        userAgent: navigator.userAgent,
+        performanceScore,
+        issues: issues.map(issue => ({ ...issue, id: undefined })),
+        touchTargets: touchTargets.map(target => ({ ...target, id: undefined })),
+        scrollabilityTests: scrollabilityTests.map(test => ({ ...test, id: undefined }))
+      };
+
+      // Send audit results to backend API
+      const response = await fetch('/api/navigation-audit/sessions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(auditData)
+      });
+
+      if (!response.ok) {
+        throw new Error(`Backend API error: ${response.status} ${response.statusText}`);
+      }
+
+      const { session: savedSession } = await response.json();
+
+      // Generate summary for frontend display
       const summary = this.generateSummary(issues, touchTargets, scrollabilityTests);
 
-      // Update session with results
+      // Return complete audit results
       const completedSession: NavigationAuditSession = {
-        ...session,
-        id: 0, // Will be set by backend
-        performanceScore,
-        totalIssues: summary.totalIssues,
-        criticalIssues: summary.criticalIssues,
-        warningIssues: summary.warningIssues,
-        testedElements: touchTargets.length + scrollabilityTests.length,
-        passedElements: summary.touchTargetCompliance + summary.scrollContainerCompliance,
-        failedElements: summary.totalIssues,
+        ...savedSession,
         executionTime: Date.now() - startTime,
-        createdAt: new Date(),
         createdBy: null
       } as NavigationAuditSession;
 

@@ -324,6 +324,7 @@ import unifiedProfitabilityRouter from "./routes/unified-profitability";
 import locationProfitabilityRouter from "./routes/location-profitability";
 import simpleProfitabilityRouter from "./routes/product-profitability-simple";
 import fixedProfitabilityRouter from "./routes/fixed-profitability";
+import navigationAuditRouter from "./routes/navigation-audit";
 import { WebSocketServer } from 'ws';
 
 // API route prefix
@@ -6735,6 +6736,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use(`${API_PREFIX}/warehouse-movements`, warehouseMovementsRouter);
   app.use(`${API_PREFIX}/inventory-movements`, inventoryMovementsRouter);
   app.use(`${API_PREFIX}/warehouses`, warehousesRouter);
+  app.use(`${API_PREFIX}/navigation-audit`, navigationAuditRouter);
   
   // Registriere Inventar-API Router für Warehouse-Statistiken
   const inventoryApiRouter = await import('./routes/inventory-api');

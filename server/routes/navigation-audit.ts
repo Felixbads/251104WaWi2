@@ -15,7 +15,7 @@ import {
   type AuditPerformanceHistory
 } from '@shared/schema';
 import { storage } from '../storage';
-import { requireAuth } from '../middleware/auth';
+import { authenticateUser } from '../middleware/auth';
 import { nanoid } from 'nanoid';
 
 const router = express.Router();
@@ -50,7 +50,7 @@ const UpdatePerformanceHistoryRequest = insertAuditPerformanceHistorySchema;
  * POST /api/navigation-audit/sessions
  * Create a new navigation audit session with results
  */
-router.post('/sessions', requireAuth, async (req, res) => {
+router.post('/sessions', authenticateUser, async (req, res) => {
   try {
     const validatedData = CreateAuditSessionRequest.parse(req.body);
     const userId = req.user?.id;
@@ -145,7 +145,7 @@ router.post('/sessions', requireAuth, async (req, res) => {
  * GET /api/navigation-audit/sessions
  * Get navigation audit sessions with filtering
  */
-router.get('/sessions', requireAuth, async (req, res) => {
+router.get('/sessions', authenticateUser, async (req, res) => {
   try {
     const {
       deviceType,
@@ -172,7 +172,7 @@ router.get('/sessions', requireAuth, async (req, res) => {
  * GET /api/navigation-audit/sessions/:id
  * Get a specific audit session with all related data
  */
-router.get('/sessions/:id', requireAuth, async (req, res) => {
+router.get('/sessions/:id', authenticateUser, async (req, res) => {
   try {
     const sessionId = parseInt(req.params.id);
     
@@ -205,7 +205,7 @@ router.get('/sessions/:id', requireAuth, async (req, res) => {
  * GET /api/navigation-audit/issues
  * Get navigation issues with filtering
  */
-router.get('/issues', requireAuth, async (req, res) => {
+router.get('/issues', authenticateUser, async (req, res) => {
   try {
     const {
       sessionId,
@@ -234,7 +234,7 @@ router.get('/issues', requireAuth, async (req, res) => {
  * POST /api/navigation-audit/issues/:id/fix
  * Mark an issue as fixed
  */
-router.post('/issues/:id/fix', requireAuth, async (req, res) => {
+router.post('/issues/:id/fix', authenticateUser, async (req, res) => {
   try {
     const issueId = parseInt(req.params.id);
     const userId = req.user?.id;
@@ -256,7 +256,7 @@ router.post('/issues/:id/fix', requireAuth, async (req, res) => {
  * GET /api/navigation-audit/issues/critical
  * Get all unfixed critical issues
  */
-router.get('/issues/critical', requireAuth, async (req, res) => {
+router.get('/issues/critical', authenticateUser, async (req, res) => {
   try {
     const issues = await storage.getUnfixedCriticalIssues();
     res.json({ issues });
@@ -274,7 +274,7 @@ router.get('/issues/critical', requireAuth, async (req, res) => {
  * POST /api/navigation-audit/fixes/apply
  * Apply automated fixes to multiple issues
  */
-router.post('/fixes/apply', requireAuth, async (req, res) => {
+router.post('/fixes/apply', authenticateUser, async (req, res) => {
   try {
     const validatedData = ApplyFixesRequest.parse(req.body);
     const userId = req.user?.id || validatedData.appliedBy;
@@ -302,7 +302,7 @@ router.post('/fixes/apply', requireAuth, async (req, res) => {
  * GET /api/navigation-audit/fixes/available
  * Get all auto-fixable issues
  */
-router.get('/fixes/available', requireAuth, async (req, res) => {
+router.get('/fixes/available', authenticateUser, async (req, res) => {
   try {
     const issues = await storage.getAutoFixableIssues();
     res.json({ issues });
@@ -320,7 +320,7 @@ router.get('/fixes/available', requireAuth, async (req, res) => {
  * GET /api/navigation-audit/performance
  * Get audit performance history
  */
-router.get('/performance', requireAuth, async (req, res) => {
+router.get('/performance', authenticateUser, async (req, res) => {
   try {
     const {
       deviceType,
@@ -345,7 +345,7 @@ router.get('/performance', requireAuth, async (req, res) => {
  * POST /api/navigation-audit/performance
  * Update audit performance history
  */
-router.post('/performance', requireAuth, async (req, res) => {
+router.post('/performance', authenticateUser, async (req, res) => {
   try {
     const validatedData = UpdatePerformanceHistoryRequest.parse(req.body);
     
@@ -372,7 +372,7 @@ router.post('/performance', requireAuth, async (req, res) => {
  * GET /api/navigation-audit/analytics/summary
  * Get comprehensive audit summary statistics
  */
-router.get('/analytics/summary', requireAuth, async (req, res) => {
+router.get('/analytics/summary', authenticateUser, async (req, res) => {
   try {
     const {
       deviceType,
@@ -397,7 +397,7 @@ router.get('/analytics/summary', requireAuth, async (req, res) => {
  * GET /api/navigation-audit/analytics/touch-targets
  * Get touch target compliance statistics
  */
-router.get('/analytics/touch-targets', requireAuth, async (req, res) => {
+router.get('/analytics/touch-targets', authenticateUser, async (req, res) => {
   try {
     const { deviceType } = req.query;
     
@@ -414,7 +414,7 @@ router.get('/analytics/touch-targets', requireAuth, async (req, res) => {
  * GET /api/navigation-audit/analytics/scrollability
  * Get scrollability compliance statistics
  */
-router.get('/analytics/scrollability', requireAuth, async (req, res) => {
+router.get('/analytics/scrollability', authenticateUser, async (req, res) => {
   try {
     const { deviceType } = req.query;
     
