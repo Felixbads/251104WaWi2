@@ -597,4 +597,56 @@ router.post('/test', async (req, res) => {
   }
 });
 
+// GET /api/email-notifications/recipients - Konfigurierte E-Mail-Empfänger abrufen
+router.get('/recipients', async (req, res) => {
+  try {
+    console.log('[EMAIL-RECIPIENTS] Abrufen der konfigurierten E-Mail-Empfänger...');
+
+    // Empfänger mit ihren E-Mail-Einstellungen über JOIN abrufen
+    const recipients = await db
+      .select({
+        id: emailRecipients.id,
+        emailAddress: emailRecipients.email,
+        name: emailRecipients.name,
+        role: emailRecipients.role,
+        isActive: emailRecipients.active,
+        dailyReports: emailRecipients.daily_reports,
+        alerts: emailRecipients.alerts,
+        forecasts: emailRecipients.forecasts,
+        createdAt: emailRecipients.createdAt,
+        // E-Mail-Einstellungen aus der verknüpften Tabelle
+        settingsEnabled: emailSettings.enabled,
+        sendTime: emailSettings.sendTime,
+        weekdayMask: emailSettings.weekdayMask,
+        includeMhdAlerts: emailSettings.includeMhdAlerts,
+        includeInventoryAlerts: emailSettings.includeInventoryAlerts,
+        includeLowStockAlerts: emailSettings.includeLowStockAlerts,
+        includeOpenOrders: emailSettings.includeOpenOrders,
+        includeMachineAnomalies: emailSettings.includeMachineAnomalies,
+        includeWeatherForecast: emailSettings.includeWeatherForecast,
+        includeSalesAnalysis: emailSettings.includeSalesAnalysis
+      })
+      .from(emailRecipients)
+      .leftJoin(emailSettings, eq(emailRecipients.emailSettingsId, emailSettings.id))
+      .orderBy(sql`${emailRecipients.createdAt} DESC`);
+
+    console.log(`[EMAIL-RECIPIENTS] ✅ Gefunden: ${recipients.length} E-Mail-Empfänger`);
+    
+    res.json({
+      success: true,
+      recipients,
+      totalCount: recipients.length,
+      activeCount: recipients.filter(r => r.isActive).length
+    });
+
+  } catch (error) {
+    console.error('[EMAIL-RECIPIENTS] ❌ Fehler beim Abrufen der E-Mail-Empfänger:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Fehler beim Abrufen der E-Mail-Empfänger',
+      details: error instanceof Error ? error.message : 'Unbekannter Fehler'
+    });
+  }
+});
+
 export default router;

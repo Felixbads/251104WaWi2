@@ -72,6 +72,13 @@ export default function EmailNotificationsSettings({ showHeader = false }: Email
     refetchInterval: 30000 // Alle 30 Sekunden aktualisieren
   });
 
+  // E-Mail-Empfänger laden
+  const { data: recipientsData, isLoading: recipientsLoading } = useQuery({
+    queryKey: ['/api/email-notifications/recipients'],
+    enabled: true,
+    refetchInterval: 60000 // Alle 60 Sekunden aktualisieren
+  });
+
   // Einstellungen speichern
   const saveSettings = useMutation({
     mutationFn: async (data: EmailNotificationSettings) => {
@@ -89,6 +96,7 @@ export default function EmailNotificationsSettings({ showHeader = false }: Email
         description: "Die E-Mail-Benachrichtigungen wurden erfolgreich konfiguriert."
       });
       queryClient.invalidateQueries({ queryKey: ['/api/email-notifications/settings'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/email-notifications/recipients'] });
     },
     onError: (error: Error) => {
       toast({
@@ -665,6 +673,125 @@ export default function EmailNotificationsSettings({ showHeader = false }: Email
           </CardContent>
         </Card>
       </div>
+
+      {/* E-Mail-Empfänger Übersicht */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Mail className="h-5 w-5" />
+            Konfigurierte E-Mail-Empfänger
+          </CardTitle>
+          <CardDescription>
+            Übersicht über alle eingerichteten E-Mail-Adressen und deren Benachrichtigungseinstellungen
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {recipientsLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+              <span className="ml-2">Lade E-Mail-Empfänger...</span>
+            </div>
+          ) : recipientsData?.recipients && recipientsData.recipients.length > 0 ? (
+            <div className="space-y-4">
+              {/* Statistik-Übersicht */}
+              <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-blue-600">{recipientsData.totalCount}</div>
+                  <div className="text-sm text-muted-foreground">Gesamt</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-green-600">{recipientsData.activeCount}</div>
+                  <div className="text-sm text-muted-foreground">Aktiv</div>
+                </div>
+              </div>
+
+              {/* Empfänger-Liste */}
+              <div className="space-y-3">
+                {recipientsData.recipients.map((recipient: any) => (
+                  <div key={recipient.id} className="border rounded-lg p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-3 h-3 rounded-full ${recipient.isActive ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                        <div>
+                          <div className="font-semibold">{recipient.emailAddress}</div>
+                          <div className="text-sm text-muted-foreground">
+                            {recipient.name && <span className="font-medium">{recipient.name}</span>}
+                            {recipient.role && <span className="text-gray-500"> ({recipient.role})</span>}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            Einstellungen: {recipient.settingsEnabled ? 'Aktiviert' : 'Deaktiviert'} • 
+                            Versand: {recipient.sendTime}
+                          </div>
+                        </div>
+                      </div>
+                      <Badge variant={recipient.isActive ? "default" : "secondary"}>
+                        {recipient.isActive ? "Aktiv" : "Inaktiv"}
+                      </Badge>
+                    </div>
+
+                    {/* Benachrichtigungstypen */}
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
+                      <div className={`flex items-center gap-1 p-2 rounded ${recipient.includeMhdAlerts ? 'bg-orange-100 text-orange-800' : 'bg-gray-100 text-gray-500'}`}>
+                        <Calendar className="h-3 w-3" />
+                        MHD-Alerts
+                      </div>
+                      <div className={`flex items-center gap-1 p-2 rounded ${recipient.includeInventoryAlerts ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-500'}`}>
+                        <Package className="h-3 w-3" />
+                        Lagerbestand
+                      </div>
+                      <div className={`flex items-center gap-1 p-2 rounded ${recipient.includeOpenOrders ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-500'}`}>
+                        <CreditCard className="h-3 w-3" />
+                        Bestellungen
+                      </div>
+                      <div className={`flex items-center gap-1 p-2 rounded ${recipient.includeLowStockAlerts ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-500'}`}>
+                        <Truck className="h-3 w-3" />
+                        Niedrige Bestände
+                      </div>
+                      <div className={`flex items-center gap-1 p-2 rounded ${recipient.includeSalesAnalysis ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-500'}`}>
+                        <BarChart3 className="h-3 w-3" />
+                        Verkaufsanalyse
+                      </div>
+                    </div>
+
+                    {/* Wochentage aus weekdayMask */}
+                    {recipient.weekdayMask && Array.isArray(recipient.weekdayMask) && (
+                      <div className="text-xs text-muted-foreground">
+                        <span className="font-medium">Wochentage:</span> {
+                          recipient.weekdayMask.map((enabled: boolean, index: number) => {
+                            const dayNames = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+                            return enabled ? dayNames[index] : null;
+                          }).filter(Boolean).join(', ')
+                        }
+                      </div>
+                    )}
+
+                    {/* Erstellungsdatum */}
+                    <div className="text-xs text-muted-foreground">
+                      Erstellt: {new Date(recipient.createdAt).toLocaleString('de-DE')}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <AlertCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+              <h3 className="text-lg font-semibold mb-2">Keine E-Mail-Empfänger konfiguriert</h3>
+              <p className="text-muted-foreground mb-4">
+                Fügen Sie oben eine E-Mail-Adresse hinzu, um automatische Benachrichtigungen zu erhalten.
+              </p>
+              <Button 
+                variant="outline" 
+                onClick={() => document.getElementById('email')?.focus()}
+                data-testid="button-configure-first-recipient"
+              >
+                <Mail className="h-4 w-4 mr-2" />
+                Ersten Empfänger konfigurieren
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
