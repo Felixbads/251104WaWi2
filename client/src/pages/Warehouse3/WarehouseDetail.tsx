@@ -229,6 +229,11 @@ export default function WarehouseDetail() {
         </div>
         
         <div className="flex space-x-2">
+          <Link href={`/warehouse3/${warehouseId}/inventory`}>
+            <Button size="sm" className="bg-blue-600 hover:bg-blue-700">
+              <Package className="h-4 w-4 mr-1.5" /> Bestandsübersicht V3
+            </Button>
+          </Link>
           <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
             <DialogTrigger asChild>
               <Button variant="outline" size="sm">
