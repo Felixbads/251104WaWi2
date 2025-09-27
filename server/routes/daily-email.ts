@@ -670,13 +670,15 @@ router.post('/send-proviantomat-test', async (req: Request, res: Response) => {
     console.log(`📊 Sende Proviantomat Test-Bericht an ${recipientEmail}...`);
     
     // Hole die erweiterten E-Mail-Einstellungen für den Test
+    // Suche nach dem Empfänger in der emailRecipients Tabelle und hole die verknüpften Einstellungen
     const settingsResults = await db
       .select()
       .from(emailSettings)
-      .where(eq(emailSettings.recipientEmail, recipientEmail))
+      .leftJoin(emailRecipients, eq(emailRecipients.emailSettingsId, emailSettings.id))
+      .where(eq(emailRecipients.email, recipientEmail))
       .limit(1);
     
-    const emailSettings: any = settingsResults[0] || {
+    const userEmailSettings: any = settingsResults[0]?.email_settings || {
       includeWeatherForecast: true,
       includeSalesAnalysis: true,
       includeInventoryAlerts: true,
@@ -689,7 +691,7 @@ router.post('/send-proviantomat-test', async (req: Request, res: Response) => {
       anomalyDetectionDays: 3
     };
     
-    const result = await dailyEmailService.sendProviantomatReport(recipientEmail, emailSettings);
+    const result = await dailyEmailService.sendProviantomatReport(recipientEmail, userEmailSettings);
     
     if (result.success) {
       res.json({
