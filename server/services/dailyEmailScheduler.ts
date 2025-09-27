@@ -30,7 +30,6 @@ export class DailyEmailScheduler {
         console.log('⏰ Daily Email Scheduler ausgelöst:', new Date().toLocaleString('de-DE'));
         await this.executeScheduledEmailSending();
       }, {
-        scheduled: true,
         timezone: 'Europe/Berlin'
       });
 
