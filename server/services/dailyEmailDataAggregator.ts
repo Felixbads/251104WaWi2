@@ -1011,11 +1011,11 @@ export class DailyEmailDataAggregator {
         .from(events)
         .where(
           and(
-            gte(events.eventTime, yesterday),
+            gte(events.eventDatetime, yesterday),
             sql`${events.eventType} IN ('ERROR', 'MALFUNCTION', 'SERVICE_REQUIRED')`
           )
         )
-        .orderBy(desc(events.eventTime))
+        .orderBy(desc(events.eventDatetime))
         .limit(5);
 
       technicalIssues.forEach(issue => {
