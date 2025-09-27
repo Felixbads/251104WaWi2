@@ -726,4 +726,39 @@ router.post('/send-proviantomat-test', async (req: Request, res: Response) => {
   }
 });
 
+// GET /api/daily-email/get-data - Hole E-Mail-Daten für Tests
+router.get('/get-data', async (req: Request, res: Response) => {
+  try {
+    console.log('📊 API: Lade tägliche E-Mail-Daten...');
+    
+    // Verwende aktuelles Datum oder übergabenes Datum
+    const dateParam = req.query.date as string;
+    const reportDate = dateParam ? new Date(dateParam) : new Date();
+    
+    console.log('📊 API: Report-Datum:', reportDate.toISOString());
+    
+    // Sammle alle Daten über den DailyEmailService
+    const emailData = await dailyEmailService.generateDailyReport(reportDate);
+    
+    console.log('📊 API: E-Mail-Daten generiert:', {
+      template: emailData.template,
+      sectionsCount: Object.keys(emailData.sections).length,
+      machineOverviewCount: Array.isArray(emailData.sections.automaten_übersicht) ? emailData.sections.automaten_übersicht.length : 'undefined'
+    });
+    
+    res.json({
+      success: true,
+      data: emailData
+    });
+    
+  } catch (error) {
+    console.error('❌ Fehler beim Laden der E-Mail-Daten:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Fehler beim Laden der E-Mail-Daten',
+      message: error instanceof Error ? error.message : 'Unbekannter Fehler'
+    });
+  }
+});
+
 export default router;

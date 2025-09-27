@@ -449,4 +449,44 @@ export class DailyEmailService {
       issues
     };
   }
+
+  /**
+   * Generiert die täglichen Berichtsdaten ohne E-Mail-Versand (für API-Zugriff)
+   */
+  async generateDailyReport(date: Date = new Date()): Promise<{
+    template: string;
+    sections: any;
+    date: string;
+    summary: any;
+  }> {
+    console.log(`📊 Generiere tägliche Berichtsdaten für ${date.toISOString().split('T')[0]}`);
+    
+    try {
+      // 1. Sammle alle Report-Daten über den Aggregator
+      const reportData = await this.aggregator.aggregateData(date);
+      
+      // 2. Komponiere HTML-Template über den Composer  
+      const emailContent = await this.composer.composeEmail(reportData);
+      
+      console.log('📊 Report-Daten erfolgreich generiert:', {
+        sectionsCount: Object.keys(reportData).length,
+        hasAutomatenOverview: !!reportData.automaten_übersicht,
+        templateLength: emailContent.html.length
+      });
+      
+      return {
+        template: emailContent.html,
+        sections: reportData,
+        date: date.toISOString().split('T')[0],
+        summary: {
+          sectionsGenerated: Object.keys(reportData).length,
+          timestamp: new Date().toISOString()
+        }
+      };
+      
+    } catch (error) {
+      console.error('❌ Fehler beim Generieren der Berichtsdaten:', error);
+      throw new Error(`Fehler beim Generieren der Berichtsdaten: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
 }

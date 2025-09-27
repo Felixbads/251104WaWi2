@@ -1749,6 +1749,8 @@ app.get('/orders-data', (req, res) => {
   app.use('/api', simpleEmailRouter);
   console.log('[SERVER] Simple email router mounted successfully');
   
+  // Daily email router will be mounted AFTER registerRoutes to avoid Vite middleware conflicts
+  
   // Debug router entfernt - verursachte Module-Fehler
   
 
@@ -2076,6 +2078,11 @@ app.get('/orders-data', (req, res) => {
   // Register weather correction service AFTER registerRoutes
   app.use('/api/weather-correction', weatherCorrectionRouter);
   console.log('[SERVER] Weather correction service registered');
+  
+  // Mount daily email router AFTER registerRoutes to avoid Vite catch-all route conflicts
+  const dailyEmailRouter = (await import('./routes/daily-email')).default;
+  app.use('/api/daily-email', dailyEmailRouter);
+  console.log('[SERVER] Daily email router mounted successfully AFTER registerRoutes');
   
   // Start daily weather correction cron job
   retroactiveWeatherService.scheduleDailyCorrection();

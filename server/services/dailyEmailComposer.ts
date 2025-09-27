@@ -199,7 +199,9 @@ export class DailyEmailComposer {
    * NEUE Funktion: Rendert die detaillierte Automaten-Übersicht
    */
   private renderMachineOverview(machines: any[]): string {
+    console.log('📋 DEBUG: renderMachineOverview called with:', machines?.length, 'machines');
     if (!machines || machines.length === 0) {
+      console.log('📋 DEBUG: No machines data, returning no data message');
       return '<p style="color: black;">Keine Automaten-Daten verfügbar.</p>';
     }
 
@@ -261,6 +263,25 @@ export class DailyEmailComposer {
   }
 
   /**
+   * NEUE Funktion: Rendert den Automaten-Übersicht-Abschnitt
+   */
+  private renderMachineOverviewSection(machines: any[]): string {
+    console.log('🏪 DEBUG: renderMachineOverviewSection called with:', machines?.length, 'machines');
+    if (!machines || machines.length === 0) {
+      console.log('🏪 DEBUG: No machines data, returning empty string');
+      return '';
+    }
+
+    console.log('🏪 DEBUG: Rendering machine overview section');
+    return `
+      <div class="section">
+        <h2 style="color: black;">🏪 Automaten-Übersicht</h2>
+        ${this.renderMachineOverview(machines)}
+      </div>
+    `;
+  }
+
+  /**
    * AKTUALISIERT: Standard-HTML-Template mit schwarzer Schriftfarbe und Automaten-Übersicht
    */
   private renderDefaultTemplate(data: DailyReportData): string {
@@ -282,7 +303,7 @@ export class DailyEmailComposer {
             body {
                 font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
                 line-height: 1.6;
-                color: black;
+                color: black !important;
                 background-color: #f5f5f5;
                 margin: 0;
                 padding: 20px;
@@ -324,11 +345,29 @@ export class DailyEmailComposer {
             }
             .section h2 {
                 margin: 0 0 15px 0;
-                color: #2c3e50;
+                color: black;
                 font-size: 18px;
                 display: flex;
                 align-items: center;
                 gap: 8px;
+            }
+            /* MACHINE OVERVIEW TABLE STYLES */
+            .machine-table {
+                width: 100%;
+                border-collapse: collapse;
+                font-size: 14px;
+            }
+            .machine-table th,
+            .machine-table td {
+                border: 1px solid #ddd;
+                padding: 10px;
+                text-align: left;
+                color: black;
+            }
+            .machine-table th {
+                background-color: #f8f9fa;
+                font-weight: bold;
+                color: black;
             }
             .sales-box {
                 background: linear-gradient(135deg, #00b894, #00a085);
@@ -557,6 +596,7 @@ export class DailyEmailComposer {
             
             <div class="content">
                 ${this.renderSalesSection(data)}
+                ${this.renderMachineOverviewSection(automatenÜbersicht)}
                 ${this.renderInventorySection(data)}
                 ${data.sections.erweiterte_bestellungen ? this.renderEnhancedOrdersSection(data) : ''}
                 ${data.sections.automaten_status ? this.renderMachineStatusSection(data) : ''}
