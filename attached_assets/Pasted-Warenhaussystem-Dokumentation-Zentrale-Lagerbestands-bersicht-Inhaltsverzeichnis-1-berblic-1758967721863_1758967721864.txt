@@ -1,0 +1,381 @@
+Warenhaussystem Dokumentation - Zentrale Lagerbestandsübersicht
+
+## Inhaltsverzeichnis
+
+1. [Überblick](#überblick)
+2. [Hauptfunktionen](#hauptfunktionen)
+3. [Benutzeroberfläche](#benutzeroberfläche)
+4. [Batch-Management](#batch-management)
+5. [Bewegungsverfolgung](#bewegungsverfolgung)
+6. [Inventurfunktionen](#inventurfunktionen)
+7. [Warnsysteme](#warnsysteme)
+8. [Technische Implementierung](#technische-implementierung)
+9. [Benutzerhandbuch](#benutzerhandbuch)
+
+## Überblick
+
+Das neue Warenhaussystem (Struktur Nr. 3) wurde komplett überarbeitet, um eine zentrale und übersichtliche Lagerbestandsübersicht zu bieten. Das System fokussiert sich auf die wichtigsten Anforderungen:
+
+- **Zentrale Bestandsübersicht**: Alle Produkte, Batches und Mengen auf einen Blick
+- **Batch-Tracking**: Vollständige Verfolgung von Chargen mit MHD
+- **Bewegungshistorie**: Detaillierte Nachverfolgung aller Entnahmen und Umlagerungen
+- **Inventurmanagement**: Integrierte Inventurfunktionen
+- **Frühwarnsystem**: Automatische Benachrichtigungen bei niedrigen Beständen und ablaufenden Produkten
+
+## Hauptfunktionen
+
+### 1. Zentrale Lagerbestandsansicht
+
+**Kernfeatures:**
+- Übersicht aller Produkte im Lager
+- Anzeige aller verfügbaren Batches pro Produkt
+- Mengeninformationen in Echtzeit
+- MHD-Anzeige für jede Charge
+- Farbcodierte Warnstufen (grün/gelb/rot basierend auf MHD und Bestand)
+
+**Darstellung:**
+```
+Produkt: Coca Cola 0,5L
+├── Batch #001 | MHD: 15.06.2024 | Menge: 48 Stk | Status: ⚠️  (läuft bald ab)
+├── Batch #002 | MHD: 22.07.2024 | Menge: 72 Stk | Status: ✅ (gut)
+└── Batch #003 | MHD: 30.08.2024 | Menge: 24 Stk | Status: ✅ (gut)
+Gesamtbestand: 144 Stk
+```
+
+### 2. Batch-Management System
+
+**Batch-Erstellung:**
+- Automatische Batch-Generierung bei Wareneingang
+- Manuelle Batch-Erstellung für bestehende Bestände
+- Eindeutige Batch-Identifikation
+- MHD-Zuordnung pro Batch
+
+**Batch-Informationen:**
+- Batch-Nummer
+- Wareneingangsdatum
+- Mindesthaltbarkeitsdatum
+- Ursprüngliche Menge
+- Aktuelle Menge
+- Lieferant
+- Lagerort
+
+### 3. Bewegungsverfolgung
+
+**Detaillierte Entnahmehistorie:**
+Für jedes Batch wird genau dokumentiert:
+- **Wer** hat entnommen (Benutzername)
+- **Wann** wurde entnommen (Datum/Uhrzeit)
+- **Wie viel** wurde entnommen (Menge)
+- **Wohin** wurde es gebracht (Automat/Lager)
+- **Grund** der Entnahme (Refill/Umlagerung/Sonstige)
+
+**Beispiel Bewegungshistorie:**
+```
+Batch #001 - Coca Cola 0,5L
+Bewegungshistorie:
+├── 15.01.2024 09:30 | Max Mustermann | -12 Stk → Automat A-01 (Refill)
+├── 18.01.2024 14:20 | Anna Schmidt   | -8 Stk  → Automat B-03 (Refill)
+├── 22.01.2024 11:45 | Max Mustermann | -6 Stk  → Lager Nord (Umlagerung)
+└── 25.01.2024 08:15 | Lisa Weber     | -4 Stk  → Automat A-01 (Refill)
+Verbleibend: 18 Stk
+```
+
+### 4. Inventurfunktionen
+
+**Inventur starten:**
+- Auswahl der zu inventierenden Bereiche
+- Teilinventuren möglich (einzelne Produktgruppen)
+- Vollinventur des gesamten Lagers
+- Generierung von Inventurlisten
+
+**Inventur durchführen:**
+- Mobile-optimierte Eingabe
+- Barcode-Scanner Integration (geplant)
+- Batch-spezifische Zählung
+- Abweichungserfassung
+
+**Inventur auswerten:**
+- Soll-/Ist-Vergleich
+- Differenzanzeige pro Batch
+- Automatische Bestandskorrektur
+- Verlustanalyse
+
+### 5. Warnsysteme und Alerts
+
+**MHD-Warnungen:**
+- 🔴 Abgelaufen (sofortige Entfernung)
+- 🟡 Läuft in 7 Tagen ab (prioritäre Verwendung)
+- 🟠 Läuft in 14 Tagen ab (bald verwenden)
+
+**Bestandswarnungen:**
+- 🔴 Kritisch niedrig (< 10% vom Mindestbestand)
+- 🟡 Niedrig (< 25% vom Mindestbestand)
+- 📋 Nachbestellung empfohlen
+
+**Dashboard-Übersicht:**
+- Anzahl ablaufender Produkte heute/diese Woche
+- Anzahl Artikel mit niedrigem Bestand
+- Kritische Batches (Sofortaktion erforderlich)
+
+## Benutzeroberfläche
+
+### Hauptansicht - Lagerbestand
+
+**Layout:**
+```
+┌─────────────────────────────────────────────────────────────┐
+│ 📦 Lagerbestand - Hauptlager                                │
+├─────────────────────────────────────────────────────────────┤
+│ Filter: [Alle] [⚠️ Ablaufend] [📉 Niedrig] [🔍 Suche...]    │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│ Produkt                    │ Batches │ Gesamt │ Status      │
+│ ═══════════════════════════════════════════════════════════ │
+│ 🥤 Coca Cola 0,5L         │    3    │  144   │ ✅         │
+│   ├─ #001 (48 Stk, MHD: 15.06) 🟡                          │
+│   ├─ #002 (72 Stk, MHD: 22.07) ✅                          │
+│   └─ #003 (24 Stk, MHD: 30.08) ✅                          │
+│                                                             │
+│ 🍫 Snickers 50g           │    2    │   85   │ 🔴         │
+│   ├─ #007 (12 Stk, MHD: 12.01) 🔴 ABGELAUFEN!            │
+│   └─ #008 (73 Stk, MHD: 28.02) ✅                          │
+│                                                             │
+│ 🍪 Cookies                │    1    │    8   │ 🟡         │
+│   └─ #012 (8 Stk, MHD: 20.01) 🟡 NIEDRIG!                │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Detail-Ansicht - Produktbewegungen
+
+**Aufklappbare Batch-Details:**
+```
+┌─────────────────────────────────────────────────────────────┐
+│ 📊 Batch #001 - Coca Cola 0,5L | MHD: 15.06.2024           │
+├─────────────────────────────────────────────────────────────┤
+│ Ursprungsmenge: 60 Stk | Verbleibend: 18 Stk | Entnommen: 42 Stk │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│ 📋 Bewegungshistorie:                                       │
+│                                                             │
+│ 25.01 08:15 │ Lisa Weber     │ -4 Stk  │ → Automat A-01    │
+│ 22.01 11:45 │ Max Mustermann │ -6 Stk  │ → Lager Nord      │
+│ 18.01 14:20 │ Anna Schmidt   │ -8 Stk  │ → Automat B-03    │
+│ 15.01 09:30 │ Max Mustermann │ -12 Stk │ → Automat A-01    │
+│ 10.01 16:00 │ System         │ +60 Stk │ ← Wareneingang    │
+│                                                             │
+│ [📝 Entnahme buchen] [📋 Inventur] [⚠️ Problem melden]     │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Inventur-Interface
+
+**Inventur-Dashboard:**
+```
+┌─────────────────────────────────────────────────────────────┐
+│ 📋 Inventur Management                                      │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│ [➕ Neue Inventur starten]                                  │
+│                                                             │
+│ 🏃 Laufende Inventuren:                                    │
+│ ├─ Inventur #2024-001 | Bereich: Getränke | 60% komplett  │
+│ └─ Inventur #2024-002 | Bereich: Snacks   | 25% komplett  │
+│                                                             │
+│ ✅ Abgeschlossene Inventuren:                              │
+│ ├─ Inventur #2023-012 | 15.12.2023 | Abweichung: -2,3%   │
+│ ├─ Inventur #2023-011 | 01.12.2023 | Abweichung: +0,8%   │
+│ └─ Inventur #2023-010 | 15.11.2023 | Abweichung: -1,1%   │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## Technische Implementierung
+
+### Datenmodell
+
+**Tabellen-Struktur:**
+
+```sql
+-- Warehouse (Lager)
+warehouses:
+  - id, name, location, type
+
+-- Products (Produkte)  
+products:
+  - id, name, sku, category, unit
+
+-- Batches (Chargen)
+product_batches:
+  - id, product_id, warehouse_id, batch_number
+  - expiry_date, initial_quantity, current_quantity
+  - created_at, supplier_id
+
+-- Movements (Bewegungen)
+inventory_movements:
+  - id, batch_id, user_id, movement_type
+  - quantity, destination, reason, notes
+  - created_at
+
+-- Inventory Counts (Inventuren)
+inventory_counts:
+  - id, warehouse_id, status, started_by
+  - started_at, completed_at
+
+inventory_count_items:
+  - id, count_id, batch_id
+  - expected_quantity, counted_quantity, difference
+```
+
+### API-Endpunkte
+
+**Lagerbestand abrufen:**
+```
+GET /api/warehouse/{id}/inventory
+- Liefert alle Produkte mit Batches
+- Filter: expiring, low_stock, category
+- Sortierung: name, expiry_date, quantity
+```
+
+**Bewegungen abrufen:**
+```
+GET /api/batches/{id}/movements
+- Vollständige Bewegungshistorie
+- Pagination und Filterung
+- Benutzer- und Zeitraumfilter
+```
+
+**Inventur verwalten:**
+```
+POST /api/inventory-counts
+GET /api/inventory-counts/{id}
+PUT /api/inventory-counts/{id}/items
+```
+
+### React-Komponenten
+
+**Hauptkomponenten:**
+- `WarehouseInventoryOverview` - Zentrale Übersicht
+- `ProductBatchList` - Batch-Auflistung pro Produkt
+- `BatchMovementHistory` - Bewegungshistorie
+- `InventoryCountManager` - Inventur-Management
+- `StockAlerts` - Warnmeldungen
+- `ExpiryWarnings` - MHD-Warnungen
+
+## Benutzerhandbuch
+
+### 1. Lagerbestand einsehen
+
+**Schritt-für-Schritt:**
+1. Navigation zu "Lager" → "Bestandsübersicht"
+2. Auswahl des gewünschten Lagers (falls mehrere vorhanden)
+3. Verwendung der Filter für spezifische Ansichten:
+   - "Ablaufend" für Produkte mit nahem MHD
+   - "Niedrig" für Artikel mit geringen Beständen
+   - Suchfunktion für spezifische Produkte
+
+**Tipps:**
+- 🔴 Rote Markierungen = Sofortige Aufmerksamkeit erforderlich
+- 🟡 Gelbe Markierungen = In den nächsten Tagen beachten
+- ✅ Grüne Markierungen = Alles in Ordnung
+
+### 2. Batch-Details und Bewegungen anzeigen
+
+**Aufklappen von Produktdetails:**
+1. Klick auf ein Produkt in der Übersicht
+2. Anzeige aller Batches mit Details
+3. Klick auf ein Batch für vollständige Bewegungshistorie
+
+**Informationen pro Batch:**
+- Batch-Nummer und MHD
+- Aktuelle vs. ursprüngliche Menge
+- Chronologische Bewegungshistorie
+- Verantwortliche Personen für Entnahmen
+
+### 3. Entnahmen buchen
+
+**Neue Entnahme registrieren:**
+1. Auswahl des entsprechenden Batches
+2. Klick auf "Entnahme buchen"
+3. Eingabe der Mengenangabe
+4. Auswahl des Ziels (Automat/Lager)
+5. Angabe des Grundes (Refill/Umlagerung/etc.)
+6. Bestätigung der Buchung
+
+**FIFO-Prinzip:**
+Das System schlägt automatisch das Batch mit dem nächsten MHD vor (First In, First Out).
+
+### 4. Inventur durchführen
+
+**Inventur starten:**
+1. Navigation zu "Inventur" → "Neue Inventur"
+2. Auswahl des Lagerbereichs
+3. Optional: Einschränkung auf Produktkategorien
+4. Start der Inventur
+
+**Inventur-Prozess:**
+1. Systematisches Abarbeiten der Inventurliste
+2. Zählung pro Batch (nicht nur pro Produkt!)
+3. Eingabe der gezählten Mengen
+4. Notizen bei Auffälligkeiten
+5. Abschluss und Freigabe
+
+**Nach der Inventur:**
+- Automatische Abweichungsanalyse
+- Bestandskorrekturen (nach Freigabe)
+- Bericht über Verluste/Zugewinne
+
+### 5. Nachbestellmanagement
+
+**Automatische Empfehlungen:**
+Das System generiert Nachbestellvorschläge basierend auf:
+- Aktuellen Beständen vs. Mindestbeständen
+- Verbrauchshistorie der letzten Monate
+- Ablaufenden Produkten (erhöhter Verbrauch nötig)
+
+**Manuelle Nachbestellung:**
+1. Übersicht der empfohlenen Nachbestellungen
+2. Anpassung der Mengen nach Bedarf
+3. Erstellung der Bestellung
+4. Weiterleitung an Lieferanten
+
+### 6. Wartung und Pflege
+
+**Regelmäßige Aufgaben:**
+
+**Täglich:**
+- Kontrolle der MHD-Warnungen
+- Überprüfung kritischer Bestände
+- Bearbeitung von Systemmeldungen
+
+**Wöchentlich:**
+- Analyse der Bewegungsmuster
+- Überprüfung der Mindestbestände
+- Planung von Nachbestellungen
+
+**Monatlich:**
+- Vollinventur oder Teilinventuren
+- Analyse von Schwund und Verlusten
+- Optimierung von Lagerplätzen
+
+**Vierteljährlich:**
+- Review der Mindestbestände
+- Anpassung der Warnschwellen
+- Schulung neuer Mitarbeiter
+
+## Problembehandlung
+
+### Häufige Probleme und Lösungen
+
+**Problem: Batch-Bewegung wird nicht angezeigt**
+- Prüfung der Benutzerberechtigungen
+- Cache-Aktualisierung (F5)
+- Kontakt zum Administrator
+
+**Problem: Inventur-Differenzen**
+- Nachzählung des betroffenen Bereichs
+- Prüfung auf nicht gebuchte Entnahmen
+- Suche nach verlegten Produkten
+
+**Problem: Falsche MHD-Anzeige**
+- Korrektur über Batch-Bearbeitung
+- Dokumentation der Änderung
+- Information der betroffenen Mitarbeiter
