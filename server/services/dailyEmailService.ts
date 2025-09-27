@@ -469,8 +469,9 @@ export class DailyEmailService {
       const emailContent = await this.composer.composeEmail(reportData);
       
       console.log('📊 Report-Daten erfolgreich generiert:', {
-        sectionsCount: Object.keys(reportData).length,
-        hasAutomatenOverview: !!reportData.automaten_übersicht,
+        sectionsCount: Object.keys(reportData.sections || {}).length,
+        hasAutomatenOverview: !!(reportData.sections?.automaten_übersicht && reportData.sections.automaten_übersicht.length > 0),
+        machineOverviewCount: reportData.sections?.automaten_übersicht?.length || 0,
         templateLength: emailContent.html.length
       });
       
