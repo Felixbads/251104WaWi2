@@ -12,9 +12,11 @@ import {
   refills,
   inventoryItems,
   transactionGaps,
-  machineStocks
+  machineStocks,
+  inventoryBatches,
+  machineDailyStats
 } from "@shared/schema";
-import { sql, eq, and, desc, gte, lte, count, sum, max, min, isNotNull, ne, not, like, asc } from "drizzle-orm";
+import { sql, eq, and, desc, gte, lte, count, sum, max, min, isNotNull, ne, not, like, asc, gt } from "drizzle-orm";
 
 // Weather API interface
 interface WeatherData {
@@ -215,33 +217,12 @@ export class DailyEmailDataAggregator {
   }
 
   /**
-   * Holt Wetterdaten und erstellt Prognosen
+   * Wetter-Integration deaktiviert - keine Mock-Daten mehr
    */
-  private async getWeatherAndForecastData(date: Date): Promise<WeatherData> {
-    // Placeholder implementation - in production würde hier eine echte Wetter-API angebunden
-    const mockWeatherData: WeatherData = {
-      standort: "Bad Schandau",
-      heute: {
-        wetter: "Heiter, 24°C, 15% Regenwahrscheinlichkeit",
-        temperatur: "24°C",
-        regenwahrscheinlichkeit: "15%",
-        prognostizierter_umsatz: await this.getPredictedSales(date)
-      },
-      wettervorschau: [
-        { tag: "Fr", wetter: "sonnig", temperatur: "26°C", bemerkung: "hohe Nachfrage erwartet" },
-        { tag: "Sa", wetter: "leicht bewölkt", temperatur: "23°C", bemerkung: "normaler Wochenendbetrieb" },
-        { tag: "So", wetter: "Regen", temperatur: "18°C", bemerkung: "Umsatzrückgang möglich" },
-        { tag: "Mo", wetter: "bedeckt", temperatur: "20°C", bemerkung: "mittlere Prognose" },
-        { tag: "Di", wetter: "sonnig", temperatur: "25°C", bemerkung: "erhöhte Nachfrage erwartet" }
-      ],
-      ferien: [
-        { bundesland: "Sachsen", status: "Sommerferien", resttage: 21 },
-        { bundesland: "Bayern", status: "Sommerferien", resttage: 37 }
-      ],
-      auswirkung: "Touristische Automaten mit +10–20% Umsatzanstieg"
-    };
-
-    return mockWeatherData;
+  private async getWeatherAndForecastData(date: Date): Promise<WeatherData | null> {
+    // ENTFERNT: Mock-Wetter-Daten 
+    // TODO: Echte Wetter-API-Integration implementieren falls benötigt
+    return null;
   }
 
   /**
@@ -317,7 +298,7 @@ export class DailyEmailDataAggregator {
   }
 
   /**
-   * Sammelt MHD-Daten aus Lager und Automaten
+   * Sammelt MHD-Daten aus Lager und Automaten - ECHTE DATEN
    */
   private async getMHDData() {
     const today = new Date();
@@ -329,115 +310,130 @@ export class DailyEmailDataAggregator {
     in31Days.setDate(today.getDate() + 31);
 
     try {
-      // MHD Lager-Daten - Mock-Daten da warehouseInventoryItems Tabelle nicht verfügbar
-      const warehouseItems = [
-        {
-          productName: "Joghurt Natur",
-          quantity: 4,
-          expiryDate: new Date(today.getTime() + 2 * 24 * 60 * 60 * 1000), // In 2 Tagen
-          location: "Lager Süd"
-        },
-        {
-          productName: "Wurstaufschnitt",
-          quantity: 8,
-          expiryDate: new Date(today.getTime() + 10 * 24 * 60 * 60 * 1000), // In 10 Tagen
-          location: "Lager Ost"
-        },
-        {
-          productName: "Fruchtquark",
-          quantity: 12,
-          expiryDate: new Date(today.getTime() + 25 * 24 * 60 * 60 * 1000), // In 25 Tagen
-          location: "Lager Nord"
-        }
-      ];
+      // ECHTE LAGER-MHD-DATEN aus inventoryBatches
+      const warehouseItems = await db
+        .select({
+          productName: products.productName,
+          quantity: inventoryBatches.quantity,
+          expiryDate: inventoryBatches.expiryDate,
+          warehouseName: sql<string>`'Lager'`.as('warehouseName') // Platzhalter da keine warehouse table verknüpft
+        })
+        .from(inventoryBatches)
+        .leftJoin(products, eq(inventoryBatches.productId, products.id))
+        .where(
+          and(
+            gt(inventoryBatches.quantity, 0),
+            isNotNull(inventoryBatches.expiryDate),
+            sql`${inventoryBatches.expiryDate} <= ${in31Days.toISOString().split('T')[0]}` // Nur Produkte die in den nächsten 31 Tagen ablaufen
+          )
+        )
+        .orderBy(asc(inventoryBatches.expiryDate))
+        .limit(20);
 
-      // MHD Automaten-Daten - Mock-Implementierung da inventory_items keine MHD-Felder hat
-      const machineItems = [
-        {
-          productName: "Käsekuchen",
-          quantity: 2,
-          expiryDate: new Date(today.getTime() + 2 * 24 * 60 * 60 * 1000), // In 2 Tagen
-          machineName: "#3"
-        },
-        {
-          productName: "Wrap Chicken",
-          quantity: 1,
-          expiryDate: new Date(today.getTime() + 1 * 24 * 60 * 60 * 1000), // In 1 Tag
-          machineName: "#7"
-        }
-      ];
+      // ECHTE AUTOMATEN-MHD-DATEN aus machineStocks 
+      const machineItems = await db
+        .select({
+          productName: sql<string>`COALESCE(${products.productName}, 'Unbekanntes Produkt')`.as('productName'),
+          quantity: machineStocks.quantity,
+          expiryDate: machineStocks.expiryDate,
+          machineName: machines.machineName
+        })
+        .from(machineStocks)
+        .leftJoin(inventoryBatches, eq(machineStocks.batchId, inventoryBatches.id))
+        .leftJoin(products, eq(inventoryBatches.productId, products.id))
+        .leftJoin(machines, eq(machineStocks.machineId, machines.id))
+        .where(
+          and(
+            gt(machineStocks.quantity, 0),
+            isNotNull(machineStocks.expiryDate),
+            sql`${machineStocks.expiryDate} <= ${in31Days.toISOString().split('T')[0]}` // Nur Produkte die in den nächsten 31 Tagen ablaufen
+          )
+        )
+        .orderBy(asc(machineStocks.expiryDate))
+        .limit(20);
 
+      // Kategorisiere Lager-MHD-Daten
       const lagerData = {
         "<5": warehouseItems
-          .filter(item => item.expiryDate && item.expiryDate <= in5Days)
+          .filter(item => item.expiryDate && new Date(item.expiryDate) <= in5Days)
           .map(item => ({
-            lager: item.location || 'Unbekannt',
+            lager: item.warehouseName || 'Lager',
             produkt: item.productName || 'Unbekannt',
-            anzahl: item.quantity || 0,
-            mhd: item.expiryDate?.toISOString().split('T')[0] || ''
+            anzahl: Number(item.quantity) || 0,
+            mhd: item.expiryDate?.toString().split('T')[0] || ''
           })),
         "<14": warehouseItems
-          .filter(item => item.expiryDate && item.expiryDate > in5Days && item.expiryDate <= in14Days)
+          .filter(item => item.expiryDate && new Date(item.expiryDate) > in5Days && new Date(item.expiryDate) <= in14Days)
           .map(item => ({
-            lager: item.location || 'Unbekannt',
+            lager: item.warehouseName || 'Lager',
             produkt: item.productName || 'Unbekannt',
-            anzahl: item.quantity || 0,
-            mhd: item.expiryDate?.toISOString().split('T')[0] || ''
+            anzahl: Number(item.quantity) || 0,
+            mhd: item.expiryDate?.toString().split('T')[0] || ''
           })),
         "<31": warehouseItems
-          .filter(item => item.expiryDate && item.expiryDate > in14Days && item.expiryDate <= in31Days)
+          .filter(item => item.expiryDate && new Date(item.expiryDate) > in14Days && new Date(item.expiryDate) <= in31Days)
           .map(item => ({
-            lager: item.location || 'Unbekannt',
+            lager: item.warehouseName || 'Lager',
             produkt: item.productName || 'Unbekannt',
-            anzahl: item.quantity || 0,
-            mhd: item.expiryDate?.toISOString().split('T')[0] || ''
+            anzahl: Number(item.quantity) || 0,
+            mhd: item.expiryDate?.toString().split('T')[0] || ''
           }))
       };
 
-      const automatenData = machineItems.map(item => ({
-        automat: item.machineName || 'Unbekannt',
-        produkt: item.productName || 'Unbekannt',
-        anzahl: item.quantity || 0,
-        mhd: item.expiryDate?.toISOString().split('T')[0] || ''
-      }));
+      // Kategorisiere Automaten-MHD-Daten
+      const automatenData = machineItems
+        .filter(item => item.expiryDate && new Date(item.expiryDate) <= in14Days) // Nur kritische MHD (<14 Tage) für Automaten
+        .map(item => ({
+          automat: item.machineName || 'Unbekannt',
+          produkt: item.productName || 'Unbekannt',
+          anzahl: Number(item.quantity) || 0,
+          mhd: item.expiryDate?.toString().split('T')[0] || ''
+        }));
 
+      console.log(`📋 ECHTE MHD-DATEN: ${warehouseItems.length} Lager-Items, ${machineItems.length} Automaten-Items`);
+      
       return { lager: lagerData, automaten: automatenData };
     } catch (error) {
-      console.error('Fehler beim Laden der MHD-Daten:', error);
+      console.error('❌ Fehler beim Laden der MHD-Daten:', error);
       return {
-        lager: {
-          "<5": [{ lager: "Süd", produkt: "Joghurt Natur", anzahl: 4, mhd: "2025-08-10" }],
-          "<14": [{ lager: "Ost", produkt: "Wurstaufschnitt", anzahl: 8, mhd: "2025-08-18" }],
-          "<31": [{ lager: "Nord", produkt: "Fruchtquark", anzahl: 12, mhd: "2025-09-06" }]
-        },
-        automaten: [
-          { automat: "#3", produkt: "Käsekuchen", anzahl: 2, mhd: "2025-08-10" },
-          { automat: "#7", produkt: "Wrap Chicken", anzahl: 1, mhd: "2025-08-09" }
-        ]
+        lager: { "<5": [], "<14": [], "<31": [] },
+        automaten: []
       };
     }
   }
 
   /**
-   * Findet Produkte mit niedrigem Lagerbestand
+   * Findet Produkte mit niedrigem Lagerbestand - ECHTE DATEN
    */
   private async getLowStockData() {
     try {
-      // Mock-Daten für niedrigen Lagerbestand da warehouseInventoryItems Tabelle nicht verfügbar
-      return [
-        { produkt: "Eier", bestand: 6, bedarf: 20 },
-        { produkt: "Käsewürfel", bestand: 4, bedarf: 15 },
-        { produkt: "Apfelsaft 0,33l", bestand: 8, bedarf: 22 },
-        { produkt: "Mineralwasser 0,5l", bestand: 12, bedarf: 30 },
-        { produkt: "Vollkornbrötchen", bestand: 3, bedarf: 10 }
-      ];
+      // ECHTE NIEDRIGBESTAND-DATEN aus inventoryItems
+      const lowStockItems = await db
+        .select({
+          productName: products.productName,
+          currentStock: inventoryItems.quantity,
+          minQuantity: inventoryItems.minQuantity
+        })
+        .from(inventoryItems)
+        .leftJoin(products, eq(inventoryItems.productId, products.id))
+        .where(
+          and(
+            lte(inventoryItems.quantity, sql`COALESCE(${inventoryItems.minQuantity}, 10)`), // Bestand <= Mindestmenge (oder 10 als Default)
+            gt(inventoryItems.quantity, 0) // Nicht komplett ausverkauft
+          )
+        )
+        .orderBy(asc(inventoryItems.quantity))
+        .limit(10);
+
+      return lowStockItems.map(item => ({
+        produkt: item.productName || 'Unbekannt',
+        bestand: Number(item.currentStock) || 0,
+        bedarf: Number(item.minQuantity) || 10
+      }));
+
     } catch (error) {
-      console.error('Fehler beim Laden der Lagerbestandsdaten:', error);
-      return [
-        { produkt: "Eier", bestand: 6, bedarf: 20 },
-        { produkt: "Käsewürfel", bestand: 4, bedarf: 15 },
-        { produkt: "Apfelsaft 0,33l", bestand: 8, bedarf: 22 }
-      ];
+      console.error('❌ Fehler beim Laden der Lagerbestandsdaten:', error);
+      return [];
     }
   }
 
@@ -699,7 +695,7 @@ export class DailyEmailDataAggregator {
       const reorderRecommendations = lowStockItems.slice(0, 5).map(item => ({
         produkt: item.productName || 'Unbekannt',
         priorität: (item.currentStock || 0) <= 5 ? 'hoch' : 'mittel',
-        abverkaufsgeschwindigkeit: '5-10 Stück/Woche', // Mock-Daten
+        abverkaufsgeschwindigkeit: 'Berechnung folgt', // TODO: Echte Verkaufsgeschwindigkeit berechnen
         empfohlene_menge: Math.max(20, (item.minQuantity || 10) * 2)
       }));
 
@@ -1105,11 +1101,11 @@ export class DailyEmailDataAggregator {
 
   /**
    * Sammelt detaillierte Automaten-Übersicht mit Füllstand, MHD, Verkäufen und Bargeld
-   * TEMPORÄRER STUB: Vereinfachte Version um Drizzle ORM-Probleme zu umgehen
+   * ECHTE DATEN: Vollständige Implementierung mit echten Datenbankabfragen
    */
   private async getMachineOverviewData(reportDate: Date = new Date()) {
     try {
-      // Versuche einfache Automaten-Abfrage ohne problematische machineStocks-Tabelle
+      // Hole verfügbare Automaten aus der Datenbank
       const machineDetails = await db
         .select({
           machineId: machines.id,
@@ -1125,58 +1121,199 @@ export class DailyEmailDataAggregator {
             not(like(machines.machineName, '%Test%'))
           )
         )
-        .limit(3); // Begrenzen auf 3 für Stabilität
+        .limit(10); // Erhöhe Limit für mehr Automaten
 
-      console.log(`🏪 STUB: Gefundene Automaten: ${machineDetails.length}`);
+      console.log(`🏪 ECHTE DATEN: Gefundene Automaten: ${machineDetails.length}`);
 
-      // Erstelle funktionsfähige Mock-Daten basierend auf verfügbaren Automaten
-      const machineOverview = machineDetails.map((machine, index) => ({
-        automat_name: machine.machineName || `Automat-${index + 1}`,
-        automat_id: machine.machineId,
-        vendon_id: machine.vendonId,
-        füllstand: {
-          gesamt_produkte: Math.floor(Math.random() * 80) + 40, // 40-120 Produkte
-          verschiedene_artikel: Math.floor(Math.random() * 12) + 8 // 8-20 Artikel
-        },
-        nächstes_mhd: {
-          datum: new Date(Date.now() + Math.random() * 14 * 24 * 60 * 60 * 1000), // Nächste 14 Tage
-          produkt: 'Milch 3,5%',
-          tage_bis_ablauf: Math.floor(Math.random() * 14) + 1 // 1-14 Tage
-        },
-        gestriger_verkauf: {
-          anzahl: Math.floor(Math.random() * 15) + 2, // 2-17 Verkäufe
-          umsatz: Number((Math.random() * 75 + 15).toFixed(2)) // 15-90€
-        },
-        bargeld_bestand: Number((Math.random() * 200 + 80).toFixed(2)) // 80-280€
-      }));
+      if (machineDetails.length === 0) {
+        console.log('⚠️ Keine aktiven Automaten gefunden');
+        return [];
+      }
 
-      console.log(`🏪 STUB: Generiere Mock-Daten für ${machineOverview.length} Automaten`);
+      // Sammle echte Daten für jeden Automaten parallel
+      const machineOverview = await Promise.all(
+        machineDetails.map(async (machine) => {
+          // 1. ECHTE FÜLLSTAND-DATEN aus machineStocks
+          const fillLevel = await this.getRealFillLevel(machine.machineId);
+          
+          // 2. ECHTE MHD-DATEN aus machineStocks + batches
+          const nextMhd = await this.getRealNextMhd(machine.machineId);
+          
+          // 3. ECHTE GESTRIGE VERKÄUFE aus transactions
+          const yesterdaySales = await this.getRealYesterdaySales(machine.machineId, reportDate);
+          
+          // 4. ECHTE BARGELD-BESTÄNDE aus machineDailyStats
+          const cashBalance = await this.getRealCashBalance(machine.machineId);
+
+          return {
+            automat_name: machine.machineName,
+            automat_id: machine.machineId,
+            vendon_id: machine.vendonId,
+            füllstand: fillLevel,
+            nächstes_mhd: nextMhd,
+            gestriger_verkauf: yesterdaySales,
+            bargeld_bestand: cashBalance
+          };
+        })
+      );
+
+      console.log(`🏪 ECHTE DATEN: Generierte Übersicht für ${machineOverview.length} Automaten`);
       return machineOverview;
       
     } catch (error) {
-      console.error('Fehler beim Sammeln der Automaten-Übersicht:', error);
+      console.error('❌ Fehler beim Sammeln der Automaten-Übersicht:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Holt echte Füllstand-Daten aus machineStocks
+   */
+  private async getRealFillLevel(machineId: number) {
+    try {
+      const stockData = await db
+        .select({
+          totalProducts: sql<number>`COALESCE(SUM(${machineStocks.quantity}), 0)`.as('totalProducts'),
+          uniqueProducts: sql<number>`COUNT(DISTINCT ${machineStocks.productVendonId})`.as('uniqueProducts')
+        })
+        .from(machineStocks)
+        .where(
+          and(
+            eq(machineStocks.machineId, machineId),
+            gt(machineStocks.quantity, 0)
+          )
+        );
+
+      const result = stockData[0];
+      return {
+        gesamt_produkte: Number(result?.totalProducts) || 0,
+        verschiedene_artikel: Number(result?.uniqueProducts) || 0
+      };
+    } catch (error) {
+      console.error(`Fehler beim Laden des Füllstands für Automat ${machineId}:`, error);
+      return { gesamt_produkte: 0, verschiedene_artikel: 0 };
+    }
+  }
+
+  /**
+   * Holt echtes nächstes MHD aus machineStocks mit Batch-Verknüpfung
+   */
+  private async getRealNextMhd(machineId: number) {
+    try {
+      const nextExpiryData = await db
+        .select({
+          expiryDate: machineStocks.expiryDate,
+          productName: sql<string>`COALESCE(${products.productName}, 'Unbekanntes Produkt')`.as('productName'),
+          quantity: machineStocks.quantity
+        })
+        .from(machineStocks)
+        .leftJoin(inventoryBatches, eq(machineStocks.batchId, inventoryBatches.id))
+        .leftJoin(products, eq(inventoryBatches.productId, products.id))
+        .where(
+          and(
+            eq(machineStocks.machineId, machineId),
+            gt(machineStocks.quantity, 0),
+            isNotNull(machineStocks.expiryDate)
+          )
+        )
+        .orderBy(asc(machineStocks.expiryDate))
+        .limit(1);
+
+      if (nextExpiryData.length > 0) {
+        const data = nextExpiryData[0];
+        const expiryDate = new Date(data.expiryDate!);
+        const today = new Date();
+        const diffTime = expiryDate.getTime() - today.getTime();
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+        return {
+          datum: expiryDate.toISOString(),
+          produkt: data.productName || 'Unbekanntes Produkt',
+          tage_bis_ablauf: Math.max(0, diffDays)
+        };
+      }
+
+      return {
+        datum: null,
+        produkt: 'Keine MHD-Daten',
+        tage_bis_ablauf: null
+      };
+    } catch (error) {
+      console.error(`Fehler beim Laden des MHD für Automat ${machineId}:`, error);
+      return {
+        datum: null,
+        produkt: 'MHD-Fehler',
+        tage_bis_ablauf: null
+      };
+    }
+  }
+
+  /**
+   * Holt echte gestrige Verkäufe aus transactions
+   */
+  private async getRealYesterdaySales(machineId: number, reportDate: Date) {
+    try {
+      const yesterday = new Date(reportDate);
+      yesterday.setDate(yesterday.getDate() - 1);
+      yesterday.setHours(0, 0, 0, 0);
       
-      // Fallback: Mindestens einen Mock-Automaten zurückgeben
-      console.log('🏪 FALLBACK: Verwende Minimum Mock-Daten');
-      return [{
-        automat_name: 'Hauptstandort',
-        automat_id: 'main-001',
-        vendon_id: 'V001',
-        füllstand: {
-          gesamt_produkte: 85,
-          verschiedene_artikel: 15
-        },
-        nächstes_mhd: {
-          datum: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000),
-          produkt: 'Milch 3,5%',
-          tage_bis_ablauf: 5
-        },
-        gestriger_verkauf: {
-          anzahl: 12,
-          umsatz: 43.50
-        },
-        bargeld_bestand: 156.25
-      }];
+      const dayEnd = new Date(yesterday);
+      dayEnd.setHours(23, 59, 59, 999);
+
+      const salesData = await db
+        .select({
+          totalSales: sql<number>`COUNT(*)`.as('totalSales'),
+          totalRevenue: sql<number>`COALESCE(SUM(CAST(${transactions.price} AS DECIMAL)), 0)`.as('totalRevenue')
+        })
+        .from(transactions)
+        .where(
+          and(
+            eq(transactions.machineId, machineId),
+            gte(transactions.datetime, yesterday),
+            lte(transactions.datetime, dayEnd),
+            sql`${transactions.price} IS NOT NULL AND CAST(${transactions.price} AS DECIMAL) > 0`
+          )
+        );
+
+      const result = salesData[0];
+      return {
+        anzahl: Number(result?.totalSales) || 0,
+        umsatz: Number(result?.totalRevenue) || 0
+      };
+    } catch (error) {
+      console.error(`Fehler beim Laden der gestrigen Verkäufe für Automat ${machineId}:`, error);
+      return { anzahl: 0, umsatz: 0 };
+    }
+  }
+
+  /**
+   * Holt echte Bargeld-Bestände aus transactions (neueste coinCredit-Werte)
+   */
+  private async getRealCashBalance(machineId: number) {
+    try {
+      const cashData = await db
+        .select({
+          cashBalance: transactions.coinCredit
+        })
+        .from(transactions)
+        .where(
+          and(
+            eq(transactions.machineId, machineId),
+            isNotNull(transactions.coinCredit),
+            gt(transactions.coinCredit, 0)
+          )
+        )
+        .orderBy(desc(transactions.datetime))
+        .limit(1);
+
+      if (cashData.length > 0) {
+        return Number(cashData[0].cashBalance) || null;
+      }
+      
+      return null; // Keine Bargeld-Daten verfügbar
+    } catch (error) {
+      console.error(`Fehler beim Laden des Bargeld-Bestands für Automat ${machineId}:`, error);
+      return null;
     }
   }
 
