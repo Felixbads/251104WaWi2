@@ -177,7 +177,8 @@ export class DailyEmailDataAggregator {
       machineStatusData,
       weatherData,
       openOrders,
-      agentAnalysis
+      agentAnalysis,
+      machineOverview
     ] = await Promise.all([
       this.getSalesAnalysis(reportDate),
       this.getInventoryAnalysis(settings),
@@ -185,7 +186,8 @@ export class DailyEmailDataAggregator {
       this.getMachineStatusAlerts(reportDate),
       settings?.includeWeatherForecast !== false ? this.getWeatherAndForecastData(reportDate) : null,
       settings?.includeLegacyOpenOrders === true ? this.getOpenOrders() : null,
-      this.getAgentAnalysis(reportDate)
+      this.getAgentAnalysis(reportDate),
+      this.getMachineOverviewData(reportDate)
     ]);
 
     const hints = this.generateEnhancedHints(salesData, inventoryData, agentAnalysis);
@@ -200,6 +202,7 @@ export class DailyEmailDataAggregator {
         bestände_logistik: inventoryData,
         erweiterte_bestellungen: enhancedOrderData,
         automaten_status: machineStatusData,
+        automaten_übersicht: machineOverview,
         wetter_ferien_umsatz: weatherData || undefined,
         offene_wareneingänge: settings?.includeLegacyOpenOrders === true ? openOrders || undefined : undefined,
         agent_analyse: agentAnalysis.hasRelevantFindings ? agentAnalysis : undefined,
@@ -1094,6 +1097,127 @@ export class DailyEmailDataAggregator {
           betroffene_automaten: 0
         }
       };
+    }
+  }
+
+  /**
+   * Sammelt detaillierte Automaten-Übersicht mit Füllstand, MHD, Verkäufen und Bargeld
+   */
+  private async getMachineOverviewData(reportDate: Date = new Date()) {
+    const yesterday = new Date(reportDate);
+    yesterday.setDate(reportDate.getDate() - 1);
+    
+    try {
+      // Hole alle aktiven Automaten mit ihren Details
+      const machineDetails = await db
+        .select({
+          machineId: machines.id,
+          machineName: machines.machineName,
+          vendonId: machines.vendonId
+        })
+        .from(machines)
+        .where(
+          and(
+            isNotNull(machines.machineName),
+            ne(machines.machineName, ''),
+            not(like(machines.machineName, '%Demo%')),
+            not(like(machines.machineName, '%Test%'))
+          )
+        )
+        .orderBy(machines.machineName);
+
+      // Sammle für jeden Automaten die gewünschten Daten
+      const machineOverview = await Promise.all(
+        machineDetails.map(async (machine) => {
+          // 1. Füllstand (Gesamtbestand)
+          const stockLevel = await db
+            .select({
+              totalStock: sql<number>`SUM(COALESCE(${machineStocks.quantity}, 0))`.as('totalStock'),
+              uniqueProducts: sql<number>`COUNT(DISTINCT ${machineStocks.productVendonId})`.as('uniqueProducts')
+            })
+            .from(machineStocks)
+            .where(eq(machineStocks.machineId, machine.machineId))
+            .limit(1);
+
+          // 2. Nächstes MHD
+          const nextExpiry = await db
+            .select({
+              nextMhd: sql<Date>`MIN(${machineStocks.expiryDate})`.as('nextMhd'),
+              productName: machineStocks.productName
+            })
+            .from(machineStocks)
+            .where(
+              and(
+                eq(machineStocks.machineId, machine.machineId),
+                isNotNull(machineStocks.expiryDate)
+              )
+            )
+            .orderBy(asc(machineStocks.expiryDate))
+            .limit(1);
+
+          // 3. Gestriger Verkauf
+          const yesterdaySales = await db
+            .select({
+              salesCount: count(transactions.id).as('salesCount'),
+              salesTotal: sum(transactions.price).as('salesTotal')
+            })
+            .from(transactions)
+            .where(
+              and(
+                eq(transactions.machineId, machine.machineId),
+                gte(transactions.datetime, yesterday),
+                lt(transactions.datetime, reportDate)
+              )
+            )
+            .limit(1);
+
+          // 4. Bargeld-Bestand (Cash-Transaktionen der letzten 7 Tage)
+          const weekAgo = new Date(reportDate);
+          weekAgo.setDate(reportDate.getDate() - 7);
+          
+          const cashBalance = await db
+            .select({
+              cashTotal: sum(transactions.price).as('cashTotal')
+            })
+            .from(transactions)
+            .where(
+              and(
+                eq(transactions.machineId, machine.machineId),
+                eq(transactions.paymentMethod, 'CASH'),
+                gte(transactions.datetime, weekAgo)
+              )
+            )
+            .limit(1);
+
+          return {
+            automat_name: machine.machineName || 'Unbekannt',
+            automat_id: machine.machineId,
+            vendon_id: machine.vendonId,
+            füllstand: {
+              gesamt_produkte: Number(stockLevel[0]?.totalStock) || 0,
+              verschiedene_artikel: Number(stockLevel[0]?.uniqueProducts) || 0
+            },
+            nächstes_mhd: {
+              datum: nextExpiry[0]?.nextMhd || null,
+              produkt: nextExpiry[0]?.productName || null,
+              tage_bis_ablauf: nextExpiry[0]?.nextMhd 
+                ? Math.ceil((nextExpiry[0].nextMhd.getTime() - reportDate.getTime()) / (1000 * 60 * 60 * 24))
+                : null
+            },
+            gestriger_verkauf: {
+              anzahl: Number(yesterdaySales[0]?.salesCount) || 0,
+              umsatz: Number(yesterdaySales[0]?.salesTotal) || 0
+            },
+            bargeld_bestand: Number(cashBalance[0]?.cashTotal) || 0
+          };
+        })
+      );
+
+      return machineOverview;
+      
+    } catch (error) {
+      console.error('Fehler beim Sammeln der Automaten-Übersicht:', error);
+      return [];
     }
   }
 

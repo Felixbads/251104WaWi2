@@ -83,8 +83,8 @@ export class DailyEmailComposer {
   }> {
     const subject = data.betreff || `📊 ${escapeText(data.template)} - ${this.formatDate(data.date)}`;
     
-    const html = template?.htmlTemplate 
-      ? this.renderCustomTemplate(template.htmlTemplate, data)
+    const html = template?.html_template 
+      ? this.renderCustomTemplate(template.html_template, data)
       : this.renderDefaultTemplate(data);
     
     const text = this.generateTextVersion(data);
@@ -107,7 +107,7 @@ export class DailyEmailComposer {
       rendered = this.replaceVar(rendered, 'next_report_time', '08:00 Uhr');
       
       // VERKÄUFE & PERFORMANCE - KORRIGIERT mit robuster Currency-Formatierung
-      const verkäufe = safeObject(data.sections?.verkäufe);
+      const verkäufe = safeObject(data.sections?.verkäufe, {});
       const salesCount = this.safeValue(verkäufe.anzahl_verkäufe, 0);
       const salesTotal = this.safeValue(verkäufe.umsatzsumme, 0);
       const salesAverage = salesCount > 0 ? (salesTotal / salesCount) : 0;
@@ -117,64 +117,68 @@ export class DailyEmailComposer {
       rendered = this.replaceVar(rendered, 'sales_average', this.formatCurrency(salesAverage));
       
       // Top Produkte Details
-      const topProductsHtml = this.renderTopProducts(safeArray(verkäufe.top_produkte));
+      const topProductsHtml = this.renderTopProducts(safeArray(verkäufe.top_produkte, []));
       rendered = this.replaceVar(rendered, 'sales_details', topProductsHtml);
       
       // ERWEITERTE BESTELLUNGEN & LIEFERUNGEN
-      const erweiterteBest = safeObject(data.sections?.erweiterte_bestellungen);
+      const erweiterteBest = safeObject(data.sections?.erweiterte_bestellungen, {});
       
       rendered = this.replaceVar(rendered, 'erweiterte_bestellungen_heute_erwartet', 
-        this.renderOrderDeliveries(safeArray(erweiterteBest.heute_erwartet)));
+        this.renderOrderDeliveries(safeArray(erweiterteBest.heute_erwartet, [])));
       rendered = this.replaceVar(rendered, 'erweiterte_bestellungen_verspaetet', 
-        this.renderOrderDeliveries(safeArray(erweiterteBest.verspätet)));
+        this.renderOrderDeliveries(safeArray(erweiterteBest.verspätet, [])));
       rendered = this.replaceVar(rendered, 'erweiterte_bestellungen_ausstehend', 
-        this.renderOrderDeliveries(safeArray(erweiterteBest.diese_woche)));
+        this.renderOrderDeliveries(safeArray(erweiterteBest.diese_woche, [])));
       
       // Bestellungen Zusammenfassung - KORRIGIERT mit robuster Formatierung
-      const bestZusammenfassung = safeObject(erweiterteBest.zusammenfassung);
+      const bestZusammenfassung = safeObject(erweiterteBest.zusammenfassung, {});
       rendered = this.replaceVar(rendered, 'bestellungen_total_count', this.formatNumber(bestZusammenfassung.total_ausstehend));
       rendered = this.replaceVar(rendered, 'bestellungen_total_value', this.formatCurrency(bestZusammenfassung.total_wert_ausstehend));
       rendered = this.replaceVar(rendered, 'bestellungen_critical_delays', this.formatNumber(bestZusammenfassung.kritische_verspätungen));
       
       // AUTOMATEN-STATUS & ALERTS
-      const automatenStatus = safeObject(data.sections?.automaten_status);
+      const automatenStatus = safeObject(data.sections?.automaten_status, {});
       
       rendered = this.replaceVar(rendered, 'automaten_status_hoher_geldbestand', 
-        this.renderMachineAlerts(safeArray(automatenStatus.hoher_geldbestand)));
+        this.renderMachineAlerts(safeArray(automatenStatus.hoher_geldbestand, [])));
       rendered = this.replaceVar(rendered, 'automaten_status_muenzgeld_warnungen', 
-        this.renderMachineAlerts(safeArray(automatenStatus.münzgeld_warnungen)));
+        this.renderMachineAlerts(safeArray(automatenStatus.münzgeld_warnungen, [])));
       rendered = this.replaceVar(rendered, 'automaten_status_technische_anomalien', 
-        this.renderMachineAlerts(safeArray(automatenStatus.technische_anomalien)));
+        this.renderMachineAlerts(safeArray(automatenStatus.technische_anomalien, [])));
       
       // Automaten Zusammenfassung - KORRIGIERT mit robuster Formatierung
-      const automatZusammenfassung = safeObject(automatenStatus.zusammenfassung);
+      const automatZusammenfassung = safeObject(automatenStatus.zusammenfassung, {});
       rendered = this.replaceVar(rendered, 'automaten_alerts_total', this.formatNumber(automatZusammenfassung.total_alerts));
       rendered = this.replaceVar(rendered, 'automaten_betroffene', this.formatNumber(automatZusammenfassung.betroffene_automaten));
       rendered = this.replaceVar(rendered, 'automaten_kritische_alerts', this.formatNumber(automatZusammenfassung.kritische_alerts));
       
       // BESTÄNDE & LOGISTIK
-      const beständeLogistik = safeObject(data.sections?.bestände_logistik);
+      const beständeLogistik = safeObject(data.sections?.bestände_logistik, {});
       
       rendered = this.replaceVar(rendered, 'niedriger_lagerbestand', 
-        this.renderLowStock(safeArray(beständeLogistik.niedriger_lagerbestand)));
+        this.renderLowStock(safeArray(beständeLogistik.niedriger_lagerbestand, [])));
       rendered = this.replaceVar(rendered, 'nachzubestellende_artikel', 
-        this.renderReorderItems(safeArray(beständeLogistik.nachzubestellende_artikel)));
+        this.renderReorderItems(safeArray(beständeLogistik.nachzubestellende_artikel, [])));
       rendered = this.replaceVar(rendered, 'bestaende_zusammenfassung', 
         this.renderInventorySummary(beständeLogistik));
       
       // MHD-WARNUNGEN
-      const nahendesMhd = safeObject(beständeLogistik.nahendes_mhd);
-      const mhdLager = safeObject(nahendesMhd.lager);
+      const nahendesMhd = safeObject(beständeLogistik.nahendes_mhd, {});
+      const mhdLager = safeObject(nahendesMhd.lager, {});
       
       rendered = this.replaceVar(rendered, 'mhd_kritisch', 
-        this.renderMhdItems(safeArray(mhdLager['<5'])));
+        this.renderMhdItems(safeArray(mhdLager['<5'], [])));
       rendered = this.replaceVar(rendered, 'mhd_warnung', 
-        this.renderMhdItems(safeArray(mhdLager['<14'])));
+        this.renderMhdItems(safeArray(mhdLager['<14'], [])));
       rendered = this.replaceVar(rendered, 'mhd_zusammenfassung', 
         this.renderMhdSummary(nahendesMhd));
       
       // WETTER & PROGNOSE
-      const wetterDaten = safeObject(data.sections?.wetter_ferien_umsatz);
+      const wetterDaten = safeObject(data.sections?.wetter_ferien_umsatz, {});
+      
+      // NEUE AUTOMATEN-ÜBERSICHT mit Füllstand, MHD, Verkäufen und Bargeld
+      const automatenÜbersicht = safeArray(data.sections?.automaten_übersicht, []);
+      rendered = this.replaceVar(rendered, 'automaten_uebersicht', this.renderMachineOverview(automatenÜbersicht));
       rendered = this.replaceVar(rendered, 'weather_data', this.renderWeatherData(wetterDaten));
       rendered = this.replaceVar(rendered, 'umsatz_prognose', this.renderSalesForecast(wetterDaten));
       
@@ -192,9 +196,81 @@ export class DailyEmailComposer {
   }
 
   /**
-   * Rendert das Standard-HTML-Template für Proviantomat-Berichte
+   * NEUE Funktion: Rendert die detaillierte Automaten-Übersicht
+   */
+  private renderMachineOverview(machines: any[]): string {
+    if (!machines || machines.length === 0) {
+      return '<p style="color: black;">Keine Automaten-Daten verfügbar.</p>';
+    }
+
+    let html = `
+      <div style="margin: 15px 0; color: black;">
+        <h3 style="color: black; margin-bottom: 10px;">📊 Detaillierte Automaten-Übersicht</h3>
+        <div style="overflow-x: auto;">
+          <table style="width: 100%; border-collapse: collapse; font-family: Arial, sans-serif; color: black;">
+            <thead>
+              <tr style="background-color: #f5f5f5;">
+                <th style="border: 1px solid #ddd; padding: 8px; text-align: left; color: black;">Automat</th>
+                <th style="border: 1px solid #ddd; padding: 8px; text-align: center; color: black;">Füllstand</th>
+                <th style="border: 1px solid #ddd; padding: 8px; text-align: center; color: black;">Nächstes MHD</th>
+                <th style="border: 1px solid #ddd; padding: 8px; text-align: center; color: black;">Gestriger Verkauf</th>
+                <th style="border: 1px solid #ddd; padding: 8px; text-align: center; color: black;">Bargeld-Bestand</th>
+              </tr>
+            </thead>
+            <tbody>`;
+
+    machines.forEach((machine: any) => {
+      const mhdDate = machine.nächstes_mhd?.datum ? new Date(machine.nächstes_mhd.datum).toLocaleDateString('de-DE') : 'n/a';
+      const mhdDays = machine.nächstes_mhd?.tage_bis_ablauf;
+      const mhdColor = mhdDays && mhdDays <= 5 ? '#d32f2f' : mhdDays && mhdDays <= 14 ? '#f57c00' : 'black';
+      const mhdText = mhdDays !== null ? `${mhdDate} (${mhdDays}d)` : mhdDate;
+      
+      html += `
+        <tr>
+          <td style="border: 1px solid #ddd; padding: 8px; color: black;">
+            <strong>${escapeHtml(machine.automat_name || 'Unbekannt')}</strong>
+          </td>
+          <td style="border: 1px solid #ddd; padding: 8px; text-align: center; color: black;">
+            ${this.formatNumber(machine.füllstand?.gesamt_produkte || 0)} Stk.<br>
+            <small style="color: #666;">${this.formatNumber(machine.füllstand?.verschiedene_artikel || 0)} Artikel</small>
+          </td>
+          <td style="border: 1px solid #ddd; padding: 8px; text-align: center; color: ${mhdColor};">
+            ${mhdText}<br>
+            <small style="color: #666;">${escapeHtml(machine.nächstes_mhd?.produkt || 'n/a')}</small>
+          </td>
+          <td style="border: 1px solid #ddd; padding: 8px; text-align: center; color: black;">
+            ${this.formatNumber(machine.gestriger_verkauf?.anzahl || 0)} Verkäufe<br>
+            <small style="color: #666;">${this.formatCurrency(machine.gestriger_verkauf?.umsatz || 0)}</small>
+          </td>
+          <td style="border: 1px solid #ddd; padding: 8px; text-align: center; color: black;">
+            ${this.formatCurrency(machine.bargeld_bestand || 0)}
+          </td>
+        </tr>`;
+    });
+
+    html += `
+            </tbody>
+          </table>
+        </div>
+        <p style="font-size: 12px; color: #666; margin-top: 10px;">
+          Bargeld-Bestand = Kumulierte Cash-Transaktionen der letzten 7 Tage
+        </p>
+      </div>`;
+
+    return html;
+  }
+
+  /**
+   * AKTUALISIERT: Standard-HTML-Template mit schwarzer Schriftfarbe und Automaten-Übersicht
    */
   private renderDefaultTemplate(data: DailyReportData): string {
+    const verkäufe = safeObject(data.sections?.verkäufe, {});
+    const beständeLogistik = safeObject(data.sections?.bestände_logistik, {});
+    const automatenStatus = safeObject(data.sections?.automaten_status, {});
+    const automatenÜbersicht = safeArray(data.sections?.automaten_übersicht, []);
+    const wetterDaten = safeObject(data.sections?.wetter_ferien_umsatz, {});
+    const erweiterteBest = safeObject(data.sections?.erweiterte_bestellungen, {});
+    
     return `
     <!DOCTYPE html>
     <html lang="de">
@@ -206,7 +282,7 @@ export class DailyEmailComposer {
             body {
                 font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
                 line-height: 1.6;
-                color: #333;
+                color: black;
                 background-color: #f5f5f5;
                 margin: 0;
                 padding: 20px;
@@ -228,6 +304,7 @@ export class DailyEmailComposer {
             .header h1 {
                 margin: 0;
                 font-size: 24px;
+                color: white;
                 font-weight: 300;
             }
             .date {
