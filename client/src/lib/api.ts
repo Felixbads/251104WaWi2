@@ -1464,9 +1464,6 @@ export async function updateOrder(id: number, orderData: Partial<Omit<Order, 'id
   return apiRequest<Order>('put', `/orders/${id}`, orderData);
 }
 
-export async function deleteOrder(id: number): Promise<{success: boolean; message: string}> {
-  return apiRequest<{success: boolean; message: string}>('delete', `/orders/${id}`);
-}
 
 export async function updateOrderStatus(id: number, status: string, note?: string): Promise<Order> {
   // Statusanfrage vereinfachen und sicherstellen, dass wir nur die erwarteten Parameter senden

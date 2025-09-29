@@ -358,6 +358,10 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
         const orderedQuantity = item.orderQuantity || item.orderedQuantity || item.quantity || 0;
         const productName = item.name || item.product_name || item.productName || 'Artikel ohne Namen';
         
+        // Intelligente Batch-Nummer-Generierung wenn MHD vorhanden ist
+        const expiryDate = enableEnhancedFeatures ? calculateIntelligentExpiryDate(productName) : null;
+        const batchNumber = expiryDate ? `BATCH-${Date.now()}-${(item.product_id || item.productId || Math.random()).toString().slice(-4)}` : '';
+        
         return {
           orderItemId: item.id || item.orderItemId,
           productId: item.product_id || item.productId,
@@ -367,10 +371,10 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
           unit: item.unit || 'Stk.',
           qualityStatus: 'good' as const,
           damageDescription: '',
-          batchNumber: '',
+          batchNumber: batchNumber,
           supplierBatchNumber: '',
-          expiryDate: enableEnhancedFeatures ? calculateIntelligentExpiryDate(productName) : new Date(), // Return Date object
-          warehouseId: undefined,
+          expiryDate: expiryDate || new Date(), // Return Date object
+          warehouseId: selectedWarehouseId, // Use selected warehouse instead of undefined
           locationInWarehouse: '',
           notes: '',
         };
@@ -384,6 +388,17 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
     orderItems.map((item: any) => {
       const orderedQuantity = item.orderQuantity || item.orderedQuantity || item.quantity || 0;
       const productName = item.name || item.product_name || item.productName || 'Artikel ohne Namen';
+      
+      // Intelligente Batch-Nummer-Generierung wenn MHD vorhanden ist
+      const expiryDate = enableEnhancedFeatures ? calculateIntelligentExpiryDate(productName) : null;
+      const expiryDateString = expiryDate ? format(expiryDate, 'yyyy-MM-dd') : '';
+      const batchNumber = expiryDate ? `BATCH-${Date.now()}-${(item.product_id || item.productId || Math.random()).toString().slice(-4)}` : '';
+      
+      // Deterministic warehouse selection für Konsistenz
+      const selectedWarehouseId = defaultWarehouseId || 
+                                  (warehouses.length > 0 ? warehouses[0].id : null) || 
+                                  (order?.warehouseId) || 
+                                  1;
       
       return {
         ...item,
@@ -405,13 +420,14 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
         // Enhanced: Quality Status
         qualityStatus: 'good' as const,
         damageDescription: '',
-        // Enhanced: Intelligentes MHD - return Date object instead of string for consistency
-        expiryDate: enableEnhancedFeatures ? format(calculateIntelligentExpiryDate(productName), 'yyyy-MM-dd') : '', 
+        // Enhanced: Intelligentes MHD mit automatischer Batch-Nummer
+        expiryDate: expiryDateString, 
+        batchNumber: batchNumber,
         // Package-spezifische Initialisierung - erhaltene Menge entspricht zunächst der bestellten
         receivedPackageCount: orderedQuantity > 0 ? splitTotalToPackageFields(orderedQuantity, getProductPackageQuantity(item.product_id || item.productId)).packageCount : 0,
         receivedTotalQuantity: orderedQuantity,
-        // Enhanced: Warehouse override
-        warehouseId: undefined, // Uses global selection by default
+        // Enhanced: Warehouse override - use valid warehouse ID
+        warehouseId: selectedWarehouseId,
       };
     })
   );
@@ -442,6 +458,17 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
         const orderedQuantity = item.orderQuantity || item.orderedQuantity || item.quantity || 0;
         const productName = item.name || item.product_name || item.productName || 'Artikel ohne Namen';
         
+        // Intelligente Batch-Nummer-Generierung wenn MHD vorhanden ist
+        const expiryDate = enableEnhancedFeatures ? calculateIntelligentExpiryDate(productName) : null;
+        const expiryDateString = expiryDate ? format(expiryDate, 'yyyy-MM-dd') : '';
+        const batchNumber = expiryDate ? `BATCH-${Date.now()}-${(item.product_id || item.productId || Math.random()).toString().slice(-4)}` : '';
+        
+        // Deterministic warehouse selection für Konsistenz
+        const selectedWarehouseId = defaultWarehouseId || 
+                                    (warehouses.length > 0 ? warehouses[0].id : null) || 
+                                    (order?.warehouseId) || 
+                                    1;
+        
         return {
           ...item,
           id: item.id || item.orderItemId || item.productId,
@@ -458,10 +485,11 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
           comment: '',
           qualityStatus: 'good' as const,
           damageDescription: '',
-          expiryDate: enableEnhancedFeatures ? format(calculateIntelligentExpiryDate(productName), 'yyyy-MM-dd') : '',
+          expiryDate: expiryDateString,
+          batchNumber: batchNumber,
           receivedPackageCount: orderedQuantity > 0 ? splitTotalToPackageFields(orderedQuantity, getProductPackageQuantity(item.product_id || item.productId)).packageCount : 0,
           receivedTotalQuantity: orderedQuantity,
-          warehouseId: undefined,
+          warehouseId: selectedWarehouseId,
         };
       });
       setReceivedItems(newItems);
@@ -563,20 +591,44 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
   // Enhanced: Handle quality status change (replaces damaged state)
   const handleQualityStatusChange = (id: number, qualityStatus: 'good' | 'damaged' | 'partial' | 'rejected') => {
     setReceivedItems(items =>
-      items.map(item =>
-        item.id === id ? { 
-          ...item, 
-          qualityStatus,
-          damaged: qualityStatus === 'damaged' || qualityStatus === 'rejected' // Legacy compatibility
-        } : item
-      )
+      items.map(item => {
+        if (item.id === id) {
+          // If setting to good, clear damage description
+          const damageDescription = qualityStatus === 'good' ? '' : item.damageDescription;
+          
+          return { 
+            ...item, 
+            qualityStatus,
+            damageDescription,
+            damaged: qualityStatus === 'damaged' || qualityStatus === 'rejected' // Legacy compatibility
+          };
+        }
+        return item;
+      })
     );
     
     // Update form
     const updatedItems = form.getValues('items').map(item => 
-      item.id === id ? { ...item, qualityStatus } : item
+      item.id === id ? { 
+        ...item, 
+        qualityStatus,
+        damageDescription: qualityStatus === 'good' ? '' : item.damageDescription
+      } : item
     );
     form.setValue('items', updatedItems);
+    
+    // Show validation warning if damaged/rejected but no description
+    if ((qualityStatus === 'damaged' || qualityStatus === 'rejected')) {
+      const item = receivedItems.find(i => i.id === id);
+      if (!item?.damageDescription?.trim()) {
+        toast({
+          title: "Beschreibung erforderlich",
+          description: `Bei Status "${qualityStatus}" muss eine Schadensbeschreibung angegeben werden.`,
+          variant: "default",
+          duration: 3000
+        });
+      }
+    }
   };
 
   // Handle damaged state change (Legacy compatibility)
