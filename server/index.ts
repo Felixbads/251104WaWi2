@@ -3886,8 +3886,6 @@ app.get('/orders-data', (req, res) => {
     try {
       const { queueService } = await import('./services/queueService');
       await queueService.initialize();
-      await queueService.scheduleDispatchJob();
-      await queueService.scheduleEventProcessingJob();
       log('✅ Notification Queue Service activated');
     } catch (error) {
       console.error('❌ Error initializing Notification Queue Service:', error);

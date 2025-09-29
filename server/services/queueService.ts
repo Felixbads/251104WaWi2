@@ -34,16 +34,40 @@ export class QueueService {
       retryBackoff: true,
       // Maintenance runs every hour
       maintenanceIntervalSeconds: 60 * 60,
+      // Schema-related options to prevent issues
+      schema: 'pgboss',
+      max: 10
     });
 
-    // Initialize the database schema
-    await this.boss.start();
+    try {
+      // Initialize the database schema
+      await this.boss.start();
 
-    // Set up job handlers
-    await this.setupJobHandlers();
+      // Set up job handlers first
+      await this.setupJobHandlers();
 
-    this.isInitialized = true;
-    console.log('Queue service initialized successfully');
+      this.isInitialized = true;
+      console.log('Queue service initialized successfully');
+      
+      // Try to schedule jobs, but don't fail if it doesn't work
+      try {
+        // Small delay to ensure queues are properly registered
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        await this.scheduleDispatchJob();
+        await this.scheduleEventProcessingJob();
+        console.log('Queue scheduling enabled successfully');
+      } catch (scheduleError) {
+        console.warn('Queue scheduling could not be enabled:', scheduleError);
+        console.log('Queue service will work without scheduled jobs');
+      }
+    } catch (error) {
+      console.error('Error initializing queue service:', error);
+      // Continue without queue service to not break the main application
+      this.boss = null;
+      this.isInitialized = false;
+      throw error;
+    }
   }
 
   /**
