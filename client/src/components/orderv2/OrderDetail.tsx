@@ -14,6 +14,7 @@ import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { OrderItemFrontend } from '@shared/schema';
 import EmailDialog from './EmailDialog';
+import { deleteOrder } from '@/lib/api';
 
 interface VatGroup {
   vatRate: number;
@@ -130,6 +131,10 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
   const [availableProducts, setAvailableProducts] = useState<any[]>([]);
   const [availableWarehouses, setAvailableWarehouses] = useState<any[]>([]);
   const [isSaving, setIsSaving] = useState(false);
+  
+  // Delete functionality states
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   
   // API-Integration für Produkthinzufügung
   const addProductToOrder = async (product: any, quantity: number) => {
@@ -594,6 +599,26 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
     }
   };
 
+  // Delete order functionality
+  const handleDeleteOrder = async () => {
+    if (!order) return;
+    
+    setIsDeleting(true);
+    try {
+      await deleteOrder(order.id);
+      
+      // Close dialog and navigate back
+      setIsDeleteDialogOpen(false);
+      onBack();
+      
+    } catch (error) {
+      console.error('Error deleting order:', error);
+      alert(`Fehler beim Löschen der Bestellung: ${error instanceof Error ? error.message : 'Unbekannter Fehler'}`);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const getStatusColor = (status: string) => {
     switch (status?.toLowerCase()) {
       case 'pending': return 'bg-yellow-100 text-yellow-800';
@@ -1047,6 +1072,20 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
                 <FileText className="h-4 w-4 mr-2" />
                 Dringende E-Mail
               </Button>
+              
+              {/* Delete Button - Only for draft orders */}
+              {order?.status === 'draft' && (
+                <Button 
+                  onClick={() => setIsDeleteDialogOpen(true)}
+                  className="w-full" 
+                  variant="destructive"
+                  disabled={isDeleting}
+                  data-testid="button-delete-order"
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  {isDeleting ? 'Wird gelöscht...' : 'Bestellung löschen'}
+                </Button>
+              )}
             </CardContent>
           </Card>
 
@@ -1084,6 +1123,53 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowAddItemDialog(false)}>
               Abbrechen
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <AlertCircle className="h-5 w-5" />
+              Bestellung löschen
+            </DialogTitle>
+            <DialogDescription>
+              Sind Sie sicher, dass Sie die Bestellung <strong>{order?.order_number}</strong> löschen möchten?
+              <br /><br />
+              <span className="text-red-600 font-medium">Diese Aktion kann nicht rückgängig gemacht werden.</span>
+              <br /><br />
+              Alle Bestellpositionen werden ebenfalls gelöscht.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button 
+              variant="outline" 
+              onClick={() => setIsDeleteDialogOpen(false)}
+              disabled={isDeleting}
+              data-testid="button-cancel-delete"
+            >
+              Abbrechen
+            </Button>
+            <Button 
+              variant="destructive" 
+              onClick={handleDeleteOrder}
+              disabled={isDeleting}
+              data-testid="button-confirm-delete"
+            >
+              {isDeleting ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Wird gelöscht...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Endgültig löschen
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
