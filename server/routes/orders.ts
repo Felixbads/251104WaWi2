@@ -1936,4 +1936,85 @@ router.post('/orders/:id/receipt',
   }
 });
 
+// SECURITY FIX: Delete order - Only for draft orders, requires manager+ role (CRITICAL)
+router.delete('/orders/:id', 
+  authenticateUser, 
+  requireRole(['admin', 'manager']), 
+  auditLog('ORDERS_DELETE', 'ORDERS_DELETE'), 
+  async (req: Request, res: Response) => {
+  try {
+    const orderId = parseInt(req.params.id);
+    if (isNaN(orderId)) {
+      return res.status(400).json({ 
+        error: 'Ungültige Bestellungs-ID'
+      });
+    }
+
+    console.log(`DELETE /api/orders/${orderId} - Attempting to delete order`);
+
+    // Check if order exists and get current status
+    const existingOrder = await db
+      .select()
+      .from(orders)
+      .where(eq(orders.id, orderId))
+      .limit(1);
+
+    if (existingOrder.length === 0) {
+      return res.status(404).json({ 
+        error: 'Bestellung nicht gefunden'
+      });
+    }
+
+    const order = existingOrder[0];
+
+    // Only allow deletion of draft orders to prevent data loss
+    if (order.status !== 'draft') {
+      return res.status(400).json({ 
+        error: 'Nur Entwurfs-Bestellungen können gelöscht werden',
+        currentStatus: order.status
+      });
+    }
+
+    // Delete order items first (foreign key constraint)
+    const deletedItems = await db
+      .delete(orderItems)
+      .where(eq(orderItems.orderId, orderId))
+      .returning();
+
+    console.log(`Deleted ${deletedItems.length} order items for order ${orderId}`);
+
+    // Delete the order
+    const deletedOrder = await db
+      .delete(orders)
+      .where(eq(orders.id, orderId))
+      .returning();
+
+    if (deletedOrder.length === 0) {
+      return res.status(500).json({ 
+        error: 'Fehler beim Löschen der Bestellung'
+      });
+    }
+
+    console.log(`Successfully deleted order ${orderId} (${order.orderNumber})`);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Bestellung erfolgreich gelöscht',
+      deletedOrder: {
+        id: deletedOrder[0].id,
+        orderNumber: deletedOrder[0].orderNumber,
+        status: deletedOrder[0].status
+      },
+      deletedItemsCount: deletedItems.length
+    });
+
+  } catch (error) {
+    console.error('Error deleting order:', error);
+    return res.status(500).json({ 
+      error: 'Serverfehler beim Löschen der Bestellung',
+      details: error instanceof Error ? error.message : 'Unbekannter Fehler'
+    });
+  }
+});
+
 export default router;

@@ -2409,3 +2409,19 @@ export const getDashboardCriticalLocations = async (): Promise<CriticalLocations
   return apiRequest<CriticalLocationsResponse>('get', '/dashboard/critical-locations');
 };
 
+// Order Management API Functions
+export interface DeleteOrderResponse {
+  success: boolean;
+  message: string;
+  deletedOrder: {
+    id: number;
+    orderNumber: string;
+    status: string;
+  };
+  deletedItemsCount: number;
+}
+
+export const deleteOrder = async (orderId: number): Promise<DeleteOrderResponse> => {
+  return apiRequest<DeleteOrderResponse>('delete', `/orders/${orderId}`);
+};
+
