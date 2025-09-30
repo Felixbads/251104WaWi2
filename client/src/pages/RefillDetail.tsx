@@ -37,33 +37,27 @@ import {
 
 export default function RefillDetail() {
   const { id, refillId } = useParams();
+  const warehouseId = id; // id is the warehouseId from the route /warehouse3/:id/refills/:refillId
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState("details");
   const [isUpdating, setIsUpdating] = useState(false);
 
-  // Refill Daten abrufen
+  // Refill Daten abrufen - use the correct warehouse3 API route
   const { 
     data: refill,
     isLoading: isLoadingRefill,
     isError: isErrorRefill,
     error: errorRefill
   } = useQuery({
-    queryKey: ['/api/refills', refillId],
-    queryFn: () => refillId ? getRefillById(refillId) : Promise.reject('Refill ID is required'),
-    enabled: !!refillId,
+    queryKey: ['/api/warehouse3/warehouses', warehouseId, 'refills', refillId],
+    enabled: !!warehouseId && !!refillId,
   });
   
-  // Refill Details abrufen
-  const {
-    data: refillDetails,
-    isLoading: isLoadingRefillDetails,
-    isError: isErrorRefillDetails
-  } = useQuery({
-    queryKey: ['/api/refills', refillId, 'details'],
-    queryFn: () => refillId ? getRefillDetails(Number(refillId)) : Promise.reject('Refill ID is required'),
-    enabled: !!refillId,
-  });
+  // For now, refillDetails are included in the main refill response as 'items'
+  const refillDetails = refill?.items || [];
+  const isLoadingRefillDetails = isLoadingRefill;
+  const isErrorRefillDetails = isErrorRefill;
 
   // Wenn Refill geladen wurde, Warenhaus Daten abrufen
   const { 

@@ -555,8 +555,8 @@ export default function RefillsTab({ warehouseId }: RefillsTabProps) {
                       {refill.itemCount || 0}
                     </TableCell>
                     <TableCell>
-                      {refill.performedBy ? (
-                        refill.performedByName || `#${refill.performedBy}`
+                      {refill.operator && refill.operator !== 'Unbekannt' ? (
+                        refill.operator
                       ) : (
                         <span className="text-muted-foreground">–</span>
                       )}

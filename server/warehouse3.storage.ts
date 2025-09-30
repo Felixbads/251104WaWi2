@@ -1956,8 +1956,28 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
       .where(eq(machineWarehouseAssignments.warehouseId, warehouseId))
       .orderBy(desc(refills.datetime));
     
+    // Get product counts from refill_details for each refill
+    const refillIds = refillsData.map(r => r.id);
+    const productCounts = await db
+      .select({
+        refillId: refillDetails.refillId,
+        count: sql<number>`count(*)`,
+        totalAdded: sql<number>`sum(${refillDetails.added})`,
+        totalRemoved: sql<number>`sum(${refillDetails.removed})`
+      })
+      .from(refillDetails)
+      .where(sql`${refillDetails.refillId} IN (${sql.join(refillIds.map(id => sql`${id}`), sql`, `)})`)
+      .groupBy(refillDetails.refillId);
+    
+    // Create a map for quick lookup
+    const productCountMap = new Map(productCounts.map(pc => [pc.refillId, pc]));
+    
     // Format the data for the frontend
     const formattedRefills = refillsData.map((item) => {
+      const productCount = productCountMap.get(item.id);
+      const itemCount = productCount?.count || 0;
+      const totalQuantity = (productCount?.totalAdded || 0) + (productCount?.totalRemoved || 0);
+      
       return {
         id: item.id,
         machineId: item.machineId,
@@ -1971,9 +1991,9 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
         refillType: item.refillType || '',
         plannedAmount: item.plannedAmount || 0,
         actualAmount: item.actualAmount || 0,
-        totalProducts: item.totalProducts || 0,
-        itemCount: item.totalProducts || 0,
-        totalQuantity: item.actualAmount || item.totalProducts || 0,
+        totalProducts: itemCount,
+        itemCount: itemCount,
+        totalQuantity: totalQuantity || item.actualAmount || 0,
         notes: item.notes || '',
         refillNumber: item.refillNumber || ''
       };
@@ -1983,26 +2003,75 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
   }
   
   async getRefillTracking(id: number): Promise<any | null> {
-    const [refill] = await db
+    // FIXED: Use refills table (Vendon data) instead of refill_trackings (manual tracking)
+    const [refillData] = await db
       .select({
-        refill: refillTrackings,
+        id: refills.id,
+        machineId: refills.machineId,
+        machineName: refills.machineName,
+        datetime: refills.datetime,
+        operator: refills.operator,
+        status: refills.status,
+        refillType: refills.refillType,
+        plannedAmount: refills.plannedAmount,
+        actualAmount: refills.actualAmount,
+        totalProducts: refills.totalProducts,
+        notes: refills.notes,
+        refillNumber: refills.refillNumber,
         machine: machines
       })
-      .from(refillTrackings)
-      .leftJoin(machines, eq(refillTrackings.machineId, machines.id))
-      .where(eq(refillTrackings.id, id));
+      .from(refills)
+      .leftJoin(machines, eq(refills.machineId, machines.id))
+      .where(eq(refills.id, id));
     
-    if (!refill) return null;
+    if (!refillData) return null;
     
-    // Items abfragen
-    const items = await this.getRefillTrackingItems(id);
+    // Get product details from refill_details table
+    const items = await db
+      .select({
+        id: refillDetails.id,
+        productId: refillDetails.productId,
+        productName: refillDetails.productName,
+        quantity: refillDetails.quantity,
+        added: refillDetails.added,
+        removed: refillDetails.removed,
+        position: refillDetails.position,
+        price: refillDetails.price,
+        previousStock: refillDetails.previousStock,
+        currentStock: refillDetails.currentStock
+      })
+      .from(refillDetails)
+      .where(eq(refillDetails.refillId, id))
+      .orderBy(refillDetails.position);
     
     return {
-      ...refill.refill,
-      machineName: refill.machine?.machineName || 'Unbekannter Automat',
-      machineModel: refill.machine?.model || '',
-      machineLocation: refill.machine?.locationName || '',
-      items
+      id: refillData.id,
+      machineId: refillData.machineId,
+      machineName: refillData.machineName || refillData.machine?.machineName || 'Unbekannter Automat',
+      machineModel: refillData.machine?.model || '',
+      machineLocation: refillData.machine?.locationName || '',
+      refillDate: refillData.datetime,
+      performedAt: refillData.datetime,
+      operator: refillData.operator || 'Unbekannt',
+      status: refillData.status || 'completed',
+      refillType: refillData.refillType || '',
+      plannedAmount: refillData.plannedAmount || 0,
+      actualAmount: refillData.actualAmount || 0,
+      totalProducts: items.length,
+      notes: refillData.notes || '',
+      refillNumber: refillData.refillNumber || '',
+      items: items.map(item => ({
+        id: item.id,
+        productId: item.productId,
+        productName: item.productName,
+        quantity: item.quantity || 0,
+        added: item.added || 0,
+        removed: item.removed || 0,
+        position: item.position || '',
+        price: item.price || 0,
+        previousStock: item.previousStock || 0,
+        currentStock: item.currentStock || 0
+      }))
     };
   }
   
