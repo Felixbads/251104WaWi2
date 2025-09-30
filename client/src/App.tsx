@@ -113,7 +113,6 @@ import InventurDetailPage from "@/pages/InventurDetailPage";
 import InventurDetailNewPage from "@/pages/InventurDetailNewPage";
 import InventurDetailSimplePage from "@/pages/InventurDetailSimplePage";
 import InventurCreationPage from "@/pages/InventurCreationPage";
-import RefillTrackingPage from "@/pages/RefillTrackingPage";
 // Neue Lagerbestandsseiten importieren
 import WarehouseInventoryPage from "@/pages/warehouse/WarehouseInventoryPage";
 import WarehouseOverviewPage from "@/pages/warehouse/WarehouseOverviewPage";
@@ -496,13 +495,6 @@ function AuthenticatedRouter() {
         <Route path="/warenentnahme/:id">
           <ApprovedUserRoute>
             <WarenentnahmeDetail />
-          </ApprovedUserRoute>
-        </Route>
-
-        {/* Refill-Tracking Route */}
-        <Route path="/refill-tracking">
-          <ApprovedUserRoute>
-            <RefillTrackingPage />
           </ApprovedUserRoute>
         </Route>
 
