@@ -300,13 +300,7 @@ export default function UnifiedPurchaseConditionsManager({
       notes: '',
       leadTime: 3,
       deliveryTime: '',
-      supplierArticleNumber: '', // Reset supplier article number
-      discount_type: '',
-      discount_value: 0,
-      discount_min_quantity: 0,
-      discount_description: '',
-      discount_valid_from: '',
-      discount_valid_to: ''
+      supplierArticleNumber: ''
     });
   };
 
@@ -378,13 +372,7 @@ export default function UnifiedPurchaseConditionsManager({
       notes: condition.notes || '',
       leadTime: condition.lead_time || 3,
       deliveryTime: condition.delivery_time || '',
-      supplierArticleNumber: condition.supplier_article_number || '',
-      discount_type: condition.discount_type || '',
-      discount_value: condition.discount_value || 0,
-      discount_min_quantity: condition.discount_min_quantity || 0,
-      discount_description: condition.discount_description || '',
-      discount_valid_from: condition.discount_valid_from || '',
-      discount_valid_to: condition.discount_valid_to || ''
+      supplierArticleNumber: condition.supplier_article_number || ''
     });
     setIsCreateDialogOpen(true);
   };
@@ -591,7 +579,7 @@ export default function UnifiedPurchaseConditionsManager({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {conditions.map((condition) => (
+                {conditions.map((condition: PurchaseCondition) => (
                   <TableRow key={condition.id}>
                     {mode === 'product' && (
                       <TableCell className="font-medium">
