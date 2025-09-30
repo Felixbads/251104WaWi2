@@ -1,7 +1,7 @@
 import { db } from "./db";
 import { sql } from "drizzle-orm";
 import { eq, and, or, desc, asc, inArray, gte, lte, gt, like } from "drizzle-orm";
-import { products, machines, purchaseConditions, users, refills } from "../shared/schema";
+import { products, machines, purchaseConditions, users, refills, refillDetails } from "../shared/schema";
 
 // Import warehouse3 schema definitions for type information
 import {

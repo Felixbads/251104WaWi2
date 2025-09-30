@@ -1432,6 +1432,7 @@ export async function getOrders(params?: {
   dateFrom?: string;
   dateTo?: string;
   search?: string;
+  warehouseId?: string | number;
 }): Promise<OrderResponse> {
   const queryParams = new URLSearchParams();
 
@@ -1443,6 +1444,7 @@ export async function getOrders(params?: {
   if (params?.dateFrom) queryParams.append('dateFrom', params.dateFrom);
   if (params?.dateTo) queryParams.append('dateTo', params.dateTo);
   if (params?.search) queryParams.append('search', params.search);
+  if (params?.warehouseId) queryParams.append('warehouseId', params.warehouseId.toString());
 
   const queryString = queryParams.toString() ? `?${queryParams.toString()}` : '';
   return apiRequest<OrderResponse>('get', `/orders${queryString}`);

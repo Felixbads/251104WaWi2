@@ -254,6 +254,7 @@ router.get('/',
     let statusFilter = req.query.status as string;
     const searchTerm = req.query.search as string;
     const supplierId = req.query.supplierId as string;
+    const warehouseId = req.query.warehouseId as string;
     
     // Sortierung
     const sortField = req.query.sortField as string || 'orderDate';
@@ -284,6 +285,14 @@ router.get('/',
       const supplierIdNum = parseInt(supplierId);
       if (!isNaN(supplierIdNum)) {
         whereConditions.push(eq(orders.supplierId, supplierIdNum));
+      }
+    }
+    
+    // Warehouse-Filter hinzufügen, wenn definiert
+    if (warehouseId) {
+      const warehouseIdNum = parseInt(warehouseId);
+      if (!isNaN(warehouseIdNum)) {
+        whereConditions.push(eq(orders.warehouseId, warehouseIdNum));
       }
     }
     

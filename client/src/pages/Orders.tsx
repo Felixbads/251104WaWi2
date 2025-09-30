@@ -654,6 +654,13 @@ export default function Orders() {
   const [location, setLocation] = useLocation();
   const { toast } = useToast();
   
+  // URL-Parameter auslesen (mit Validierung)
+  const urlParams = new URLSearchParams(window.location.search);
+  const warehouseIdParam = urlParams.get('warehouseId');
+  const warehouseIdFromUrl = warehouseIdParam && !isNaN(parseInt(warehouseIdParam)) 
+    ? warehouseIdParam 
+    : null;
+  
   // Status-Verwaltung
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
@@ -692,7 +699,7 @@ export default function Orders() {
   
   // Daten abrufen
   const { data: apiOrdersResponse, isLoading: apiOrdersLoading } = useQuery({
-    queryKey: ['/api/orders', filterForm.watch()],
+    queryKey: ['/api/orders', filterForm.watch(), warehouseIdFromUrl],
     queryFn: () => {
       const filters = filterForm.getValues();
       return getOrders({
@@ -701,7 +708,8 @@ export default function Orders() {
         location: filters.location === 'all' ? undefined : filters.location,
         dateFrom: filters.dateFrom ? format(filters.dateFrom, 'yyyy-MM-dd') : undefined,
         dateTo: filters.dateTo ? format(filters.dateTo, 'yyyy-MM-dd') : undefined,
-        search: filters.search || undefined
+        search: filters.search || undefined,
+        warehouseId: warehouseIdFromUrl || undefined
       });
     }
   });
