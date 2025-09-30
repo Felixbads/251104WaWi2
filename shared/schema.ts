@@ -3179,6 +3179,11 @@ export const productBatches = pgTable("product_batches", {
   locationInWarehouse: text("location_in_warehouse"), // Lagerort im Lager (Regal, Fach, etc.)
   notes: text("notes"), // Anmerkungen zur Charge
   
+  // Expired Products Tracking - Neue Felder für automatische Ablaufverfolgung
+  isExpired: boolean("is_expired").default(false).notNull(), // Markierung für abgelaufene Charge
+  autoExpiredAt: timestamp("auto_expired_at"), // Zeitpunkt der automatischen Ausbuchung
+  originalQuantityBeforeExpiry: integer("original_quantity_before_expiry"), // Ursprüngliche Menge vor Ablauf
+  
   // Metadaten
   createdBy: integer("created_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
@@ -3214,6 +3219,69 @@ export const insertProductBatchSchema = createInsertSchema(productBatches).omit(
 
 export type InsertProductBatch = z.infer<typeof insertProductBatchSchema>;
 export type ProductBatch = typeof productBatches.$inferSelect;
+
+// Expired Products Log - Tabelle für die Protokollierung von automatisch ausgebuchten abgelaufenen Produkten
+export const expiredProductsLog = pgTable("expired_products_log", {
+  id: serial("id").primaryKey(),
+  
+  // Verknüpfungen
+  batchId: integer("batch_id").references(() => productBatches.id),
+  productId: integer("product_id").notNull().references(() => products.id),
+  warehouseId: integer("warehouse_id").notNull().references(() => warehouses.id),
+  
+  // Chargen- und Produktinformationen
+  batchNumber: text("batch_number").notNull(), // Kopie der Chargennummer für einfache Abfragen
+  productName: text("product_name").notNull(), // Produktname zum Zeitpunkt der Ausbuchung
+  productSku: text("product_sku"), // Produkt-SKU
+  
+  // Mengeninformationen
+  quantityExpired: integer("quantity_expired").notNull(), // Menge, die ausgebucht wurde
+  originalQuantity: integer("original_quantity").notNull(), // Ursprüngliche Menge der Charge
+  
+  // Zeitliche Informationen
+  expiryDate: date("expiry_date").notNull(), // Mindesthaltbarkeitsdatum
+  receivedDate: date("received_date"), // Eingangsdatum der Charge
+  expiredAt: timestamp("expired_at").defaultNow().notNull(), // Zeitpunkt der automatischen Ausbuchung
+  
+  // Zusätzliche Informationen
+  supplierBatchNumber: text("supplier_batch_number"), // Chargennummer des Lieferanten
+  supplierId: integer("supplier_id").references(() => suppliers.id),
+  supplierName: text("supplier_name"), // Lieferantenname zum Zeitpunkt der Ausbuchung
+  locationInWarehouse: text("location_in_warehouse"), // Lagerort
+  
+  // Ausbuchungsdetails
+  reason: text("reason").default("automatic_expiry").notNull(), // automatic_expiry, manual, damaged, recalled
+  notes: text("notes"), // Zusätzliche Notizen
+  
+  // Finanzielle Informationen (optional)
+  estimatedValue: real("estimated_value"), // Geschätzter Warenwert
+  
+  // Metadaten
+  processedBy: integer("processed_by").references(() => users.id), // User, der die Ausbuchung durchgeführt/bestätigt hat
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => {
+  return {
+    // Index für Datum-basierte Abfragen (neueste zuerst)
+    expiredProductsDateIdx: index('idx_expired_products_date')
+      .on(table.expiredAt, table.warehouseId),
+    // Index für Warehouse-spezifische Abfragen
+    expiredProductsWarehouseIdx: index('idx_expired_products_warehouse')
+      .on(table.warehouseId, table.expiredAt),
+    // Index für Produkt-basierte Auswertungen
+    expiredProductsProductIdx: index('idx_expired_products_product')
+      .on(table.productId, table.expiredAt),
+  };
+});
+
+export const insertExpiredProductsLogSchema = createInsertSchema(expiredProductsLog).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertExpiredProductsLog = z.infer<typeof insertExpiredProductsLogSchema>;
+export type ExpiredProductsLog = typeof expiredProductsLog.$inferSelect;
 
 // Ursprüngliche Inventory Batches Tabelle für Kompatibilität beibehalten
 export const inventoryBatches = pgTable("inventory_batches", {
