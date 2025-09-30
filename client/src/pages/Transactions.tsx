@@ -36,7 +36,23 @@ interface ExtendedTransaction extends BaseTransaction {
   source?: string;
   purchasePriceNet?: number; // Einkaufspreis netto
   netResult?: number; // Netto-Ergebnis: Verkaufspreis netto - Einkaufspreis - Pfand
-  // Andere benötigte Felder hier hinzufügen
+  // Chargen-Informationen
+  batchId?: number;
+  batchNumber?: string;
+  batchExpiryDate?: string;
+  supplierBatchNumber?: string;
+  // Bestellungs-Informationen
+  orderId?: number;
+  orderNumber?: string;
+  orderDate?: string;
+  orderStatus?: string;
+  // Lieferanten-Informationen
+  supplierName?: string;
+  supplierCompanyName?: string;
+  // Lieferschein-Informationen
+  deliveryNoteId?: number;
+  deliveryNoteNumber?: string;
+  deliveryDate?: string;
 }
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
@@ -428,6 +444,15 @@ export default function Transactions() {
                     Produkt
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Charge
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Bestellung
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Lieferung
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Preis
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -457,6 +482,9 @@ export default function Transactions() {
                       <td className="px-4 py-3"><Skeleton className="h-5 w-10" /></td>
                       <td className="px-4 py-3"><Skeleton className="h-5 w-32" /></td>
                       <td className="px-4 py-3"><Skeleton className="h-5 w-24" /></td>
+                      <td className="px-4 py-3"><Skeleton className="h-5 w-20" /></td>
+                      <td className="px-4 py-3"><Skeleton className="h-5 w-20" /></td>
+                      <td className="px-4 py-3"><Skeleton className="h-5 w-20" /></td>
                       <td className="px-4 py-3"><Skeleton className="h-5 w-16" /></td>
                       <td className="px-4 py-3"><Skeleton className="h-5 w-16" /></td>
                       <td className="px-4 py-3"><Skeleton className="h-5 w-32" /></td>
@@ -480,6 +508,48 @@ export default function Transactions() {
                         <div className="text-sm font-medium text-gray-900">
                           {transaction.productName || '-'}
                         </div>
+                      </td>
+                      <td className="px-4 py-3 text-sm">
+                        {transaction.batchNumber ? (
+                          <div className="flex flex-col">
+                            <span className="font-medium text-gray-900">{transaction.batchNumber}</span>
+                            {transaction.batchExpiryDate && (
+                              <span className="text-xs text-gray-500">
+                                MHD: {format(new Date(transaction.batchExpiryDate), 'dd.MM.yyyy', { locale: de })}
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-gray-400">-</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-sm">
+                        {transaction.orderNumber ? (
+                          <div className="flex flex-col">
+                            <span className="font-medium text-gray-900">{transaction.orderNumber}</span>
+                            {transaction.supplierName && (
+                              <span className="text-xs text-gray-500">{transaction.supplierName}</span>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-gray-400">-</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-sm">
+                        {transaction.deliveryNoteNumber || transaction.deliveryDate ? (
+                          <div className="flex flex-col">
+                            {transaction.deliveryNoteNumber && (
+                              <span className="font-medium text-gray-900">{transaction.deliveryNoteNumber}</span>
+                            )}
+                            {transaction.deliveryDate && (
+                              <span className="text-xs text-gray-500">
+                                {format(new Date(transaction.deliveryDate), 'dd.MM.yyyy', { locale: de })}
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-gray-400">-</span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-500">
                         {transaction.price?.toFixed(2)} {transaction.currency || "€"}
@@ -505,7 +575,7 @@ export default function Transactions() {
                   ))
                 ) : (
                   <tr className="border-b">
-                    <td colSpan={7} className="px-4 py-6 text-center text-sm text-gray-500">
+                    <td colSpan={10} className="px-4 py-6 text-center text-sm text-gray-500">
                       {error ? `Fehler beim Laden der Daten: ${error}` : "Keine Transaktionen gefunden"}
                     </td>
                   </tr>

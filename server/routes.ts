@@ -1658,7 +1658,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
             -- Berechne Netto-Ergebnis: Verkaufspreis ohne MwSt - Einkaufspreis - Pfand
             (COALESCE(t.price_wo_vat, t.price - COALESCE(t.price_vat, 0)) - 
              COALESCE(pc.unit_price, 0) - 
-             COALESCE(p.deposit_price, 0)) AS "netResult"
+             COALESCE(p.deposit_price, 0)) AS "netResult",
+            -- Chargen-Informationen
+            t.batch_id AS "batchId",
+            t.batch_number AS "batchNumber",
+            pb.expiry_date AS "batchExpiryDate",
+            pb.supplier_batch_number AS "supplierBatchNumber",
+            -- Bestellungs-Informationen
+            pb.order_id AS "orderId",
+            o.order_number AS "orderNumber",
+            o.order_date AS "orderDate",
+            o.status AS "orderStatus",
+            -- Lieferanten-Informationen
+            s.name AS "supplierName",
+            s.company_name AS "supplierCompanyName",
+            -- Lieferschein-Informationen (erste/neueste)
+            dn.id AS "deliveryNoteId",
+            dn.delivery_note_number AS "deliveryNoteNumber",
+            dn.delivery_date AS "deliveryDate"
           FROM transactions t
           LEFT JOIN machines m ON t.machine_id = m.id
           LEFT JOIN products p ON (t.product_id = p.vendon_id OR t.product_name = p.product_name)
@@ -1669,6 +1686,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
             ORDER BY pc_sub.is_preferred DESC, pc_sub.unit_price ASC 
             LIMIT 1
           ) pc ON true
+          LEFT JOIN product_batches pb ON t.batch_id = pb.id
+          LEFT JOIN orders o ON pb.order_id = o.id
+          LEFT JOIN suppliers s ON o.supplier_id = s.id
+          LEFT JOIN LATERAL (
+            SELECT id, delivery_note_number, delivery_date
+            FROM delivery_notes dn_sub
+            WHERE dn_sub.order_id = o.id
+            ORDER BY dn_sub.delivery_date DESC, dn_sub.uploaded_at DESC
+            LIMIT 1
+          ) dn ON true
           WHERE t.datetime >= $1 AND t.datetime <= $2
           ORDER BY t.datetime DESC
           LIMIT $3
@@ -1707,7 +1734,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
           -- Berechne Netto-Ergebnis: Verkaufspreis ohne MwSt - Einkaufspreis - Pfand
           (COALESCE(t.price_wo_vat, t.price - COALESCE(t.price_vat, 0)) - 
            COALESCE(pc.unit_price, 0) - 
-           COALESCE(p.deposit_price, 0)) AS "netResult"
+           COALESCE(p.deposit_price, 0)) AS "netResult",
+          -- Chargen-Informationen
+          t.batch_id AS "batchId",
+          t.batch_number AS "batchNumber",
+          pb.expiry_date AS "batchExpiryDate",
+          pb.supplier_batch_number AS "supplierBatchNumber",
+          -- Bestellungs-Informationen
+          pb.order_id AS "orderId",
+          o.order_number AS "orderNumber",
+          o.order_date AS "orderDate",
+          o.status AS "orderStatus",
+          -- Lieferanten-Informationen
+          s.name AS "supplierName",
+          s.company_name AS "supplierCompanyName",
+          -- Lieferschein-Informationen (erste/neueste)
+          dn.id AS "deliveryNoteId",
+          dn.delivery_note_number AS "deliveryNoteNumber",
+          dn.delivery_date AS "deliveryDate"
         FROM transactions t
         LEFT JOIN machines m ON t.machine_id = m.id
         LEFT JOIN products p ON (t.product_id = p.vendon_id OR t.product_name = p.product_name)
@@ -1718,6 +1762,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ORDER BY pc_sub.is_preferred DESC, pc_sub.unit_price ASC 
           LIMIT 1
         ) pc ON true
+        LEFT JOIN product_batches pb ON t.batch_id = pb.id
+        LEFT JOIN orders o ON pb.order_id = o.id
+        LEFT JOIN suppliers s ON o.supplier_id = s.id
+        LEFT JOIN LATERAL (
+          SELECT id, delivery_note_number, delivery_date
+          FROM delivery_notes dn_sub
+          WHERE dn_sub.order_id = o.id
+          ORDER BY dn_sub.delivery_date DESC, dn_sub.uploaded_at DESC
+          LIMIT 1
+        ) dn ON true
         WHERE t.datetime >= $1 AND t.datetime <= $2
         ORDER BY t.datetime DESC
         LIMIT $3
