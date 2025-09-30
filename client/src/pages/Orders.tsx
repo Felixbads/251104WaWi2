@@ -757,8 +757,15 @@ export default function Orders() {
       });
       
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Fehler beim Löschen der Bestellung');
+        let errorMessage = 'Fehler beim Löschen der Bestellung';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.message || errorMessage;
+        } catch {
+          const errorText = await response.text();
+          if (errorText) errorMessage = errorText;
+        }
+        throw new Error(errorMessage);
       }
       
       toast({
@@ -766,13 +773,13 @@ export default function Orders() {
         description: `Bestellung ${orderToDelete.order_number || orderToDelete.orderNumber} wurde erfolgreich gelöscht.`,
       });
       
-      // Cache invalidieren und Bestellung-Detail-Dialog schließen
-      queryClient.invalidateQueries({ queryKey: ['/api/orders-direct'] });
+      // Cache invalidieren (beide queryKeys werden durch Prefix-Matching erfasst)
       queryClient.invalidateQueries({ queryKey: ['/api/orders'] });
       
-      // Dialoge schließen
+      // Dialoge schließen und States zurücksetzen
       setIsDeleteDialogOpen(false);
       setIsDetailOpen(false);
+      setSelectedOrderId(null);
       setOrderToDelete(null);
       
     } catch (error: any) {
@@ -1665,15 +1672,31 @@ export default function Orders() {
           
           {orderToDelete && (
             <div className="space-y-2 py-4">
-              <div className="flex justify-between">
+              <div className="flex justify-between" data-testid="delete-order-number">
                 <span className="font-medium">Bestellnummer:</span>
                 <span>{orderToDelete.order_number || orderToDelete.orderNumber}</span>
               </div>
-              <div className="flex justify-between">
+              <div className="flex justify-between" data-testid="delete-supplier">
                 <span className="font-medium">Lieferant:</span>
                 <span>{orderToDelete.supplier_name || orderToDelete.supplierName}</span>
               </div>
-              <div className="flex justify-between">
+              <div className="flex justify-between" data-testid="delete-location">
+                <span className="font-medium">Lieferort:</span>
+                <span>{orderToDelete.warehouse_name || orderToDelete.warehouseName || orderToDelete.location_name || orderToDelete.locationName || 'Unbekannt'}</span>
+              </div>
+              <div className="flex justify-between" data-testid="delete-total">
+                <span className="font-medium">Gesamtbetrag:</span>
+                <span>{typeof orderToDelete.total_amount === 'number' 
+                  ? `${orderToDelete.total_amount.toFixed(2)} €` 
+                  : (typeof orderToDelete.totalAmount === 'number' 
+                    ? `${orderToDelete.totalAmount.toFixed(2)} €` 
+                    : 'N/A')}</span>
+              </div>
+              <div className="flex justify-between" data-testid="delete-item-count">
+                <span className="font-medium">Anzahl Artikel:</span>
+                <span>{orderToDelete.item_count || orderToDelete.itemCount || 0}</span>
+              </div>
+              <div className="flex justify-between" data-testid="delete-status">
                 <span className="font-medium">Status:</span>
                 <OrderStatusBadge status={orderToDelete.status} />
               </div>
@@ -1696,6 +1719,7 @@ export default function Orders() {
                 setOrderToDelete(null);
               }}
               disabled={isDeleting}
+              data-testid="button-cancel-delete"
             >
               Abbrechen
             </Button>
