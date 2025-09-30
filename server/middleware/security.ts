@@ -171,7 +171,8 @@ export const corsConfig = cors({
       if (allowedOrigin.includes('*')) {
         // Handle wildcard domains - improved pattern matching
         const pattern = allowedOrigin.replace('https://*.', '').replace('http://*.', '');
-        const originDomain = origin.replace(/^https?:\/\//, '');
+        // Remove protocol and port from origin for matching
+        const originDomain = origin.replace(/^https?:\/\//, '').replace(/:\d+$/, '');
         const matches = originDomain.endsWith('.' + pattern) || originDomain === pattern;
         logger.debug({ origin, pattern, originDomain, matches }, 'CORS wildcard pattern check');
         return matches;
