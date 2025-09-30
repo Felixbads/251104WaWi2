@@ -662,6 +662,9 @@ export default function Orders() {
   const [selectedOrderForReceipt, setSelectedOrderForReceipt] = useState<any>(null);
   const [activeTab, setActiveTab] = useState("items");
   const [activeMainTab, setActiveMainTab] = useState("orders");
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [orderToDelete, setOrderToDelete] = useState<any>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   
   // Filter-Formular
   const filterForm = useForm<FilterValues>({
@@ -739,6 +742,49 @@ export default function Orders() {
     // Dialog schließen und ggf. zur Detailseite navigieren
     setIsNewOrderOpen(false);
     // In echter Implementierung: Neue Bestellung erstellen und zur Detailseite navigieren
+  };
+  
+  // Bestellung löschen
+  const handleDeleteOrder = async () => {
+    if (!orderToDelete) return;
+    
+    setIsDeleting(true);
+    
+    try {
+      const response = await fetch(`/api/orders/${orderToDelete.id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Fehler beim Löschen der Bestellung');
+      }
+      
+      toast({
+        title: "Bestellung gelöscht",
+        description: `Bestellung ${orderToDelete.order_number || orderToDelete.orderNumber} wurde erfolgreich gelöscht.`,
+      });
+      
+      // Cache invalidieren und Bestellung-Detail-Dialog schließen
+      queryClient.invalidateQueries({ queryKey: ['/api/orders-direct'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/orders'] });
+      
+      // Dialoge schließen
+      setIsDeleteDialogOpen(false);
+      setIsDetailOpen(false);
+      setOrderToDelete(null);
+      
+    } catch (error: any) {
+      console.error('Fehler beim Löschen der Bestellung:', error);
+      toast({
+        title: "Fehler",
+        description: error.message || "Die Bestellung konnte nicht gelöscht werden.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeleting(false);
+    }
   };
   
   // Status-Badge für Bestellungen
@@ -1417,11 +1463,19 @@ export default function Orders() {
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Button variant="destructive" size="icon">
+                      <Button 
+                        variant="destructive" 
+                        size="icon"
+                        onClick={() => {
+                          setOrderToDelete(selectedOrder);
+                          setIsDeleteDialogOpen(true);
+                        }}
+                        data-testid="button-delete-order"
+                      >
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent>Bestellung stornieren</TooltipContent>
+                    <TooltipContent>Bestellung löschen</TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
               </div>
@@ -1596,6 +1650,74 @@ export default function Orders() {
               </DialogFooter>
             </form>
           </Form>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Bestätigungs-Dialog: Bestellung löschen */}
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Bestellung löschen</DialogTitle>
+            <DialogDescription>
+              Möchten Sie die Bestellung wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.
+            </DialogDescription>
+          </DialogHeader>
+          
+          {orderToDelete && (
+            <div className="space-y-2 py-4">
+              <div className="flex justify-between">
+                <span className="font-medium">Bestellnummer:</span>
+                <span>{orderToDelete.order_number || orderToDelete.orderNumber}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="font-medium">Lieferant:</span>
+                <span>{orderToDelete.supplier_name || orderToDelete.supplierName}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="font-medium">Status:</span>
+                <OrderStatusBadge status={orderToDelete.status} />
+              </div>
+              {orderToDelete.status === 'delivered' && (
+                <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-md">
+                  <p className="text-sm text-red-800">
+                    <AlertCircle className="inline-block h-4 w-4 mr-1" />
+                    Hinweis: Diese Bestellung wurde bereits geliefert und kann möglicherweise nicht gelöscht werden.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+          
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setIsDeleteDialogOpen(false);
+                setOrderToDelete(null);
+              }}
+              disabled={isDeleting}
+            >
+              Abbrechen
+            </Button>
+            <Button 
+              variant="destructive" 
+              onClick={handleDeleteOrder}
+              disabled={isDeleting}
+              data-testid="button-confirm-delete"
+            >
+              {isDeleting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Wird gelöscht...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Bestellung löschen
+                </>
+              )}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
