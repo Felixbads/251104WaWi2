@@ -50,14 +50,15 @@ export default function MachineAssignmentDialog({
     mutationFn: async (machineIds: number[]) => {
       // Sende parallele POST-Anfragen für jeden Automaten
       const assignmentPromises = machineIds.map(machineId =>
-        apiRequest('/api/machine-warehouse-assignments', {
-          method: 'POST',
-          data: {
+        apiRequest(
+          '/api/machine-warehouse-assignments',
+          {
             machineId,
             warehouseId,
             isPrimary: true
-          }
-        })
+          },
+          'POST'
+        )
       );
 
       // Verwende allSettled für robustere Fehlerbehandlung

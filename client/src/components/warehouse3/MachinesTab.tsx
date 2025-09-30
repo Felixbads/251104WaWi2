@@ -104,9 +104,11 @@ export default function MachinesTab({ warehouseId }: MachinesTabProps) {
   // Handler zum Entfernen einer Zuordnung
   const handleRemoveAssignment = async (assignmentId: number) => {
     try {
-      await apiRequest(`/api/machine-warehouse-assignments/${assignmentId}`, {
-        method: 'DELETE',
-      });
+      await apiRequest(
+        `/api/machine-warehouse-assignments/${assignmentId}`,
+        null,
+        'DELETE'
+      );
       
       toast({
         title: "Zuordnung entfernt",
