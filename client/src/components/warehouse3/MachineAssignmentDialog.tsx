@@ -48,16 +48,20 @@ export default function MachineAssignmentDialog({
   // Mutation für die Zuordnung von Automaten
   const assignMachinesMutation = useMutation({
     mutationFn: async (machineIds: number[]) => {
-      const assignments = machineIds.map(machineId => ({
-        machineId,
-        warehouseId,
-        isDefault: true
-      }));
+      // Sende parallele POST-Anfragen für jeden Automaten
+      const assignmentPromises = machineIds.map(machineId =>
+        apiRequest('/api/machine-warehouse-assignments', {
+          method: 'POST',
+          data: {
+            machineId,
+            warehouseId,
+            isPrimary: true
+          }
+        })
+      );
 
-      return await apiRequest('/api/warehouse3/machine-assignments', {
-        method: 'POST',
-        data: { assignments }
-      });
+      // Warte auf alle Zuordnungen
+      return await Promise.all(assignmentPromises);
     },
     onSuccess: () => {
       toast({
