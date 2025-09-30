@@ -1744,7 +1744,13 @@ router.get("/warehouses/:warehouseId/refills",
     
     const refills = await warehouseStorage.getRefillTrackings(warehouseId);
     
-    return res.json(refills);
+    // Return data in the format expected by the frontend
+    return res.json({
+      items: refills,
+      total: refills.length,
+      page: 1,
+      totalPages: 1
+    });
   } catch (error) {
     return handleServerError(error, res);
   }
