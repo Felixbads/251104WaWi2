@@ -142,6 +142,49 @@ router.get('/', async (req, res) => {
 });
 
 /**
+ * GET /api/machines/unassigned
+ * Get all machines that are not assigned to any warehouse
+ */
+router.get('/unassigned', async (req, res) => {
+  try {
+    console.log('[MACHINES API] Fetching unassigned machines (not in any warehouse)');
+    
+    // Query machines that are NOT in machine_warehouse_assignments
+    const result = await rawDb.query(`
+      SELECT 
+        m.id,
+        m.machine_name,
+        m.vendon_id,
+        m.location_name,
+        m.location_address,
+        m.machine_type,
+        m.status
+      FROM machines m
+      WHERE m.id NOT IN (
+        SELECT DISTINCT machine_id 
+        FROM machine_warehouse_assignments
+      )
+      AND m.machine_name IS NOT NULL 
+      AND m.machine_name != '' 
+      AND m.machine_name NOT LIKE '%Demo%'
+      AND m.machine_name NOT LIKE '%Test%'
+      AND m.id > 1
+      ORDER BY m.machine_name ASC
+    `);
+    
+    console.log(`[MACHINES API] Found ${result.rows.length} unassigned machines`);
+    res.json(result.rows);
+    
+  } catch (error: any) {
+    console.error('[MACHINES API] Error fetching unassigned machines:', error);
+    res.status(500).json({
+      error: 'Fehler beim Abrufen der nicht zugewiesenen Automaten',
+      message: error.message
+    });
+  }
+});
+
+/**
  * GET /api/machines/:id
  * Get basic machine data by ID (supports internal ID, vendon_id, location_id)
  */
