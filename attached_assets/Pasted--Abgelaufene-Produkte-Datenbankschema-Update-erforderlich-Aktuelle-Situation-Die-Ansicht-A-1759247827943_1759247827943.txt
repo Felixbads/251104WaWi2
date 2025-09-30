@@ -1,0 +1,51 @@
+
+# Abgelaufene Produkte - Datenbankschema-Update erforderlich
+
+## Aktuelle Situation
+
+Die Ansicht "Abgelaufene Produkte" in der Lagerverwaltung zeigt derzeit eine Warnung an, dass ein **Datenbankschema-Update erforderlich** ist. Dies liegt daran, dass die notwendigen Tabellen und Strukturen für die Verfolgung von abgelaufenen Produktchargen noch nicht in der Datenbank implementiert wurden.
+
+## Warum ist das Update erforderlich?
+
+### Fehlende Datenbankstrukturen
+
+Aktuell fehlen folgende Tabellen und Spalten in der Datenbank:
+
+1. **Erweiterte Batch-Tabelle** mit Mindesthaltbarkeitsdatum-Tracking
+2. **Automated Expiry Processing** Tabelle für automatische Ausbuchungen
+3. **Expiry Audit Trail** für Nachverfolgung von Ausbuchungen
+4. **Status-Spalten** für Chargenverfolgung
+
+### Geplante Funktionalität
+
+Nach dem Update werden folgende Funktionen verfügbar sein:
+
+- **Automatische Erkennung** abgelaufener Produktchargen
+- **Automatische Ausbuchung** bei Erreichen des Mindesthaltbarkeitsdatums
+- **Detaillierte Übersicht** aller ausgebuchten Chargen
+- **Nachverfolgung** von Ausbuchungsdetails
+- **Ursprüngliche Mengen** vor der Ausbuchung
+- **Datum und Uhrzeit** der automatischen Ausbuchung
+- **Sortierung** nach Datum (neueste zuerst)
+
+## Erforderliche Datenbankänderungen
+
+### 1. Erweiterte Batch-Tabelle
+
+```sql
+-- Erweiterte Spalten für product_batches
+ALTER TABLE product_batches ADD COLUMN IF NOT EXISTS expiry_date DATE;
+ALTER TABLE product_batches ADD COLUMN IF NOT EXISTS is_expired BOOLEAN DEFAULT FALSE;
+ALTER TABLE product_batches ADD COLUMN IF NOT EXISTS auto_expired_at TIMESTAMP;
+ALTER TABLE product_batches ADD COLUMN IF NOT EXISTS original_quantity_before_expiry INTEGER;
+```
+
+### 2. Neue Tabelle für Ausbuchungshistorie
+
+```sql
+-- Neue Tabelle für abgelaufene Produkte
+CREATE TABLE IF NOT EXISTS expired_products_log (
+  id SERIAL PRIMARY KEY,
+  batch_id INTEGER REFERENCES product_batches(id),
+  product_id INTEGER REFERENCES products(id),
+  warehouse_id INTEGER REFERENCES warehouses(id),
