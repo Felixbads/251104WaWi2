@@ -59,7 +59,6 @@ import {
   FileEdit,
   Trash2,
   AlertTriangle,
-  ScanBarcode,
   RefreshCw,
   ArrowUpDown,
   ArrowUp,
@@ -225,7 +224,6 @@ export default function InventoryTab({ warehouseId }: InventoryTabProps) {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Produkt</TableHead>
-                    <TableHead>Lagerort</TableHead>
                     <TableHead className="text-right">Bestand</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>MHD</TableHead>
@@ -237,9 +235,6 @@ export default function InventoryTab({ warehouseId }: InventoryTabProps) {
                     <TableRow key={i}>
                       <TableCell>
                         <Skeleton className="h-5 w-40" />
-                      </TableCell>
-                      <TableCell>
-                        <Skeleton className="h-5 w-20" />
                       </TableCell>
                       <TableCell className="text-right">
                         <Skeleton className="h-5 w-16 ml-auto" />
@@ -447,12 +442,6 @@ export default function InventoryTab({ warehouseId }: InventoryTabProps) {
                       <SortIndicator column="productName" />
                     </div>
                   </TableHead>
-                  <TableHead className="cursor-pointer" onClick={() => handleSort('location')}>
-                    <div className="flex items-center">
-                      Lagerort
-                      <SortIndicator column="location" />
-                    </div>
-                  </TableHead>
                   <TableHead className="text-right cursor-pointer" onClick={() => handleSort('currentStock')}>
                     <div className="flex items-center justify-end">
                       Bestand
@@ -475,9 +464,6 @@ export default function InventoryTab({ warehouseId }: InventoryTabProps) {
                     <TableCell>
                       <div className="font-medium">{item.productName}</div>
                       <div className="text-sm text-muted-foreground">{item.productId}</div>
-                    </TableCell>
-                    <TableCell>
-                      {item.location || "-"}
                     </TableCell>
                     <TableCell className="text-right font-medium">
                       {item.currentStock} / {item.minimumStock}
@@ -518,11 +504,6 @@ export default function InventoryTab({ warehouseId }: InventoryTabProps) {
                           <DropdownMenuItem asChild>
                             <Link href={`/warehouse3/${warehouseId}/inventory/${item.id}/edit`}>
                               <FileEdit className="mr-2 h-4 w-4" /> Bearbeiten
-                            </Link>
-                          </DropdownMenuItem>
-                          <DropdownMenuItem asChild>
-                            <Link href={`/warehouse3/${warehouseId}/inventory/${item.id}/barcode`}>
-                              <ScanBarcode className="mr-2 h-4 w-4" /> Barcode anzeigen
                             </Link>
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
