@@ -1,7 +1,7 @@
 import { db } from "./db";
 import { sql } from "drizzle-orm";
 import { eq, and, or, desc, asc, inArray, gte, lte, gt, like } from "drizzle-orm";
-import { products, machines, purchaseConditions, users } from "../shared/schema";
+import { products, machines, purchaseConditions, users, refills } from "../shared/schema";
 
 // Import warehouse3 schema definitions for type information
 import {
@@ -1932,34 +1932,54 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
   }
   
   async getRefillTrackings(warehouseId: number): Promise<any[]> {
-    const refills = await db
+    // FIXED: Use the actual refills table (Vendon imports) instead of refill_trackings (manual tracking)
+    // Filter by warehouse through machine_warehouse_assignments
+    const refillsData = await db
       .select({
-        refill: refillTrackings,
+        id: refills.id,
+        machineId: refills.machineId,
+        machineName: refills.machineName,
+        datetime: refills.datetime,
+        operator: refills.operator,
+        status: refills.status,
+        refillType: refills.refillType,
+        plannedAmount: refills.plannedAmount,
+        actualAmount: refills.actualAmount,
+        totalProducts: refills.totalProducts,
+        notes: refills.notes,
+        refillNumber: refills.refillNumber,
         machine: machines
       })
-      .from(refillTrackings)
-      .leftJoin(machines, eq(refillTrackings.machineId, machines.id))
-      .where(eq(refillTrackings.warehouseId, warehouseId))
-      .orderBy(desc(refillTrackings.refillDate));
+      .from(refills)
+      .leftJoin(machines, eq(refills.machineId, machines.id))
+      .leftJoin(machineWarehouseAssignments, eq(refills.machineId, machineWarehouseAssignments.machineId))
+      .where(eq(machineWarehouseAssignments.warehouseId, warehouseId))
+      .orderBy(desc(refills.datetime));
     
-    // Anzahl der Produkte pro Refill abfragen
-    const refillsWithCounts = await Promise.all(refills.map(async ({ refill, machine }) => {
-      const [itemCount] = await db
-        .select({ count: sql<number>`count(*)`, totalQuantity: sql<number>`sum(${refillTrackingItems.quantity})` })
-        .from(refillTrackingItems)
-        .where(eq(refillTrackingItems.refillId, refill.id));
-      
+    // Format the data for the frontend
+    const formattedRefills = refillsData.map((item) => {
       return {
-        ...refill,
-        machineName: machine?.machineName || 'Unbekannter Automat',
-        machineModel: machine?.model || '',
-        machineLocation: machine?.locationName || '',
-        itemCount: itemCount?.count || 0,
-        totalQuantity: itemCount?.totalQuantity || 0
+        id: item.id,
+        machineId: item.machineId,
+        machineName: item.machineName || item.machine?.machineName || 'Unbekannter Automat',
+        machineModel: item.machine?.model || '',
+        machineLocation: item.machine?.locationName || '',
+        refillDate: item.datetime,
+        performedAt: item.datetime,
+        operator: item.operator || 'Unbekannt',
+        status: item.status || 'completed',
+        refillType: item.refillType || '',
+        plannedAmount: item.plannedAmount || 0,
+        actualAmount: item.actualAmount || 0,
+        totalProducts: item.totalProducts || 0,
+        itemCount: item.totalProducts || 0,
+        totalQuantity: item.actualAmount || item.totalProducts || 0,
+        notes: item.notes || '',
+        refillNumber: item.refillNumber || ''
       };
-    }));
+    });
     
-    return refillsWithCounts;
+    return formattedRefills;
   }
   
   async getRefillTracking(id: number): Promise<any | null> {
