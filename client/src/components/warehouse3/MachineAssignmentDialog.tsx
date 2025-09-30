@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DialogFooter } from "@/components/ui/dialog";
 import { Search, MonitorSmartphone, MapPin, AlertCircle } from "lucide-react";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { toast } from "@/hooks/use-toast";
 import {
   Table,
@@ -60,14 +60,33 @@ export default function MachineAssignmentDialog({
         })
       );
 
-      // Warte auf alle Zuordnungen
-      return await Promise.all(assignmentPromises);
+      // Verwende allSettled für robustere Fehlerbehandlung
+      const results = await Promise.allSettled(assignmentPromises);
+      
+      // Zähle Erfolge und Fehler
+      const successful = results.filter(r => r.status === 'fulfilled').length;
+      const failed = results.filter(r => r.status === 'rejected').length;
+      
+      return { successful, failed, total: machineIds.length };
     },
-    onSuccess: () => {
-      toast({
-        title: "Automaten zugewiesen",
-        description: `${selectedMachines.length} Automat(en) erfolgreich zugewiesen.`,
-      });
+    onSuccess: (data) => {
+      // Invalidiere relevante Caches
+      queryClient.invalidateQueries({ queryKey: ['/api/machines/unassigned'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/machine-warehouse-assignments'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/warehouse3/warehouses', warehouseId] });
+      
+      if (data.failed > 0) {
+        toast({
+          title: "Teilweise erfolgreich",
+          description: `${data.successful} von ${data.total} Automat(en) zugewiesen. ${data.failed} fehlgeschlagen.`,
+          variant: "default",
+        });
+      } else {
+        toast({
+          title: "Automaten zugewiesen",
+          description: `${data.successful} Automat(en) erfolgreich zugewiesen.`,
+        });
+      }
       onSuccess();
     },
     onError: (error: any) => {

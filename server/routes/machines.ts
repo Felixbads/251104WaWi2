@@ -150,6 +150,7 @@ router.get('/unassigned', async (req, res) => {
     console.log('[MACHINES API] Fetching unassigned machines (not in any warehouse)');
     
     // Query machines that are NOT in machine_warehouse_assignments
+    // Using NOT EXISTS instead of NOT IN for better performance and NULL safety
     const result = await rawDb.query(`
       SELECT 
         m.id,
@@ -160,9 +161,10 @@ router.get('/unassigned', async (req, res) => {
         m.machine_type,
         m.status
       FROM machines m
-      WHERE m.id NOT IN (
-        SELECT DISTINCT machine_id 
-        FROM machine_warehouse_assignments
+      WHERE NOT EXISTS (
+        SELECT 1 
+        FROM machine_warehouse_assignments mwa 
+        WHERE mwa.machine_id = m.id
       )
       AND m.machine_name IS NOT NULL 
       AND m.machine_name != '' 
