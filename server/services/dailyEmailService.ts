@@ -470,8 +470,8 @@ export class DailyEmailService {
       
       console.log('📊 Report-Daten erfolgreich generiert:', {
         sectionsCount: Object.keys(reportData.sections || {}).length,
-        hasAutomatenOverview: !!(reportData.sections?.automaten_übersicht && reportData.sections.automaten_übersicht.length > 0),
-        machineOverviewCount: reportData.sections?.automaten_übersicht?.length || 0,
+        hasAutomatenOverview: !!(reportData.sections && 'automaten_übersicht' in reportData.sections && Array.isArray((reportData.sections as any).automaten_übersicht) && (reportData.sections as any).automaten_übersicht.length > 0),
+        machineOverviewCount: (reportData.sections && 'automaten_übersicht' in reportData.sections && Array.isArray((reportData.sections as any).automaten_übersicht)) ? (reportData.sections as any).automaten_übersicht.length : 0,
         templateLength: emailContent.html.length
       });
       

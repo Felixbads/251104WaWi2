@@ -29,6 +29,7 @@ import inventoryCountBatchesRouter from './routes/inventory-count-batches';
 import emailRouter from './routes/email';
 import supplierEmailTemplatesRouter from './routes/supplier-email-templates';
 import emailTemplateFixRouter from './routes/email-template-fix';
+import emailDiagnosticsRouter from './routes/email-diagnostics';
 import enhancedEmailRouter from './routes/enhanced-email';
 import ordersEmailCompleteFixRouter from './routes/orders-email-complete-fix';
 import emailCompleteFixRouter from './routes/email-complete-fix';
@@ -2083,6 +2084,10 @@ app.get('/orders-data', (req, res) => {
   const dailyEmailRouter = (await import('./routes/daily-email')).default;
   app.use('/api/daily-email', dailyEmailRouter);
   console.log('[SERVER] Daily email router mounted successfully AFTER registerRoutes');
+  
+  // Mount email diagnostics router for troubleshooting
+  app.use('/api/email-diagnostics', emailDiagnosticsRouter);
+  console.log('[SERVER] Email diagnostics router mounted successfully: /api/email-diagnostics');
   
   // Start daily weather correction cron job
   retroactiveWeatherService.scheduleDailyCorrection();
