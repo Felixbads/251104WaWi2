@@ -1,0 +1,58 @@
+
+# Einkaufsbedingungen Bearbeitung - Problem und Lösungsansatz
+
+## Problem-Beschreibung
+
+**Ausgangssituation:** Benutzer kann in den Einkaufsbedingungen die Lieferantenartikelnummer und Chargengröße (Gebindegröße) nicht ändern/anpassen.
+
+**Betroffene Komponenten:**
+- `UnifiedPurchaseConditionsManager.tsx` - Hauptkomponente für Einkaufsbedingungen
+- Bearbeitungsformular für bestehende Bedingungen
+- Felder: `supplierArticleNumber` und `packagingQuantity`
+
+## Technische Analyse
+
+Die Komponente `UnifiedPurchaseConditionsManager.tsx` enthält bereits alle notwendigen Felder:
+- ✅ `supplierArticleNumber` ist im Interface definiert
+- ✅ `packagingQuantity` ist im Interface definiert  
+- ✅ Beide Felder sind im Formular vorhanden
+- ❌ Problem liegt wahrscheinlich in der Bearbeitung bestehender Datensätze
+
+## Prompt für Agenten
+
+```
+AUFGABE: Behebung der Einkaufsbedingungen-Bearbeitung in der Warenwirtschaftssoftware
+
+PROBLEM: 
+In der Komponente UnifiedPurchaseConditionsManager.tsx können Benutzer bei bestehenden Einkaufsbedingungen die Felder "Lieferantenartikelnummer" (supplierArticleNumber) und "Chargengröße/Gebindegröße" (packagingQuantity) nicht bearbeiten.
+
+BETROFFENE DATEI:
+- client/src/components/purchase-conditions/UnifiedPurchaseConditionsManager.tsx
+
+ANALYSE DER AKTUELLEN SITUATION:
+1. Die Felder sind im Interface PurchaseCondition definiert
+2. Die Felder sind im FormData Interface enthalten
+3. Die Input-Felder sind im Dialog vorhanden
+4. Das Problem liegt in der handleEdit-Funktion oder den disabled-Attributen
+
+ERFORDERLICHE KORREKTUREN:
+
+1. ÜBERPRÜFUNG der handleEdit-Funktion (Zeile ~600):
+   - Stelle sicher, dass supplierArticleNumber und packagingQuantity korrekt aus der condition gelesen werden
+   - Prüfe die Feldmapping zwischen PurchaseCondition und FormData
+
+2. ÜBERPRÜFUNG der Input-Felder im Dialog:
+   - Stelle sicher, dass die Felder nicht disabled sind beim Bearbeiten
+   - Prüfe die value-Bindung an formData
+
+3. ÜBERPRÜFUNG der saveMutation:
+   - Stelle sicher, dass beide Felder in der API-Anfrage übertragen werden
+   - Prüfe das payload-Objekt in der mutationFn
+
+4. DATENBANKFELDER überprüfen:
+   - supplier_article_number
+   - packaging_quantity
+
+SPEZIFISCHE DEBUGGING-SCHRITTE:
+
+1. Füge Console.log in handleEdit hinzu um zu prüfen welche Werte gesetzt werden
