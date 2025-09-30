@@ -1304,10 +1304,8 @@ router.get("/warehouses/10/refills",
       LIMIT $1
     `;
     
-    const { db } = warehouseStorage as any;
-    const { sql } = await import('drizzle-orm');
-    
-    const refillResults = await db.execute(sql.raw(refillQuery, [limit]));
+    // FIXED: Use the imported pool directly instead of trying to get db from warehouseStorage
+    const refillResults = await pool.query(refillQuery, [limit]);
     console.log(`[DEBUG] Found ${refillResults.rows.length} refills for warehouse 10`);
     
     const movements = refillResults.rows.map((refill: any) => ({
