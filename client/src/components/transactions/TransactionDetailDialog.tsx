@@ -28,7 +28,6 @@ interface ExtendedTransaction extends BaseTransaction {
   extraData?: string | any;
   
   // Produktdetails
-  productId?: string | number;
   article?: string;
   stockId?: string | number;
   
@@ -53,6 +52,27 @@ interface ExtendedTransaction extends BaseTransaction {
   
   // Sonstige
   note?: string;
+  
+  // Chargen-Informationen
+  batchId?: number;
+  batchNumber?: string;
+  batchExpiryDate?: string;
+  supplierBatchNumber?: string;
+  
+  // Bestellungs-Informationen
+  orderId?: number;
+  orderNumber?: string;
+  orderDate?: string;
+  orderStatus?: string;
+  
+  // Lieferanten-Informationen
+  supplierName?: string;
+  supplierCompanyName?: string;
+  
+  // Lieferschein-Informationen
+  deliveryNoteId?: number;
+  deliveryNoteNumber?: string;
+  deliveryDate?: string;
 }
 import { 
   ShoppingCart, 
@@ -65,7 +85,10 @@ import {
   Tag,
   Info,
   CheckCircle,
-  XCircle
+  XCircle,
+  TruckIcon,
+  FileText,
+  Layers
 } from "lucide-react";
 import { getTransaction, Transaction } from "@/lib/api";
 import { queryClient } from "@/lib/queryClient";
@@ -236,6 +259,128 @@ export function TransactionDetailDialog({
                   <div className="font-medium">{transaction.stockId || "-"}</div>
                 </div>
               </div>
+
+              {/* Rückverfolgung: Charge, Bestellung, Lieferung */}
+              {(transaction.batchNumber || transaction.orderNumber || transaction.deliveryNoteNumber) && (
+                <div className="rounded-md border p-4 bg-blue-50/50 dark:bg-blue-950/20">
+                  <h3 className="text-sm font-medium mb-3 flex items-center">
+                    <Layers className="h-4 w-4 mr-1" /> Produktrückverfolgung
+                  </h3>
+                  
+                  <div className="space-y-3">
+                    {/* Charge */}
+                    {transaction.batchNumber && (
+                      <div className="space-y-1">
+                        <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center">
+                          <Package className="h-3 w-3 mr-1" />
+                          Charge
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 text-sm pl-4">
+                          <div className="text-muted-foreground">Chargennr.:</div>
+                          <div className="font-medium">{transaction.batchNumber}</div>
+                          
+                          {transaction.supplierBatchNumber && (
+                            <>
+                              <div className="text-muted-foreground">Lieferanten-Charge:</div>
+                              <div className="font-medium">{transaction.supplierBatchNumber}</div>
+                            </>
+                          )}
+                          
+                          {transaction.batchExpiryDate && (
+                            <>
+                              <div className="text-muted-foreground">MHD:</div>
+                              <div className="font-medium">
+                                {format(new Date(transaction.batchExpiryDate), 'dd.MM.yyyy', { locale: de })}
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Bestellung */}
+                    {transaction.orderNumber && (
+                      <div className="space-y-1">
+                        <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center">
+                          <FileText className="h-3 w-3 mr-1" />
+                          Bestellung
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 text-sm pl-4">
+                          <div className="text-muted-foreground">Bestellnr.:</div>
+                          <div className="font-medium">{transaction.orderNumber}</div>
+                          
+                          {transaction.orderDate && (
+                            <>
+                              <div className="text-muted-foreground">Bestelldatum:</div>
+                              <div className="font-medium">
+                                {format(new Date(transaction.orderDate), 'dd.MM.yyyy', { locale: de })}
+                              </div>
+                            </>
+                          )}
+                          
+                          {transaction.supplierName && (
+                            <>
+                              <div className="text-muted-foreground">Lieferant:</div>
+                              <div className="font-medium">
+                                {transaction.supplierName}
+                                {transaction.supplierCompanyName && transaction.supplierCompanyName !== transaction.supplierName && (
+                                  <div className="text-xs text-muted-foreground">{transaction.supplierCompanyName}</div>
+                                )}
+                              </div>
+                            </>
+                          )}
+                          
+                          {transaction.orderStatus && (
+                            <>
+                              <div className="text-muted-foreground">Status:</div>
+                              <div className="font-medium">
+                                <Badge variant={
+                                  transaction.orderStatus === 'delivered' ? 'success' : 
+                                  transaction.orderStatus === 'cancelled' ? 'destructive' : 
+                                  'outline'
+                                }>
+                                  {transaction.orderStatus === 'pending' ? 'Ausstehend' :
+                                   transaction.orderStatus === 'ordered' ? 'Bestellt' :
+                                   transaction.orderStatus === 'delivered' ? 'Geliefert' :
+                                   transaction.orderStatus === 'cancelled' ? 'Storniert' :
+                                   transaction.orderStatus}
+                                </Badge>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Lieferung */}
+                    {(transaction.deliveryNoteNumber || transaction.deliveryDate) && (
+                      <div className="space-y-1">
+                        <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center">
+                          <TruckIcon className="h-3 w-3 mr-1" />
+                          Lieferung
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 text-sm pl-4">
+                          {transaction.deliveryNoteNumber && (
+                            <>
+                              <div className="text-muted-foreground">Lieferscheinnr.:</div>
+                              <div className="font-medium">{transaction.deliveryNoteNumber}</div>
+                            </>
+                          )}
+                          
+                          {transaction.deliveryDate && (
+                            <>
+                              <div className="text-muted-foreground">Lieferdatum:</div>
+                              <div className="font-medium">
+                                {format(new Date(transaction.deliveryDate), 'dd.MM.yyyy', { locale: de })}
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Rechte Spalte: Preis, Automat, Zahlung */}
