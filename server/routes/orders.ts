@@ -292,7 +292,7 @@ router.get('/',
     if (warehouseId) {
       const warehouseIdNum = parseInt(warehouseId);
       if (!isNaN(warehouseIdNum)) {
-        whereConditions.push(eq(orders.warehouseId, warehouseIdNum));
+        whereConditions.push(eq(orders.locationId, warehouseIdNum));
       }
     }
     
