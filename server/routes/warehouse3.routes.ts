@@ -3970,4 +3970,136 @@ router.get('/warehouses/:warehouseId/fifo-insights',
   }
 );
 
+// ---- EXPIRED PRODUCTS LOG ENDPOINT ----
+
+// GET /api/warehouse3/warehouses/:warehouseId/expired-products - Fetch expired products log
+router.get(
+  "/warehouses/:warehouseId/expired-products",
+  authenticateUser,
+  requireWarehouseAccess(),
+  requireRole(['admin', 'manager', 'employee']),
+  auditLog('EXPIRED_PRODUCTS_LIST', 'WAREHOUSE_READ'),
+  async (req, res) => {
+    try {
+      const warehouseId = parseInt(req.params.warehouseId);
+      let { page = 1, limit = 50, sortBy = "expired_at", sortOrder = "desc" } = req.query;
+
+      if (isNaN(warehouseId)) {
+        return res.status(400).json({
+          success: false,
+          message: "Ungültige Warehouse-ID"
+        });
+      }
+
+      // Validate and sanitize sortBy parameter
+      const allowedSortColumns = ['expired_at', 'expiry_date', 'product_name', 'quantity_expired', 'batch_number'];
+      if (!allowedSortColumns.includes(sortBy as string)) {
+        sortBy = 'expired_at';
+      }
+
+      // Validate and sanitize sortOrder parameter
+      const allowedSortOrders = ['asc', 'desc'];
+      if (!allowedSortOrders.includes((sortOrder as string).toLowerCase())) {
+        sortOrder = 'desc';
+      }
+
+      // Validate and cap pagination parameters
+      const pageNum = Math.max(1, parseInt(page as string) || 1);
+      const limitNum = Math.min(200, Math.max(1, parseInt(limit as string) || 50));
+      const offset = (pageNum - 1) * limitNum;
+
+      // Query expired products log with pagination
+      const query = sql`
+        SELECT 
+          epl.id,
+          epl.batch_id,
+          epl.batch_number,
+          epl.product_id,
+          epl.product_name,
+          epl.product_sku,
+          epl.quantity_expired,
+          epl.original_quantity,
+          epl.expiry_date,
+          epl.received_date,
+          epl.expired_at,
+          epl.supplier_batch_number,
+          epl.supplier_name,
+          epl.location_in_warehouse,
+          epl.reason,
+          epl.notes,
+          epl.estimated_value,
+          u.username as processed_by_name
+        FROM expired_products_log epl
+        LEFT JOIN users u ON epl.processed_by = u.id
+        WHERE epl.warehouse_id = ${warehouseId}
+        ORDER BY epl.${sql.raw(sortBy as string)} ${sql.raw(sortOrder as string)}
+        LIMIT ${limitNum}
+        OFFSET ${offset}
+      `;
+
+      const countQuery = sql`
+        SELECT COUNT(*) as total
+        FROM expired_products_log
+        WHERE warehouse_id = ${warehouseId}
+      `;
+
+      const [items, countResult] = await Promise.all([
+        db.execute(query),
+        db.execute(countQuery)
+      ]);
+
+      const total = parseInt(countResult.rows[0]?.total || "0");
+      const totalPages = Math.ceil(total / limitNum);
+
+      // Calculate summary statistics with COALESCE for NULL safety
+      const statsQuery = sql`
+        SELECT 
+          COUNT(*) as total_entries,
+          COALESCE(SUM(quantity_expired), 0) as total_quantity_expired,
+          COALESCE(SUM(estimated_value), 0) as total_estimated_value,
+          COUNT(DISTINCT product_id) as unique_products,
+          MIN(expired_at) as earliest_expiry,
+          MAX(expired_at) as latest_expiry
+        FROM expired_products_log
+        WHERE warehouse_id = ${warehouseId}
+      `;
+
+      const statsResult = await db.execute(statsQuery);
+      const stats = statsResult.rows[0] || {};
+
+      console.log(`[WAREHOUSE3_EXPIRED_PRODUCTS] Fetched ${items.rows.length} expired products for warehouse ${warehouseId}`);
+
+      return res.json({
+        success: true,
+        data: {
+          items: items.rows,
+          pagination: {
+            page: pageNum,
+            limit: limitNum,
+            total,
+            totalPages
+          },
+          stats: {
+            totalEntries: parseInt(stats.total_entries || "0"),
+            totalQuantityExpired: parseInt(stats.total_quantity_expired || "0"),
+            totalEstimatedValue: parseFloat(stats.total_estimated_value || "0"),
+            uniqueProducts: parseInt(stats.unique_products || "0"),
+            earliestExpiry: stats.earliest_expiry,
+            latestExpiry: stats.latest_expiry
+          }
+        },
+        message: `${items.rows.length} abgelaufene Produkte gefunden`
+      });
+
+    } catch (error) {
+      console.error("[WAREHOUSE3_EXPIRED_PRODUCTS] Failed to fetch expired products:", error);
+      return res.status(500).json({
+        success: false,
+        error: "Fehler beim Abrufen der abgelaufenen Produkte",
+        details: error.message
+      });
+    }
+  }
+);
+
 export default router;
