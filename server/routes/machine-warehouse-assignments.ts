@@ -29,7 +29,16 @@ router.get('/', async (req: Request, res: Response) => {
         mwa.created_at AS "createdAt",
         mwa.updated_at AS "updatedAt",
         m.machine_name AS "machineName",
-        w.name AS "warehouseName"
+        m.vendon_id AS "vendonId",
+        m.location_name AS "locationName",
+        w.name AS "warehouseName",
+        COALESCE(w.city, w.address, 'Unbekannt') AS "warehouseLocation",
+        0 AS "productCount",
+        (
+          SELECT MAX(r.datetime)
+          FROM refills r
+          WHERE r.machine_id = mwa.machine_id
+        ) AS "lastRefillDate"
       FROM machine_warehouse_assignments mwa
       LEFT JOIN machines m ON mwa.machine_id = m.id
       LEFT JOIN warehouses w ON mwa.warehouse_id = w.id
