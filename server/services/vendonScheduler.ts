@@ -259,6 +259,11 @@ class VendonScheduler {
 // Export singleton instance
 export const vendonScheduler = new VendonScheduler();
 
-// CRITICAL FIX: TEMPORARILY DISABLED DUE TO DATABASE CONSTRAINT ERRORS
-// Auto-start the scheduler
-// vendonScheduler.start();
+// ✅ LEGACY SCHEDULER: Nur aktivieren wenn Feature-Flag gesetzt ist
+// Standardmäßig wird der resiliente Background-Service verwendet
+if (process.env.ENABLE_LEGACY_VENDON_SCHEDULER === 'true') {
+  console.log('⚠️ Legacy Vendon Scheduler aktiviert (via ENABLE_LEGACY_VENDON_SCHEDULER=true)');
+  vendonScheduler.start();
+} else {
+  console.log('✅ Vendon Scheduler im Legacy-Modus deaktiviert (verwende resilienten Background-Service)');
+}
