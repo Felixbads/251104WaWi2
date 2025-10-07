@@ -1719,8 +1719,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           o.order_date AS "orderDate",
           o.status AS "orderStatus",
           -- Lieferanten-Informationen
-          s.name AS "supplierName",
-          s.company_name AS "supplierCompanyName"
+          s.name AS "supplierName"
         FROM transactions t
         LEFT JOIN machines m ON t.machine_id = m.id
         LEFT JOIN products p ON (t.product_id = p.vendon_id OR t.product_name = p.product_name)

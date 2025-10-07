@@ -326,10 +326,12 @@ export class VendonSyncHealthMonitor {
   }
 
   private async getActiveImportsCount(): Promise<number> {
+    // sync_state Tabelle hat keine status Spalte - verwende sync_logs stattdessen
     const query = `
       SELECT COUNT(*) as count
-      FROM sync_state 
-      WHERE status = 'running'
+      FROM sync_logs 
+      WHERE sync_status = 'running' 
+        AND created_at >= NOW() - INTERVAL '1 hour'
     `;
     
     const result = await this.pool.query(query);
