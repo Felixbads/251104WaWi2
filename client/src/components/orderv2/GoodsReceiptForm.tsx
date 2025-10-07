@@ -967,9 +967,43 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
         qualityIssue: item.qualityStatus !== 'good' ? item.damageDescription : '',
       }));
       
-      onSubmit(enhancedData, receiptNote, documents);
+      onSubmit({
+        items: enhancedData.map(item => ({
+          id: item.orderItemId ?? item.id,
+          productId: item.productId,
+          quantityDelivered: item.receivedQuantity ?? 0,
+          receivedQuantity: item.receivedQuantity ?? 0,
+          expiryDate: item.expiryDate || null,
+          notes: item.comment || null,
+          batchNumber: item.batchNumber || null,
+        })),
+        receiptDate: new Date().toISOString(),
+        notes: receiptNote?.trim() || null,
+        documents,
+        metadata: {
+          isComplete,
+          hasDiscrepancies,
+        },
+      }, receiptNote, documents);
     } else if (onSubmit) {
-      onSubmit(receivedItems, receiptNote, documents);
+      onSubmit({
+        items: receivedItems.map(item => ({
+          id: item.orderItemId ?? item.id,
+          productId: item.productId,
+          quantityDelivered: item.receivedQuantity ?? 0,
+          receivedQuantity: item.receivedQuantity ?? 0,
+          expiryDate: item.expiryDate || null,
+          notes: item.comment || null,
+          batchNumber: item.batchNumber || null,
+        })),
+        receiptDate: new Date().toISOString(),
+        notes: receiptNote?.trim() || null,
+        documents,
+        metadata: {
+          isComplete,
+          hasDiscrepancies,
+        },
+      }, receiptNote, documents);
     }
     
     if (onSaveComplete) {
