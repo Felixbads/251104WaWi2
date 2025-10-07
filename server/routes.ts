@@ -1626,91 +1626,63 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get(`${API_PREFIX}/transactions/byDateRange`, async (req: Request, res: Response) => {
     try {
       const { startDate, endDate, limit } = req.query;
-      
-      if (!startDate || !endDate) {
-        // Wenn keine Daten angegeben sind, verwenden wir Standardwerte für den letzten Monat
-        const endDateObj = new Date();
-        const startDateObj = new Date();
-        startDateObj.setMonth(startDateObj.getMonth() - 1);
-        
-        // Direkte SQL-Abfrage für Transaktionen mit vollständiger Netto-Berechnung (Monatsübersicht)
-        const transactionsQuery = `
-          SELECT 
-            t.id,
-            t.vendon_id AS "vendonId",
-            t.machine_id AS "machineId",
-            t.product_id AS "productId",
-            t.product_name AS "productName",
-            t.quantity,
-            t.amount,
-            t.price,
-            t.price_vat AS "priceVat",
-            t.price_wo_vat AS "priceWoVat",
-            t.payment_method AS "paymentMethod",
-            t.datetime,
-            t.created_at AS "createdAt",
-            m.machine_name AS "machineName",
-            m.location_name AS "locationName",
-            p.deposit_price AS "depositPrice",
-            p.deposit_vat AS "depositVat",
-            -- Einkaufspreis aus purchase_conditions
-            COALESCE(pc.unit_price, 0) AS "purchasePriceNet",
-            -- Berechne Netto-Ergebnis: Verkaufspreis ohne MwSt - Einkaufspreis - Pfand
-            (COALESCE(t.price_wo_vat, t.price - COALESCE(t.price_vat, 0)) - 
-             COALESCE(pc.unit_price, 0) - 
-             COALESCE(p.deposit_price, 0)) AS "netResult",
-            -- Chargen-Informationen
-            t.batch_id AS "batchId",
-            t.batch_number AS "batchNumber",
-            pb.expiry_date AS "batchExpiryDate",
-            pb.supplier_batch_number AS "supplierBatchNumber",
-            -- Bestellungs-Informationen
-            pb.order_id AS "orderId",
-            o.order_number AS "orderNumber",
-            o.order_date AS "orderDate",
-            o.status AS "orderStatus",
-            -- Lieferanten-Informationen
-            s.name AS "supplierName",
-            s.company_name AS "supplierCompanyName",
-            -- Lieferschein-Informationen (erste/neueste)
-            dn.id AS "deliveryNoteId",
-            dn.delivery_note_number AS "deliveryNoteNumber",
-            dn.delivery_date AS "deliveryDate"
-          FROM transactions t
-          LEFT JOIN machines m ON t.machine_id = m.id
-          LEFT JOIN products p ON (t.product_id = p.vendon_id OR t.product_name = p.product_name)
-          LEFT JOIN LATERAL (
-            SELECT unit_price
-            FROM purchase_conditions pc_sub 
-            WHERE pc_sub.product_id = p.id 
-            ORDER BY pc_sub.is_preferred DESC, pc_sub.unit_price ASC 
-            LIMIT 1
-          ) pc ON true
-          LEFT JOIN product_batches pb ON t.batch_id = pb.id
-          LEFT JOIN orders o ON pb.order_id = o.id
-          LEFT JOIN suppliers s ON o.supplier_id = s.id
-          LEFT JOIN LATERAL (
-            SELECT id, delivery_note_number, delivery_date
-            FROM delivery_notes dn_sub
-            WHERE dn_sub.order_id = o.id
-            ORDER BY dn_sub.delivery_date DESC, dn_sub.uploaded_at DESC
-            LIMIT 1
-          ) dn ON true
-          WHERE t.datetime >= $1 AND t.datetime <= $2
-          ORDER BY t.datetime DESC
-          LIMIT $3
-        `;
-        
-        const transactionsResult = await rawDb.query(transactionsQuery, [
-          startDateObj.toISOString(),
-          endDateObj.toISOString(), 
-          limit ? parseInt(limit as string) : 200
-        ]);
-        
-        return res.json(transactionsResult.rows);
+
+      // Query-Parameter normalisieren (Express kann Strings oder Arrays liefern)
+      const normalizeQueryValue = (value?: string | string[]) => {
+        if (Array.isArray(value)) {
+          return value[0];
+        }
+        return value;
+      };
+
+      const rawLimit = normalizeQueryValue(limit as string | string[] | undefined);
+      const parsedLimit = rawLimit ? parseInt(rawLimit, 10) : 200;
+      if (!Number.isFinite(parsedLimit) || parsedLimit <= 0) {
+        return res.status(400).json({
+          error: "Invalid limit parameter",
+          details: "limit must be a positive integer"
+        });
       }
-      
-      // Direkte SQL-Abfrage für normale Transaktions-Abfrage mit vollständiger Netto-Berechnung
+      const finalLimit = Math.min(parsedLimit, 1000); // harte Obergrenze für teure Abfragen
+
+      const normalizeDate = (value?: string | string[]) => {
+        const rawValue = normalizeQueryValue(value);
+        if (!rawValue) {
+          return undefined;
+        }
+        const parsedDate = new Date(rawValue);
+        if (Number.isNaN(parsedDate.getTime())) {
+          return null;
+        }
+        return parsedDate;
+      };
+
+      const parsedStartDate = normalizeDate(startDate as string | string[] | undefined);
+      const parsedEndDate = normalizeDate(endDate as string | string[] | undefined);
+
+      if (parsedStartDate === null || parsedEndDate === null) {
+        return res.status(400).json({
+          error: "Invalid date range",
+          details: "startDate and endDate must be valid ISO-8601 date strings"
+        });
+      }
+
+      // Wenn kein Enddatum angegeben ist, verwenden wir den aktuellen Zeitpunkt
+      const endDateObj = parsedEndDate ?? new Date();
+      // Wenn kein Startdatum angegeben ist, verwenden wir einen Monat vor dem Enddatum
+      const startDateObj = parsedStartDate ?? new Date(endDateObj);
+      if (!parsedStartDate) {
+        startDateObj.setMonth(startDateObj.getMonth() - 1);
+      }
+
+      if (startDateObj > endDateObj) {
+        return res.status(400).json({
+          error: "Invalid date range",
+          details: "startDate must be before or equal to endDate"
+        });
+      }
+
+      // Gleiche SQL-Abfrage für beide Fälle (mit zusätzlichen Standort-Informationen)
       const transactionsQuery = `
         SELECT 
           t.id,
@@ -1727,6 +1699,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           t.datetime,
           t.created_at AS "createdAt",
           m.machine_name AS "machineName",
+          m.location_name AS "locationName",
           p.deposit_price AS "depositPrice",
           p.deposit_vat AS "depositVat",
           -- Einkaufspreis aus purchase_conditions
@@ -1747,11 +1720,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           o.status AS "orderStatus",
           -- Lieferanten-Informationen
           s.name AS "supplierName",
-          s.company_name AS "supplierCompanyName",
-          -- Lieferschein-Informationen (erste/neueste)
-          dn.id AS "deliveryNoteId",
-          dn.delivery_note_number AS "deliveryNoteNumber",
-          dn.delivery_date AS "deliveryDate"
+          s.company_name AS "supplierCompanyName"
         FROM transactions t
         LEFT JOIN machines m ON t.machine_id = m.id
         LEFT JOIN products p ON (t.product_id = p.vendon_id OR t.product_name = p.product_name)
@@ -1765,32 +1734,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         LEFT JOIN product_batches pb ON t.batch_id = pb.id
         LEFT JOIN orders o ON pb.order_id = o.id
         LEFT JOIN suppliers s ON o.supplier_id = s.id
-        LEFT JOIN LATERAL (
-          SELECT id, delivery_note_number, delivery_date
-          FROM delivery_notes dn_sub
-          WHERE dn_sub.order_id = o.id
-          ORDER BY dn_sub.delivery_date DESC, dn_sub.uploaded_at DESC
-          LIMIT 1
-        ) dn ON true
         WHERE t.datetime >= $1 AND t.datetime <= $2
         ORDER BY t.datetime DESC
         LIMIT $3
       `;
-      
+
       const transactionsResult = await rawDb.query(transactionsQuery, [
-        new Date(startDate as string).toISOString(),
-        new Date(endDate as string).toISOString(),
-        limit ? parseInt(limit as string) : 200
+        startDateObj.toISOString(),
+        endDateObj.toISOString(),
+        finalLimit
       ]);
-      
-      const transactions = transactionsResult.rows;
-      
-      res.json(transactions);
+
+      return res.json(transactionsResult.rows);
     } catch (error) {
       console.error("Error fetching transactions by date range:", error);
-      res.status(500).json({ 
-        error: "Failed to fetch transactions by date range", 
-        details: error instanceof Error ? error.message : String(error) 
+      res.status(500).json({
+        error: "Failed to fetch transactions by date range",
+        details: error instanceof Error ? error.message : String(error)
       });
     }
   });
