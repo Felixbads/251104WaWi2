@@ -82,7 +82,7 @@ export class UnifiedVendonSync {
     const opts = { ...this.defaultOptions, ...options };
     const lockId = 'unified_full_sync';
     
-    if (!await this.syncLock.acquire(lockId, 30 * 60)) {
+    if (!await this.syncLock.acquire(lockId, 30)) {
       return {
         status: 'error',
         message: 'Sync bereits aktiv - Lock konnte nicht erworben werden',
@@ -161,7 +161,7 @@ export class UnifiedVendonSync {
     const opts = { ...this.defaultOptions, ...options };
     const lockId = 'unified_incremental_sync';
     
-    if (!await this.syncLock.acquire(lockId, 15 * 60)) {
+    if (!await this.syncLock.acquire(lockId, 15)) {
       return {
         status: 'error',
         message: 'Incrementeller Sync bereits aktiv',

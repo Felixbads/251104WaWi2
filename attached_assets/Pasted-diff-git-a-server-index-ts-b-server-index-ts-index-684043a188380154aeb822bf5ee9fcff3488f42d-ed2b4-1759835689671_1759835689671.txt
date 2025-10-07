@@ -1,0 +1,58 @@
+diff --git a/server/index.ts b/server/index.ts
+index 684043a188380154aeb822bf5ee9fcff3488f42d..ed2b4bef9785bc68a3f5581b16c0d28372cf4a62 100644
+--- a/server/index.ts
++++ b/server/index.ts
+@@ -46,50 +46,53 @@ import nodemailer from 'nodemailer';
+ import { uploadPhotos } from './middleware/fileUpload';
+ import { startPhotoServer } from './photoServer';
+ import interAppApiRouter from './routes/inter-app-api';
+ import { sendEmail } from './utils/emailService';
+ import suppliersFastRouter from './routes/suppliers-fast';
+ import suppliersSimpleRouter from './routes/suppliers-simple';
+ import suppliersProductsForConditionsRouter from './routes/suppliers-products-for-conditions';
+ import supplierDiscountsRouter from './routes/supplier-discounts';
+ import locationStatusRouter from './routes/location-status-ultra-fast';
+ import weatherCorrectionRouter from './routes/weather-correction';
+ import { retroactiveWeatherService } from './services/retroactiveWeatherCorrection';
+ import enhancedOrdersRouter from './routes/enhanced-orders';
+ import enhancedEmailTemplatesRouter from './routes/enhanced-email-templates';
+ import profitabilityRouter from './routes/profitability-simple';
+ import { locationCostsRouter } from './routes/location-costs';
+ import { enhancedProfitabilityRouter } from './routes/enhanced-profitability';
+ import { recurringOrdersRouter } from './routes/recurring-orders';
+ import { recurringOrderCronService } from './services/recurringOrderCron';
+ import RecurringOrderScheduler from './services/recurringOrderScheduler';
+ import weeklyReportRouter from './routes/weekly-report';
+ import { weeklyReportCron } from './services/weeklyReportCron';
+ import syncRouter from './routes/sync';
+ import inventoryItemsUnassignedRouter from './routes/inventory-items-unassigned';
+ import stockRatiosRouter from './routes/stock-ratios';
+ 
++// Side-effect import to ensure the resilient Vendon sync starts automatically after boot
++import './services/autoStartResilientSync';
++
+ const app = express();
+ 
+ // DEBUG: Portal-Route-Logging vor allen anderen Middlewares
+ app.use((req, res, next) => {
+   if (req.path.includes('/lieferant/')) {
+     console.log('[SERVER-DEBUG] Portal route accessed:', {
+       path: req.path,
+       originalUrl: req.originalUrl,
+       method: req.method,
+       accept: req.headers.accept
+     });
+   }
+   next();
+ });
+ 
+ // Optimized location status route with authentic database data will be registered below
+ 
+ // INTER-APP API ENDPOINTS - MUST BE FIRST TO BYPASS ALL MIDDLEWARE
+ // Health Check für externe Apps (OHNE Authentifizierung)
+ app.get('/api/inter-app/health', async (req, res) => {
+   try {
+     res.setHeader('Content-Type', 'application/json');
+     console.log('[INTER-APP] Health check request received');
+     
+     const dbTest = await pool.query('SELECT 1 as test');
