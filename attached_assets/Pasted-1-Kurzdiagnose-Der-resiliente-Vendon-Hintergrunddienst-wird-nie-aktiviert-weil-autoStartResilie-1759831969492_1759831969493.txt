@@ -1,0 +1,102 @@
+1) Kurzdiagnose
+• Der resiliente Vendon-Hintergrunddienst wird nie aktiviert, weil `autoStartResilientSync` nirgends importiert wird und deshalb die in `process.nextTick` hinterlegte Initialisierung ausbleibt. 【F:server/services/autoStartResilientSync.ts†L1-L37】【d0e80a†L1-L4】
+• Mehrere Scheduler-Implementierungen laufen parallel (z. B. `vendonScheduler.start()` beim Import), wodurch mehrere gleichzeitige Abfragen gegen Transaktionen, Events und Refills ausgelöst werden. 【F:server/services/vendonScheduler.ts†L1-L157】【F:server/routes/sync.ts†L1-L220】
+• Die zentralen Vendon-Sync-Routinen verwenden keine Locks für Transaktionen/Events/Refills, so dass gleichzeitige Aufrufe konkurrieren und zu Duplikaten oder inkonsistenten Ergebnissen führen können. Nur der Produkt-Sync nutzt derzeit `acquireSyncLock`. 【F:server/services/vendonSync.ts†L1063-L1406】【F:server/services/vendonSync.ts†L2143-L2200】
+• Betroffene Komponenten: `server/services/autoStartResilientSync.ts`, `server/services/vendonBackgroundService.ts`, `server/services/vendonScheduler.ts`, `server/services/vendonSync.ts`, `server/routes/sync.ts`.
+
+2) Minimal reproduzierbare Schritte (in Replit)
+1. Replit-Projekt öffnen → Shell starten.
+2. `npm install` ausführen, anschließend `npm run dev` starten.
+3. In der Konsole beobachten, dass Logs aus `Vendon Scheduler` erscheinen, aber kein "Resiliente Vendon-Synchronisation"-Start-Log (Hintergrunddienst bleibt aus). Parallel dazu `curl -X POST http://localhost:$PORT/api/sync/vendon/transactions -H "Content-Type: application/json" -d '{}'` ausführen und doppelte/überlappende Sync-Logs im Terminal sehen.
+
+3) Fix-Plan (Schritt-für-Schritt)
+1. `server/index.ts`: Einmalige Initialisierung von `autoStartResilientSync` importieren, damit der neue Hintergrunddienst automatisch startet. — Warum: sorgt für den vorgesehenen resilienten Dauerlauf statt manuellem Start.
+2. `server/services/vendonScheduler.ts`: Auto-Start entfernen oder hinter Feature-Flag (`ENABLE_LEGACY_VENDON_SCHEDULER`) legen, damit nicht mehrere Scheduler parallel laufen. — Warum: verhindert konkurrierende Legacy-Syncs.
+3. `server/services/vendonSync.ts`: Für `syncTransactions`, `syncEvents`, `syncRefills` Lock-Handling mit `acquireSyncLock`/`releaseSyncLock` implementieren (inkl. `try/finally`). — Warum: blockiert parallele API-Läufe und vermeidet inkonsistente Ergebnisse.
+4. `server/routes/sync.ts`: HTTP-Endpunkte so anpassen, dass sie bei aktivem Lock einen 409-Status oder Hinweis zurückgeben und optional den Hintergrunddienst triggern statt direkten Mehrfachaufruf. — Warum: Benutzer bekommen klares Feedback statt silent competition.
+5. `docs/README` o. ä.: Kurze Betriebsanweisung ergänzen (wann Scheduler aktiv ist, wie Locks funktionieren). — Warum: Betriebsteams wissen, welche Tasks laufen.
+
+4) Code-Snippets / Patches
+• `server/index.ts`
+```ts
+// am Dateiende (nach anderen Service-Initialisierungen)
+import './services/autoStartResilientSync';
+```
+Hinweis: reiner Side-Effect-Import, keine zusätzlichen Exporte nötig.
+
+• `server/services/vendonScheduler.ts`
+```ts
+declare const process: { env: Record<string, string | undefined> };
+...
+if (process.env.ENABLE_LEGACY_VENDON_SCHEDULER === 'true') {
+  vendonScheduler.start();
+} else {
+  console.log('Vendon Scheduler im Legacy-Modus deaktiviert (verwende resilienten Background-Service).');
+}
+```
+Hinweis: Beim Entfernen des direkten `vendonScheduler.start();` sicherstellen, dass Tests ggf. Flag setzen.
+
+• `server/services/vendonSync.ts`
+```ts
+const lockAcquired = await acquireSyncLock(SYNC_TYPE.TRANSACTIONS);
+if (!lockAcquired) {
+  await storage.updateSyncLog(syncLogId, { syncStatus: 'skipped', errorMessage: 'Transaction sync already running' });
+  return { syncLogId, status: 'locked', message: 'Transaction sync already running elsewhere' };
+}
+
+try {
+  ...
+} finally {
+  await releaseSyncLock(SYNC_TYPE.TRANSACTIONS);
+}
+```
+Analog für `SYNC_TYPE.EVENTS` und `SYNC_TYPE.REFILLS` mit passenden Meldungen.
+
+• `server/routes/sync.ts`
+```ts
+const result = await vendonSync.syncTransactions(...);
+if (result.status === 'locked' || result.status === 'running_elsewhere') {
+  return res.status(409).json(result);
+}
+```
+Hinweis: Den Response-Status nur für Lock-Konflikte auf 409 setzen.
+
+5) Tests & Verifikation
+• Unit/Integration Tests:
+  - Jest/ts-node Tests ergänzen, die parallele Aufrufe simulieren und erwarten, dass nur ein Sync ausgeführt wird (Mock `acquireSyncLock`).
+  - Integrationstest für `/api/sync/vendon/transactions` mit zwei gleichzeitigen Requests → zweiter liefert 409.
+• Manuelle Checks in Replit:
+1. Startbefehl: `npm run dev`.
+2. Health-Check: `curl http://localhost:$PORT/api/inter-app/health` → 200 OK.
+3. Erwartete Log-Zeilen: "🚀 Starte resiliente Vendon-Synchronisation automatisch...", "Vendon Scheduler im Legacy-Modus deaktiviert".
+• Rollback-Hinweise: Git-Commit revertieren oder ENV `ENABLE_LEGACY_VENDON_SCHEDULER=true` setzen, um alten Scheduler wieder zu starten.
+
+6) Replit-Konfiguration
+• `.replit` sicherstellen: `run = "npm run dev"` (falls abweichend anpassen).
+• `replit.nix`: keine Änderungen nötig, solange Node 20 installiert ist.
+• Dokumentieren, dass Server auf `0.0.0.0:$PORT` lauscht (bereits in Vite/Express-Setup umgesetzt).
+
+7) Abhängigkeiten & Migrationen
+• Keine neuen npm-Pakete nötig.
+• Keine DB-Migrationen erforderlich.
+• Cache leeren, falls Lock-Status persistent wäre (hier nur In-Memory → Neustart genügt).
+
+8) Akzeptanzkriterien (Definition of Done)
+• Hintergrunddienst startet automatisch (Log sichtbar) und liefert kontinuierliche Daten.
+• Manuelle Sync-Endpunkte liefern 409 bei parallelem Lauf statt stiller Konkurrenz.
+• Keine neuen Lint-/TypeScript-Fehler (`npm run check` grün).
+• Logs zeigen "✅ Resiliente Vendon-Synchronisation erfolgreich gestartet" beim Start.
+• Dokumentation beschreibt Scheduler/Locks.
+
+9) Risiken & Fallbacks
+• Risiko: Fehler beim Lock-Release blockiert weitere Syncs → Logging & Notfall-Route bereitstellen (`/api/sync/unlock`).
+• Risiko: Legacy-Scheduler-Deaktivierung entfernt bekannte Fallbacks → Feature-Flag ermöglicht schnelle Reaktivierung.
+• Risiko: Fehlkonfiguration der ENV verhindert Start → Monitoring auf fehlende Start-Logs einrichten.
+
+10) Handover-Notiz (für den Agenten)
+• Aufgabenpakete:
+  - (M) Side-Effect-Import + Flag-Guard implementieren.
+  - (L) Locking in `vendonSync.ts` ergänzen & Tests anpassen.
+  - (S) Routen-Responses und Dokumentation aktualisieren.
+• Reihenfolge: Zuerst Hintergrunddienst aktivieren, dann Legacy-Scheduler unter Flag stellen, anschließend Locking & API-Feedback ergänzen, zuletzt Dokumentation/Tests.
+• Plan B: Falls Locks Probleme bereiten, kurzfristig nur den Hintergrunddienst aktivieren und die Legacy-Scheduler-Flag aktiv lassen; parallel debuggen, warum Locks greifen.

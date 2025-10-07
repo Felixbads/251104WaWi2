@@ -55,6 +55,15 @@ interface Order {
   itemCount?: number;
 }
 
+// Helper function to format dates - available for all components
+const formatDate = (dateString: string) => {
+  try {
+    return format(new Date(dateString), 'dd.MM.yyyy', { locale: de });
+  } catch (e) {
+    return 'Ungültiges Datum';
+  }
+};
+
 const OrderCopySelector: React.FC<OrderCopySelectorProps> = ({ 
   onSelectOrder, 
   onBack 
@@ -162,14 +171,6 @@ const OrderCopySelector: React.FC<OrderCopySelectorProps> = ({
         {config.label}
       </Badge>
     );
-  };
-
-  const formatDate = (dateString: string) => {
-    try {
-      return format(new Date(dateString), 'dd.MM.yyyy', { locale: de });
-    } catch (e) {
-      return 'Ungültiges Datum';
-    }
   };
 
   // Show details view if a specific order is selected
