@@ -88,6 +88,8 @@ import pagePermissionsRouter from './routes/page-permissions';
 import machinesRouter from './routes/machines';
 import refillTemplatesRouter from './routes/refill-templates';
 import weeklyRefillTemplatesRouter from './routes/weekly-refill-templates';
+// Auto-start resiliente Vendon-Synchronisation (Side-Effect-Import für process.nextTick)
+import './services/autoStartResilientSync';
 
 const app = express();
 
