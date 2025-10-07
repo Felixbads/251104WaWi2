@@ -3925,3 +3925,7 @@ app.get('/orders-data', (req, res) => {
     */
   });
 })();
+
+// ✅ AUTO-START RESILIENTE VENDON-SYNCHRONISATION
+// Side-Effect-Import aktiviert den robusten Hintergrunddienst
+import './services/autoStartResilientSync';

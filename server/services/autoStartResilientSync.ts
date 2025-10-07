@@ -31,9 +31,7 @@ export async function autoStartResilientSync(): Promise<void> {
   }
 }
 
-// DISABLED: Automatischer Start nach Server-Initialisierung
-// Das Unified Vendon Sync System übernimmt diese Funktionalität
-// process.nextTick(() => {
-//   setTimeout(autoStartResilientSync, 5000); // 5 Sekunden nach Server-Start
-// });
-console.log('⚠️ autoStartResilientSync DEAKTIVIERT - verwendet jetzt Unified Vendon Sync System');
+// ✅ Automatischer Start nach Server-Initialisierung
+process.nextTick(() => {
+  setTimeout(autoStartResilientSync, 5000); // 5 Sekunden nach Server-Start
+});
