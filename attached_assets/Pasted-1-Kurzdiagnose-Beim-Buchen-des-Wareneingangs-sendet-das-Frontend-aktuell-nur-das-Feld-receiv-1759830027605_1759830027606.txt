@@ -1,0 +1,126 @@
+1) Kurzdiagnose
+    • Beim Buchen des Wareneingangs sendet das Frontend aktuell nur das Feld "receivedItems"; der Legacy-Endpunkt /api/orders/:id/receipt erwartet zusätzlich ein "items"-Array mit IDs, Mengen- und MHD-Angaben. Dadurch schlägt die serverseitige Schema-Validierung mit "Validierung fehlgeschlagen: 3 Fehler gefunden" fehl.
+    • Betroffene Komponenten: client/src/pages/BestellungV2.tsx (goodsReceiptMutation) und client/src/components/orderv2/GoodsReceiptForm.tsx (Payload-Erstellung), sowie server/routes.ts (Kompatibilitätsroute für Wareneingänge).
+
+2) Minimal reproduzierbare Schritte (in Replit)
+    1. Replit öffnen → Shell: `npm install`
+    2. `npm run dev` ausführen (Server lauscht auf 0.0.0.0:$PORT laut .replit)
+    3. Im Browser-Preview `/bestellungen/neu?step=warehouseReceiptOfExistingOrder&orderId=294` laden und "Wareneingang bestätigen" klicken → Toast mit Validierungsfehler erscheint, Netzwerk-Tab zeigt 400-Response für POST /api/orders/294/receipt.
+
+3) Fix-Plan (Schritt-für-Schritt)
+    1. GoodsReceiptForm erweitern — Datei: client/src/components/orderv2/GoodsReceiptForm.tsx — Warum: Metadaten (receiptDate, notes, Dokumenthinweise) und strukturierte Items müssen gemeinsam mit den Positionsdaten an den Caller zurückgegeben werden.
+    2. Payload-Normalisierung ergänzen — Datei: client/src/pages/BestellungV2.tsx — Warum: goodsReceiptMutation soll sowohl das erwartete "items"-Array als auch "receivedItems" mit Batch-/MHD-Information erzeugen und an beide kompatiblen Endpunkte senden.
+    3. Server-Logs absichern — Datei: server/routes.ts — Warum: Zusätzliche Debug-Ausgabe für fehlende Felder erleichtert Fehlersuche, ohne das Verhalten zu verändern.
+
+4) Code-Snippets / Patches
+    • GoodsReceiptForm.tsx
+      Vorher: `onSubmit(receivedItems, receiptNote, documents);`
+      Nachher:
+      ```ts
+      onSubmit({
+        items: receivedItems.map(item => ({
+          id: item.orderItemId ?? item.id,
+          productId: item.productId,
+          quantityDelivered: item.receivedQuantity ?? 0,
+          receivedQuantity: item.receivedQuantity ?? 0,
+          expiryDate: item.expiryDate || null,
+          notes: item.comment || null,
+          batchNumber: item.batchNumber || null,
+        })),
+        receiptDate: new Date().toISOString(),
+        notes: receiptNote?.trim() || null,
+        documents,
+        metadata: {
+          isComplete,
+          hasDiscrepancies,
+        },
+      });
+      ```
+      Hinweis: Keine zusätzlichen Imports notwendig; `isComplete` und `hasDiscrepancies` sind bereits im Scope.
+
+    • BestellungV2.tsx
+      ```ts
+      const items = Array.isArray(receiptData?.items)
+        ? receiptData.items
+        : Array.isArray(receiptData)
+          ? receiptData
+          : [];
+
+      const receivedItems = items
+        .filter(item => Number(item.receivedQuantity) > 0)
+        .map(item => ({
+          productId: item.productId,
+          receivedQuantity: Number(item.receivedQuantity),
+          expiryDate: item.expiryDate ? new Date(item.expiryDate).toISOString() : null,
+          batchNumber: item.batchNumber || item.supplierBatchNumber || null,
+          orderItemId: item.orderItemId ?? item.id ?? null,
+          notes: item.notes ?? item.comment ?? null,
+        }));
+
+      const legacyItems = items.map(item => ({
+        id: item.orderItemId ?? item.id,
+        productId: item.productId,
+        quantityDelivered: Number(item.receivedQuantity ?? item.quantityDelivered ?? 0),
+        receivedQuantity: Number(item.receivedQuantity ?? item.quantityDelivered ?? 0),
+        expiryDate: item.expiryDate || null,
+        notes: item.notes ?? item.comment ?? null,
+        batchNumber: item.batchNumber || item.supplierBatchNumber || null,
+      }));
+
+      const payload = {
+        receivedItems,
+        items: legacyItems,
+        deliveryDate: receiptData?.receiptDate ? new Date(receiptData.receiptDate).toISOString() : undefined,
+        deliveryNoteNumber: receiptData?.deliveryNoteNumber?.trim() || undefined,
+        notes: receiptData?.notes?.trim() || undefined,
+        isComplete: receiptData?.metadata?.isComplete ?? null,
+      };
+
+      return apiRequest(`/api/orders/${orderId}/receipt`, payload, 'post');
+      ```
+      Hinweis: Sicherstellen, dass `Number(...)` importfrei verwendet wird.
+
+    • server/routes.ts (optional Debug)
+      ```ts
+      console.log('[GOODS_RECEIPT] Legacy payload keys:', Object.keys(req.body || {}));
+      ```
+      direkt nach `const { receivedItems } = req.body;` einfügen.
+
+5) Tests & Verifikation
+    • Unit/Integration Testcases:
+      – (Optional) Jest-Test für Payload-Builder in BestellungV2.tsx: Erwartet sowohl receivedItems als auch items bei gemischten Mengen.
+    • Manuelle Checks in Replit:
+      1. Startbefehl: `npm run dev`
+      2. Health-Check: `curl http://localhost:$PORT/api/inter-app/health` → 200 OK mit `{ "success": true, ... }`
+      3. Erwartete Log-Zeilen: `[GOODS_RECEIPT] Legacy payload keys: receivedItems,items,...` beim Buchen.
+    • Rollback-Hinweise: `git checkout -- client/src/pages/BestellungV2.tsx client/src/components/orderv2/GoodsReceiptForm.tsx server/routes.ts` stellt Ausgangszustand wieder her.
+
+6) Replit-Konfiguration
+    • .replit verwendet bereits `run = "npm run dev"` (keine Änderung nötig).
+    • replit.nix keine Anpassung erforderlich.
+    • Sicherstellen, dass Frontend-Proxy weiterhin 0.0.0.0:$PORT nutzt; axios/fetch-Aufrufe bleiben unter `/api`.
+
+7) Abhängigkeiten & Migrationen
+    • Keine neuen Pakete notwendig.
+    • Keine Datenbank-Migrationen erwartet.
+    • Bei Problemen: `rm -rf node_modules && npm install` zur Bereinigung.
+
+8) Akzeptanzkriterien (Definition of Done)
+    • Wareneingang kann für Bestellung 294 reproduzierbar bestätigt werden (POST /api/orders/294/receipt → 200, Toast "Wareneingang erfolgreich gebucht").
+    • Server-Log enthält `[GOODS_RECEIPT] Order 294 completed successfully`.
+    • `npm run check` läuft ohne neue Fehler (bestehende TS1382 ignoriert oder dokumentiert).
+    • Keine Konsolenfehler im Browser während des Wareneingangs.
+    • README bzw. interne Doku um Hinweis auf duales Payload-Format ergänzt (falls gewünscht).
+
+9) Risiken & Fallbacks
+    • Risiko: Doppelpflege der Payload (receivedItems + items) kann divergieren → Mit Helper-Funktion zentralisieren.
+    • Risiko: Legacy-Route überschreibt neue Goods-Receipt-Logik → Feature-Flag (z. B. ENV `USE_LEGACY_RECEIPT=false`) vorbereiten.
+    • Fallback: Falls Validierung weiterhin schlägt, Request-Body in Konsole prüfen und temporär auf `/api/orders-v4/${orderId}/goods-receipt` umstellen.
+
+10) Handover-Notiz (für den Agenten)
+    • Aufgabenpakete:
+      – (M) GoodsReceiptForm Payload-Refactor (0.5 Tag)
+      – (M) goodsReceiptMutation Normalisierung + Tests (0.5 Tag)
+      – (S) Server-Logging & Regression-Test (0.25 Tag)
+    • Reihenfolge: zuerst Frontend-Refactor, dann Mutation/Tests, abschließend Logging & End-to-End-Test.
+    • Plan B: Wenn Backend weiterhin 400 liefert, Payload mit `console.log` inspizieren und ggf. temporär Backend-Schema anpassen (z. B. Zod-Validator aktualisieren).
