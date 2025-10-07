@@ -3925,9 +3925,24 @@ app.get('/orders-data', (req, res) => {
       }
     }, 60 * 60 * 1000); // 1 hour in milliseconds
     */
+
+    // ✅ AUTO-START UNIFIED VENDON SCHEDULER
+    // Startet automatisch Quick Syncs (Transaktionen alle 15 Min) und Full Syncs (alle 60 Min)
+    try {
+      console.log('🚀 Initialisiere UnifiedVendonScheduler...');
+      const { startUnifiedScheduler } = await import('./services/unifiedVendonScheduler');
+      
+      const scheduler = startUnifiedScheduler({
+        quickSyncIntervalMinutes: 15,  // Transaktionen alle 15 Minuten
+        fullSyncIntervalMinutes: 60,   // Vollständiger Sync jede Stunde
+        timezone: 'Europe/Berlin'
+      });
+      
+      log('✅ UnifiedVendonScheduler erfolgreich gestartet');
+      log('📊 Quick Sync: alle 15 Min | Full Sync: alle 60 Min');
+    } catch (error) {
+      console.error('❌ Fehler beim Starten des UnifiedVendonScheduler:', error);
+      log('⚠️ UnifiedVendonScheduler konnte nicht gestartet werden - System läuft ohne automatische Synchronisation');
+    }
   });
 })();
-
-// ✅ AUTO-START RESILIENTE VENDON-SYNCHRONISATION
-// Side-Effect-Import aktiviert den robusten Hintergrunddienst
-import './services/autoStartResilientSync';

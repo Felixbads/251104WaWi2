@@ -404,8 +404,19 @@ class EnhancedVendonApiClient {
   /**
    * API-spezifische Methoden
    */
-  async getTransactions(startDate: Date, endDate: Date, limit: number = 100): Promise<any[]> {
-    const toUnixTimestamp = (date: Date) => Math.floor(date.getTime() / 1000);
+  async getTransactions(startDate: Date | string | number, endDate: Date | string | number, limit: number = 100): Promise<any[]> {
+    const toUnixTimestamp = (date: Date | string | number) => {
+      // If already a Unix timestamp (number), return it
+      if (typeof date === 'number') {
+        return Math.floor(date);
+      }
+      // Convert string or Date to Unix timestamp
+      const dateObj = typeof date === 'string' ? new Date(date) : date;
+      if (isNaN(dateObj.getTime())) {
+        throw new Error(`Invalid date: ${date}`);
+      }
+      return Math.floor(dateObj.getTime() / 1000);
+    };
     
     const params = {
       'from_timestamp': toUnixTimestamp(startDate),
@@ -414,7 +425,13 @@ class EnhancedVendonApiClient {
       'offset': 0
     };
     
-    console.log(`🔍 Transactions API Call - Zeitraum: ${startDate.toISOString()} bis ${endDate.toISOString()}`);
+    const formatDate = (date: Date | string | number): string => {
+      if (typeof date === 'number') return new Date(date * 1000).toISOString();
+      if (typeof date === 'string') return date;
+      return date.toISOString();
+    };
+    
+    console.log(`🔍 Transactions API Call - Zeitraum: ${formatDate(startDate)} bis ${formatDate(endDate)}`);
     console.log(`📊 Transactions params:`, params);
     
     try {
