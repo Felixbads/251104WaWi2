@@ -1,0 +1,287 @@
+diff --git a/server/services/syncLock.ts b/server/services/syncLock.ts
+index 12294673de5c535c454be1f521de738a68c3c403..beddcae43c0765eae4615f484a3450efb206488d 100644
+--- a/server/services/syncLock.ts
++++ b/server/services/syncLock.ts
+@@ -1,145 +1,191 @@
+ import { db } from '../db';
+-import { sql } from 'drizzle-orm';
++import { syncLocks } from '@shared/schema';
++import { eq, gt, lte } from 'drizzle-orm';
+ 
+ /**
+  * Aufzählung der unterstützten Synchronisierungstypen
+  */
+ export enum SYNC_TYPE {
+   PRODUCTS = 'products',
+   MACHINES = 'machines',
+   TRANSACTIONS = 'transactions',
+   REFILLS = 'refills',
+   EVENTS = 'events',
+   WAREHOUSES = 'warehouses',
+   WEATHER = 'weather'
+ }
+ 
+-/**
+- * Lock-Manager für sichere Synchronisierungsoperationen
+- * Verhindert, dass mehrere Prozesse gleichzeitig die gleichen Daten synchronisieren
+- */
++const DEFAULT_TIMEOUT_MINUTES = 5;
++const SUSPICIOUS_TIMEOUT_THRESHOLD_MINUTES = 600; // 10 Stunden – höherer Wert ist meist ein Einheitenfehler
++
++export interface SyncLockOptions {
++  owner?: string;
++  timeoutMinutes?: number;
++  timeoutSeconds?: number;
++  timeoutMs?: number;
++}
++
++function resolveTimeoutMs(options?: SyncLockOptions): number {
++  if (!options) {
++    return DEFAULT_TIMEOUT_MINUTES * 60_000;
++  }
++
++  if (options.timeoutMs && options.timeoutMs > 0) {
++    return Math.max(options.timeoutMs, 60_000);
++  }
++
++  if (options.timeoutSeconds && options.timeoutSeconds > 0) {
++    return Math.max(options.timeoutSeconds, 60) * 1000;
++  }
+ 
+-const locks: Record<string, {
+-  acquiredAt: Date,
+-  owner: string,
+-  expiresAt: Date
+-}> = {};
++  let timeoutMinutes = options.timeoutMinutes ?? DEFAULT_TIMEOUT_MINUTES;
+ 
+-// Lock-Timeout in Millisekunden (5 Minuten)
+-const LOCK_TIMEOUT_MS = 5 * 60 * 1000;
++  if (!Number.isFinite(timeoutMinutes) || timeoutMinutes <= 0) {
++    timeoutMinutes = DEFAULT_TIMEOUT_MINUTES;
++  }
++
++  if (timeoutMinutes >= SUSPICIOUS_TIMEOUT_THRESHOLD_MINUTES && timeoutMinutes % 60 === 0) {
++    const interpretedMinutes = Math.max(1, Math.round(timeoutMinutes / 60));
++    console.warn(
++      `[syncLock] Timeout ${timeoutMinutes} wurde als Minuten übergeben. ` +
++      `Dies entspricht vermutlich Sekunden. Verwende stattdessen ${interpretedMinutes} Minuten.`
++    );
++    timeoutMinutes = interpretedMinutes;
++  }
++
++  return timeoutMinutes * 60_000;
++}
++
++function resolveOwner(options?: string | SyncLockOptions): string {
++  if (!options) {
++    return 'system';
++  }
++
++  if (typeof options === 'string') {
++    return options;
++  }
++
++  return options.owner ?? 'system';
++}
++
++function resolveOptions(options?: string | SyncLockOptions): SyncLockOptions | undefined {
++  if (!options || typeof options === 'string') {
++    return undefined;
++  }
++
++  return options;
++}
+ 
+ /**
+  * Versucht, ein Lock für einen bestimmten Synchronisierungstyp zu erwerben
+- * @param syncType Der Typ der Synchronisierung
+- * @param owner Optional: Kennung des Lock-Besitzers
+- * @returns true, wenn das Lock erfolgreich erworben wurde, false sonst
+  */
+-export async function acquireSyncLock(syncType: string, owner: string = 'system'): Promise<boolean> {
++export async function acquireSyncLock(syncType: string, options?: string | SyncLockOptions): Promise<boolean> {
++  const owner = resolveOwner(options);
++  const timeoutMs = resolveTimeoutMs(resolveOptions(options));
+   const now = new Date();
+-  
+-  // Prüfe, ob das Lock bereits existiert
+-  if (locks[syncType]) {
+-    // Prüfe, ob das Lock abgelaufen ist
+-    if (locks[syncType].expiresAt > now) {
+-      console.log(`Lock für ${syncType} existiert bereits und ist noch gültig (Besitzer: ${locks[syncType].owner})`);
+-      return false;
+-    }
+-    
+-    // Lock ist abgelaufen, kann übernommen werden
+-    console.log(`Lock für ${syncType} ist abgelaufen und wird übernommen`);
++  const lockedUntil = new Date(now.getTime() + timeoutMs);
++
++  try {
++    return await db.transaction(async (tx) => {
++      const existing = await tx.select().from(syncLocks).where(eq(syncLocks.syncType, syncType)).limit(1);
++
++      if (existing.length && existing[0].lockedUntil > now) {
++        const activeLock = existing[0];
++        console.log(
++          `Lock für ${syncType} existiert bereits (läuft bis ${activeLock.lockedUntil.toISOString()})`
++        );
++        return false;
++      }
++
++      if (existing.length) {
++        await tx.update(syncLocks)
++          .set({
++            lockedAt: now,
++            lockedUntil
++          })
++          .where(eq(syncLocks.id, existing[0].id));
++      } else {
++        await tx.insert(syncLocks).values({
++          syncType,
++          lockedAt: now,
++          lockedUntil
++        });
++      }
++
++      console.log(
++        `Lock für ${syncType} erfolgreich erworben (Besitzer: ${owner}, läuft ab: ${lockedUntil.toISOString()})`
++      );
++      return true;
++    });
++  } catch (error) {
++    console.error(`Fehler beim Erwerb des Locks für ${syncType}:`, error);
++    throw error;
+   }
+-  
+-  // Lock erwerben
+-  const expiresAt = new Date(now.getTime() + LOCK_TIMEOUT_MS);
+-  locks[syncType] = {
+-    acquiredAt: now,
+-    owner,
+-    expiresAt
+-  };
+-  
+-  console.log(`Lock für ${syncType} erfolgreich erworben (Besitzer: ${owner}, läuft ab: ${expiresAt.toISOString()})`);
+-  return true;
+ }
+ 
+ /**
+  * Gibt ein Lock für einen bestimmten Synchronisierungstyp frei
+- * @param syncType Der Typ der Synchronisierung
+- * @param owner Optional: Kennung des Lock-Besitzers (zur Überprüfung)
+- * @returns true, wenn das Lock erfolgreich freigegeben wurde, false sonst
+  */
+-export async function releaseSyncLock(syncType: string, owner: string = 'system'): Promise<boolean> {
+-  // Prüfe, ob das Lock existiert
+-  if (!locks[syncType]) {
+-    console.log(`Kein Lock für ${syncType} vorhanden, nichts freizugeben`);
++export async function releaseSyncLock(syncType: string): Promise<boolean> {
++  try {
++    await db.delete(syncLocks).where(eq(syncLocks.syncType, syncType));
++    console.log(`Lock für ${syncType} freigegeben`);
+     return true;
+-  }
+-  
+-  // Prüfe optional, ob der angegebene Besitzer übereinstimmt
+-  if (owner !== 'system' && locks[syncType].owner !== owner) {
+-    console.warn(`Lock für ${syncType} kann nicht freigegeben werden, da der Besitzer nicht übereinstimmt`);
++  } catch (error) {
++    console.error(`Fehler beim Freigeben des Locks für ${syncType}:`, error);
+     return false;
+   }
+-  
+-  // Lock freigeben
+-  delete locks[syncType];
+-  console.log(`Lock für ${syncType} erfolgreich freigegeben`);
+-  return true;
+ }
+ 
+ /**
+  * Prüft, ob ein Lock für einen bestimmten Synchronisierungstyp existiert
+- * @param syncType Der Typ der Synchronisierung
+- * @returns true, wenn das Lock existiert und gültig ist, false sonst
+  */
+-export function isSyncLocked(syncType: string): boolean {
++export async function isSyncLocked(syncType: string): Promise<boolean> {
+   const now = new Date();
+-  
+-  // Prüfe, ob das Lock existiert und noch gültig ist
+-  return Boolean(locks[syncType] && locks[syncType].expiresAt > now);
++  const [lock] = await db.select().from(syncLocks).where(eq(syncLocks.syncType, syncType)).limit(1);
++  return Boolean(lock && lock.lockedUntil > now);
+ }
+ 
+ /**
+  * Gibt alle aktiven Locks zurück
+- * @returns Ein Array mit Informationen zu allen aktiven Locks
+  */
+-export function getActiveLocks(): Array<{
++export async function getActiveLocks(): Promise<Array<{
+   syncType: string;
+-  acquiredAt: Date;
+-  owner: string;
+-  expiresAt: Date;
++  lockedAt: Date;
++  lockedUntil: Date;
+   remainingSeconds: number;
+-}> {
++}>> {
+   const now = new Date();
+-  
+-  return Object.entries(locks)
+-    .filter(([_, lock]) => lock.expiresAt > now)
+-    .map(([syncType, lock]) => ({
+-      syncType,
+-      acquiredAt: lock.acquiredAt,
+-      owner: lock.owner,
+-      expiresAt: lock.expiresAt,
+-      remainingSeconds: Math.round((lock.expiresAt.getTime() - now.getTime()) / 1000)
+-    }));
++  const locks = await db.select().from(syncLocks).where(gt(syncLocks.lockedUntil, now));
++
++  return locks.map(lock => ({
++    syncType: lock.syncType,
++    lockedAt: lock.lockedAt,
++    lockedUntil: lock.lockedUntil,
++    remainingSeconds: Math.max(0, Math.round((lock.lockedUntil.getTime() - now.getTime()) / 1000))
++  }));
+ }
+ 
+ /**
+  * Bereinigt abgelaufene Locks
+  */
+-export function cleanupExpiredLocks(): void {
++export async function cleanupExpiredLocks(): Promise<void> {
+   const now = new Date();
+-  let cleanedCount = 0;
+-  
+-  for (const [syncType, lock] of Object.entries(locks)) {
+-    if (lock.expiresAt <= now) {
+-      delete locks[syncType];
+-      cleanedCount++;
+-    }
+-  }
+-  
+-  if (cleanedCount > 0) {
+-    console.log(`${cleanedCount} abgelaufene Locks wurden bereinigt`);
++  const removed = await db.delete(syncLocks)
++    .where(lte(syncLocks.lockedUntil, now))
++    .returning({ id: syncLocks.id, syncType: syncLocks.syncType });
++
++  if (removed.length > 0) {
++    console.log(`Bereinigte ${removed.length} abgelaufene Sync-Locks: ${removed.map(lock => lock.syncType).join(', ')}`);
+   }
+ }
+ 
+-// Einrichten eines periodischen Tasks zur Bereinigung abgelaufener Locks (alle 5 Minuten)
+-setInterval(cleanupExpiredLocks, 5 * 60 * 1000);
++const cleanupInterval = setInterval(() => {
++  cleanupExpiredLocks().catch((error) => {
++    console.error('Fehler bei der Bereinigung abgelaufener Sync-Locks:', error);
++  });
++}, 5 * 60 * 1000);
++
++if (typeof cleanupInterval.unref === 'function') {
++  cleanupInterval.unref();
++}

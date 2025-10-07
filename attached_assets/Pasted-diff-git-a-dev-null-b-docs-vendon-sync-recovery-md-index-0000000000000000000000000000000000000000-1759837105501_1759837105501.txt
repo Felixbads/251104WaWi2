@@ -1,0 +1,49 @@
+diff --git a//dev/null b/docs/vendon-sync-recovery.md
+index 0000000000000000000000000000000000000000..d6ab63e485672f8def62bea45c8a29c0fce58104 100644
+--- a//dev/null
++++ b/docs/vendon-sync-recovery.md
+@@ -0,0 +1,44 @@
++# Vendon Sync Sofortmaßnahmen
++
++Dieses Dokument fasst die erforderlichen Schritte zusammen, um den Vendon-Synchronisationsprozess wieder in Gang zu bringen, wenn er durch ein festhängendes Lock blockiert wird.
++
++## 1. Aktiven Lock identifizieren
++1. Öffne die Server-Logs (Console oder System-Logs) und prüfe auf Meldungen wie:
++   ```
++   🔒 Lock für unified_full_sync bereits aktiv bis 2025-10-08T17:03:51.773Z
++   ```
++2. Bestätige den Lock-Eintrag direkt in der Datenbank:
++   ```sql
++   SELECT *
++   FROM sync_locks
++   ORDER BY created_at DESC
++   LIMIT 10;
++   ```
++   Achte besonders auf sehr große `locked_until` Werte (z. B. > 8 Stunden).
++
++## 2. Blockierendes Lock entfernen
++Falls ein Lock fälschlicherweise zu lange aktiv bleibt (z. B. 30 Stunden), entferne ihn manuell:
++```sql
++DELETE FROM sync_locks
++WHERE sync_type = 'unified_full_sync';
++```
++> Hinweis: Stelle sicher, dass keine legitime Synchronisation läuft, bevor du den Lock entfernst.
++
++## 3. Timeout-Konfiguration prüfen
++Der Fehler entsteht, wenn der Lock in Sekunden statt Minuten gesetzt wird (`30 * 60` → 1800 Minuten → 30 Stunden). Korrigiere die Aufrufe, sodass Minuten übergeben werden:
++```ts
++await acquireSyncLock('unified_full_sync', {
++  timeoutMinutes: 30,
++});
++```
++Mit der aktualisierten Lock-Implementierung werden verdächtig große Werte (≥ 600 Minuten und Vielfache von 60) automatisch als Sekunden interpretiert und auf Minuten heruntergerechnet. Trotzdem sollte der Aufruf explizit die richtigen Einheiten verwenden.
++
++## 4. Synchronisation neu starten
++1. Starte den betroffenen Scheduler oder Prozess (Legacy Scheduler stoppen, neuen Workflow starten).
++2. Beobachte die Logs, bis der erste erfolgreiche Durchlauf bestätigt wird.
++3. Überwache in den kommenden Stunden erneut die Tabelle `sync_locks`, um sicherzustellen, dass keine neuen Langzeit-Locks entstehen.
++
++## 5. Nachbereitung
++- Dokumentiere den Fix im Incident-Log.
++- Füge in zukünftigen Tickets den Hinweis ein, dass Lock-Timeouts ausschließlich in **Minuten** angegeben werden dürfen.
++- Ergänze gegebenenfalls automatische Alerts, die Locks > 60 Minuten melden.

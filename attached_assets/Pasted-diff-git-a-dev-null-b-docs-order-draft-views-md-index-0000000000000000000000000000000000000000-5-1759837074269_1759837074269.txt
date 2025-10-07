@@ -1,0 +1,49 @@
+diff --git a//dev/null b/docs/order-draft-views.md
+index 0000000000000000000000000000000000000000..529c5c7329fe9edc7629ec66efcd30e82598225b 100644
+--- a//dev/null
++++ b/docs/order-draft-views.md
+@@ -0,0 +1,44 @@
++# Überblick: Darstellungen von Bestellungen im Status "Entwurf"
++
++Dieses Dokument fasst die aktuell im Code vorhandenen Varianten zusammen, wie Bestellungen im Status `draft` ("Entwurf") dargestellt werden. Zudem enthält es einen Standardisierungs-Prompt, der zukünftig bei Erweiterungen genutzt werden soll.
++
++## 1. Legacy-Detailansicht (`/bestellungen/:id`)
++
++* **Datei:** `client/src/pages/OrderDetail.tsx`
++* **Merkmale:**
++  * Anzeige erfolgt als rein lesende Detailansicht mit Tabs für Übersicht und Positionen.
++  * Bisher keine direkten Aktionen zum Bearbeiten oder Versenden einer Bestellung.
++  * Wird über die Route `/bestellungen/:id` angesprochen.
++* **Aktuelle Anpassung:** Für Bestellungen im Status `draft` leitet die Komponente jetzt automatisch auf den Workflow unter `/bestellungen/workflow?step=viewOrder&orderId=…` weiter, damit Entwürfe nicht mehr in dieser Ansicht hängen bleiben.
++
++## 2. Workflow-Detailansicht innerhalb des Bestellprozesses
++
++* **Datei:** `client/src/components/orderv2/OrderDetail.tsx`
++* **Einsatz:** Teil des Schritt-für-Schritt-Workflows in `client/src/pages/BestellungV2.tsx`.
++* **Merkmale:**
++  * Enthält Bearbeitungsmodus, Positionsverwaltung, Zusatzinformationen und Versandvorbereitung.
++  * Kann E-Mails vorbereiten/versenden und Wareneingänge anstoßen.
++  * Dient als zentrale, funktionsreiche Detailansicht für Entwürfe.
++
++## 3. Kompakte Detailansicht mit Kopierfunktion
++
++* **Datei:** `client/src/components/orderv2/OrderDetailWithCopy.tsx`
++* **Merkmale:**
++  * Fokussiert auf schnelle Übersicht und Kopierfunktion für bestehende Bestellungen.
++  * Wird typischerweise in Dialogen oder kompakten Übersichten eingesetzt.
++  * Keine Bearbeitungs- oder Versandfunktionen – daher nicht geeignet als Haupt-Entwurfsansicht.
++
++## Fazit
++
++Es existierten bislang mehrere parallele Ansätze, wodurch Entwürfe an unterschiedlichen Stellen unterschiedlich dargestellt wurden. Für konsistentes Arbeiten sollen Entwürfe ausschließlich über den Bestell-Workflow (`BestellungV2`) geführt werden. Die Legacy-Detailansicht bleibt für historische/abgeschlossene Bestellungen bestehen, leitet Entwürfe aber auf den Workflow um.
++
++## Standardisierungs-Prompt
++
++Diesen Prompt bei zukünftigen Aufgaben verwenden, die die Darstellung oder Verarbeitung von Bestell-Entwürfen betreffen:
++
++> **Prompt:**
++> - Nutze für alle Änderungen an Bestellungen im Status `draft` konsequent den Workflow in `client/src/pages/BestellungV2.tsx`.
++> - Binde Detail- und Bearbeitungsfunktionen über `client/src/components/orderv2/OrderDetail.tsx` ein.
++> - Vermeide neue Logik in der Legacy-Komponente `client/src/pages/OrderDetail.tsx`; sie darf Entwürfe nur an den Workflow weiterleiten.
++> - Halte Kopier- oder Schnelldarstellungen (`OrderDetailWithCopy`) ausschließlich für read-only-Kontexte ohne Versand/Bearbeitung.
++> - Stelle sicher, dass jede Navigation zu Entwürfen auf `/bestellungen/workflow?step=viewOrder&orderId=<ID>` zeigt und teste den Pfad nach Änderungen.

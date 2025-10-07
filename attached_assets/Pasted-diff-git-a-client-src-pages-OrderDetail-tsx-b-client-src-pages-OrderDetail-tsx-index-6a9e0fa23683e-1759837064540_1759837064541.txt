@@ -1,0 +1,97 @@
+diff --git a/client/src/pages/OrderDetail.tsx b/client/src/pages/OrderDetail.tsx
+index 6a9e0fa23683ea1ae81bab15b15a69d3a7748ce2..7754f2a114ac9785fd9ef5b9f512444890ed51e2 100644
+--- a/client/src/pages/OrderDetail.tsx
++++ b/client/src/pages/OrderDetail.tsx
+@@ -1,26 +1,26 @@
+-import React, { useState } from "react";
++import React, { useEffect, useState } from "react";
+ import { useParams } from "wouter";
+ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+ import { useToast } from "@/hooks/use-toast";
+ import { useLocation } from "wouter";
+ 
+ // UI Components
+ import { Button } from "@/components/ui/button";
+ import { 
+   Card, 
+   CardContent, 
+   CardDescription, 
+   CardHeader, 
+   CardTitle 
+ } from "@/components/ui/card";
+ import {
+   Table,
+   TableHeader,
+   TableBody,
+   TableHead,
+   TableRow,
+   TableCell,
+ } from "@/components/ui/table";
+ import { Badge } from "@/components/ui/badge";
+ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+ import { Separator } from "@/components/ui/separator";
+diff --git a/client/src/pages/OrderDetail.tsx b/client/src/pages/OrderDetail.tsx
+index 6a9e0fa23683ea1ae81bab15b15a69d3a7748ce2..7754f2a114ac9785fd9ef5b9f512444890ed51e2 100644
+--- a/client/src/pages/OrderDetail.tsx
++++ b/client/src/pages/OrderDetail.tsx
+@@ -111,50 +111,60 @@ const formatCurrency = (amount: number | null | undefined) => {
+   }).format(amount);
+ };
+ 
+ export default function OrderDetail() {
+   const { id } = useParams<{ id: string }>();
+   const [_, navigate] = useLocation();
+   const { toast } = useToast();
+   const queryClient = useQueryClient();
+   
+   // Tabs State
+   const [activeTab, setActiveTab] = useState("overview");
+   
+   // Lade Bestelldetails
+   const { data: order, isLoading, error } = useQuery({
+     queryKey: ['/api/orders', id],
+     enabled: !!id,
+     queryFn: async () => {
+       const response = await fetch(`/api/orders/${id}`);
+       if (!response.ok) {
+         throw new Error('Fehler beim Laden der Bestellung');
+       }
+       return response.json();
+     }
+   });
+ 
++  useEffect(() => {
++    if (order?.status === 'draft' && id) {
++      navigate(`/bestellungen/workflow?step=viewOrder&orderId=${id}`);
++    }
++  }, [order, id, navigate]);
++
++  if (order?.status === 'draft') {
++    return null;
++  }
++
+   // Lade Bestellpositionen
+   const { data: orderItems = [], isLoading: itemsLoading } = useQuery({
+     queryKey: ['/api/orders', id, 'items'],
+     enabled: !!id,
+     queryFn: async () => {
+       const response = await fetch(`/api/orders/${id}/items`);
+       if (!response.ok) {
+         throw new Error('Fehler beim Laden der Bestellpositionen');
+       }
+       return response.json();
+     }
+   });
+ 
+   // Copy Order Mutation
+   const copyOrderMutation = useMutation({
+     mutationFn: async () => {
+       const response = await fetch(`/api/orders/${id}/copy`, {
+         method: 'POST',
+         headers: {
+           'Content-Type': 'application/json'
+         }
+       });
+       
+       if (!response.ok) {
+         const errorData = await response.json().catch(() => ({}));

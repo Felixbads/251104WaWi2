@@ -1,0 +1,76 @@
+diff --git a/server/services/vendonSync.ts b/server/services/vendonSync.ts
+index b7811eee08451c976a504352d3352d0ca6a0acf6..f27b7f72e308aa0f7c564b2f8ccc71f73721c717 100644
+--- a/server/services/vendonSync.ts
++++ b/server/services/vendonSync.ts
+@@ -2429,69 +2429,69 @@ export class VendonSyncService {
+         } catch (error) {
+           console.error(`Fehler bei der Verarbeitung des Produkts:`, error);
+           errors++;
+         }
+       }
+       
+       // Berechne Gesamtdauer
+       const endTime = Date.now();
+       const durationSeconds = (endTime - startTime) / 1000;
+       
+       // Aktualisiere den Sync-Log-Eintrag
+       await storage.updateSyncLog(syncLogId, {
+         endDate: new Date(),
+         itemsFound: products.length,
+         itemsSaved,
+         itemsUpdated,
+         duplicates,
+         errors,
+         durationSeconds,
+         syncStatus: 'completed'
+       });
+       
+       console.log(`Erweiterte Produktsynchronisierung abgeschlossen. ${itemsSaved} hinzugefügt, ${itemsUpdated} aktualisiert, ${duplicates} Duplikate übersprungen, ${errors} Fehler in ${durationSeconds} Sekunden.`);
+       
+       // Gebe Sperre frei
+-      releaseSyncLock(SYNC_TYPE.PRODUCTS);
++      await releaseSyncLock(SYNC_TYPE.PRODUCTS);
+       
+       return {
+         syncLogId,
+         status: 'success',
+         message: `${products.length} Produkte synchronisiert: ${itemsSaved} neu, ${itemsUpdated} aktualisiert, ${duplicates} Duplikate übersprungen, ${errors} Fehler`
+       };
+     } catch (error) {
+       console.error("Fehler bei der erweiterten Produktsynchronisierung:", error);
+       
+       // Aktualisiere den Sync-Log-Eintrag mit Fehlerinformationen
+       await storage.updateSyncLog(syncLogId, {
+         endDate: new Date(),
+         syncStatus: 'error',
+         errorMessage: error instanceof Error ? error.message : String(error)
+       });
+       
+       // Gebe Sperre frei auch im Fehlerfall
+-      releaseSyncLock(SYNC_TYPE.PRODUCTS);
++      await releaseSyncLock(SYNC_TYPE.PRODUCTS);
+       
+       return {
+         syncLogId,
+         status: 'error',
+         message: `Produktsynchronisation fehlgeschlagen: ${error instanceof Error ? error.message : String(error)}`
+       };
+     }
+   }
+   
+   // Alle Daten synchronisieren
+   async syncAll(): Promise<{ status: string; message: string; results: any }> {
+     console.log("Starte vollständige Synchronisation aller Daten...");
+     const results = {
+       machines: await this.syncMachines(),
+       products: await this.syncProducts(),
+       transactions: await this.syncTransactions(),
+       refills: await this.syncRefills(),
+       events: await this.syncEvents(),
+       stocks: await this.syncStocks()
+     };
+     
+     // Prüfe, ob ein Fehler aufgetreten ist
+     const hasErrors = Object.values(results).some(r => r.status === 'error');
+     
+     return {
