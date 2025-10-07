@@ -1250,6 +1250,20 @@ export class VendonSyncService {
     const logEntry = await storage.createSyncLog(syncLog);
     const syncLogId = logEntry.id;
     
+    // ✅ LOCK-HANDLING: Erwerbe Lock für Transaction-Sync
+    const lockAcquired = await acquireSyncLock(SYNC_TYPE.TRANSACTIONS);
+    if (!lockAcquired) {
+      await storage.updateSyncLog(syncLogId, { 
+        syncStatus: 'skipped', 
+        errorMessage: 'Transaction sync already running' 
+      });
+      return { 
+        syncLogId, 
+        status: 'locked', 
+        message: 'Transaction sync already running elsewhere' 
+      };
+    }
+    
     try {
       console.log(`Synchronisiere Transaktionen von ${this.formatDate(effectiveStartDate)} bis ${this.formatDate(effectiveEndDate)}`);
       const startTime = Date.now();
@@ -1554,6 +1568,9 @@ export class VendonSyncService {
         status: 'error',
         message: `Transaktionssynchronisation fehlgeschlagen: ${error instanceof Error ? error.message : String(error)}`
       };
+    } finally {
+      // ✅ LOCK-HANDLING: Gebe Lock frei (unabhängig vom Ergebnis)
+      await releaseSyncLock(SYNC_TYPE.TRANSACTIONS);
     }
   }
   
@@ -1579,6 +1596,20 @@ export class VendonSyncService {
     
     const logEntry = await storage.createSyncLog(syncLog);
     const syncLogId = logEntry.id;
+    
+    // ✅ LOCK-HANDLING: Erwerbe Lock für Events-Sync
+    const lockAcquired = await acquireSyncLock(SYNC_TYPE.EVENTS);
+    if (!lockAcquired) {
+      await storage.updateSyncLog(syncLogId, { 
+        syncStatus: 'skipped', 
+        errorMessage: 'Events sync already running' 
+      });
+      return { 
+        syncLogId, 
+        status: 'locked', 
+        message: 'Events sync already running elsewhere' 
+      };
+    }
     
     try {
       console.log(`Synchronisiere Ereignisse von ${this.formatDate(effectiveStartDate)} bis ${this.formatDate(effectiveEndDate)}`);
@@ -1777,6 +1808,9 @@ export class VendonSyncService {
         status: 'error',
         message: `Ereignissynchronisation fehlgeschlagen: ${error instanceof Error ? error.message : String(error)}`
       };
+    } finally {
+      // ✅ LOCK-HANDLING: Gebe Lock frei (unabhängig vom Ergebnis)
+      await releaseSyncLock(SYNC_TYPE.EVENTS);
     }
   }
 
@@ -1800,6 +1834,20 @@ export class VendonSyncService {
 
     const logEntry = await storage.createSyncLog(syncLog);
     const syncLogId = logEntry.id;
+
+    // ✅ LOCK-HANDLING: Erwerbe Lock für Refills-Sync
+    const lockAcquired = await acquireSyncLock(SYNC_TYPE.REFILLS);
+    if (!lockAcquired) {
+      await storage.updateSyncLog(syncLogId, { 
+        syncStatus: 'skipped', 
+        errorMessage: 'Refills sync already running' 
+      });
+      return { 
+        syncLogId, 
+        status: 'locked', 
+        message: 'Refills sync already running elsewhere' 
+      };
+    }
 
     try {
       console.log(`Synchronisiere Refills von ${effectiveStartDate.toISOString()} bis ${effectiveEndDate.toISOString()}`);
@@ -2000,6 +2048,9 @@ export class VendonSyncService {
         status: 'error',
         message: `Refill-Synchronisation fehlgeschlagen: ${errorMessage}`
       };
+    } finally {
+      // ✅ LOCK-HANDLING: Gebe Lock frei (unabhängig vom Ergebnis)
+      await releaseSyncLock(SYNC_TYPE.REFILLS);
     }
   }
   
