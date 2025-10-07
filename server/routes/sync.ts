@@ -208,13 +208,26 @@ router.post('/vendon/transactions', async (req: Request, res: Response) => {
     const { startDate, endDate } = req.body;
     const syncCoordinator = getUnifiedSyncCoordinator();
     
-    // Use the Unified Coordinator's transaction sync
-    const result = await syncCoordinator.syncTransactions(startDate, endDate);
+    // ✅ Use the new public wrapper with lock handling
+    const result = await syncCoordinator.syncTransactionsRange(
+      startDate ? new Date(startDate) : undefined,
+      endDate ? new Date(endDate) : undefined
+    );
+    
+    // ✅ Check for lock conflict
+    if (!result.success && result.message.includes('locked')) {
+      console.log('⚠️ Transaction sync locked - returning 409');
+      return res.status(409).json({
+        status: 'locked',
+        message: result.message,
+        data: result
+      });
+    }
     
     console.log('✅ Unified transaction sync completed:', result);
     
     res.json({
-      status: 'success',
+      status: result.success ? 'success' : 'error',
       message: result.message || 'Transaction sync completed',
       data: result
     });
@@ -236,13 +249,26 @@ router.post('/vendon/events', async (req: Request, res: Response) => {
     const { startDate, endDate } = req.body;
     const syncCoordinator = getUnifiedSyncCoordinator();
     
-    // Use the Unified Coordinator's events sync
-    const result = await syncCoordinator.syncEvents(startDate, endDate);
+    // ✅ Use the new public wrapper with lock handling
+    const result = await syncCoordinator.syncEventsRange(
+      startDate ? new Date(startDate) : undefined,
+      endDate ? new Date(endDate) : undefined
+    );
+    
+    // ✅ Check for lock conflict
+    if (!result.success && result.message.includes('locked')) {
+      console.log('⚠️ Events sync locked - returning 409');
+      return res.status(409).json({
+        status: 'locked',
+        message: result.message,
+        data: result
+      });
+    }
     
     console.log('✅ Unified events sync completed:', result);
     
     res.json({
-      status: 'success',
+      status: result.success ? 'success' : 'error',
       message: result.message || 'Events sync completed',
       data: result
     });
@@ -264,13 +290,26 @@ router.post('/vendon/refills', async (req: Request, res: Response) => {
     const { startDate, endDate } = req.body;
     const syncCoordinator = getUnifiedSyncCoordinator();
     
-    // Use the Unified Coordinator's syncRefills for specific date range - THIS IS THE CRITICAL ENDPOINT!
-    const result = await syncCoordinator.syncRefills(startDate ? new Date(startDate) : new Date(Date.now() - 8 * 24 * 60 * 60 * 1000), endDate ? new Date(endDate) : new Date());
+    // ✅ Use the Unified Coordinator's syncRefills with lock handling
+    const result = await syncCoordinator.syncRefills(
+      startDate ? new Date(startDate) : new Date(Date.now() - 8 * 24 * 60 * 60 * 1000), 
+      endDate ? new Date(endDate) : new Date()
+    );
+    
+    // ✅ Check for lock conflict
+    if (!result.success && result.message.includes('locked')) {
+      console.log('⚠️ Refills sync locked - returning 409');
+      return res.status(409).json({
+        status: 'locked',
+        message: result.message,
+        data: result
+      });
+    }
     
     console.log('✅ CRITICAL: Unified refills sync completed:', result);
     
     res.json({
-      status: 'success',
+      status: result.success ? 'success' : 'error',
       message: result.message || 'Refills sync completed - Missing data recovered',
       data: result
     });
@@ -405,7 +444,8 @@ router.post('/vendon/gap-recovery', async (req: Request, res: Response) => {
       try {
         const { getUnifiedSyncCoordinator } = await import('../services/unifiedVendonSyncCoordinator');
         const coordinator = getUnifiedSyncCoordinator();
-        const dayResult = await coordinator.syncTransactions();
+        // ✅ Use the new public wrapper with lock handling
+        const dayResult = await coordinator.syncTransactionsRange(gapDate, nextDay);
         
         // Extract number of new transactions from the result message
         const match = dayResult.message.match(/(\d+) neu/);

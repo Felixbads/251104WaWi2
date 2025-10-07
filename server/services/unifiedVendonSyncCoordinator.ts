@@ -1322,12 +1322,27 @@ export class UnifiedVendonSyncCoordinator {
   }
 
   /**
-   * Public method to sync refills for specific date range
+   * ✅ Public method to sync refills for specific date range WITH LOCK HANDLING
    */
   async syncRefills(startDate: Date, endDate: Date): Promise<SyncResult> {
     console.log(`🔄 Öffentliche Refill-Synchronisierung angefordert: ${startDate.toISOString()} bis ${endDate.toISOString()}`);
     
     const startTime = Date.now();
+
+    // ✅ LOCK-HANDLING: Acquire lock for refills sync
+    const syncLock = getPersistentSyncLockInstance();
+    if (!(await syncLock.acquire('VENDON_REFILLS_SYNC', 30))) {
+      return {
+        success: false,
+        itemsFound: 0,
+        itemsSaved: 0,
+        itemsUpdated: 0,
+        duplicates: 0,
+        errors: ['Refills sync already running'],
+        durationMs: Date.now() - startTime,
+        message: 'Refills sync already running - locked'
+      };
+    }
     
     try {
       const apiRefills = await this.apiClient.getRefills(startDate, endDate);
@@ -1436,6 +1451,106 @@ export class UnifiedVendonSyncCoordinator {
       
       await this.logSyncResult('refills_custom_error', result);
       return result;
+    } finally {
+      // ✅ LOCK-HANDLING: Always release lock
+      const syncLock = getPersistentSyncLockInstance();
+      await syncLock.release('VENDON_REFILLS_SYNC');
+    }
+  }
+
+  /**
+   * ✅ PUBLIC WRAPPER: Sync Transactions with Lock Handling
+   * Used by HTTP endpoints to sync transactions for a specific date range
+   */
+  async syncTransactionsRange(startDate?: Date, endDate?: Date): Promise<SyncResult> {
+    const effectiveStartDate = startDate || new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const effectiveEndDate = endDate || new Date();
+    const startTime = Date.now();
+
+    // ✅ LOCK-HANDLING: Acquire lock for transactions sync
+    const syncLock = getPersistentSyncLockInstance();
+    if (!(await syncLock.acquire('VENDON_TRANSACTIONS_SYNC', 30))) {
+      return {
+        success: false,
+        itemsFound: 0,
+        itemsSaved: 0,
+        itemsUpdated: 0,
+        duplicates: 0,
+        errors: ['Transactions sync already running'],
+        durationMs: Date.now() - startTime,
+        message: 'Transactions sync already running - locked'
+      };
+    }
+
+    try {
+      console.log(`🔄 Public transactions sync: ${effectiveStartDate.toISOString()} to ${effectiveEndDate.toISOString()}`);
+      const result = await this.syncTransactionsForPeriod(effectiveStartDate, effectiveEndDate);
+      await this.logSyncResult('transactions_range', result);
+      return result;
+    } catch (error: any) {
+      const errorResult = {
+        success: false,
+        itemsFound: 0,
+        itemsSaved: 0,
+        itemsUpdated: 0,
+        duplicates: 0,
+        errors: [error.message],
+        durationMs: Date.now() - startTime,
+        message: `Transactions sync failed: ${error.message}`
+      };
+      await this.logSyncResult('transactions_range_error', errorResult);
+      return errorResult;
+    } finally {
+      // ✅ LOCK-HANDLING: Always release lock
+      await syncLock.release('VENDON_TRANSACTIONS_SYNC');
+    }
+  }
+
+  /**
+   * ✅ PUBLIC WRAPPER: Sync Events with Lock Handling
+   * Used by HTTP endpoints to sync events for a specific date range
+   */
+  async syncEventsRange(startDate?: Date, endDate?: Date): Promise<SyncResult> {
+    const effectiveStartDate = startDate || new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const effectiveEndDate = endDate || new Date();
+    const startTime = Date.now();
+
+    // ✅ LOCK-HANDLING: Acquire lock for events sync
+    const syncLock = getPersistentSyncLockInstance();
+    if (!(await syncLock.acquire('VENDON_EVENTS_SYNC', 30))) {
+      return {
+        success: false,
+        itemsFound: 0,
+        itemsSaved: 0,
+        itemsUpdated: 0,
+        duplicates: 0,
+        errors: ['Events sync already running'],
+        durationMs: Date.now() - startTime,
+        message: 'Events sync already running - locked'
+      };
+    }
+
+    try {
+      console.log(`🔄 Public events sync: ${effectiveStartDate.toISOString()} to ${effectiveEndDate.toISOString()}`);
+      const result = await this.syncEvents();
+      await this.logSyncResult('events_range', result);
+      return result;
+    } catch (error: any) {
+      const errorResult = {
+        success: false,
+        itemsFound: 0,
+        itemsSaved: 0,
+        itemsUpdated: 0,
+        duplicates: 0,
+        errors: [error.message],
+        durationMs: Date.now() - startTime,
+        message: `Events sync failed: ${error.message}`
+      };
+      await this.logSyncResult('events_range_error', errorResult);
+      return errorResult;
+    } finally {
+      // ✅ LOCK-HANDLING: Always release lock
+      await syncLock.release('VENDON_EVENTS_SYNC');
     }
   }
 
