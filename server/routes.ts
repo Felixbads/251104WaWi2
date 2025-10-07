@@ -6680,6 +6680,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     
     const orderId = parseInt(req.params.orderId);
     const { receivedItems } = req.body;
+    console.log('[GOODS_RECEIPT] Legacy payload keys:', Object.keys(req.body || {}));
     
     console.log("🚨 BACKEND DEBUG - orderId:", orderId);
     console.log("🚨 BACKEND DEBUG - receivedItems:", receivedItems);
