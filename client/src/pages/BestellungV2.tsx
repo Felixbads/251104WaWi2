@@ -694,37 +694,51 @@ const BestellungV2: React.FC = () => {
   
   // Goods Receipt mutation - VOLLSTÄNDIG REPARIERT für MHD-Tracking und korrektes Backend-Format
   const goodsReceiptMutation = useMutation({
-    mutationFn: (goodsReceiptData: any) => {
-      console.log("🚨 MUTATION DEBUG - Input:", goodsReceiptData);
-      console.log("🚨 MUTATION DEBUG - Keys:", Object.keys(goodsReceiptData));
+    mutationFn: (receiptData: any) => {
+      console.log("🚨 MUTATION DEBUG - Input:", receiptData);
+      console.log("🚨 MUTATION DEBUG - Keys:", Object.keys(receiptData));
       
-      const { orderId, receivedItems } = goodsReceiptData;
+      const { orderId } = receiptData;
       
-      console.log("🚨 MUTATION DEBUG - orderId:", orderId);
-      console.log("🚨 MUTATION DEBUG - receivedItems:", receivedItems);
-      console.log("🚨 MUTATION DEBUG - receivedItems type:", typeof receivedItems);
-      console.log("🚨 MUTATION DEBUG - receivedItems Array?:", Array.isArray(receivedItems));
-      
-      if (!receivedItems) {
-        console.error("❌ CRITICAL: receivedItems is undefined/null!");
-        throw new Error("receivedItems ist undefined - Frontend/Backend Parameter-Mismatch!");
-      }
-      
-      // Transform data for the /receipt API endpoint (expects receivedItems format)
-      const transformedItems = receivedItems
-        .filter((item: any) => item.receivedQuantity > 0)
+      const items = Array.isArray(receiptData?.items)
+        ? receiptData.items
+        : Array.isArray(receiptData)
+          ? receiptData
+          : [];
+
+      const receivedItems = items
+        .filter((item: any) => Number(item.receivedQuantity) > 0)
         .map((item: any) => ({
-          productId: item.productId || item.product_id,
-          orderItemId: item.orderItemId || item.id, 
-          receivedQuantity: item.receivedQuantity,
-          expiryDate: item.expiryDate || null,
-          batchNumber: item.batchNumber || null
+          productId: item.productId,
+          receivedQuantity: Number(item.receivedQuantity),
+          expiryDate: item.expiryDate ? new Date(item.expiryDate).toISOString() : null,
+          batchNumber: item.batchNumber || item.supplierBatchNumber || null,
+          orderItemId: item.orderItemId ?? item.id ?? null,
+          notes: item.notes ?? item.comment ?? null,
         }));
+
+      const legacyItems = items.map((item: any) => ({
+        id: item.orderItemId ?? item.id,
+        productId: item.productId,
+        quantityDelivered: Number(item.receivedQuantity ?? item.quantityDelivered ?? 0),
+        receivedQuantity: Number(item.receivedQuantity ?? item.quantityDelivered ?? 0),
+        expiryDate: item.expiryDate || null,
+        notes: item.notes ?? item.comment ?? null,
+        batchNumber: item.batchNumber || item.supplierBatchNumber || null,
+      }));
+
+      const payload = {
+        receivedItems,
+        items: legacyItems,
+        deliveryDate: receiptData?.receiptDate ? new Date(receiptData.receiptDate).toISOString() : undefined,
+        deliveryNoteNumber: receiptData?.deliveryNoteNumber?.trim() || undefined,
+        notes: receiptData?.notes?.trim() || undefined,
+        isComplete: receiptData?.metadata?.isComplete ?? null,
+      };
+
+      console.log("✅ Transformed payload for /receipt API:", payload);
       
-      console.log("✅ Transformed receivedItems for /receipt API:", transformedItems);
-      
-      // KORRIGIERT: Verwende korrekten /receipt Endpunkt der tatsächlich existiert
-      return apiRequest(`/api/orders/${orderId}/receipt`, { receivedItems: transformedItems }, 'post');
+      return apiRequest(`/api/orders/${orderId}/receipt`, payload, 'post');
     },
     onSuccess: (data, variables) => {
       toast({
@@ -1886,8 +1900,10 @@ const BestellungV2: React.FC = () => {
           <GoodsReceiptForm
             order={orderWithItems}
             onSubmit={async (receiptData, receiptNote, documents) => {
+              const items = Array.isArray(receiptData?.items) ? receiptData.items : (Array.isArray(receiptData) ? receiptData : []);
+              
               // Prüfen, ob alle Positionen geprüft wurden
-              const allItemsChecked = receiptData.every(item => 
+              const allItemsChecked = items.every((item: any) => 
                 item.receivedQuantity !== null && item.receivedQuantity !== undefined
               );
               
@@ -1905,15 +1921,16 @@ const BestellungV2: React.FC = () => {
                 const formData = new FormData();
                 
                 // Lieferscheine anhängen
-                documents.forEach((file, index) => {
+                const docFiles = receiptData?.documents || documents || [];
+                docFiles.forEach((file: File, index: number) => {
                   formData.append('deliveryNotes', file);
                 });
                 
                 // Wareneingangs-Daten als JSON anhängen
                 formData.append('goodsReceiptData', JSON.stringify({
-                  items: receiptData,
-                  notes: receiptNote,
-                  receiptDate: new Date().toISOString()
+                  items: items,
+                  notes: receiptData?.notes || receiptNote,
+                  receiptDate: receiptData?.receiptDate || new Date().toISOString()
                 }));
 
                 const response = await fetch(`/api/goods-receipt/${orderWithItems.id}/process-with-documents`, {
@@ -1927,9 +1944,10 @@ const BestellungV2: React.FC = () => {
 
                 const result = await response.json();
                 
+                const docCount = receiptData?.documents?.length || documents?.length || 0;
                 toast({
                   title: 'Wareneingang erfolgreich',
-                  description: `Wareneingang wurde verarbeitet. ${documents.length > 0 ? `${documents.length} Lieferschein(e) hochgeladen.` : ''}`,
+                  description: `Wareneingang wurde verarbeitet. ${docCount > 0 ? `${docCount} Lieferschein(e) hochgeladen.` : ''}`,
                   variant: 'default',
                 });
 
@@ -1995,8 +2013,10 @@ const BestellungV2: React.FC = () => {
             <GoodsReceiptForm
               order={order || existingOrderData}
               onSubmit={async (receiptData, receiptNote, documents) => {
+                const items = Array.isArray(receiptData?.items) ? receiptData.items : (Array.isArray(receiptData) ? receiptData : []);
+                
                 // Prüfen, ob alle Positionen geprüft wurden
-                const allItemsChecked = receiptData.every(item => 
+                const allItemsChecked = items.every((item: any) => 
                   item.receivedQuantity !== null && item.receivedQuantity !== undefined
                 );
                 
@@ -2014,15 +2034,16 @@ const BestellungV2: React.FC = () => {
                   const formData = new FormData();
                   
                   // Lieferscheine anhängen
-                  documents.forEach((file, index) => {
+                  const docFiles = receiptData?.documents || documents || [];
+                  docFiles.forEach((file: File, index: number) => {
                     formData.append('deliveryNotes', file);
                   });
                   
                   // Wareneingangs-Daten als JSON anhängen
                   formData.append('goodsReceiptData', JSON.stringify({
-                    items: receiptData,
-                    notes: receiptNote,
-                    receiptDate: new Date().toISOString()
+                    items: items,
+                    notes: receiptData?.notes || receiptNote,
+                    receiptDate: receiptData?.receiptDate || new Date().toISOString()
                   }));
 
                   const currentOrder = order || existingOrderData;
@@ -2037,9 +2058,10 @@ const BestellungV2: React.FC = () => {
 
                   const result = await response.json();
                   
+                  const docCount = receiptData?.documents?.length || documents?.length || 0;
                   toast({
                     title: 'Wareneingang erfolgreich',
-                    description: `Wareneingang wurde verarbeitet. ${documents.length > 0 ? `${documents.length} Lieferschein(e) hochgeladen.` : ''}`,
+                    description: `Wareneingang wurde verarbeitet. ${docCount > 0 ? `${docCount} Lieferschein(e) hochgeladen.` : ''}`,
                     variant: 'default',
                   });
 
