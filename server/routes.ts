@@ -1622,8 +1622,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get transactions by date range
-  app.get(`${API_PREFIX}/transactions/byDateRange`, async (req: Request, res: Response) => {
+  // Get transactions by date range (mit Alias für kebab-case)
+  const transactionsByDateRangeHandler = async (req: Request, res: Response) => {
     try {
       const { startDate, endDate, limit } = req.query;
 
@@ -1752,7 +1752,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         details: error instanceof Error ? error.message : String(error)
       });
     }
-  });
+  };
+
+  // Beide URL-Varianten registrieren (camelCase und kebab-case)
+  app.get(`${API_PREFIX}/transactions/byDateRange`, transactionsByDateRangeHandler);
+  app.get(`${API_PREFIX}/transactions/by-date-range`, transactionsByDateRangeHandler);
 
   // Suppliers routes
   // Get all suppliers
