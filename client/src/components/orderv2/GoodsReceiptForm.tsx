@@ -132,6 +132,32 @@ interface OrderItem {
   warehouseId?: number;
 }
 
+interface Warehouse {
+  id: number;
+  name: string;
+  location?: string;
+  status?: string;
+}
+
+interface GoodsReceiptItem {
+  id?: number;
+  orderItemId: number;
+  productId: number;
+  productName: string;
+  quantityOrdered: number;
+  quantityReceived: number;
+  unit?: string;
+  qualityStatus: 'good' | 'damaged' | 'partial' | 'rejected';
+  damageDescription?: string;
+  batchNumber?: string;
+  supplierBatchNumber?: string;
+  expiryDate?: Date | string;
+  warehouseId?: number;
+  locationInWarehouse?: string;
+  notes?: string;
+  receivedQuantity?: number;
+}
+
 interface GoodsReceiptFormProps {
   order: any; // Make the type more flexible to accommodate different API structures
   orderId?: number; // Enhanced: explicit order ID
@@ -206,7 +232,7 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
 
   // Enhanced: Laden der verfügbaren Lager für diese Bestellung
   const effectiveOrderId = orderId || order.id || order.orderId;
-  const { data: warehouses = [], isLoading: isLoadingWarehouses } = useQuery({
+  const { data: warehouses = [], isLoading: isLoadingWarehouses } = useQuery<Warehouse[]>({
     queryKey: [`/api/goods-receipt/${effectiveOrderId}/warehouses`],
     enabled: enableEnhancedFeatures && !!effectiveOrderId,
     staleTime: 60 * 1000, // 1 minute
