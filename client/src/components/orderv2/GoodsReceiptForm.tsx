@@ -374,12 +374,15 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
                                 1;
     
     return {
-      deliveryDate: new Date(), // Return Date object
+      status: 'draft' as const,
+      deliveryDate: format(new Date(), 'yyyy-MM-dd'), // Return string
       warehouseId: selectedWarehouseId,
       orderId: effectiveOrderId || 0,
       deliveryNoteNumber: '',
       notes: '',
       receiptNote: '',
+      overallQuality: 'good' as const,
+      requiresFollowUp: false,
       items: orderItems.map((item: any) => {
         const orderedQuantity = item.orderQuantity || item.orderedQuantity || item.quantity || 0;
         const productName = item.name || item.product_name || item.productName || 'Artikel ohne Namen';
@@ -399,7 +402,7 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
           damageDescription: '',
           batchNumber: batchNumber,
           supplierBatchNumber: '',
-          expiryDate: expiryDate || new Date(), // Return Date object
+          expiryDate: expiryDate ? format(expiryDate, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'), // Return string
           warehouseId: selectedWarehouseId, // Use selected warehouse instead of undefined
           locationInWarehouse: '',
           notes: '',
@@ -609,7 +612,7 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
     
     // Update form
     const updatedItems = form.getValues('items').map(item => 
-      item.id === id ? { ...item, receivedQuantity } : item
+      item.orderItemId === id ? { ...item, quantityReceived: receivedQuantity } : item
     );
     form.setValue('items', updatedItems);
   };
@@ -635,7 +638,7 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
     
     // Update form
     const updatedItems = form.getValues('items').map(item => 
-      item.id === id ? { 
+      item.orderItemId === id ? { 
         ...item, 
         qualityStatus,
         damageDescription: qualityStatus === 'good' ? '' : item.damageDescription
@@ -673,7 +676,7 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
     
     // Update form
     const updatedItems = form.getValues('items').map(item => 
-      item.id === id ? { ...item, damageDescription } : item
+      item.orderItemId === id ? { ...item, damageDescription } : item
     );
     form.setValue('items', updatedItems);
   };
@@ -737,11 +740,9 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
     
     // Update form
     const updatedItems = form.getValues('items').map(item => 
-      item.id === itemId ? { 
+      item.orderItemId === itemId ? { 
         ...item, 
-        receivedQuantity: totalQuantity,
-        receivedPackageCount: packageCount,
-        receivedTotalQuantity: totalQuantity
+        quantityReceived: totalQuantity
       } : item
     );
     form.setValue('items', updatedItems);
@@ -771,11 +772,9 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
     
     // Update form
     const updatedItems = form.getValues('items').map(item => 
-      item.id === itemId ? { 
+      item.orderItemId === itemId ? { 
         ...item, 
-        receivedQuantity: totalQuantity,
-        receivedPackageCount: packageCount,
-        receivedTotalQuantity: totalQuantity
+        quantityReceived: totalQuantity
       } : item
     );
     form.setValue('items', updatedItems);
@@ -940,7 +939,7 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
     console.log('[Enhanced GoodsReceiptForm] Submitting received items:', receivedItems);
     
     // Enhanced validation
-    const hasReceivedItems = receivedItems.some(item => item.receivedQuantity > 0);
+    const hasReceivedItems = receivedItems.some(item => (item.receivedQuantity ?? 0) > 0);
     
     if (!hasReceivedItems) {
       toast({
@@ -953,7 +952,7 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
 
     // Enhanced MHD validation
     const expiredItems = receivedItems.filter(item => 
-      item.receivedQuantity > 0 && 
+      (item.receivedQuantity ?? 0) > 0 && 
       item.expiryDate && 
       isBefore(new Date(item.expiryDate), new Date())
     );
@@ -969,7 +968,7 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
 
     // Enhanced Quality Control Validation
     const damagedItemsWithoutDescription = receivedItems.filter(item => 
-      item.receivedQuantity > 0 && 
+      (item.receivedQuantity ?? 0) > 0 && 
       (item.qualityStatus === 'damaged' || item.qualityStatus === 'rejected' || item.damaged) && 
       !item.damageDescription?.trim()
     );
@@ -993,43 +992,9 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
         qualityIssue: item.qualityStatus !== 'good' ? item.damageDescription : '',
       }));
       
-      onSubmit({
-        items: enhancedData.map(item => ({
-          id: item.orderItemId ?? item.id,
-          productId: item.productId,
-          quantityDelivered: item.receivedQuantity ?? 0,
-          receivedQuantity: item.receivedQuantity ?? 0,
-          expiryDate: item.expiryDate || null,
-          notes: item.comment || null,
-          batchNumber: item.batchNumber || null,
-        })),
-        receiptDate: new Date().toISOString(),
-        notes: receiptNote?.trim() || null,
-        documents,
-        metadata: {
-          isComplete,
-          hasDiscrepancies,
-        },
-      }, receiptNote, documents);
+      onSubmit(enhancedData as any, receiptNote, documents);
     } else if (onSubmit) {
-      onSubmit({
-        items: receivedItems.map(item => ({
-          id: item.orderItemId ?? item.id,
-          productId: item.productId,
-          quantityDelivered: item.receivedQuantity ?? 0,
-          receivedQuantity: item.receivedQuantity ?? 0,
-          expiryDate: item.expiryDate || null,
-          notes: item.comment || null,
-          batchNumber: item.batchNumber || null,
-        })),
-        receiptDate: new Date().toISOString(),
-        notes: receiptNote?.trim() || null,
-        documents,
-        metadata: {
-          isComplete,
-          hasDiscrepancies,
-        },
-      }, receiptNote, documents);
+      onSubmit(receivedItems as any, receiptNote, documents);
     }
     
     if (onSaveComplete) {
@@ -1128,7 +1093,7 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
                       <PopoverContent className="w-auto p-0" align="start">
                         <Calendar
                           mode="single"
-                          selected={field.value}
+                          selected={normalizeDate(field.value) || undefined}
                           onSelect={(date) => {
                             field.onChange(date);
                             
