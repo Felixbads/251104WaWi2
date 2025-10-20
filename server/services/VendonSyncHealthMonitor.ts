@@ -447,13 +447,14 @@ export class VendonSyncHealthMonitor {
   private async logHealthStatus(health: HealthMetrics): Promise<void> {
     const query = `
       INSERT INTO sync_logs (
-        service_type, sync_status, items_found, items_saved, duplicates, 
+        sync_type, service_type, sync_status, items_found, items_saved, duplicates, 
         errors, duration_seconds, created_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
     `;
     
     await this.pool.query(query, [
-      'health_monitor',
+      'HEALTH_CHECK', // sync_type (NOT NULL column)
+      'health_monitor', // service_type
       health.syncStatus,
       health.transactionsSynced24h,
       0, // items_saved - für health monitor nicht relevant
