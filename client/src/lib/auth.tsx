@@ -32,14 +32,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const { toast } = useToast();
   
-  // Setup axios interceptor for token - runs AFTER checkAuth completes
+  // Setup axios interceptor for token - runs immediately to catch all requests
   useEffect(() => {
-    // Only set up interceptor after initial loading is done
-    if (isLoading) {
-      return;
-    }
-    
-    // Request interceptor to add token to requests
+    // Request interceptor to add token to all requests
     const interceptor = axios.interceptors.request.use(
       (config) => {
         // Read token from localStorage (single source of truth)
@@ -66,7 +61,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       axios.interceptors.request.eject(interceptor);
     };
-  }, [isLoading]);
+  }, []); // Empty dependency array - run once on mount
   
   // Check authentication status using Replit's native authentication
   useEffect(() => {

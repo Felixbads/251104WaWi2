@@ -6,26 +6,8 @@ const API_BASE_URL = '/api';
 // Set default withCredentials for all requests (supports HttpOnly cookies)
 axios.defaults.withCredentials = true;
 
-// Add request interceptor to ensure token is always included
-axios.interceptors.request.use(
-  (config) => {
-    // Read token from localStorage
-    const storedToken = localStorage.getItem('authToken');
-    
-    // Add Authorization header if token exists
-    if (storedToken) {
-      config.headers['Authorization'] = `Bearer ${storedToken}`;
-    }
-    
-    return config;
-  },
-  (error) => {
-    console.error('[AXIOS] Request interceptor error:', error);
-    return Promise.reject(error);
-  }
-);
-
-// Add response interceptor for global error handling
+// Note: Request interceptor is configured in auth.tsx to avoid duplication
+// Response interceptor for global error handling
 axios.interceptors.response.use(
   (response) => response,
   (error) => {
