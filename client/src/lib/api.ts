@@ -2,6 +2,55 @@ import axios from 'axios';
 
 const API_BASE_URL = '/api';
 
+// ===== GLOBAL AXIOS CONFIGURATION =====
+// Set default withCredentials for all requests (supports HttpOnly cookies)
+axios.defaults.withCredentials = true;
+
+// Add request interceptor to ensure token is always included
+axios.interceptors.request.use(
+  (config) => {
+    // Read token from localStorage
+    const storedToken = localStorage.getItem('authToken');
+    
+    // Add Authorization header if token exists
+    if (storedToken) {
+      config.headers['Authorization'] = `Bearer ${storedToken}`;
+    }
+    
+    return config;
+  },
+  (error) => {
+    console.error('[AXIOS] Request interceptor error:', error);
+    return Promise.reject(error);
+  }
+);
+
+// Add response interceptor for global error handling
+axios.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    // Handle 401 Unauthorized errors
+    if (error.response?.status === 401) {
+      console.warn('[AXIOS] 401 Unauthorized - Token may be invalid or expired');
+      
+      // Clear invalid token
+      localStorage.removeItem('authToken');
+      delete axios.defaults.headers.common['Authorization'];
+      
+      // Could redirect to login or dispatch an event here
+      // For now, just log it
+    }
+    
+    return Promise.reject(error);
+  }
+);
+
+console.log('[API] Global axios configuration initialized:', {
+  withCredentials: axios.defaults.withCredentials,
+  hasAuthHeader: !!axios.defaults.headers.common['Authorization'],
+  storedToken: !!localStorage.getItem('authToken')
+});
+
 // Interface für Einkaufsbedingungen
 export interface PurchaseCondition {
   id: number;

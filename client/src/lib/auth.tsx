@@ -32,29 +32,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const { toast } = useToast();
   
-  // Setup axios interceptor for token
+  // Setup axios interceptor for token - runs AFTER checkAuth completes
   useEffect(() => {
+    // Only set up interceptor after initial loading is done
+    if (isLoading) {
+      return;
+    }
+    
     // Request interceptor to add token to requests
     const interceptor = axios.interceptors.request.use(
       (config) => {
-        // Überprüfe, ob token im State vorhanden ist
-        if (token) {
-          config.headers['Authorization'] = `Bearer ${token}`;
-        } 
-        // Falls nicht, prüfe auf localStorage
-        else {
-          const storedToken = localStorage.getItem('authToken');
-          if (storedToken) {
-            config.headers['Authorization'] = `Bearer ${storedToken}`;
-            
-            // Token im State aktualisieren, falls es noch nicht dort war
-            if (!token) {
-              setToken(storedToken);
-            }
-          }
+        // Read token from localStorage (single source of truth)
+        const storedToken = localStorage.getItem('authToken');
+        
+        if (storedToken) {
+          config.headers['Authorization'] = `Bearer ${storedToken}`;
+          console.log(`[AUTH] Sending request to ${config.url} with auth token: true`);
+        } else {
+          console.log(`[AUTH] Sending request to ${config.url} with auth token: false`);
         }
         
-        // Stelle sicher, dass withCredentials true ist für alle API-Anfragen (Enhanced Auth nutzt HttpOnly Cookies)
+        // Set withCredentials for all API requests (Enhanced Auth uses HttpOnly Cookies)
         if (config.url?.startsWith('/api/')) {
           config.withCredentials = true;
         }
@@ -68,7 +66,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       axios.interceptors.request.eject(interceptor);
     };
-  }, [token]);
+  }, [isLoading]);
   
   // Check authentication status using Replit's native authentication
   useEffect(() => {
@@ -146,8 +144,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         
         console.log("[AUTH] Replit login successful:", user);
         
-        // Token und User im localStorage speichern
-        localStorage.setItem('auth_token', token);
+        // Token und User im localStorage speichern (use consistent key: 'authToken')
+        localStorage.setItem('authToken', token);
         
         // Token für alle zukünftigen Anfragen als Default setzen
         axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
@@ -230,8 +228,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
-      // Lokalen Zustand zurücksetzen
-      localStorage.removeItem('auth_token');
+      // Lokalen Zustand zurücksetzen (use consistent key: 'authToken')
+      localStorage.removeItem('authToken');
       
       // Authentifizierungsheader aus Standardkonfiguration entfernen
       delete axios.defaults.headers.common['Authorization'];
