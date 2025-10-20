@@ -419,7 +419,7 @@ router.post('/link-warehouse-to-refill', async (req: AuthRequest, res: Response)
           qtyDelta: -quantity,
           actorUserId: userId,
           machineId: refill.machine_id,
-          occurredAt: new Date(refill.datetime * 1000),
+          occurredAt: new Date((refill.datetime as number) * 1000),
           source: 'REFILL',
           direction: 'OUT',
           referenceId: refillId.toString(),
@@ -435,14 +435,14 @@ router.post('/link-warehouse-to-refill', async (req: AuthRequest, res: Response)
           quantity,
           stockBefore: movementResult.movement.beforeQty,
           stockAfter: movementResult.movement.afterQty,
-          withdrawalTime: new Date(refill.datetime * 1000).toISOString()
+          withdrawalTime: new Date((refill.datetime as number) * 1000).toISOString()
         });
       }
 
       return {
         refillId,
         operator: refill.operator,
-        refillTime: new Date(refill.datetime * 1000).toISOString(),
+        refillTime: new Date((refill.datetime as number) * 1000).toISOString(),
         inventoryMovements
       };
     });
@@ -507,7 +507,7 @@ router.get('/unlinked-refills', async (req: AuthRequest, res: Response) => {
       machineId: row.machineId,
       machineName: row.machineName || 'Unbekannter Automat',
       operator: row.operator,
-      datetime: new Date(row.datetime * 1000).toISOString(),
+      datetime: new Date((row.datetime as number) * 1000).toISOString(),
       refillType: row.refillType,
       refillNumber: row.refillNumber
     }));
@@ -647,7 +647,7 @@ router.post('/auto-assign-existing-refills', async (req: AuthRequest, res: Respo
         refillId: refill.id,
         machineName: refill.machine_name,
         operator: refill.operator,
-        datetime: new Date(refill.datetime * 1000).toISOString(),
+        datetime: new Date((refill.datetime as number) * 1000).toISOString(),
         movements: refillMovements
       });
     }
