@@ -194,19 +194,52 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       setIsLoading(true);
       
-      // Registrierung ist für Enhanced Replit Auth nicht verfügbar - Benutzer werden automatisch erstellt
-      toast({
-        title: "Registrierung nicht erforderlich",
-        description: "Bei Enhanced Replit Auth werden Benutzer automatisch erstellt. Melden Sie sich einfach mit Ihrem Replit-Konto an.",
-        variant: "default",
+      // Call registration endpoint
+      const response = await axios.post('/api/auth/register', {
+        username: userData.username,
+        email: userData.email,
+        password: userData.password,
+        role: userData.role || 'user'
       });
       
-      setIsLoading(false);
-      return false; // Registrierung ist nicht möglich/nötig
+      if (response.data && response.data.success) {
+        console.log('[AUTH] Registration successful:', userData.username);
+        
+        toast({
+          title: "Registrierung erfolgreich",
+          description: "Ihr Konto wurde erstellt und wartet auf die Freigabe durch einen Administrator. Sie erhalten eine E-Mail, sobald Ihr Konto freigeschaltet wurde.",
+        });
+        
+        setIsLoading(false);
+        return true;
+      } else {
+        toast({
+          title: "Registrierung fehlgeschlagen",
+          description: response.data.error || "Ein Fehler ist aufgetreten",
+          variant: "destructive",
+        });
+        setIsLoading(false);
+        return false;
+      }
     } catch (error: any) {
+      const errorMessage = error.response?.data?.error || "Fehler bei der Registrierung";
+      const errorCode = error.response?.data?.code;
+      
+      let description = errorMessage;
+      if (errorCode === 'USERNAME_EXISTS') {
+        description = "Dieser Benutzername ist bereits vergeben. Bitte wählen Sie einen anderen.";
+      } else if (errorCode === 'EMAIL_EXISTS') {
+        description = "Diese E-Mail-Adresse wird bereits verwendet.";
+      } else if (errorCode === 'VALIDATION_ERROR') {
+        const details = error.response?.data?.details;
+        if (details && details.length > 0) {
+          description = details.map((d: any) => d.message).join(', ');
+        }
+      }
+      
       toast({
-        title: "Registrierung nicht verfügbar",
-        description: "Enhanced Replit Auth erstellt Benutzer automatisch bei der ersten Anmeldung.",
+        title: "Registrierung fehlgeschlagen",
+        description,
         variant: "destructive",
       });
       setIsLoading(false);

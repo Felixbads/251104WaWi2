@@ -12,7 +12,7 @@ import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import { db } from '../db';
 import { users } from '../../shared/schema';
-import { eq } from 'drizzle-orm';
+import { eq, or } from 'drizzle-orm';
 import { z } from 'zod';
 import { 
   createSession, 
@@ -24,6 +24,7 @@ import {
 } from '../auth/unified-auth';
 import { logger } from '../middleware/security';
 import { authRateLimit } from '../middleware/security';
+import { notifyAdminsOfNewUser } from '../services/emailService';
 
 const router = Router();
 
@@ -33,8 +34,108 @@ const loginSchema = z.object({
   password: z.string().min(1, "Password is required"),
 });
 
+const registerSchema = z.object({
+  username: z.string().min(3, "Username must be at least 3 characters"),
+  email: z.string().email("Invalid email address"),
+  password: z.string().min(6, "Password must be at least 6 characters"),
+  role: z.string().default("user").optional(),
+});
+
 const refreshTokenSchema = z.object({
   purpose: z.enum(['inter-app']).default('inter-app'),
+});
+
+/**
+ * POST /auth/register
+ * User registration with admin email notification
+ */
+router.post('/register', authRateLimit, async (req: Request, res: Response) => {
+  try {
+    // Validate input
+    const { username, email, password, role } = registerSchema.parse(req.body);
+    
+    logger.info({ username, email }, 'Registration attempt');
+
+    // Check if username or email already exists
+    const existingUser = await db.query.users.findFirst({
+      where: or(
+        eq(users.username, username),
+        eq(users.email, email)
+      ),
+    });
+
+    if (existingUser) {
+      if (existingUser.username === username) {
+        logger.warn({ username }, 'Registration failed: username already exists');
+        return res.status(400).json({
+          error: 'Username already exists',
+          code: 'USERNAME_EXISTS'
+        });
+      } else {
+        logger.warn({ email }, 'Registration failed: email already exists');
+        return res.status(400).json({
+          error: 'Email already exists',
+          code: 'EMAIL_EXISTS'
+        });
+      }
+    }
+
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Create new user (not approved by default)
+    const [newUser] = await db.insert(users).values({
+      username,
+      email,
+      password: hashedPassword,
+      role: role || 'user',
+      approved: false,
+    }).returning();
+
+    logger.info({ userId: newUser.id, username: newUser.username }, 'User registered successfully');
+
+    // Send email notification to admins
+    try {
+      await notifyAdminsOfNewUser({
+        username: newUser.username,
+        email: newUser.email || undefined,
+        role: newUser.role || 'user',
+        createdAt: newUser.createdAt || new Date()
+      });
+      logger.info({ username: newUser.username }, 'Admin notification email sent');
+    } catch (emailError) {
+      logger.error({ error: emailError, username: newUser.username }, 'Failed to send admin notification email');
+      // Don't fail registration if email fails
+    }
+
+    // Return success (without password)
+    return res.status(201).json({
+      success: true,
+      message: 'Registration successful. Your account is pending admin approval.',
+      user: {
+        id: newUser.id,
+        username: newUser.username,
+        email: newUser.email,
+        role: newUser.role,
+        approved: newUser.approved
+      }
+    });
+
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({
+        error: 'Validation error',
+        code: 'VALIDATION_ERROR',
+        details: error.errors
+      });
+    }
+
+    logger.error({ error }, 'Registration error');
+    return res.status(500).json({
+      error: 'Internal server error',
+      code: 'INTERNAL_ERROR'
+    });
+  }
 });
 
 /**

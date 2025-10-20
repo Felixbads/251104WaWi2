@@ -90,8 +90,8 @@ router.post('/users', requireAdmin, async (req: AuthRequest, res: Response) => {
       role: role || 'user',
     } as any);
 
-    // E-Mail-Benachrichtigung für neuen Benutzer (falls nicht sofort genehmigt)
-    if (!req.user?.id && email) {
+    // E-Mail-Benachrichtigung für neuen Benutzer
+    if (email) {
       try {
         await notifyAdminsOfNewUser({
           username,
@@ -102,6 +102,7 @@ router.post('/users', requireAdmin, async (req: AuthRequest, res: Response) => {
         console.log(`📧 Admin-Benachrichtigung für neuen Benutzer ${username} gesendet`);
       } catch (emailError) {
         console.error('⚠️ Fehler beim Senden der Admin-Benachrichtigung:', emailError);
+        // E-Mail-Fehler sollte die Benutzer-Erstellung nicht blockieren
       }
     }
 
