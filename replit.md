@@ -12,6 +12,10 @@ This project is an advanced AI-powered inventory and price management system for
 - Performance-oriented implementations.
 - Batch processing where possible.
 
+### Critical Constraints (MUST BE FOLLOWED)
+1. **NO FAKE DATA**: Never generate fake/mock/test data in the production system.
+2. **EMAIL RESTRICTION**: Only send emails to test suppliers, never to production suppliers.
+
 ## System Architecture
 The system employs a robust architecture designed for complex vending machine operations:
 
