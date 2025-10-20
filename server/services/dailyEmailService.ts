@@ -411,9 +411,17 @@ export class DailyEmailService {
     const issues: string[] = [];
 
     try {
-      // Prüfe SendGrid-Konfiguration
-      if (!process.env.SENDGRID_API_KEY) {
-        issues.push('SENDGRID_API_KEY nicht konfiguriert');
+      // Prüfe SMTP-Konfiguration
+      if (!process.env.SMTP_HOST) {
+        issues.push('SMTP_HOST nicht konfiguriert');
+      }
+
+      if (!process.env.SMTP_USER) {
+        issues.push('SMTP_USER nicht konfiguriert');
+      }
+
+      if (!process.env.SMTP_PASS) {
+        issues.push('SMTP_PASS nicht konfiguriert');
       }
 
       if (!process.env.FROM_EMAIL) {
