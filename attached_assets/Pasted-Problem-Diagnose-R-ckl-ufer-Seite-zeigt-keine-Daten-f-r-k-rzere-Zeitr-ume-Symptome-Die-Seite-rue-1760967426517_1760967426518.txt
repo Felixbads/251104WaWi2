@@ -1,0 +1,356 @@
+Problem-Diagnose: Rückläufer-Seite zeigt keine Daten für kürzere Zeiträume
+Symptome:
+
+Die Seite /ruecklaufer zeigt für "Letzte 90 Tage" Daten an (20 Produkte)
+Für "Letzte 7 Tage" werden keine Daten angezeigt (0 Produkte)
+Log-Ausgabe: "Top removed products response: 0 items"
+Kernproblem: Dies ist KEIN Datenproblem, sondern ein strukturelles Problem mit der Daten-Synchronisation und -Abruf-Logik.
+
+KRITISCHE ANALYSE: Vendon Sync Service-Chaos
+1. Identifizierte konkurrierende/redundante Services:
+AKTIVE Services (potenziell konfliktreich):
+
+UnifiedVendonSync.ts - Soll der zentrale Service sein
+UnifiedVendonSyncCoordinator.ts - Alternative Implementierung
+VendonBackgroundScheduler.ts - Automatischer Scheduler
+EnhancedVendonHistoryImporter.ts - Historischer Import
+TransactionMonitoringService.ts - Monitoring
+VendonSyncHealthMonitor.ts - Health-Überwachung
+DEPRECATED Services (sollten deaktiviert sein, sind aber noch im Code):
+
+vendonSync.ts - 3535 Zeilen, als DEPRECATED markiert
+resilientVendonSync.ts - Als DEAKTIVIERT markiert
+stableVendonSync.ts - Alte Implementierung
+ultraRobustVendonSync.ts - Weitere alte Version
+vendonBackgroundService.ts - Als DEAKTIVIERT markiert
+vendonScheduler.ts - Alter Scheduler
+2. Das zentrale Problem:
+Mehrere Sync-Prozesse laufen gleichzeitig:
+
+[VENDON-SYNC] 🔄 Starte geplante VOLLSTÄNDIGE Synchronisation...
+🔒 Lock für unified_full_sync bereits aktiv bis 2025-10-21T12:46:12.799Z
+[VENDON-SYNC] ⚠️ Vollständige Synchronisation teilweise erfolgreich: 
+Sync bereits aktiv - Lock konnte nicht erworben werden
+Dies zeigt, dass verschiedene Services versuchen, gleichzeitig zu synchronisieren, was zu:
+
+Verpassten Synchronisationen führt
+Lock-Konflikten
+Inkonsistenten Daten für verschiedene Zeiträume
+SCHRITT-FÜR-SCHRITT DIAGNOSE UND REPARATUR
+Phase 1: Identifiziere alle aktiven Sync-Prozesse
+Aufgabe 1.1: Prüfe welche Services tatsächlich gestartet werden
+
+Untersuche folgende Dateien auf Autostart-Mechanismen:
+
+server/index.ts - Hauptinitialisierung
+server/scheduler.ts - Scheduler-Start
+Alle Services mit .start() Methoden
+Aufgabe 1.2: Erstelle eine Service-Matrix
+
+Für jeden gefundenen Service dokumentiere:
+
+Wird er gestartet? (Ja/Nein)
+Wann wird er gestartet? (beim Server-Start/manuell/per Cron)
+Was synchronisiert er? (Transactions/Refills/Events)
+Wie oft läuft er? (Intervall)
+Verwendet er Locks? (Ja/Nein, welche?)
+Aufgabe 1.3: Prüfe Lock-Konflikte
+
+Führe folgende SQL-Abfrage aus:
+
+-- Zeige alle aktiven Locks
+SELECT 
+  sync_type,
+  owner,
+  locked_at,
+  locked_until,
+  EXTRACT(EPOCH FROM (locked_until - NOW())) as remaining_seconds
+FROM sync_locks
+WHERE locked_until > NOW()
+ORDER BY locked_at DESC;
+-- Zeige Lock-Historie der letzten 24h
+SELECT 
+  sync_type,
+  owner,
+  locked_at,
+  locked_until,
+  EXTRACT(EPOCH FROM (locked_until - locked_at)) as duration_seconds
+FROM sync_locks
+WHERE locked_at >= NOW() - INTERVAL '24 hours'
+ORDER BY locked_at DESC;
+Phase 2: Analysiere Refill-Daten Verfügbarkeit
+Aufgabe 2.1: Prüfe ob Refill-Daten vorhanden sind
+
+-- Prüfe Refill-Daten für verschiedene Zeiträume
+SELECT 
+  DATE(r.datetime) as refill_date,
+  COUNT(DISTINCT r.id) as refills_count,
+  COUNT(rd.id) as refill_details_count,
+  SUM(rd.removed) as total_removed
+FROM refills r
+LEFT JOIN refill_details rd ON r.id = rd.refill_id
+WHERE r.datetime >= NOW() - INTERVAL '90 days'
+  AND rd.removed > 0
+GROUP BY DATE(r.datetime)
+ORDER BY refill_date DESC;
+-- Prüfe speziell die letzten 7 Tage
+SELECT 
+  DATE(r.datetime) as refill_date,
+  r.machine_name,
+  COUNT(DISTINCT r.id) as refills_count,
+  COUNT(rd.id) as products_removed,
+  SUM(rd.removed) as total_removed
+FROM refills r
+LEFT JOIN refill_details rd ON r.id = rd.refill_id
+WHERE r.datetime >= NOW() - INTERVAL '7 days'
+  AND rd.removed > 0
+GROUP BY DATE(r.datetime), r.machine_name
+ORDER BY refill_date DESC, r.machine_name;
+Aufgabe 2.2: Analysiere Sync-Logs für Refills
+
+-- Zeige die letzten Refill-Synchronisationen
+SELECT 
+  created_at,
+  service_type,
+  sync_status,
+  items_found,
+  items_saved,
+  duplicates,
+  error_message,
+  duration_seconds
+FROM sync_logs
+WHERE service_type LIKE '%refill%'
+  OR service_type LIKE '%REFILL%'
+ORDER BY created_at DESC
+LIMIT 20;
+Phase 3: Identifiziere den Haupt-Sync-Service
+Aufgabe 3.1: Bestimme welcher Service verwendet werden soll
+
+Basierend auf der Code-Analyse sollte UnifiedVendonSync.ts der primäre Service sein.
+
+Aufgabe 3.2: Deaktiviere/Entferne konkurrierende Services
+
+Überprüfe in server/index.ts:
+
+Welche Services werden importiert?
+Welche Services werden mit .start() gestartet?
+Gibt es mehrere Scheduler die parallel laufen?
+Aufgabe 3.3: Konsolidiere auf EINEN Service
+
+Empfohlene Architektur:
+
+UnifiedVendonSync (Kern-Engine)
+  ↓
+VendonBackgroundScheduler (Zeitsteuerung)
+  ↓
+PersistentSyncLock (Lock-Verwaltung)
+  ↓
+DuplicatePreventionService (Duplikate verhindern)
+Phase 4: Repariere Refill-Synchronisation
+Aufgabe 4.1: Prüfe Refill-API Endpunkt
+
+In server/services/UnifiedVendonSync.ts oder dem aktiven Sync-Service:
+
+Stelle sicher dass syncRefills() Methode:
+
+Den korrekten API-Endpunkt verwendet
+Die richtigen Zeitparameter übergibt
+Fehler korrekt behandelt
+Logs für Debugging ausgibt
+Aufgabe 4.2: Teste Refill-Sync manuell
+
+Erstelle einen Test-Endpoint oder Script:
+
+// Test: Hole Refills der letzten 7 Tage direkt von API
+const testRefillSync = async () => {
+  const endDate = new Date();
+  const startDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  
+  console.log(`Testing Refill Sync: ${startDate.toISOString()} to ${endDate.toISOString()}`);
+  
+  // Verwende VendonAPI direkt
+  const apiClient = new VendonAPI();
+  const refills = await apiClient.getRefills(startDate, endDate);
+  
+  console.log(`Found ${refills.length} refills`);
+  console.log('Sample:', refills.slice(0, 3));
+  
+  return refills;
+};
+Aufgabe 4.3: Aktiviere automatische Refill-Synchronisation
+
+Stelle sicher dass der Scheduler regelmäßig Refills synchronisiert:
+
+Quick-Sync (alle 5 Min): Transaktionen
+Full-Sync (alle 30 Min): Transaktionen + Refills + Events
+Phase 5: Repariere Rückläufer-API
+Aufgabe 5.1: Prüfe die Query in /removed-products/top
+
+In server/routes/removed-products.ts:
+
+Das Problem könnte sein:
+
+Verwendung von r.created_at statt r.datetime für Zeitfilter
+Deduplizierung entfernt alle Einträge
+DISTINCT ON Logik funktioniert nicht korrekt
+Korrigierte Query-Vorlage:
+
+WITH deduplicated_removals AS (
+  SELECT DISTINCT ON (rd.refill_id, rd.product_name)
+    rd.refill_id,
+    r.datetime,  -- WICHTIG: datetime verwenden, nicht created_at
+    rd.product_name,
+    rd.removed,
+    r.machine_id,
+    r.machine_name
+  FROM refill_details rd
+  INNER JOIN refills r ON rd.refill_id = r.id
+  WHERE rd.removed > 0 
+    AND r.datetime >= NOW() - make_interval(days => $1)  -- datetime Filter
+  ORDER BY rd.refill_id, rd.product_name, r.datetime DESC
+)
+SELECT 
+  dr.product_name as "productName",
+  SUM(dr.removed) as "totalRemoved",
+  COUNT(DISTINCT dr.refill_id) as "removalsCount",
+  MAX(dr.datetime) as "lastRemoved",
+  COALESCE(AVG(pc.unit_price), AVG(p.cost_price), 0) as "avgPurchasePrice"
+FROM deduplicated_removals dr
+LEFT JOIN products p ON dr.product_name = p.product_name
+LEFT JOIN purchase_conditions pc ON p.id = pc.product_id AND pc.is_preferred = true
+GROUP BY dr.product_name
+ORDER BY "totalRemoved" DESC
+LIMIT $2
+Aufgabe 5.2: Füge Logging hinzu
+
+Erweitere den Endpoint um Debug-Logs:
+
+console.log(`[RemovedProducts API] Query params: days=${days}, limit=${limit}`);
+console.log(`[RemovedProducts API] Query result: ${result.rows.length} products found`);
+if (result.rows.length === 0) {
+  // Prüfe ob überhaupt Refill-Daten vorhanden sind
+  const refillCheck = await pool.query(`
+    SELECT COUNT(*) as count, 
+           MIN(datetime) as earliest, 
+           MAX(datetime) as latest
+    FROM refills 
+    WHERE datetime >= NOW() - make_interval(days => $1)
+  `, [days]);
+  console.log('[RemovedProducts API] Refill data check:', refillCheck.rows[0]);
+}
+Phase 6: Implementiere Automatismus für Daten-Abruf
+Aufgabe 6.1: Stelle sicher dass Refill-Sync automatisch läuft
+
+In VendonBackgroundScheduler.ts oder dem aktiven Scheduler:
+
+private async performFullSync(): Promise<void> {
+  try {
+    console.log('🔄 Starte Full-Sync...');
+    const startTime = Date.now();
+    
+    const result = await this.unifiedSync.runFullSync();
+    // ^^ Dies sollte automatisch Transaktionen UND Refills synchronisieren
+    
+    // Stelle sicher dass Refills Teil von runFullSync() sind
+    if (!result.stats.refills) {
+      console.warn('⚠️ Keine Refill-Daten im Full-Sync!');
+    }
+    
+  } catch (error) {
+    console.error('❌ Full-Sync fehlgeschlagen:', error);
+  }
+}
+Aufgabe 6.2: Erstelle einen dedizierten Refill-Sync Job
+
+Falls Refills nicht Teil des Standard-Sync sind, erstelle einen separaten Job:
+
+// In Scheduler: Alle 2 Stunden Refills synchronisieren
+this.refillSyncTimer = setInterval(async () => {
+  await this.performRefillSync();
+}, 2 * 60 * 60 * 1000);
+private async performRefillSync(): Promise<void> {
+  console.log('🔄 Starte Refill-Sync...');
+  
+  const endDate = new Date();
+  const startDate = new Date(Date.now() - 48 * 60 * 60 * 1000); // Letzte 48h
+  
+  const result = await this.unifiedSync.syncRefills(
+    { startDate, endDate },
+    { batchSize: 100 }
+  );
+  
+  console.log(`✅ Refill-Sync: ${result.stats.saved} neue Refills`);
+}
+Phase 7: Bereinigung und Monitoring
+Aufgabe 7.1: Bereinige alte/inaktive Services
+
+Erstelle ein Cleanup-Script:
+
+// cleanup-old-sync-services.ts
+import { promises as fs } from 'fs';
+const deprecatedServices = [
+  'server/services/vendonSync.ts',
+  'server/services/resilientVendonSync.ts',
+  'server/services/stableVendonSync.ts',
+  'server/services/ultraRobustVendonSync.ts',
+  'server/services/vendonBackgroundService.ts',
+  'server/services/vendonScheduler.ts'
+];
+// Umbenennen statt löschen für Sicherheit
+for (const file of deprecatedServices) {
+  const newName = file.replace('.ts', '.DEPRECATED.ts.bak');
+  console.log(`Renaming ${file} -> ${newName}`);
+  // await fs.rename(file, newName);
+}
+Aufgabe 7.2: Füge Monitoring für Datenlücken hinzu
+
+// Täglicher Job: Prüfe ob Refill-Daten für gestern vorhanden sind
+const checkDailyRefillData = async () => {
+  const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const yesterdayStart = new Date(yesterday.setHours(0, 0, 0, 0));
+  const yesterdayEnd = new Date(yesterday.setHours(23, 59, 59, 999));
+  
+  const result = await pool.query(`
+    SELECT COUNT(*) as count
+    FROM refills
+    WHERE datetime >= $1 AND datetime <= $2
+  `, [yesterdayStart, yesterdayEnd]);
+  
+  if (result.rows[0].count === 0) {
+    console.error('🚨 ALERT: Keine Refill-Daten für gestern gefunden!');
+    // Triggere automatischen Nachsync
+    await forceRefillSync(yesterdayStart, yesterdayEnd);
+  }
+};
+Aufgabe 7.3: Dashboard für Daten-Gesundheit
+
+Erstelle einen Admin-Endpoint der zeigt:
+
+Letzte erfolgreiche Refill-Synchronisation
+Anzahl Refills pro Tag (letzte 30 Tage)
+Erkannte Datenlücken
+Aktive Sync-Jobs und ihre Status
+ZUSAMMENFASSUNG DER MASSNAHMEN
+Sofortige Maßnahmen:
+Identifiziere aktive Sync-Services - Welche Services laufen tatsächlich?
+Prüfe Refill-Daten - Sind Daten für die letzten 7 Tage in der DB?
+Teste API direkt - Funktioniert der Vendon Refill-Endpunkt?
+Korrigiere Query - Verwende r.datetime statt r.created_at
+Mittelfristige Maßnahmen:
+Konsolidiere auf EINEN Service - Deaktiviere alle deprecated Services
+Aktiviere automatischen Refill-Sync - Teil des regelmäßigen Full-Sync
+Füge Monitoring hinzu - Erkenne fehlende Daten automatisch
+Teste End-to-End - Vom API-Call bis zur Anzeige in der UI
+Langfristige Maßnahmen:
+Dokumentiere die Architektur - Welcher Service macht was?
+Erstelle Tests - Unit-Tests für Sync-Logik
+Implementiere Alerting - Benachrichtigung bei Sync-Fehlern
+Optimiere Performance - Batch-Processing, Caching
+ERWARTETE ERGEBNISSE
+Nach Durchführung dieser Maßnahmen sollte:
+
+✅ Die Rückläufer-Seite Daten für alle Zeiträume anzeigen
+✅ Nur EIN Sync-Service aktiv sein
+✅ Refills automatisch alle 2 Stunden synchronisiert werden
+✅ Keine Lock-Konflikte mehr auftreten
+✅ Fehlende Daten automatisch erkannt und nachgeladen werden
