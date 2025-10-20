@@ -17,7 +17,7 @@ import { MhdFifoService } from '../services/mhdFifoService';
 const router = express.Router();
 
 // Initialize centralized inventory movement service
-const inventoryService = new CentralizedInventoryMovement(db, rawDb);
+const inventoryService = new CentralizedInventoryMovement(db as any, rawDb);
 
 // Initialize MHD-FIFO service for FIFO-optimized operations  
 const mhdFifoService = new MhdFifoService(rawDb);
@@ -218,28 +218,7 @@ router.post('/warehouse-refills', async (req: AuthRequest, res: Response) => {
             quantity,
             stockBefore: movementResult.movement.beforeQty,
             stockAfter: movementResult.movement.afterQty,
-            // 🔥 NEUE MHD FELDER (von Extended Schema)
-            sourceExpiryDate: primaryBatch?.expiryDate ? new Date(primaryBatch.expiryDate) : null,
-            fifoTransferLog: JSON.stringify({
-              transferDate: new Date().toISOString(),
-              batchesUsed: movementResult.batchesProcessed.map(batch => ({
-                batchId: batch.batchId,
-                batchNumber: batch.batchNumber,
-                quantityUsed: batch.quantityUsed,
-                expiryDate: batch.expiryDate
-              })),
-              fifoOrder: movementResult.batchesProcessed.map((batch, index) => ({
-                order: index + 1,
-                batchNumber: batch.batchNumber,
-                daysUntilExpiry: Math.ceil((new Date(batch.expiryDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
-              }))
-            }),
-            mhdStatus: mhdStatus,
-            riskLevel: mhdDaysUntilExpiry === null ? null :
-              mhdDaysUntilExpiry <= 3 ? 'high' :
-              mhdDaysUntilExpiry <= 7 ? 'medium' : 'low',
-            createdAt: new Date(),
-            updatedAt: new Date()
+            expectedMachineStockAfter: movementResult.movement.afterQty
           })
           .returning();
 
@@ -643,7 +622,6 @@ router.post('/auto-assign-existing-refills', async (req: AuthRequest, res: Respo
             qtyDelta: -quantity,
             actorUserId: 1, // System user
             machineId: refill.machine_id,
-            occurredAt: new Date(refill.datetime * 1000),
             source: 'REFILL',
             direction: 'OUT',
             referenceId: refill.id.toString(),
