@@ -1,0 +1,284 @@
+# Umfassender Warenverfolgungs-Test: Bestellung → Wareneingang → Lager → Automat → Transaktion
+## Test-Ziel
+Überprüfung der vollständigen Rückverfolgbarkeit jedes Produkts durch alle Systemphasen mit Batch-Tracking.
+## Test-Szenario
+### 1. BESTELLUNG ERSTELLEN
+**Aktion:** Erstelle eine neue Bestellung mit folgenden Daten:
+- Lieferant: [wählbarer Lieferant]
+- Lager: [Ziellager auswählen]
+- Produkt: "Testprodukt Milch 0,5L" (Menge: 50 Stück)
+- Erwartetes Lieferdatum: [Datum in 3 Tagen]
+**Erwartetes Ergebnis:**
+- Bestellung erhält eindeutige Bestellnummer (z.B. ORD-20250107-0001)
+- Status: "draft" oder "sent"
+- Alle Bestellpositionen werden in `order_items` gespeichert
+**SQL-Prüfung:**
+```sql
+SELECT o.id, o.order_number, o.status, o.warehouse_id, o.supplier_id,
+       oi.id as item_id, oi.product_id, oi.quantity, oi.product_name
+FROM orders o
+JOIN order_items oi ON o.id = oi.order_id
+WHERE o.order_number = '[BESTELLNUMMER]'
+2. WARENEINGANG ERFASSEN
+Aktion: Führe Wareneingang für die Bestellung durch:
+
+Navigiere zu: Bestellungen → [Bestellnummer] → "Wareneingang erfassen"
+Erfasse für jedes Produkt:
+Empfangene Menge: 50
+MHD (Ablaufdatum): [Datum in 14 Tagen]
+Chargennummer: automatisch generiert oder manuell eingeben
+Lieferschein-Upload (optional)
+Erwartetes Ergebnis:
+
+Bestellstatus ändert sich zu "received"
+actual_delivery_date wird gesetzt
+Neue Einträge in product_batches werden erstellt
+inventory_items wird aktualisiert (Menge erhöht sich)
+inventory_movements werden protokolliert (Typ: "IN" oder "RECEIPT")
+SQL-Prüfung:
+
+-- Bestellstatus prüfen
+SELECT id, order_number, status, actual_delivery_date
+FROM orders
+WHERE order_number = '[BESTELLNUMMER]';
+-- Batch-Erstellung prüfen
+SELECT pb.id, pb.batch_number, pb.product_id, pb.warehouse_id,
+       pb.initial_quantity, pb.current_quantity, pb.expiry_date,
+       pb.received_date, pb.status
+FROM product_batches pb
+JOIN order_items oi ON pb.product_id = oi.product_id
+JOIN orders o ON oi.order_id = o.id
+WHERE o.order_number = '[BESTELLNUMMER]';
+-- Lagerbestand prüfen
+SELECT ii.id, ii.warehouse_id, ii.product_id, ii.quantity,
+       w.name as warehouse_name, p.product_name
+FROM inventory_items ii
+JOIN warehouses w ON ii.warehouse_id = w.id
+JOIN products p ON ii.product_id = p.id
+WHERE ii.product_id = [PRODUCT_ID] AND ii.warehouse_id = [WAREHOUSE_ID];
+-- Bewegungen prüfen
+SELECT im.id, im.movement_type, im.quantity, im.direction,
+       im.performed_at, im.batch_number, im.notes
+FROM inventory_movements im
+WHERE im.product_id = [PRODUCT_ID]
+  AND im.destination_warehouse_id = [WAREHOUSE_ID]
+ORDER BY im.performed_at DESC;
+3. LAGER-TRANSFER ZU AUTOMAT (Optional)
+Aktion: Wenn Ware vom Lager zum Automaten transferiert wird:
+
+Navigiere zu: Lager → Warenbewegungen → "Transfer"
+Quell-Lager: [Hauptlager]
+Ziel: Automat [Automaten-ID]
+Produkt: "Testprodukt Milch 0,5L"
+Menge: 10
+Erwartetes Ergebnis:
+
+machine_stocks wird aktualisiert
+inventory_movements protokolliert Transfer (OUT vom Lager, IN zum Automaten)
+Batch-Zuordnung bleibt erhalten
+SQL-Prüfung:
+
+-- Machine Stock prüfen
+SELECT ms.id, ms.machine_id, ms.product_id, ms.current_quantity,
+       ms.batch_id, ms.batch_number, ms.expiry_date,
+       m.machine_name
+FROM machine_stocks ms
+JOIN machines m ON ms.machine_id = m.id
+WHERE ms.product_id = [PRODUCT_ID] AND ms.machine_id = [MACHINE_ID];
+-- Transfer-Bewegungen prüfen
+SELECT im.id, im.movement_type, im.quantity, im.direction,
+       im.source_warehouse_id, im.destination_warehouse_id,
+       im.batch_number, im.performed_at
+FROM inventory_movements im
+WHERE im.product_id = [PRODUCT_ID]
+  AND (im.source_warehouse_id = [WAREHOUSE_ID] 
+       OR im.destination_warehouse_id = [WAREHOUSE_ID])
+ORDER BY im.performed_at DESC;
+4. VERKAUF / TRANSAKTION
+Aktion: Simuliere oder erfasse eine Transaktion:
+
+Automat: [Automaten-ID]
+Produkt: "Testprodukt Milch 0,5L"
+Menge: 1
+Preis: 1,50 €
+Erwartetes Ergebnis:
+
+Neue Transaktion in transactions mit korrekter batch_id
+batch_transaction_log wird erstellt (FIFO-Tracking)
+machine_stocks reduziert sich um 1
+product_batches.current_quantity reduziert sich um 1
+SQL-Prüfung:
+
+-- Transaktion mit Batch-Info prüfen
+SELECT t.id, t.vendon_id, t.machine_id, t.product_id,
+       t.product_name, t.quantity, t.price, t.datetime,
+       t.batch_id, t.batch_number, t.expiry_date_at_sale
+FROM transactions t
+WHERE t.product_id = [PRODUCT_ID]
+  AND t.machine_id = [MACHINE_ID]
+ORDER BY t.datetime DESC
+LIMIT 5;
+-- Batch Transaction Log prüfen (wichtigste Tabelle für Rückverfolgung!)
+SELECT btl.id, btl.transaction_id, btl.batch_id, btl.batch_number,
+       btl.product_name, btl.quantity, btl.stock_before, btl.stock_after,
+       btl.expiry_date, btl.processed_at, btl.fifo_sequence
+FROM batch_transaction_log btl
+WHERE btl.transaction_id = [TRANSACTION_ID];
+-- Aktueller Batch-Bestand prüfen
+SELECT pb.id, pb.batch_number, pb.current_quantity, pb.initial_quantity,
+       pb.expiry_date, pb.status
+FROM product_batches pb
+WHERE pb.batch_number = '[BATCH_NUMBER]';
+-- Machine Stock nach Verkauf prüfen
+SELECT ms.current_quantity, ms.batch_number, ms.expiry_date
+FROM machine_stocks ms
+WHERE ms.product_id = [PRODUCT_ID] AND ms.machine_id = [MACHINE_ID];
+5. VOLLSTÄNDIGE RÜCKVERFOLGUNG
+Finale Validierung: Für eine spezifische Transaktion alle Informationen abrufen:
+
+SQL-Abfrage für komplette Warenverfolgung:
+
+-- KOMPLETT-ABFRAGE: Von Transaktion zurück zur Bestellung
+SELECT 
+    -- Transaktion
+    t.id as transaction_id,
+    t.vendon_id,
+    t.datetime as sale_datetime,
+    t.product_name,
+    t.quantity as sold_quantity,
+    t.price as sale_price,
+    
+    -- Batch-Info aus Transaction Log
+    btl.batch_id,
+    btl.batch_number,
+    btl.expiry_date as expiry_at_sale,
+    btl.fifo_sequence,
+    btl.stock_before,
+    btl.stock_after,
+    
+    -- Batch-Details
+    pb.received_date as batch_received_date,
+    pb.initial_quantity as batch_initial_qty,
+    pb.current_quantity as batch_remaining_qty,
+    pb.supplier_ref as supplier_batch_number,
+    
+    -- Bestellungs-Info (über product_batches Verknüpfung)
+    o.id as order_id,
+    o.order_number,
+    o.order_date,
+    o.actual_delivery_date,
+    
+    -- Lieferant
+    s.name as supplier_name,
+    s.company_name as supplier_company,
+    
+    -- Lager
+    w.name as warehouse_name,
+    w.location as warehouse_location,
+    
+    -- Automat
+    m.machine_name,
+    m.location as machine_location
+    
+FROM transactions t
+LEFT JOIN batch_transaction_log btl ON t.id = btl.transaction_id
+LEFT JOIN product_batches pb ON btl.batch_id = pb.id
+LEFT JOIN orders o ON pb.warehouse_id IN (
+    SELECT warehouse_id FROM orders WHERE id = o.id
+)
+LEFT JOIN suppliers s ON o.supplier_id = s.id
+LEFT JOIN warehouses w ON pb.warehouse_id = w.id
+LEFT JOIN machines m ON t.machine_id = m.id
+WHERE t.id = [TRANSACTION_ID];
+6. ERWARTETES ENDERGEBNIS
+Für jede Transaktion müssen folgende Informationen abrufbar sein:
+
+✅ Bestellungsdaten:
+
+Bestellnummer
+Bestelldatum
+Lieferant
+✅ Lieferung/Wareneingang:
+
+Lieferdatum (actual_delivery_date)
+Empfangene Menge
+✅ Batch-Information:
+
+Eindeutige Chargennummer
+MHD (Ablaufdatum)
+Anfangsbestand der Charge
+Aktueller Bestand der Charge
+FIFO-Sequenz
+✅ Lager-Tracking:
+
+Lagername
+Lagerbewegungen (IN/OUT)
+✅ Verkauf:
+
+Verkaufsdatum/-zeit
+Automat
+Verkaufter Preis
+KRITISCHE PRÜFPUNKTE
+❌ Häufige Fehler:
+Batch wird nicht erstellt → product_batches bleibt leer
+Batch-ID fehlt in Transaktion → transactions.batch_id ist NULL
+Batch Transaction Log fehlt → FIFO-Tracking unmöglich
+Inventory Movements fehlen → Keine Bewegungshistorie
+Machine Stock nicht aktualisiert → Falsche Bestände
+✅ Erfolgskriterien:
+✅ Jede Transaktion hat eine batch_id
+✅ batch_transaction_log hat Eintrag für jede Transaktion
+✅ product_batches.current_quantity wird korrekt reduziert
+✅ FIFO-Prinzip wird eingehalten (älteste Charge zuerst)
+✅ Komplette Kette: Order → Receipt → Batch → Movement → Transaction nachvollziehbar
+Test-Automation Script
+// Automatisierter Test-Durchlauf
+async function testCompleteTraceability() {
+  console.log('🧪 Starte vollständigen Warenverfolgungs-Test');
+  
+  // 1. Bestellung erstellen
+  const order = await createTestOrder({
+    supplierId: 1,
+    warehouseId: 1,
+    products: [{ productId: 101, quantity: 50, name: 'Test Milch 0,5L' }]
+  });
+  console.log(`✅ Bestellung erstellt: ${order.orderNumber}`);
+  
+  // 2. Wareneingang buchen
+  const receipt = await processGoodsReceipt({
+    orderId: order.id,
+    items: [{
+      productId: 101,
+      receivedQuantity: 50,
+      expiryDate: new Date(Date.now() + 14*24*60*60*1000),
+      batchNumber: `TEST-BATCH-${Date.now()}`
+    }]
+  });
+  console.log(`✅ Wareneingang gebucht, Batches erstellt: ${receipt.batchesCreated}`);
+  
+  // 3. Transaktion simulieren
+  const transaction = await createTestTransaction({
+    machineId: 2,
+    productId: 101,
+    quantity: 1,
+    price: 1.50
+  });
+  console.log(`✅ Transaktion erstellt: ${transaction.id}`);
+  
+  // 4. Vollständige Rückverfolgung testen
+  const traceability = await getCompleteTraceability(transaction.id);
+  
+  // 5. Validierung
+  assert(traceability.orderNumber, 'Bestellnummer fehlt!');
+  assert(traceability.batchNumber, 'Chargennummer fehlt!');
+  assert(traceability.orderDate, 'Bestelldatum fehlt!');
+  assert(traceability.deliveryDate, 'Lieferdatum fehlt!');
+  assert(traceability.expiryDate, 'MHD fehlt!');
+  
+  console.log('✅ ALLE TESTS BESTANDEN!');
+  console.log('📊 Rückverfolgung:', JSON.stringify(traceability, null, 2));
+}
+Zusammenfassung
+Dieser Test validiert die lückenlose Rückverfolgbarkeit von der Bestellung bis zum Verkauf. Jede Transaktion muss auf eine Bestellung, einen Wareneingang und eine Charge zurückführbar sein - kritisch für Compliance, Qualitätssicherung und MHD-Management.
+
+Dieser umfassende Test-Prompt deckt alle kritischen Schritte ab und stellt sicher, dass die Warenverfolgung vollständig funktioniert. Die SQL-Abfragen können direkt ausgeführt werden, um die Datenintegrität zu überprüfen.
