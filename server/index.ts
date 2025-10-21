@@ -91,6 +91,9 @@ import refillTemplatesRouter from './routes/refill-templates';
 import weeklyRefillTemplatesRouter from './routes/weekly-refill-templates';
 // Auto-start resiliente Vendon-Synchronisation (Side-Effect-Import für process.nextTick)
 import './services/autoStartResilientSync';
+// SECURITY: Import unified authentication system
+import authRouter from './routes/auth';
+import { setupAuth, isAuthenticated, replitAuthCompatibility } from './replitAuth';
 
 const app = express();
 
@@ -100,8 +103,11 @@ applySecurityMiddleware(app);
 // OBSERVABILITY: Apply observability middleware after security
 applyObservabilityMiddleware(app);
 
-// Setup Replit Authentication
-await setupAuth(app);
+// Setup Replit Authentication - wrap in async initialization
+(async () => {
+  await setupAuth(app);
+  logger.info('Replit Auth initialized successfully');
+})();
 
 // Replit Auth User Info Endpoint (MUST be after setupAuth for session)
 app.get('/api/auth/user', async (req, res) => {
@@ -185,10 +191,6 @@ app.get('/api/inter-app/health', async (req, res) => {
     });
   }
 });
-
-// SECURITY: Import unified authentication system
-import authRouter from './routes/auth';
-import { setupAuth, isAuthenticated, replitAuthCompatibility } from './replitAuth';
 
 // Public routes that don't need authentication
 const publicRoutes = [
