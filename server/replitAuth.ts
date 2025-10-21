@@ -85,34 +85,47 @@ export async function setupAuth(app: Express) {
     verified(null, user);
   };
 
-  const primaryDomain = process.env.REPLIT_DOMAINS!.split(",")[0];
+  const domains = process.env.REPLIT_DOMAINS!.split(",");
   
-  const strategy = new Strategy(
-    {
-      name: "replitauth",
-      config,
-      scope: "openid email profile offline_access",
-      callbackURL: `https://${primaryDomain}/api/callback`,
-    },
-    verify,
-  );
-  passport.use(strategy);
+  for (const domain of domains) {
+    const strategy = new Strategy(
+      {
+        name: `replitauth:${domain}`,
+        config,
+        scope: "openid email profile offline_access",
+        callbackURL: `https://${domain}/api/callback`,
+      },
+      verify,
+    );
+    passport.use(strategy);
+    console.log(`[REPLIT-AUTH] Registered strategy for domain: ${domain} with callback: https://${domain}/api/callback`);
+  }
 
   passport.serializeUser((user: Express.User, cb) => cb(null, user));
   passport.deserializeUser((user: Express.User, cb) => cb(null, user));
 
   app.get("/api/login", (req, res, next) => {
-    console.log('[REPLIT-AUTH] Login initiated from:', req.get('host'));
-    passport.authenticate("replitauth", {
+    const host = req.get('x-forwarded-host') || req.get('host') || req.hostname;
+    console.log('[REPLIT-AUTH] Login initiated - host:', host, 'x-forwarded-host:', req.get('x-forwarded-host'));
+    
+    const strategyName = `replitauth:${host}`;
+    console.log('[REPLIT-AUTH] Using strategy:', strategyName);
+    
+    passport.authenticate(strategyName, {
       prompt: "login consent",
       scope: ["openid", "email", "profile", "offline_access"],
     })(req, res, next);
   });
 
   app.get("/api/callback", (req, res, next) => {
-    console.log('[REPLIT-AUTH] Callback received from:', req.get('host'));
+    const host = req.get('x-forwarded-host') || req.get('host') || req.hostname;
+    console.log('[REPLIT-AUTH] Callback received - host:', host, 'x-forwarded-host:', req.get('x-forwarded-host'));
     console.log('[REPLIT-AUTH] Query params:', req.query);
-    passport.authenticate("replitauth", {
+    
+    const strategyName = `replitauth:${host}`;
+    console.log('[REPLIT-AUTH] Using strategy:', strategyName);
+    
+    passport.authenticate(strategyName, {
       successReturnToOrRedirect: "/",
       failureRedirect: "/api/login",
     })(req, res, next);
