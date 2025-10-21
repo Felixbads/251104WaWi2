@@ -103,11 +103,13 @@ applySecurityMiddleware(app);
 // OBSERVABILITY: Apply observability middleware after security
 applyObservabilityMiddleware(app);
 
-// Setup Replit Authentication - wrap in async initialization
-(async () => {
-  await setupAuth(app);
+// Setup Replit Authentication - store promise for later awaiting
+const authSetupPromise = setupAuth(app).then(() => {
   logger.info('Replit Auth initialized successfully');
-})();
+}).catch((error) => {
+  logger.error('Failed to initialize Replit Auth:', error);
+  throw error;
+});
 
 // Replit Auth User Info Endpoint (MUST be after setupAuth for session)
 app.get('/api/auth/user', async (req, res) => {
@@ -3815,6 +3817,10 @@ app.get('/orders-data', (req, res) => {
   });
   
   logger.info('SECURITY: Old public metrics endpoints blocked - redirecting to protected endpoints');
+
+  // CRITICAL: Wait for Replit Auth to be fully initialized before starting server
+  await authSetupPromise;
+  logger.info('SECURITY: Replit Auth setup completed, server can now accept connections');
 
   // importantly only setup vite in development and after
   // setting up all the other routes so the catch-all route
