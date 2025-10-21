@@ -46,34 +46,8 @@ export default function Login() {
   });
 
   // Handle Replit authentication (no form submission needed)
-  const handleReplitLogin = async () => {
-    setIsFormSubmitting(true);
-    
-    try {
-      const success = await login(); // No credentials needed for Replit auth
-      
-      if (success) {
-        toast({
-          title: "Erfolgreich angemeldet",
-          description: "Willkommen bei der Warenwirtschaft!",
-          variant: "default",
-        });
-      } else {
-        toast({
-          title: "Anmeldung fehlgeschlagen",
-          description: "Bitte stellen Sie sicher, dass Sie diese App auf Replit ausführen.",
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
-      toast({
-        title: "Fehler bei der Anmeldung",
-        description: "Ein unerwarteter Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsFormSubmitting(false);
-    }
+  const handleReplitLogin = () => {
+    login();
   };
 
   // Legacy form submission handler (kept for compatibility)

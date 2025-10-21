@@ -39,6 +39,7 @@ export function getSession() {
     cookie: {
       httpOnly: true,
       secure: true,
+      sameSite: 'lax',
       maxAge: sessionTtl,
     },
   });
@@ -154,4 +155,25 @@ export const isAuthenticated: RequestHandler = async (req, res, next) => {
     res.status(401).json({ message: "Unauthorized" });
     return;
   }
+};
+
+// Compatibility Layer: Map Replit Auth user to legacy session fields
+// This allows existing routes to continue working without modification
+export const replitAuthCompatibility: RequestHandler = (req, res, next) => {
+  const user = req.user as any;
+  
+  if (req.isAuthenticated() && user?.claims) {
+    // Map Replit Auth claims to legacy session fields
+    // This ensures existing code that relies on req.session.userId still works
+    if (!req.session) {
+      req.session = {} as any;
+    }
+    
+    req.session.userId = user.claims.sub; // Replit user ID (UUID)
+    req.session.username = user.claims.email?.split('@')[0] || 'user';
+    req.session.authenticated = true;
+    req.session.role = 'user'; // Default role for Replit Auth users
+  }
+  
+  next();
 };

@@ -3,7 +3,7 @@ import path from "path";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 // DISABLED: import { startAutomaticSync } from "./scheduler"; // Konkurrierende Sync-Services deaktiviert - nur UnifiedVendonSync
-import { applySecurityMiddleware, logger } from "./middleware/security";
+import { applySecurityMiddleware, logger, csrfProtection } from "./middleware/security";
 import { applyObservabilityMiddleware, observabilityLogger } from "./middleware/observability";
 import { metricsHandler, serviceDiscoveryHandler } from "./middleware/metrics";
 // REPLACED: import { stableVendonScheduler } from "./services/stableVendonScheduler";
@@ -103,7 +103,7 @@ applyObservabilityMiddleware(app);
 // Setup Replit Authentication
 await setupAuth(app);
 
-// Replit Auth User Info Endpoint
+// Replit Auth User Info Endpoint (MUST be after setupAuth for session)
 app.get('/api/auth/user', async (req, res) => {
   if (!req.isAuthenticated()) {
     return res.status(401).json({ message: "Unauthorized" });
@@ -122,6 +122,14 @@ app.get('/api/auth/user', async (req, res) => {
     profileImageUrl: user.claims.profile_image_url,
   });
 });
+
+// Compatibility Layer: Map Replit Auth to legacy session fields
+app.use(replitAuthCompatibility);
+logger.info('Replit Auth compatibility layer enabled (maps req.user to req.session)');
+
+// CSRF Protection - MUST be after setupAuth for session-based auth
+app.use(csrfProtection);
+logger.info('CSRF Protection enabled for all API routes');
 
 // DEBUG: Portal-Route-Logging vor allen anderen Middlewares
 app.use((req, res, next) => {
@@ -180,8 +188,7 @@ app.get('/api/inter-app/health', async (req, res) => {
 
 // SECURITY: Import unified authentication system
 import authRouter from './routes/auth';
-import enhancedAuthRouter from './routes/enhanced-auth-routes';
-import { setupAuth, isAuthenticated } from './replitAuth';
+import { setupAuth, isAuthenticated, replitAuthCompatibility } from './replitAuth';
 
 // Public routes that don't need authentication
 const publicRoutes = [
@@ -215,9 +222,8 @@ app.get('/api/metrics', metricsHandler);
 app.get('/api/service-discovery', serviceDiscoveryHandler);
 logger.info('Protected metrics endpoints mounted: /api/metrics, /api/service-discovery');
 
-// CRITICAL FIX: Mount Enhanced Auth Routes
-app.use('/api/enhanced-auth', enhancedAuthRouter);
-logger.info('Enhanced Authentication routes mounted: /api/enhanced-auth');
+// REMOVED: Enhanced Auth Routes (replaced by Replit Auth)
+// Old enhanced-auth endpoints have been removed for security
 
 // Mount enhanced inter-app API routes (MIT Authentifizierung)
 app.use('/api/inter-app', interAppApiRouter);
@@ -1729,9 +1735,10 @@ app.get('/orders-data', (req, res) => {
   app.use('/api/inventory-api', inventoryApiRouter);
   console.log('[SERVER] Inventory API router mounted at /api/inventory-api');
 
-  // Mount auth routes FIRST for unified authentication system
-  app.use('/api/auth', authRouter);
-  console.log('[SERVER] Unified authentication routes mounted at /api/auth');
+  // DISABLED: Old unified auth routes (username/password with JWT)
+  // Replaced by Replit Auth (session-based OAuth)
+  // app.use('/api/auth', authRouter);
+  console.log('[SERVER] Old unified auth routes DISABLED - using Replit Auth');
 
   // Mount supplier portal router FIRST to prevent Vite middleware conflicts
   const supplierPortalRouter = (await import('./routes/supplier-portal')).default;

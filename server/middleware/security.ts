@@ -266,4 +266,63 @@ export function applySecurityMiddleware(app: Express): void {
   logger.info('Security middleware applied: helmet, CORS, rate limiting including warehouse operations (pino-http disabled - using observability logger)');
 }
 
+// CSRF Protection Middleware using Origin/Referer validation
+export const csrfProtection = (req: Request, res: Response, next: NextFunction) => {
+  // Skip CSRF for safe methods
+  if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
+    return next();
+  }
+
+  // Skip CSRF for public routes (OAuth callbacks, etc.)
+  if (
+    req.path.startsWith('/api/login') || 
+    req.path.startsWith('/api/callback') || 
+    req.path.startsWith('/api/logout') ||
+    req.path.startsWith('/api/inter-app/')
+  ) {
+    return next();
+  }
+
+  // Check Origin or Referer header
+  const origin = req.get('origin') || req.get('referer');
+  if (!origin) {
+    logger.warn({ path: req.path, method: req.method }, 'CSRF check failed: No Origin or Referer header');
+    return res.status(403).json({ error: 'CSRF check failed' });
+  }
+
+  // Get the full host including port from the request
+  const requestHost = req.get('host'); // Includes port (e.g., localhost:5000)
+  if (!requestHost) {
+    logger.warn({ path: req.path, method: req.method }, 'CSRF check failed: No Host header');
+    return res.status(403).json({ error: 'CSRF check failed' });
+  }
+
+  // Validate Origin/Referer matches the request host (including port)
+  const allowedOrigins = [
+    `https://${requestHost}`,
+    `http://${requestHost}`,
+    ...(process.env.REPLIT_DOMAINS?.split(',').map(d => `https://${d.trim()}`) || [])
+  ];
+
+  try {
+    const originUrl = new URL(origin);
+    const originWithProtocol = `${originUrl.protocol}//${originUrl.host}`;
+
+    if (!allowedOrigins.includes(originWithProtocol)) {
+      logger.warn({ 
+        path: req.path, 
+        method: req.method, 
+        origin: originWithProtocol,
+        allowedOrigins 
+      }, 'CSRF check failed: Origin not allowed');
+      return res.status(403).json({ error: 'CSRF check failed' });
+    }
+  } catch (error) {
+    logger.warn({ path: req.path, method: req.method, origin }, 'CSRF check failed: Invalid Origin URL');
+    return res.status(403).json({ error: 'CSRF check failed' });
+  }
+
+  next();
+};
+
 export { logger };
