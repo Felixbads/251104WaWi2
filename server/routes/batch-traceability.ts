@@ -160,7 +160,7 @@ router.get('/batch/:batchNumber', async (req, res) => {
         totalTransactions: batchUsage.length,
         totalQuantitySold: batchUsage.reduce((sum, item) => sum + item.quantity, 0),
         totalRevenue: batchUsage.reduce((sum, item) => sum + (item.price || 0), 0),
-        uniqueMachines: [...new Set(batchUsage.map(item => item.machineId))].length,
+        uniqueMachines: Array.from(new Set(batchUsage.map(item => item.machineId))).length,
         dateRange: {
           first: batchUsage[batchUsage.length - 1]?.transactionDate,
           last: batchUsage[0]?.transactionDate
@@ -198,15 +198,17 @@ router.get('/product-recall/:productId', async (req, res) => {
 
     console.log(`🚨 [BatchTraceability] Produktrückruf-Analyse für Produkt ${productId}`);
 
-    let whereConditions = eq(batchTransactionLog.productId, productId);
+    const conditions = [eq(batchTransactionLog.productId, productId)];
 
     // Optionale Datums-Filter
     if (startDate) {
-      whereConditions = and(whereConditions, gte(batchTransactionLog.processedAt, new Date(startDate as string)));
+      conditions.push(gte(batchTransactionLog.processedAt, new Date(startDate as string)));
     }
     if (endDate) {
-      whereConditions = and(whereConditions, lte(batchTransactionLog.processedAt, new Date(endDate as string)));
+      conditions.push(lte(batchTransactionLog.processedAt, new Date(endDate as string)));
     }
+    
+    const whereConditions = and(...conditions);
 
     const recallData = await db
       .select({
@@ -250,10 +252,10 @@ router.get('/product-recall/:productId', async (req, res) => {
       groups[batch].totalQuantity += item.quantity;
       groups[batch].affectedMachines.add(item.machineId);
       
-      if (!groups[batch].dateRange.first || item.transactionDate < groups[batch].dateRange.first) {
+      if (item.transactionDate && (!groups[batch].dateRange.first || item.transactionDate < groups[batch].dateRange.first)) {
         groups[batch].dateRange.first = item.transactionDate;
       }
-      if (!groups[batch].dateRange.last || item.transactionDate > groups[batch].dateRange.last) {
+      if (item.transactionDate && (!groups[batch].dateRange.last || item.transactionDate > groups[batch].dateRange.last)) {
         groups[batch].dateRange.last = item.transactionDate;
       }
       
@@ -272,7 +274,7 @@ router.get('/product-recall/:productId', async (req, res) => {
         totalBatches: Object.keys(batchGroups).length,
         totalTransactions: recallData.length,
         totalQuantityAffected: recallData.reduce((sum, item) => sum + item.quantity, 0),
-        uniqueMachines: [...new Set(recallData.map(item => item.machineId))].length,
+        uniqueMachines: Array.from(new Set(recallData.map(item => item.machineId))).length,
         dateRange: {
           first: recallData[recallData.length - 1]?.transactionDate,
           last: recallData[0]?.transactionDate
@@ -351,8 +353,8 @@ router.get('/compliance-report', async (req, res) => {
       },
       auditTrail: {
         totalBatchEntries: complianceData.length,
-        uniqueMachines: [...new Set(complianceData.map(item => item.machineId))].length,
-        uniqueProducts: [...new Set(complianceData.map(item => item.productName))].length,
+        uniqueMachines: Array.from(new Set(complianceData.map(item => item.machineId))).length,
+        uniqueProducts: Array.from(new Set(complianceData.map(item => item.productName))).length,
         verificationComplete: complianceData.filter(item => item.verificationHash).length
       },
       recommendations: [
