@@ -20,8 +20,9 @@ import inventoryRouter from './routes/inventory';
 import mailTemplatesRouter from './routes/mail-templates';
 import simpleEmailRouter from './routes/simple-email';
 // import testEmailDebugRouter from './routes/test-email-debug'; // ENTFERNT - verursachte Module-Fehler
-import dbDirectRouter from './routes/db-direct';
-import directSqlRouter from './routes/direct-sql';
+// SECURITY: Direct SQL execution routers removed - critical security vulnerability
+// import dbDirectRouter from './routes/db-direct';
+// import directSqlRouter from './routes/direct-sql';
 import orderV3Router from './routes/order-v3';
 import ordersV4Router from './routes/orders-v4';
 import inventoryBatchesRouter from './routes/inventory-batches.js';
@@ -3621,7 +3622,8 @@ app.get('/orders-data', (req, res) => {
   app.use('/api', inventoryHealthRouter);
   
   // Register direct SQL router
-  app.use('/api', directSqlRouter);
+  // SECURITY: Direct SQL router disabled - critical security vulnerability fixed
+  // app.use('/api', directSqlRouter);
 
   // Serve static files for uploads (CRITICAL for photo upload functionality)
   const uploadsPath = path.join(process.cwd(), 'uploads');

@@ -113,3 +113,4 @@ task = "shell.exec"
 args = "node restart-server.js"
 
 [agent]
+integrations = ["javascript_log_in_with_replit:1.0.0"]
