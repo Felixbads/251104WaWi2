@@ -1,0 +1,74 @@
+ id  |                                     product_name                                     | package_size | package_quantity |       category        
+-----+--------------------------------------------------------------------------------------+--------------+------------------+-----------------------
+  39 | 6 frische Spitzbergeier ([Freilandhaltung] Cotta)                                    |              |                1 | Unbekannt
+ 113 | BIO Brotaufstriche ([Vegan] Vegannett Biomanufaktur, Dresden)                        |              |                1 | Aufstriche
+ 116 | Bad Schandau'er Bockwurst Paar (Fleischerei Dünnebier)                               |              |                1 | Fleischwaren
+ 117 | Bad Schandau'er Leberwurst (Fleischerei Dünnebier)                                   |              |                1 | Fleischwaren
+ 119 | Bad Schandau'er Zwiebelmett (Fleischerei Dünnebier)                                  |              |                1 | Fleischwaren
+ 122 | Berggießhübel'er Bockwurst Paar (Fleischerei Rätze)                                  |              |                1 | Fleischwaren
+ 127 | Berggießhübel'er Jagdwurst (Fleischerei Rätze)                                       |              |                1 | Fleischwaren
+ 129 | Berggießhübel'er Kesselgusch (Fleischerei Rätze)                                     |              |                1 | Gerichte im Glas
+ 121 | Berggießhübel'er Knacker Paar (Fleischerei Rätze)                                    |              |                1 | Fleischwaren
+ 123 | Berggießhübel'er Leberwurst (Fleischerei Rätze)                                      |              |                1 | Fleischwaren
+ 125 | Berggießhübel'er Linseneintopf ([Vegan] Fleischerei Rätze)                           |              |                1 | Gerichte im Glas
+ 124 | Berggießhübel'er Soljanka (Fleischerei Rätze)                                        |              |                1 | Gerichte im Glas
+ 130 | Berggießhübel'er Tomatensoße ([Vegan] Fleischerei Rätze)                             |              |                1 | Gerichte im Glas
+  15 | Dinkelchen (Dr. Quendt Dresden)                                                      |              |                1 | Süßwaren
+  32 | Feldschlößchen Naturtübes Radler (Dresden)                                           |              |                1 | Milchprodukte
+  91 | Fertiggericht ver. Sorten (Hotel zur Post, Pirna)                                    |              |                1 | Gerichte im Glas
+  77 | Filinchen Snack ver. Sorten (Apolda)                                                 |              |                1 | Snacks
+  49 | Filterkaffee Hausmarke 250 g (KAFFANERO Dresden)                                     |              |                1 | Sonstiges
+  83 | Heide's Saft ver. Sorten (Großschirma)                                               |              |                1 | Getränke
+  11 | Heide's Sprizz Apfel Salbeiblüten ([natursüß] Großschirma)                           |              |                1 | Getränke
+  12 | Heide's Sprizz Sauerkirsch Minz ([natursüß]Großschirma)                              |              |                1 | Getränke
+  50 | Heide's Sprizz vers. Sorten ([natursüß] Großschirma)                                 |              |                1 | Getränke
+  74 | Honig  ver. Sorten  (Rathmannsdorf)                                                  |              |                1 | Aufstriche
+ 131 | Honig ver. Sorten (Imkerei Gänseblümchen, Hellendorf)                                |              |                1 | Aufstriche
+  92 | Hotel zur Post Fruchtaufstriche ver. Sorten  ([Hell od. Dunkle Früchte] Pirna)       |              |                1 | Aufstriche
+  89 | Hotel zur Post Honig ver. Sorten (Pirnaer Stadtimker)                                |              |                1 | Aufstriche
+  71 | Ich bin noch Gut                                                                     |              |                1 | Sonstiges
+ 109 | KEKILA Glühwein od. Punsch (Lawalda)                                                 |              |                1 | Getränke
+ 111 | KEKILA Knirpsenpunsch (Lawalda)                                                      |              |                1 | Getränke
+  82 | Kalter Hund (Radebeul)                                                               |              |                1 | Snacks
+   3 | Kathleen’s Fruchtaufstriche ver. Sorten  ([Hell od. Dunkle Früchte] Hinterhermsdorf) |              |                1 | Aufstriche
+  76 | Kesselgulasch (Fleischerei Dünnebier, Bad Schandau)                                  |              |                1 | Gerichte im Glas
+ 110 | Kinder Punsch 0,33l                                                                  |              |                1 | Getränke
+  16 | Knusperflocken (Zetti, Zeitz)                                                        |              |                1 | Süßwaren
+  51 | Kolle - Mate 0,33l (zickzack Dresden)                                                |              |                1 | Getränke
+  73 | Kraxler Vollbier (Destillerie Pirna)                                                 |              |                1 | Alkoholische Getränke
+ 106 | Land- od. Weißbrot 250g (Lauermann Gohrischer Bäcker)                                |              |                1 | Backwaren
+  22 | Landbrot 250g (Lauermann Gohrischer Bäcker)                                          |              |                1 | Backwaren
+  34 | Nationalpark-Knacker Paar ([Wild] Fleischerei Dünnebier, Bad Schandau)               |              |                1 | Fleischwaren
+   8 | Nudossi (Radebeul)                                                                   |              |                1 | Aufstriche
+  28 | Oppacher AQUABio Apfel Birne                                                         |              |                1 | Getränke
+  27 | Oppacher Apfelschorle Naturtrüb                                                      |              |                1 | Getränke
+  29 | Oppacher Rhabarber                                                                   |              |                1 | Getränke
+  10 | Pirnaer Stadtbier (Destillerie Pirna)                                                |              |                1 | Alkoholische Getränke
+ 114 | Platzhalter (Neues Produkt) =:-)                                                     |              |                1 | Sonstiges
+  80 | Provianter Currywurst (Krippen)                                                      |              |                1 | Gerichte im Glas
+  95 | Provianter Fruchtaufstrich (ver. Sorten, Krippen)                                    |              |                1 | Aufstriche
+  79 | Provianter Grießbrei (Krippen)                                                       |              |                1 | Gerichte im Glas
+ 107 | Provianter Kartoffelsuppe ([mit Würstchen]Krippen)                                   |              |                1 | Gerichte im Glas
+   5 | Provianter Linseneintopf ([Vegan] Krippen)                                           |              |                1 | Gerichte im Glas
+  40 | Provianter Milchreis ([Vegan] Krippen)                                               |              |                1 | Gerichte im Glas
+   4 | Provianter Soljanka (Krippen)                                                        |              |                1 | Gerichte im Glas
+  33 | Provianter Wurstgulasch (Krippen)                                                    |              |                1 | Gerichte im Glas
+ 104 | Rinder-Knacker Paar (Fleischerei Dünnebier, Bad Schandau)                            |              |                1 | Fleischwaren
+  14 | Russisch Brot (Dr. Quendt Dresden)                                                   |              |                1 | Süßwaren
+  75 | Saison Filterkaffee (KAFFANERO Dresden)                                              |              |                1 | Sonstiges
+  85 | Soljanka (Landfleischerei Struppen)                                                  |              |                1 | Gerichte im Glas
+  90 | Spezial Honig ver. Sorten (Pirnaer Stadtimker)                                       |              |                1 | Aufstriche
+  55 | TEST Funktion Kontaktloses Bezahlen                                                  |              |                1 | Sonstiges
+  44 | TESTKAUF :-)                                                                         |              |                1 | Sonstiges
+ 103 | Tomatensauce ([VEGAN] Fleischerei Dünnebier, Bad Schandau)                           |              |                1 | Gerichte im Glas
+  65 | Wackerbarth Elbterrasse 0,25l (Dresden)                                              |              |                1 | Alkoholische Getränke
+  70 | Wackerbarth Graf von W. (Sekt Rosé, Radebeul)                                        |              |                1 | Alkoholische Getränke
+  64 | Wackerbarth Graf von W. (Sekt trocken, Radebeul)                                     |              |                1 | Alkoholische Getränke
+  21 | Wehlner Hirtenkäse in Öl (Milchhof Fiedler, Wehlen)                                  | 0            |                1 | Milchprodukte
+  26 | Wehlner Milch 0,5l (Milchhof Fiedler, Wehlen)                                        |              |                1 | Milchprodukte
+ 105 | Weißbrot 250g (Lauermann Gohrischer Bäcker)                                          |              |                1 | Backwaren
+  78 | Zwieback 100g (Neukirch/Lausitz)                                                     |              |                1 | Snacks
+ 108 | Zwiebelmett (Fleischerei Dünnebier, Bad Schandau)                                    |              |                1 | Fleischwaren
+  17 | koziol Besteck 3 - tlg.                                                              |              |                1 | Sonstiges
+(70 rows)
+
