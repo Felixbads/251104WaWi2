@@ -1,0 +1,391 @@
+{
+"summary": {
+"health_score": 28,
+"functional_integrity": 40,
+"maintainability": 30,
+"security": 10,
+"reliability": 35,
+"performance": 45,
+"dx_docs": 40,
+"top_risks": [
+{
+"title": "Unauthenticated SQL execution endpoint exposes entire database",
+"impact": "high",
+"evidence": [
+"server/index.ts:2827-2833",
+"server/routes/direct-sql.ts:17-127"
+],
+"suggested_fix": "Remove the direct SQL router or require strong authentication/authorization and restrict allowed statements before production.",
+"eta_hours": 4
+},
+{
+"title": "Demo-mode authentication bypass leaves admin access open",
+"impact": "high",
+"evidence": [
+"server/auth.ts:152-268",
+"client/src/lib/auth.tsx:79-111",
+"server/auth/auth-middleware.ts:28-40"
+],
+"suggested_fix": "Replace the in-memory demo token flow with persistent, hashed credentials and enforce authentication/authorization on all protected routes.",
+"eta_hours": 12
+},
+{
+"title": "Committed and default secrets leak SMTP and Vendon API access",
+"impact": "high",
+"evidence": [
+".env.smtp:1-6",
+"server/services/ultraRobustVendonSync.ts:18-20",
+"server/services/vendonGapCrawler.ts:52-54"
+],
+"suggested_fix": "Purge secrets from the repository, rotate the exposed credentials, and load them securely from environment managers with fallbacks removed.",
+"eta_hours": 6
+}
+]
+},
+"inventory": {
+"languages": [
+"TypeScript",
+"JavaScript",
+"Python"
+],
+"frameworks": [
+"Express",
+"React",
+"Drizzle ORM",
+"Tailwind CSS"
+],
+"packages": [
+"@tanstack/react-query",
+"wouter",
+"express-session",
+"drizzle-orm",
+"cloudinary"
+],
+"services": [
+"Express API server",
+"React SPA",
+"Neon/PostgreSQL database",
+"Cloudinary media uploads",
+"Vendon external API integrations",
+"OpenWeather API integrations"
+],
+"build_tools": [
+"Vite",
+"esbuild",
+"tsx",
+"drizzle-kit"
+],
+"runtimes": [
+"Node.js",
+"Browser (React)",
+"Python 3.11+"
+],
+"infrastructure": [
+"Neon serverless PostgreSQL",
+"Cloudinary CDN"
+]
+},
+"build_and_run": {
+"build_commands": [
+"npm run build"
+],
+"test_commands": [],
+"run_commands": [
+"npm run dev",
+"npm run start"
+],
+"env_vars": [
+"DATABASE_URL",
+"REQUIRE_AUTH",
+"API_TOKEN",
+"INTER_APP_SECRET",
+"API_SECRET_KEY",
+"SMTP_HOST",
+"SMTP_PORT",
+"SMTP_SECURE",
+"SMTP_USER",
+"SMTP_PASS",
+"SMTP_FROM",
+"CLOUDINARY_CLOUD_NAME",
+"CLOUDINARY_API_KEY",
+"CLOUDINARY_API_SECRET",
+"VENDON_API_KEY",
+"OPENWEATHER_API_KEY"
+],
+"migrations": [
+"npm run db:push"
+],
+"ci_cd": {
+"present": false,
+"stages": [],
+"gates": []
+}
+},
+"findings": {
+"quality": [
+{
+"issue": "server/index.ts is a monolithic 2800+ line file mixing routing, SQL, and business logic, making reasoning and changes error-prone.",
+"paths": [
+"server/index.ts"
+],
+"evidence": "Inline routes perform direct SQL queries and orchestration without separation of concerns.",
+"severity": "high"
+},
+{
+"issue": "Frontend AuthProvider auto-logs every user in as the demo admin, masking real auth flows and encouraging insecure patterns.",
+"paths": [
+"client/src/lib/auth.tsx"
+],
+"evidence": "Demo mode seeds a fabricated admin account and random token on load.",
+"severity": "high"
+},
+{
+"issue": "Repository commits node_modules, bloating history and complicating dependency hygiene.",
+"paths": [
+"node_modules"
+],
+"evidence": "Top-level listing includes node_modules directory under version control.",
+"severity": "medium"
+}
+],
+"security": [
+{
+"issue": "POST /api/execute-sql accepts arbitrary SQL without authentication, granting attackers full database access.",
+"paths": [
+"server/index.ts",
+"server/routes/direct-sql.ts"
+],
+"evidence": "The direct SQL router is mounted under /api with no guards and executes client-supplied queries.",
+"severity": "critical"
+},
+{
+"issue": "Demo admin credentials and token store bypass real authentication and store sessions in memory, enabling takeover after a simple POST.",
+"paths": [
+"server/auth.ts",
+"client/src/lib/auth.tsx",
+"server/auth/auth-middleware.ts"
+],
+"evidence": "Hardcoded Admin/Admin123 login, in-memory token store, and middleware that skips auth in development.",
+"severity": "high"
+},
+{
+"issue": "SMTP credentials and API secrets are committed and fall back to hard-coded defaults, exposing production infrastructure.",
+"paths": [
+".env.smtp",
+"server/services/ultraRobustVendonSync.ts",
+"server/services/vendonGapCrawler.ts"
+],
+"evidence": "Plaintext SMTP password and default Vendon API keys embedded in source control.",
+"severity": "critical"
+},
+{
+"issue": "Supplier portal uses Math.random session tokens without entropy controls and no rate limiting on token validation.",
+"paths": [
+"server/routes/supplier-portal.ts"
+],
+"evidence": "Session tokens are generated via concatenated Math.random strings and stored without hashing.",
+"severity": "high"
+}
+],
+"performance": [
+{
+"issue": "Multiple endpoints issue full-table scans without pagination (e.g., /api/sql-orders) impacting DB load.",
+"paths": [
+"server/index.ts",
+"server/routes/direct-sql.ts"
+],
+"evidence": "Routes load all orders or suppliers via SELECT * LIMIT 15/50 without filters, executed per request.",
+"severity": "medium"
+}
+],
+"reliability": [
+{
+"issue": "Auth tokens stored in-process are lost on restart, invalidating sessions and forcing re-authentication unpredictably.",
+"paths": [
+"server/auth.ts"
+],
+"evidence": "Token store is a plain object, cleared when the process restarts.",
+"severity": "medium"
+},
+{
+"issue": "Supplier portal's session validation relies solely on DB rows without expiry enforcement, risking stale access.",
+"paths": [
+"server/routes/supplier-portal.ts"
+],
+"evidence": "Session expiry is checked client-side, while tokens remain active until manual cleanup.",
+"severity": "medium"
+}
+],
+"dx_ops": [
+{
+"issue": "No automated tests or lint scripts exist, leaving regressions undetected.",
+"paths": [
+"package.json"
+],
+"evidence": "Scripts section lacks test/lint entries and no repo tests found.",
+"severity": "high"
+},
+{
+"issue": "Sensitive environment configuration is stored in tracked .env files instead of sample templates.",
+"paths": [
+".env.smtp"
+],
+"evidence": "Plaintext SMTP credentials committed to repository.",
+"severity": "high"
+}
+],
+"licenses": [
+{
+"package": "project",
+"license": "MIT (declared)",
+"risk": "medium"
+}
+]
+},
+"recommendations": {
+"quick_wins": [
+{
+"title": "Disable or lock down the direct SQL router",
+"why": "Eliminates the most critical remote execution vector against the production database.",
+"steps": [
+"Remove /api/execute-sql and related routes or wrap them behind strict admin authentication.",
+"Whitelist only required read-only queries with parameter binding.",
+"Add automated tests to prevent reintroduction."
+],
+"owner": "Backend",
+"eta_hours": 4
+},
+{
+"title": "Rotate and externalize leaked credentials",
+"why": "Prevents continued misuse of exposed SMTP and Vendon API secrets.",
+"steps": [
+"Revoke and regenerate SMTP and Vendon API keys.",
+"Purge secrets from git history and add them to .gitignore.",
+"Load secrets from environment managers (e.g., dotenv templates) with no hard-coded fallbacks."
+],
+"owner": "DevOps",
+"eta_hours": 6
+}
+],
+"backlog_epics": [
+{
+"epic": "Implement production-grade authentication and authorization",
+"goal": "Replace demo auth with persistent user management, hashed passwords, and route-level authorization guards.",
+"acceptance": [
+"Login uses salted bcrypt hashes stored in the database.",
+"All sensitive routes require validated JWT/session tokens with role checks.",
+"Automated tests cover login, logout, and role-based access."
+],
+"estimate_days": 20
+},
+{
+"epic": "Modularize backend and add regression safety nets",
+"goal": "Refactor monolithic server/index.ts into layered modules with integration coverage.",
+"acceptance": [
+"HTTP routing, services, and data access separated by directories.",
+"Critical workflows have integration tests executed in CI.",
+"Static analysis/linting runs on pull requests."
+],
+"estimate_days": 30
+}
+],
+"test_strategy": {
+"gaps": [
+"No automated unit or integration tests.",
+"Authentication, SQL routes, and data sync logic lack regression coverage."
+],
+"plan": [
+"unit: Auth helpers, data mappers, and rate-limit utilities.",
+"integration: Key Express routes with mocked DB to verify access control and query behavior.",
+"e2e: Critical ordering and supplier portal flows with Cypress/Playwright."
+],
+"coverage_target": "70%"
+}
+},
+"appendix": {
+"repo_map": [
+{
+"path": "client/",
+"role": "React SPA with routing and auth context",
+"evidence": "Client application wiring numerous pages via wouter."
+},
+{
+"path": "server/",
+"role": "Express API, schedulers, and integrations",
+"evidence": "Monolithic index wires routes, schedulers, and services."
+},
+{
+"path": "shared/",
+"role": "Drizzle schema and shared types",
+"evidence": "PostgreSQL schema definitions consumed by server."
+},
+{
+"path": "scripts/",
+"role": "Operational scripts for DB cleanup and sync",
+"evidence": "Documentation for Vendon duplicate cleanup scripts."
+},
+{
+"path": "server/python/",
+"role": "Prophet/forecast helpers invoked by jobs",
+"evidence": "Python scripts for forecasting workflows."
+}
+],
+"notable_files": [
+"server/index.ts",
+"server/routes/direct-sql.ts",
+"server/auth.ts",
+".env.smtp",
+"client/src/lib/auth.tsx",
+"server/services/ultraRobustVendonSync.ts",
+"package.json",
+"shared/schema.ts"
+],
+"assumptions": [
+"Neon/PostgreSQL database and external APIs are reachable though not validated during audit.",
+"SMTP, Vendon, and Cloudinary credentials found in repo are intended for production use."
+],
+"limitations": [
+"Build and tests were not executed due to security issues and audit scope.",
+"Large number of auxiliary .cjs import scripts were not individually reviewed."
+]
+}
+}
+Executive Summary
+Gesamtgesundheit: 28/100. Kritische Sicherheitslücken (unauthentifizierte SQL-Ausführung, harte Secrets) dominieren die Bewertung.
+Funktionsfähigkeit: 40/100. Umfangreiche Features existieren, aber ohne Tests und mit riskanter Demo-Auth bleibt Stabilität fraglich.
+Kernprobleme:
+/api/execute-sql erlaubt beliebiges SQL ohne Authentifizierung.
+Demo-Admin und Auto-Login im Frontend umgehen jede Sicherheitskontrolle.
+SMTP- und Vendon-API-Zugangsdaten sind fest eingecheckt bzw. als Default hinterlegt.
+Architektur-/Stack-Überblick
+Frontend: React 18 mit Wouter-Routing, React Query und Tailwind, gebündelt via Vite; API-Aufrufe standardmäßig gegen /api。
+Backend: Express-Server (ESM) mit Drizzle ORM, großer monolithischer server/index.ts, viele Routendateien für Inventar, Lieferanten, E-Mail etc.
+Shared: shared/schema.ts enthält Drizzle-Schema für PostgreSQL inklusive zahlreicher Geschäftsobjekte (sync logs, suppliers, orders, etc.).
+Integrationen: Vendon REST API (mehrere Sync-Services), OpenWeather OneCall, Cloudinary Uploads, SMTP-Versand.
+Ops/Tools: Scripts-Verzeichnis für Datenbereinigung, Drizzle-Kit Migration, Python Prophet-Forecasts.
+Funktionsfähigkeit: Buildbarkeit, Tests, kritische Pfade
+Build/Run: npm run dev startet Express+Vite, npm run build bundelt Client & Server, npm run start bedient dist. Keine Testskripte vorhanden.
+Migrations-/DB-Setup über drizzle-kit push (npm run db:push).
+Kritische Pfade (Bestellungen, Inventar, Supplier Portal) existieren, greifen jedoch häufig direkt auf SQL zu und umgehen Geschäftslogik-Schichten.
+Tests: keine Unit/Integrationstests; Demo-Login im Frontend macht jede Auth-Prüfung obsolet, daher unklar ob reale Auth überhaupt funktioniert.
+Top-Risiken & Belege
+R1: Unauthentifizierte SQL-Ausführung erlaubt beliebige Datenmanipulation – /api/execute-sql ist frei zugänglich und führt Query-Strings direkt aus.
+R2: Harte Demo-Admin-Creds & Auto-Login – Backend akzeptiert Admin/Admin123, speichert Tokens im Speicher, Frontend erstellt bei jedem Load einen Admin-Token.
+R3: Geheimnisse im Repo & Default-API-Key – SMTP-Passwort im Klartext, Vendon-API-Key Hardcoded-Fallback, Cloudinary fallback cloud_name。
+R4: Supplier-Portal generiert Sessions via Math.random ohne Ratelimit, ermöglicht Session-Forecasting/Guessing.
+R5: Keine Tests/CI + node_modules eingecheckt → Hoher Wartungsaufwand, fehlende Qualitäts-Sicherung.
+Handlungsempfehlungen: Quick Wins (2–10 Tage), Epics (4–12 Wochen)
+Quick Wins siehe JSON: (1) Direct-SQL abschalten/absichern, (2) Secrets rotieren & aus Repo entfernen.
+Zusätzliche kurzfristige Maßnahme: Demo-Login im Frontend abschalten und nur nach erfolgreicher Backend-Auth Token speichern.
+Epics: (a) Produktionsreife Auth mit persistentem Userstore, RBAC und Tests. (b) Backend modulieren, Domain-Services extrahieren, CI+Tests etablieren (s. JSON).
+Test- & Qualitätsstrategie
+Gaps: Keine Tests, keine Lint-Checks, kein CI Gate.
+Plan:
+Unit: Auth-Token-Utils, SQL-Service-Layer, Rate-Limits.
+Integration: Express-Routen (Orders, Supplier-Portal, Inter-App) gegen Test-DB (e.g. Vitest/Jest + Supertest).
+E2E: Bestellworkflow und Supplier-Portal mit Playwright.
+Quality Gates: 70 % Branch Coverage, Lint (ESLint/Prettier) im CI, Secret-Scanning vor Merge.
+Anhang: Repo-Karte, Annahmen, Lücken
+Repo-Karte siehe JSON Appendix (client/server/shared/scripts/python).
+Annahmen: Neon DB & externe APIs nicht geprüft; Secrets gelten als produktiv.
+Lücken: Zahlreiche .cjs Importscripte nicht auditiert; keine Laufzeittests.
