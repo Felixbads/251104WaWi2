@@ -100,41 +100,28 @@ applySecurityMiddleware(app);
 // OBSERVABILITY: Apply observability middleware after security
 applyObservabilityMiddleware(app);
 
-// Session Store Setup - Create a standard pg Pool for session store
-const sessionPool = new PgPool({
-  connectionString: process.env.DATABASE_URL,
-  max: 5, // Smaller pool for sessions
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 10000,
+// Setup Replit Authentication
+await setupAuth(app);
+
+// Replit Auth User Info Endpoint
+app.get('/api/auth/user', async (req, res) => {
+  if (!req.isAuthenticated()) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+  
+  const user = req.user as any;
+  if (!user?.claims) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+  
+  res.json({
+    id: user.claims.sub,
+    email: user.claims.email,
+    firstName: user.claims.first_name,
+    lastName: user.claims.last_name,
+    profileImageUrl: user.claims.profile_image_url,
+  });
 });
-
-const PgSession = connectPgSimple(session);
-
-// Mandatory environment variable checks - Security hardening
-if (!process.env.SESSION_SECRET) {
-  console.error('❌ FATAL: SESSION_SECRET environment variable is required');
-  process.exit(1);
-}
-
-// Session Configuration with enhanced security
-app.use(session({
-  store: new PgSession({
-    pool: sessionPool, // Use standard pg Pool for session store
-    tableName: 'session', // Session table name
-    createTableIfMissing: true,
-  }),
-  secret: process.env.SESSION_SECRET,
-  name: 'sessionId',
-  resave: false,
-  saveUninitialized: false,
-  cookie: {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict', // Enhanced security
-    maxAge: 8 * 60 * 60 * 1000, // 8 hours
-  },
-  rolling: true, // Reset expiration on activity
-}));
 
 // DEBUG: Portal-Route-Logging vor allen anderen Middlewares
 app.use((req, res, next) => {
@@ -194,13 +181,16 @@ app.get('/api/inter-app/health', async (req, res) => {
 // SECURITY: Import unified authentication system
 import authRouter from './routes/auth';
 import enhancedAuthRouter from './routes/enhanced-auth-routes';
-import { replitAuthMiddleware } from './auth/replit-auth';
+import { setupAuth, isAuthenticated } from './replitAuth';
 
 // Public routes that don't need authentication
 const publicRoutes = [
   '/api/inter-app/',
   '/api/supplier-portal/',
   '/api/auth/',
+  '/api/login',
+  '/api/callback',
+  '/api/logout',
   '/api/enhanced-auth/', // Enhanced Auth must be public for login
   '/api/test-email'
 ];
@@ -216,7 +206,7 @@ app.use('/api', (req, res, next) => {
   
   // Apply authentication for all other API routes
   logger.info({ path: req.path }, 'Protected route accessed');
-  return replitAuthMiddleware(req, res, next);
+  return isAuthenticated(req, res, next);
 });
 logger.info('Global API authentication middleware applied');
 
