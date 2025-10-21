@@ -7,7 +7,7 @@
 
 import { DatabaseStorage } from '../storage/database-storage';
 import { 
-  orders, orderItems, inventoryBatches, inventoryItems,
+  orders, orderItems, inventoryBatches, inventoryItems, productBatches, inventoryMovements,
   goodsReceiptDataSchema, goodsReceiptItemSchema, 
   goodsReceiptBatchCreateSchema, goodsReceiptInventoryUpdateSchema,
   type GoodsReceiptData, type GoodsReceiptItem, type GoodsReceiptBatchCreate,
@@ -938,22 +938,22 @@ class GoodsReceiptService {
     orderId?: number;
   }): Promise<number | null> {
     try {
-      const [batch] = await tx
-        .insert(inventoryBatches)
+      // KRITISCH: Erstelle productBatch für vollständige Rückverfolgbarkeit
+      const [productBatch] = await tx
+        .insert(productBatches)
         .values({
-          warehouseId: data.warehouseId,
           productId: data.productId,
-          productName: data.productName,
+          warehouseId: data.warehouseId,
           batchNumber: data.batchNumber,
-          quantity: data.quantity,
-          remainingQuantity: data.quantity,
-          expiryDate: data.expiryDate ? new Date(data.expiryDate) : null,
-          receivedDate: new Date(data.receivedDate),
+          supplierBatchNumber: data.supplierBatchNumber || null,
+          initialQuantity: data.quantity,
+          currentQuantity: data.quantity,
+          receivedDate: data.receivedDate,
+          expiryDate: data.expiryDate || null,
+          orderId: data.orderId || null,
           supplierId: data.supplierId,
-          supplierName: data.supplierName,
-          unitPrice: data.unitPrice,
-          totalValue: data.unitPrice * data.quantity,
-          status: data.qualityStatus === 'rejected' ? 'rejected' : 'active',
+          status: data.qualityStatus === 'rejected' ? 'quarantine' : 'active',
+          locationInWarehouse: data.locationInWarehouse || null,
           notes: [
             data.notes,
             data.supplierBatchNumber ? `Lieferanten-Charge: ${data.supplierBatchNumber}` : null,
@@ -962,10 +962,51 @@ class GoodsReceiptService {
             data.damageDescription ? `Schaden: ${data.damageDescription}` : null
           ].filter(Boolean).join(' | ') || data.notes
         })
+        .returning({ id: productBatches.id });
+
+      console.log(`✅ ProductBatch erstellt: ${productBatch.id} - ${data.batchNumber} (${data.qualityStatus || 'good'})`);
+
+      // Erstelle auch inventoryBatch für Kompatibilität (Legacy)
+      const [batch] = await tx
+        .insert(inventoryBatches)
+        .values({
+          warehouseId: data.warehouseId,
+          productId: data.productId,
+          batchNumber: data.batchNumber,
+          quantity: data.quantity,
+          expiryDate: data.expiryDate ? new Date(data.expiryDate) : null,
+          incomingDate: new Date(data.receivedDate),
+          status: data.qualityStatus === 'rejected' ? 'quarantine' : 'active',
+          supplierBatchNumber: data.supplierBatchNumber || null,
+          locationInWarehouse: data.locationInWarehouse || null,
+          notes: data.notes
+        })
         .returning({ id: inventoryBatches.id });
 
-      console.log(`✅ Enhanced Inventory Batch erstellt: ${batch.id} (${data.qualityStatus || 'good'})`);
-      return batch.id;
+      console.log(`✅ InventoryBatch (legacy) erstellt: ${batch.id}`);
+      
+      // Erstelle inventory_movement für Audit-Trail
+      await tx
+        .insert(inventoryMovements)
+        .values({
+          destinationWarehouseId: data.warehouseId,
+          productId: data.productId,
+          quantity: data.quantity,
+          movementType: 'IN',
+          direction: 'IN',
+          referenceType: 'ORDER',
+          referenceId: data.orderId?.toString() || 'UNKNOWN',
+          status: 'completed',
+          notes: `Wareneingang: ${data.quantity} Stück, Batch ${data.batchNumber}`,
+          batchId: batch.id,
+          batchNumber: data.batchNumber,
+          expiryDate: data.expiryDate || null,
+          currentStock: data.quantity
+        });
+
+      console.log(`✅ InventoryMovement protokolliert: ${data.quantity} Stück IN`);
+
+      return productBatch.id;
     } catch (error) {
       console.error('❌ Fehler beim Erstellen der Enhanced Inventory Batch:', error);
       return null;

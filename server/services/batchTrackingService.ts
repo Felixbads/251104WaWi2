@@ -22,7 +22,8 @@ import {
 import type { 
   Transaction, 
   ProductBatch, 
-  InsertBatchTransactionLog 
+  InsertBatchTransactionLog,
+  MachineStock
 } from '../../shared/schema';
 import * as crypto from 'crypto';
 
@@ -158,48 +159,48 @@ export class BatchTrackingService {
     console.log(`🔍 [BatchTrackingService] Suche verfügbare Chargen für Produkt ${productName} in Maschine ${machineId}`);
 
     try {
-      // Suche nach machine_stock Einträgen mit verfügbarem Bestand
+      // Suche nach machine_stocks Einträgen mit verfügbarem Bestand
       let whereConditions = and(
-        eq(machineStock.machineId, machineId),
-        gte(machineStock.currentQuantity, 1), // Mindestens 1 Stück verfügbar
-        ne(machineStock.currentQuantity, 0) // Explizit nicht 0
+        eq(machineStocks.machineId, machineId),
+        gte(machineStocks.currentQuantity, 1), // Mindestens 1 Stück verfügbar
+        ne(machineStocks.currentQuantity, 0) // Explizit nicht 0
       );
 
       // Filter nach Produkt (entweder ID oder Name)
       if (productId) {
         whereConditions = and(
-          eq(machineStock.machineId, machineId),
-          eq(machineStock.productId, productId),
-          gte(machineStock.currentQuantity, 1)
+          eq(machineStocks.machineId, machineId),
+          eq(machineStocks.productId, productId),
+          gte(machineStocks.currentQuantity, 1)
         );
       } else {
         whereConditions = and(
-          eq(machineStock.machineId, machineId),
-          eq(machineStock.productName, productName),
-          gte(machineStock.currentQuantity, 1)
+          eq(machineStocks.machineId, machineId),
+          eq(machineStocks.productName, productName),
+          gte(machineStocks.currentQuantity, 1)
         );
       }
 
       const query = db
         .select({
-          id: machineStock.id,
-          machineId: machineStock.machineId,
-          productId: machineStock.productId,
-          productName: machineStock.productName,
-          currentQuantity: machineStock.currentQuantity,
-          expiryDate: machineStock.expiryDate,
-          sourceBatchId: machineStock.sourceBatchId,
-          sourceBatchNumber: machineStock.sourceBatchNumber,
-          receivedDate: machineStock.receivedDate
+          id: machineStocks.id,
+          machineId: machineStocks.machineId,
+          productId: machineStocks.productId,
+          productName: machineStocks.productName,
+          currentQuantity: machineStocks.currentQuantity,
+          expiryDate: machineStocks.expiryDate,
+          sourceBatchId: machineStocks.sourceBatchId,
+          sourceBatchNumber: machineStocks.sourceBatchNumber,
+          receivedDate: machineStocks.receivedDate
         })
-        .from(machineStock)
+        .from(machineStocks)
         .where(whereConditions);
 
       // FIFO-Sortierung: Älteste Chargen zuerst
       const results = await query
         .orderBy(
-          asc(machineStock.expiryDate), // Ältestes MHD zuerst
-          asc(machineStock.receivedDate) // Bei gleichem MHD: Zuerst empfangen zuerst
+          asc(machineStocks.expiryDate), // Ältestes MHD zuerst
+          asc(machineStocks.receivedDate) // Bei gleichem MHD: Zuerst empfangen zuerst
         )
         .limit(50); // Sicherheitsgrenze
 
@@ -302,7 +303,7 @@ export class BatchTrackingService {
           productName,
           batchId: allocation.batchId,
           batchNumber: allocation.batchNumber,
-          expiryDate: allocation.expiryDate ? new Date(allocation.expiryDate) : new Date(),
+          expiryDate: allocation.expiryDate || new Date().toISOString().split('T')[0],
           stockBefore: allocation.stockBefore,
           stockAfter: allocation.stockAfter,
           quantity: allocation.quantity,
@@ -339,14 +340,14 @@ export class BatchTrackingService {
       for (const allocation of allocatedBatches) {
         if (allocation.batchId > 0) { // Nur für echte Chargen, nicht für "unknown"
           
-          // Finde den entsprechenden machine_stock Eintrag
+          // Finde den entsprechenden machine_stocks Eintrag
           const stockEntries = await db
             .select()
-            .from(machineStock)
+            .from(machineStocks)
             .where(
               and(
-                eq(machineStock.sourceBatchId, allocation.batchId),
-                eq(machineStock.currentQuantity, allocation.stockBefore)
+                eq(machineStocks.sourceBatchId, allocation.batchId),
+                eq(machineStocks.currentQuantity, allocation.stockBefore)
               )
             )
             .limit(1);
@@ -356,12 +357,12 @@ export class BatchTrackingService {
             
             // Aktualisiere den Bestand
             await db
-              .update(machineStock)
+              .update(machineStocks)
               .set({
                 currentQuantity: allocation.stockAfter,
                 updatedAt: new Date()
               })
-              .where(eq(machineStock.id, stockEntry.id));
+              .where(eq(machineStocks.id, stockEntry.id));
 
             console.log(`✅ [BatchTrackingService] Bestand aktualisiert für Charge ${allocation.batchNumber}: ${allocation.stockBefore} → ${allocation.stockAfter}`);
           }
@@ -405,7 +406,7 @@ export class BatchTrackingService {
         productName,
         batchId: -1, // Spezial-ID für unbekannte Chargen
         batchNumber: unknownBatchNumber,
-        expiryDate: new Date(), // Aktuelles Datum als Fallback
+        expiryDate: new Date().toISOString().split('T')[0], // Aktuelles Datum als Fallback
         stockBefore: 0,
         stockAfter: 0,
         quantity,
