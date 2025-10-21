@@ -105,9 +105,15 @@ applyObservabilityMiddleware(app);
 
 // Setup Replit Authentication - store promise for later awaiting
 const authSetupPromise = setupAuth(app).then(() => {
-  logger.info('Replit Auth initialized successfully');
+  logger.info('[REPLIT-AUTH] Authentication system initialized successfully');
+  return true;
 }).catch((error) => {
-  logger.error('Failed to initialize Replit Auth:', error);
+  logger.error('[REPLIT-AUTH] Failed to initialize authentication system:', error);
+  logger.error('[REPLIT-AUTH] Error details:', {
+    message: error instanceof Error ? error.message : String(error),
+    stack: error instanceof Error ? error.stack : undefined
+  });
+  // Re-throw to be caught by the await handler in server bootstrap
   throw error;
 });
 
@@ -3819,8 +3825,15 @@ app.get('/orders-data', (req, res) => {
   logger.info('SECURITY: Old public metrics endpoints blocked - redirecting to protected endpoints');
 
   // CRITICAL: Wait for Replit Auth to be fully initialized before starting server
-  await authSetupPromise;
-  logger.info('SECURITY: Replit Auth setup completed, server can now accept connections');
+  try {
+    await authSetupPromise;
+    logger.info('SECURITY: Replit Auth setup completed successfully, server can now accept connections');
+  } catch (error) {
+    logger.error('CRITICAL: Replit Auth initialization failed - server cannot start without authentication:', error);
+    logger.error('This is likely due to missing REPLIT_DOMAINS or OIDC configuration issues.');
+    // SECURITY: Exit the process - server must not start without working authentication
+    process.exit(1);
+  }
 
   // importantly only setup vite in development and after
   // setting up all the other routes so the catch-all route
