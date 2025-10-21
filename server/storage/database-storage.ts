@@ -3669,4 +3669,37 @@ export class DatabaseStorage implements IStorage {
       throw error;
     }
   }
+
+  // Replit Auth User Operations
+  async getReplitAuthUser(id: string): Promise<import('@shared/schema').ReplitAuthUser | undefined> {
+    try {
+      const { replitAuthUsers } = await import('@shared/schema');
+      const [user] = await db.select().from(replitAuthUsers).where(eq(replitAuthUsers.id, id));
+      return user;
+    } catch (error) {
+      console.error('[STORAGE] Error getting Replit Auth user:', error);
+      throw error;
+    }
+  }
+
+  async upsertReplitAuthUser(userData: import('@shared/schema').UpsertReplitAuthUser): Promise<import('@shared/schema').ReplitAuthUser> {
+    try {
+      const { replitAuthUsers } = await import('@shared/schema');
+      const [user] = await db
+        .insert(replitAuthUsers)
+        .values(userData)
+        .onConflictDoUpdate({
+          target: replitAuthUsers.id,
+          set: {
+            ...userData,
+            updatedAt: new Date(),
+          },
+        })
+        .returning();
+      return user;
+    } catch (error) {
+      console.error('[STORAGE] Error upserting Replit Auth user:', error);
+      throw error;
+    }
+  }
 }

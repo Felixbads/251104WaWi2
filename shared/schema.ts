@@ -8,16 +8,42 @@ import { relations } from "drizzle-orm";
 // FUNDAMENTAL TABLES (Referenced by others)
 // ========================================
 
-// Users table - Must be defined first as it's referenced by many other tables
+// Legacy Users table - DEPRECATED, kept for existing Foreign Keys only
+// DO NOT USE for new code - use replitAuthUsers instead
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   username: text("username").notNull().unique(),
   password: text("password").notNull(),
   email: text("email").unique(),
   role: text("role").default("user"),
-  approved: boolean("approved").default(false), // Standardmäßig nicht freigeschaltet
+  approved: boolean("approved").default(false),
   approvedBy: integer("approved_by"),
   approvedAt: timestamp("approved_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Session storage table for Replit Auth
+// (IMPORTANT) This table is mandatory for Replit Auth, don't drop it.
+export const sessions = pgTable(
+  "sessions",
+  {
+    sid: varchar("sid").primaryKey(),
+    sess: jsonb("sess").notNull(),
+    expire: timestamp("expire").notNull(),
+  },
+  (table) => [index("IDX_session_expire").on(table.expire)],
+);
+
+// Replit Auth Users table - USE THIS for all new authentication
+// (IMPORTANT) This table is mandatory for Replit Auth, don't drop it.
+export const replitAuthUsers = pgTable("replit_auth_users", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  email: varchar("email").unique(),
+  firstName: varchar("first_name"),
+  lastName: varchar("last_name"),
+  profileImageUrl: varchar("profile_image_url"),
+  role: text("role").default("user"), // Role for access control
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -33,6 +59,10 @@ export const insertUserSchema = createInsertSchema(users).omit({
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
+
+// Replit Auth Types
+export type UpsertReplitAuthUser = typeof replitAuthUsers.$inferInsert;
+export type ReplitAuthUser = typeof replitAuthUsers.$inferSelect;
 
 // Locations table - Must be defined before machines
 export const locations = pgTable("locations", {
