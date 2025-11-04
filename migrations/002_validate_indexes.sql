@@ -44,6 +44,8 @@ BEGIN
   RAISE NOTICE '================================================';
   RAISE NOTICE 'VALIDATING INDEX CREATION';
   RAISE NOTICE '================================================';
+  RAISE NOTICE 'Note: data_quality_metrics.machine_id was skipped (composite index exists)';
+  RAISE NOTICE 'Expected indexes: 26 (not 27)';
 
   FOREACH idx_name IN ARRAY expected_indexes
   LOOP
@@ -62,7 +64,7 @@ BEGIN
 
   RAISE NOTICE '================================================';
   RAISE NOTICE 'VALIDATION SUMMARY';
-  RAISE NOTICE 'Expected indexes: 27';
+  RAISE NOTICE 'Expected indexes: 26';
   RAISE NOTICE 'Found indexes: %', found_count;
   RAISE NOTICE 'Missing indexes: %', missing_count;
   RAISE NOTICE '================================================';
@@ -202,7 +204,8 @@ BEGIN
   RAISE NOTICE '================================================';
   RAISE NOTICE 'Total FK indexes in database: %', total_indexes;
   RAISE NOTICE 'Total FK index size: % MB', total_size / 1024 / 1024;
-  RAISE NOTICE 'Migration 002 indexes: 27 expected';
+  RAISE NOTICE 'Migration 002 indexes: 26 expected';
+  RAISE NOTICE 'Note: data_quality_metrics.machine_id skipped (composite exists)';
   RAISE NOTICE '================================================';
   RAISE NOTICE 'Next steps:';
   RAISE NOTICE '1. Monitor query performance with EXPLAIN ANALYZE';

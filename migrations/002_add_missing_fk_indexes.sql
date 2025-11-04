@@ -79,7 +79,7 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_user_eco_choices_product_id
 -- Log Phase 1 completion
 DO $$
 BEGIN
-  RAISE NOTICE 'Phase 1 completed: 10 critical indexes created';
+  RAISE NOTICE 'Phase 1 completed: 9 critical indexes created (data_quality_metrics skipped)';
   RAISE NOTICE 'Timestamp: %', NOW();
 END$$;
 
@@ -243,8 +243,8 @@ BEGIN
   RAISE NOTICE '================================================';
   RAISE NOTICE 'MIGRATION SUMMARY';
   RAISE NOTICE '================================================';
-  RAISE NOTICE 'Total indexes created: 27';
-  RAISE NOTICE 'Phase 1 (Critical): 10 indexes';
+  RAISE NOTICE 'Total indexes created: 26';
+  RAISE NOTICE 'Phase 1 (Critical): 9 indexes (data_quality_metrics skipped - has composite)';
   RAISE NOTICE 'Phase 2 (High): 7 indexes';
   RAISE NOTICE 'Phase 3 (Medium): 6 indexes';
   RAISE NOTICE 'Phase 4 (Low): 4 indexes';
@@ -266,6 +266,7 @@ DO $$
 BEGIN
   RAISE NOTICE '✅ Migration 002_add_missing_fk_indexes completed successfully';
   RAISE NOTICE 'Timestamp: %', NOW();
-  RAISE NOTICE 'All 27 foreign key indexes have been created.';
+  RAISE NOTICE 'All 26 foreign key indexes have been created.';
+  RAISE NOTICE 'Note: data_quality_metrics.machine_id skipped (composite index exists)';
   RAISE NOTICE 'Query performance should improve significantly for JOIN operations.';
 END$$;
